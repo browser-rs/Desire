@@ -38,7 +38,7 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.leading, isFullScreen ? 12 : 76)
-                .padding(.top, isFullScreen ? 8 : 24)
+                .padding(.top, 4)
                 .padding(.bottom, 4)
                 .background(Color.clear)
 
@@ -84,6 +84,7 @@ struct ContentView: View {
                 }
             }
         }
+        .ignoresSafeArea(.all, edges: .top)
         .onAppear {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)

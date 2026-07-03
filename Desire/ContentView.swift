@@ -102,9 +102,11 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { clearWindowChrome() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
             isFullScreen = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { clearWindowChrome() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }

@@ -150,6 +150,16 @@ struct WebView: NSViewRepresentable {
             decisionHandler(.allow)
         }
 
+        // 无法展示的 MIME 类型（.pkg/.dmg/.zip 等直接文件链接）转为下载，
+        // 否则 WebKit 会尝试渲染并失败（code 102 "frame load interrupted"）
+        func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            if !navigationResponse.canShowMIMEType {
+                decisionHandler(.download)
+            } else {
+                decisionHandler(.allow)
+            }
+        }
+
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
         }

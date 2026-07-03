@@ -11,7 +11,7 @@ import WebKit
 
 struct ContentView: View {
     @StateObject private var browser = BrowserState()
-    @State private var urlString = "https://www.google.com"
+    @State private var urlString = ""
     @State private var isLoading = false
     @State private var canGoBack = false
     @State private var canGoForward = false
@@ -21,10 +21,15 @@ struct ContentView: View {
     @State private var findString = ""
     @State private var findMatchCount = 0
     @FocusState private var isFindFocused: Bool
+    @State private var isOnNewTabPage = true
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Button(action: { navigateToNewTabPage() }) {
+                    Image(systemName: "plus")
+                }
+
                 Button(action: { browser.webView.goBack() }) {
                     Image(systemName: "chevron.left")
                 }
@@ -39,10 +44,6 @@ struct ContentView: View {
                     Image(systemName: "house")
                 }
 
-                Image(systemName: browser.isSecure ? "lock.fill" : "lock.open")
-                    .foregroundStyle(browser.isSecure ? Color.secondary : Color.orange)
-                    .imageScale(.small)
-
                 Button(action: {
                     if isLoading {
                         browser.webView.stopLoading()
@@ -53,12 +54,33 @@ struct ContentView: View {
                     Image(systemName: isLoading ? "xmark" : "arrow.clockwise")
                 }
 
-                TextField("请输入 URL", text: $urlString)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isUrlFocused)
-                    .onSubmit {
-                        loadURL()
-                    }
+                HStack(spacing: 4) {
+                    Image(systemName: browser.isSecure ? "lock.fill" : "lock.open")
+                        .foregroundStyle(browser.isSecure ? Color.secondary : Color.orange)
+                        .imageScale(.small)
+                        .padding(.leading, 4)
+                    TextField("搜索或输入网址", text: $urlString)
+                        .textFieldStyle(.plain)
+                        .focused($isUrlFocused)
+                        .onSubmit { loadURL() }
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.25))
+                        )
+                )
+
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 16, height: 16)
+                }
             }
             .padding(8)
             .background(.bar)
@@ -118,25 +140,51 @@ struct ContentView: View {
                 findBar
             }
 
-            WebView(
-                state: browser,
-                urlString: $urlString,
-                isLoading: $isLoading,
-                canGoBack: $canGoBack,
-                canGoForward: $canGoForward
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if isOnNewTabPage {
+                NewTabPage(urlString: $urlString) { input in
+                    navigateToURL(input)
+                }
+            } else {
+                WebView(
+                    state: browser,
+                    urlString: $urlString,
+                    isLoading: $isLoading,
+                    canGoBack: $canGoBack,
+                    canGoForward: $canGoForward
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .onReceive(browser.$pageTitle) { title in
             NSApp.mainWindow?.title = title
         }
         .onAppear {
-            if browser.webView.url == nil,
-               let url = URL(string: "https://www.google.com") {
-                browser.webView.load(URLRequest(url: url))
-                urlString = "https://www.google.com"
+            if browser.webView.url == nil {
+                isOnNewTabPage = true
             }
         }
+    }
+
+    private func navigateToNewTabPage() {
+        isOnNewTabPage = true
+        urlString = ""
+        browser.webView.stopLoading()
+    }
+
+    private func navigateToURL(_ input: String) {
+        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
+            if text.contains(".") {
+                text = "https://" + text
+            } else {
+                text = "https://www.google.com/search?q=" + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+            }
+        }
+        guard let url = URL(string: text) else { return }
+        isOnNewTabPage = false
+        urlString = text
+        browser.webView.load(URLRequest(url: url))
     }
 
     private var findBar: some View {
@@ -229,12 +277,6 @@ struct ContentView: View {
     }
 
     private func loadURL() {
-        var input = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !input.isEmpty else { return }
-        if !input.hasPrefix("http://") && !input.hasPrefix("https://") {
-            input = "https://" + input
-        }
-        guard let url = URL(string: input) else { return }
-        browser.webView.load(URLRequest(url: url))
+        navigateToURL(urlString)
     }
 }

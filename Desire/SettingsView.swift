@@ -45,6 +45,7 @@ class Settings: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var settings: Settings
+    @ObservedObject var contentBlocker: ContentBlocker
     var onDone: () -> Void
     @State private var showClearConfirm = false
 
@@ -64,6 +65,8 @@ struct SettingsView: View {
 
             Form {
                 Toggle("启用 JavaScript", isOn: $settings.isJavaScriptEnabled)
+
+                Toggle("广告屏蔽", isOn: $contentBlocker.isBlockingEnabled)
 
                 Divider()
 

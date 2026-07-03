@@ -17,6 +17,7 @@ struct ContentView: View {
     @StateObject private var historyStore = HistoryStore()
     @StateObject private var bookmarkStore = BookmarkStore()
     @StateObject private var userScriptStore = UserScriptStore()
+    @StateObject private var contentBlocker = ContentBlocker()
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
@@ -59,7 +60,7 @@ struct ContentView: View {
                         canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
                         canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
                         onOpenLinkInNewTab: { url in
-                            tabManager.addTab(url: url.absoluteString)
+                            tabManager.addTab(url: url.absoluteString, contentBlocker: contentBlocker)
                         },
                         onPageFinished: { url, title in
                             if !tab.isIncognito {
@@ -79,7 +80,7 @@ struct ContentView: View {
         }
         .onAppear {
             if tabManager.tabs.isEmpty {
-                tabManager.addTab()
+                tabManager.addTab(contentBlocker: contentBlocker)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -89,7 +90,7 @@ struct ContentView: View {
             isFullScreen = false
         }
         .overlay {
-            Button("") { tabManager.addTab() }
+            Button("") { tabManager.addTab(contentBlocker: contentBlocker) }
                 .keyboardShortcut("t", modifiers: .command)
                 .hidden()
             Button("") {
@@ -102,7 +103,7 @@ struct ContentView: View {
             Button("") { bookmarkCurrentPage() }
                 .keyboardShortcut("d", modifiers: .command)
                 .hidden()
-            Button("") { tabManager.addTab(incognito: true) }
+            Button("") { tabManager.addTab(incognito: true, contentBlocker: contentBlocker) }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .hidden()
             Button("") { toggleFullScreen() }
@@ -113,7 +114,7 @@ struct ContentView: View {
             historyPanel
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings, onDone: { showSettings = false })
+            SettingsView(settings: settings, contentBlocker: contentBlocker, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
             bookmarkPanel

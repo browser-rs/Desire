@@ -71,7 +71,7 @@ struct WebView: NSViewRepresentable {
         coordinator.stopObserving()
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKDownloadDelegate {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
@@ -125,5 +125,20 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
         }
+
+        func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+            download.delegate = self
+        }
+
+        func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = suggestedFilename
+            panel.begin { result in
+                completionHandler(result == .OK ? panel.url : nil)
+            }
+        }
+
+        func downloadDidFinish(_ download: WKDownload) {}
+        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {}
     }
 }

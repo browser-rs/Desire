@@ -50,6 +50,7 @@ struct WebView: NSViewRepresentable {
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    var onPageFinished: ((URL, String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -115,6 +116,7 @@ struct WebView: NSViewRepresentable {
                 parent.urlString = url.absoluteString
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
+                parent.onPageFinished?(url, parent.state.pageTitle)
             }
         }
 

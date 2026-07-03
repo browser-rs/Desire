@@ -13,8 +13,10 @@ struct ContentView: View {
     @StateObject private var tabManager = TabManager()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
+    @StateObject private var historyStore = HistoryStore()
 
     @State private var isFindBarVisible = false
+    @State private var showHistory = false
     @State private var findString = ""
     @State private var findMatchCount = 0
 
@@ -51,6 +53,9 @@ struct ContentView: View {
                         canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
                         onOpenLinkInNewTab: { url in
                             tabManager.addTab(url: url.absoluteString)
+                        },
+                        onPageFinished: { url, title in
+                            historyStore.addEntry(url: url.absoluteString, title: title)
                         }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,6 +84,50 @@ struct ContentView: View {
                 .keyboardShortcut("w", modifiers: .command)
                 .hidden()
         }
+        .sheet(isPresented: $showHistory) {
+            historyPanel
+        }
+    }
+
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("浏览历史")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { showHistory = false }
+            }
+            .padding()
+
+            if historyStore.entries.isEmpty {
+                Spacer()
+                Text("暂无浏览记录")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(historyStore.entries) { entry in
+                    Button {
+                        showHistory = false
+                        if let tab = tabManager.selectedTab {
+                            navigateToURL(entry.url, for: tab)
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.title)
+                                .lineLimit(1)
+                                .font(.body)
+                            Text(entry.url)
+                                .lineLimit(1)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(width: 400, height: 500)
     }
 
     private var tabBar: some View {
@@ -148,6 +197,10 @@ struct ContentView: View {
 
             Button(action: { loadHome(for: tab) }) {
                 Image(systemName: "house")
+            }
+
+            Button(action: { showHistory = true }) {
+                Image(systemName: "clock.arrow.circlepath")
             }
 
             Button(action: {

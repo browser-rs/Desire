@@ -30,6 +30,10 @@ struct ContentView: View {
                 }
                 .disabled(!canGoForward)
 
+                Button(action: { browser.webView.load(URLRequest(url: URL(string: "https://www.google.com")!)) }) {
+                    Image(systemName: "house")
+                }
+
                 Button(action: {
                     if isLoading {
                         browser.webView.stopLoading()
@@ -50,7 +54,13 @@ struct ContentView: View {
             .padding(8)
             .background(.bar)
             .overlay {
-                Button("") { isUrlFocused = true }
+                Button("") {
+                    isUrlFocused = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        NSApp.mainWindow?.firstResponder?
+                            .tryToPerform(#selector(NSTextField.selectText(_:)), with: nil)
+                    }
+                }
                     .keyboardShortcut("l", modifiers: .command)
                     .hidden()
                 Button("") { browser.webView.reload() }

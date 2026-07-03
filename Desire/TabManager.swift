@@ -26,6 +26,11 @@ class Tab: ObservableObject {
                 self?.displayTitle = title
             }
             .store(in: &cancellables)
+        browser.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 }
 

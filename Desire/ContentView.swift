@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showBookmarks = false
     @State private var findString = ""
     @State private var findMatchCount = 0
+    @State private var isFullScreen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +79,12 @@ struct ContentView: View {
                 tabManager.addTab()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
+        }
         .overlay {
             Button("") { tabManager.addTab() }
                 .keyboardShortcut("t", modifiers: .command)
@@ -94,6 +101,9 @@ struct ContentView: View {
                 .hidden()
             Button("") { tabManager.addTab(incognito: true) }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
+                .hidden()
+            Button("") { toggleFullScreen() }
+                .keyboardShortcut("f", modifiers: [.command, .control])
                 .hidden()
         }
         .sheet(isPresented: $showHistory) {
@@ -200,6 +210,10 @@ struct ContentView: View {
 
             Button(action: { showSettings = true }) {
                 Image(systemName: "gearshape")
+            }
+
+            Button(action: { toggleFullScreen() }) {
+                Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
 
             Button(action: {
@@ -432,6 +446,10 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+
+    private func toggleFullScreen() {
+        NSApp.mainWindow?.toggleFullScreen(nil)
+    }
 
     private func bookmarkCurrentPage() {
         guard let tab = tabManager.selectedTab,

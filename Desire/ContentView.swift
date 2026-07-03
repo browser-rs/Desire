@@ -188,7 +188,6 @@ struct ContentView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
         .frame(height: 30)
         .background(
             Capsule()
@@ -272,7 +271,7 @@ struct ContentView: View {
                 navButton(systemName: "house") { loadHome(for: tab) }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .frame(height: 30)
             .background(
                 Capsule().fill(Color(nsColor: .controlBackgroundColor))
             )
@@ -288,8 +287,8 @@ struct ContentView: View {
                     .onSubmit { loadURL(for: tab) }
                     .font(.system(size: 13))
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .frame(height: 30)
             .background(
                 Capsule()
                     .fill(Color(nsColor: .controlBackgroundColor))

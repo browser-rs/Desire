@@ -38,7 +38,7 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.leading, isFullScreen ? 12 : 76)
-                .padding(.top, isFullScreen ? 4 : 6)
+                .padding(.top, isFullScreen ? 8 : 24)
                 .padding(.bottom, 4)
                 .background(Color.clear)
 

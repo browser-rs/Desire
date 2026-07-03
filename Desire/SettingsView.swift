@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import WebKit
 
 enum SearchEngine: String, CaseIterable {
     case google = "Google"
@@ -45,6 +46,7 @@ class Settings: ObservableObject {
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     var onDone: () -> Void
+    @State private var showClearConfirm = false
 
     var body: some View {
         TabView {
@@ -62,15 +64,32 @@ struct SettingsView: View {
 
             Form {
                 Toggle("启用 JavaScript", isOn: $settings.isJavaScriptEnabled)
+
+                Divider()
+
+                Button("清除浏览数据", role: .destructive) {
+                    showClearConfirm = true
+                }
             }
             .padding()
             .tabItem { Label("隐私", systemImage: "hand.raised") }
         }
-        .frame(width: 400, height: 300)
+        .frame(width: 400, height: 320)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成", action: onDone)
             }
         }
+        .alert("清除浏览数据", isPresented: $showClearConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) { clearBrowsingData() }
+        } message: {
+            Text("将清除缓存、Cookies 和本地存储数据。此操作不可撤销。")
+        }
+    }
+
+    private func clearBrowsingData() {
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { }
     }
 }

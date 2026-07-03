@@ -3,8 +3,33 @@ import SwiftUI
 import WebKit
 
 @MainActor
+class BrowserWKWebView: WKWebView {
+    var onOpenLinkInNewTab: ((URL) -> Void)?
+
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+
+        let point = convert(event.locationInWindow, from: nil)
+        evaluateJavaScript("document.elementFromPoint(\(Int(point.x)), \(Int(point.y))).closest('a')?.href") { [weak self] result, _ in
+            guard let self, let urlString = result as? String, let url = URL(string: urlString) else { return }
+
+            let item = NSMenuItem(title: "在新标签页中打开", action: #selector(self.openLinkInNewTab), keyEquivalent: "")
+            item.target = self
+            item.representedObject = url
+            menu.addItem(.separator())
+            menu.addItem(item)
+        }
+    }
+
+    @objc private func openLinkInNewTab(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        onOpenLinkInNewTab?(url)
+    }
+}
+
+@MainActor
 class BrowserState: ObservableObject {
-    let webView: WKWebView
+    let webView: BrowserWKWebView
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
@@ -13,7 +38,7 @@ class BrowserState: ObservableObject {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
-        webView = WKWebView(frame: .zero, configuration: config)
+        webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
     }
 }
@@ -24,21 +49,25 @@ struct WebView: NSViewRepresentable {
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
+    var onOpenLinkInNewTab: ((URL) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> BrowserWKWebView {
         let webView = state.webView
         webView.navigationDelegate = context.coordinator
+        webView.onOpenLinkInNewTab = { url in
+            context.coordinator.parent.onOpenLinkInNewTab?(url)
+        }
         context.coordinator.observe(webView)
         return webView
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func updateNSView(_ nsView: BrowserWKWebView, context: Context) {}
 
-    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+    static func dismantleNSView(_ nsView: BrowserWKWebView, coordinator: Coordinator) {
         coordinator.stopObserving()
     }
 

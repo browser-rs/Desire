@@ -48,7 +48,10 @@ struct ContentView: View {
                         urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
                         isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
                         canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
-                        canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 })
+                        canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
+                        onOpenLinkInNewTab: { url in
+                            tabManager.addTab(url: url.absoluteString)
+                        }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }

@@ -20,6 +20,7 @@ class Tab: ObservableObject {
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
+            isOnNewTabPage = false
         }
         browser.$pageTitle
             .sink { [weak self] title in

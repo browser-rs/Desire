@@ -15,10 +15,12 @@ struct ContentView: View {
     @FocusState private var isFindFocused: Bool
     @StateObject private var settings = Settings()
     @StateObject private var historyStore = HistoryStore()
+    @StateObject private var bookmarkStore = BookmarkStore()
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
     @State private var showSettings = false
+    @State private var showBookmarks = false
     @State private var findString = ""
     @State private var findMatchCount = 0
 
@@ -85,6 +87,9 @@ struct ContentView: View {
             }
                 .keyboardShortcut("w", modifiers: .command)
                 .hidden()
+            Button("") { bookmarkCurrentPage() }
+                .keyboardShortcut("d", modifiers: .command)
+                .hidden()
         }
         .sheet(isPresented: $showHistory) {
             historyPanel
@@ -92,48 +97,12 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(settings: settings, onDone: { showSettings = false })
         }
-    }
-
-    private var historyPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("浏览历史")
-                    .font(.headline)
-                Spacer()
-                Button("关闭") { showHistory = false }
-            }
-            .padding()
-
-            if historyStore.entries.isEmpty {
-                Spacer()
-                Text("暂无浏览记录")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                List(historyStore.entries) { entry in
-                    Button {
-                        showHistory = false
-                        if let tab = tabManager.selectedTab {
-                            navigateToURL(entry.url, for: tab)
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.title)
-                                .lineLimit(1)
-                                .font(.body)
-                            Text(entry.url)
-                                .lineLimit(1)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+        .sheet(isPresented: $showBookmarks) {
+            bookmarkPanel
         }
-        .frame(width: 400, height: 500)
     }
+
+    // MARK: - Tab Bar
 
     private var tabBar: some View {
         HStack(spacing: 0) {
@@ -188,6 +157,8 @@ struct ContentView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Toolbar
+
     private func toolbar(for tab: Tab) -> some View {
         HStack(spacing: 6) {
             Button(action: { tab.browser.webView.goBack() }) {
@@ -207,6 +178,15 @@ struct ContentView: View {
             Button(action: { showHistory = true }) {
                 Image(systemName: "clock.arrow.circlepath")
             }
+
+            Button(action: { showBookmarks = true }) {
+                Image(systemName: "bookmark")
+            }
+
+            Button(action: { bookmarkCurrentPage() }) {
+                Image(systemName: "bookmark.fill")
+            }
+            .disabled(tab.isOnNewTabPage)
 
             Button(action: { showSettings = true }) {
                 Image(systemName: "gearshape")
@@ -299,30 +279,7 @@ struct ContentView: View {
         }
     }
 
-    private func loadHome(for tab: Tab) {
-        guard let url = URL(string: settings.homePage) else { return }
-        tab.browser.webView.load(URLRequest(url: url))
-    }
-
-    private func navigateToURL(_ input: String, for tab: Tab) {
-        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
-            if text.contains(".") {
-                text = "https://" + text
-            } else {
-                text = settings.searchURLTemplate + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
-            }
-        }
-        guard let url = URL(string: text) else { return }
-        tab.isOnNewTabPage = false
-        tab.urlString = text
-        tab.browser.webView.load(URLRequest(url: url))
-    }
-
-    private func loadURL(for tab: Tab) {
-        navigateToURL(tab.urlString, for: tab)
-    }
+    // MARK: - Find Bar
 
     private var findBar: some View {
         HStack(spacing: 6) {
@@ -366,6 +323,138 @@ struct ContentView: View {
         .padding(.vertical, 6)
         .background(.bar)
         .onAppear { isFindFocused = true }
+    }
+
+    // MARK: - Panels
+
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("浏览历史")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { showHistory = false }
+            }
+            .padding()
+
+            if historyStore.entries.isEmpty {
+                Spacer()
+                Text("暂无浏览记录")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(historyStore.entries) { entry in
+                    Button {
+                        showHistory = false
+                        if let tab = tabManager.selectedTab {
+                            navigateToURL(entry.url, for: tab)
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.title)
+                                .lineLimit(1)
+                                .font(.body)
+                            Text(entry.url)
+                                .lineLimit(1)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(width: 400, height: 500)
+    }
+
+    private var bookmarkPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("书签")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { showBookmarks = false }
+            }
+            .padding()
+
+            if bookmarkStore.bookmarks.isEmpty {
+                Spacer()
+                Text("暂无书签")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(bookmarkStore.bookmarks) { bookmark in
+                    HStack {
+                        Button {
+                            showBookmarks = false
+                            if let tab = tabManager.selectedTab {
+                                navigateToURL(bookmark.url, for: tab)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bookmark.title)
+                                    .lineLimit(1)
+                                    .font(.body)
+                                Text(bookmark.url)
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Button {
+                            bookmarkStore.remove(bookmark)
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(width: 400, height: 500)
+    }
+
+    // MARK: - Actions
+
+    private func bookmarkCurrentPage() {
+        guard let tab = tabManager.selectedTab,
+              let url = tab.browser.webView.url,
+              !tab.isOnNewTabPage else { return }
+        bookmarkStore.add(title: tab.browser.pageTitle, url: url.absoluteString)
+    }
+
+    private func loadHome(for tab: Tab) {
+        guard let url = URL(string: settings.homePage) else { return }
+        tab.isOnNewTabPage = false
+        tab.urlString = settings.homePage
+        tab.browser.webView.load(URLRequest(url: url))
+    }
+
+    private func navigateToURL(_ input: String, for tab: Tab) {
+        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
+            if text.contains(".") {
+                text = "https://" + text
+            } else {
+                text = settings.searchURLTemplate + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+            }
+        }
+        guard let url = URL(string: text) else { return }
+        tab.isOnNewTabPage = false
+        tab.urlString = text
+        tab.browser.webView.load(URLRequest(url: url))
+    }
+
+    private func loadURL(for tab: Tab) {
+        navigateToURL(tab.urlString, for: tab)
     }
 
     private func showFindBar() {

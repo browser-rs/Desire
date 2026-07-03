@@ -270,18 +270,18 @@ struct ContentView: View {
     // MARK: - Toolbar
 
     private func toolbar(for tab: Tab) -> some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 4) {
+        HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 navButton(systemName: "chevron.left") { tab.browser.webView.goBack() }
                     .disabled(!tab.canGoBack)
                 navButton(systemName: "chevron.right") { tab.browser.webView.goForward() }
                     .disabled(!tab.canGoForward)
-                navButton(systemName: "house") { loadHome(for: tab) }
                 navButton(systemName: "arrow.clockwise") {
                     if tab.isLoading { tab.browser.webView.stopLoading() } else { tab.browser.webView.reload() }
                 }
+                navButton(systemName: "house") { loadHome(for: tab) }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(
                 Capsule().fill(Color(nsColor: .controlBackgroundColor))

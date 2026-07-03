@@ -61,7 +61,7 @@ struct ContentView: View {
                         canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
                         canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
                         onOpenLinkInNewTab: { url in
-                            tabManager.addTab(url: url.absoluteString, contentBlocker: contentBlocker)
+                            tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
                         },
                         onPageFinished: { url, title in
                             if !tab.isIncognito {
@@ -81,7 +81,7 @@ struct ContentView: View {
         }
         .onAppear {
             if tabManager.tabs.isEmpty {
-                tabManager.addTab(contentBlocker: contentBlocker)
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -93,8 +93,8 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }
             switch command {
-            case .newTab: tabManager.addTab(contentBlocker: contentBlocker)
-            case .newIncognitoTab: tabManager.addTab(incognito: true, contentBlocker: contentBlocker)
+            case .newTab: tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            case .newIncognitoTab: tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             case .closeTab:
                 if let tab = tabManager.selectedTab {
                     tabManager.closeTab(at: tabManager.selectedIndex)
@@ -108,7 +108,7 @@ struct ContentView: View {
             }
         }
         .overlay {
-            Button("") { tabManager.addTab(contentBlocker: contentBlocker) }
+            Button("") { tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
                 .keyboardShortcut("t", modifiers: .command)
                 .hidden()
             Button("") {
@@ -121,7 +121,7 @@ struct ContentView: View {
             Button("") { bookmarkCurrentPage() }
                 .keyboardShortcut("d", modifiers: .command)
                 .hidden()
-            Button("") { tabManager.addTab(incognito: true, contentBlocker: contentBlocker) }
+            Button("") { tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .hidden()
             Button("") { toggleFullScreen() }
@@ -154,7 +154,7 @@ struct ContentView: View {
                 }
             }
 
-            Button(action: { tabManager.addTab() }) {
+            Button(action: { tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }) {
                 Image(systemName: "plus")
                     .font(.caption)
                     .padding(6)

@@ -34,9 +34,10 @@ class BrowserState: ObservableObject {
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
 
-    init(incognito: Bool = false, contentBlocker: ContentBlocker? = nil) {
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.preferences.javaScriptEnabled = javaScriptEnabled
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }

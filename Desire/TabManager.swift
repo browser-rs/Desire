@@ -16,9 +16,9 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(url: String? = nil, incognito: Bool = false, contentBlocker: ContentBlocker? = nil) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         self.isIncognito = incognito
-        browser = BrowserState(incognito: incognito, contentBlocker: contentBlocker)
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -48,8 +48,8 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, contentBlocker: ContentBlocker? = nil) {
-        let tab = Tab(url: url, incognito: incognito, contentBlocker: contentBlocker)
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
         observeTab(tab)
         tabs.append(tab)
         selectedIndex = tabs.count - 1

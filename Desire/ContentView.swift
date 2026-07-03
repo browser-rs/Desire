@@ -16,11 +16,13 @@ struct ContentView: View {
     @StateObject private var settings = Settings()
     @StateObject private var historyStore = HistoryStore()
     @StateObject private var bookmarkStore = BookmarkStore()
+    @StateObject private var userScriptStore = UserScriptStore()
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
     @State private var showSettings = false
     @State private var showBookmarks = false
+    @State private var showUserScripts = false
     @State private var findString = ""
     @State private var findMatchCount = 0
     @State private var isFullScreen = false
@@ -63,6 +65,7 @@ struct ContentView: View {
                             if !tab.isIncognito {
                                 historyStore.addEntry(url: url.absoluteString, title: title)
                             }
+                            userScriptStore.injectScripts(into: tab.browser.webView)
                         }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -114,6 +117,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showBookmarks) {
             bookmarkPanel
+        }
+        .sheet(isPresented: $showUserScripts) {
+            userScriptPanel
         }
     }
 
@@ -210,6 +216,10 @@ struct ContentView: View {
 
             Button(action: { showSettings = true }) {
                 Image(systemName: "gearshape")
+            }
+
+            Button(action: { showUserScripts = true }) {
+                Image(systemName: "applescript")
             }
 
             Button(action: { toggleFullScreen() }) {
@@ -443,6 +453,67 @@ struct ContentView: View {
             }
         }
         .frame(width: 400, height: 500)
+    }
+
+    private var userScriptPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("用户脚本")
+                    .font(.headline)
+                Spacer()
+                Button("添加", systemImage: "plus") { addUserScript() }
+                    .labelStyle(.iconOnly)
+                Button("关闭") { showUserScripts = false }
+            }
+            .padding()
+
+            if userScriptStore.scripts.isEmpty {
+                Spacer()
+                Text("暂无用户脚本")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(userScriptStore.scripts) { script in
+                    HStack {
+                        Toggle(isOn: Binding(
+                            get: { script.isEnabled },
+                            set: { enabled in
+                                var s = script
+                                s.isEnabled = enabled
+                                userScriptStore.update(s)
+                            }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(script.name)
+                                    .lineLimit(1)
+                                    .font(.body)
+                                Text(script.urlPattern)
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button("", systemImage: "trash") {
+                            userScriptStore.remove(script)
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(width: 420, height: 400)
+    }
+
+    private func addUserScript() {
+        showUserScripts = false
+        // Simple default script template
+        userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
     }
 
     // MARK: - Actions

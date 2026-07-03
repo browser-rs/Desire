@@ -37,10 +37,10 @@ struct ContentView: View {
                     tabPills()
                     Spacer()
                 }
-                .padding(.leading, 76)
-                .padding(.top, 6)
+                .padding(.leading, isFullScreen ? 12 : 76)
+                .padding(.top, isFullScreen ? 4 : 6)
                 .padding(.bottom, 4)
-                .background(.bar)
+                .background(Color.clear)
 
                 toolbar(for: tab)
             }
@@ -87,6 +87,11 @@ struct ContentView: View {
         .onAppear {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            }
+            if let window = NSApp.mainWindow {
+                window.titlebarAppearsTransparent = true
+                window.styleMask.insert(.fullSizeContentView)
+                window.titleVisibility = .hidden
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in

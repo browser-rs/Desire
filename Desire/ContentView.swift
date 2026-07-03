@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var canGoBack = false
     @State private var canGoForward = false
+    @FocusState private var isUrlFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,11 +42,27 @@ struct ContentView: View {
 
                 TextField("请输入 URL", text: $urlString)
                     .textFieldStyle(.roundedBorder)
+                    .focused($isUrlFocused)
                     .onSubmit {
                         loadURL()
                     }
             }
             .padding(8)
+            .background(.bar)
+            .overlay {
+                Button("") { isUrlFocused = true }
+                    .keyboardShortcut("l", modifiers: .command)
+                    .hidden()
+                Button("") { browser.webView.reload() }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .hidden()
+                Button("") { browser.webView.goBack() }
+                    .keyboardShortcut("[", modifiers: .command)
+                    .hidden()
+                Button("") { browser.webView.goForward() }
+                    .keyboardShortcut("]", modifiers: .command)
+                    .hidden()
+            }
 
             ProgressView(value: browser.estimatedProgress, total: 1)
                 .progressViewStyle(.linear)

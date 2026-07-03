@@ -75,13 +75,16 @@ struct ContentView: View {
             }
         }
         .onReceive(tabManager.$selectedIndex) { _ in
-            if let tab = tabManager.selectedTab {
-                NSApp.mainWindow?.title = tab.browser.pageTitle
-            }
+            // 标题栏已隐藏，不再设置窗口标题
         }
         .onAppear {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            }
+            if let window = NSApp.mainWindow {
+                window.titlebarAppearsTransparent = true
+                window.styleMask.insert(.fullSizeContentView)
+                window.titleVisibility = .hidden
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -147,9 +150,11 @@ struct ContentView: View {
                     .padding(6)
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 4)
+            .padding(.trailing, 8)
         }
-        .padding(.leading, 4)
+        .padding(.leading, 76)
+        .padding(.top, 8)
+        .frame(height: 38)
         .background(.bar)
     }
 

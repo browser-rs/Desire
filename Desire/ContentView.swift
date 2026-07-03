@@ -89,6 +89,23 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
             isFullScreen = false
         }
+        .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
+            guard let command = notification.object as? BrowserCommand else { return }
+            switch command {
+            case .newTab: tabManager.addTab(contentBlocker: contentBlocker)
+            case .newIncognitoTab: tabManager.addTab(incognito: true, contentBlocker: contentBlocker)
+            case .closeTab:
+                if let tab = tabManager.selectedTab {
+                    tabManager.closeTab(at: tabManager.selectedIndex)
+                }
+            case .previousTab:
+                guard tabManager.selectedIndex > 0 else { return }
+                tabManager.selectTab(at: tabManager.selectedIndex - 1)
+            case .nextTab:
+                guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
+                tabManager.selectTab(at: tabManager.selectedIndex + 1)
+            }
+        }
         .overlay {
             Button("") { tabManager.addTab(contentBlocker: contentBlocker) }
                 .keyboardShortcut("t", modifiers: .command)
@@ -187,7 +204,7 @@ struct ContentView: View {
     // MARK: - Toolbar
 
     private func toolbar(for tab: Tab) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Button(action: { tab.browser.webView.goBack() }) {
                 Image(systemName: "chevron.left")
             }
@@ -200,31 +217,6 @@ struct ContentView: View {
 
             Button(action: { loadHome(for: tab) }) {
                 Image(systemName: "house")
-            }
-
-            Button(action: { showHistory = true }) {
-                Image(systemName: "clock.arrow.circlepath")
-            }
-
-            Button(action: { showBookmarks = true }) {
-                Image(systemName: "bookmark")
-            }
-
-            Button(action: { bookmarkCurrentPage() }) {
-                Image(systemName: "bookmark.fill")
-            }
-            .disabled(tab.isOnNewTabPage)
-
-            Button(action: { showSettings = true }) {
-                Image(systemName: "gearshape")
-            }
-
-            Button(action: { showUserScripts = true }) {
-                Image(systemName: "applescript")
-            }
-
-            Button(action: { toggleFullScreen() }) {
-                Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
 
             Button(action: {
@@ -258,14 +250,35 @@ struct ContentView: View {
                             .stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.secondary.opacity(0.25))
                     )
             )
+            .layoutPriority(1)
+
+            Spacer()
 
             if tab.isLoading {
                 ProgressView()
                     .scaleEffect(0.5)
                     .frame(width: 16, height: 16)
             }
+
+            Button(action: { bookmarkCurrentPage() }) {
+                Image(systemName: "bookmark")
+            }
+            .disabled(tab.isOnNewTabPage)
+
+            Menu {
+                Button("浏览历史", systemImage: "clock.arrow.circlepath") { showHistory = true }
+                Button("书签", systemImage: "bookmark") { showBookmarks = true }
+                Button("用户脚本", systemImage: "applescript") { showUserScripts = true }
+                Divider()
+                Button(isFullScreen ? "退出全屏" : "全屏", systemImage: "arrow.up.left.and.arrow.down.right") { toggleFullScreen() }
+                Button("偏好设置…", systemImage: "gearshape") { showSettings = true }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.button)
         }
-        .padding(8)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(.bar)
         .overlay {
             Button("") {

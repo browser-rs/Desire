@@ -188,7 +188,7 @@ struct ContentView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .frame(height: 30)
+        .frame(height: 26)
         .background(
             Capsule()
                 .fill(index == tabManager.selectedIndex

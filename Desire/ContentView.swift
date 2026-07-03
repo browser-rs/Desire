@@ -32,8 +32,27 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            tabBar
             if let tab = tabManager.selectedTab {
+                HStack(spacing: 6) {
+                    tabPill(for: tab)
+
+                    Button {
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.leading, 76)
+                .padding(.top, 6)
+                .padding(.bottom, 4)
+                .background(.bar)
+
                 toolbar(for: tab)
             }
 
@@ -133,65 +152,42 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Tab Bar (Helium style: favicon-only tabs)
+    // MARK: - Tab Pill (Helium style: title bar pill)
 
-    private var tabBar: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                tabFavicon(for: tab, at: index)
+    private func tabPill(for tab: Tab) -> some View {
+        HStack(spacing: 6) {
+            if tab.isLoading {
+                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
+            } else if tab.isIncognito {
+                Image(systemName: "mask").font(.caption)
+            } else if tab.isOnNewTabPage {
+                Image(systemName: "asterisk").font(.caption)
+            } else {
+                Image(systemName: "globe").font(.caption)
             }
-
-            Button {
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-            } label: {
-                Image(systemName: "plus")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.leading, 76)
-        .padding(.top, 6)
-        .frame(height: 30)
-    }
-
-    private func tabFavicon(for tab: Tab, at index: Int) -> some View {
-        Button {
-            tabManager.selectTab(at: index)
-        } label: {
-            Group {
-                if tab.isLoading {
-                    ProgressView().scaleEffect(0.4).frame(width: 16, height: 16)
-                } else if tab.isIncognito {
-                    Image(systemName: "mask").font(.caption)
-                } else if tab.isOnNewTabPage {
-                    Image(systemName: "globe").font(.caption)
-                } else {
-                    Image(systemName: "square.grid.1x2.fill").font(.caption)
-                }
-            }
-            .frame(width: 24, height: 24)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(index == tabManager.selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(index == tabManager.selectedIndex ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
-            )
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
+            Text(tab.displayTitle)
+                .lineLimit(1)
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: 160)
             if tabManager.tabs.count > 1 {
-                Button("关闭", systemImage: "xmark") { tabManager.closeTab(at: index) }
-            }
-            Button("关闭其他标签", systemImage: "xmark.circle") {
-                for i in (0..<tabManager.tabs.count).reversed() where i != index {
-                    tabManager.closeTab(at: i)
+                Button(action: { tabManager.closeTab(at: tabManager.selectedIndex) }) {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+        )
     }
 
     private var tabSwitcher: some View {

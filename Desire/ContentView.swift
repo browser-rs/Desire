@@ -34,18 +34,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
                 HStack(spacing: 6) {
-                    tabPill(for: tab)
-
-                    Button {
-                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .frame(width: 24, height: 24)
-                    }
-                    .buttonStyle(.plain)
-
+                    tabPills()
                     Spacer()
                 }
                 .padding(.leading, 76)
@@ -152,9 +141,28 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Tab Pill (Helium style: title bar pill)
+    // MARK: - Tab Pills (Helium style: all tabs in title bar)
 
-    private func tabPill(for tab: Tab) -> some View {
+    private func tabPills() -> some View {
+        HStack(spacing: 6) {
+            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                tabPill(for: tab, at: index)
+            }
+
+            Button {
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+        }
+    }
+
+    private func tabPill(for tab: Tab, at index: Int) -> some View {
         HStack(spacing: 6) {
             if tab.isLoading {
                 ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
@@ -168,26 +176,32 @@ struct ContentView: View {
             Text(tab.displayTitle)
                 .lineLimit(1)
                 .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: 160)
-            if tabManager.tabs.count > 1 {
-                Button(action: { tabManager.closeTab(at: tabManager.selectedIndex) }) {
-                    Image(systemName: "xmark")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                .frame(maxWidth: 120)
+            Button(action: { tabManager.closeTab(at: index) }) {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(
             Capsule()
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(index == tabManager.selectedIndex
+                      ? Color(nsColor: .controlBackgroundColor)
+                      : Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
             Capsule()
-                .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                .stroke(index == tabManager.selectedIndex
+                        ? Color.accentColor
+                        : Color.secondary.opacity(0.25),
+                        lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
         )
+        .onTapGesture {
+            tabManager.selectTab(at: index)
+        }
     }
 
     private var tabSwitcher: some View {

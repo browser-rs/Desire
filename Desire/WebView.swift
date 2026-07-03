@@ -10,6 +10,8 @@ class BrowserState: ObservableObject {
 
     init() {
         let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+
         webView = WKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
     }

@@ -25,17 +25,19 @@ struct ContentView: View {
     @State private var showBookmarks = false
     @State private var showUserScripts = false
     @State private var showMoreMenu = false
+    @State private var showTabSwitcher = false
     @State private var findString = ""
-    @State private var findMatchCount = 0
+    @State private var findHasMatch = false
     @State private var isFullScreen = false
 
     var body: some View {
         VStack(spacing: 0) {
             tabBar
-
             if let tab = tabManager.selectedTab {
                 toolbar(for: tab)
+            }
 
+            if let tab = tabManager.selectedTab {
                 ProgressView(value: tab.browser.estimatedProgress, total: 1)
                     .progressViewStyle(.linear)
                     .tint(.accentColor)
@@ -74,11 +76,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onReceive(tabManager.$selectedIndex) { _ in
-            if let tab = tabManager.selectedTab {
-                NSApp.mainWindow?.title = tab.browser.pageTitle
-            }
-        }
         .onAppear {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
@@ -93,142 +90,178 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }
             switch command {
-            case .newTab: tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-            case .newIncognitoTab: tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            case .newTab:
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                showTabSwitcher = false
+            case .newIncognitoTab:
+                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                showTabSwitcher = false
             case .closeTab:
-                if let tab = tabManager.selectedTab {
-                    tabManager.closeTab(at: tabManager.selectedIndex)
-                }
+                tabManager.closeTab(at: tabManager.selectedIndex)
             case .previousTab:
                 guard tabManager.selectedIndex > 0 else { return }
                 tabManager.selectTab(at: tabManager.selectedIndex - 1)
             case .nextTab:
                 guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
                 tabManager.selectTab(at: tabManager.selectedIndex + 1)
+            case .bookmarkPage: bookmarkCurrentPage()
+            case .toggleFullScreen: toggleFullScreen()
+            case .toggleFind:
+                if isFindBarVisible { hideFindBar() } else { showFindBar() }
             }
         }
         .overlay {
-            Button("") { tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
-                .keyboardShortcut("t", modifiers: .command)
-                .hidden()
-            Button("") {
-                if let tab = tabManager.selectedTab {
-                    tabManager.closeTab(at: tabManager.selectedIndex)
-                }
-            }
-                .keyboardShortcut("w", modifiers: .command)
-                .hidden()
-            Button("") { bookmarkCurrentPage() }
-                .keyboardShortcut("d", modifiers: .command)
-                .hidden()
-            Button("") { tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .hidden()
-            Button("") { toggleFullScreen() }
-                .keyboardShortcut("f", modifiers: [.command, .control])
-                .hidden()
+            // Cmd+T / Cmd+W / Cmd+Shift+N 走菜单 (DesireApp.swift)
         }
         .sheet(isPresented: $showHistory) {
-            historyPanel
+            HistoryPanel(store: historyStore, onSelect: { url in
+                showHistory = false
+                if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
+            }, onClose: { showHistory = false })
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(settings: settings, contentBlocker: contentBlocker, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
-            bookmarkPanel
+            BookmarkPanel(store: bookmarkStore, onSelect: { url in
+                showBookmarks = false
+                if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
+            }, onDelete: { bookmark in bookmarkStore.remove(bookmark) }, onClose: { showBookmarks = false })
         }
         .sheet(isPresented: $showUserScripts) {
-            userScriptPanel
+            UserScriptPanel(store: userScriptStore, onAdd: addUserScript, onClose: { showUserScripts = false })
         }
     }
 
-    // MARK: - Tab Bar
+    // MARK: - Tab Bar (Helium style: favicon-only tabs)
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                        tabButton(for: tab, at: index)
-                    }
-                }
+        HStack(spacing: 4) {
+            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                tabFavicon(for: tab, at: index)
             }
 
-            Button(action: { tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }) {
+            Button {
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            } label: {
                 Image(systemName: "plus")
                     .font(.caption)
-                    .padding(6)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 4)
         }
-        .padding(.leading, 4)
-        .background(.bar)
+        .padding(.leading, 76)
+        .padding(.top, 6)
+        .frame(height: 30)
     }
 
-    private func tabButton(for tab: Tab, at index: Int) -> some View {
+    private func tabFavicon(for tab: Tab, at index: Int) -> some View {
         Button {
             tabManager.selectTab(at: index)
         } label: {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(tab.isLoading ? Color.accentColor : .clear)
-                    .frame(width: 8, height: 8)
-
-                if tab.isIncognito {
-                    Image(systemName: "mask")
-                        .font(.caption2)
-                        .foregroundStyle(.purple)
-                }
-                Text(tab.displayTitle)
-                    .lineLimit(1)
-                    .font(.caption)
-                    .frame(maxWidth: 140, alignment: .leading)
-
-                if tabManager.tabs.count > 1 {
-                    Button(action: { tabManager.closeTab(at: index) }) {
-                        Image(systemName: "xmark")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+            Group {
+                if tab.isLoading {
+                    ProgressView().scaleEffect(0.4).frame(width: 16, height: 16)
+                } else if tab.isIncognito {
+                    Image(systemName: "mask").font(.caption)
+                } else if tab.isOnNewTabPage {
+                    Image(systemName: "globe").font(.caption)
+                } else {
+                    Image(systemName: "square.grid.1x2.fill").font(.caption)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(index == tabManager.selectedIndex ? Color(nsColor: .controlBackgroundColor) : .clear)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .frame(width: 24, height: 24)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(index == tabManager.selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(index == tabManager.selectedIndex ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
+            )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if tabManager.tabs.count > 1 {
+                Button("关闭", systemImage: "xmark") { tabManager.closeTab(at: index) }
+            }
+            Button("关闭其他标签", systemImage: "xmark.circle") {
+                for i in (0..<tabManager.tabs.count).reversed() where i != index {
+                    tabManager.closeTab(at: i)
+                }
+            }
+        }
+    }
+
+    private var tabSwitcher: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(tab.isLoading ? Color.accentColor : (tab.isOnNewTabPage ? Color.secondary.opacity(0.3) : .clear))
+                        .frame(width: 6, height: 6)
+
+                    if tab.isIncognito {
+                        Image(systemName: "mask").font(.caption).foregroundStyle(.purple)
+                    }
+                    Text(tab.displayTitle)
+                        .lineLimit(1)
+                        .font(.system(size: 13))
+                    Spacer()
+                    if index == tabManager.selectedIndex {
+                        Image(systemName: "checkmark")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(index == tabManager.selectedIndex ? Color.accentColor.opacity(0.1) : .clear)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    tabManager.selectTab(at: index)
+                    showTabSwitcher = false
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Button {
+                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                    showTabSwitcher = false
+                } label: {
+                    Label("新标签页", systemImage: "plus")
+                }
+                .keyboardShortcut("t", modifiers: .command)
+
+                Spacer()
+            }
+            .padding(8)
+        }
+        .frame(width: 280)
     }
 
     // MARK: - Toolbar
 
     private func toolbar(for tab: Tab) -> some View {
-        HStack(spacing: 4) {
-            Button(action: { tab.browser.webView.goBack() }) {
-                Image(systemName: "chevron.left")
-            }
-            .disabled(!tab.canGoBack)
-
-            Button(action: { tab.browser.webView.goForward() }) {
-                Image(systemName: "chevron.right")
-            }
-            .disabled(!tab.canGoForward)
-
-            Button(action: { loadHome(for: tab) }) {
-                Image(systemName: "house")
-            }
-
-            Button(action: {
-                if tab.isLoading {
-                    tab.browser.webView.stopLoading()
-                } else {
-                    tab.browser.webView.reload()
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                navButton(systemName: "chevron.left") { tab.browser.webView.goBack() }
+                    .disabled(!tab.canGoBack)
+                navButton(systemName: "chevron.right") { tab.browser.webView.goForward() }
+                    .disabled(!tab.canGoForward)
+                navButton(systemName: "house") { loadHome(for: tab) }
+                navButton(systemName: "arrow.clockwise") {
+                    if tab.isLoading { tab.browser.webView.stopLoading() } else { tab.browser.webView.reload() }
                 }
-            }) {
-                Image(systemName: tab.isLoading ? "xmark" : "arrow.clockwise")
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(Color(nsColor: .controlBackgroundColor))
+            )
 
             HStack(spacing: 4) {
                 Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
@@ -244,38 +277,27 @@ struct ContentView: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(tab.isIncognito ? Color.purple.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                Capsule()
+                    .fill(Color(nsColor: .controlBackgroundColor))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.secondary.opacity(0.25))
+                        Capsule().stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.clear, lineWidth: 1)
                     )
             )
             .layoutPriority(1)
 
-            Spacer()
-
-            if tab.isLoading {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .frame(width: 16, height: 16)
-            }
-
-            Button(action: { bookmarkCurrentPage() }) {
-                Image(systemName: "bookmark")
-            }
-            .disabled(tab.isOnNewTabPage)
-
             Button {
                 showMoreMenu = true
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "ellipsis")
             }
+            .buttonStyle(.plain)
             .popover(isPresented: $showMoreMenu) {
                 VStack(spacing: 0) {
                     moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
                     moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
+                    moreMenuItem("添加书签", "bookmark.fill") { bookmarkCurrentPage() }
+                    .disabled(tab.isOnNewTabPage)
                     Divider()
                     moreMenuItem(isFullScreen ? "退出全屏" : "全屏", "arrow.up.left.and.arrow.down.right") { toggleFullScreen() }
                     moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
@@ -284,8 +306,8 @@ struct ContentView: View {
                 .frame(width: 200)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
         .background(.bar)
         .overlay {
             Button("") {
@@ -334,6 +356,13 @@ struct ContentView: View {
         }
     }
 
+    private func navButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Find Bar
 
     private var findBar: some View {
@@ -350,7 +379,7 @@ struct ContentView: View {
                 }
                 .onSubmit { performFindNext() }
 
-            if findMatchCount > 0 && !findString.isEmpty {
+            if findHasMatch && !findString.isEmpty {
                 Text("找到匹配")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -378,163 +407,6 @@ struct ContentView: View {
         .padding(.vertical, 6)
         .background(.bar)
         .onAppear { isFindFocused = true }
-    }
-
-    // MARK: - Panels
-
-    private var historyPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("浏览历史")
-                    .font(.headline)
-                Spacer()
-                Button("关闭") { showHistory = false }
-            }
-            .padding()
-
-            if historyStore.entries.isEmpty {
-                Spacer()
-                Text("暂无浏览记录")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                List(historyStore.entries) { entry in
-                    Button {
-                        showHistory = false
-                        if let tab = tabManager.selectedTab {
-                            navigateToURL(entry.url, for: tab)
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.title)
-                                .lineLimit(1)
-                                .font(.body)
-                            Text(entry.url)
-                                .lineLimit(1)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(width: 400, height: 500)
-    }
-
-    private var bookmarkPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("书签")
-                    .font(.headline)
-                Spacer()
-                Button("关闭") { showBookmarks = false }
-            }
-            .padding()
-
-            if bookmarkStore.bookmarks.isEmpty {
-                Spacer()
-                Text("暂无书签")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                List(bookmarkStore.bookmarks) { bookmark in
-                    HStack {
-                        Button {
-                            showBookmarks = false
-                            if let tab = tabManager.selectedTab {
-                                navigateToURL(bookmark.url, for: tab)
-                            }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(bookmark.title)
-                                    .lineLimit(1)
-                                    .font(.body)
-                                Text(bookmark.url)
-                                    .lineLimit(1)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer()
-
-                        Button {
-                            bookmarkStore.remove(bookmark)
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .frame(width: 400, height: 500)
-    }
-
-    private var userScriptPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("用户脚本")
-                    .font(.headline)
-                Spacer()
-                Button("添加", systemImage: "plus") { addUserScript() }
-                    .labelStyle(.iconOnly)
-                Button("关闭") { showUserScripts = false }
-            }
-            .padding()
-
-            if userScriptStore.scripts.isEmpty {
-                Spacer()
-                Text("暂无用户脚本")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                List(userScriptStore.scripts) { script in
-                    HStack {
-                        Toggle(isOn: Binding(
-                            get: { script.isEnabled },
-                            set: { enabled in
-                                var s = script
-                                s.isEnabled = enabled
-                                userScriptStore.update(s)
-                            }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(script.name)
-                                    .lineLimit(1)
-                                    .font(.body)
-                                Text(script.urlPattern)
-                                    .lineLimit(1)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        Spacer()
-
-                        Button("", systemImage: "trash") {
-                            userScriptStore.remove(script)
-                        }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .frame(width: 420, height: 400)
-    }
-
-    private func addUserScript() {
-        showUserScripts = false
-        // Simple default script template
-        userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
     }
 
     // MARK: - Actions
@@ -591,7 +463,7 @@ struct ContentView: View {
 
     private func showFindBar() {
         findString = ""
-        findMatchCount = 0
+        findHasMatch = false
         isFindBarVisible = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isFindFocused = true
@@ -601,19 +473,19 @@ struct ContentView: View {
     private func hideFindBar() {
         isFindBarVisible = false
         findString = ""
-        findMatchCount = 0
+        findHasMatch = false
         NSApp.mainWindow?.makeFirstResponder(nil)
     }
 
     private func performFindAll() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else {
-            findMatchCount = 0
+            findHasMatch = false
             return
         }
         let config = WKFindConfiguration()
         config.wraps = false
         tab.browser.webView.find(findString, configuration: config) { result in
-            findMatchCount = result.matchFound ? 1 : 0
+            findHasMatch = result.matchFound
         }
     }
 
@@ -621,8 +493,9 @@ struct ContentView: View {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
         let config = WKFindConfiguration()
         config.wraps = true
-        findMatchCount = 1
-        tab.browser.webView.find(findString, configuration: config) { _ in }
+        tab.browser.webView.find(findString, configuration: config) { result in
+            findHasMatch = result.matchFound
+        }
     }
 
     private func performFindPrevious() {
@@ -630,7 +503,13 @@ struct ContentView: View {
         let config = WKFindConfiguration()
         config.backwards = true
         config.wraps = true
-        findMatchCount = 1
-        tab.browser.webView.find(findString, configuration: config) { _ in }
+        tab.browser.webView.find(findString, configuration: config) { result in
+            findHasMatch = result.matchFound
+        }
+    }
+
+    private func addUserScript() {
+        showUserScripts = false
+        userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
     }
 }

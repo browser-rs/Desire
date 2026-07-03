@@ -38,6 +38,8 @@ class BrowserState: ObservableObject {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         config.preferences.javaScriptEnabled = javaScriptEnabled
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
+        config.mediaTypesRequiringUserActionForPlayback = []
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }
@@ -45,6 +47,8 @@ class BrowserState: ObservableObject {
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
+        // 用真实 Safari UA，避免 YouTube/百度反爬识别
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
     }
 }
 
@@ -127,6 +131,18 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
+        }
+
+        // 处理新窗口/弹窗（Google 登录 OAuth 需要）
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if navigationAction.targetFrame == nil,
+               let url = navigationAction.request.url {
+                // 弹窗式导航（OAuth 等），改为当前窗口加载
+                webView.load(URLRequest(url: url))
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

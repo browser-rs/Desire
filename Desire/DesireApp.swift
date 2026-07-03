@@ -46,6 +46,7 @@ struct DesireApp: App {
 
 enum BrowserCommand {
     case newTab, newIncognitoTab, closeTab, previousTab, nextTab
+    case bookmarkPage, toggleFullScreen, toggleFind
 }
 
 extension Notification.Name {

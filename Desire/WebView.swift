@@ -7,6 +7,7 @@ class BrowserState: ObservableObject {
     let webView: WKWebView
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
+    @Published var isSecure: Bool = false
 
     init() {
         let config = WKWebViewConfiguration()
@@ -72,6 +73,10 @@ struct WebView: NSViewRepresentable {
             parent.state.estimatedProgress = 0
         }
 
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            parent.state.isSecure = webView.url?.scheme == "https"
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
             parent.state.estimatedProgress = 1
@@ -80,6 +85,7 @@ struct WebView: NSViewRepresentable {
             if let url = webView.url {
                 parent.urlString = url.absoluteString
                 lastNavigatedURL = url.absoluteString
+                parent.state.isSecure = url.scheme == "https"
             }
         }
 

@@ -34,6 +34,10 @@ struct ContentView: View {
                     Image(systemName: "house")
                 }
 
+                Image(systemName: browser.isSecure ? "lock.fill" : "lock.open")
+                    .foregroundStyle(browser.isSecure ? Color.secondary : Color.orange)
+                    .imageScale(.small)
+
                 Button(action: {
                     if isLoading {
                         browser.webView.stopLoading()

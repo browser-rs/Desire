@@ -43,12 +43,13 @@ class BrowserState: ObservableObject {
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }
+        config.applicationNameForUserAgent = "Version/18.6 Safari/605.1.15"
+        config.defaultWebpagePreferences.preferredContentMode = .desktop
         contentBlocker?.apply(to: config)
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
-        // 用真实 Safari UA，避免 YouTube/百度反爬识别
-        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+        webView.allowsLinkPreview = true
     }
 }
 

@@ -92,6 +92,7 @@ struct ContentView: View {
                 window.titlebarAppearsTransparent = true
                 window.styleMask.insert(.fullSizeContentView)
                 window.titleVisibility = .hidden
+                window.title = ""
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -150,10 +151,6 @@ struct ContentView: View {
 
     private func tabPills() -> some View {
         HStack(spacing: 6) {
-            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                tabPill(for: tab, at: index)
-            }
-
             Button {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             } label: {
@@ -163,7 +160,10 @@ struct ContentView: View {
                     .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
-            .padding(.leading, 4)
+
+            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                tabPill(for: tab, at: index)
+            }
         }
     }
 

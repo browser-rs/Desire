@@ -85,40 +85,17 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea(.all, edges: .top)
+        .background(WindowChromeGuard())
         .onAppear {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             }
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeMainNotification)) { _ in
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification)) { _ in
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { _ in
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)) { _ in
-            clearWindowChrome()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { _ in
-            clearWindowChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { clearWindowChrome() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { _ in
-            clearWindowChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
             isFullScreen = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { clearWindowChrome() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }
@@ -211,7 +188,8 @@ struct ContentView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
+        .frame(height: 30)
         .background(
             Capsule()
                 .fill(index == tabManager.selectedIndex
@@ -446,14 +424,6 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
-
-    private func clearWindowChrome() {
-        guard let window = NSApp.mainWindow else { return }
-        window.titlebarAppearsTransparent = true
-        window.styleMask.insert(.fullSizeContentView)
-        window.titleVisibility = .hidden
-        window.title = ""
-    }
 
     private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: {

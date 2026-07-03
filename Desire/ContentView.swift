@@ -13,10 +13,12 @@ struct ContentView: View {
     @StateObject private var tabManager = TabManager()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
+    @StateObject private var settings = Settings()
     @StateObject private var historyStore = HistoryStore()
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
+    @State private var showSettings = false
     @State private var findString = ""
     @State private var findMatchCount = 0
 
@@ -86,6 +88,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showHistory) {
             historyPanel
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(settings: settings, onDone: { showSettings = false })
         }
     }
 
@@ -203,6 +208,10 @@ struct ContentView: View {
                 Image(systemName: "clock.arrow.circlepath")
             }
 
+            Button(action: { showSettings = true }) {
+                Image(systemName: "gearshape")
+            }
+
             Button(action: {
                 if tab.isLoading {
                     tab.browser.webView.stopLoading()
@@ -291,7 +300,8 @@ struct ContentView: View {
     }
 
     private func loadHome(for tab: Tab) {
-        tab.browser.webView.load(URLRequest(url: URL(string: "https://www.google.com")!))
+        guard let url = URL(string: settings.homePage) else { return }
+        tab.browser.webView.load(URLRequest(url: url))
     }
 
     private func navigateToURL(_ input: String, for tab: Tab) {
@@ -301,7 +311,7 @@ struct ContentView: View {
             if text.contains(".") {
                 text = "https://" + text
             } else {
-                text = "https://www.google.com/search?q=" + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+                text = settings.searchURLTemplate + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
             }
         }
         guard let url = URL(string: text) else { return }

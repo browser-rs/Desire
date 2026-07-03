@@ -17,6 +17,11 @@ struct ContentView: View {
     @State private var canGoForward = false
     @FocusState private var isUrlFocused: Bool
 
+    @State private var isFindBarVisible = false
+    @State private var findString = ""
+    @State private var findMatchCount = 0
+    @FocusState private var isFindFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -89,6 +94,18 @@ struct ContentView: View {
                 Button("") { browser.webView.pageZoom = 1 }
                     .keyboardShortcut("0", modifiers: .command)
                     .hidden()
+                Button("") { showFindBar() }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .hidden()
+                Button("") { performFindNext() }
+                    .keyboardShortcut("g", modifiers: .command)
+                    .hidden()
+                Button("") { performFindPrevious() }
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") { hideFindBar() }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .hidden()
             }
 
             ProgressView(value: browser.estimatedProgress, total: 1)
@@ -96,6 +113,10 @@ struct ContentView: View {
                 .tint(.accentColor)
                 .frame(height: isLoading ? 2 : 0)
                 .opacity(isLoading ? 1 : 0)
+
+            if isFindBarVisible {
+                findBar
+            }
 
             WebView(
                 state: browser,
@@ -116,6 +137,95 @@ struct ContentView: View {
                 urlString = "https://www.google.com"
             }
         }
+    }
+
+    private var findBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("在页面中查找…", text: $findString)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 180)
+                .focused($isFindFocused)
+                .onChange(of: findString) { _ in
+                    performFindAll()
+                }
+                .onSubmit { performFindNext() }
+
+            if findMatchCount > 0 && !findString.isEmpty {
+                Text("找到匹配")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if !findString.isEmpty {
+                Text("未找到")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("上一条", systemImage: "chevron.up") { performFindPrevious() }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .disabled(findString.isEmpty)
+
+            Button("下一条", systemImage: "chevron.down") { performFindNext() }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .disabled(findString.isEmpty)
+
+            Button("完成") { hideFindBar() }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.bar)
+        .onAppear { isFindFocused = true }
+    }
+
+    private func showFindBar() {
+        findString = ""
+        findMatchCount = 0
+        isFindBarVisible = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            isFindFocused = true
+        }
+    }
+
+    private func hideFindBar() {
+        isFindBarVisible = false
+        findString = ""
+        findMatchCount = 0
+        NSApp.mainWindow?.makeFirstResponder(nil)
+    }
+
+    private func performFindAll() {
+        guard !findString.isEmpty else {
+            findMatchCount = 0
+            return
+        }
+        let config = WKFindConfiguration()
+        config.wraps = false
+        browser.webView.find(findString, configuration: config) { result in
+            findMatchCount = result.matchFound ? 1 : 0
+        }
+    }
+
+    private func performFindNext() {
+        guard !findString.isEmpty else { return }
+        let config = WKFindConfiguration()
+        config.wraps = true
+        findMatchCount = 1
+        browser.webView.find(findString, configuration: config) { _ in }
+    }
+
+    private func performFindPrevious() {
+        guard !findString.isEmpty else { return }
+        let config = WKFindConfiguration()
+        config.backwards = true
+        config.wraps = true
+        findMatchCount = 1
+        browser.webView.find(findString, configuration: config) { _ in }
     }
 
     private func loadURL() {

@@ -1,3 +1,10 @@
+//
+//  DesireApp.swift
+//  Desire
+//
+//  Created by mankong on 2026/7/3.
+//
+
 import SwiftUI
 
 @main
@@ -10,31 +17,24 @@ struct DesireApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("新建标签页") { postCommand(.newTab) }
-                    .keyboardShortcut("t", modifiers: .command)
-                Button("新建无痕标签页") { postCommand(.newIncognitoTab) }
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("新建标签页") {
+                    postCommand(.newTab)
+                }
+                .keyboardShortcut("t", modifiers: .command)
+
+                Button("新建无痕标签页") {
+                    postCommand(.newIncognitoTab)
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandMenu("标签页") {
                 Button("关闭标签页") { postCommand(.closeTab) }
                     .keyboardShortcut("w", modifiers: .command)
                 Button("上一个标签页") { postCommand(.previousTab) }
-                    .keyboardShortcut("{", modifiers: [.command])
+                    .keyboardShortcut("{", modifiers: .command)
                 Button("下一个标签页") { postCommand(.nextTab) }
-                    .keyboardShortcut("}", modifiers: [.command])
-            }
-
-            CommandMenu("书签") {
-                Button("添加书签") { postCommand(.bookmarkPage) }
-                    .keyboardShortcut("d", modifiers: .command)
-            }
-
-            CommandMenu("显示") {
-                Button("切换全屏") { postCommand(.toggleFullScreen) }
-                    .keyboardShortcut("f", modifiers: [.command, .control])
-                Button("显示/隐藏查找栏") { postCommand(.toggleFind) }
-                    .keyboardShortcut("f", modifiers: .command)
+                    .keyboardShortcut("}", modifiers: .command)
             }
         }
     }
@@ -46,7 +46,6 @@ struct DesireApp: App {
 
 enum BrowserCommand {
     case newTab, newIncognitoTab, closeTab, previousTab, nextTab
-    case bookmarkPage, toggleFullScreen, toggleFind
 }
 
 extension Notification.Name {

@@ -21,6 +21,12 @@ class ContentBlocker: ObservableObject {
         }
     }
 
+    deinit {
+        cancellables.forEach { $0.cancel() }
+    }
+
+    private var cancellables: [AnyCancellable] = []
+
     func apply(to config: WKWebViewConfiguration) {
         for rule in compiledRules {
             config.userContentController.add(rule)
@@ -29,9 +35,10 @@ class ContentBlocker: ObservableObject {
 
     private func compileRules() {
         compiledRules.removeAll()
+        let rulesJSON = blockRulesJSON
         WKContentRuleListStore.default().compileContentRuleList(
             forIdentifier: "desire-blocker",
-            encodedContentRuleList: blockRulesJSON
+            encodedContentRuleList: rulesJSON
         ) { [weak self] ruleList, error in
             guard let ruleList else {
                 print("Content blocker compile error: \(error?.localizedDescription ?? "unknown")")

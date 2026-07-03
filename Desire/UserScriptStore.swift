@@ -53,7 +53,6 @@ class UserScriptStore: ObservableObject {
 
     func injectScripts(into webView: WKWebView) {
         guard let url = webView.url else { return }
-        webView.configuration.userContentController.removeAllUserScripts()
         for script in matchingScripts(for: url) {
             let userScript = WKUserScript(source: script.code, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
             webView.configuration.userContentController.addUserScript(userScript)

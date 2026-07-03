@@ -26,7 +26,7 @@ struct ContentView: View {
     @State private var showUserScripts = false
     @State private var showMoreMenu = false
     @State private var findString = ""
-    @State private var findHasMatch = false
+    @State private var findMatchCount = 0
     @State private var isFullScreen = false
 
     var body: some View {
@@ -99,36 +99,49 @@ struct ContentView: View {
             case .newTab: tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             case .newIncognitoTab: tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             case .closeTab:
-                tabManager.closeTab(at: tabManager.selectedIndex)
+                if let tab = tabManager.selectedTab {
+                    tabManager.closeTab(at: tabManager.selectedIndex)
+                }
             case .previousTab:
                 guard tabManager.selectedIndex > 0 else { return }
                 tabManager.selectTab(at: tabManager.selectedIndex - 1)
             case .nextTab:
                 guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
                 tabManager.selectTab(at: tabManager.selectedIndex + 1)
-            case .bookmarkPage: bookmarkCurrentPage()
-            case .toggleFullScreen: toggleFullScreen()
-            case .toggleFind:
-                if isFindBarVisible { hideFindBar() } else { showFindBar() }
             }
         }
+        .overlay {
+            Button("") { tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
+                .keyboardShortcut("t", modifiers: .command)
+                .hidden()
+            Button("") {
+                if let tab = tabManager.selectedTab {
+                    tabManager.closeTab(at: tabManager.selectedIndex)
+                }
+            }
+                .keyboardShortcut("w", modifiers: .command)
+                .hidden()
+            Button("") { bookmarkCurrentPage() }
+                .keyboardShortcut("d", modifiers: .command)
+                .hidden()
+            Button("") { tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker) }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .hidden()
+            Button("") { toggleFullScreen() }
+                .keyboardShortcut("f", modifiers: [.command, .control])
+                .hidden()
+        }
         .sheet(isPresented: $showHistory) {
-            HistoryPanel(store: historyStore, onSelect: { url in
-                showHistory = false
-                if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
-            }, onClose: { showHistory = false })
+            historyPanel
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(settings: settings, contentBlocker: contentBlocker, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
-            BookmarkPanel(store: bookmarkStore, onSelect: { url in
-                showBookmarks = false
-                if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
-            }, onDelete: { bookmark in bookmarkStore.remove(bookmark) }, onClose: { showBookmarks = false })
+            bookmarkPanel
         }
         .sheet(isPresented: $showUserScripts) {
-            UserScriptPanel(store: userScriptStore, onAdd: addUserScript, onClose: { showUserScripts = false })
+            userScriptPanel
         }
     }
 
@@ -342,7 +355,7 @@ struct ContentView: View {
                 }
                 .onSubmit { performFindNext() }
 
-            if findHasMatch && !findString.isEmpty {
+            if findMatchCount > 0 && !findString.isEmpty {
                 Text("找到匹配")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -372,7 +385,156 @@ struct ContentView: View {
         .onAppear { isFindFocused = true }
     }
 
-    // MARK: - Actions
+    // MARK: - Panels
+
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("浏览历史")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { showHistory = false }
+            }
+            .padding()
+
+            if historyStore.entries.isEmpty {
+                Spacer()
+                Text("暂无浏览记录")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(historyStore.entries) { entry in
+                    Button {
+                        showHistory = false
+                        if let tab = tabManager.selectedTab {
+                            navigateToURL(entry.url, for: tab)
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.title)
+                                .lineLimit(1)
+                                .font(.body)
+                            Text(entry.url)
+                                .lineLimit(1)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(width: 400, height: 500)
+    }
+
+    private var bookmarkPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("书签")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { showBookmarks = false }
+            }
+            .padding()
+
+            if bookmarkStore.bookmarks.isEmpty {
+                Spacer()
+                Text("暂无书签")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(bookmarkStore.bookmarks) { bookmark in
+                    HStack {
+                        Button {
+                            showBookmarks = false
+                            if let tab = tabManager.selectedTab {
+                                navigateToURL(bookmark.url, for: tab)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bookmark.title)
+                                    .lineLimit(1)
+                                    .font(.body)
+                                Text(bookmark.url)
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Button {
+                            bookmarkStore.remove(bookmark)
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(width: 400, height: 500)
+    }
+
+    private var userScriptPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("用户脚本")
+                    .font(.headline)
+                Spacer()
+                Button("添加", systemImage: "plus") { addUserScript() }
+                    .labelStyle(.iconOnly)
+                Button("关闭") { showUserScripts = false }
+            }
+            .padding()
+
+            if userScriptStore.scripts.isEmpty {
+                Spacer()
+                Text("暂无用户脚本")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(userScriptStore.scripts) { script in
+                    HStack {
+                        Toggle(isOn: Binding(
+                            get: { script.isEnabled },
+                            set: { enabled in
+                                var s = script
+                                s.isEnabled = enabled
+                                userScriptStore.update(s)
+                            }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(script.name)
+                                    .lineLimit(1)
+                                    .font(.body)
+                                Text(script.urlPattern)
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button("", systemImage: "trash") {
+                            userScriptStore.remove(script)
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(width: 420, height: 400)
+    }
 
     private func addUserScript() {
         showUserScripts = false
@@ -434,7 +596,7 @@ struct ContentView: View {
 
     private func showFindBar() {
         findString = ""
-        findHasMatch = false
+        findMatchCount = 0
         isFindBarVisible = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isFindFocused = true
@@ -444,19 +606,19 @@ struct ContentView: View {
     private func hideFindBar() {
         isFindBarVisible = false
         findString = ""
-        findHasMatch = false
+        findMatchCount = 0
         NSApp.mainWindow?.makeFirstResponder(nil)
     }
 
     private func performFindAll() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else {
-            findHasMatch = false
+            findMatchCount = 0
             return
         }
         let config = WKFindConfiguration()
         config.wraps = false
         tab.browser.webView.find(findString, configuration: config) { result in
-            findHasMatch = result.matchFound
+            findMatchCount = result.matchFound ? 1 : 0
         }
     }
 
@@ -464,9 +626,8 @@ struct ContentView: View {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
         let config = WKFindConfiguration()
         config.wraps = true
-        tab.browser.webView.find(findString, configuration: config) { result in
-            findHasMatch = result.matchFound
-        }
+        findMatchCount = 1
+        tab.browser.webView.find(findString, configuration: config) { _ in }
     }
 
     private func performFindPrevious() {
@@ -474,8 +635,7 @@ struct ContentView: View {
         let config = WKFindConfiguration()
         config.backwards = true
         config.wraps = true
-        tab.browser.webView.find(findString, configuration: config) { result in
-            findHasMatch = result.matchFound
-        }
+        findMatchCount = 1
+        tab.browser.webView.find(findString, configuration: config) { _ in }
     }
 }

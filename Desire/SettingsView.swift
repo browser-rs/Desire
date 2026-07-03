@@ -30,8 +30,6 @@ class Settings: ObservableObject {
         didSet { UserDefaults.standard.set(isJavaScriptEnabled, forKey: "isJavaScriptEnabled") }
     }
 
-    static let shared = Settings()
-
     init() {
         searchEngine = SearchEngine(rawValue: UserDefaults.standard.string(forKey: "searchEngine") ?? "") ?? .google
         homePage = UserDefaults.standard.string(forKey: "homePage") ?? "https://www.google.com"

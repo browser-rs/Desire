@@ -41,7 +41,7 @@ class Tab: ObservableObject {
 class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
-    private var cancellables: [AnyCancellable] = []
+    private var tabCancellables: [UUID: AnyCancellable] = [:]
 
     var selectedTab: Tab? {
         guard tabs.indices.contains(selectedIndex) else { return nil }
@@ -50,13 +50,17 @@ class TabManager: ObservableObject {
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
-        observeTab(tab)
+        tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         tabs.append(tab)
         selectedIndex = tabs.count - 1
     }
 
     func closeTab(at index: Int) {
         guard tabs.count > 1, tabs.indices.contains(index) else { return }
+        let tab = tabs[index]
+        tabCancellables[tab.id] = nil
         tabs.remove(at: index)
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
@@ -66,11 +70,5 @@ class TabManager: ObservableObject {
     func selectTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
         selectedIndex = index
-    }
-
-    private func observeTab(_ tab: Tab) {
-        cancellables.append(tab.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
-        })
     }
 }

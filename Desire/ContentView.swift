@@ -72,6 +72,19 @@ struct ContentView: View {
                 Button("") { browser.webView.goForward() }
                     .keyboardShortcut("]", modifiers: .command)
                     .hidden()
+                Button("") {
+                    browser.webView.pageZoom = browser.webView.pageZoom + 0.1
+                }
+                    .keyboardShortcut("=", modifiers: .command)
+                    .hidden()
+                Button("") {
+                    browser.webView.pageZoom = browser.webView.pageZoom - 0.1
+                }
+                    .keyboardShortcut("-", modifiers: .command)
+                    .hidden()
+                Button("") { browser.webView.pageZoom = 1 }
+                    .keyboardShortcut("0", modifiers: .command)
+                    .hidden()
             }
 
             ProgressView(value: browser.estimatedProgress, total: 1)

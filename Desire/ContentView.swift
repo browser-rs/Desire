@@ -100,9 +100,21 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification)) { _ in
             clearWindowChrome()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { _ in
+            clearWindowChrome()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)) { _ in
+            clearWindowChrome()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { _ in
+            clearWindowChrome()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { clearWindowChrome() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { _ in
+            clearWindowChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
             isFullScreen = false

@@ -55,6 +55,7 @@ class BrowserState: ObservableObject {
 
 struct WebView: NSViewRepresentable {
     @ObservedObject var state: BrowserState
+    @ObservedObject var downloadStore: DownloadStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -76,7 +77,9 @@ struct WebView: NSViewRepresentable {
         return webView
     }
 
-    func updateNSView(_ nsView: BrowserWKWebView, context: Context) {}
+    func updateNSView(_ nsView: BrowserWKWebView, context: Context) {
+        context.coordinator.parent = self
+    }
 
     static func dismantleNSView(_ nsView: BrowserWKWebView, coordinator: Coordinator) {
         coordinator.stopObserving()
@@ -86,6 +89,7 @@ struct WebView: NSViewRepresentable {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
+        private var activeDownloads: [ObjectIdentifier: UUID] = [:]
 
         init(_ parent: WebView) {
             self.parent = parent
@@ -152,17 +156,44 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
             download.delegate = self
+            let id = UUID()
+            activeDownloads[ObjectIdentifier(download)] = id
+            let filename = download.originalRequest?.url?.lastPathComponent ?? "下载项"
+            parent.downloadStore.add(item: DownloadItem(
+                filename: filename,
+                fileURL: nil,
+                totalBytes: 0,
+                downloadedBytes: 0,
+                state: .inProgress,
+                error: nil
+            ))
         }
 
         func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-            let panel = NSSavePanel()
-            panel.nameFieldStringValue = suggestedFilename
-            panel.begin { result in
-                completionHandler(result == .OK ? panel.url : nil)
+            let destination = parent.downloadStore.uniqueURL(for: suggestedFilename)
+            if let id = activeDownloads[ObjectIdentifier(download)] {
+                parent.downloadStore.setDestination(
+                    id: id,
+                    filename: suggestedFilename,
+                    fileURL: destination,
+                    totalBytes: response.expectedContentLength
+                )
             }
+            completionHandler(destination)
         }
 
-        func downloadDidFinish(_ download: WKDownload) {}
-        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {}
+        func downloadDidFinish(_ download: WKDownload) {
+            if let id = activeDownloads[ObjectIdentifier(download)] {
+                parent.downloadStore.complete(id: id)
+            }
+            activeDownloads[ObjectIdentifier(download)] = nil
+        }
+
+        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+            if let id = activeDownloads[ObjectIdentifier(download)] {
+                parent.downloadStore.fail(id: id, message: error.localizedDescription)
+            }
+            activeDownloads[ObjectIdentifier(download)] = nil
+        }
     }
 }

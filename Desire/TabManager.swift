@@ -55,6 +55,7 @@ class TabManager: ObservableObject {
         }
         tabs.append(tab)
         selectedIndex = tabs.count - 1
+        persistSession()
     }
 
     func closeTab(at index: Int) {
@@ -65,6 +66,7 @@ class TabManager: ObservableObject {
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
         }
+        persistSession()
     }
 
     func closeOthers(keeping index: Int) {
@@ -75,6 +77,7 @@ class TabManager: ObservableObject {
         }
         tabs = [kept]
         selectedIndex = 0
+        persistSession()
     }
 
     func closeToTheRight(of index: Int) {
@@ -85,6 +88,7 @@ class TabManager: ObservableObject {
         }
         tabs = Array(tabs.prefix(index + 1))
         if selectedIndex > index { selectedIndex = index }
+        persistSession()
     }
 
     func moveTab(from source: Int, to target: Int) {
@@ -103,10 +107,72 @@ class TabManager: ObservableObject {
             if insertIndex <= sel { sel += 1 }
             selectedIndex = sel
         }
+        persistSession()
     }
 
     func selectTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
         selectedIndex = index
     }
+
+    // MARK: - Session persistence
+
+    private let sessionKey = "desire.session"
+
+    func persistSession() {
+        var savedTabs: [SavedTab] = []
+        for tab in tabs where !tab.isIncognito {
+            let url = tab.browser.webView.url?.absoluteString ?? ""
+            if url.isEmpty && tab.isOnNewTabPage {
+                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true))
+            } else if !url.isEmpty {
+                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false))
+            }
+        }
+        guard !savedTabs.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: sessionKey)
+            return
+        }
+        let session = SavedSession(tabs: savedTabs, selectedIndex: selectedIndex)
+        if let data = try? JSONEncoder().encode(session) {
+            UserDefaults.standard.set(data, forKey: sessionKey)
+        }
+    }
+
+    @discardableResult
+    func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) -> Bool {
+        guard let data = UserDefaults.standard.data(forKey: sessionKey),
+              let session = try? JSONDecoder().decode(SavedSession.self, from: data),
+              !session.tabs.isEmpty else {
+            return false
+        }
+
+        tabs = []
+        tabCancellables = [:]
+
+        for saved in session.tabs {
+            let url = saved.isOnNewTabPage ? nil : saved.url
+            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+            tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            tabs.append(tab)
+            if !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
+                tab.browser.webView.load(URLRequest(url: parsed))
+            }
+        }
+
+        selectedIndex = min(session.selectedIndex, max(0, tabs.count - 1))
+        return true
+    }
+}
+
+private struct SavedTab: Codable {
+    let url: String?
+    let isOnNewTabPage: Bool
+}
+
+private struct SavedSession: Codable {
+    let tabs: [SavedTab]
+    let selectedIndex: Int
 }

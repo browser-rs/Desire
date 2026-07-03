@@ -59,6 +59,7 @@ class Settings: ObservableObject {
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var contentBlocker: ContentBlocker
+    @ObservedObject var downloadStore: DownloadStore
     var onDone: () -> Void
     @State private var showClearConfirm = false
 
@@ -72,6 +73,23 @@ struct SettingsView: View {
                 }
 
                 TextField("主页 URL", text: $settings.homePage)
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("下载位置")
+                        Text(downloadStore.downloadFolder.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Button("更改…") {
+                        downloadStore.chooseDownloadFolder()
+                    }
+                }
             }
             .padding()
             .tabItem { Label("常规", systemImage: "gearshape") }

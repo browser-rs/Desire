@@ -20,6 +20,8 @@ struct ContentView: View {
     @StateObject private var userScriptStore = UserScriptStore()
     @StateObject private var contentBlocker = ContentBlocker()
     @StateObject private var suggestionModel = AddressSuggestionsModel()
+    @StateObject private var downloadStore = DownloadStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
@@ -28,6 +30,7 @@ struct ContentView: View {
     @State private var showUserScripts = false
     @State private var showMoreMenu = false
     @State private var showTabSwitcher = false
+    @State private var showDownloads = false
     @State private var findString = ""
     @State private var findHasMatch = false
     @State private var isFullScreen = false
@@ -69,6 +72,7 @@ struct ContentView: View {
                     } else {
                         WebView(
                             state: tab.browser,
+                            downloadStore: downloadStore,
                             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
                             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
                             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
@@ -108,7 +112,18 @@ struct ContentView: View {
         .background(WindowChromeGuard())
         .onAppear {
             if tabManager.tabs.isEmpty {
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                let restored = tabManager.restoreSession(
+                    javaScriptEnabled: settings.isJavaScriptEnabled,
+                    contentBlocker: contentBlocker
+                )
+                if !restored {
+                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                tabManager.persistSession()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -150,7 +165,7 @@ struct ContentView: View {
             }, onClose: { showHistory = false })
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings, contentBlocker: contentBlocker, onDone: { showSettings = false })
+            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarkPanel(store: bookmarkStore, onSelect: { url in
@@ -379,6 +394,31 @@ struct ContentView: View {
             .layoutPriority(1)
 
             Button {
+                showDownloads.toggle()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: downloadStore.hasActive
+                          ? "arrow.down.circle.fill"
+                          : "arrow.down.circle")
+                        .foregroundStyle(downloadStore.hasActive ? Color.accentColor : .primary)
+                    if downloadStore.activeCount > 0 {
+                        Text("\(downloadStore.activeCount)")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(3)
+                            .background(Color.accentColor)
+                            .foregroundStyle(.white)
+                            .clipShape(Circle())
+                            .offset(x: 7, y: -7)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .help("下载")
+            .popover(isPresented: $showDownloads) {
+                DownloadPanel(store: downloadStore)
+            }
+
+            Button {
                 showMoreMenu = true
             } label: {
                 Image(systemName: "ellipsis")
@@ -388,6 +428,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
+                    moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
                     moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
                     moreMenuItem("添加书签", "bookmark.fill") { bookmarkCurrentPage() }
                     .disabled(tab.isOnNewTabPage)

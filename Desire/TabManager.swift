@@ -67,6 +67,44 @@ class TabManager: ObservableObject {
         }
     }
 
+    func closeOthers(keeping index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let kept = tabs[index]
+        for tab in tabs where tab.id != kept.id {
+            tabCancellables[tab.id] = nil
+        }
+        tabs = [kept]
+        selectedIndex = 0
+    }
+
+    func closeToTheRight(of index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let toRemove = Array(tabs[(index + 1)...])
+        for tab in toRemove {
+            tabCancellables[tab.id] = nil
+        }
+        tabs = Array(tabs.prefix(index + 1))
+        if selectedIndex > index { selectedIndex = index }
+    }
+
+    func moveTab(from source: Int, to target: Int) {
+        guard tabs.indices.contains(source),
+              tabs.indices.contains(target),
+              source != target else { return }
+        let movedTab = tabs.remove(at: source)
+        let insertIndex = source < target ? target - 1 : target
+        tabs.insert(movedTab, at: min(insertIndex, tabs.count))
+
+        if selectedIndex == source {
+            selectedIndex = insertIndex
+        } else {
+            var sel = selectedIndex
+            if source < sel { sel -= 1 }
+            if insertIndex <= sel { sel += 1 }
+            selectedIndex = sel
+        }
+    }
+
     func selectTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
         selectedIndex = index

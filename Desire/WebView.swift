@@ -93,10 +93,10 @@ struct WebView: NSViewRepresentable {
 
         func observe(_ webView: WKWebView) {
             observations = [
-                webView.observe(\.estimatedProgress, options: [.new]) { [weak self] wv, _ in
+                webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
                     self?.parent.state.estimatedProgress = wv.estimatedProgress
                 },
-                webView.observe(\.title, options: [.new]) { [weak self] wv, _ in
+                webView.observe(\.title, options: [.initial, .new]) { [weak self] wv, _ in
                     if let title = wv.title, !title.isEmpty {
                         self?.parent.state.pageTitle = title
                     }

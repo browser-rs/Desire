@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 struct ContentView: View {
@@ -18,6 +19,7 @@ struct ContentView: View {
     @StateObject private var bookmarkStore = BookmarkStore()
     @StateObject private var userScriptStore = UserScriptStore()
     @StateObject private var contentBlocker = ContentBlocker()
+    @StateObject private var suggestionModel = AddressSuggestionsModel()
 
     @State private var isFindBarVisible = false
     @State private var showHistory = false
@@ -56,31 +58,49 @@ struct ContentView: View {
                     findBar
                 }
 
-                if tab.isOnNewTabPage {
-                    NewTabPage(urlString: Binding(
-                        get: { tab.urlString },
-                        set: { tab.urlString = $0 }
-                    ), onNavigate: { input in
-                        navigateToURL(input, for: tab)
-                    })
-                } else {
-                    WebView(
-                        state: tab.browser,
-                        urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
-                        isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
-                        canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
-                        canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
-                        onOpenLinkInNewTab: { url in
-                            tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-                        },
-                        onPageFinished: { url, title in
-                            if !tab.isIncognito {
-                                historyStore.addEntry(url: url.absoluteString, title: title)
+                Group {
+                    if tab.isOnNewTabPage {
+                        NewTabPage(urlString: Binding(
+                            get: { tab.urlString },
+                            set: { tab.urlString = $0 }
+                        ), onNavigate: { input in
+                            navigateToURL(input, for: tab)
+                        })
+                    } else {
+                        WebView(
+                            state: tab.browser,
+                            urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
+                            isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
+                            canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
+                            canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
+                            onOpenLinkInNewTab: { url in
+                                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                            },
+                            onPageFinished: { url, title in
+                                if !tab.isIncognito {
+                                    historyStore.addEntry(url: url.absoluteString, title: title)
+                                }
+                                userScriptStore.injectScripts(into: tab.browser.webView)
                             }
-                            userScriptStore.injectScripts(into: tab.browser.webView)
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .id(tab.id)
+                .overlay(alignment: .top) {
+                    if isUrlFocused && !suggestionModel.isEmpty {
+                        AddressSuggestionsView(
+                            model: suggestionModel,
+                            engineName: settings.searchEngine.rawValue
+                        ) { sug in
+                            suggestionModel.reset()
+                            isUrlFocused = false
+                            navigateToURL(sug.url, for: tab)
                         }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 2)
+                        .transition(.opacity)
+                    }
                 }
             }
         }
@@ -166,45 +186,79 @@ struct ContentView: View {
     }
 
     private func tabPill(for tab: Tab, at index: Int) -> some View {
-        HStack(spacing: 6) {
-            if tab.isLoading {
-                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
-            } else if tab.isIncognito {
-                Image(systemName: "mask").font(.caption)
-            } else if tab.isOnNewTabPage {
-                Image(systemName: "asterisk").font(.caption)
-            } else {
-                Image(systemName: "globe").font(.caption)
+            HStack(spacing: 6) {
+                if tab.isLoading {
+                    ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
+                } else if tab.isIncognito {
+                    Image(systemName: "mask").font(.caption)
+                } else if tab.isOnNewTabPage {
+                    Image(systemName: "asterisk").font(.caption)
+                } else {
+                    FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
+                }
+                Text(tab.displayTitle)
+                    .lineLimit(1)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(maxWidth: 120)
+                Button(action: { tabManager.closeTab(at: index) }) {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            Text(tab.displayTitle)
-                .lineLimit(1)
-                .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: 120)
-            Button(action: { tabManager.closeTab(at: index) }) {
-                Image(systemName: "xmark")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(
+                Capsule()
+                    .fill(index == tabManager.selectedIndex
+                          ? Color(nsColor: .controlBackgroundColor)
+                          : Color(nsColor: .controlBackgroundColor).opacity(0.4))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(index == tabManager.selectedIndex
+                            ? Color.accentColor
+                            : Color.secondary.opacity(0.25),
+                            lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
+            )
+            .contentShape(Capsule())
+            .onTapGesture {
+                tabManager.selectTab(at: index)
             }
-            .buttonStyle(.plain)
+            .onDrag {
+                let provider = NSItemProvider(object: NSString(string: "\(index)"))
+                return provider
+            }
+            .onDrop(of: [.text], delegate: TabDropDelegate(targetIndex: index, tabManager: tabManager))
+            .contextMenu {
+                tabContextMenu(for: tab, at: index)
+            }
+    }
+
+    @ViewBuilder
+    private func tabContextMenu(for tab: Tab, at index: Int) -> some View {
+        Button("新建标签页") {
+            tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
         }
-        .padding(.horizontal, 10)
-        .frame(height: 26)
-        .background(
-            Capsule()
-                .fill(index == tabManager.selectedIndex
-                      ? Color(nsColor: .controlBackgroundColor)
-                      : Color(nsColor: .controlBackgroundColor).opacity(0.4))
-        )
-        .overlay(
-            Capsule()
-                .stroke(index == tabManager.selectedIndex
-                        ? Color.accentColor
-                        : Color.secondary.opacity(0.25),
-                        lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
-        )
-        .onTapGesture {
-            tabManager.selectTab(at: index)
+        Button("重新加载") { tab.browser.webView.reload() }
+            .disabled(tab.isOnNewTabPage)
+        Button("复制网址") {
+            if let url = tab.browser.webView.url {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(url.absoluteString, forType: .string)
+            }
         }
+        .disabled(tab.isOnNewTabPage)
+
+        Divider()
+
+        Button("关闭标签页") { tabManager.closeTab(at: index) }
+            .disabled(tabManager.tabs.count <= 1)
+        Button("关闭其他标签页") { tabManager.closeOthers(keeping: index) }
+            .disabled(tabManager.tabs.count <= 1)
+        Button("关闭右侧标签页") { tabManager.closeToTheRight(of: index) }
+            .disabled(index >= tabManager.tabs.count - 1)
     }
 
     private var tabSwitcher: some View {
@@ -284,7 +338,33 @@ struct ContentView: View {
                 TextField("搜索或输入网址", text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }))
                     .textFieldStyle(.plain)
                     .focused($isUrlFocused)
-                    .onSubmit { loadURL(for: tab) }
+                    .onSubmit {
+                        if let sug = suggestionModel.selected() {
+                            suggestionModel.reset()
+                            isUrlFocused = false
+                            navigateToURL(sug.url, for: tab)
+                        } else {
+                            loadURL(for: tab)
+                        }
+                    }
+                    .onChange(of: tab.urlString) { _, newValue in
+                        if isUrlFocused {
+                            suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
+                        }
+                    }
+                    .onKeyPress(.upArrow) {
+                        suggestionModel.moveSelection(by: -1)
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        suggestionModel.moveSelection(by: 1)
+                        return .handled
+                    }
+                    .onKeyPress(.escape) {
+                        suggestionModel.reset()
+                        isUrlFocused = false
+                        return .handled
+                    }
                     .font(.system(size: 13))
             }
             .padding(.horizontal, 8)
@@ -322,6 +402,9 @@ struct ContentView: View {
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .background(.bar)
+        .onChange(of: isUrlFocused) { _, focused in
+            if !focused { suggestionModel.reset() }
+        }
         .overlay {
             Button("") {
                 isUrlFocused = true
@@ -524,5 +607,21 @@ struct ContentView: View {
     private func addUserScript() {
         showUserScripts = false
         userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
+    }
+}
+
+private struct TabDropDelegate: DropDelegate {
+    let targetIndex: Int
+    let tabManager: TabManager
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        provider.loadObject(ofClass: NSString.self) { reading, _ in
+            guard let str = reading as? String, let source = Int(str) else { return }
+            Task { @MainActor in
+                tabManager.moveTab(from: source, to: targetIndex)
+            }
+        }
+        return true
     }
 }

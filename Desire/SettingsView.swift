@@ -16,6 +16,15 @@ enum SearchEngine: String, CaseIterable {
         case .baidu: "https://www.baidu.com/s?wd="
         }
     }
+
+    var suggestionURL: String {
+        switch self {
+        case .google: "https://suggestqueries.google.com/complete/search?client=firefox&q="
+        case .duckduckgo: "https://ac.duckduckgo.com/ac/?type=list&q="
+        case .bing: "https://www.bing.com/osjson.aspx?query="
+        case .baidu: "https://suggestion.baidu.com/su?action=opensearch&wd="
+        }
+    }
 }
 
 @MainActor
@@ -29,6 +38,9 @@ class Settings: ObservableObject {
     @Published var isJavaScriptEnabled: Bool {
         didSet { UserDefaults.standard.set(isJavaScriptEnabled, forKey: "isJavaScriptEnabled") }
     }
+    @Published var showSearchSuggestions: Bool {
+        didSet { UserDefaults.standard.set(showSearchSuggestions, forKey: "showSearchSuggestions") }
+    }
 
     static let shared = Settings()
 
@@ -36,6 +48,7 @@ class Settings: ObservableObject {
         searchEngine = SearchEngine(rawValue: UserDefaults.standard.string(forKey: "searchEngine") ?? "") ?? .google
         homePage = UserDefaults.standard.string(forKey: "homePage") ?? "https://www.google.com"
         isJavaScriptEnabled = UserDefaults.standard.object(forKey: "isJavaScriptEnabled") as? Bool ?? true
+        showSearchSuggestions = UserDefaults.standard.object(forKey: "showSearchSuggestions") as? Bool ?? false
     }
 
     var searchURLTemplate: String {
@@ -69,6 +82,9 @@ struct SettingsView: View {
                 Toggle("广告屏蔽", isOn: $contentBlocker.isBlockingEnabled)
 
                 Divider()
+
+                Toggle("显示搜索建议", isOn: $settings.showSearchSuggestions)
+                    .help("开启后输入内容会发送给当前搜索引擎以获取建议")
 
                 Button("清除浏览数据", role: .destructive) {
                     showClearConfirm = true

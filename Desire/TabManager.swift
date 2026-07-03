@@ -6,6 +6,7 @@ import WebKit
 class Tab: ObservableObject {
     let id = UUID()
     let browser: BrowserState
+    let isIncognito: Bool
     @Published var urlString = ""
     @Published var isLoading = false
     @Published var canGoBack = false
@@ -15,8 +16,9 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(url: String? = nil) {
-        browser = BrowserState()
+    init(url: String? = nil, incognito: Bool = false) {
+        self.isIncognito = incognito
+        browser = BrowserState(incognito: incognito)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -46,8 +48,8 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil) {
-        let tab = Tab(url: url)
+    func addTab(url: String? = nil, incognito: Bool = false) {
+        let tab = Tab(url: url, incognito: incognito)
         observeTab(tab)
         tabs.append(tab)
         selectedIndex = tabs.count - 1

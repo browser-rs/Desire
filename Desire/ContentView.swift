@@ -59,7 +59,9 @@ struct ContentView: View {
                             tabManager.addTab(url: url.absoluteString)
                         },
                         onPageFinished: { url, title in
-                            historyStore.addEntry(url: url.absoluteString, title: title)
+                            if !tab.isIncognito {
+                                historyStore.addEntry(url: url.absoluteString, title: title)
+                            }
                         }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -89,6 +91,9 @@ struct ContentView: View {
                 .hidden()
             Button("") { bookmarkCurrentPage() }
                 .keyboardShortcut("d", modifiers: .command)
+                .hidden()
+            Button("") { tabManager.addTab(incognito: true) }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
                 .hidden()
         }
         .sheet(isPresented: $showHistory) {
@@ -135,6 +140,11 @@ struct ContentView: View {
                     .fill(tab.isLoading ? Color.accentColor : .clear)
                     .frame(width: 8, height: 8)
 
+                if tab.isIncognito {
+                    Image(systemName: "mask")
+                        .font(.caption2)
+                        .foregroundStyle(.purple)
+                }
                 Text(tab.displayTitle)
                     .lineLimit(1)
                     .font(.caption)
@@ -217,10 +227,10 @@ struct ContentView: View {
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(tab.isIncognito ? Color.purple.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.25))
+                            .stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.secondary.opacity(0.25))
                     )
             )
 

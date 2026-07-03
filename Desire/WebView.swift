@@ -34,9 +34,12 @@ class BrowserState: ObservableObject {
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
 
-    init() {
+    init(incognito: Bool = false) {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        if incognito {
+            config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
+        }
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true

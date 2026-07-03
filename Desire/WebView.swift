@@ -165,7 +165,8 @@ struct WebView: NSViewRepresentable {
                 totalBytes: 0,
                 downloadedBytes: 0,
                 state: .inProgress,
-                error: nil
+                error: nil,
+                cancel: { [weak download] in download?.cancel() }
             ))
         }
 

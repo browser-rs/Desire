@@ -13,6 +13,7 @@ class Tab: ObservableObject {
     @Published var canGoForward = false
     @Published var isOnNewTabPage = true
     @Published var displayTitle = "新标签页"
+    var suppressHistoryOnce = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -122,11 +123,12 @@ class TabManager: ObservableObject {
     func persistSession() {
         var savedTabs: [SavedTab] = []
         for tab in tabs where !tab.isIncognito {
-            let url = tab.browser.webView.url?.absoluteString ?? ""
-            if url.isEmpty && tab.isOnNewTabPage {
-                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true))
-            } else if !url.isEmpty {
+            if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
                 savedTabs.append(SavedTab(url: url, isOnNewTabPage: false))
+            } else if tab.isOnNewTabPage {
+                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true))
+            } else if tab.urlString.hasPrefix("http"), let u = URL(string: tab.urlString) {
+                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false))
             }
         }
         guard !savedTabs.isEmpty else {
@@ -158,6 +160,7 @@ class TabManager: ObservableObject {
             }
             tabs.append(tab)
             if !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
+                tab.suppressHistoryOnce = true
                 tab.browser.webView.load(URLRequest(url: parsed))
             }
         }

@@ -86,12 +86,15 @@ struct FaviconView: View {
         .frame(width: size, height: size)
         .task(id: FaviconStore.domainKey(from: urlString)) {
             let key = FaviconStore.domainKey(from: urlString)
-            if loadedDomain != key {
+            guard loadedDomain != key else { return }
+            loadedDomain = key
+            if key == nil {
                 image = nil
-                loadedDomain = key
-                if key != nil {
-                    image = await FaviconStore.shared.favicon(for: urlString)
-                }
+                return
+            }
+            let loaded = await FaviconStore.shared.favicon(for: urlString)
+            if loadedDomain == key {
+                image = loaded
             }
         }
     }

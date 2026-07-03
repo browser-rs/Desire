@@ -10,6 +10,7 @@ struct DownloadItem: Identifiable {
     var downloadedBytes: Int64
     var state: State
     var error: String?
+    var cancel: (() -> Void)?
 
     enum State { case inProgress, completed, failed }
 
@@ -134,6 +135,9 @@ class DownloadStore: ObservableObject {
     }
 
     func remove(id: UUID) {
+        if let item = downloads.first(where: { $0.id == id }), item.state == .inProgress {
+            item.cancel?()
+        }
         downloads.removeAll { $0.id == id }
         stopPollingIfNeeded()
     }

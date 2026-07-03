@@ -81,7 +81,9 @@ struct ContentView: View {
                                 tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
                             },
                             onPageFinished: { url, title in
-                                if !tab.isIncognito {
+                                if tab.suppressHistoryOnce {
+                                    tab.suppressHistoryOnce = false
+                                } else if !tab.isIncognito {
                                     historyStore.addEntry(url: url.absoluteString, title: title)
                                 }
                                 userScriptStore.injectScripts(into: tab.browser.webView)
@@ -145,9 +147,11 @@ struct ContentView: View {
                 tabManager.closeTab(at: tabManager.selectedIndex)
             case .previousTab:
                 guard tabManager.selectedIndex > 0 else { return }
+                isUrlFocused = false
                 tabManager.selectTab(at: tabManager.selectedIndex - 1)
             case .nextTab:
                 guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
+                isUrlFocused = false
                 tabManager.selectTab(at: tabManager.selectedIndex + 1)
             case .bookmarkPage: bookmarkCurrentPage()
             case .toggleFullScreen: toggleFullScreen()
@@ -239,6 +243,7 @@ struct ContentView: View {
             )
             .contentShape(Capsule())
             .onTapGesture {
+                isUrlFocused = false
                 tabManager.selectTab(at: index)
             }
             .onDrag {

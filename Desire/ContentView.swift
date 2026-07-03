@@ -275,7 +275,6 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
-            .menuStyle(.button)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)

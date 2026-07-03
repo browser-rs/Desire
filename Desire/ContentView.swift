@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBookmarks = false
     @State private var showUserScripts = false
+    @State private var showMoreMenu = false
     @State private var findString = ""
     @State private var findMatchCount = 0
     @State private var isFullScreen = false
@@ -265,15 +266,22 @@ struct ContentView: View {
             }
             .disabled(tab.isOnNewTabPage)
 
-            Menu {
-                Button("浏览历史", systemImage: "clock.arrow.circlepath") { showHistory = true }
-                Button("书签", systemImage: "bookmark") { showBookmarks = true }
-                Button("用户脚本", systemImage: "applescript") { showUserScripts = true }
-                Divider()
-                Button(isFullScreen ? "退出全屏" : "全屏", systemImage: "arrow.up.left.and.arrow.down.right") { toggleFullScreen() }
-                Button("偏好设置…", systemImage: "gearshape") { showSettings = true }
+            Button {
+                showMoreMenu = true
             } label: {
                 Image(systemName: "ellipsis.circle")
+            }
+            .popover(isPresented: $showMoreMenu) {
+                VStack(spacing: 0) {
+                    moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
+                    moreMenuItem("书签", "bookmark") { showBookmarks = true }
+                    moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
+                    Divider()
+                    moreMenuItem(isFullScreen ? "退出全屏" : "全屏", "arrow.up.left.and.arrow.down.right") { toggleFullScreen() }
+                    moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
+                }
+                .padding(4)
+                .frame(width: 200)
             }
         }
         .padding(.horizontal, 6)
@@ -530,6 +538,18 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+
+    private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            showMoreMenu = false
+            action()
+        }) {
+            Label(title, systemImage: icon)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+    }
 
     private func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)

@@ -156,6 +156,12 @@ struct ContentView: View {
 
     private func tabPills() -> some View {
         HStack(spacing: 6) {
+            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                tabPill(for: tab, at: index)
+            }
+
+            Spacer()
+
             Button {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             } label: {
@@ -165,10 +171,6 @@ struct ContentView: View {
                     .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
-
-            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                tabPill(for: tab, at: index)
-            }
         }
     }
 

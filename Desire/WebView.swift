@@ -166,10 +166,8 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
             download.delegate = self
-            let id = UUID()
-            activeDownloads[ObjectIdentifier(download)] = id
             let filename = download.originalRequest?.url?.lastPathComponent ?? "下载项"
-            parent.downloadStore.add(item: DownloadItem(
+            let id = parent.downloadStore.add(item: DownloadItem(
                 filename: filename,
                 fileURL: nil,
                 totalBytes: 0,
@@ -178,6 +176,7 @@ struct WebView: NSViewRepresentable {
                 error: nil,
                 cancel: { [weak download] in download?.cancel() }
             ))
+            activeDownloads[ObjectIdentifier(download)] = id
         }
 
         func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {

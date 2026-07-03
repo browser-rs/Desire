@@ -108,9 +108,12 @@ class DownloadStore: ObservableObject {
         }
     }
 
-    func add(item: DownloadItem) {
+    @discardableResult
+    func add(item: DownloadItem) -> UUID {
+        let id = item.id
         downloads.insert(item, at: 0)
         ensurePolling()
+        return id
     }
 
     func setDestination(id: UUID, filename: String, fileURL: URL, totalBytes: Int64) {
@@ -123,7 +126,13 @@ class DownloadStore: ObservableObject {
     func complete(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].state = .completed
-        downloads[i].downloadedBytes = downloads[i].totalBytes
+        if let url = downloads[i].fileURL,
+           let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int64 {
+            downloads[i].totalBytes = size
+            downloads[i].downloadedBytes = size
+        } else {
+            downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
+        }
         stopPollingIfNeeded()
     }
 

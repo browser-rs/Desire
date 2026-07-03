@@ -88,12 +88,16 @@ struct ContentView: View {
             if tabManager.tabs.isEmpty {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             }
-            if let window = NSApp.mainWindow {
-                window.titlebarAppearsTransparent = true
-                window.styleMask.insert(.fullSizeContentView)
-                window.titleVisibility = .hidden
-                window.title = ""
-            }
+            clearWindowChrome()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            clearWindowChrome()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeMainNotification)) { _ in
+            clearWindowChrome()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification)) { _ in
+            clearWindowChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
@@ -425,6 +429,14 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+
+    private func clearWindowChrome() {
+        guard let window = NSApp.mainWindow else { return }
+        window.titlebarAppearsTransparent = true
+        window.styleMask.insert(.fullSizeContentView)
+        window.titleVisibility = .hidden
+        window.title = ""
+    }
 
     private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: {

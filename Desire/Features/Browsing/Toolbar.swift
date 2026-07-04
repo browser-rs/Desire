@@ -130,10 +130,6 @@ struct Toolbar: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 36, height: 22)
-                    .background(
-                        RoundedRectangle(cornerRadius: .radiusButton)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                    )
             }
             .buttonStyle(.plain)
             .help("缩放比例 — 点击重置为 100%")
@@ -154,7 +150,7 @@ struct Toolbar: View {
                     VStack(spacing: 0) {
                         moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                         moreMenuItem("书签", "bookmark") { showBookmarks = true }
-                        moreMenuItem("密码", "lock.keyhole") { showPasswords = true }
+                        moreMenuItem("密码", "key.fill") { showPasswords = true }
                         moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
                         moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
                         moreMenuItem("用户脚本", "applescript") { showUserScripts = true }

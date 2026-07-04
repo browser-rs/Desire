@@ -50,6 +50,8 @@ struct DesireApp: App {
                     .keyboardShortcut("y", modifiers: .command)
                 Button("搜索标签页") { postCommand(.tabSearch) }
                     .keyboardShortcut("a", modifiers: [.command, .shift])
+                Button("侧边栏") { postCommand(.toggleSidebar) }
+                    .keyboardShortcut("b", modifiers: [.command, .shift])
             }
         }
     }
@@ -62,7 +64,7 @@ struct DesireApp: App {
 enum BrowserCommand {
     case newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int), showHistory
-    case bookmarkPage, toggleFullScreen, toggleFind, tabSearch
+    case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
 }
 
 extension Notification.Name {

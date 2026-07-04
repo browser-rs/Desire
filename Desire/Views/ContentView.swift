@@ -31,6 +31,7 @@ struct ContentView: View {
     @State private var showUserScripts = false
     @State private var showReadingList = false
     @State private var showTabSwitcher = false
+    @State private var showSidebar = false
     @State private var findString = ""
     @State private var findHasMatch = false
     @State private var isFullScreen = false
@@ -164,8 +165,20 @@ struct ContentView: View {
                 .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
                 .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
-                if isFindBarVisible {
-                    FindBar(
+                HStack(spacing: 0) {
+                    if showSidebar {
+                        SidebarView(
+                            bookmarkStore: bookmarkStore,
+                            historyStore: historyStore,
+                            readingListStore: readingListStore,
+                            onNavigate: { url in navigateToURL(url, for: tab) }
+                        )
+                        Divider()
+                    }
+
+                    VStack(spacing: 0) {
+                        if isFindBarVisible {
+                            FindBar(
                         findString: $findString,
                         findHasMatch: findHasMatch,
                         isFindFocused: $isFindFocused,
@@ -243,7 +256,10 @@ struct ContentView: View {
                     }
                 }
             }
-        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            }
+            }
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard())
         .onAppear {
@@ -301,6 +317,8 @@ struct ContentView: View {
             case .tabSearch:
                 showTabSwitcher.toggle()
                 if showTabSwitcher { isUrlFocused = false }
+            case .toggleSidebar:
+                showSidebar.toggle()
             }
         }
         .sheet(isPresented: $showHistory) {

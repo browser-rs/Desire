@@ -1,13 +1,5 @@
-//
-//  ContentView.swift
-//  Desire
-//
-//  Created by mankong on 2026/7/3.
-//
-
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 import WebKit
 
 struct ContentView: View {
@@ -28,9 +20,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBookmarks = false
     @State private var showUserScripts = false
-    @State private var showMoreMenu = false
     @State private var showTabSwitcher = false
-    @State private var showDownloads = false
     @State private var findString = ""
     @State private var findHasMatch = false
     @State private var isFullScreen = false
@@ -38,16 +28,62 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
-                HStack(spacing: 6) {
-                    tabPills()
-                    Spacer()
-                }
-                .padding(.leading, isFullScreen ? 12 : 76)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
-                .background(Color.clear)
+                TabBar(
+                    tabs: tabManager.tabs,
+                    selectedIndex: tabManager.selectedIndex,
+                    isFullScreen: isFullScreen,
+                    showSwitcher: showTabSwitcher,
+                    onSelectTab: { index in
+                        isUrlFocused = false
+                        tabManager.selectTab(at: index)
+                        showTabSwitcher = false
+                    },
+                    onCloseTab: { tabManager.closeTab(at: $0) },
+                    onAddTab: {
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                        showTabSwitcher = false
+                    },
+                    onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
+                    onReloadTab: { $0.browser.webView.reload() },
+                    onCopyTabURL: { tab in
+                        if let url = tab.browser.webView.url {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                        }
+                    },
+                    onCloseOtherTabs: { tabManager.closeOthers(keeping: $0) },
+                    onCloseTabsToRight: { tabManager.closeToTheRight(of: $0) }
+                )
 
-                toolbar(for: tab)
+                Toolbar(
+                    tab: tab,
+                    settings: settings,
+                    suggestionModel: suggestionModel,
+                    downloadStore: downloadStore,
+                    bookmarkStore: bookmarkStore,
+                    historyStore: historyStore,
+                    isUrlFocused: $isUrlFocused,
+                    showHistory: $showHistory,
+                    showBookmarks: $showBookmarks,
+                    showUserScripts: $showUserScripts,
+                    showSettings: $showSettings,
+                    onGoBack: { tab.browser.webView.goBack() },
+                    onGoForward: { tab.browser.webView.goForward() },
+                    onReload: { tab.browser.webView.reload() },
+                    onLoadHome: { loadHome(for: tab) },
+                    onNavigate: { input in
+                        suggestionModel.reset()
+                        isUrlFocused = false
+                        navigateToURL(input, for: tab)
+                    },
+                    onBookmarkCurrentPage: { bookmarkCurrentPage() },
+                    onToggleFullScreen: { toggleFullScreen() },
+                    onSuggestionSelect: { sug in
+                        suggestionModel.reset()
+                        isUrlFocused = false
+                        navigateToURL(sug.url, for: tab)
+                    }
+                )
             }
 
             if let tab = tabManager.selectedTab {
@@ -58,7 +94,15 @@ struct ContentView: View {
                     .opacity(tab.isLoading ? 1 : 0)
 
                 if isFindBarVisible {
-                    findBar
+                    FindBar(
+                        findString: $findString,
+                        findHasMatch: findHasMatch,
+                        isFindFocused: $isFindFocused,
+                        onFindNext: { performFindNext() },
+                        onFindPrevious: { performFindPrevious() },
+                        onHide: { hideFindBar() },
+                        onFindAll: { performFindAll() }
+                    )
                 }
 
                 Group {
@@ -159,9 +203,6 @@ struct ContentView: View {
                 if isFindBarVisible { hideFindBar() } else { showFindBar() }
             }
         }
-        .overlay {
-            // Cmd+T / Cmd+W / Cmd+Shift+N 走菜单 (DesireApp.swift)
-        }
         .sheet(isPresented: $showHistory) {
             HistoryPanel(store: historyStore, onSelect: { url in
                 showHistory = false
@@ -180,277 +221,6 @@ struct ContentView: View {
         .sheet(isPresented: $showUserScripts) {
             UserScriptPanel(store: userScriptStore, onAdd: addUserScript, onClose: { showUserScripts = false })
         }
-    }
-
-    // MARK: - Tab Pills (Helium style: all tabs in title bar)
-
-    private func tabPills() -> some View {
-        HStack(spacing: 6) {
-            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                tabPill(for: tab, at: index)
-            }
-
-            Spacer()
-
-            Button {
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func tabPill(for tab: Tab, at index: Int) -> some View {
-            HStack(spacing: 6) {
-                if tab.isLoading {
-                    ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
-                } else if tab.isIncognito {
-                    Image(systemName: "mask").font(.caption)
-                } else if tab.isOnNewTabPage {
-                    Image(systemName: "asterisk").font(.caption)
-                } else {
-                    FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
-                }
-                Text(tab.displayTitle)
-                    .lineLimit(1)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(maxWidth: 120)
-                Button(action: { tabManager.closeTab(at: index) }) {
-                    Image(systemName: "xmark")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 26)
-            .background(
-                Capsule()
-                    .fill(index == tabManager.selectedIndex
-                          ? Color(nsColor: .controlBackgroundColor)
-                          : Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(index == tabManager.selectedIndex
-                            ? Color.accentColor
-                            : Color.secondary.opacity(0.25),
-                            lineWidth: index == tabManager.selectedIndex ? 1.5 : 0.5)
-            )
-            .contentShape(Capsule())
-            .onTapGesture {
-                isUrlFocused = false
-                tabManager.selectTab(at: index)
-            }
-            .onDrag {
-                let provider = NSItemProvider(object: NSString(string: "\(index)"))
-                return provider
-            }
-            .onDrop(of: [.text], delegate: TabDropDelegate(targetIndex: index, tabManager: tabManager))
-            .contextMenu {
-                tabContextMenu(for: tab, at: index)
-            }
-    }
-
-    @ViewBuilder
-    private func tabContextMenu(for tab: Tab, at index: Int) -> some View {
-        Button("新建标签页") {
-            tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-        }
-        Button("重新加载") { tab.browser.webView.reload() }
-            .disabled(tab.isOnNewTabPage)
-        Button("复制网址") {
-            if let url = tab.browser.webView.url {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(url.absoluteString, forType: .string)
-            }
-        }
-        .disabled(tab.isOnNewTabPage)
-
-        Divider()
-
-        Button("关闭标签页") { tabManager.closeTab(at: index) }
-            .disabled(tabManager.tabs.count <= 1)
-        Button("关闭其他标签页") { tabManager.closeOthers(keeping: index) }
-            .disabled(tabManager.tabs.count <= 1)
-        Button("关闭右侧标签页") { tabManager.closeToTheRight(of: index) }
-            .disabled(index >= tabManager.tabs.count - 1)
-    }
-
-    private var tabSwitcher: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(tab.isLoading ? Color.accentColor : (tab.isOnNewTabPage ? Color.secondary.opacity(0.3) : .clear))
-                        .frame(width: 6, height: 6)
-
-                    if tab.isIncognito {
-                        Image(systemName: "mask").font(.caption).foregroundStyle(.purple)
-                    }
-                    Text(tab.displayTitle)
-                        .lineLimit(1)
-                        .font(.system(size: 13))
-                    Spacer()
-                    if index == tabManager.selectedIndex {
-                        Image(systemName: "checkmark")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(index == tabManager.selectedIndex ? Color.accentColor.opacity(0.1) : .clear)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    tabManager.selectTab(at: index)
-                    showTabSwitcher = false
-                }
-            }
-
-            Divider()
-
-            HStack(spacing: 12) {
-                Button {
-                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-                    showTabSwitcher = false
-                } label: {
-                    Label("新标签页", systemImage: "plus")
-                }
-                .keyboardShortcut("t", modifiers: .command)
-
-                Spacer()
-            }
-            .padding(8)
-        }
-        .frame(width: 280)
-    }
-
-    // MARK: - Toolbar
-
-    private func toolbar(for tab: Tab) -> some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 10) {
-                navButton(systemName: "chevron.left") { tab.browser.webView.goBack() }
-                    .disabled(!tab.canGoBack)
-                navButton(systemName: "chevron.right") { tab.browser.webView.goForward() }
-                    .disabled(!tab.canGoForward)
-                navButton(systemName: "arrow.clockwise") {
-                    if tab.isLoading { tab.browser.webView.stopLoading() } else { tab.browser.webView.reload() }
-                }
-                navButton(systemName: "house") { loadHome(for: tab) }
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(
-                Capsule().fill(Color(nsColor: .controlBackgroundColor))
-            )
-
-            HStack(spacing: 4) {
-                Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
-                    .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
-                    .imageScale(.small)
-                    .padding(.leading, 4)
-                TextField("搜索或输入网址", text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }))
-                    .textFieldStyle(.plain)
-                    .focused($isUrlFocused)
-                    .onSubmit {
-                        if let sug = suggestionModel.selected() {
-                            suggestionModel.reset()
-                            isUrlFocused = false
-                            navigateToURL(sug.url, for: tab)
-                        } else {
-                            loadURL(for: tab)
-                        }
-                    }
-                    .onChange(of: tab.urlString) { _, newValue in
-                        if isUrlFocused {
-                            suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
-                        }
-                    }
-                    .onKeyPress(.upArrow) {
-                        suggestionModel.moveSelection(by: -1)
-                        return .handled
-                    }
-                    .onKeyPress(.downArrow) {
-                        suggestionModel.moveSelection(by: 1)
-                        return .handled
-                    }
-                    .onKeyPress(.escape) {
-                        suggestionModel.reset()
-                        isUrlFocused = false
-                        return .handled
-                    }
-                    .font(.system(size: 13))
-            }
-            .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(
-                Capsule()
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .overlay(
-                        Capsule().stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.clear, lineWidth: 1)
-                    )
-            )
-            .layoutPriority(1)
-
-            Button {
-                showDownloads.toggle()
-            } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: downloadStore.hasActive
-                          ? "arrow.down.circle.fill"
-                          : "arrow.down.circle")
-                        .foregroundStyle(downloadStore.hasActive ? Color.accentColor : .primary)
-                    if downloadStore.activeCount > 0 {
-                        Text("\(downloadStore.activeCount)")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(3)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
-                            .offset(x: 7, y: -7)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .help("下载")
-            .popover(isPresented: $showDownloads) {
-                DownloadPanel(store: downloadStore)
-            }
-
-            Button {
-                showMoreMenu = true
-            } label: {
-                Image(systemName: "ellipsis")
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showMoreMenu) {
-                VStack(spacing: 0) {
-                    moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
-                    moreMenuItem("书签", "bookmark") { showBookmarks = true }
-                    moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
-                    moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
-                    moreMenuItem("添加书签", "bookmark.fill") { bookmarkCurrentPage() }
-                    .disabled(tab.isOnNewTabPage)
-                    Divider()
-                    moreMenuItem(isFullScreen ? "退出全屏" : "全屏", "arrow.up.left.and.arrow.down.right") { toggleFullScreen() }
-                    moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
-                }
-                .padding(4)
-                .frame(width: 200)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.bottom, 8)
-        .background(.bar)
-        .onChange(of: isUrlFocused) { _, focused in
-            if !focused { suggestionModel.reset() }
-        }
         .overlay {
             Button("") {
                 isUrlFocused = true
@@ -461,26 +231,30 @@ struct ContentView: View {
             }
                 .keyboardShortcut("l", modifiers: .command)
                 .hidden()
-            Button("") { tab.browser.webView.reload() }
+            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.reload() } }
                 .keyboardShortcut("r", modifiers: .command)
                 .hidden()
-            Button("") { tab.browser.webView.goBack() }
+            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goBack() } }
                 .keyboardShortcut("[", modifiers: .command)
                 .hidden()
-            Button("") { tab.browser.webView.goForward() }
+            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goForward() } }
                 .keyboardShortcut("]", modifiers: .command)
                 .hidden()
             Button("") {
-                tab.browser.webView.pageZoom = tab.browser.webView.pageZoom + 0.1
+                if let tab = tabManager.selectedTab {
+                    tab.browser.webView.pageZoom = tab.browser.webView.pageZoom + 0.1
+                }
             }
                 .keyboardShortcut("=", modifiers: .command)
                 .hidden()
             Button("") {
-                tab.browser.webView.pageZoom = tab.browser.webView.pageZoom - 0.1
+                if let tab = tabManager.selectedTab {
+                    tab.browser.webView.pageZoom = tab.browser.webView.pageZoom - 0.1
+                }
             }
                 .keyboardShortcut("-", modifiers: .command)
                 .hidden()
-            Button("") { tab.browser.webView.pageZoom = 1 }
+            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.pageZoom = 1 } }
                 .keyboardShortcut("0", modifiers: .command)
                 .hidden()
             Button("") { showFindBar() }
@@ -498,72 +272,7 @@ struct ContentView: View {
         }
     }
 
-    private func navButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Find Bar
-
-    private var findBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-
-            TextField("在页面中查找…", text: $findString)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 180)
-                .focused($isFindFocused)
-                .onChange(of: findString) { _ in
-                    performFindAll()
-                }
-                .onSubmit { performFindNext() }
-
-            if findHasMatch && !findString.isEmpty {
-                Text("找到匹配")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if !findString.isEmpty {
-                Text("未找到")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button("上一条", systemImage: "chevron.up") { performFindPrevious() }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
-                .disabled(findString.isEmpty)
-
-            Button("下一条", systemImage: "chevron.down") { performFindNext() }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
-                .disabled(findString.isEmpty)
-
-            Button("完成") { hideFindBar() }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.bar)
-        .onAppear { isFindFocused = true }
-    }
-
     // MARK: - Actions
-
-    private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: {
-            showMoreMenu = false
-            action()
-        }) {
-            Label(title, systemImage: icon)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .buttonStyle(.plain)
-        .padding(8)
-    }
 
     private func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)
@@ -597,10 +306,6 @@ struct ContentView: View {
         tab.isOnNewTabPage = false
         tab.urlString = text
         tab.browser.webView.load(URLRequest(url: url))
-    }
-
-    private func loadURL(for tab: Tab) {
-        navigateToURL(tab.urlString, for: tab)
     }
 
     private func showFindBar() {
@@ -653,21 +358,5 @@ struct ContentView: View {
     private func addUserScript() {
         showUserScripts = false
         userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
-    }
-}
-
-private struct TabDropDelegate: DropDelegate {
-    let targetIndex: Int
-    let tabManager: TabManager
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let provider = info.itemProviders(for: [.text]).first else { return false }
-        provider.loadObject(ofClass: NSString.self) { reading, _ in
-            guard let str = reading as? String, let source = Int(str) else { return }
-            Task { @MainActor in
-                tabManager.moveTab(from: source, to: targetIndex)
-            }
-        }
-        return true
     }
 }

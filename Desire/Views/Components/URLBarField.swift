@@ -11,11 +11,12 @@ struct URLBarField: NSViewRepresentable {
     var onTextChange: (String) -> Void
 
     func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField(frame: .zero)
+        let field = URLTextField(frame: .zero)
         field.isBezeled = false
         field.isBordered = false
         field.drawsBackground = false
         field.font = NSFont.systemFont(ofSize: 13)
+        field.textColor = NSColor.labelColor
         field.placeholderString = "搜索或输入网址"
         field.delegate = context.coordinator
         field.target = context.coordinator
@@ -114,5 +115,34 @@ struct URLBarField: NSViewRepresentable {
             }
             return false
         }
+    }
+}
+
+/// NSTextField that draws no focus ring and keeps its field editor transparent,
+/// so it can sit inside a SwiftUI Capsule without producing a nested "blue box + black box" look.
+final class URLTextField: NSTextField {
+    override var focusRingType: NSFocusRingType {
+        get { .none }
+        set { }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        clearEditorBackground()
+        return ok
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let ok = super.resignFirstResponder()
+        clearEditorBackground()
+        return ok
+    }
+
+    private func clearEditorBackground() {
+        guard let editor = currentEditor() as? NSTextView else { return }
+        editor.backgroundColor = .clear
+        editor.drawsBackground = true
+        editor.textColor = NSColor.labelColor
+        editor.insertionPointColor = NSColor.labelColor
     }
 }

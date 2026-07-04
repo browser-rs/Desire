@@ -111,10 +111,15 @@ struct Toolbar: View {
             .frame(height: 30)
             .background(
                 Capsule()
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
                     .overlay(
-                        Capsule().stroke(tab.isIncognito ? Color.purple.opacity(0.4) : Color.clear, lineWidth: 1)
+                        Capsule()
+                            .strokeBorder(
+                                isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.4) :
+                                tab.isIncognito ? Color.purple.opacity(0.3) :
+                                Color.clear, lineWidth: 0.5)
                     )
+                    .animation(.transitionNormal, value: isUrlFocused.wrappedValue)
             )
             .layoutPriority(1)
 

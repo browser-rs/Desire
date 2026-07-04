@@ -8,23 +8,49 @@ class BookmarkStore: ObservableObject {
 
     init() {
         load()
+        if bookmarks.isEmpty { seedDefaults() }
     }
 
-    func add(title: String, url: String) {
-        let bookmark = Bookmark(id: UUID(), title: title, url: url)
-        bookmarks.insert(bookmark, at: 0)
+    var allBookmarks: [Bookmark] {
+        bookmarks.flatMap { $0.flattened() }.filter { $0.0.isLeaf }.map(\.0)
+    }
+
+    func add(title: String, url: String, parentID: UUID? = nil) {
+        let bookmark = Bookmark.leaf(title: title, url: url)
+        if let parentID {
+            _ = bookmarks.update(id: parentID) { $0.children.append(bookmark) }
+        } else {
+            bookmarks.append(bookmark)
+        }
+        save()
+    }
+
+    func addFolder(title: String, parentID: UUID? = nil) {
+        let folder = Bookmark.folder(title: title)
+        if let parentID {
+            _ = bookmarks.update(id: parentID) { $0.children.append(folder) }
+        } else {
+            bookmarks.append(folder)
+        }
         save()
     }
 
     func remove(_ bookmark: Bookmark) {
-        bookmarks.removeAll { $0.id == bookmark.id }
+        _ = bookmarks.remove(id: bookmark.id)
         save()
     }
 
     func update(_ bookmark: Bookmark) {
-        guard let i = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
-        bookmarks[i] = bookmark
+        _ = bookmarks.update(id: bookmark.id) { $0 = bookmark }
         save()
+    }
+
+    func contains(url: String) -> Bool {
+        allBookmarks.contains { $0.url == url }
+    }
+
+    func find(url: String) -> Bookmark? {
+        bookmarks.find { $0.url == url }
     }
 
     private func load() {
@@ -36,5 +62,16 @@ class BookmarkStore: ObservableObject {
     private func save() {
         guard let data = try? JSONEncoder().encode(bookmarks) else { return }
         UserDefaults.standard.set(data, forKey: saveKey)
+    }
+
+    private func seedDefaults() {
+        bookmarks = [
+            .folder(title: "常用网站", children: [
+                .leaf(title: "GitHub", url: "https://github.com"),
+                .leaf(title: "Stack Overflow", url: "https://stackoverflow.com"),
+            ]),
+            .leaf(title: "Hacker News", url: "https://news.ycombinator.com"),
+        ]
+        save()
     }
 }

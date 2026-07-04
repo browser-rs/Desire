@@ -59,14 +59,15 @@ class AddressSuggestionsModel: ObservableObject {
             ))
         }
 
-        for b in bookmarks.bookmarks {
+        for b in bookmarks.allBookmarks {
+            guard let url = b.url else { continue }
             if results.count >= maxResults { break }
-            if b.title.lowercased().contains(q) || b.url.lowercased().contains(q) {
+            if b.title.lowercased().contains(q) || url.lowercased().contains(q) {
                 results.append(AddressSuggestion(
                     kind: .bookmark,
                     title: b.title,
-                    url: b.url,
-                    domain: FaviconStore.domainKey(from: b.url)
+                    url: url,
+                    domain: FaviconStore.domainKey(from: url)
                 ))
             }
         }

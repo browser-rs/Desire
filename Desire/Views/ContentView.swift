@@ -343,7 +343,7 @@ struct ContentView: View {
               let url = tab.browser.webView.url,
               !tab.isOnNewTabPage else { return }
         let urlString = url.absoluteString
-        if let existing = bookmarkStore.bookmarks.first(where: { $0.url == urlString }) {
+        if let existing = bookmarkStore.find(url: urlString) {
             bookmarkStore.remove(existing)
         } else {
             bookmarkStore.add(title: tab.browser.pageTitle, url: urlString)

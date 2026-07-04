@@ -191,7 +191,7 @@ struct Toolbar: View {
 
     private var isBookmarked: Bool {
         guard let url = tab.browser.webView.url?.absoluteString else { return false }
-        return bookmarkStore.bookmarks.contains(where: { $0.url == url })
+        return bookmarkStore.contains(url: url)
     }
 
     private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {

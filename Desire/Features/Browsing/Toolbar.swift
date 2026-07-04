@@ -50,140 +50,20 @@ struct Toolbar: View {
         return "\(pct)%"
     }
 
+    private var isBookmarked: Bool {
+        guard let url = tab.browser.webView.url?.absoluteString else { return false }
+        return bookmarkStore.contains(url: url)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            HStack(spacing: 10) {
-                BackForwardButton(direction: .back, webView: tab.browser.webView, canGo: tab.canGoBack, action: actions.goBack)
-                BackForwardButton(direction: .forward, webView: tab.browser.webView, canGo: tab.canGoForward, action: actions.goForward)
-                CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
-                    if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
-                }, help: tab.isLoading ? "停止" : "重新加载")
-                CapsuleButton(systemName: "house", action: actions.loadHome, help: "主页")
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(
-                Capsule().fill(Color(nsColor: .controlBackgroundColor))
-            )
-
-            HStack(spacing: 4) {
-                Button {
-                    showSecurityInfo.toggle()
-                } label: {
-                    Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
-                        .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
-                        .imageScale(.small)
-                }
-                .buttonStyle(.plain)
-                .help(tab.browser.isSecure ? "连接安全" : "连接不安全")
-                .popover(isPresented: $showSecurityInfo) {
-                    SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
-                                     host: tab.browser.webView.url?.host ?? "")
-                }
-
-                URLBarField(
-                    text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
-                    isFocused: isUrlFocused,
-                    onSubmit: { actions.navigate(tab.urlString) },
-                    onPasteAndGo: {
-                        if let str = NSPasteboard.general.string(forType: .string) {
-                            tab.urlString = str
-                            actions.navigate(str)
-                        }
-                    },
-                    onMoveSelection: { delta in suggestionModel.moveSelection(by: delta) },
-                    onEscape: {
-                        suggestionModel.reset()
-                        isUrlFocused.wrappedValue = false
-                    },
-                    onTextChange: { newValue in
-                        suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
-                    }
-                )
-
-                HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "退出阅读模式" : "阅读模式")
-                    .foregroundStyle(isReadingMode ? Color.accentColor : .secondary)
-
-                HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
-                    .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
-            }
-            .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(
-                Capsule()
-                    .fill(isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.4) :
-                                tab.isIncognito ? Color.purple.opacity(0.3) :
-                                Color.clear, lineWidth: 0.5)
-                    )
-                    .animation(.transitionNormal, value: isUrlFocused.wrappedValue)
-            )
-            .layoutPriority(1)
-
-            Button {
-                actions.resetZoom()
-            } label: {
-                Text(zoomPercent)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 22)
-            }
-            .buttonStyle(.plain)
-            .help("缩放比例 — 点击重置为 100%")
-
-            HStack(spacing: 6) {
-                DownloadButton(store: downloadStore, showDownloads: $showDownloads)
-
-                Button {
-                    showMoreMenu = true
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showMoreMenu) {
-                    VStack(spacing: 0) {
-                        moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
-                        moreMenuItem("书签", "bookmark") { showBookmarks = true }
-                        moreMenuItem("密码", "key.fill") { showPasswords = true }
-                        moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
-                        moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
-                        moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
-                        moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
-                            .disabled(tab.isOnNewTabPage)
-                        moreMenuItem("添加到阅读列表", "bookmark.slash") {
-                            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
-                            let title = tab.browser.pageTitle
-                            actions.addToReadingList(title, url)
-                        }
-                        .disabled(tab.isOnNewTabPage)
-                        moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
-                            .disabled(tab.isOnNewTabPage)
-                        Divider()
-                        moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
-                        moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
-                        moreMenuItem("重置缩放", "1.magnifyingglass") { actions.resetZoom() }
-                        moreMenuItem("打印…", "printer") { actions.printPage() }
-                        moreMenuItem("全页截图…", "photo.on.rectangle.angled") { actions.captureFullPage() }
-                        Divider()
-                        moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
-                        moreMenuItem("响应式设计模式", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
-                        moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
-                        moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
-                    }
-                .padding(4)
-                .frame(width: 200)
+            navGroup
+            urlBarGroup
+            zoomButton
+            trailingButtons
         }
-    }
-}
-
-
-    .padding(.horizontal, 8)
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
         .padding(.bottom, 6)
         .background(.bar)
         .popover(isPresented: $showPasswords) {
@@ -194,9 +74,156 @@ struct Toolbar: View {
         }
     }
 
-    private var isBookmarked: Bool {
-        guard let url = tab.browser.webView.url?.absoluteString else { return false }
-        return bookmarkStore.contains(url: url)
+    // MARK: - Nav Group
+
+    private var navGroup: some View {
+        HStack(spacing: 10) {
+            BackForwardButton(direction: .back, webView: tab.browser.webView, canGo: tab.canGoBack, action: actions.goBack)
+            BackForwardButton(direction: .forward, webView: tab.browser.webView, canGo: tab.canGoForward, action: actions.goForward)
+            CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
+                if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
+            }, help: tab.isLoading ? "停止" : "重新加载")
+            CapsuleButton(systemName: "house", action: actions.loadHome, help: "主页")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(
+            Capsule().fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+
+    // MARK: - URL Bar Group
+
+    private var urlBarGroup: some View {
+        HStack(spacing: 4) {
+            Button {
+                showSecurityInfo.toggle()
+            } label: {
+                Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
+                    .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
+                    .imageScale(.small)
+            }
+            .buttonStyle(.plain)
+            .help(tab.browser.isSecure ? "连接安全" : "连接不安全")
+            .popover(isPresented: $showSecurityInfo) {
+                SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
+                                 host: tab.browser.webView.url?.host ?? "")
+            }
+
+            URLBarField(
+                text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
+                isFocused: isUrlFocused,
+                onSubmit: { actions.navigate(tab.urlString) },
+                onPasteAndGo: {
+                    if let str = NSPasteboard.general.string(forType: .string) {
+                        tab.urlString = str
+                        actions.navigate(str)
+                    }
+                },
+                onMoveSelection: { delta in suggestionModel.moveSelection(by: delta) },
+                onEscape: {
+                    suggestionModel.reset()
+                    isUrlFocused.wrappedValue = false
+                },
+                onTextChange: { newValue in
+                    suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
+                }
+            )
+
+            HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "退出阅读模式" : "阅读模式")
+                .foregroundStyle(isReadingMode ? Color.accentColor : .secondary)
+
+            HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
+                .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 30)
+        .background(
+            Capsule()
+                .fill(isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.4) :
+                            tab.isIncognito ? Color.purple.opacity(0.3) :
+                            Color.clear, lineWidth: 0.5)
+                )
+                .animation(.transitionNormal, value: isUrlFocused.wrappedValue)
+        )
+        .layoutPriority(1)
+    }
+
+    // MARK: - Zoom Button
+
+    private var zoomButton: some View {
+        Button {
+            actions.resetZoom()
+        } label: {
+            Text(zoomPercent)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 22)
+        }
+        .buttonStyle(.plain)
+        .help("缩放比例 — 点击重置为 100%")
+    }
+
+    // MARK: - Trailing Buttons
+
+    private var trailingButtons: some View {
+        HStack(spacing: 6) {
+            DownloadButton(store: downloadStore, showDownloads: $showDownloads)
+
+            Button {
+                showMoreMenu = true
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .medium))
+                    .rotationEffect(.degrees(90))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showMoreMenu) {
+                moreMenuContent
+            }
+        }
+    }
+
+    // MARK: - More Menu
+
+    private var moreMenuContent: some View {
+        VStack(spacing: 0) {
+            moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
+            moreMenuItem("书签", "bookmark") { showBookmarks = true }
+            moreMenuItem("密码", "key.fill") { showPasswords = true }
+            moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
+            moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
+            moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
+            moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
+                .disabled(tab.isOnNewTabPage)
+            moreMenuItem("添加到阅读列表", "bookmark.slash") {
+                let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+                let title = tab.browser.pageTitle
+                actions.addToReadingList(title, url)
+            }
+            .disabled(tab.isOnNewTabPage)
+            moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
+                .disabled(tab.isOnNewTabPage)
+            Divider()
+            moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
+            moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
+            moreMenuItem("重置缩放", "1.magnifyingglass") { actions.resetZoom() }
+            moreMenuItem("打印…", "printer") { actions.printPage() }
+            moreMenuItem("全页截图…", "photo.on.rectangle.angled") { actions.captureFullPage() }
+            Divider()
+            moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
+            moreMenuItem("响应式设计模式", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
+            moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
+            moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
+        }
+        .padding(4)
+        .frame(width: 200)
     }
 
     private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {

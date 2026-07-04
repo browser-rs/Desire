@@ -18,6 +18,7 @@ class BrowserState: ObservableObject {
     @Published var isReadingMode = false
     @Published var readerTitle = ""
     @Published var readerContent = ""
+    @Published var hoveredLinkURL: String?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -117,6 +118,25 @@ class BrowserState: ObservableObject {
         let readerScript = WKUserScript(source: readerJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(readerScript)
 
+        let hoverJS = """
+        (function() {
+            document.addEventListener('mouseover', function(e) {
+                var link = e.target.closest('a');
+                if (link && link.href) {
+                    window.webkit.messageHandlers.hoverLink.postMessage(link.href);
+                }
+            }, true);
+            document.addEventListener('mouseout', function(e) {
+                var link = e.target.closest('a');
+                if (link) {
+                    window.webkit.messageHandlers.hoverLink.postMessage('');
+                }
+            }, true);
+        })();
+        """
+        let hoverScript = WKUserScript(source: hoverJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        config.userContentController.addUserScript(hoverScript)
+
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
@@ -182,6 +202,7 @@ struct WebView: NSViewRepresentable {
             webView.configuration.userContentController.add(self, name: "audioState")
             webView.configuration.userContentController.add(self, name: "passwordDetect")
             webView.configuration.userContentController.add(self, name: "readerContent")
+            webView.configuration.userContentController.add(self, name: "hoverLink")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -205,6 +226,7 @@ struct WebView: NSViewRepresentable {
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -235,6 +257,8 @@ struct WebView: NSViewRepresentable {
             } else if message.name == "readerContent", let dict = message.body as? [String: String] {
                 parent.state.readerTitle = dict["title"] ?? ""
                 parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
+            } else if message.name == "hoverLink", let url = message.body as? String {
+                parent.state.hoveredLinkURL = url.isEmpty ? nil : url
             }
         }
 
@@ -243,6 +267,7 @@ struct WebView: NSViewRepresentable {
             parent.state.estimatedProgress = 0
             parent.state.lastError = nil
             parent.state.serverTrust = nil
+            parent.state.hoveredLinkURL = nil
         }
 
         func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {

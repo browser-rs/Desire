@@ -21,6 +21,7 @@ struct TabBar: View {
     let onTogglePin: (Int) -> Void
     @ObservedObject var tabGroupStore: TabGroupStore
     let onCreateGroup: (Int) -> Void
+    let onDuplicateTab: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -44,7 +45,8 @@ struct TabBar: View {
                                     closeOtherTabs: onCloseOtherTabs,
                                     closeTabsToRight: onCloseTabsToRight,
                                     addTab: onAddTab,
-                                    createGroup: onCreateGroup
+                                    createGroup: onCreateGroup,
+                                    duplicateTab: onDuplicateTab
                                 ),
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
@@ -72,7 +74,8 @@ struct TabBar: View {
                                     closeOtherTabs: onCloseOtherTabs,
                                     closeTabsToRight: onCloseTabsToRight,
                                     addTab: onAddTab,
-                                    createGroup: onCreateGroup
+                                    createGroup: onCreateGroup,
+                                    duplicateTab: onDuplicateTab
                                 ),
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
@@ -135,6 +138,7 @@ struct TabBar: View {
         let closeTabsToRight: (Int) -> Void
         let addTab: () -> Void
         let createGroup: (Int) -> Void
+        let duplicateTab: (Int) -> Void
     }
 }
 
@@ -232,6 +236,7 @@ private struct TabPillView: View {
     @ViewBuilder
     private var tabContextMenu: some View {
         Button("新建标签页") { actions.addTab() }
+        Button("复制标签页") { actions.duplicateTab(index) }
         Button("重新加载") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
         Button("复制网址") { actions.copyTabURL(tab) }

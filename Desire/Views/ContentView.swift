@@ -92,6 +92,9 @@ struct ContentView: View {
                                 tabGroupStore.addTab(tabId, to: group.id)
                             }
                         }
+                    },
+                    onDuplicateTab: { index in
+                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
                     }
                 )
 
@@ -280,6 +283,20 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+            }
+
+            if let tab = tabManager.selectedTab, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
+                HStack(spacing: 4) {
+                    Text(hoverURL)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+                .background(.bar)
             }
         }
         .ignoresSafeArea(.all, edges: .top)

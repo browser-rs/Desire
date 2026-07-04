@@ -140,6 +140,7 @@ class DownloadStore: ObservableObject {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
         saveHistory()
+        notifyDownload(filename: downloads[i].filename)
     }
 
     func fail(id: UUID, message: String) {
@@ -184,6 +185,16 @@ class DownloadStore: ObservableObject {
     func openFile(_ item: DownloadItem) {
         guard let url = item.fileURL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func notifyDownload(filename: String) {
+        NSApp.requestUserAttention(.informationalRequest)
+        let userInfo: [String: Any] = ["filename": filename]
+        let notification = NSUserNotification()
+        notification.title = "下载完成"
+        notification.informativeText = filename
+        notification.userInfo = userInfo
+        NSUserNotificationCenter.default.deliver(notification)
     }
 }
 

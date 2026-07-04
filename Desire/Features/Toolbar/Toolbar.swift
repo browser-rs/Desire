@@ -210,6 +210,8 @@ struct Toolbar: View {
             .disabled(tab.isOnNewTabPage)
             moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
                 .disabled(tab.isOnNewTabPage)
+            moreMenuItem("分享…", "square.and.arrow.up") { shareCurrentPage() }
+                .disabled(tab.isOnNewTabPage)
             Divider()
             moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
             moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
@@ -236,6 +238,15 @@ struct Toolbar: View {
         }
         .buttonStyle(.plain)
         .padding(8)
+    }
+
+    private func shareCurrentPage() {
+        guard let url = tab.browser.webView.url else { return }
+        let items: [Any] = [url]
+        let picker = NSSharingServicePicker(items: items)
+        guard let contentView = NSApp.mainWindow?.contentView else { return }
+        let rect = NSRect(x: contentView.bounds.midX, y: contentView.bounds.maxY - 100, width: 1, height: 1)
+        picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
     }
 }
 

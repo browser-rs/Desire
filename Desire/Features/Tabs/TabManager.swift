@@ -119,6 +119,20 @@ class TabManager: ObservableObject {
         persistSession()
     }
 
+    func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) {
+        guard tabs.indices.contains(index) else { return }
+        let source = tabs[index]
+        let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
+        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+        newTab.isPinned = source.isPinned
+        tabCancellables[newTab.id] = newTab.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        tabs.insert(newTab, at: index + 1)
+        selectedIndex = index + 1
+        persistSession()
+    }
+
     func closeTab(at index: Int) {
         guard tabs.count > 1, tabs.indices.contains(index) else { return }
         let tab = tabs[index]

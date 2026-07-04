@@ -73,16 +73,6 @@
         }
       }
     },
-    "%lld × %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld × %2$lld"
-          }
-        }
-      }
-    },
     "%lld×%lld" : {
       "localizations" : {
         "en" : {
@@ -92,9 +82,6 @@
           }
         }
       }
-    },
-    "%lldpx" : {
-
     },
     "×" : {
 
@@ -953,9 +940,6 @@
         }
       }
     },
-    "Click and drag to select a region. Esc to cancel." : {
-
-    },
     "Click to reload — %@" : {
       "comment" : "Click to reload suspended tab, with tab title",
       "localizations" : {
@@ -1070,9 +1054,6 @@
           }
         }
       }
-    },
-    "Color" : {
-
     },
     "Common Sites" : {
       "comment" : "Default bookmark folder name",
@@ -1902,9 +1883,6 @@
         }
       }
     },
-    "Edit Screenshot" : {
-
-    },
     "Edit…" : {
       "comment" : "Edit bookmark button",
       "localizations" : {
@@ -2068,6 +2046,7 @@
     },
     "Esc to cancel" : {
       "comment" : "Editor bottom bar hint",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4143,9 +4122,6 @@
         }
       }
     },
-    "Redo" : {
-
-    },
     "Reload" : {
       "comment" : "Reload button",
       "localizations" : {
@@ -5078,9 +5054,6 @@
           }
         }
       }
-    },
-    "Stroke: %lldpx" : {
-
     },
     "Suggestion URL (optional)" : {
       "comment" : "Add custom search engine suggestion URL placeholder",

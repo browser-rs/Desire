@@ -1,106 +1,130 @@
 import AppKit
-import SwiftUI
 
-// MARK: - Presenter
+/// 选区 overlay。在 NSScreen 上覆盖一个透明 panel，用户框选一个矩形后回调。
+///
+/// 坐标流：
+///   mouseEvent.locationInWindow → view 本地坐标（左下原点，和 panel contentView 一致）
+///   本地坐标 == window 坐标（因为 view 填满 window）
+///   panel.convertToScreen(rect) → 全局屏幕坐标（和 NSScreen.frame 一致）
+///   该 rect 直接交给 `CGDisplayCreateImageForRect`，不需要任何换算。
 enum ScreenshotOverlayPresenter {
-    private static weak var activePanel: OverlayPanel?
-    private static var activeScreen: NSScreen?
+    private static var current: OverlayPanel?
 
-    static func show(onCancel: @escaping () -> Void, onCapture: @escaping (NSRect, NSScreen) -> Void) {
+    static func show(onCancel: @escaping () -> Void,
+                     onCapture: @escaping (CGRect, NSScreen) -> Void) {
         hide()
-        guard let screen = NSScreen.main else { return }
+        guard let screen = screenUnderMouse() ?? NSScreen.main else {
+            onCancel()
+            return
+        }
         let panel = OverlayPanel(screen: screen)
         panel.onCancel = onCancel
-        panel.onCapture = { rect in onCapture(rect, screen) }
-        panel.orderFrontRegardless()
-        activePanel = panel
-        activeScreen = screen
+        panel.onConfirm = { rect in onCapture(rect, screen) }
+        panel.show()
+        current = panel
     }
 
     static func hide() {
-        activePanel?.orderOut(nil)
-        activePanel = nil
-        activeScreen = nil
+        current?.dismiss()
+        current = nil
+    }
+
+    private static func screenUnderMouse() -> NSScreen? {
+        let mouse = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
     }
 }
 
 // MARK: - Panel
 
-private class OverlayPanel: NSPanel {
+private final class OverlayPanel {
     var onCancel: (() -> Void)?
-    var onCapture: ((NSRect) -> Void)?
+    var onConfirm: ((CGRect) -> Void)?
+
+    private let panel: NSPanel
+    private let view: SelectionView
+    private let screen: NSScreen
 
     init(screen: NSScreen) {
-        super.init(
-            contentRect: screen.frame,
+        self.screen = screen
+        let frame = screen.frame
+        self.panel = NSPanel(
+            contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        level = .screenSaver
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = false
-        ignoresMouseEvents = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        isRestorable = false
+        self.view = SelectionView(frame: NSRect(origin: .zero, size: frame.size))
+        panel.level = .screenSaver
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isMovable = false
+        panel.contentView = view
+        view.onCancel = { [weak self] in self?.dismiss(); self?.onCancel?() }
+        view.onConfirm = { [weak self] localRect in
+            guard let self = self else { return }
+            let screenRect = self.panel.convertToScreen(localRect)
+            self.dismiss()
+            self.onConfirm?(screenRect)
+        }
+    }
 
-        let sel = SelectionView(frame: screen.frame)
-        sel.onCancel = { [weak self] in
-            self?.onCancel?()
-            self?.orderOut(nil)
-        }
-        sel.onCapture = { [weak self] rect in
-            self?.onCapture?(rect)
-            self?.orderOut(nil)
-        }
-        contentView = sel
+    func show() {
+        panel.makeKeyAndOrderFront(nil)
+        view.reset()
+    }
+
+    func dismiss() {
+        panel.orderOut(nil)
     }
 }
 
 // MARK: - Selection View
 
-private class SelectionView: NSView {
+private final class SelectionView: NSView {
     var onCancel: (() -> Void)?
-    var onCapture: ((NSRect) -> Void)?
+    var onConfirm: ((CGRect) -> Void)?
 
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .crosshair)
     }
 
-    required init?(coder: NSCoder) { nil }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
+    func reset() {
+        startPoint = nil
+        currentPoint = nil
+        needsDisplay = true
         window?.makeFirstResponder(self)
-        NSCursor.crosshair.set()
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        for ta in trackingAreas { removeTrackingArea(ta) }
-        let ta = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self, userInfo: nil
-        )
-        addTrackingArea(ta)
-    }
+    override func draw(_ dirtyRect: NSRect) {
+        // 整屏半透明蒙层
+        NSColor.black.withAlphaComponent(0.3).setFill()
+        bounds.fill()
 
-    override func mouseEntered(with event: NSEvent) {
-        NSCursor.crosshair.set()
-    }
+        guard let start = startPoint, let current = currentPoint else { return }
+        let rect = normalize(start, current)
 
-    override func mouseMoved(with event: NSEvent) {
-        NSCursor.crosshair.set()
+        // 选区"打洞"——用 clear + copy 把蒙层在该区域清掉
+        NSColor.clear.setFill()
+        rect.fill(using: .copy)
+
+        // 边框
+        NSColor.white.setStroke()
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 1
+        path.stroke()
     }
 
     override func mouseDown(with event: NSEvent) {
         startPoint = convert(event.locationInWindow, from: nil)
         currentPoint = startPoint
+        needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -109,79 +133,25 @@ private class SelectionView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
+        defer {
+            startPoint = nil
+            currentPoint = nil
+            needsDisplay = true
+        }
         guard let start = startPoint, let current = currentPoint else { return }
-        let rect = rectBetween(start, current)
-        guard rect.width > 5 && rect.height > 5 else { return }
-        onCapture?(rect)
+        let rect = normalize(start, current)
+        guard rect.width > 5, rect.height > 5 else {
+            onCancel?()
+            return
+        }
+        onConfirm?(rect)
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { onCancel?() }
+        if event.keyCode == 53 { onCancel?() } // Escape
     }
 
-    override var acceptsFirstResponder: Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-
-        ctx.setFillColor(NSColor.black.withAlphaComponent(0.3).cgColor)
-        ctx.fill(bounds)
-
-        if let start = startPoint, let current = currentPoint {
-            let rect = rectBetween(start, current)
-
-            ctx.clear(rect)
-
-            ctx.setStrokeColor(NSColor.white.cgColor)
-            ctx.setLineWidth(2)
-            ctx.addRect(rect)
-            ctx.strokePath()
-
-            let handleSize: CGFloat = 6
-            ctx.setFillColor(NSColor.white.cgColor)
-            for corner in [rect.origin,
-                           CGPoint(x: rect.maxX, y: rect.minY),
-                           CGPoint(x: rect.minX, y: rect.maxY),
-                           CGPoint(x: rect.maxX, y: rect.maxY)] {
-                ctx.fillEllipse(in: CGRect(x: corner.x - handleSize/2, y: corner.y - handleSize/2, width: handleSize, height: handleSize))
-            }
-
-            let dimText = "\(Int(rect.width)) × \(Int(rect.height))" as NSString
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                .foregroundColor: NSColor.white
-            ]
-            let textSize = dimText.size(withAttributes: attrs)
-            let labelX = rect.midX - textSize.width / 2
-            let labelY: CGFloat
-            if rect.maxY + 22 + textSize.height < bounds.maxY {
-                labelY = rect.maxY + 8
-            } else {
-                labelY = rect.minY - textSize.height - 8
-            }
-            ctx.setFillColor(NSColor.black.withAlphaComponent(0.5).cgColor)
-            let bgRect = CGRect(x: labelX - 4, y: labelY - 2, width: textSize.width + 8, height: textSize.height + 4)
-            ctx.fill(bgRect)
-            dimText.draw(at: CGPoint(x: labelX, y: labelY), withAttributes: attrs)
-        } else {
-            let hint = NSLocalizedString("Click and drag to select a region. Esc to cancel.", comment: "")
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 14),
-                .foregroundColor: NSColor.white
-            ]
-            let size = (hint as NSString).size(withAttributes: attrs)
-            let point = CGPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2 + 100)
-            ctx.setFillColor(NSColor.black.withAlphaComponent(0.4).cgColor)
-            let bg = CGRect(x: point.x - 10, y: point.y - 6, width: size.width + 20, height: size.height + 12)
-            let bgPath = CGPath(roundedRect: bg, cornerWidth: 8, cornerHeight: 8, transform: nil)
-            ctx.addPath(bgPath)
-            ctx.fillPath()
-            (hint as NSString).draw(at: point, withAttributes: attrs)
-        }
-    }
-
-    private func rectBetween(_ a: NSPoint, _ b: NSPoint) -> NSRect {
+    private func normalize(_ a: NSPoint, _ b: NSPoint) -> NSRect {
         NSRect(
             x: min(a.x, b.x),
             y: min(a.y, b.y),

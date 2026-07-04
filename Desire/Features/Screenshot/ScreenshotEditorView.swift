@@ -1,408 +1,98 @@
-import AppKit
 import SwiftUI
+import AppKit
 
-// MARK: - Presenter
+/// 截图编辑窗口（独立 NSWindow）。只展示图片 + Copy/Save/Cancel。
 enum ScreenshotEditorPresenter {
-    private static weak var window: NSWindow?
-    private static var closeObserver: Any?
+    private static var window: NSWindow?
+    private static var closeObserver: NSObjectProtocol?
     private static var onClose: (() -> Void)?
 
-    static func show(store: ScreenshotStore, onClose: @escaping () -> Void = {}) {
+    @MainActor
+    static func show(store: ScreenshotStore, onClose callback: @escaping () -> Void = {}) {
         hide()
-        let hosting = NSHostingView(rootView: ScreenshotEditorView(store: store))
-        hosting.sizingOptions = [.standardBounds]
-        let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        win.title = String(localized: "Edit Screenshot")
-        win.contentView = hosting
-        win.center()
-        win.makeKeyAndOrderFront(nil)
-        win.isReleasedWhenClosed = false
-        win.isRestorable = false
-        window = win
-        self.onClose = onClose
 
-        // willCloseNotification 会先于 view 拆解触发，此时 SwiftUI 可能还正在布局。
-        // 之前的写法会同步改 store.phase -> 触发 .onChange -> 递归 hide 自身，栈很深易崩。
-        // 改成只发 onClose 通知，让调用方（ContentView）决定是否 cancel，避免循环。
+        let view = ScreenshotEditorView(store: store)
+        let hosting = NSHostingController(rootView: view)
+        let win = NSWindow(contentViewController: hosting)
+        win.title = "Screenshot"
+        win.setContentSize(NSSize(width: 900, height: 640))
+        win.styleMask = [.titled, .closable, .resizable, .miniaturizable]
+        win.center()
+        win.isReleasedWhenClosed = false
+
+        onClose = callback
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: win,
             queue: .main
         ) { _ in
+            // 先把回调清掉再调，避免 hide() 里又走一遍
             let cb = ScreenshotEditorPresenter.onClose
             ScreenshotEditorPresenter.onClose = nil
-            ScreenshotEditorPresenter.closeObserver = nil
             ScreenshotEditorPresenter.window = nil
+            ScreenshotEditorPresenter.closeObserver = nil
             cb?()
         }
+
+        window = win
+        win.makeKeyAndOrderFront(nil)
     }
 
+    @MainActor
     static func hide() {
-        if let obs = closeObserver { NotificationCenter.default.removeObserver(obs) }
-        closeObserver = nil
-        onClose = nil
-        window?.close()
+        if let obs = closeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            closeObserver = nil
+        }
+        window?.orderOut(nil)
         window = nil
+        onClose = nil
     }
 }
 
 struct ScreenshotEditorView: View {
     @ObservedObject var store: ScreenshotStore
-    @State private var isDrawing = false
-    @State private var currentPoints: [CGPoint] = []
-    @State private var dragStart: CGPoint?
-    @State private var dragCurrent: CGPoint?
-    @State private var showColorPicker = false
-    @State private var editingText: String?
-    @State private var editingTextImagePoint: CGPoint?
-
-    private let tools: [(ScreenshotTool, String)] = [
-        (.rect, "rectangle"), (.ellipse, "circle"), (.arrow, "arrow.right"),
-        (.pen, "scribble"), (.text, "textformat"), (.blur, "circle.dotted"),
-        (.number, "textformat.123"), (.eraser, "eraser")
-    ]
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
             Divider()
             canvas
-            bottomBar
         }
-        .frame(minWidth: 400, idealWidth: 700, maxWidth: .infinity, minHeight: 300, idealHeight: 500, maxHeight: .infinity)
     }
 
     private var toolbar: some View {
-        HStack(spacing: 4) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(tools, id: \.0) { tool, icon in
-                        Button {
-                            store.currentTool = tool
-                        } label: {
-                            Image(systemName: icon)
-                                .font(.system(size: 14))
-                                .frame(width: 28, height: 28)
-                                .background(store.currentTool == tool ? Color.accentColor.opacity(0.2) : .clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        .buttonStyle(.plain)
-                        .help(tool.rawValue)
-                    }
-                }
-            }
-            .frame(maxWidth: 140)
-
-            Divider().frame(height: 20)
-
-            Slider(value: $store.strokeWidth, in: 1...12, step: 1)
-                .frame(width: 60)
-                .help("Stroke: \(Int(store.strokeWidth))px")
-
-            Divider().frame(height: 20)
-
-            Button {
-                showColorPicker.toggle()
-            } label: {
-                Circle()
-                    .fill(Color(nsColor: store.currentColor))
-                    .frame(width: 18, height: 18)
-                    .overlay(Circle().stroke(Color.secondary, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showColorPicker) {
-                colorPicker
-            }
-
-            Divider().frame(height: 20)
-
-            Button { store.undo() } label: {
-                Image(systemName: "arrow.uturn.left")
-            }
-            .buttonStyle(.plain)
-            .disabled(store.undoStack.isEmpty)
-            .help("Undo")
-
-            Button { store.redo() } label: {
-                Image(systemName: "arrow.uturn.right")
-            }
-            .buttonStyle(.plain)
-            .disabled(store.redoStack.isEmpty)
-            .help("Redo")
-
-            Button { store.clearAnnotations() } label: {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.plain)
-            .disabled(store.annotations.isEmpty)
-            .help("Clear All")
+        HStack(spacing: 12) {
+            Button("Cancel") { store.cancelCapture() }
+                .keyboardShortcut(.cancelAction)
 
             Spacer()
 
-            // 直接同步调用，不再用 DispatchQueue.main.async 包一层。
-            // async 会让 phase 改变延后到下个 runloop，叠加 .onChange(of: phase) 的回调和
-            // 当前手势结束的事件，很容易撞上 view 拆解造成 EXC_BAD_ACCESS。
-            Button("Cancel") { store.cancelCapture() }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
             Button("Copy") { store.copyToClipboard() }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.accentColor)
+                .keyboardShortcut("c", modifiers: .command)
+                .disabled(!isEditing)
 
             Button("Save") { store.save() }
+                .keyboardShortcut("s", modifiers: .command)
                 .buttonStyle(.borderedProminent)
+                .disabled(!isEditing)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-    }
-
-    private var colorPicker: some View {
-        let colors: [NSColor] = [
-            .red, .orange, .yellow, .green, .blue, .purple,
-            .white, .gray, .black
-        ]
-        return VStack(spacing: 6) {
-            Text("Color").font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 4) {
-                ForEach(colors, id: \.self) { color in
-                    Circle()
-                        .fill(Color(nsColor: color))
-                        .frame(width: 20, height: 20)
-                        .overlay(
-                            Circle()
-                                .stroke(color == store.currentColor ? Color.primary : Color.clear, lineWidth: 2)
-                        )
-                        .onTapGesture { store.currentColor = color; showColorPicker = false }
-                }
-            }
-            .padding(.horizontal)
-        }
-        .padding(8)
-        .frame(width: 240)
+        .padding(12)
     }
 
     private var canvas: some View {
-        GeometryReader { geo in
-            ZStack {
-                if case .editing(let image) = store.phase {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                }
-
-                Canvas { ctx, size in
-                    guard case .editing(let image) = store.phase else { return }
-                    let s = min(size.width / image.size.width, size.height / image.size.height)
-                    let ox = (size.width - image.size.width * s) / 2
-                    let oy = (size.height - image.size.height * s) / 2
-
-                    ctx.translateBy(x: ox, y: oy)
-                    ctx.scaleBy(x: s, y: s)
-
-                    ctx.withCGContext { cg in
-                        for annotation in store.annotations {
-                            annotation.draw(in: cg)
-                        }
-
-                        if let start = dragStart, let current = dragCurrent {
-                            let r = CGRect(
-                                x: min(start.x, current.x), y: min(start.y, current.y),
-                                width: abs(current.x - start.x), height: abs(current.y - start.y)
-                            )
-                            let temp: ScreenshotAnnotation
-                            switch store.currentTool {
-                            case .rect: temp = RectAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth, fill: false)
-                            case .ellipse: temp = EllipseAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth)
-                            case .arrow: temp = ArrowAnnotation(start: start, end: current, color: store.currentColor, strokeWidth: store.strokeWidth)
-                            default: temp = RectAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth, fill: false)
-                            }
-                            temp.draw(in: cg)
-                        }
-
-                        if store.currentTool == .pen && isDrawing {
-                            let pen = PenAnnotation(points: currentPoints, color: store.currentColor, strokeWidth: store.strokeWidth)
-                            pen.draw(in: cg)
-                        }
-                    }
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            guard editingText == nil else { return }
-                            // phase 可能在拖拽过程中已被 Copy/Save 改到 .idle，
-                            // 这种情况下 imageSize = .zero，canvasToImage 会除零崩溃。
-                            guard case .editing = store.phase else { return }
-                            let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
-                            if store.currentTool == .pen {
-                                if !isDrawing { isDrawing = true; store.pushUndo(); currentPoints = [] }
-                                currentPoints.append(pt)
-                            } else if store.currentTool == .eraser || store.currentTool == .text {
-                                return
-                            } else {
-                                if dragStart == nil { store.pushUndo(); dragStart = pt }
-                                dragCurrent = pt
-                            }
-                        }
-                        .onEnded { value in
-                            guard editingText == nil else { return }
-                            guard case .editing = store.phase else { return }
-                            let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
-                            defer { dragStart = nil; dragCurrent = nil; isDrawing = false; currentPoints = [] }
-
-                            if store.currentTool == .eraser {
-                                if let idx = hitTestAnnotation(at: pt) {
-                                    store.deleteAnnotation(at: idx)
-                                }
-                                return
-                            }
-
-                            guard let start = dragStart else {
-                                if store.currentTool == .text {
-                                    editingText = ""
-                                    editingTextImagePoint = pt
-                                } else if store.currentTool == .pen && isDrawing {
-                                    store.pushUndo()
-                                    store.annotations.append(PenAnnotation(points: currentPoints, color: store.currentColor, strokeWidth: store.strokeWidth))
-                                }
-                                return
-                            }
-
-                            let r = CGRect(
-                                x: min(start.x, pt.x), y: min(start.y, pt.y),
-                                width: abs(pt.x - start.x), height: abs(pt.y - start.y)
-                            )
-                            if r.width < 3 && r.height < 3 { return }
-
-                            let annotation: ScreenshotAnnotation
-                            switch store.currentTool {
-                            case .rect: annotation = RectAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth, fill: false)
-                            case .ellipse: annotation = EllipseAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth)
-                            case .arrow: annotation = ArrowAnnotation(start: start, end: pt, color: store.currentColor, strokeWidth: store.strokeWidth)
-                            case .blur: annotation = BlurAnnotation(rect: r)
-                            case .number:
-                                let count = store.annotations.filter { $0 is NumberAnnotation }.count + 1
-                                annotation = NumberAnnotation(center: CGPoint(x: r.midX, y: r.midY), number: count, color: store.currentColor)
-                            default: annotation = RectAnnotation(rect: r, color: store.currentColor, strokeWidth: store.strokeWidth, fill: false)
-                            }
-                            store.annotations.append(annotation)
-                        }
-                )
-
-                if let text = editingText, let imgPt = editingTextImagePoint {
-                    let canvasPt = imageToCanvas(imgPt, imageSize: imageSize, canvasSize: geo.size)
-                    TextField("", text: Binding(
-                        get: { text },
-                        set: { editingText = $0 }
-                    ))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 18))
-                    .foregroundColor(Color(nsColor: store.currentColor))
-                    .frame(width: 200)
-                    .padding(8)
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 1.5))
-                    .position(x: canvasPt.x + 108, y: canvasPt.y + 18)
-                    .onSubmit {
-                        commitText()
-                    }
-                    .onExitCommand {
-                        editingText = nil
-                        editingTextImagePoint = nil
-                    }
-                }
-            }
-            .onTapGesture {
-                if editingText != nil { commitText() }
-            }
-        }
-    }
-
-    private func commitText() {
-        guard let text = editingText, !text.isEmpty, let pt = editingTextImagePoint else {
-            editingText = nil
-            editingTextImagePoint = nil
-            return
-        }
-        store.pushUndo()
-        store.annotations.append(TextAnnotation(point: pt, text: text, color: store.currentColor, fontSize: 18))
-        editingText = nil
-        editingTextImagePoint = nil
-    }
-
-    private func hitTestAnnotation(at point: CGPoint) -> Int? {
-        for (i, ann) in store.annotations.enumerated().reversed() {
-            let rect: CGRect?
-            switch ann {
-            case let r as RectAnnotation: rect = r.rect
-            case let e as EllipseAnnotation: rect = e.rect
-            case let a as ArrowAnnotation: rect = rectBetween(a.start, a.end)
-            case let b as BlurAnnotation: rect = b.rect
-            case let n as NumberAnnotation: rect = CGRect(x: n.center.x - 14, y: n.center.y - 14, width: 28, height: 28)
-            case let t as TextAnnotation:
-                let size = (t.text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: t.fontSize)])
-                rect = CGRect(origin: t.point, size: size)
-            default: rect = nil
-            }
-            if let r = rect, r.insetBy(dx: -4, dy: -4).contains(point) {
-                return i
-            }
-        }
-        return nil
-    }
-
-    private func rectBetween(_ a: CGPoint, _ b: CGPoint) -> CGRect {
-        CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
-    }
-
-    private var bottomBar: some View {
-        HStack {
+        ZStack {
+            Color.black
             if case .editing(let image) = store.phase {
-                Text("\(Int(image.size.width)) × \(Int(image.size.height))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
             }
-            Spacer()
-            Text("\(Int(store.strokeWidth))px")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .frame(width: 30)
-            Text("Esc to cancel")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
     }
 
-    private var imageSize: NSSize {
-        if case .editing(let image) = store.phase { image.size }
-        else { .zero }
-    }
-
-    private func canvasToImage(_ point: CGPoint, imageSize: NSSize, canvasSize: CGSize) -> CGPoint {
-        let scale = min(canvasSize.width / imageSize.width, canvasSize.height / imageSize.height)
-        let offsetX = (canvasSize.width - imageSize.width * scale) / 2
-        let offsetY = (canvasSize.height - imageSize.height * scale) / 2
-        return CGPoint(
-            x: (point.x - offsetX) / scale,
-            y: (point.y - offsetY) / scale
-        )
-    }
-
-    private func imageToCanvas(_ point: CGPoint, imageSize: NSSize, canvasSize: CGSize) -> CGPoint {
-        let scale = min(canvasSize.width / imageSize.width, canvasSize.height / imageSize.height)
-        let offsetX = (canvasSize.width - imageSize.width * scale) / 2
-        let offsetY = (canvasSize.height - imageSize.height * scale) / 2
-        return CGPoint(
-            x: point.x * scale + offsetX,
-            y: point.y * scale + offsetY
-        )
+    private var isEditing: Bool {
+        if case .editing = store.phase { return true }
+        return false
     }
 }

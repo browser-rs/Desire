@@ -38,7 +38,7 @@ struct Toolbar: View {
     let actions: Actions
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
-    @Binding var showUserScripts: Bool
+    @Binding var showPlugins: Bool
     @Binding var showSettings: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
@@ -207,7 +207,7 @@ struct Toolbar: View {
             moreMenuItem("密码", "key.fill") { showPasswords = true }
             moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
             moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
-            moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
+            moreMenuItem("插件", "applescript") { showPlugins = true }
             moreMenuItem("元素拦截", "eye.slash") { showElementBlock = true }
             moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
                 .disabled(tab.isOnNewTabPage)

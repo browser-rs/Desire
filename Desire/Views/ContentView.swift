@@ -20,7 +20,7 @@ struct ContentView: View {
     @StateObject private var quickDialStore = QuickDialStore()
     @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var readingListStore = ReadingListStore()
-    @StateObject private var userScriptStore = UserScriptStore()
+    @StateObject private var pluginStore = PluginStore()
     @StateObject private var tabGroupStore = TabGroupStore()
     @StateObject private var elementBlockStore = ElementBlockStore()
     @Environment(\.scenePhase) private var scenePhase
@@ -29,7 +29,7 @@ struct ContentView: View {
     @State private var showHistory = false
     @State private var showSettings = false
     @State private var showBookmarks = false
-    @State private var showUserScripts = false
+    @State private var showPlugins = false
     @State private var showReadingList = false
     @State private var showTabSwitcher = false
     @State private var showSidebar = false
@@ -182,7 +182,7 @@ struct ContentView: View {
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
-                    showUserScripts: $showUserScripts,
+                    showPlugins: $showPlugins,
                     showSettings: $showSettings,
                     showReadingList: $showReadingList,
                     showElementBlock: $showElementBlock
@@ -412,8 +412,8 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onDelete: { bookmark in bookmarkStore.remove(bookmark) }, onClose: { showBookmarks = false })
         }
-        .sheet(isPresented: $showUserScripts) {
-            UserScriptPanel(store: userScriptStore, onAdd: addUserScript, onClose: { showUserScripts = false })
+        .sheet(isPresented: $showPlugins) {
+            PluginPanel(store: pluginStore, onClose: { showPlugins = false })
         }
         .sheet(isPresented: $showReadingList) {
             ReadingListPanel(store: readingListStore, onSelect: { url in
@@ -657,11 +657,6 @@ struct ContentView: View {
         }
     }
 
-    private func addUserScript() {
-        showUserScripts = false
-        userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
-    }
-
     private func zoomTab(by delta: Double) {
         guard let tab = tabManager.selectedTab else { return }
         let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
@@ -754,7 +749,7 @@ struct ContentView: View {
                 } else if !tab.isIncognito {
                     historyStore.addEntry(url: url.absoluteString, title: title)
                 }
-                userScriptStore.injectScripts(into: tab.browser.webView)
+                pluginStore.inject(into: tab.browser.webView, for: url)
             },
             onElementPicked: { cssSelector, xpath in
                 handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab)

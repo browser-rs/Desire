@@ -395,6 +395,51 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab {
                     tab.isResponsiveMode.toggle()
                 }
+            case .showBookmarks:
+                showBookmarks = true
+            case .showPlugins:
+                showPlugins = true
+            case .showElementBlock:
+                showElementBlock = true
+            case .showSettings:
+                showSettings = true
+            case .reload:
+                if let tab = tabManager.selectedTab { tab.browser.webView.reload() }
+            case .inspectElement:
+                if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
+                    tab.browser.webView.requestInspector()
+                }
+            case .printPage:
+                printPage()
+            case .zoomIn:
+                guard let tab = tabManager.selectedTab else { return }
+                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + 0.1))
+                tab.browser.pageZoom = newZoom
+                tab.browser.webView.pageZoom = newZoom
+            case .zoomOut:
+                guard let tab = tabManager.selectedTab else { return }
+                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom - 0.1))
+                tab.browser.pageZoom = newZoom
+                tab.browser.webView.pageZoom = newZoom
+            case .actualSize:
+                guard let tab = tabManager.selectedTab else { return }
+                tab.browser.pageZoom = 1.0
+                tab.browser.webView.pageZoom = 1.0
+            case .clearHistory:
+                historyStore.clearAll()
+            case .toggleReader:
+                if let tab = tabManager.selectedTab {
+                    if tab.browser.isReadingMode {
+                        tab.browser.isReadingMode = false
+                    } else {
+                        tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                        tab.browser.isReadingMode = true
+                    }
+                }
+            case .exportBookmarks:
+                bookmarkStore.exportToHTML()
+            case .importBookmarks:
+                bookmarkStore.importFromHTML()
             }
         }
         .sheet(isPresented: $showHistory) {
@@ -439,40 +484,11 @@ struct ContentView: View {
             }
                 .keyboardShortcut("l", modifiers: .command)
                 .hidden()
-            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.reload() } }
-                .keyboardShortcut("r", modifiers: .command)
-                .hidden()
             Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goBack() } }
                 .keyboardShortcut("[", modifiers: .command)
                 .hidden()
             Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goForward() } }
                 .keyboardShortcut("]", modifiers: .command)
-                .hidden()
-            Button("") {
-                guard let tab = tabManager.selectedTab else { return }
-                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + 0.1))
-                tab.browser.pageZoom = newZoom
-                tab.browser.webView.pageZoom = newZoom
-            }
-                .keyboardShortcut("=", modifiers: .command)
-                .hidden()
-            Button("") {
-                guard let tab = tabManager.selectedTab else { return }
-                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom - 0.1))
-                tab.browser.pageZoom = newZoom
-                tab.browser.webView.pageZoom = newZoom
-            }
-                .keyboardShortcut("-", modifiers: .command)
-                .hidden()
-            Button("") {
-                guard let tab = tabManager.selectedTab else { return }
-                tab.browser.pageZoom = 1.0
-                tab.browser.webView.pageZoom = 1.0
-            }
-                .keyboardShortcut("0", modifiers: .command)
-                .hidden()
-            Button("") { showFindBar() }
-                .keyboardShortcut("f", modifiers: .command)
                 .hidden()
             Button("") { performFindNext() }
                 .keyboardShortcut("g", modifiers: .command)
@@ -482,12 +498,6 @@ struct ContentView: View {
                 .hidden()
             Button("") { hideFindBar() }
                 .keyboardShortcut(.escape, modifiers: [])
-                .hidden()
-            Button("") { inspectElement() }
-                .keyboardShortcut("i", modifiers: [.command, .shift])
-                .hidden()
-            Button("") { printPage() }
-                .keyboardShortcut("p", modifiers: .command)
                 .hidden()
             if let tab = tabManager.selectedTab {
                 Button("") {

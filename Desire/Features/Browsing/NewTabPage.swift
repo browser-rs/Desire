@@ -16,7 +16,7 @@ struct NewTabPage: View {
     @State private var editURL = ""
     @FocusState private var searchFocused: Bool
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 4)
+    private let columns = [GridItem(.adaptive(minimum: 130, maximum: 160), spacing: 20)]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +40,7 @@ struct NewTabPage: View {
                 }
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
                         dialCard(dial, at: index)
                     }
@@ -48,7 +48,8 @@ struct NewTabPage: View {
                     addButton()
                 }
                 .padding(.horizontal, 40)
-                .padding(.top, 40)
+                .padding(.top, 48)
+                .frame(maxWidth: 1100)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,27 +75,34 @@ struct NewTabPage: View {
     }
 
     private func dialCard(_ dial: QuickDial, at index: Int) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if dial.icon == "globe" {
-                FaviconView(urlString: dial.url, size: 36)
-                    .frame(width: 48, height: 48)
+                FaviconView(urlString: dial.url, size: 40)
+                    .frame(width: 56, height: 56)
             } else {
                 Image(systemName: dial.icon)
-                    .font(.system(size: 32))
+                    .font(.system(size: 36, weight: .regular))
                     .foregroundStyle(Color.accentColor)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 56, height: 56)
             }
 
             Text(dial.title)
-                .font(.caption)
+                .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
-                .frame(maxWidth: 80)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: 110)
         }
-        .frame(width: 100, height: 110)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(width: 130, height: 124)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
+        )
         .shadowSubtle()
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 14))
         .gesture(ExclusiveGesture(
             TapGesture(count: 2).onEnded {
                 editingDial = dial
@@ -123,22 +131,23 @@ struct NewTabPage: View {
     }
 
     private func addButton() -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: "plus")
-                .font(.system(size: 28))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 30, weight: .light))
             Text("添加")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .medium))
         }
-        .frame(width: 100, height: 110)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+        .foregroundStyle(.secondary)
+        .frame(width: 130, height: 124)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.clear)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
             editingDial = QuickDial(title: "", url: "")
             editTitle = ""

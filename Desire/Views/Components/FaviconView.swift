@@ -8,6 +8,21 @@ struct FaviconView: View {
     @State private var image: NSImage?
     @State private var loadedDomain: String?
 
+    private var firstLetter: String {
+        guard let domain = FaviconStore.domainKey(from: urlString),
+              let first = domain.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var letterColor: Color {
+        guard let domain = FaviconStore.domainKey(from: urlString) else { return .gray }
+        let palette: [Color] = [
+            .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red, .mint, .cyan
+        ]
+        let hash = abs(domain.unicodeScalars.reduce(0) { $0 &+ Int($1.value) })
+        return palette[hash % palette.count]
+    }
+
     var body: some View {
         Group {
             if let image {
@@ -16,8 +31,13 @@ struct FaviconView: View {
                     .interpolation(.high)
                     .scaledToFit()
             } else {
-                Image(systemName: "globe")
-                    .foregroundStyle(.secondary)
+                ZStack {
+                    Circle()
+                        .fill(letterColor.opacity(0.18))
+                    Text(firstLetter)
+                        .font(.system(size: size * 0.48, weight: .semibold, design: .rounded))
+                        .foregroundStyle(letterColor)
+                }
             }
         }
         .frame(width: size, height: size)

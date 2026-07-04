@@ -40,19 +40,25 @@ class FaviconStore {
             return img
         }
 
-        guard let url = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=32") else {
-            return nil
-        }
+        // Try multiple favicon sources in order of reliability
+        let sources = [
+            "https://www.google.com/s2/favicons?domain=\(domain)&sz=64",
+            "https://icons.duckduckgo.com/ip3/\(domain).ico",
+            "https://\(domain)/favicon.ico",
+            "https://www.\(domain)/favicon.ico"
+        ]
 
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            if let img = NSImage(data: data) {
+        for source in sources {
+            guard let url = URL(string: source) else { continue }
+            guard let (data, response) = try? await URLSession.shared.data(from: url) else { continue }
+            if let http = response as? HTTPURLResponse, http.statusCode >= 400 { continue }
+            // Reject tiny 1x1 placeholder images that some CDNs return
+            if data.count < 32 { continue }
+            if let img = NSImage(data: data), img.size.width >= 4 {
                 memoryCache[domain] = img
                 try? data.write(to: diskPath, options: .atomic)
                 return img
             }
-        } catch {
-            return nil
         }
         return nil
     }

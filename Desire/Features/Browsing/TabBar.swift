@@ -146,11 +146,13 @@ private struct TabPillView: View {
     let tabs: [Tab]
     let tabGroupStore: TabGroupStore
     let onMoveTab: (Int, Int) -> Void
+    @State private var isHovering = false
 
     private let tabGroupColors: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]
 
     var body: some View {
         let groupColor = tabGroupStore.group(for: tab.id).map { tabGroupColors[$0.colorIndex % tabGroupColors.count] }
+        let showClose = !tab.isPinned && isHovering
         HStack(spacing: 6) {
             if let gc = groupColor {
                 Capsule()
@@ -194,6 +196,9 @@ private struct TabPillView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .opacity(showClose ? 1 : 0)
+            .allowsHitTesting(showClose)
+            .animation(.hoverFast, value: showClose)
         }
         .padding(.horizontal, 10)
         .frame(height: 26)
@@ -212,6 +217,7 @@ private struct TabPillView: View {
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
+        .onHover { isHovering = $0 }
         .onTapGesture {
             actions.selectTab(index)
         }

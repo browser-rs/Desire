@@ -46,6 +46,21 @@ class TabManager: ObservableObject {
     private var tabCancellables: [UUID: AnyCancellable] = [:]
     private var recentlyClosedURLs: [String] = []
 
+    init() {
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(saveOnTerminate),
+            name: NSApplication.willTerminateNotification, object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func saveOnTerminate() {
+        persistSession()
+    }
+
     var selectedTab: Tab? {
         guard tabs.indices.contains(selectedIndex) else { return nil }
         return tabs[selectedIndex]
@@ -126,6 +141,7 @@ class TabManager: ObservableObject {
 
     func selectTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
+        persistSession()
         selectedIndex = index
     }
 
@@ -136,12 +152,13 @@ class TabManager: ObservableObject {
     func persistSession() {
         var savedTabs: [SavedTab] = []
         for tab in tabs where !tab.isIncognito {
+            let stateData = captureInteractionState(for: tab)
             if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
-                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned))
+                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData))
             } else if tab.isOnNewTabPage {
-                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned))
+                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil))
             } else if tab.urlString.hasPrefix("http"), let u = URL(string: tab.urlString) {
-                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false, isPinned: tab.isPinned))
+                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData))
             }
         }
         guard !savedTabs.isEmpty else {
@@ -152,6 +169,11 @@ class TabManager: ObservableObject {
         if let data = try? JSONEncoder().encode(session) {
             UserDefaults.standard.set(data, forKey: sessionKey)
         }
+    }
+
+    private func captureInteractionState(for tab: Tab) -> Data? {
+        guard let state = tab.browser.webView.interactionState else { return nil }
+        return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
     }
 
     @discardableResult
@@ -169,6 +191,12 @@ class TabManager: ObservableObject {
             let url = saved.isOnNewTabPage ? nil : saved.url
             let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
             tab.isPinned = saved.isPinned
+
+            if let data = saved.sessionState,
+               let state = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSObject.self], from: data) {
+                tab.browser.webView.interactionState = state
+            }
+
             tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -188,6 +216,7 @@ private struct SavedTab: Codable {
     let url: String?
     let isOnNewTabPage: Bool
     var isPinned: Bool
+    let sessionState: Data?
 }
 
 private struct SavedSession: Codable {

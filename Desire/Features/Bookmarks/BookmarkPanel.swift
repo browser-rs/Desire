@@ -33,6 +33,14 @@ struct BookmarkPanel: View {
             HStack {
                 Text("书签").font(.headline)
                 Spacer()
+                Button("", systemImage: "square.and.arrow.up") { store.exportToHTML() }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .help("导出")
+                Button("", systemImage: "square.and.arrow.down") { store.importFromHTML() }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .help("导入")
                 Button("", systemImage: "folder.badge.plus") { showNewFolder = true }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)

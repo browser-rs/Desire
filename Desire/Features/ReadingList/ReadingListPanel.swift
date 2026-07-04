@@ -66,3 +66,8 @@ struct ReadingListPanel: View {
         .frame(width: 320, height: 400)
     }
 }
+
+#Preview {
+    ReadingListPanel(store: ReadingListStore(), onSelect: { _ in }, onClose: {})
+        .frame(width: 320, height: 400)
+}

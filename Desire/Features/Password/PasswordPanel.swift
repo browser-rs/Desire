@@ -105,3 +105,8 @@ private struct PasswordRow: View {
         .padding(.vertical, 4)
     }
 }
+
+#Preview {
+    PasswordPanel(passwordStore: PasswordStore())
+        .frame(width: 420, height: 400)
+}

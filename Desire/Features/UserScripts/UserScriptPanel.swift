@@ -46,3 +46,8 @@ struct UserScriptPanel: View {
         .frame(width: 420, height: 400)
     }
 }
+
+#Preview {
+    UserScriptPanel(store: UserScriptStore(), onAdd: {}, onClose: {})
+        .frame(width: 420, height: 400)
+}

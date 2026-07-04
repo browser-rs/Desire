@@ -129,3 +129,8 @@ private struct DownloadRow: View {
         }
     }
 }
+
+#Preview {
+    DownloadPanel(store: DownloadStore())
+        .frame(width: 420, height: 400)
+}

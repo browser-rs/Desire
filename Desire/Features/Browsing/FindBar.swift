@@ -53,3 +53,12 @@ struct FindBar: View {
         .onAppear { isFindFocused.wrappedValue = true }
     }
 }
+
+#Preview {
+    FindBar(
+        findString: .constant(""),
+        findHasMatch: false,
+        isFindFocused: FocusState<Bool>().projectedValue,
+        onFindNext: {}, onFindPrevious: {}, onHide: {}, onFindAll: {}
+    )
+}

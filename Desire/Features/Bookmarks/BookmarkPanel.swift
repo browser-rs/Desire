@@ -189,3 +189,8 @@ private struct BookmarkEditor: View {
         .frame(width: 380)
     }
 }
+
+#Preview {
+    BookmarkPanel(store: BookmarkStore(), onSelect: { _ in }, onDelete: { _ in }, onClose: {})
+        .frame(width: 420, height: 500)
+}

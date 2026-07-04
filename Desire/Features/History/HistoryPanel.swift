@@ -71,3 +71,8 @@ struct HistoryPanel: View {
         .frame(width: 420, height: 500)
     }
 }
+
+#Preview {
+    HistoryPanel(store: HistoryStore(), onSelect: { _ in }, onClose: {})
+        .frame(width: 420, height: 500)
+}

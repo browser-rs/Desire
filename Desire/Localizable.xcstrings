@@ -781,6 +781,7 @@
     },
     "Choose screenshot save location" : {
       "comment" : "Open panel message",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4539,6 +4540,7 @@
     },
     "Screenshot save location" : {
       "comment" : "Settings label",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4562,6 +4564,7 @@
     },
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

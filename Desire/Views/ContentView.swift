@@ -23,7 +23,6 @@ struct ContentView: View {
     @StateObject private var pluginStore = PluginStore()
     @StateObject private var tabGroupStore = TabGroupStore()
     @StateObject private var elementBlockStore = ElementBlockStore()
-    @StateObject private var screenshotStore = ScreenshotStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -179,8 +178,7 @@ struct ContentView: View {
                             })();
                             """
                             tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-                        },
-                        screenshot: { screenshotStore.startCapture() }
+                        }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -442,8 +440,6 @@ struct ContentView: View {
                 bookmarkStore.exportToHTML()
             case .importBookmarks:
                 bookmarkStore.importFromHTML()
-            case .screenshot:
-                screenshotStore.startCapture()
             }
         }
         .sheet(isPresented: $showHistory) {
@@ -539,24 +535,6 @@ struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .onChange(of: screenshotStore.phase) { _, phase in
-            switch phase {
-            case .selecting:
-                ScreenshotOverlayPresenter.show(
-                    onCancel: { screenshotStore.cancelCapture() },
-                    onCapture: { rect, screen in screenshotStore.capture(rect: rect, on: screen) }
-                )
-            case .editing:
-                ScreenshotOverlayPresenter.hide()
-                ScreenshotEditorPresenter.show(
-                    store: screenshotStore,
-                    onClose: { screenshotStore.cancelCapture() }
-                )
-            case .idle:
-                ScreenshotOverlayPresenter.hide()
-                ScreenshotEditorPresenter.hide()
             }
         }
     }

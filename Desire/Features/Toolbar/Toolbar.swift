@@ -23,7 +23,6 @@ struct Toolbar: View {
         let togglePictureInPicture: () -> Void
         let toggleResponsiveMode: () -> Void
         let toggleDarkMode: () -> Void
-        let screenshot: () -> Void
     }
 
     let tab: Tab
@@ -181,7 +180,6 @@ struct Toolbar: View {
 
     private var trailingButtons: some View {
         HStack(spacing: 6) {
-            CapsuleButton(systemName: "camera.viewfinder", action: actions.screenshot, help: "Screenshot")
             DownloadButton(store: downloadStore, showDownloads: $showDownloads)
 
             Button {
@@ -231,8 +229,6 @@ struct Toolbar: View {
             moreMenuItem("Reset Zoom", "1.magnifyingglass") { actions.resetZoom() }
             moreMenuItem("Print…", "printer") { actions.printPage() }
             moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
-            Divider()
-            moreMenuItem("Screenshot…", "camera.viewfinder") { actions.screenshot() }
             Divider()
             moreMenuItem("Inspect Element", "ladybug") { actions.inspectElement() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }

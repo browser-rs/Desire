@@ -4,6 +4,7 @@ import Foundation
 struct SiteSettings: Codable {
     var zoom: Double
     var darkMode: Bool = false
+    var blockedSelectors: [String] = []
 }
 
 @MainActor
@@ -52,13 +53,34 @@ class SiteSettingsStore: ObservableObject {
         objectWillChange.send()
     }
 
+    func blockedSelectors(for domain: String) -> [String] {
+        settings[domain]?.blockedSelectors ?? []
+    }
+
+    func addBlockedSelector(_ selector: String, for domain: String) {
+        var s = settings[domain] ?? SiteSettings(zoom: 1.0)
+        if !s.blockedSelectors.contains(selector) {
+            s.blockedSelectors.append(selector)
+            settings[domain] = s
+            save()
+            objectWillChange.send()
+        }
+    }
+
+    func removeBlockedSelector(_ selector: String, for domain: String) {
+        settings[domain]?.blockedSelectors.removeAll { $0 == selector }
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
     func resetAll() {
         settings.removeAll()
         save()
     }
 
     private func cleanEmpty(_ domain: String) {
-        if let s = settings[domain], s.zoom == 1.0, !s.darkMode {
+        if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty {
             settings.removeValue(forKey: domain)
         }
     }

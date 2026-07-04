@@ -19,6 +19,7 @@ class BrowserState: ObservableObject {
     @Published var readerTitle = ""
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
+    @Published var isPickingElement = false
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -157,6 +158,81 @@ struct WebView: NSViewRepresentable {
     var httpsUpgradeEnabled: Bool = true
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
+    var onElementPicked: ((String, String?) -> Void)?
+    @ObservedObject var elementBlockStore: ElementBlockStore
+
+    static let pickerJS = """
+    (function() {
+        var style = document.createElement('style');
+        style.id = 'desire-picker-style';
+        style.textContent = '.desire-picker-highlight{outline:3px solid #ff4444 !important;outline-offset:-1px !important;background:rgba(255,68,68,0.08) !important;cursor:crosshair !important}';
+        document.head.appendChild(style);
+
+        var hl;
+
+        function getSelector(el) {
+            if (el.id) return '#' + CSS.escape(el.id);
+            var parts = [];
+            while (el && el.nodeType === 1) {
+                var tag = el.tagName.toLowerCase();
+                if (el.id) { parts.unshift('#' + CSS.escape(el.id)); break; }
+                var p = el.parentElement;
+                if (p) {
+                    var ch = Array.from(p.children);
+                    var idx = ch.indexOf(el);
+                    var same = ch.filter(function(c) { return c.tagName === el.tagName; });
+                    if (same.length > 1) tag += ':nth-child(' + (idx + 1) + ')';
+                }
+                parts.unshift(tag);
+                el = p;
+            }
+            return parts.join(' > ');
+        }
+
+        function getXPath(el) {
+            if (el.id) return '//*[@id="' + el.id + '"]';
+            var parts = [];
+            while (el && el.nodeType === 1) {
+                var tag = el.tagName.toLowerCase();
+                if (el.id) { parts.unshift('*[@id="' + el.id + '"]'); break; }
+                var p = el.parentElement;
+                if (p) {
+                    var ch = Array.from(p.children);
+                    var idx = ch.indexOf(el) + 1;
+                    tag += '[' + idx + ']';
+                }
+                parts.unshift(tag);
+                el = p;
+            }
+            return '/' + parts.join('/');
+        }
+
+        function onOver(e) { if (hl) hl.classList.remove('desire-picker-highlight'); hl = e.target; hl.classList.add('desire-picker-highlight'); e.stopPropagation(); }
+        function onOut(e) { if (hl) hl.classList.remove('desire-picker-highlight'); hl = null; e.stopPropagation(); }
+        function onPick(e) {
+            e.preventDefault(); e.stopPropagation();
+            if (hl) hl.classList.remove('desire-picker-highlight');
+            var sel = getSelector(e.target), xp = getXPath(e.target);
+            document.head.removeChild(style);
+            document.removeEventListener('mouseover', onOver, true);
+            document.removeEventListener('mouseout', onOut, true);
+            document.removeEventListener('click', onPick, true);
+            window.webkit.messageHandlers.elementPicker.postMessage({cssSelector: sel, xpath: xp});
+        }
+        document.addEventListener('mouseover', onOver, true);
+        document.addEventListener('mouseout', onOut, true);
+        document.addEventListener('click', onPick, true);
+    })();
+    """
+
+    static let exitPickerJS = """
+    (function() {
+        var s = document.getElementById('desire-picker-style');
+        if (s) s.remove();
+        var h = document.querySelector('.desire-picker-highlight');
+        if (h) h.classList.remove('desire-picker-highlight');
+    })();
+    """
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -203,6 +279,7 @@ struct WebView: NSViewRepresentable {
             webView.configuration.userContentController.add(self, name: "passwordDetect")
             webView.configuration.userContentController.add(self, name: "readerContent")
             webView.configuration.userContentController.add(self, name: "hoverLink")
+            webView.configuration.userContentController.add(self, name: "elementPicker")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -227,6 +304,7 @@ struct WebView: NSViewRepresentable {
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -259,6 +337,10 @@ struct WebView: NSViewRepresentable {
                 parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
+            } else if message.name == "elementPicker", let dict = message.body as? [String: String],
+                      let selector = dict["cssSelector"] {
+                let xpath = dict["xpath"]
+                parent.onElementPicked?(selector, xpath)
             }
         }
 
@@ -342,6 +424,31 @@ struct WebView: NSViewRepresentable {
                 })();
                 """
                 webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+            if let host = webView.url?.host {
+                let rules = parent.elementBlockStore.matchingRules(for: host)
+                let cssSelectors = rules.map(\.cssSelector).filter { !$0.isEmpty }
+                let xpathRules = rules.compactMap { $0.xpath }.filter { !$0.isEmpty }
+                if !cssSelectors.isEmpty {
+                    let css = cssSelectors.map { "\($0) { display: none !important; }" }.joined()
+                    webView.evaluateJavaScript("""
+                    (function() {
+                        var s = document.createElement('style');
+                        s.id = 'desire-blocked-selectors';
+                        s.textContent = '\(css.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'"))';
+                        document.head.appendChild(s);
+                    })();
+                    """, completionHandler: nil)
+                }
+                for xpath in xpathRules {
+                    let escaped = xpath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                    webView.evaluateJavaScript("""
+                    try {
+                        var el = document.evaluate('\(escaped)', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                        if (el) el.style.display = 'none';
+                    } catch(e) {}
+                    """, completionHandler: nil)
+                }
             }
             if parent.formAutofillStore.isConfigured {
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)

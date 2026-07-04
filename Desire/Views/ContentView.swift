@@ -9,19 +9,20 @@ struct ContentView: View {
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
     @StateObject private var settings = Settings()
-    @StateObject private var historyStore = HistoryStore()
-    @StateObject private var bookmarkStore = BookmarkStore()
-    @StateObject private var userScriptStore = UserScriptStore()
     @StateObject private var contentBlocker = ContentBlocker()
-    @StateObject private var suggestionModel = AddressSuggestionsModel()
-    @StateObject private var downloadStore = DownloadStore()
-    @StateObject private var quickDialStore = QuickDialStore()
+    @StateObject private var bookmarkStore = BookmarkStore()
+    @StateObject private var historyStore = HistoryStore()
     @StateObject private var passwordStore = PasswordStore()
     @StateObject private var formAutofillStore = FormAutofillStore()
+    @StateObject private var downloadStore = DownloadStore()
     @StateObject private var permissionStore = PermissionStore()
     @StateObject private var siteSettingsStore = SiteSettingsStore()
+    @StateObject private var quickDialStore = QuickDialStore()
+    @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var readingListStore = ReadingListStore()
+    @StateObject private var userScriptStore = UserScriptStore()
     @StateObject private var tabGroupStore = TabGroupStore()
+    @StateObject private var elementBlockStore = ElementBlockStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -32,6 +33,11 @@ struct ContentView: View {
     @State private var showReadingList = false
     @State private var showTabSwitcher = false
     @State private var showSidebar = false
+    @State private var showElementBlock = false
+    @State private var showUndoToast = false
+    @State private var lastBlockedRuleId: UUID?
+    @State private var lastBlockedSelector = ""
+    @State private var lastBlockedXpath: String?
     @State private var findString = ""
     @State private var findHasMatch = false
     @State private var findMatchCount = 0
@@ -179,6 +185,7 @@ struct ContentView: View {
                     showUserScripts: $showUserScripts,
                     showSettings: $showSettings,
                     showReadingList: $showReadingList,
+                    showElementBlock: $showElementBlock
                 )
             }
 
@@ -414,6 +421,14 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onClose: { showReadingList = false })
         }
+        .sheet(isPresented: $showElementBlock) {
+            ElementBlockPanel(store: elementBlockStore, onStartPicker: {
+                if let tab = tabManager.selectedTab {
+                    tab.browser.isPickingElement = true
+                    tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                }
+            }, onClose: { showElementBlock = false })
+        }
         .overlay {
             Button("") {
                 isUrlFocused = true
@@ -474,6 +489,43 @@ struct ContentView: View {
             Button("") { printPage() }
                 .keyboardShortcut("p", modifiers: .command)
                 .hidden()
+            if let tab = tabManager.selectedTab {
+                Button("") {
+                    tab.browser.isPickingElement = false
+                    tab.browser.webView.evaluateJavaScript(WebView.exitPickerJS, completionHandler: nil)
+                }
+                .keyboardShortcut(.escape, modifiers: [])
+                .hidden()
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if showUndoToast {
+                HStack(spacing: 8) {
+                    Text("已屏蔽元素").font(.caption)
+                    Button("撤销") {
+                        if let id = lastBlockedRuleId {
+                            elementBlockStore.remove(id: id)
+                            let escaped = lastBlockedSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                            tabManager.selectedTab?.browser.webView.evaluateJavaScript("""
+                            (function() {
+                                var s = document.getElementById('desire-blocked-\(id.uuidString)');
+                                if (s) s.remove();
+                                document.querySelectorAll('\(escaped)').forEach(function(el) { el.style.display = ''; });
+                            })();
+                            """, completionHandler: nil)
+                        }
+                        showUndoToast = false
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(.bottom, 12)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
     }
 
@@ -703,7 +755,50 @@ struct ContentView: View {
                     historyStore.addEntry(url: url.absoluteString, title: title)
                 }
                 userScriptStore.injectScripts(into: tab.browser.webView)
-            }
+            },
+            onElementPicked: { cssSelector, xpath in
+                handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab)
+            },
+            elementBlockStore: elementBlockStore
         )
+    }
+    
+    private func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) {
+        guard let host = tab.browser.webView.url?.host else {
+            tab.browser.isPickingElement = false
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "屏蔽此元素?"
+        alert.informativeText = "CSS: \(cssSelector)"
+        if let xp = xpath {
+            alert.informativeText += "\nXPath: \(xp)"
+        }
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "屏蔽")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let rule = BlockedElementRule(urlPattern: host, cssSelector: cssSelector, xpath: xpath)
+            elementBlockStore.add(cssSelector: cssSelector, xpath: xpath, urlPattern: host)
+            let escapedCss = cssSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+            tab.browser.webView.evaluateJavaScript("""
+            (function() {
+                var s = document.createElement('style');
+                s.id = 'desire-blocked-\(rule.id.uuidString)';
+                s.textContent = '\(escapedCss) { display: none !important; }';
+                document.head.appendChild(s);
+            })();
+            """, completionHandler: nil)
+            lastBlockedRuleId = rule.id
+            lastBlockedSelector = cssSelector
+            lastBlockedXpath = xpath
+            showUndoToast = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if showUndoToast {
+                    showUndoToast = false
+                }
+            }
+        }
+        tab.browser.isPickingElement = false
     }
 }

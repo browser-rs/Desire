@@ -139,14 +139,34 @@ class ScreenshotStore: ObservableObject {
     private func renderFinalImage() -> NSImage? {
         guard let image = capturedImage else { return nil }
         let size = image.size
-        let result = NSImage(size: size)
-        result.lockFocusFlipped(true)
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return nil }
-        image.draw(in: CGRect(origin: .zero, size: size))
+        let width = Int(size.width)
+        let height = Int(size.height)
+        guard width > 0, height > 0 else { return nil }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue
+        guard let ctx = CGContext(data: nil, width: width, height: height,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: colorSpace, bitmapInfo: bitmapInfo)
+        else { return nil }
+
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
+
+        let imageRect = CGRect(origin: .zero, size: size)
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            ctx.restoreGState()
+            return nil
+        }
+        ctx.draw(cgImage, in: imageRect)
+
         for ann in annotations {
             ann.draw(in: ctx)
         }
-        result.unlockFocus()
-        return result
+        ctx.restoreGState()
+
+        guard let finalCGImage = ctx.makeImage() else { return nil }
+        return NSImage(cgImage: finalCGImage, size: size)
     }
 }

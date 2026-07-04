@@ -231,7 +231,12 @@ struct WebView: NSViewRepresentable {
 
         func stopObserving() {
             observations.removeAll()
-            parent.state.webView.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
+            let wv = parent.state.webView
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
+            wv.navigationDelegate = nil
+            wv.uiDelegate = nil
+            wv.onOpenLinkInNewTab = nil
+            wv.stopLoading()
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

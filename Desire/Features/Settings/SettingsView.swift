@@ -19,6 +19,8 @@ struct SettingsView: View {
                     }
                 }
 
+                CustomEngineSection(settings: settings)
+
                 TextField("主页 URL", text: $settings.homePage)
 
                 Divider()
@@ -210,6 +212,69 @@ private struct PermissionSection: View {
             Button("重置", role: .destructive) { store.removeAll() }
         } message: {
             Text("这将清除所有网站保存的摄像头、麦克风和位置权限设置。")
+        }
+    }
+}
+
+private struct CustomEngineSection: View {
+    @ObservedObject var settings: Settings
+    @State private var showAdd = false
+    @State private var newName = ""
+    @State private var newURL = ""
+    @State private var newSuggestionURL = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            HStack {
+                Text("自定义搜索引擎")
+                    .font(.headline)
+                Spacer()
+                Button("添加") { showAdd = true }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .font(.caption)
+            }
+
+            if settings.customEngines.isEmpty {
+                Text("暂无自定义搜索引擎")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                List {
+                    ForEach(settings.customEngines) { engine in
+                        HStack {
+                            Text(engine.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                            Spacer()
+                            Button("删除") { settings.removeCustomEngine(engine.id) }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .frame(height: 80)
+            }
+        }
+        .sheet(isPresented: $showAdd) {
+            VStack(spacing: 16) {
+                Text("添加搜索引擎").font(.headline)
+                TextField("名称（如：Wikipedia）", text: $newName)
+                TextField("搜索 URL（如：https://en.wikipedia.org/wiki/Special:Search?search=）", text: $newURL)
+                TextField("建议 URL（可选）", text: $newSuggestionURL)
+                HStack {
+                    Button("取消") { showAdd = false }
+                    Button("添加") {
+                        settings.addCustomEngine(name: newName, searchURL: newURL, suggestionURL: newSuggestionURL)
+                        newName = ""; newURL = ""; newSuggestionURL = ""
+                        showAdd = false
+                    }
+                    .disabled(newName.isEmpty || newURL.isEmpty)
+                }
+            }
+            .padding()
+            .frame(width: 420)
         }
     }
 }

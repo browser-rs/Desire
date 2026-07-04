@@ -97,7 +97,7 @@ class AddressSuggestionsModel: ObservableObject {
             searchTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 guard !Task.isCancelled else { return }
-                let sugs = await SearchSuggestionService.shared.suggestions(for: snapshot, engine: engine)
+                let sugs = await SearchSuggestionService.shared.suggestions(for: snapshot, engine: engine, settings: snapSettings)
                 guard !Task.isCancelled, let self else { return }
 
                 guard let first = self.suggestions.first, first.title == snapshot else { return }

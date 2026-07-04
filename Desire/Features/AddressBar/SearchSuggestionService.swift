@@ -5,13 +5,14 @@ class SearchSuggestionService {
     static let shared = SearchSuggestionService()
     private init() {}
 
-    func suggestions(for query: String, engine: SearchEngine) async -> [String] {
+    func suggestions(for query: String, engine: SearchEngine, settings: Settings? = nil) async -> [String] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: engine.suggestionURL + encoded) else {
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             return []
         }
+        let urlString = settings?.suggestionURLTemplate ?? engine.suggestionURL
+        guard let url = URL(string: urlString + encoded) else { return [] }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)

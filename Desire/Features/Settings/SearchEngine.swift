@@ -1,5 +1,12 @@
 import Foundation
 
+struct CustomSearchEngine: Codable, Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var searchURL: String
+    var suggestionURL: String
+}
+
 enum SearchEngine: String, CaseIterable {
     case google = "Google"
     case duckduckgo = "DuckDuckGo"

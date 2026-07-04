@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import WebKit
 
@@ -64,6 +65,9 @@ struct ContentView: View {
                             ? "document.querySelectorAll('audio, video').forEach(e => e.muted = true)"
                             : "document.querySelectorAll('audio, video').forEach(e => e.muted = false)"
                         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+                    },
+                    onTogglePin: { index in
+                        tabManager.tabs[index].isPinned.toggle()
                     }
                 )
 

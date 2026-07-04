@@ -16,13 +16,27 @@ struct TabBar: View {
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
     let onToggleAudioMute: (Int) -> Void
+    let onTogglePin: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
-                        tabPill(for: tab, at: index)
+                    let pinned = tabs.filter(\.isPinned)
+                    let regular = tabs.filter { !$0.isPinned }
+                    ForEach(Array(pinned.enumerated()), id: \.element.id) { index, tab in
+                        if let realIndex = tabs.firstIndex(where: { $0.id == tab.id }) {
+                            tabPill(for: tab, at: realIndex)
+                                .frame(width: 50)
+                        }
+                    }
+                    if !pinned.isEmpty && !regular.isEmpty {
+                        Divider().frame(height: 18)
+                    }
+                    ForEach(Array(regular.enumerated()), id: \.element.id) { index, tab in
+                        if let realIndex = tabs.firstIndex(where: { $0.id == tab.id }) {
+                            tabPill(for: tab, at: realIndex)
+                        }
                     }
                 }
             }
@@ -57,6 +71,14 @@ struct TabBar: View {
                 Image(systemName: "asterisk").font(.caption)
             } else {
                 FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
+                    .overlay(alignment: .bottomTrailing) {
+                        if tab.isPinned {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 6))
+                                .foregroundStyle(.secondary)
+                                .offset(x: 4, y: 4)
+                        }
+                    }
             }
             if tab.browser.isPlayingAudio {
                 Button {
@@ -68,10 +90,12 @@ struct TabBar: View {
                 }
                 .buttonStyle(.plain)
             }
-            Text(tab.displayTitle)
-                .lineLimit(1)
-                .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: 120)
+            if !tab.isPinned {
+                Text(tab.displayTitle)
+                    .lineLimit(1)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(maxWidth: 120)
+            }
             Button(action: { onCloseTab(index) }) {
                 Image(systemName: "xmark")
                     .font(.caption2)
@@ -118,6 +142,9 @@ struct TabBar: View {
         Button("复制网址") { onCopyTabURL(tab) }
             .disabled(tab.isOnNewTabPage)
 
+        Divider()
+
+        Button(tab.isPinned ? "取消固定" : "固定标签页") { onTogglePin(index) }
         Divider()
 
         Button("关闭标签页") { onCloseTab(index) }

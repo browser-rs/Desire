@@ -13,6 +13,7 @@ class Tab: ObservableObject {
     @Published var canGoForward = false
     @Published var isOnNewTabPage = true
     @Published var displayTitle = "新标签页"
+    @Published var isPinned = false
     var suppressHistoryOnce = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -136,11 +137,11 @@ class TabManager: ObservableObject {
         var savedTabs: [SavedTab] = []
         for tab in tabs where !tab.isIncognito {
             if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
-                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false))
+                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned))
             } else if tab.isOnNewTabPage {
-                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true))
+                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned))
             } else if tab.urlString.hasPrefix("http"), let u = URL(string: tab.urlString) {
-                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false))
+                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false, isPinned: tab.isPinned))
             }
         }
         guard !savedTabs.isEmpty else {
@@ -167,6 +168,7 @@ class TabManager: ObservableObject {
         for saved in session.tabs {
             let url = saved.isOnNewTabPage ? nil : saved.url
             let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+            tab.isPinned = saved.isPinned
             tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -185,6 +187,7 @@ class TabManager: ObservableObject {
 private struct SavedTab: Codable {
     let url: String?
     let isOnNewTabPage: Bool
+    var isPinned: Bool
 }
 
 private struct SavedSession: Codable {

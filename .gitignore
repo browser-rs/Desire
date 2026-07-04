@@ -30,3 +30,6 @@ Carthage/Build
 
 # macOS
 .DS_Store
+
+# Trae agent working files
+.trae/

@@ -103,6 +103,8 @@ struct DesireApp: App {
                 Divider()
                 Button("Print…") { postCommand(.printPage) }
                     .keyboardShortcut("p", modifiers: .command)
+                Button("Screenshot Region…") { postCommand(.screenshot) }
+                    .keyboardShortcut("5", modifiers: [.command, .shift])
             }
 
             // MARK: - Window
@@ -128,6 +130,7 @@ enum BrowserCommand {
     case reload, inspectElement, printPage
     case zoomIn, zoomOut, actualSize
     case clearHistory, exportBookmarks, importBookmarks
+    case screenshot
 }
 
 extension Notification.Name {

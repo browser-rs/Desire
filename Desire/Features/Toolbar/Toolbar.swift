@@ -19,6 +19,7 @@ struct Toolbar: View {
         let resetZoom: () -> Void
         let toggleReader: () -> Void
         let captureFullPage: () -> Void
+        let captureScreenshot: () -> Void
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
         let toggleResponsiveMode: () -> Void
@@ -229,6 +230,7 @@ struct Toolbar: View {
             moreMenuItem("Reset Zoom", "1.magnifyingglass") { actions.resetZoom() }
             moreMenuItem("Print…", "printer") { actions.printPage() }
             moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
+            moreMenuItem("Screenshot Region…", "crop") { actions.captureScreenshot() }
             Divider()
             moreMenuItem("Inspect Element", "ladybug") { actions.inspectElement() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }

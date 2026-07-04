@@ -362,6 +362,9 @@
         }
       }
     },
+    "Arrow" : {
+
+    },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
       "localizations" : {
@@ -638,6 +641,9 @@
         }
       }
     },
+    "Brush" : {
+
+    },
     "by %@" : {
 
     },
@@ -781,7 +787,6 @@
     },
     "Choose screenshot save location" : {
       "comment" : "Open panel message",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1953,6 +1958,9 @@
         }
       }
     },
+    "Ellipse" : {
+
+    },
     "Enable JavaScript" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -3087,6 +3095,9 @@
         }
       }
     },
+    "Mosaic" : {
+
+    },
     "Name" : {
       "comment" : "Name field label",
       "localizations" : {
@@ -3639,6 +3650,9 @@
         }
       }
     },
+    "Number" : {
+
+    },
     "OK" : {
       "comment" : "OK button",
       "localizations" : {
@@ -4123,6 +4137,12 @@
         }
       }
     },
+    "Rectangle" : {
+
+    },
+    "Redraw" : {
+
+    },
     "Reload" : {
       "comment" : "Reload button",
       "localizations" : {
@@ -4538,6 +4558,9 @@
         }
       }
     },
+    "Screenshot Region…" : {
+
+    },
     "Screenshot save location" : {
       "comment" : "Settings label",
       "extractionState" : "stale",
@@ -4780,6 +4803,9 @@
           }
         }
       }
+    },
+    "Select" : {
+
     },
     "Select All" : {
       "comment" : "Edit menu item",
@@ -5173,6 +5199,9 @@
         }
       }
     },
+    "Text" : {
+
+    },
     "The certificate for %@ is not trusted.\n\n%@" : {
       "comment" : "Certificate alert informative text with host and error",
       "localizations" : {
@@ -5195,6 +5224,12 @@
           }
         }
       }
+    },
+    "Thick" : {
+
+    },
+    "Thin" : {
+
     },
     "This connection is encrypted with HTTPS" : {
       "comment" : "HTTPS encryption description",

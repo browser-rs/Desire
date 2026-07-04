@@ -35,6 +35,7 @@ struct ContentView: View {
     @State private var showSidebar = false
     @State private var showElementBlock = false
     @State private var showUndoToast = false
+    @State private var screenshotToast: String?
     @State private var lastBlockedRuleId: UUID?
     @State private var lastBlockedSelector = ""
     @State private var lastBlockedXpath: String?
@@ -148,6 +149,7 @@ struct ContentView: View {
                             }
                         },
                         captureFullPage: { captureFullPage() },
+                        captureScreenshot: { startScreenshot() },
                         addToReadingList: { title, url in
                             readingListStore.add(title: title, url: url)
                         },
@@ -440,6 +442,8 @@ struct ContentView: View {
                 bookmarkStore.exportToHTML()
             case .importBookmarks:
                 bookmarkStore.importFromHTML()
+            case .screenshot:
+                startScreenshot()
             }
         }
         .sheet(isPresented: $showHistory) {
@@ -528,6 +532,19 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(.bottom, 12)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let message = screenshotToast {
+                HStack(spacing: 8) {
+                    Text(message).font(.caption)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -697,6 +714,26 @@ struct ContentView: View {
         printInfo.rightMargin = 20
         let operation = tab.browser.webView.printOperation(with: printInfo)
         operation.run()
+    }
+
+    private func startScreenshot() {
+        ScreenshotSession.start { result in
+            Task { @MainActor in
+                switch result {
+                case .cancelled:
+                    break
+                case .saved(let url):
+                    screenshotToast = "Saved to \(url.lastPathComponent)"
+                case .copied:
+                    screenshotToast = "Copied to clipboard"
+                }
+                if screenshotToast != nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        screenshotToast = nil
+                    }
+                }
+            }
+        }
     }
 
     private func captureFullPage() {

@@ -1,10 +1,18 @@
 import AppKit
 import Foundation
 
-enum ScreenshotPhase {
+enum ScreenshotPhase: Equatable {
     case idle
     case selecting
     case editing(NSImage)
+
+    static func == (lhs: ScreenshotPhase, rhs: ScreenshotPhase) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle), (.selecting, .selecting): return true
+        case (.editing, .editing): return true
+        default: return false
+        }
+    }
 }
 
 enum ScreenshotTool: String, CaseIterable {

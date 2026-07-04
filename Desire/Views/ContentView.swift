@@ -541,13 +541,14 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .overlay {
-            if case .selecting = screenshotStore.phase {
-                ScreenshotSelectionOverlay(
+        .onChange(of: screenshotStore.phase) { _, phase in
+            if case .selecting = phase {
+                ScreenshotOverlayPresenter.show(
                     onCancel: { screenshotStore.cancelCapture() },
                     onCapture: { rect in screenshotStore.capture(rect: rect) }
                 )
-                .edgesIgnoringSafeArea(.all)
+            } else {
+                ScreenshotOverlayPresenter.hide()
             }
         }
         .sheet(isPresented: .init(

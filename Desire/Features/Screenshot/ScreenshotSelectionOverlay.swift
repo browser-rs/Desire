@@ -1,50 +1,27 @@
 import AppKit
 import SwiftUI
 
-struct ScreenshotSelectionOverlay: NSViewRepresentable {
-    let onCancel: () -> Void
-    let onCapture: (NSRect) -> Void
+// MARK: - Presenter (called from ContentView)
+enum ScreenshotOverlayPresenter {
+    private static var activePanel: OverlayPanel?
 
-    func makeNSView(context: Context) -> NSView {
-        let root = OverlayRootView()
-        root.onCancel = onCancel
-        root.onCapture = onCapture
-        return root
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-private class OverlayRootView: NSView {
-    var onCancel: (() -> Void)?
-    var onCapture: ((NSRect) -> Void)?
-
-    private var panel: OverlayPanel?
-    private var monitor: Any?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil {
-            showPanel()
-        } else {
-            hidePanel()
-        }
-    }
-
-    private func showPanel() {
+    static func show(onCancel: @escaping () -> Void, onCapture: @escaping (NSRect) -> Void) {
+        hide()
         guard let screen = NSScreen.main else { return }
-        let p = OverlayPanel(screen: screen)
-        p.onCancel = onCancel
-        p.onCapture = onCapture
-        p.orderFrontRegardless()
-        panel = p
+        let panel = OverlayPanel(screen: screen)
+        panel.onCancel = onCancel
+        panel.onCapture = onCapture
+        panel.orderFrontRegardless()
+        activePanel = panel
     }
 
-    private func hidePanel() {
-        panel?.orderOut(nil)
-        panel = nil
+    static func hide() {
+        activePanel?.orderOut(nil)
+        activePanel = nil
     }
 }
+
+// MARK: - Panel
 
 private class OverlayPanel: NSPanel {
     var onCancel: (() -> Void)?
@@ -64,18 +41,20 @@ private class OverlayPanel: NSPanel {
         ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        let selectionView = SelectionView(frame: screen.frame)
-        selectionView.onCancel = { [weak self] in
+        let sel = SelectionView(frame: screen.frame)
+        sel.onCancel = { [weak self] in
             self?.onCancel?()
             self?.orderOut(nil)
         }
-        selectionView.onCapture = { [weak self] rect in
+        sel.onCapture = { [weak self] rect in
             self?.onCapture?(rect)
             self?.orderOut(nil)
         }
-        contentView = selectionView
+        contentView = sel
     }
 }
+
+// MARK: - Selection View
 
 private class SelectionView: NSView {
     var onCancel: (() -> Void)?
@@ -93,12 +72,12 @@ private class SelectionView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
-        NSCursor.crosshair.push()
+        window?.invalidateCursorRects(for: self)
     }
 
-    override func removeFromSuperview() {
-        NSCursor.crosshair.pop()
-        super.removeFromSuperview()
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .crosshair)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -130,23 +109,19 @@ private class SelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
 
-        // full-screen dim
         ctx.setFillColor(NSColor.black.withAlphaComponent(0.3).cgColor)
         ctx.fill(bounds)
 
         if let start = startPoint, let current = currentPoint {
             let rect = rectBetween(start, current)
 
-            // clear the selected area
             ctx.clear(rect)
 
-            // selection border
             ctx.setStrokeColor(NSColor.white.cgColor)
             ctx.setLineWidth(2)
             ctx.addRect(rect)
             ctx.strokePath()
 
-            // corner handles
             let handleSize: CGFloat = 6
             ctx.setFillColor(NSColor.white.cgColor)
             for corner in [rect.origin,
@@ -156,7 +131,6 @@ private class SelectionView: NSView {
                 ctx.fillEllipse(in: CGRect(x: corner.x - handleSize/2, y: corner.y - handleSize/2, width: handleSize, height: handleSize))
             }
 
-            // dimension label
             let dimText = "\(Int(rect.width)) × \(Int(rect.height))" as NSString
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 13, weight: .medium),
@@ -175,7 +149,6 @@ private class SelectionView: NSView {
             ctx.fill(bgRect)
             dimText.draw(at: CGPoint(x: labelX, y: labelY), withAttributes: attrs)
         } else {
-            // hint text when no drag in progress
             let hint = NSLocalizedString("Click and drag to select a region. Esc to cancel.", comment: "")
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 14),

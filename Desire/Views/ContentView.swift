@@ -450,7 +450,11 @@ struct ContentView: View {
         let printInfo = NSPrintInfo.shared
         printInfo.horizontalPagination = .fit
         printInfo.verticalPagination = .fit
+        printInfo.topMargin = 20
+        printInfo.bottomMargin = 20
+        printInfo.leftMargin = 20
+        printInfo.rightMargin = 20
         let operation = tab.browser.webView.printOperation(with: printInfo)
-        operation.runModal(for: tab.browser.webView.window!, delegate: nil, didRun: nil, contextInfo: nil)
+        operation.run()
     }
 }

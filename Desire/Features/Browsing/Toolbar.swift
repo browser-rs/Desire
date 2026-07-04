@@ -118,6 +118,8 @@ struct Toolbar: View {
                             .offset(x: 7, y: -7)
                     }
                 }
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("下载")

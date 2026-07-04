@@ -16,12 +16,7 @@ struct EntryRow: View {
     }
 }
 
-@ViewBuilder
-func emptyState(_ message: String) -> some View {
-    VStack {
-        Spacer()
-        Text(message).foregroundStyle(.secondary)
-        Spacer()
-    }
-    .frame(maxWidth: .infinity)
+#Preview {
+    EntryRow(title: "Google", subtitle: "https://google.com", action: {})
+        .padding()
 }

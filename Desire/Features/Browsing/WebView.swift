@@ -26,11 +26,9 @@ class BrowserWKWebView: WKWebView {
         onOpenLinkInNewTab?(url)
     }
 
-    @objc func requestInspector() {
-        let sel = Selector(("_requestInspector"))
-        if responds(to: sel) {
-            perform(sel)
-        }
+    func requestInspector() {
+        guard let inspector = value(forKey: "_inspector") as? NSObject else { return }
+        inspector.perform(Selector(("show")))
     }
 }
 

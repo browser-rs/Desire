@@ -30,7 +30,26 @@ struct TabBar: View {
                     let regular = tabs.filter { !$0.isPinned }
                     ForEach(Array(pinned.enumerated()), id: \.element.id) { index, tab in
                         if let realIndex = tabs.firstIndex(where: { $0.id == tab.id }) {
-                            tabPill(for: tab, at: realIndex)
+                            TabPillView(
+                                tab: tab,
+                                index: realIndex,
+                                selectedIndex: selectedIndex,
+                                actions: TabBar.TabPillActions(
+                                    selectTab: onSelectTab,
+                                    closeTab: onCloseTab,
+                                    reloadTab: onReloadTab,
+                                    copyTabURL: onCopyTabURL,
+                                    toggleAudioMute: onToggleAudioMute,
+                                    togglePin: onTogglePin,
+                                    closeOtherTabs: onCloseOtherTabs,
+                                    closeTabsToRight: onCloseTabsToRight,
+                                    addTab: onAddTab,
+                                    createGroup: onCreateGroup
+                                ),
+                                tabs: tabs,
+                                tabGroupStore: tabGroupStore,
+                                onMoveTab: onMoveTab
+                            )
                                 .frame(width: 50)
                         }
                     }
@@ -39,7 +58,26 @@ struct TabBar: View {
                     }
                     ForEach(Array(regular.enumerated()), id: \.element.id) { index, tab in
                         if let realIndex = tabs.firstIndex(where: { $0.id == tab.id }) {
-                            tabPill(for: tab, at: realIndex)
+                            TabPillView(
+                                tab: tab,
+                                index: realIndex,
+                                selectedIndex: selectedIndex,
+                                actions: TabBar.TabPillActions(
+                                    selectTab: onSelectTab,
+                                    closeTab: onCloseTab,
+                                    reloadTab: onReloadTab,
+                                    copyTabURL: onCopyTabURL,
+                                    toggleAudioMute: onToggleAudioMute,
+                                    togglePin: onTogglePin,
+                                    closeOtherTabs: onCloseOtherTabs,
+                                    closeTabsToRight: onCloseTabsToRight,
+                                    addTab: onAddTab,
+                                    createGroup: onCreateGroup
+                                ),
+                                tabs: tabs,
+                                tabGroupStore: tabGroupStore,
+                                onMoveTab: onMoveTab
+                            )
                         }
                     }
                 }
@@ -63,7 +101,16 @@ struct TabBar: View {
         .padding(.bottom, 4)
         .background(Color.clear)
         .overlay(alignment: .topLeading) {
-            if showSwitcher { tabSwitcher() }
+            if showSwitcher {
+                TabPopoverView(
+                    tabs: tabs,
+                    selectedIndex: selectedIndex,
+                    onSelectTab: onSelectTab,
+                    onAddTab: onAddTab,
+                    searchText: $searchText,
+                    isSearchFocused: $isSearchFocused
+                )
+            }
         }
         .onChange(of: showSwitcher) { _, shown in
             if shown {
@@ -75,10 +122,36 @@ struct TabBar: View {
         }
     }
 
-    private func tabPill(for tab: Tab, at index: Int) -> some View {
-        let groupColor = tabGroupStore.group(for: tab.id).map { tabGroupColors[$0.colorIndex % tabGroupColors.count] }
+    // MARK: - Tab pill actions
 
-        return HStack(spacing: 6) {
+    struct TabPillActions {
+        let selectTab: (Int) -> Void
+        let closeTab: (Int) -> Void
+        let reloadTab: (Tab) -> Void
+        let copyTabURL: (Tab) -> Void
+        let toggleAudioMute: (Int) -> Void
+        let togglePin: (Int) -> Void
+        let closeOtherTabs: (Int) -> Void
+        let closeTabsToRight: (Int) -> Void
+        let addTab: () -> Void
+        let createGroup: (Int) -> Void
+    }
+}
+
+private struct TabPillView: View {
+    @ObservedObject var tab: Tab
+    let index: Int
+    let selectedIndex: Int
+    let actions: TabBar.TabPillActions
+    let tabs: [Tab]
+    let tabGroupStore: TabGroupStore
+    let onMoveTab: (Int, Int) -> Void
+
+    private let tabGroupColors: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]
+
+    var body: some View {
+        let groupColor = tabGroupStore.group(for: tab.id).map { tabGroupColors[$0.colorIndex % tabGroupColors.count] }
+        HStack(spacing: 6) {
             if let gc = groupColor {
                 Capsule()
                     .fill(gc)
@@ -101,7 +174,7 @@ struct TabBar: View {
             }
             if tab.browser.isPlayingAudio {
                 Button {
-                    onToggleAudioMute(index)
+                    actions.toggleAudioMute(index)
                 } label: {
                     Image(systemName: tab.browser.isMuted ? "speaker.slash" : "speaker.wave.2")
                         .font(.caption2)
@@ -115,7 +188,7 @@ struct TabBar: View {
                     .font(.system(size: 12, weight: .medium))
                     .frame(maxWidth: 120)
             }
-            Button(action: { onCloseTab(index) }) {
+            Button(action: { actions.closeTab(index) }) {
                 Image(systemName: "xmark")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -140,24 +213,22 @@ struct TabBar: View {
         .clipShape(Capsule())
         .contentShape(Capsule())
         .onTapGesture {
-            onSelectTab(index)
+            actions.selectTab(index)
         }
         .onDrag {
             let provider = NSItemProvider(object: NSString(string: "\(index)"))
             return provider
         }
         .onDrop(of: [.text], delegate: TabDropDelegate(targetIndex: index, onMoveTab: onMoveTab))
-        .contextMenu {
-            tabContextMenu(for: tab, at: index)
-        }
+        .contextMenu { tabContextMenu }
     }
 
     @ViewBuilder
-    private func tabContextMenu(for tab: Tab, at index: Int) -> some View {
-        Button("新建标签页") { onAddTab() }
-        Button("重新加载") { onReloadTab(tab) }
+    private var tabContextMenu: some View {
+        Button("新建标签页") { actions.addTab() }
+        Button("重新加载") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
-        Button("复制网址") { onCopyTabURL(tab) }
+        Button("复制网址") { actions.copyTabURL(tab) }
             .disabled(tab.isOnNewTabPage)
 
         Divider()
@@ -172,35 +243,44 @@ struct TabBar: View {
                     Button(group.name) { tabGroupStore.addTab(tab.id, to: group.id) }
                 }
                 if !tabGroupStore.groups.isEmpty { Divider() }
-                Button("新建分组…") { onCreateGroup(index) }
+                Button("新建分组…") { actions.createGroup(index) }
             }
         }
 
-        Button(tab.isPinned ? "取消固定" : "固定标签页") { onTogglePin(index) }
+        Button(tab.isPinned ? "取消固定" : "固定标签页") { actions.togglePin(index) }
         Divider()
 
-        Button("关闭标签页") { onCloseTab(index) }
+        Button("关闭标签页") { actions.closeTab(index) }
             .disabled(tabs.count <= 1)
-        Button("关闭其他标签页") { onCloseOtherTabs(index) }
+        Button("关闭其他标签页") { actions.closeOtherTabs(index) }
             .disabled(tabs.count <= 1)
-        Button("关闭右侧标签页") { onCloseTabsToRight(index) }
+        Button("关闭右侧标签页") { actions.closeTabsToRight(index) }
             .disabled(index >= tabs.count - 1)
     }
+}
 
-    private func tabSwitcher() -> some View {
-        let filtered: [(offset: Int, element: Tab)]
+private struct TabPopoverView: View {
+    let tabs: [Tab]
+    let selectedIndex: Int
+    let onSelectTab: (Int) -> Void
+    let onAddTab: () -> Void
+    @Binding var searchText: String
+    var isSearchFocused: FocusState<Bool>.Binding
+
+    private var filtered: [(offset: Int, element: Tab)] {
         if searchText.isEmpty {
-            filtered = Array(tabs.enumerated())
-        } else {
-            let q = searchText.lowercased()
-            filtered = tabs.enumerated().filter { _, t in
-                t.displayTitle.lowercased().contains(q) ||
-                t.urlString.lowercased().contains(q) ||
-                (t.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
-            }
+            return Array(tabs.enumerated())
         }
+        let q = searchText.lowercased()
+        return tabs.enumerated().filter { _, t in
+            t.displayTitle.lowercased().contains(q) ||
+            t.urlString.lowercased().contains(q) ||
+            (t.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
+        }
+    }
 
-        return VStack(alignment: .leading, spacing: 0) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -208,7 +288,7 @@ struct TabBar: View {
                 TextField("搜索标签页…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
-                    .focused($isSearchFocused)
+                    .focused(isSearchFocused)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)

@@ -127,6 +127,7 @@ class BrowserState: ObservableObject {
     @Published var pageZoom: Double = 1.0
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
+    @Published var isMuted: Bool = false
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()

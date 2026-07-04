@@ -53,7 +53,15 @@ struct ContentView: View {
                         }
                     },
                     onCloseOtherTabs: { tabManager.closeOthers(keeping: $0) },
-                    onCloseTabsToRight: { tabManager.closeToTheRight(of: $0) }
+                    onCloseTabsToRight: { tabManager.closeToTheRight(of: $0) },
+                    onToggleAudioMute: { index in
+                        let tab = tabManager.tabs[index]
+                        tab.browser.isMuted.toggle()
+                        let js = tab.browser.isMuted
+                            ? "document.querySelectorAll('audio, video').forEach(e => e.muted = true)"
+                            : "document.querySelectorAll('audio, video').forEach(e => e.muted = false)"
+                        tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+                    }
                 )
 
                 Toolbar(

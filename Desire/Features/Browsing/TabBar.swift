@@ -15,6 +15,7 @@ struct TabBar: View {
     let onCopyTabURL: (Tab) -> Void
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
+    let onToggleAudioMute: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -51,7 +52,14 @@ struct TabBar: View {
     private func tabPill(for tab: Tab, at index: Int) -> some View {
         HStack(spacing: 6) {
             if tab.browser.isPlayingAudio {
-                Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
+                Button {
+                    onToggleAudioMute(index)
+                } label: {
+                    Image(systemName: tab.browser.isMuted ? "speaker.slash" : "speaker.wave.2")
+                        .font(.caption2)
+                        .foregroundStyle(tab.browser.isMuted ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
             } else if tab.isLoading {
                 ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
             } else if tab.isIncognito {

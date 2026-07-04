@@ -48,7 +48,11 @@ enum ScreenshotAnnotationRenderer {
                 width: abs(p2.x - p1.x),
                 height: abs(p2.y - p1.y)
             )
-            ctx.stroke(rect)
+            if annotation.fillEnabled {
+                ctx.fill(rect)
+            } else {
+                ctx.stroke(rect)
+            }
 
         case .ellipse:
             guard annotation.points.count >= 2 else { break }
@@ -60,7 +64,11 @@ enum ScreenshotAnnotationRenderer {
                 width: abs(p2.x - p1.x),
                 height: abs(p2.y - p1.y)
             )
-            ctx.strokeEllipse(in: rect)
+            if annotation.fillEnabled {
+                ctx.fillEllipse(in: rect)
+            } else {
+                ctx.strokeEllipse(in: rect)
+            }
 
         case .arrow:
             guard annotation.points.count >= 2 else { break }
@@ -127,7 +135,7 @@ enum ScreenshotAnnotationRenderer {
             let point = annotation.points[0]
             let attributes: [NSAttributedString.Key: Any] = [
                 .foregroundColor: nsColor,
-                .font: NSFont.boldSystemFont(ofSize: 16)
+                .font: NSFont.boldSystemFont(ofSize: annotation.fontSize)
             ]
             let nsText = text as NSString
             let textSize = nsText.size(withAttributes: attributes)

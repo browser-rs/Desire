@@ -7,6 +7,16 @@
 
 import AppKit
 
+/// Borderless panel subclass that can become the key window.
+///
+/// `NSPanel` with `[.borderless, .fullSizeContentView]` returns `false` for
+/// `canBecomeKey` by default — without overriding it, `makeFirstResponder`
+/// silently fails and keyboard input (text annotation field, Cmd+Z undo, Esc
+/// cancel) never reaches the overlay.
+final class ScreenshotPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 /// Orchestrator for the screenshot flow: permission check → screen capture → overlay → result.
 /// Caseless namespace (per Plan agent S4). Holds session state in a private `Holder`.
 enum ScreenshotSession {
@@ -17,7 +27,10 @@ enum ScreenshotSession {
     private static let holder = Holder()
 
     @MainActor
-    static func start(onResult: @escaping (ScreenshotResult) -> Void) {
+    static func start(
+        saveFolder: URL,
+        onResult: @escaping (ScreenshotResult) -> Void
+    ) {
         // Permission: preflight first; if missing, request and prompt (permission
         // only takes effect on the next launch, so we never capture immediately
         // after a fresh grant — that would yield a black image).
@@ -25,15 +38,15 @@ enum ScreenshotSession {
             let granted = ScreenshotCapture.requestPermission()
             if granted {
                 showAlert(
-                    title: "Screenshot",
-                    message: "Permission granted. Trigger the screenshot shortcut again to capture.",
-                    buttonTitle: "OK"
+                    title: String(localized: "Screenshot"),
+                    message: String(localized: "Permission granted. Trigger the screenshot shortcut again to capture."),
+                    buttonTitle: String(localized: "OK")
                 )
             } else {
                 showAlert(
-                    title: "Screenshot",
-                    message: "Screen Recording permission is required. Open System Settings → Privacy & Security → Screen Recording.",
-                    buttonTitle: "Open Settings"
+                    title: String(localized: "Screenshot"),
+                    message: String(localized: "Screen Recording permission is required. Open System Settings → Privacy & Security → Screen Recording."),
+                    buttonTitle: String(localized: "Open Settings")
                 ) {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
                         NSWorkspace.shared.open(url)
@@ -56,13 +69,18 @@ enum ScreenshotSession {
                 await MainActor.run { onResult(.cancelled) }
                 return
             }
-            await MainActor.run { showOverlay(image: image, on: screen, onResult: onResult) }
+            await MainActor.run { showOverlay(image: image, on: screen, saveFolder: saveFolder, onResult: onResult) }
         }
     }
 
     @MainActor
-    private static func showOverlay(image: NSImage, on screen: NSScreen, onResult: @escaping (ScreenshotResult) -> Void) {
-        let panel = NSPanel(
+    private static func showOverlay(
+        image: NSImage,
+        on screen: NSScreen,
+        saveFolder: URL,
+        onResult: @escaping (ScreenshotResult) -> Void
+    ) {
+        let panel = ScreenshotPanel(
             contentRect: screen.frame,
             styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
@@ -76,7 +94,7 @@ enum ScreenshotSession {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.hidesOnDeactivate = false
 
-        let view = ScreenshotOverlayView(frame: screen.frame, capturedImage: image)
+        let view = ScreenshotOverlayView(frame: screen.frame, capturedImage: image, saveFolder: saveFolder)
         view.onResult = { result in
             end(result, panel: panel, onResult: onResult)
         }

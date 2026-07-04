@@ -717,15 +717,15 @@ struct ContentView: View {
     }
 
     private func startScreenshot() {
-        ScreenshotSession.start { result in
+        ScreenshotSession.start(saveFolder: settings.screenshotFolder) { result in
             Task { @MainActor in
                 switch result {
                 case .cancelled:
                     break
                 case .saved(let url):
-                    screenshotToast = "Saved to \(url.lastPathComponent)"
+                    screenshotToast = String(format: String(localized: "Saved to %@"), url.lastPathComponent)
                 case .copied:
-                    screenshotToast = "Copied to clipboard"
+                    screenshotToast = String(localized: "Copied to clipboard")
                 }
                 if screenshotToast != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

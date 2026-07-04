@@ -68,10 +68,14 @@ enum ScreenshotCapture {
         let scaleX = imagePixelWidth / pointWidth
         let scaleY = imagePixelHeight / pointHeight
 
-        // Y-flip: CG origin is bottom-left, canvas rect origin is top-left
+        // CGImage.cropping(to:) uses the image's own coordinate system, which
+        // has its origin at the TOP-LEFT corner (y increases downward) — same
+        // convention as our flipped canvas. So we scale rect directly without
+        // any Y-flip. (CGContext.draw uses bottom-left origin and needs the
+        // flip; that's handled separately in `composite`.)
         let cropRect = CGRect(
             x: rect.origin.x * scaleX,
-            y: (pointHeight - rect.origin.y - rect.height) * scaleY,
+            y: rect.origin.y * scaleY,
             width: rect.width * scaleX,
             height: rect.height * scaleY
         )

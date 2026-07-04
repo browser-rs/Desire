@@ -363,7 +363,27 @@
       }
     },
     "Arrow" : {
-
+      "comment" : "Screenshot tool: arrow annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "箭头"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "箭頭"
+          }
+        }
+      }
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
@@ -457,6 +477,29 @@
         }
       }
     },
+    "Black" : {
+      "comment" : "Screenshot palette color: black",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黑色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黑色"
+          }
+        }
+      }
+    },
     "Block" : {
       "comment" : "Block element button",
       "localizations" : {
@@ -522,6 +565,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "封鎖此元素？"
+          }
+        }
+      }
+    },
+    "Blue" : {
+      "comment" : "Screenshot palette color: blue",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "藍色"
           }
         }
       }
@@ -642,7 +708,27 @@
       }
     },
     "Brush" : {
-
+      "comment" : "Screenshot tool: brush annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brush"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画笔"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "畫筆"
+          }
+        }
+      }
     },
     "by %@" : {
 
@@ -785,8 +871,12 @@
         }
       }
     },
+    "Choose" : {
+
+    },
     "Choose screenshot save location" : {
       "comment" : "Open panel message",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1172,6 +1262,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cookie"
+          }
+        }
+      }
+    },
+    "Copied to clipboard" : {
+      "comment" : "Toast: screenshot copied to clipboard",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied to clipboard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已复制到剪贴板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已複製到剪貼簿"
           }
         }
       }
@@ -1959,7 +2072,27 @@
       }
     },
     "Ellipse" : {
-
+      "comment" : "Screenshot tool: ellipse annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ellipse"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "椭圆"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橢圓"
+          }
+        }
+      }
     },
     "Enable JavaScript" : {
       "comment" : "Settings toggle",
@@ -2262,6 +2395,29 @@
         }
       }
     },
+    "Filled" : {
+      "comment" : "Screenshot shape fill toggle: filled state",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填充"
+          }
+        }
+      }
+    },
     "Find in Page" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -2528,7 +2684,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "常规"
+            "value" : "通用"
           }
         },
         "zh-Hant" : {
@@ -2581,6 +2737,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一頁"
+          }
+        }
+      }
+    },
+    "Green" : {
+      "comment" : "Screenshot palette color: green",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绿色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "綠色"
           }
         }
       }
@@ -2957,6 +3136,29 @@
         }
       }
     },
+    "Large" : {
+      "comment" : "Screenshot font size: large",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Large"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大"
+          }
+        }
+      }
+    },
     "Link Preview" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -3072,6 +3274,29 @@
         }
       }
     },
+    "Medium" : {
+      "comment" : "Screenshot stroke/font size: medium",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
+          }
+        }
+      }
+    },
     "Microphone" : {
       "comment" : "Microphone device name",
       "localizations" : {
@@ -3096,7 +3321,27 @@
       }
     },
     "Mosaic" : {
-
+      "comment" : "Screenshot tool: mosaic blur annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mosaic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "马赛克"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "馬賽克"
+          }
+        }
+      }
     },
     "Name" : {
       "comment" : "Name field label",
@@ -3651,7 +3896,27 @@
       }
     },
     "Number" : {
-
+      "comment" : "Screenshot tool: numbered label annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "序号"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "序號"
+          }
+        }
+      }
     },
     "OK" : {
       "comment" : "OK button",
@@ -3745,6 +4010,75 @@
         }
       }
     },
+    "Open Settings" : {
+      "comment" : "Screenshot permission alert button: open System Settings",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟設定…"
+          }
+        }
+      }
+    },
+    "Orange" : {
+      "comment" : "Screenshot palette color: orange",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橙色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橙色"
+          }
+        }
+      }
+    },
+    "Outlined" : {
+      "comment" : "Screenshot shape fill toggle: outlined state",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outlined"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描边"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描邊"
+          }
+        }
+      }
+    },
     "Passwords" : {
       "comment" : "Passwords panel title",
       "localizations" : {
@@ -3810,6 +4144,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上並前往"
+          }
+        }
+      }
+    },
+    "Permission granted. Trigger the screenshot shortcut again to capture." : {
+      "comment" : "Screenshot permission alert: granted but takes effect next launch",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permission granted. Trigger the screenshot shortcut again to capture."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已授权，请再次触发截图快捷键进行截图。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已授權，請再次觸發截圖快捷鍵進行截圖。"
+          }
+        }
+      }
+    },
+    "Pick color…" : {
+      "comment" : "Screenshot toolbar: open system color picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick color…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选取颜色…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取顏色…"
           }
         }
       }
@@ -4138,10 +4518,96 @@
       }
     },
     "Rectangle" : {
-
+      "comment" : "Screenshot tool: rectangle annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rectangle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "矩形"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "矩形"
+          }
+        }
+      }
+    },
+    "Red" : {
+      "comment" : "Screenshot palette color: red",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "红色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紅色"
+          }
+        }
+      }
+    },
+    "Redo" : {
+      "comment" : "Screenshot toolbar: redo last undone annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重做"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重做"
+          }
+        }
+      }
     },
     "Redraw" : {
-
+      "comment" : "Screenshot toolbar: redraw selection",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redraw"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重画"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重畫"
+          }
+        }
+      }
     },
     "Reload" : {
       "comment" : "Reload button",
@@ -4534,9 +5000,54 @@
         }
       }
     },
+    "Saved to %@" : {
+      "comment" : "Toast: screenshot saved to a file (filename substituted for %@)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved to %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存到%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存到%@"
+          }
+        }
+      }
+    },
+    "Screen Recording permission is required. Open System Settings → Privacy & Security → Screen Recording." : {
+      "comment" : "Screenshot permission alert: missing screen recording permission",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording permission is required. Open System Settings → Privacy & Security → Screen Recording."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要屏幕录制权限。请打开系统设置 → 隐私与安全性 → 屏幕录制。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要螢幕錄製權限。請開啟系統設定 → 隱私與安全性 → 螢幕錄製。"
+          }
+        }
+      }
+    },
     "Screenshot" : {
-      "comment" : "Screenshot toolbar help",
-      "extractionState" : "stale",
+      "comment" : "Permission alert title",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4559,11 +5070,30 @@
       }
     },
     "Screenshot Region…" : {
-
+      "comment" : "Tools menu item: start screenshot region capture",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot Region…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截取区域…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "擷取區域…"
+          }
+        }
+      }
     },
     "Screenshot save location" : {
       "comment" : "Settings label",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4805,7 +5335,27 @@
       }
     },
     "Select" : {
-
+      "comment" : "Screenshot tool: select / move region",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇"
+          }
+        }
+      }
     },
     "Select All" : {
       "comment" : "Edit menu item",
@@ -5060,6 +5610,29 @@
         }
       }
     },
+    "Small" : {
+      "comment" : "Screenshot font size: small",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小"
+          }
+        }
+      }
+    },
     "Stop" : {
       "comment" : "Stop loading button help",
       "extractionState" : "stale",
@@ -5200,7 +5773,27 @@
       }
     },
     "Text" : {
-
+      "comment" : "Screenshot tool: text annotation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        }
+      }
     },
     "The certificate for %@ is not trusted.\n\n%@" : {
       "comment" : "Certificate alert informative text with host and error",
@@ -5226,10 +5819,50 @@
       }
     },
     "Thick" : {
-
+      "comment" : "Screenshot brush: thick stroke",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thick"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粗"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粗"
+          }
+        }
+      }
     },
     "Thin" : {
-
+      "comment" : "Screenshot brush: thin stroke",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "细"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "細"
+          }
+        }
+      }
     },
     "This connection is encrypted with HTTPS" : {
       "comment" : "HTTPS encryption description",
@@ -5651,6 +6284,9 @@
         }
       }
     },
+    "White" : {
+
+    },
     "XPath (optional)" : {
       "comment" : "Add rule XPath placeholder",
       "localizations" : {
@@ -5670,6 +6306,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "XPath（選填）"
+          }
+        }
+      }
+    },
+    "Yellow" : {
+      "comment" : "Screenshot palette color: yellow",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黄色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黃色"
           }
         }
       }

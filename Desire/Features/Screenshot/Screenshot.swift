@@ -51,9 +51,10 @@ struct ScreenshotColor: Codable, Sendable, Hashable {
     static let yellow = ScreenshotColor(r: 1.0, g: 0.8,  b: 0.0,  a: 1.0)
     static let green  = ScreenshotColor(r: 0.204, g: 0.78, b: 0.349, a: 1.0)
     static let blue   = ScreenshotColor(r: 0.0, g: 0.478, b: 1.0,  a: 1.0)
+    static let black  = ScreenshotColor(r: 0.0, g: 0.0,  b: 0.0,  a: 1.0)
     static let white  = ScreenshotColor(r: 1.0, g: 1.0,  b: 1.0,  a: 1.0)
 
-    static let palette: [ScreenshotColor] = [.red, .orange, .yellow, .green, .blue, .white]
+    static let palette: [ScreenshotColor] = [.red, .orange, .yellow, .green, .blue, .black, .white]
 }
 
 /// One annotation on the screenshot. Points are in canvas absolute coordinates;
@@ -66,6 +67,10 @@ struct ScreenshotAnnotation: Identifiable, Codable, Sendable {
     var strokeWidth: CGFloat
     var text: String?
     var number: Int
+    /// Shapes (rectangle/ellipse) render filled when true, outlined when false.
+    var fillEnabled: Bool = false
+    /// Font size for text annotations (points).
+    var fontSize: CGFloat = 16
 
     init(id: UUID = UUID(),
          tool: ScreenshotTool,
@@ -73,7 +78,9 @@ struct ScreenshotAnnotation: Identifiable, Codable, Sendable {
          color: ScreenshotColor = .red,
          strokeWidth: CGFloat = 2,
          text: String? = nil,
-         number: Int = 0) {
+         number: Int = 0,
+         fillEnabled: Bool = false,
+         fontSize: CGFloat = 16) {
         self.id = id
         self.tool = tool
         self.points = points
@@ -81,6 +88,8 @@ struct ScreenshotAnnotation: Identifiable, Codable, Sendable {
         self.strokeWidth = strokeWidth
         self.text = text
         self.number = number
+        self.fillEnabled = fillEnabled
+        self.fontSize = fontSize
     }
 }
 

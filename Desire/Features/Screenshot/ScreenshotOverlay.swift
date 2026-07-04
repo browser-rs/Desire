@@ -8,14 +8,19 @@
 import AppKit
 import Combine
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 private final class ScreenshotToolbarModel: ObservableObject {
     @Published var activeTool: ScreenshotTool = .select
     @Published var activeColor: ScreenshotColor = .red
     @Published var strokeWidth: CGFloat = 2
+    @Published var fontSize: CGFloat = 16
+    @Published var fillEnabled: Bool = false
     @Published var canUndo: Bool = false
+    @Published var canRedo: Bool = false
+    /// True when the active color came from NSColorPanel (not the palette).
+    /// Used to render the "custom" swatch with the current picked color.
+    @Published var customColor: ScreenshotColor?
 }
 
 private struct ScreenshotToolbar: View {
@@ -24,7 +29,11 @@ private struct ScreenshotToolbar: View {
     let onToolChange: (ScreenshotTool) -> Void
     let onColorChange: (ScreenshotColor) -> Void
     let onStrokeWidthChange: (CGFloat) -> Void
+    let onFontSizeChange: (CGFloat) -> Void
+    let onFillToggle: () -> Void
+    let onPickColor: () -> Void
     let onUndo: () -> Void
+    let onRedo: () -> Void
     let onRedraw: () -> Void
     let onSave: () -> Void
     let onCopy: () -> Void
@@ -50,6 +59,20 @@ private struct ScreenshotToolbar: View {
         .init(tool: .number,     icon: "number.circle",        help: "Number")
     ]
 
+    /// Stroke width presets (points): thin / medium / thick.
+    private let strokeOptions: [(width: CGFloat, iconSize: CGFloat, help: LocalizedStringKey)] = [
+        (2, 6,  "Thin"),
+        (4, 10, "Medium"),
+        (6, 14, "Thick")
+    ]
+
+    /// Font size presets (points): small / medium / large.
+    private let fontSizeOptions: [(size: CGFloat, iconSize: CGFloat, help: LocalizedStringKey)] = [
+        (12, 10, "Small"),
+        (16, 13, "Medium"),
+        (22, 16, "Large")
+    ]
+
     var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 4) {
@@ -60,6 +83,7 @@ private struct ScreenshotToolbar: View {
                     .frame(height: 18)
                     .padding(.horizontal, 2)
                 actionButton(icon: "arrow.uturn.backward", help: "Undo", action: onUndo, enabled: model.canUndo)
+                actionButton(icon: "arrow.uturn.forward", help: "Redo", action: onRedo, enabled: model.canRedo)
                 actionButton(icon: "crop", help: "Redraw", action: onRedraw, enabled: true)
                 actionButton(icon: "xmark", help: "Cancel", action: onCancel, enabled: true)
                 Divider()
@@ -72,17 +96,52 @@ private struct ScreenshotToolbar: View {
                 ForEach(ScreenshotColor.palette, id: \.self) { color in
                     colorSwatch(color)
                 }
-                Divider()
-                    .frame(height: 18)
-                    .padding(.horizontal, 2)
-                strokeButton(width: 2, icon: "circle", help: "Thin")
-                strokeButton(width: 4, icon: "circle.fill", help: "Thick")
+                customColorSwatch
+                if let extras = contextControls {
+                    Divider()
+                        .frame(height: 18)
+                        .padding(.horizontal, 2)
+                    extras
+                }
             }
         }
         .padding(8)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(radius: 4)
+    }
+
+    /// Context-dependent second-row controls based on the active tool.
+    private var contextControls: AnyView? {
+        switch model.activeTool {
+        case .rectangle, .ellipse:
+            return AnyView(
+                HStack(spacing: 4) {
+                    fillToggleButton()
+                    ForEach(strokeOptions, id: \.width) { opt in
+                        strokeButton(width: opt.width, iconSize: opt.iconSize, help: opt.help)
+                    }
+                }
+            )
+        case .arrow, .brush, .mosaic:
+            return AnyView(
+                HStack(spacing: 4) {
+                    ForEach(strokeOptions, id: \.width) { opt in
+                        strokeButton(width: opt.width, iconSize: opt.iconSize, help: opt.help)
+                    }
+                }
+            )
+        case .text:
+            return AnyView(
+                HStack(spacing: 4) {
+                    ForEach(fontSizeOptions, id: \.size) { opt in
+                        fontSizeButton(size: opt.size, iconSize: opt.iconSize, help: opt.help)
+                    }
+                }
+            )
+        default:
+            return nil
+        }
     }
 
     private func toolButton(_ item: ToolItem) -> some View {
@@ -119,16 +178,63 @@ private struct ScreenshotToolbar: View {
                 .frame(width: 16, height: 16)
                 .overlay(
                     Circle()
-                        .stroke(model.activeColor == color ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: model.activeColor == color ? 2 : 0.5)
+                        .stroke(isActiveColor(color) ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isActiveColor(color) ? 2 : 0.5)
                 )
         }
         .buttonStyle(.plain)
+        .help(color == .black ? "Black" : (color == .white ? "White" : helpForPalette(color)))
     }
 
-    private func strokeButton(width: CGFloat, icon: String, help: LocalizedStringKey) -> some View {
+    /// Custom-color swatch: a rainbow ring that opens the system color picker.
+    /// When a custom color is active, the inner disc shows the picked color.
+    private var customColorSwatch: some View {
+        Button(action: onPickColor) {
+            ZStack {
+                Circle()
+                    .stroke(
+                        AngularGradient(
+                            colors: [.red, .yellow, .green, .blue, .purple, .red],
+                            center: .center
+                        ),
+                        lineWidth: 2
+                    )
+                    .frame(width: 16, height: 16)
+                if let custom = model.customColor {
+                    Circle()
+                        .fill(Color(red: custom.r, green: custom.g, blue: custom.b, opacity: custom.a))
+                        .frame(width: 10, height: 10)
+                }
+            }
+            .frame(width: 16, height: 16)
+            .overlay(
+                Circle()
+                    .stroke(model.customColor != nil ? Color.accentColor : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Pick color…")
+    }
+
+    private func fillToggleButton() -> some View {
+        let isOn = model.fillEnabled
+        return Button(action: onFillToggle) {
+            Image(systemName: isOn ? "rectangle.fill" : "rectangle")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 26, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isOn ? Color.accentColor.opacity(0.25) : Color.clear)
+                )
+                .foregroundStyle(isOn ? Color.accentColor : .primary)
+        }
+        .buttonStyle(.plain)
+        .help(isOn ? "Filled" : "Outlined")
+    }
+
+    private func strokeButton(width: CGFloat, iconSize: CGFloat, help: LocalizedStringKey) -> some View {
         Button(action: { onStrokeWidthChange(width) }) {
-            Image(systemName: icon)
-                .font(.system(size: width + 8))
+            Image(systemName: "circle.fill")
+                .font(.system(size: iconSize))
                 .frame(width: 26, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
@@ -139,6 +245,38 @@ private struct ScreenshotToolbar: View {
         .buttonStyle(.plain)
         .help(help)
     }
+
+    private func fontSizeButton(size: CGFloat, iconSize: CGFloat, help: LocalizedStringKey) -> some View {
+        Button(action: { onFontSizeChange(size) }) {
+            Image(systemName: "textformat")
+                .font(.system(size: iconSize))
+                .frame(width: 26, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(model.fontSize == size ? Color.accentColor.opacity(0.25) : Color.clear)
+                )
+                .foregroundStyle(model.fontSize == size ? Color.accentColor : .primary)
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    private func isActiveColor(_ color: ScreenshotColor) -> Bool {
+        // A palette color is "active" only when there's no custom color override
+        // (i.e. customColor is nil) and it equals model.activeColor.
+        model.customColor == nil && model.activeColor == color
+    }
+
+    private func helpForPalette(_ color: ScreenshotColor) -> LocalizedStringKey {
+        switch color {
+        case .red: return "Red"
+        case .orange: return "Orange"
+        case .yellow: return "Yellow"
+        case .green: return "Green"
+        case .blue: return "Blue"
+        default: return ""
+        }
+    }
 }
 
 final class ScreenshotOverlayView: NSView {
@@ -146,6 +284,9 @@ final class ScreenshotOverlayView: NSView {
     // MARK: - Inputs
 
     let capturedImage: NSImage
+    /// Folder where the screenshot is written when the user clicks Save.
+    /// The Settings store resolves security-scope access; we just write here.
+    let saveFolder: URL
     var onResult: ((ScreenshotResult) -> Void)?
 
     // MARK: - State
@@ -159,6 +300,7 @@ final class ScreenshotOverlayView: NSView {
     private var originalRect: CGRect = .zero
 
     private var annotations: [ScreenshotAnnotation] = []
+    private var redoStack: [ScreenshotAnnotation] = []
     private var currentAnnotation: ScreenshotAnnotation?
     private var nextNumber: Int = 1
 
@@ -175,8 +317,9 @@ final class ScreenshotOverlayView: NSView {
 
     // MARK: - Init
 
-    init(frame: CGRect, capturedImage: NSImage) {
+    init(frame: CGRect, capturedImage: NSImage, saveFolder: URL) {
         self.capturedImage = capturedImage
+        self.saveFolder = saveFolder
         super.init(frame: frame)
         setupView()
     }
@@ -191,7 +334,11 @@ final class ScreenshotOverlayView: NSView {
             onToolChange: { [weak self] tool in self?.setActiveTool(tool) },
             onColorChange: { [weak self] color in self?.setActiveColor(color) },
             onStrokeWidthChange: { [weak self] width in self?.setStrokeWidth(width) },
+            onFontSizeChange: { [weak self] size in self?.setFontSize(size) },
+            onFillToggle: { [weak self] in self?.toggleFill() },
+            onPickColor: { [weak self] in self?.pickColor() },
             onUndo: { [weak self] in self?.undo() },
+            onRedo: { [weak self] in self?.redo() },
             onRedraw: { [weak self] in self?.redraw() },
             onSave: { [weak self] in self?.saveImage() },
             onCopy: { [weak self] in self?.copyImage() },
@@ -539,7 +686,10 @@ final class ScreenshotOverlayView: NSView {
                 }
                 if valid {
                     annotations.append(ann)
-                    toolbarModel.canUndo = !annotations.isEmpty
+                    // New action invalidates the redo stack.
+                    redoStack.removeAll()
+                    toolbarModel.canUndo = true
+                    toolbarModel.canRedo = false
                 }
                 currentAnnotation = nil
             }
@@ -662,7 +812,8 @@ final class ScreenshotOverlayView: NSView {
             tool: tool,
             points: [point, point],
             color: toolbarModel.activeColor,
-            strokeWidth: toolbarModel.strokeWidth
+            strokeWidth: toolbarModel.strokeWidth,
+            fillEnabled: toolbarModel.fillEnabled
         )
         needsDisplay = true
     }
@@ -689,19 +840,24 @@ final class ScreenshotOverlayView: NSView {
         )
         annotations.append(ann)
         nextNumber += 1
+        redoStack.removeAll()
         toolbarModel.canUndo = true
+        toolbarModel.canRedo = false
         needsDisplay = true
     }
 
     // MARK: - Text field
 
     private func showTextField(at point: CGPoint) {
-        let tf = NSTextField(frame: NSRect(origin: point, size: NSSize(width: 240, height: 24)))
+        let fontPt = toolbarModel.fontSize
+        // Match the field height to the font for cleaner placement.
+        let fieldHeight = max(24, fontPt + 8)
+        let tf = NSTextField(frame: NSRect(origin: point, size: NSSize(width: 240, height: fieldHeight)))
         tf.isBordered = false
         tf.drawsBackground = false
         tf.isBezeled = false
         tf.focusRingType = .none
-        tf.font = .boldSystemFont(ofSize: 16)
+        tf.font = .boldSystemFont(ofSize: fontPt)
         tf.textColor = toolbarModel.activeColor.nsColor
         tf.placeholderString = String(localized: "Text")
         tf.stringValue = ""
@@ -717,7 +873,8 @@ final class ScreenshotOverlayView: NSView {
             color: toolbarModel.activeColor,
             strokeWidth: toolbarModel.strokeWidth,
             text: "",
-            number: 0
+            number: 0,
+            fontSize: fontPt
         )
     }
 
@@ -731,7 +888,9 @@ final class ScreenshotOverlayView: NSView {
         if !text.isEmpty {
             ann.text = text
             annotations.append(ann)
+            redoStack.removeAll()
             toolbarModel.canUndo = true
+            toolbarModel.canRedo = false
         }
         tf.removeFromSuperview()
         textField = nil
@@ -754,6 +913,8 @@ final class ScreenshotOverlayView: NSView {
     }
 
     private func setActiveColor(_ color: ScreenshotColor) {
+        // Picking from the palette clears the custom-color override.
+        toolbarModel.customColor = nil
         toolbarModel.activeColor = color
         // Update live text field color if editing
         textField?.textColor = color.nsColor
@@ -764,25 +925,73 @@ final class ScreenshotOverlayView: NSView {
         toolbarModel.strokeWidth = width
     }
 
+    private func setFontSize(_ size: CGFloat) {
+        toolbarModel.fontSize = size
+        // Update live text field font if editing
+        textField?.font = .boldSystemFont(ofSize: size)
+    }
+
+    private func toggleFill() {
+        toolbarModel.fillEnabled.toggle()
+    }
+
     private func undo() {
         if textField != nil { cancelTextField() }
-        if !annotations.isEmpty {
-            annotations.removeLast()
-            toolbarModel.canUndo = !annotations.isEmpty
-            needsDisplay = true
-        }
+        guard let ann = annotations.popLast() else { return }
+        redoStack.append(ann)
+        toolbarModel.canUndo = !annotations.isEmpty
+        toolbarModel.canRedo = !redoStack.isEmpty
+        needsDisplay = true
+    }
+
+    private func redo() {
+        if textField != nil { cancelTextField() }
+        guard let ann = redoStack.popLast() else { return }
+        annotations.append(ann)
+        toolbarModel.canUndo = true
+        toolbarModel.canRedo = !redoStack.isEmpty
+        needsDisplay = true
     }
 
     private func redraw() {
         if textField != nil { cancelTextField() }
         annotations.removeAll()
+        redoStack.removeAll()
         currentAnnotation = nil
         toolbarModel.canUndo = false
+        toolbarModel.canRedo = false
         nextNumber = 1
         selectionRect = .zero
         mode = .idle
         needsDisplay = true
         positionToolbar()
+    }
+
+    // MARK: - Color picker
+
+    /// Show the system color panel and route its changes into the toolbar.
+    /// NSColorPanel sends its action continuously as the user drags swatches,
+    /// giving a live preview in the overlay.
+    @objc private func colorPanelDidChange(_ sender: NSColorPanel) {
+        let ns = sender.color.usingColorSpace(.sRGB) ?? sender.color
+        let sc = ScreenshotColor(
+            r: Double(ns.redComponent),
+            g: Double(ns.greenComponent),
+            b: Double(ns.blueComponent),
+            a: Double(ns.alphaComponent)
+        )
+        toolbarModel.customColor = sc
+        toolbarModel.activeColor = sc
+        textField?.textColor = sc.nsColor
+        if var ann = editingTextAnnotation { ann.color = sc; editingTextAnnotation = ann }
+    }
+
+    private func pickColor() {
+        let panel = NSColorPanel.shared
+        panel.setTarget(self)
+        panel.setAction(#selector(colorPanelDidChange(_:)))
+        panel.isContinuous = true
+        panel.makeKeyAndOrderFront(nil)
     }
 
     private func cancel() {
@@ -805,22 +1014,35 @@ final class ScreenshotOverlayView: NSView {
             mosaicSource: mosaicCache
         ) else { return }
 
-        let panel = NSSavePanel()
-        panel.title = String(localized: "Choose screenshot save location")
-        panel.nameFieldStringValue = ScreenshotCapture.defaultFilename()
-        panel.allowedContentTypes = [.png]
-        panel.canCreateDirectories = true
-        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        panel.begin { [weak self] response in
-            guard let self else { return }
-            if response == .OK, let url = panel.url {
-                do {
-                    try ScreenshotCapture.writePNG(composed, to: url)
-                    self.onResult?(.saved(url))
-                } catch {
-                    NSAlert(error: error).runModal()
-                }
-            }
+        // Write directly to the configured save folder (WeChat-style one-click save).
+        // Settings already started security-scope access on the folder, so we just
+        // need to ensure the directory exists and pick a non-colliding filename.
+        let filename = ScreenshotCapture.defaultFilename()
+        let target = uniqueURL(in: saveFolder, for: filename)
+        do {
+            try FileManager.default.createDirectory(
+                at: saveFolder,
+                withIntermediateDirectories: true
+            )
+            try ScreenshotCapture.writePNG(composed, to: target)
+            onResult?(.saved(target))
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    /// Pick a non-colliding URL inside `folder` for `filename`, appending " 2", " 3", …
+    private func uniqueURL(in folder: URL, for filename: String) -> URL {
+        let base = folder.appendingPathComponent(filename)
+        guard FileManager.default.fileExists(atPath: base.path) else { return base }
+        let ext = (filename as NSString).pathExtension
+        let stem = (filename as NSString).deletingPathExtension
+        var i = 2
+        while true {
+            let candidateName = ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
+            let candidate = folder.appendingPathComponent(candidateName)
+            guard FileManager.default.fileExists(atPath: candidate.path) else { return candidate }
+            i += 1
         }
     }
 

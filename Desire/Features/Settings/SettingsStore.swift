@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -27,8 +28,13 @@ class Settings: ObservableObject {
     @Published var showLinkPreview: Bool {
         didSet { UserDefaults.standard.set(showLinkPreview, forKey: "showLinkPreview") }
     }
+    @Published private(set) var screenshotFolder: URL {
+        didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
+    }
 
     private let customEnginesKey = "desire.customSearchEngines"
+    private let screenshotBookmarkKey = "desire.screenshotFolder.bookmark"
+    private var screenshotAccessedURL: URL?
 
     init() {
         searchEngine = SearchEngine(rawValue: UserDefaults.standard.string(forKey: "searchEngine") ?? "") ?? .google
@@ -37,6 +43,27 @@ class Settings: ObservableObject {
         showSearchSuggestions = UserDefaults.standard.object(forKey: "showSearchSuggestions") as? Bool ?? false
         httpsUpgradeEnabled = UserDefaults.standard.object(forKey: "httpsUpgradeEnabled") as? Bool ?? true
         showLinkPreview = UserDefaults.standard.object(forKey: "showLinkPreview") as? Bool ?? false
+
+        // Screenshot folder: resolve from bookmark first, else fall back to
+        // the persisted path, else to the default Pictures directory. Must be
+        // initialized before any `self.` access below (e.g. customEngines).
+        var resolvedFolder = Settings.defaultScreenshotFolder()
+        if let bookmark = Settings.resolveBookmark(bookmarkKey: screenshotBookmarkKey) {
+            resolvedFolder = bookmark.url
+            if bookmark.url.startAccessingSecurityScopedResource() {
+                screenshotAccessedURL = bookmark.url
+            }
+        } else if let path = UserDefaults.standard.string(forKey: "desire.screenshotFolder.path") {
+            let url = URL(fileURLWithPath: path)
+            // Try to start security scope (works if path lives under a sandbox-
+            // accessible standard directory like Pictures).
+            if url.startAccessingSecurityScopedResource() {
+                screenshotAccessedURL = url
+            }
+            resolvedFolder = url
+        }
+        screenshotFolder = resolvedFolder
+
         customEngines = Settings.loadCustomEngines(key: customEnginesKey)
         if let idStr = UserDefaults.standard.string(forKey: "selectedCustomEngineId"),
            let id = UUID(uuidString: idStr) {
@@ -82,5 +109,78 @@ class Settings: ObservableObject {
         guard let data = UserDefaults.standard.data(forKey: key),
               let engines = try? JSONDecoder().decode([CustomSearchEngine].self, from: data) else { return [] }
         return engines
+    }
+
+    // MARK: - Screenshot folder
+
+    /// Default screenshot save location: the user's Pictures directory.
+    static func defaultScreenshotFolder() -> URL {
+        FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Pictures")
+    }
+
+    private static func resolveBookmark(bookmarkKey: String) -> (url: URL, data: Data)? {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        var stale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ) else { return nil }
+        if stale {
+            if let refreshed = try? url.bookmarkData(options: [.withSecurityScope]) {
+                UserDefaults.standard.set(refreshed, forKey: bookmarkKey)
+            }
+        }
+        return (url, data)
+    }
+
+    /// Open an NSOpenPanel to pick a new screenshot folder. Persists a security-
+    /// scoped bookmark so the choice survives relaunches.
+    @discardableResult
+    func chooseScreenshotFolder() -> Bool {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = screenshotFolder
+        panel.prompt = String(localized: "Choose")
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+
+        if url.startAccessingSecurityScopedResource() {
+            if let data = try? url.bookmarkData(options: [.withSecurityScope]) {
+                UserDefaults.standard.set(data, forKey: screenshotBookmarkKey)
+            }
+            screenshotAccessedURL?.stopAccessingSecurityScopedResource()
+            screenshotAccessedURL = url
+        }
+        screenshotFolder = url
+        return true
+    }
+
+    /// Reset to the default Pictures folder and discard any persisted bookmark.
+    func resetScreenshotFolder() {
+        screenshotAccessedURL?.stopAccessingSecurityScopedResource()
+        screenshotAccessedURL = nil
+        UserDefaults.standard.removeObject(forKey: screenshotBookmarkKey)
+        UserDefaults.standard.removeObject(forKey: "desire.screenshotFolder.path")
+        screenshotFolder = Settings.defaultScreenshotFolder()
+    }
+
+    /// A unique URL inside `screenshotFolder` for the given filename, appending
+    /// " 2", " 3", … when a file with the same name already exists.
+    func uniqueScreenshotURL(for filename: String) -> URL {
+        let base = screenshotFolder.appendingPathComponent(filename)
+        guard FileManager.default.fileExists(atPath: base.path) else { return base }
+        let ext = (filename as NSString).pathExtension
+        let stem = (filename as NSString).deletingPathExtension
+        var i = 2
+        while true {
+            let candidateName = ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
+            let candidate = screenshotFolder.appendingPathComponent(candidateName)
+            guard FileManager.default.fileExists(atPath: candidate.path) else { return candidate }
+            i += 1
+        }
     }
 }

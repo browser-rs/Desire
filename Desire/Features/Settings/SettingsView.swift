@@ -44,6 +44,26 @@ struct SettingsView: View {
                         downloadStore.chooseDownloadFolder()
                     }
                 }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Screenshot save location")
+                        Text(settings.screenshotFolder.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Button("Change…") {
+                        settings.chooseScreenshotFolder()
+                    }
+                    Button("Reset") {
+                        settings.resetScreenshotFolder()
+                    }
+                }
             }
             .padding()
             .tabItem { Label("General", systemImage: "gearshape") }

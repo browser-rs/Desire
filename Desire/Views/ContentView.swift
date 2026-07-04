@@ -452,8 +452,17 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onClose: { showHistory = false })
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, formAutofillStore: formAutofillStore, permissionStore: permissionStore, historyStore: historyStore, onDone: { showSettings = false })
+        .onChange(of: showSettings) { _, isShown in
+            guard isShown else { return }
+            showSettings = false
+            SettingsWindowController.shared.show(
+                settings: settings,
+                contentBlocker: contentBlocker,
+                downloadStore: downloadStore,
+                formAutofillStore: formAutofillStore,
+                permissionStore: permissionStore,
+                historyStore: historyStore
+            )
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarkPanel(store: bookmarkStore, onSelect: { url in
@@ -461,8 +470,10 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onDelete: { bookmark in bookmarkStore.remove(bookmark) }, onClose: { showBookmarks = false })
         }
-        .sheet(isPresented: $showPlugins) {
-            PluginPanel(store: pluginStore, onClose: { showPlugins = false })
+        .onChange(of: showPlugins) { _, isShown in
+            guard isShown else { return }
+            showPlugins = false
+            PluginsWindowController.shared.show(pluginStore: pluginStore)
         }
         .sheet(isPresented: $showReadingList) {
             ReadingListPanel(store: readingListStore, onSelect: { url in

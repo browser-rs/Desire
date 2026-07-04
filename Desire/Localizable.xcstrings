@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "(%lld)" : {
+
+    },
     "%@ / %@" : {
       "localizations" : {
         "en" : {
@@ -1703,6 +1706,29 @@
         }
       }
     },
+    "Disabled" : {
+      "comment" : "Plugin list section header for disabled plugins",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用"
+          }
+        }
+      }
+    },
     "Domain" : {
       "comment" : "Certificate domain label",
       "localizations" : {
@@ -1909,6 +1935,9 @@
           }
         }
       }
+    },
+    "Edit" : {
+
     },
     "Edit Bookmark" : {
       "comment" : "Edit bookmark editor title",
@@ -5426,6 +5455,29 @@
         }
       }
     },
+    "Settings" : {
+      "comment" : "Settings window title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定"
+          }
+        }
+      }
+    },
     "Settings…" : {
       "comment" : "Window menu",
       "localizations" : {
@@ -6434,9 +6486,6 @@
     "公司/组织" : {
 
     },
-    "关闭" : {
-
-    },
     "删除" : {
 
     },
@@ -6459,9 +6508,6 @@
 
     },
     "姓名" : {
-
-    },
-    "完成" : {
 
     },
     "搜索或输入网址" : {

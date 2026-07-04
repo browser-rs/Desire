@@ -2,7 +2,8 @@ import SwiftUI
 
 struct FindBar: View {
     @Binding var findString: String
-    let findHasMatch: Bool
+    let findMatchCount: Int
+    let findCurrentIndex: Int
     var isFindFocused: FocusState<Bool>.Binding
     let onFindNext: () -> Void
     let onFindPrevious: () -> Void
@@ -23,10 +24,11 @@ struct FindBar: View {
                 }
                 .onSubmit { onFindNext() }
 
-            if findHasMatch && !findString.isEmpty {
-                Text("找到匹配")
+            if findMatchCount > 0 && !findString.isEmpty {
+                Text("\(findCurrentIndex + 1) / \(findMatchCount)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             } else if !findString.isEmpty {
                 Text("未找到")
                     .font(.caption)
@@ -57,7 +59,8 @@ struct FindBar: View {
 #Preview {
     FindBar(
         findString: .constant(""),
-        findHasMatch: false,
+        findMatchCount: 0,
+        findCurrentIndex: 0,
         isFindFocused: FocusState<Bool>().projectedValue,
         onFindNext: {}, onFindPrevious: {}, onHide: {}, onFindAll: {}
     )

@@ -329,6 +329,20 @@ struct WebView: NSViewRepresentable {
                 parent.state.isSecure = url.scheme == "https"
                 parent.onPageFinished?(url, parent.state.pageTitle)
             }
+            if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
+                let js = """
+                (function() {
+                    if (!document.getElementById('desire-dark-mode')) {
+                        var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
+                        var s = document.createElement('style');
+                        s.id = 'desire-dark-mode';
+                        s.textContent = css;
+                        document.head.appendChild(s);
+                    }
+                })();
+                """
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
             if parent.formAutofillStore.isConfigured {
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
             }

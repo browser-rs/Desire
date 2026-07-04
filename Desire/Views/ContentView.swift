@@ -34,6 +34,8 @@ struct ContentView: View {
     @State private var showSidebar = false
     @State private var findString = ""
     @State private var findHasMatch = false
+    @State private var findMatchCount = 0
+    @State private var findCurrentIndex = 0
     @State private var isFullScreen = false
 
     var body: some View {
@@ -107,6 +109,7 @@ struct ContentView: View {
                     bookmarkStore: bookmarkStore,
                     historyStore: historyStore,
                     passwordStore: passwordStore,
+                    siteSettingsStore: siteSettingsStore,
                     isUrlFocused: $isUrlFocused,
                     actions: Toolbar.Actions(
                         goBack: { tab.browser.webView.goBack() },
@@ -147,6 +150,28 @@ struct ContentView: View {
                             if let tab = tabManager.selectedTab {
                                 tab.isResponsiveMode.toggle()
                             }
+                        },
+                        toggleDarkMode: {
+                            guard let host = tab.browser.webView.url?.host else { return }
+                            let enabled = !siteSettingsStore.darkModeEnabled(for: host)
+                            siteSettingsStore.setDarkMode(enabled, for: host)
+                            let js = """
+                            (function() {
+                                var el = document.getElementById('desire-dark-mode');
+                                if (\(enabled)) {
+                                    if (!el) {
+                                        var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
+                                        var s = document.createElement('style');
+                                        s.id = 'desire-dark-mode';
+                                        s.textContent = css;
+                                        document.head.appendChild(s);
+                                    }
+                                } else {
+                                    if (el) el.remove();
+                                }
+                            })();
+                            """
+                            tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
                         }
                     ),
                     showHistory: $showHistory,
@@ -195,7 +220,8 @@ struct ContentView: View {
                         if isFindBarVisible {
                             FindBar(
                                 findString: $findString,
-                                findHasMatch: findHasMatch,
+                                findMatchCount: findMatchCount,
+                                findCurrentIndex: findCurrentIndex,
                                 isFindFocused: $isFindFocused,
                                 onFindNext: { performFindNext() },
                                 onFindPrevious: { performFindPrevious() },
@@ -285,7 +311,7 @@ struct ContentView: View {
                 }
             }
 
-            if let tab = tabManager.selectedTab, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
+            if settings.showLinkPreview, let tab = tabManager.selectedTab, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
                 HStack(spacing: 4) {
                     Text(hoverURL)
                         .font(.system(size: 11))
@@ -502,6 +528,8 @@ struct ContentView: View {
     private func showFindBar() {
         findString = ""
         findHasMatch = false
+        findMatchCount = 0
+        findCurrentIndex = 0
         isFindBarVisible = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isFindFocused = true
@@ -512,18 +540,43 @@ struct ContentView: View {
         isFindBarVisible = false
         findString = ""
         findHasMatch = false
+        findMatchCount = 0
+        findCurrentIndex = 0
         NSApp.mainWindow?.makeFirstResponder(nil)
     }
 
     private func performFindAll() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else {
             findHasMatch = false
+            findMatchCount = 0
+            findCurrentIndex = 0
             return
         }
         let config = WKFindConfiguration()
         config.wraps = false
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
+            if result.matchFound {
+                findCurrentIndex = 0
+            }
+        }
+        let escaped = findString.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        tab.browser.webView.evaluateJavaScript("""
+        (function() {
+            var t = '\(escaped)';
+            if (!t) return 0;
+            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
+            var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+            while (walk.nextNode()) { c += (walk.nodeValue.match(r) || []).length; }
+            return c;
+        })()
+        """) { value, _ in
+            if let count = value as? Int {
+                DispatchQueue.main.async {
+                    findMatchCount = count
+                }
+            }
         }
     }
 
@@ -533,6 +586,9 @@ struct ContentView: View {
         config.wraps = true
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
+            if result.matchFound && findMatchCount > 0 {
+                findCurrentIndex = (findCurrentIndex + 1) % findMatchCount
+            }
         }
     }
 
@@ -543,6 +599,9 @@ struct ContentView: View {
         config.wraps = true
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
+            if result.matchFound && findMatchCount > 0 {
+                findCurrentIndex = (findCurrentIndex - 1 + findMatchCount) % findMatchCount
+            }
         }
     }
 

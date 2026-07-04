@@ -22,6 +22,7 @@ struct Toolbar: View {
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
         let toggleResponsiveMode: () -> Void
+        let toggleDarkMode: () -> Void
     }
 
     let tab: Tab
@@ -32,6 +33,7 @@ struct Toolbar: View {
     let bookmarkStore: BookmarkStore
     let historyStore: HistoryStore
     let passwordStore: PasswordStore
+    @ObservedObject var siteSettingsStore: SiteSettingsStore
     var isUrlFocused: FocusState<Bool>.Binding
     let actions: Actions
     @Binding var showHistory: Bool
@@ -53,6 +55,11 @@ struct Toolbar: View {
     private var isBookmarked: Bool {
         guard let url = tab.browser.webView.url?.absoluteString else { return false }
         return bookmarkStore.contains(url: url)
+    }
+
+    private var isDarkMode: Bool {
+        guard let host = tab.browser.webView.url?.host else { return false }
+        return siteSettingsStore.darkModeEnabled(for: host)
     }
 
     var body: some View {
@@ -208,6 +215,8 @@ struct Toolbar: View {
                 actions.addToReadingList(title, url)
             }
             .disabled(tab.isOnNewTabPage)
+            moreMenuItem("暗色模式", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
+                .disabled(tab.isOnNewTabPage)
             moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
                 .disabled(tab.isOnNewTabPage)
             moreMenuItem("分享…", "square.and.arrow.up") { shareCurrentPage() }

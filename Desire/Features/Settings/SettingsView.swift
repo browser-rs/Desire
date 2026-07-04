@@ -63,6 +63,9 @@ struct SettingsView: View {
                 Toggle("显示搜索建议", isOn: $settings.showSearchSuggestions)
                     .help("开启后输入内容会发送给当前搜索引擎以获取建议")
 
+                Toggle("链接预览", isOn: $settings.showLinkPreview)
+                    .help("鼠标悬停链接时在底部显示目标网址")
+
                 Divider()
 
                 SiteDataSection()

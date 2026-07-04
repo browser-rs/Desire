@@ -24,6 +24,9 @@ class Settings: ObservableObject {
     @Published var httpsUpgradeEnabled: Bool {
         didSet { UserDefaults.standard.set(httpsUpgradeEnabled, forKey: "httpsUpgradeEnabled") }
     }
+    @Published var showLinkPreview: Bool {
+        didSet { UserDefaults.standard.set(showLinkPreview, forKey: "showLinkPreview") }
+    }
 
     private let customEnginesKey = "desire.customSearchEngines"
 
@@ -33,6 +36,7 @@ class Settings: ObservableObject {
         isJavaScriptEnabled = UserDefaults.standard.object(forKey: "isJavaScriptEnabled") as? Bool ?? true
         showSearchSuggestions = UserDefaults.standard.object(forKey: "showSearchSuggestions") as? Bool ?? false
         httpsUpgradeEnabled = UserDefaults.standard.object(forKey: "httpsUpgradeEnabled") as? Bool ?? true
+        showLinkPreview = UserDefaults.standard.object(forKey: "showLinkPreview") as? Bool ?? false
         customEngines = Settings.loadCustomEngines(key: customEnginesKey)
         if let idStr = UserDefaults.standard.string(forKey: "selectedCustomEngineId"),
            let id = UUID(uuidString: idStr) {

@@ -20,6 +20,7 @@ struct ContentView: View {
     @StateObject private var formAutofillStore = FormAutofillStore()
     @StateObject private var permissionStore = PermissionStore()
     @StateObject private var siteSettingsStore = SiteSettingsStore()
+    @StateObject private var readingListStore = ReadingListStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -27,6 +28,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBookmarks = false
     @State private var showUserScripts = false
+    @State private var showReadingList = false
     @State private var showTabSwitcher = false
     @State private var findString = ""
     @State private var findHasMatch = false
@@ -113,12 +115,16 @@ struct ContentView: View {
                                 tab.browser.isReadingMode = true
                             }
                         },
-                        captureFullPage: { captureFullPage() }
+                        captureFullPage: { captureFullPage() },
+                        addToReadingList: { title, url in
+                            readingListStore.add(title: title, url: url)
+                        }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
                     showUserScripts: $showUserScripts,
-                    showSettings: $showSettings
+                    showSettings: $showSettings,
+                    showReadingList: $showReadingList,
                 )
             }
 
@@ -292,6 +298,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showUserScripts) {
             UserScriptPanel(store: userScriptStore, onAdd: addUserScript, onClose: { showUserScripts = false })
+        }
+        .sheet(isPresented: $showReadingList) {
+            ReadingListPanel(store: readingListStore, onSelect: { url in
+                showReadingList = false
+                if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
+            }, onClose: { showReadingList = false })
         }
         .overlay {
             Button("") {

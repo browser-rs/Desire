@@ -19,6 +19,7 @@ struct Toolbar: View {
         let resetZoom: () -> Void
         let toggleReader: () -> Void
         let captureFullPage: () -> Void
+        let addToReadingList: (_ title: String, _ url: String) -> Void
     }
 
     let tab: Tab
@@ -30,13 +31,12 @@ struct Toolbar: View {
     let historyStore: HistoryStore
     let passwordStore: PasswordStore
     var isUrlFocused: FocusState<Bool>.Binding
-
     let actions: Actions
-
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showUserScripts: Bool
     @Binding var showSettings: Bool
+    @Binding var showReadingList: Bool
 
     @State private var showDownloads = false
     @State private var showPasswords = false
@@ -149,9 +149,16 @@ struct Toolbar: View {
                         moreMenuItem("书签", "bookmark") { showBookmarks = true }
                         moreMenuItem("密码", "lock.keyhole") { showPasswords = true }
                         moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
+                        moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
                         moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
                         moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
                             .disabled(tab.isOnNewTabPage)
+                        moreMenuItem("添加到阅读列表", "bookmark.slash") {
+                            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+                            let title = tab.browser.pageTitle
+                            actions.addToReadingList(title, url)
+                        }
+                        .disabled(tab.isOnNewTabPage)
                         Divider()
                         moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
                         moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }

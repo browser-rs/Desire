@@ -15,12 +15,13 @@ struct HoverIcon: View {
                 .font(.system(size: 13))
                 .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: .radiusButton)
                         .fill(isHovering && !disabled
                               ? Color(nsColor: .controlBackgroundColor)
                               : Color.clear)
                 )
                 .contentShape(Rectangle())
+                .animation(.hoverFast, value: isHovering)
         }
         .buttonStyle(.plain)
         .disabled(disabled)

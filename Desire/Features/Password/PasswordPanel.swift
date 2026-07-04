@@ -35,7 +35,7 @@ struct PasswordPanel: View {
                 .listStyle(.plain)
             }
         }
-        .frame(width: 320, height: 400)
+        .frame(width: 420, height: 400)
         .searchable(text: $searchText, prompt: "搜索域名")
         .alert("清除所有密码", isPresented: $showClearConfirmation) {
             Button("取消", role: .cancel) {}

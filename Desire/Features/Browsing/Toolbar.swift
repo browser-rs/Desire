@@ -126,7 +126,7 @@ struct Toolbar: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 36, height: 22)
                     .background(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: .radiusButton)
                             .fill(Color(nsColor: .controlBackgroundColor))
                     )
             }

@@ -93,7 +93,7 @@ struct NewTabPage: View {
         .frame(width: 100, height: 110)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .shadowSubtle()
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .gesture(ExclusiveGesture(
             TapGesture(count: 2).onEnded {

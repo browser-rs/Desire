@@ -16,10 +16,10 @@ struct AddressSuggestionsView: View {
         }
         .frame(maxWidth: 520, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: .radiusPopover))
+        .shadowElevated()
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: .radiusPopover)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
         )
     }

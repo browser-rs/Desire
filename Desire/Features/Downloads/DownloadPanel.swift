@@ -30,7 +30,7 @@ struct DownloadPanel: View {
                 }
             }
         }
-        .frame(width: 380, height: 420)
+        .frame(width: 420, height: 420)
     }
 }
 

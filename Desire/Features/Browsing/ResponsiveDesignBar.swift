@@ -32,7 +32,7 @@ struct ResponsiveDesignBar: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: .radiusButton)
                             .fill(deviceSize.width == CGFloat(preset.width) ? Color.accentColor.opacity(0.15) : .clear)
                     )
                 }

@@ -357,12 +357,12 @@ private struct TabPopoverView: View {
         }
         .frame(width: 320)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: .radiusPopover)
                 .fill(Color(nsColor: .windowBackgroundColor))
-                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 4)
+                .shadowProminent()
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: .radiusPopover)
                 .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
         )
     }

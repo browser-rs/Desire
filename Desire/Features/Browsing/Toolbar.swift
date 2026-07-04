@@ -100,43 +100,44 @@ struct Toolbar: View {
             )
             .layoutPriority(1)
 
-            Button {
-                showDownloads.toggle()
-            } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: downloadStore.hasActive
-                          ? "arrow.down.circle.fill"
-                          : "arrow.down.circle")
-                        .foregroundStyle(downloadStore.hasActive ? Color.accentColor : .primary)
-                    if downloadStore.activeCount > 0 {
-                        Text("\(downloadStore.activeCount)")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(3)
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
-                            .offset(x: 7, y: -7)
+            HStack(spacing: 6) {
+                Button {
+                    showDownloads.toggle()
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: downloadStore.hasActive
+                              ? "arrow.down.circle.fill"
+                              : "arrow.down.circle")
+                            .foregroundStyle(downloadStore.hasActive ? Color.accentColor : .primary)
+                        if downloadStore.activeCount > 0 {
+                            Text("\(downloadStore.activeCount)")
+                                .font(.system(size: 9, weight: .bold))
+                                .padding(3)
+                                .background(Color.accentColor)
+                                .foregroundStyle(.white)
+                                .clipShape(Circle())
+                                .offset(x: 7, y: -7)
+                        }
                     }
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("下载")
-            .popover(isPresented: $showDownloads) {
-                DownloadPanel(store: downloadStore)
-            }
-
-            Button {
-                showMoreMenu = true
-            } label: {
-                Image(systemName: "ellipsis")
-                    .rotationEffect(.degrees(90))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showMoreMenu) {
+                }
+                .buttonStyle(.plain)
+                .help("下载")
+                .popover(isPresented: $showDownloads) {
+                    DownloadPanel(store: downloadStore)
+                }
+
+                Button {
+                    showMoreMenu = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showMoreMenu) {
                 VStack(spacing: 0) {
                     moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
@@ -153,7 +154,8 @@ struct Toolbar: View {
                 .frame(width: 200)
             }
         }
-        .padding(.horizontal, 8)
+    }
+    .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .background(.bar)
         .onChange(of: isUrlFocused.wrappedValue) { _, focused in

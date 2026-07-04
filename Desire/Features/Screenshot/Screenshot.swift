@@ -16,7 +16,7 @@ enum ScreenshotPhase: Equatable {
 }
 
 enum ScreenshotTool: String, CaseIterable {
-    case rect, ellipse, arrow, pen, text, blur, number
+    case rect, ellipse, arrow, pen, text, blur, number, eraser
 }
 
 protocol ScreenshotAnnotation {

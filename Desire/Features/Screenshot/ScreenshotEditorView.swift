@@ -8,11 +8,13 @@ struct ScreenshotEditorView: View {
     @State private var dragStart: CGPoint?
     @State private var dragCurrent: CGPoint?
     @State private var showColorPicker = false
+    @State private var editingText: String?
+    @State private var editingTextImagePoint: CGPoint?
 
     private let tools: [(ScreenshotTool, String)] = [
         (.rect, "rectangle"), (.ellipse, "circle"), (.arrow, "arrow.right"),
         (.pen, "scribble"), (.text, "textformat"), (.blur, "circle.dotted"),
-        (.number, "textformat.123")
+        (.number, "textformat.123"), (.eraser, "eraser")
     ]
 
     var body: some View {
@@ -22,24 +24,35 @@ struct ScreenshotEditorView: View {
             canvas
             bottomBar
         }
-        .frame(minWidth: 400, minHeight: 300)
+        .frame(minWidth: 400, idealWidth: 700, maxWidth: .infinity, minHeight: 300, idealHeight: 500, maxHeight: .infinity)
     }
 
     private var toolbar: some View {
         HStack(spacing: 4) {
-            ForEach(tools, id: \.0) { tool, icon in
-                Button {
-                    store.currentTool = tool
-                } label: {
-                    Image(systemName: icon)
-                        .font(.system(size: 14))
-                        .frame(width: 28, height: 28)
-                        .background(store.currentTool == tool ? Color.accentColor.opacity(0.2) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(tools, id: \.0) { tool, icon in
+                        Button {
+                            store.currentTool = tool
+                        } label: {
+                            Image(systemName: icon)
+                                .font(.system(size: 14))
+                                .frame(width: 28, height: 28)
+                                .background(store.currentTool == tool ? Color.accentColor.opacity(0.2) : .clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                        .help(tool.rawValue)
+                    }
                 }
-                .buttonStyle(.plain)
-                .help(tool.rawValue)
             }
+            .frame(maxWidth: 140)
+
+            Divider().frame(height: 20)
+
+            Slider(value: $store.strokeWidth, in: 1...12, step: 1)
+                .frame(width: 60)
+                .help("Stroke: \(Int(store.strokeWidth))px")
 
             Divider().frame(height: 20)
 
@@ -64,6 +77,13 @@ struct ScreenshotEditorView: View {
             .buttonStyle(.plain)
             .disabled(store.undoStack.isEmpty)
             .help("Undo")
+
+            Button { store.redo() } label: {
+                Image(systemName: "arrow.uturn.right")
+            }
+            .buttonStyle(.plain)
+            .disabled(store.redoStack.isEmpty)
+            .help("Redo")
 
             Button { store.clearAnnotations() } label: {
                 Image(systemName: "trash")
@@ -165,23 +185,34 @@ struct ScreenshotEditorView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            guard editingText == nil else { return }
                             let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
                             if store.currentTool == .pen {
                                 if !isDrawing { isDrawing = true; store.pushUndo(); currentPoints = [] }
                                 currentPoints.append(pt)
+                            } else if store.currentTool == .eraser || store.currentTool == .text {
+                                return
                             } else {
                                 if dragStart == nil { store.pushUndo(); dragStart = pt }
                                 dragCurrent = pt
                             }
                         }
                         .onEnded { value in
+                            guard editingText == nil else { return }
                             let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
                             defer { dragStart = nil; dragCurrent = nil; isDrawing = false; currentPoints = [] }
 
+                            if store.currentTool == .eraser {
+                                if let idx = hitTestAnnotation(at: pt) {
+                                    store.deleteAnnotation(at: idx)
+                                }
+                                return
+                            }
+
                             guard let start = dragStart else {
                                 if store.currentTool == .text {
-                                    store.pushUndo()
-                                    store.annotations.append(TextAnnotation(point: pt, text: "Text", color: store.currentColor, fontSize: 18))
+                                    editingText = ""
+                                    editingTextImagePoint = pt
                                 }
                                 return
                             }
@@ -206,8 +237,72 @@ struct ScreenshotEditorView: View {
                             store.annotations.append(annotation)
                         }
                 )
+
+                if let text = editingText, let imgPt = editingTextImagePoint {
+                    let canvasPt = imageToCanvas(imgPt, imageSize: imageSize, canvasSize: geo.size)
+                    TextField("", text: Binding(
+                        get: { text },
+                        set: { editingText = $0 }
+                    ))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(nsColor: store.currentColor))
+                    .frame(width: 200)
+                    .padding(8)
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 1.5))
+                    .position(x: canvasPt.x + 108, y: canvasPt.y + 18)
+                    .onSubmit {
+                        commitText()
+                    }
+                    .onExitCommand {
+                        editingText = nil
+                        editingTextImagePoint = nil
+                    }
+                }
+            }
+            .onTapGesture {
+                if editingText != nil { commitText() }
             }
         }
+    }
+
+    private func commitText() {
+        guard let text = editingText, !text.isEmpty, let pt = editingTextImagePoint else {
+            editingText = nil
+            editingTextImagePoint = nil
+            return
+        }
+        store.pushUndo()
+        store.annotations.append(TextAnnotation(point: pt, text: text, color: store.currentColor, fontSize: 18))
+        editingText = nil
+        editingTextImagePoint = nil
+    }
+
+    private func hitTestAnnotation(at point: CGPoint) -> Int? {
+        for (i, ann) in store.annotations.enumerated().reversed() {
+            let rect: CGRect?
+            switch ann {
+            case let r as RectAnnotation: rect = r.rect
+            case let e as EllipseAnnotation: rect = e.rect
+            case let a as ArrowAnnotation: rect = rectBetween(a.start, a.end)
+            case let b as BlurAnnotation: rect = b.rect
+            case let n as NumberAnnotation: rect = CGRect(x: n.center.x - 14, y: n.center.y - 14, width: 28, height: 28)
+            case let t as TextAnnotation:
+                let size = (t.text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: t.fontSize)])
+                rect = CGRect(origin: t.point, size: size)
+            default: rect = nil
+            }
+            if let r = rect, r.insetBy(dx: -4, dy: -4).contains(point) {
+                return i
+            }
+        }
+        return nil
+    }
+
+    private func rectBetween(_ a: CGPoint, _ b: CGPoint) -> CGRect {
+        CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
     }
 
     private var bottomBar: some View {
@@ -218,6 +313,10 @@ struct ScreenshotEditorView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Text("\(Int(store.strokeWidth))px")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .frame(width: 30)
             Text("Esc to cancel")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -238,6 +337,16 @@ struct ScreenshotEditorView: View {
         return CGPoint(
             x: (point.x - offsetX) / scale,
             y: (point.y - offsetY) / scale
+        )
+    }
+
+    private func imageToCanvas(_ point: CGPoint, imageSize: NSSize, canvasSize: CGSize) -> CGPoint {
+        let scale = min(canvasSize.width / imageSize.width, canvasSize.height / imageSize.height)
+        let offsetX = (canvasSize.width - imageSize.width * scale) / 2
+        let offsetY = (canvasSize.height - imageSize.height * scale) / 2
+        return CGPoint(
+            x: point.x * scale + offsetX,
+            y: point.y * scale + offsetY
         )
     }
 }

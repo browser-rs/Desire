@@ -12,6 +12,7 @@ class ScreenshotStore: ObservableObject {
 
     var annotations: [ScreenshotAnnotation] = []
     var undoStack: [[ScreenshotAnnotation]] = []
+    var redoStack: [[ScreenshotAnnotation]] = []
 
     private(set) var capturedImage: NSImage?
 
@@ -86,16 +87,29 @@ class ScreenshotStore: ObservableObject {
 
     func pushUndo() {
         undoStack.append(annotations)
+        redoStack = []
     }
 
     func undo() {
         guard !undoStack.isEmpty else { return }
+        redoStack.append(annotations)
         annotations = undoStack.removeLast()
+    }
+
+    func redo() {
+        guard !redoStack.isEmpty else { return }
+        undoStack.append(annotations)
+        annotations = redoStack.removeLast()
     }
 
     func clearAnnotations() {
         pushUndo()
         annotations = []
+    }
+
+    func deleteAnnotation(at index: Int) {
+        pushUndo()
+        annotations.remove(at: index)
     }
 
     func save() {

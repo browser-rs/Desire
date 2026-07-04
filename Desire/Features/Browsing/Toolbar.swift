@@ -21,7 +21,7 @@ struct Toolbar: View {
     let onReload: () -> Void
     let onLoadHome: () -> Void
     let onNavigate: (String) -> Void
-    let onBookmarkCurrentPage: () -> Void
+    let onToggleBookmark: () -> Void
     let onToggleFullScreen: () -> Void
     let onSuggestionSelect: (AddressSuggestion) -> Void
 
@@ -78,14 +78,14 @@ struct Toolbar: View {
                     .font(.system(size: 13))
 
                 Button {
-                    onBookmarkCurrentPage()
+                    onToggleBookmark()
                 } label: {
-                    Image(systemName: "bookmark")
+                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
                 }
                 .buttonStyle(.plain)
-                .help("添加书签")
+                .help(isBookmarked ? "删除书签" : "添加书签")
                 .disabled(tab.isOnNewTabPage)
             }
             .padding(.horizontal, 8)
@@ -136,7 +136,7 @@ struct Toolbar: View {
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
                     moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
                     moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
-                    moreMenuItem("添加书签", "bookmark.fill") { onBookmarkCurrentPage() }
+                    moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { onToggleBookmark() }
                         .disabled(tab.isOnNewTabPage)
                     Divider()
                     moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { onToggleFullScreen() }
@@ -152,6 +152,11 @@ struct Toolbar: View {
         .onChange(of: isUrlFocused.wrappedValue) { _, focused in
             if !focused { suggestionModel.reset() }
         }
+    }
+
+    private var isBookmarked: Bool {
+        guard let url = tab.browser.webView.url?.absoluteString else { return false }
+        return bookmarkStore.bookmarks.contains(where: { $0.url == url })
     }
 
     private func navButton(systemName: String, action: @escaping () -> Void) -> some View {

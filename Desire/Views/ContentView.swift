@@ -77,7 +77,7 @@ struct ContentView: View {
                         isUrlFocused = false
                         navigateToURL(input, for: tab)
                     },
-                    onBookmarkCurrentPage: { bookmarkCurrentPage() },
+                    onToggleBookmark: { toggleBookmark() },
                     onToggleFullScreen: { toggleFullScreen() },
                     onSuggestionSelect: { sug in
                         suggestionModel.reset()
@@ -198,7 +198,7 @@ struct ContentView: View {
                 guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
                 isUrlFocused = false
                 tabManager.selectTab(at: tabManager.selectedIndex + 1)
-            case .bookmarkPage: bookmarkCurrentPage()
+            case .bookmarkPage: toggleBookmark()
             case .toggleFullScreen: toggleFullScreen()
             case .toggleFind:
                 if isFindBarVisible { hideFindBar() } else { showFindBar() }
@@ -279,11 +279,16 @@ struct ContentView: View {
         NSApp.mainWindow?.toggleFullScreen(nil)
     }
 
-    private func bookmarkCurrentPage() {
+    private func toggleBookmark() {
         guard let tab = tabManager.selectedTab,
               let url = tab.browser.webView.url,
               !tab.isOnNewTabPage else { return }
-        bookmarkStore.add(title: tab.browser.pageTitle, url: url.absoluteString)
+        let urlString = url.absoluteString
+        if let existing = bookmarkStore.bookmarks.first(where: { $0.url == urlString }) {
+            bookmarkStore.remove(existing)
+        } else {
+            bookmarkStore.add(title: tab.browser.pageTitle, url: urlString)
+        }
     }
 
     private func loadHome(for tab: Tab) {

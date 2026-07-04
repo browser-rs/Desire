@@ -163,6 +163,7 @@ struct WebView: NSViewRepresentable {
     func makeNSView(context: Context) -> BrowserWKWebView {
         let webView = state.webView
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
         }
@@ -178,7 +179,7 @@ struct WebView: NSViewRepresentable {
         coordinator.stopObserving()
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKDownloadDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
@@ -283,6 +284,76 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
             parent.state.lastError = error.localizedDescription
+        }
+
+        // MARK: - WKUIDelegate - 权限请求
+
+        func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            let deviceName: String = switch type {
+            case .camera: "摄像头"
+            case .microphone: "麦克风"
+            case .cameraAndMicrophone: "摄像头和麦克风"
+            @unknown default: "媒体设备"
+            }
+            let host = origin.host
+            let alert = NSAlert()
+            alert.messageText = "\(host) 想要访问你的\(deviceName)"
+            alert.informativeText = "允许此网站访问\(deviceName)吗？"
+            alert.addButton(withTitle: "允许")
+            alert.addButton(withTitle: "拒绝")
+            let response = alert.runModal()
+            decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
+        }
+
+        func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            let host = origin.host
+            let alert = NSAlert()
+            alert.messageText = "\(host) 想要获取你的位置信息"
+            alert.informativeText = "允许此网站获取你的位置吗？"
+            alert.addButton(withTitle: "允许")
+            alert.addButton(withTitle: "拒绝")
+            let response = alert.runModal()
+            decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
+        }
+
+        func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = parameters.allowsDirectories
+            panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+            panel.canCreateDirectories = false
+            guard panel.runModal() == .OK else { completionHandler(nil); return }
+            completionHandler(panel.urls)
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
+            let alert = NSAlert()
+            alert.messageText = webView.url?.host ?? ""
+            alert.informativeText = message
+            alert.addButton(withTitle: "确定")
+            alert.runModal()
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
+            let alert = NSAlert()
+            alert.messageText = webView.url?.host ?? ""
+            alert.informativeText = message
+            alert.addButton(withTitle: "确定")
+            alert.addButton(withTitle: "取消")
+            return alert.runModal() == .alertFirstButtonReturn
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo) async -> String? {
+            let alert = NSAlert()
+            alert.messageText = webView.url?.host ?? ""
+            alert.informativeText = prompt
+            alert.addButton(withTitle: "确定")
+            alert.addButton(withTitle: "取消")
+            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+            textField.stringValue = defaultText ?? ""
+            alert.accessoryView = textField
+            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            return textField.stringValue
         }
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {

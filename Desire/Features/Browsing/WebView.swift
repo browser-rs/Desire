@@ -253,10 +253,38 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
-                parent.state.serverTrust = challenge.protectionSpace.serverTrust
+            guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+                  let serverTrust = challenge.protectionSpace.serverTrust else {
+                completionHandler(.performDefaultHandling, nil)
+                return
             }
-            completionHandler(.performDefaultHandling, nil)
+
+            parent.state.serverTrust = serverTrust
+
+            var error: CFError?
+            let isTrusted = SecTrustEvaluateWithError(serverTrust, &error)
+
+            if isTrusted {
+                let credential = URLCredential(trust: serverTrust)
+                completionHandler(.useCredential, credential)
+            } else {
+                let host = challenge.protectionSpace.host
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "证书无效"
+                    alert.informativeText = "\(host) 的证书不受信任。\n\n\(error?.localizedDescription ?? "未知错误")"
+                    alert.alertStyle = .critical
+                    alert.addButton(withTitle: "继续")
+                    alert.addButton(withTitle: "取消")
+                    let response = alert.runModal()
+                    if response == .alertFirstButtonReturn {
+                        let credential = URLCredential(trust: serverTrust)
+                        completionHandler(.useCredential, credential)
+                    } else {
+                        completionHandler(.cancelAuthenticationChallenge, nil)
+                    }
+                }
+            }
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {

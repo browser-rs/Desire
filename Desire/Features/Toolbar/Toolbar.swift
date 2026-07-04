@@ -203,14 +203,14 @@ struct Toolbar: View {
 
     private var moreMenuContent: some View {
         VStack(spacing: 0) {
-            moreMenuItem("History", "clock.arrow.circlepath") { showHistory = true }
+            moreMenuItem("History", "clock.arrow.circlepath", shortcut: "⌘Y") { showHistory = true }
             moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
             moreMenuItem("Passwords", "key.fill") { showPasswords = true }
             moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
             moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
-            moreMenuItem("Plugins", "applescript") { showPlugins = true }
+            moreMenuItem("Plugins", "applescript", shortcut: "⇧⌘P") { showPlugins = true }
             moreMenuItem("Element Blocker", "eye.slash") { showElementBlock = true }
-            moreMenuItem(isBookmarked ? "Remove Bookmark" : "Bookmark This Page", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
+            moreMenuItem(isBookmarked ? "Remove Bookmark" : "Bookmark This Page", isBookmarked ? "bookmark.slash" : "bookmark.fill", shortcut: "⌘D") { actions.toggleBookmark() }
                 .disabled(tab.isOnNewTabPage)
             moreMenuItem("Add to Reading List", "bookmark.slash") {
                 let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
@@ -225,29 +225,43 @@ struct Toolbar: View {
             moreMenuItem("Share…", "square.and.arrow.up") { shareCurrentPage() }
                 .disabled(tab.isOnNewTabPage)
             Divider()
-            moreMenuItem("Zoom In", "plus.magnifyingglass") { actions.zoomIn() }
-            moreMenuItem("Zoom Out", "minus.magnifyingglass") { actions.zoomOut() }
-            moreMenuItem("Reset Zoom", "1.magnifyingglass") { actions.resetZoom() }
-            moreMenuItem("Print…", "printer") { actions.printPage() }
+            moreMenuItem("Zoom In", "plus.magnifyingglass", shortcut: "⌘=") { actions.zoomIn() }
+            moreMenuItem("Zoom Out", "minus.magnifyingglass", shortcut: "⌘-") { actions.zoomOut() }
+            moreMenuItem("Reset Zoom", "1.magnifyingglass", shortcut: "⌘0") { actions.resetZoom() }
+            moreMenuItem("Print…", "printer", shortcut: "⌘P") { actions.printPage() }
             moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
-            moreMenuItem("Screenshot Region…", "crop") { actions.captureScreenshot() }
+            moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             Divider()
-            moreMenuItem("Inspect Element", "ladybug") { actions.inspectElement() }
-            moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
-            moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
-            moreMenuItem("Preferences…", "gearshape") { showSettings = true }
+            moreMenuItem("Inspect Element", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
+            moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
+            moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
+            moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { showSettings = true }
         }
         .padding(4)
-        .frame(width: 200)
+        .frame(width: 240)
     }
 
-    private func moreMenuItem(_ titleKey: LocalizedStringKey, _ icon: String, action: @escaping () -> Void) -> some View {
+    private func moreMenuItem(
+        _ titleKey: LocalizedStringKey,
+        _ icon: String,
+        shortcut: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: {
             showMoreMenu = false
             action()
         }) {
-            Label(titleKey, systemImage: icon)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                Label(titleKey, systemImage: icon)
+                Spacer()
+                if let shortcut {
+                    Text(shortcut)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
         .padding(8)

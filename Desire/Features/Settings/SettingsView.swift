@@ -54,7 +54,7 @@ struct SettingsView: View {
                 }
             }
             .padding()
-            .tabItem { Label("隐私", systemImage: "hand.raided") }
+            .tabItem { Label("隐私", systemImage: "hand.raised") }
         }
         .frame(width: 400, height: 320)
         .toolbar {

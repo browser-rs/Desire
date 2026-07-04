@@ -18,25 +18,13 @@ struct TabBar: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            tabPills()
-            Spacer()
-        }
-        .padding(.leading, isFullScreen ? 12 : 76)
-        .padding(.top, 4)
-        .padding(.bottom, 4)
-        .background(Color.clear)
-        .overlay(alignment: .topLeading) {
-            if showSwitcher { tabSwitcher() }
-        }
-    }
-
-    private func tabPills() -> some View {
-        HStack(spacing: 6) {
-            ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
-                tabPill(for: tab, at: index)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
+                        tabPill(for: tab, at: index)
+                    }
+                }
             }
-
-            Spacer()
 
             Button {
                 onAddTab()
@@ -45,8 +33,18 @@ struct TabBar: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help("新标签页")
+        }
+        .padding(.leading, isFullScreen ? 12 : 76)
+        .padding(.trailing, 8)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
+        .background(Color.clear)
+        .overlay(alignment: .topLeading) {
+            if showSwitcher { tabSwitcher() }
         }
     }
 

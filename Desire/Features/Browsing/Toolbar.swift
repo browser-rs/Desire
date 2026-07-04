@@ -36,9 +36,10 @@ struct Toolbar: View {
                     .disabled(!tab.canGoBack)
                 navButton(systemName: "chevron.right") { onGoForward() }
                     .disabled(!tab.canGoForward)
-                navButton(systemName: "arrow.clockwise") {
+                navButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise") {
                     if tab.isLoading { tab.browser.webView.stopLoading() } else { onReload() }
                 }
+                .help(tab.isLoading ? "停止" : "重新加载")
                 navButton(systemName: "house") { onLoadHome() }
             }
             .padding(.horizontal, 10)

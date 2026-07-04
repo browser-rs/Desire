@@ -315,7 +315,8 @@ struct ContentView: View {
             if text.contains(".") {
                 text = "https://" + text
             } else {
-                text = settings.searchURLTemplate + text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+                guard let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
+                text = settings.searchURLTemplate + encoded
             }
         }
         guard let url = URL(string: text) else { return }

@@ -21,6 +21,7 @@ struct Toolbar: View {
         let captureFullPage: () -> Void
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
+        let toggleResponsiveMode: () -> Void
     }
 
     let tab: Tab
@@ -170,6 +171,7 @@ struct Toolbar: View {
                         moreMenuItem("全页截图…", "photo.on.rectangle.angled") { actions.captureFullPage() }
                         Divider()
                         moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
+                        moreMenuItem("响应式设计模式", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
                         moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
                         moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
                     }

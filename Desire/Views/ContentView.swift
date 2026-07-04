@@ -139,7 +139,12 @@ struct ContentView: View {
                         addToReadingList: { title, url in
                             readingListStore.add(title: title, url: url)
                         },
-                        togglePictureInPicture: { togglePictureInPicture() }
+                        togglePictureInPicture: { togglePictureInPicture() },
+                        toggleResponsiveMode: {
+                            if let tab = tabManager.selectedTab {
+                                tab.isResponsiveMode.toggle()
+                            }
+                        }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -177,6 +182,11 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 0) {
+                        ResponsiveDesignBar(
+                            isEnabled: Binding(get: { tab.isResponsiveMode }, set: { tab.isResponsiveMode = $0 }),
+                            deviceSize: Binding(get: { tab.responsiveSize }, set: { tab.responsiveSize = $0 })
+                        )
+
                         if isFindBarVisible {
                             FindBar(
                         findString: $findString,
@@ -208,7 +218,7 @@ struct ContentView: View {
                             navigateToURL(input, for: tab)
                         })
                     } else {
-                        WebView(
+                        let webContent = WebView(
                             state: tab.browser,
                             downloadStore: downloadStore,
                             passwordStore: passwordStore,
@@ -231,7 +241,30 @@ struct ContentView: View {
                                 userScriptStore.injectScripts(into: tab.browser.webView)
                             }
                         )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        if tab.isResponsiveMode {
+                            GeometryReader { geo in
+                                let size = tab.responsiveSize
+                                let scale = min(
+                                    (geo.size.width - 40) / size.width,
+                                    (geo.size.height - 40) / size.height,
+                                    1.0
+                                )
+                                let displayW = size.width * scale
+                                let displayH = size.height * scale
+                                ZStack {
+                                    Color(nsColor: .windowBackgroundColor).opacity(0.8)
+                                    webContent
+                                        .frame(width: displayW, height: displayH)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                                        .shadow(color: .black.opacity(0.2), radius: 12)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        } else {
+                            webContent
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
                 }
                 .id(tab.id)
@@ -319,6 +352,10 @@ struct ContentView: View {
                 if showTabSwitcher { isUrlFocused = false }
             case .toggleSidebar:
                 showSidebar.toggle()
+            case .toggleResponsiveMode:
+                if let tab = tabManager.selectedTab {
+                    tab.isResponsiveMode.toggle()
+                }
             }
         }
         .sheet(isPresented: $showHistory) {

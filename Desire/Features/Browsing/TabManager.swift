@@ -15,6 +15,8 @@ class Tab: ObservableObject {
     @Published var displayTitle = "新标签页"
     @Published var isPinned = false
     @Published var isSuspended = false
+    @Published var isResponsiveMode = false
+    var responsiveSize = CGSize(width: 375, height: 667)
     var lastAccessed = Date()
     var suppressHistoryOnce = false
 

@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - Presenter
 enum ScreenshotEditorPresenter {
     private static weak var window: NSWindow?
+    private static var closeObserver: Any?
 
     static func show(store: ScreenshotStore) {
         hide()
@@ -20,27 +21,22 @@ enum ScreenshotEditorPresenter {
         win.center()
         win.makeKeyAndOrderFront(nil)
         win.isRestorable = false
-        win.delegate = WindowCloseDelegate.shared
         window = win
+
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: win,
+            queue: .main
+        ) { [weak store] _ in
+            store?.cancelCapture()
+        }
     }
 
     static func hide() {
-        window?.delegate = nil
+        if let obs = closeObserver { NotificationCenter.default.removeObserver(obs) }
+        closeObserver = nil
         window?.close()
         window = nil
-    }
-}
-
-private class WindowCloseDelegate: NSObject, NSWindowDelegate {
-    static let shared = WindowCloseDelegate()
-
-    func windowWillClose(_ notification: Notification) {
-        guard let win = notification.object as? NSWindow,
-              let hosting = win.contentView as? NSHostingView<ScreenshotEditorView> else { return }
-        let store = hosting.rootView.store
-        if case .editing = store.phase {
-            store.cancelCapture()
-        }
     }
 }
 

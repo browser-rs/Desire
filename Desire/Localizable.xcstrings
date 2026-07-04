@@ -1902,6 +1902,9 @@
         }
       }
     },
+    "Edit Screenshot" : {
+
+    },
     "Edit…" : {
       "comment" : "Edit bookmark button",
       "localizations" : {

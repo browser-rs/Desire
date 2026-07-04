@@ -24,7 +24,9 @@ class BrowserState: ObservableObject {
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
-        config.preferences.javaScriptEnabled = javaScriptEnabled
+        let webpagePrefs = WKWebpagePreferences()
+        webpagePrefs.allowsContentJavaScript = javaScriptEnabled
+        config.defaultWebpagePreferences = webpagePrefs
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
         config.mediaTypesRequiringUserActionForPlayback = []
         if incognito {
@@ -641,12 +643,13 @@ struct WebView: NSViewRepresentable {
                 cancel: { [weak download] in download?.cancel() }
             ))
             let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
-                guard let self else { return }
-                parent.downloadStore.updateProgress(
-                    id: id,
-                    totalBytes: progress.totalUnitCount,
-                    downloadedBytes: progress.completedUnitCount
-                )
+                Task { @MainActor [weak self] in
+                    self?.parent.downloadStore.updateProgress(
+                        id: id,
+                        totalBytes: progress.totalUnitCount,
+                        downloadedBytes: progress.completedUnitCount
+                    )
+                }
             }
             activeDownloads[ObjectIdentifier(download)] = DownloadInfo(id: id, progressObservation: observation)
         }

@@ -56,7 +56,7 @@ private struct DownloadRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("· \(Int((item.progress * 100).rounded()))%")
+                        Text(verbatim: "· \(Int((item.progress * 100).rounded()))%")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

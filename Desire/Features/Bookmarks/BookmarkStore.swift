@@ -123,7 +123,7 @@ class BookmarkStore: ObservableObject {
         var root: [Bookmark] = []
 
         func addToCurrent(_ item: Bookmark) {
-            if var top = stack.last, top.isFolder {
+            if let top = stack.last, top.isFolder {
                 stack[stack.count - 1].children.append(item)
             } else {
                 root.append(item)

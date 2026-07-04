@@ -24,7 +24,7 @@ struct ReadingListPanel: View {
             .padding()
 
             if store.items.isEmpty {
-                EmptyState(message: String(localized: "Reading List is Empty\nChoose 'Add to Reading List' from the Tools menu to save articles for later."))
+                EmptyState(message: String(localized: "Reading List is Empty"))
             } else {
                 List {
                     ForEach(store.items) { item in

@@ -8,8 +8,16 @@ enum SidebarTab: String, CaseIterable {
     var icon: String {
         switch self {
         case .bookmarks: "bookmark"
-        case .history: "clock"
+        case .history: "clock.arrow.circlepath"
         case .readingList: "bookmark.slash"
+        }
+    }
+
+    var help: LocalizedStringKey {
+        switch self {
+        case .bookmarks: "Bookmarks"
+        case .history: "History"
+        case .readingList: "Reading List"
         }
     }
 }
@@ -19,17 +27,12 @@ struct SidebarView: View {
     @ObservedObject var historyStore: HistoryStore
     @ObservedObject var readingListStore: ReadingListStore
     @State private var selectedTab: SidebarTab = .bookmarks
+    @State private var hoveredTab: SidebarTab?
     let onNavigate: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                ForEach(SidebarTab.allCases, id: \.self) { tab in
-                    Image(systemName: tab.icon).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(8)
+            tabBar
 
             Divider()
 
@@ -44,6 +47,47 @@ struct SidebarView: View {
         }
         .frame(width: 260)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    /// Custom capsule-style tab bar — replaces the default segmented Picker
+    /// with a calmer, flatter row of icon buttons that match the rest of the
+    /// app's chrome (RoundedRectangle(cornerRadius: 6), accent-color active state).
+    private var tabBar: some View {
+        HStack(spacing: 4) {
+            ForEach(SidebarTab.allCases, id: \.self) { tab in
+                tabButton(tab)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+    }
+
+    private func tabButton(_ tab: SidebarTab) -> some View {
+        let isActive = selectedTab == tab
+        let isHovered = hoveredTab == tab
+        return Button {
+            selectedTab = tab
+        } label: {
+            Image(systemName: tab.icon)
+                .font(.system(size: 14, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            isActive
+                                ? Color.accentColor.opacity(0.15)
+                                : (isHovered ? Color(nsColor: .systemFill) : Color.clear)
+                        )
+                )
+                .foregroundStyle(isActive ? Color.accentColor : .primary)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredTab = hovering ? tab : (hoveredTab == tab ? nil : hoveredTab)
+        }
+        .help(tab.help)
+        .accessibilityLabel(tab.help)
     }
 
     private var sidebarBookmarks: some View {

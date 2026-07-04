@@ -19,6 +19,8 @@ struct TabBar: View {
     let onCloseTabsToRight: (Int) -> Void
     let onToggleAudioMute: (Int) -> Void
     let onTogglePin: (Int) -> Void
+    @ObservedObject var tabGroupStore: TabGroupStore
+    let onCreateGroup: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -74,7 +76,14 @@ struct TabBar: View {
     }
 
     private func tabPill(for tab: Tab, at index: Int) -> some View {
-        HStack(spacing: 6) {
+        let groupColor = tabGroupStore.group(for: tab.id).map { tabGroupColors[$0.colorIndex % tabGroupColors.count] }
+
+        return HStack(spacing: 6) {
+            if let gc = groupColor {
+                Capsule()
+                    .fill(gc)
+                    .frame(width: 3, height: 14)
+            }
             if tab.isIncognito {
                 Image(systemName: "mask").font(.caption)
             } else if tab.isOnNewTabPage {
@@ -153,6 +162,20 @@ struct TabBar: View {
             .disabled(tab.isOnNewTabPage)
 
         Divider()
+
+        if let group = tabGroupStore.group(for: tab.id) {
+            Menu("分组: \(group.name)") {
+                Button("从分组移除") { tabGroupStore.removeTabFromAll(tab.id) }
+            }
+        } else {
+            Menu("添加到分组") {
+                ForEach(tabGroupStore.groups) { group in
+                    Button(group.name) { tabGroupStore.addTab(tab.id, to: group.id) }
+                }
+                if !tabGroupStore.groups.isEmpty { Divider() }
+                Button("新建分组…") { onCreateGroup(index) }
+            }
+        }
 
         Button(tab.isPinned ? "取消固定" : "固定标签页") { onTogglePin(index) }
         Divider()

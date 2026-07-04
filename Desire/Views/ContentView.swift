@@ -21,6 +21,7 @@ struct ContentView: View {
     @StateObject private var permissionStore = PermissionStore()
     @StateObject private var siteSettingsStore = SiteSettingsStore()
     @StateObject private var readingListStore = ReadingListStore()
+    @StateObject private var tabGroupStore = TabGroupStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -72,6 +73,24 @@ struct ContentView: View {
                     },
                     onTogglePin: { index in
                         tabManager.tabs[index].isPinned.toggle()
+                    },
+                    tabGroupStore: tabGroupStore,
+                    onCreateGroup: { index in
+                        let alert = NSAlert()
+                        alert.messageText = "新建标签分组"
+                        alert.informativeText = "输入分组名称"
+                        let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 22))
+                        alert.accessoryView = tf
+                        alert.addButton(withTitle: "创建")
+                        alert.addButton(withTitle: "取消")
+                        if alert.runModal() == .alertFirstButtonReturn {
+                            let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
+                            if !name.isEmpty {
+                                let group = tabGroupStore.create(name: name)
+                                let tabId = tabManager.tabs[index].id
+                                tabGroupStore.addTab(tabId, to: group.id)
+                            }
+                        }
                     }
                 )
 

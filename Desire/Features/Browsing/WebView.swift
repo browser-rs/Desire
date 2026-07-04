@@ -39,6 +39,7 @@ class BrowserState: ObservableObject {
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
     @Published var lastError: String?
+    @Published var pageZoom: Double = 1.0
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()

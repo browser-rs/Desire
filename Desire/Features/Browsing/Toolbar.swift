@@ -13,6 +13,10 @@ struct Toolbar: View {
         let toggleFullScreen: () -> Void
         let inspectElement: () -> Void
         let suggestionSelect: (AddressSuggestion) -> Void
+        let printPage: () -> Void
+        let zoomIn: () -> Void
+        let zoomOut: () -> Void
+        let resetZoom: () -> Void
     }
 
     let tab: Tab
@@ -32,6 +36,12 @@ struct Toolbar: View {
 
     @State private var showDownloads = false
     @State private var showMoreMenu = false
+    @State private var showSecurityInfo = false
+
+    private var zoomPercent: String {
+        let pct = Int((tab.browser.pageZoom * 100).rounded())
+        return "\(pct)%"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -50,10 +60,37 @@ struct Toolbar: View {
             )
 
             HStack(spacing: 4) {
-                Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
-                    .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
-                    .imageScale(.small)
-                    .padding(.leading, 4)
+                Button {
+                    showSecurityInfo.toggle()
+                } label: {
+                    Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
+                        .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
+                        .imageScale(.small)
+                }
+                .buttonStyle(.plain)
+                .help(tab.browser.isSecure ? "连接安全" : "连接不安全")
+                .popover(isPresented: $showSecurityInfo) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
+                                .foregroundStyle(tab.browser.isSecure ? .green : .orange)
+                            Text(tab.browser.isSecure ? "连接安全" : "连接不安全")
+                                .font(.headline)
+                        }
+                        Divider()
+                        Label(tab.browser.webView.url?.host ?? "", systemImage: "globe")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                        if tab.browser.isSecure {
+                            Label("此连接使用 HTTPS 加密", systemImage: "checkmark.shield")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(16)
+                    .frame(width: 260)
+                }
+
                 TextField("搜索或输入网址", text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }))
                     .textFieldStyle(.plain)
                     .focused(isUrlFocused)
@@ -94,6 +131,21 @@ struct Toolbar: View {
             )
             .layoutPriority(1)
 
+            Button {
+                actions.resetZoom()
+            } label: {
+                Text(zoomPercent)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("缩放比例 — 点击重置为 100%")
+
             HStack(spacing: 6) {
                 DownloadButton(store: downloadStore, showDownloads: $showDownloads)
 
@@ -108,17 +160,22 @@ struct Toolbar: View {
                 .buttonStyle(.plain)
                 .popover(isPresented: $showMoreMenu) {
                     VStack(spacing: 0) {
-                    moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
-                    moreMenuItem("书签", "bookmark") { showBookmarks = true }
-                    moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
-                    moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
-                    moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
-                        .disabled(tab.isOnNewTabPage)
-                    Divider()
-                    moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
-                    moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
-                    moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
-                }
+                        moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
+                        moreMenuItem("书签", "bookmark") { showBookmarks = true }
+                        moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
+                        moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
+                        moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
+                            .disabled(tab.isOnNewTabPage)
+                        Divider()
+                        moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
+                        moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
+                        moreMenuItem("重置缩放", "1.magnifyingglass") { actions.resetZoom() }
+                        moreMenuItem("打印…", "printer") { actions.printPage() }
+                        Divider()
+                        moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
+                        moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
+                        moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
+                    }
                 .padding(4)
                 .frame(width: 200)
             }

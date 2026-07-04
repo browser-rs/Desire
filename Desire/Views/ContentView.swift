@@ -81,7 +81,11 @@ struct ContentView: View {
                             suggestionModel.reset()
                             isUrlFocused = false
                             navigateToURL(sug.url, for: tab)
-                        }
+                        },
+                        printPage: { printPage() },
+                        zoomIn: { zoomTab(by: 0.1) },
+                        zoomOut: { zoomTab(by: -0.1) },
+                        resetZoom: { zoomTab(to: 1.0) }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -257,20 +261,26 @@ struct ContentView: View {
                 .keyboardShortcut("]", modifiers: .command)
                 .hidden()
             Button("") {
-                if let tab = tabManager.selectedTab {
-                    tab.browser.webView.pageZoom = tab.browser.webView.pageZoom + 0.1
-                }
+                guard let tab = tabManager.selectedTab else { return }
+                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + 0.1))
+                tab.browser.pageZoom = newZoom
+                tab.browser.webView.pageZoom = newZoom
             }
                 .keyboardShortcut("=", modifiers: .command)
                 .hidden()
             Button("") {
-                if let tab = tabManager.selectedTab {
-                    tab.browser.webView.pageZoom = tab.browser.webView.pageZoom - 0.1
-                }
+                guard let tab = tabManager.selectedTab else { return }
+                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom - 0.1))
+                tab.browser.pageZoom = newZoom
+                tab.browser.webView.pageZoom = newZoom
             }
                 .keyboardShortcut("-", modifiers: .command)
                 .hidden()
-            Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.pageZoom = 1 } }
+            Button("") {
+                guard let tab = tabManager.selectedTab else { return }
+                tab.browser.pageZoom = 1.0
+                tab.browser.webView.pageZoom = 1.0
+            }
                 .keyboardShortcut("0", modifiers: .command)
                 .hidden()
             Button("") { showFindBar() }
@@ -287,6 +297,9 @@ struct ContentView: View {
                 .hidden()
             Button("") { inspectElement() }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
+                .hidden()
+            Button("") { printPage() }
+                .keyboardShortcut("p", modifiers: .command)
                 .hidden()
         }
     }
@@ -417,5 +430,27 @@ struct ContentView: View {
     private func addUserScript() {
         showUserScripts = false
         userScriptStore.add(name: "新脚本", urlPattern: "*", code: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire user script loaded');")
+    }
+
+    private func zoomTab(by delta: Double) {
+        guard let tab = tabManager.selectedTab else { return }
+        let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
+        tab.browser.pageZoom = newZoom
+        tab.browser.webView.pageZoom = newZoom
+    }
+
+    private func zoomTab(to value: Double) {
+        guard let tab = tabManager.selectedTab else { return }
+        tab.browser.pageZoom = value
+        tab.browser.webView.pageZoom = value
+    }
+
+    private func printPage() {
+        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
+        let printInfo = NSPrintInfo.shared
+        printInfo.horizontalPagination = .fit
+        printInfo.verticalPagination = .fit
+        let operation = tab.browser.webView.printOperation(with: printInfo)
+        operation.runModal(for: tab.browser.webView.window!, delegate: nil, didRun: nil, contextInfo: nil)
     }
 }

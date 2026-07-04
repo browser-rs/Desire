@@ -87,3 +87,8 @@ private struct ReaderWebView: NSViewRepresentable {
 
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 }
+
+#Preview {
+    ReaderView(title: "示例文章标题", contentHTML: "<p>这是阅读模式的内容预览。</p><p>第二段内容。</p>", onClose: {})
+        .frame(width: 600, height: 400)
+}

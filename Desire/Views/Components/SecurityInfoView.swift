@@ -70,3 +70,13 @@ struct SecurityInfoView: View {
         .frame(width: 320)
     }
 }
+
+#Preview {
+    SecurityInfoView(trust: nil, host: "example.com")
+        .frame(width: 320)
+}
+
+#Preview("Secure") {
+    SecurityInfoView(trust: nil, host: "secure.example.com")
+        .frame(width: 320)
+}

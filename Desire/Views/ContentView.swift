@@ -118,7 +118,8 @@ struct ContentView: View {
                         captureFullPage: { captureFullPage() },
                         addToReadingList: { title, url in
                             readingListStore.add(title: title, url: url)
-                        }
+                        },
+                        togglePictureInPicture: { togglePictureInPicture() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -548,5 +549,21 @@ struct ContentView: View {
                 break
             }
         }
+    }
+
+    private func togglePictureInPicture() {
+        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
+        let js = """
+        (function() {
+            var v = document.querySelector('video');
+            if (!v) return;
+            if (document.pictureInPictureElement) {
+                document.exitPictureInPicture();
+            } else if (v.readyState >= 2) {
+                v.requestPictureInPicture();
+            }
+        })();
+        """
+        tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 }

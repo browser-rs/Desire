@@ -20,6 +20,7 @@ struct Toolbar: View {
         let toggleReader: () -> Void
         let captureFullPage: () -> Void
         let addToReadingList: (_ title: String, _ url: String) -> Void
+        let togglePictureInPicture: () -> Void
     }
 
     let tab: Tab
@@ -159,6 +160,8 @@ struct Toolbar: View {
                             actions.addToReadingList(title, url)
                         }
                         .disabled(tab.isOnNewTabPage)
+                        moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
+                            .disabled(tab.isOnNewTabPage)
                         Divider()
                         moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
                         moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }

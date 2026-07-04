@@ -133,18 +133,18 @@ struct ScreenshotEditorView: View {
 
             Spacer()
 
-            Button("Cancel") { store.cancelCapture() }
+            Button("Cancel") { DispatchQueue.main.async { store.cancelCapture() } }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
 
             Button("Copy") {
-                store.copyToClipboard()
+                DispatchQueue.main.async { store.copyToClipboard() }
             }
             .buttonStyle(.borderedProminent)
             .tint(Color.accentColor)
 
             Button("Save") {
-                store.save()
+                DispatchQueue.main.async { store.save() }
             }
             .buttonStyle(.borderedProminent)
         }

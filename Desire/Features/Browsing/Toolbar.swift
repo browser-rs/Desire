@@ -126,14 +126,6 @@ struct Toolbar: View {
             }
 
             Button {
-                onInspectElement()
-            } label: {
-                Image(systemName: "ladybug")
-            }
-            .buttonStyle(.plain)
-            .help("检查元素")
-
-            Button {
                 showMoreMenu = true
             } label: {
                 Image(systemName: "ellipsis")
@@ -148,6 +140,7 @@ struct Toolbar: View {
                     moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { onToggleBookmark() }
                         .disabled(tab.isOnNewTabPage)
                     Divider()
+                    moreMenuItem("检查元素", "ladybug") { onInspectElement() }
                     moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { onToggleFullScreen() }
                     moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
                 }

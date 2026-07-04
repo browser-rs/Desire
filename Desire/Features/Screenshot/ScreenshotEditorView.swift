@@ -5,8 +5,9 @@ import SwiftUI
 enum ScreenshotEditorPresenter {
     private static weak var window: NSWindow?
     private static var closeObserver: Any?
+    private static var onClose: (() -> Void)?
 
-    static func show(store: ScreenshotStore) {
+    static func show(store: ScreenshotStore, onClose: @escaping () -> Void = {}) {
         hide()
         let hosting = NSHostingView(rootView: ScreenshotEditorView(store: store))
         hosting.sizingOptions = [.standardBounds]
@@ -20,21 +21,31 @@ enum ScreenshotEditorPresenter {
         win.contentView = hosting
         win.center()
         win.makeKeyAndOrderFront(nil)
+        win.isReleasedWhenClosed = false
         win.isRestorable = false
         window = win
+        self.onClose = onClose
 
+        // willCloseNotification 会先于 view 拆解触发，此时 SwiftUI 可能还正在布局。
+        // 之前的写法会同步改 store.phase -> 触发 .onChange -> 递归 hide 自身，栈很深易崩。
+        // 改成只发 onClose 通知，让调用方（ContentView）决定是否 cancel，避免循环。
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: win,
             queue: .main
-        ) { [weak store] _ in
-            store?.cancelCapture()
+        ) { _ in
+            let cb = ScreenshotEditorPresenter.onClose
+            ScreenshotEditorPresenter.onClose = nil
+            ScreenshotEditorPresenter.closeObserver = nil
+            ScreenshotEditorPresenter.window = nil
+            cb?()
         }
     }
 
     static func hide() {
         if let obs = closeObserver { NotificationCenter.default.removeObserver(obs) }
         closeObserver = nil
+        onClose = nil
         window?.close()
         window = nil
     }
@@ -133,20 +144,19 @@ struct ScreenshotEditorView: View {
 
             Spacer()
 
-            Button("Cancel") { DispatchQueue.main.async { store.cancelCapture() } }
+            // 直接同步调用，不再用 DispatchQueue.main.async 包一层。
+            // async 会让 phase 改变延后到下个 runloop，叠加 .onChange(of: phase) 的回调和
+            // 当前手势结束的事件，很容易撞上 view 拆解造成 EXC_BAD_ACCESS。
+            Button("Cancel") { store.cancelCapture() }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
 
-            Button("Copy") {
-                DispatchQueue.main.async { store.copyToClipboard() }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.accentColor)
+            Button("Copy") { store.copyToClipboard() }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.accentColor)
 
-            Button("Save") {
-                DispatchQueue.main.async { store.save() }
-            }
-            .buttonStyle(.borderedProminent)
+            Button("Save") { store.save() }
+                .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -225,6 +235,9 @@ struct ScreenshotEditorView: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             guard editingText == nil else { return }
+                            // phase 可能在拖拽过程中已被 Copy/Save 改到 .idle，
+                            // 这种情况下 imageSize = .zero，canvasToImage 会除零崩溃。
+                            guard case .editing = store.phase else { return }
                             let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
                             if store.currentTool == .pen {
                                 if !isDrawing { isDrawing = true; store.pushUndo(); currentPoints = [] }
@@ -238,6 +251,7 @@ struct ScreenshotEditorView: View {
                         }
                         .onEnded { value in
                             guard editingText == nil else { return }
+                            guard case .editing = store.phase else { return }
                             let pt = canvasToImage(value.location, imageSize: imageSize, canvasSize: geo.size)
                             defer { dragStart = nil; dragCurrent = nil; isDrawing = false; currentPoints = [] }
 

@@ -4,20 +4,23 @@ import SwiftUI
 // MARK: - Presenter
 enum ScreenshotOverlayPresenter {
     private static weak var activePanel: OverlayPanel?
+    private static var activeScreen: NSScreen?
 
-    static func show(onCancel: @escaping () -> Void, onCapture: @escaping (NSRect) -> Void) {
+    static func show(onCancel: @escaping () -> Void, onCapture: @escaping (NSRect, NSScreen) -> Void) {
         hide()
         guard let screen = NSScreen.main else { return }
         let panel = OverlayPanel(screen: screen)
         panel.onCancel = onCancel
-        panel.onCapture = onCapture
+        panel.onCapture = { rect in onCapture(rect, screen) }
         panel.orderFrontRegardless()
         activePanel = panel
+        activeScreen = screen
     }
 
     static func hide() {
         activePanel?.orderOut(nil)
         activePanel = nil
+        activeScreen = nil
     }
 }
 

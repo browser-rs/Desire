@@ -546,11 +546,14 @@ struct ContentView: View {
             case .selecting:
                 ScreenshotOverlayPresenter.show(
                     onCancel: { screenshotStore.cancelCapture() },
-                    onCapture: { rect in screenshotStore.capture(rect: rect) }
+                    onCapture: { rect, screen in screenshotStore.capture(rect: rect, on: screen) }
                 )
             case .editing:
                 ScreenshotOverlayPresenter.hide()
-                ScreenshotEditorPresenter.show(store: screenshotStore)
+                ScreenshotEditorPresenter.show(
+                    store: screenshotStore,
+                    onClose: { screenshotStore.cancelCapture() }
+                )
             case .idle:
                 ScreenshotOverlayPresenter.hide()
                 ScreenshotEditorPresenter.hide()

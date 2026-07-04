@@ -119,53 +119,84 @@ class BookmarkStore: ObservableObject {
     }
 
     private func parseBookmarksHTML(_ html: String) -> [Bookmark] {
-        var items: [Bookmark] = []
-        var stack: [(UUID, [Bookmark])] = []
-        var currentID: UUID?
-        let lines = html.components(separatedBy: .newlines)
+        var stack: [Bookmark] = []
+        var root: [Bookmark] = []
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("<DT><H3") {
-                let title = extractText(from: trimmed) ?? "文件夹"
-                let id = UUID()
-                let folder = Bookmark.folder(title: title)
-                if let parent = currentID {
-                    stack.append((parent, []))
-                }
-                currentID = id
-                items.append(folder)
-            } else if trimmed.hasPrefix("<DT><A HREF") {
-                let url = extractAttribute(trimmed, attr: "HREF") ?? ""
-                let title = extractText(from: trimmed) ?? url
-                let bm = Bookmark.leaf(title: title, url: url)
-                if let cid = currentID, let idx = items.firstIndex(where: { $0.id == cid }) {
-                    var folder = items[idx]
-                    folder.children.append(bm)
-                    items[idx] = folder
-                } else {
-                    items.append(bm)
-                }
-            } else if trimmed == "</DL><p>" || trimmed == "</DL>" {
-                currentID = stack.popLast()?.0
+        func addToCurrent(_ item: Bookmark) {
+            if var top = stack.last, top.isFolder {
+                stack[stack.count - 1].children.append(item)
+            } else {
+                root.append(item)
             }
         }
-        return items
+
+        var searchRange = html.startIndex..<html.endIndex
+        while let dtRange = html.range(of: "<DT>", options: [.caseInsensitive], range: searchRange) {
+            searchRange = dtRange.upperBound..<html.endIndex
+
+            let rest = html[searchRange]
+            if rest.hasPrefix("<A ") || rest.hasPrefix("<A\t") || rest.hasPrefix("<A\n") {
+                guard let hrefStart = rest.range(of: "HREF=\"", options: [.caseInsensitive]) else { continue }
+                let urlStart = hrefStart.upperBound
+                guard let urlEnd = rest[urlStart...].firstIndex(of: "\"") else { continue }
+                let url = String(rest[urlStart..<urlEnd])
+
+                let afterURL = rest[urlEnd...]
+                guard let closeTag = afterURL.range(of: "</A>", options: [.caseInsensitive]) else { continue }
+                let titleStart = afterURL.firstIndex(of: ">") ?? urlEnd
+                let titleEnd = closeTag.lowerBound
+                let title = (titleStart < titleEnd)
+                    ? String(afterURL[titleStart..<titleEnd])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\n", with: " ")
+                        .replacingOccurrences(of: "\t", with: " ")
+                        .components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
+                    : ""
+
+                searchRange = closeTag.upperBound..<html.endIndex
+                addToCurrent(Bookmark.leaf(title: title.isEmpty ? url : title, url: url))
+
+            } else if rest.hasPrefix("<H3") || rest.hasPrefix("<H3\t") || rest.hasPrefix("<H3\n") {
+                guard let closeTag = rest.range(of: "</H3>", options: [.caseInsensitive]) else { continue }
+                let titleStart = rest.firstIndex(of: ">") ?? rest.startIndex
+                let titleEnd = closeTag.lowerBound
+                let title = (titleStart < titleEnd)
+                    ? String(rest[rest.index(after: titleStart)..<titleEnd])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    : ""
+                searchRange = closeTag.upperBound..<html.endIndex
+                stack.append(Bookmark.folder(title: title.isEmpty ? "文件夹" : title))
+
+            } else if rest.hasPrefix("<DL") || rest.hasPrefix("<DL\t") || rest.hasPrefix("<DL\n") {
+                guard let dlEnd = rest.range(of: ">") else { continue }
+                searchRange = dlEnd.upperBound..<html.endIndex
+
+            } else if rest.hasPrefix("</DL>") || rest.hasPrefix("</DL\t") || rest.hasPrefix("</DL\n") {
+                if let folder = stack.popLast() {
+                    addToCurrent(folder)
+                }
+                searchRange = html.index(searchRange.lowerBound, offsetBy: 5)..<html.endIndex
+            } else if rest.hasPrefix("<HR") {
+                guard let hrEnd = rest.range(of: ">") else { continue }
+                searchRange = hrEnd.upperBound..<html.endIndex
+            } else if rest.hasPrefix("<META") {
+                guard let metaEnd = rest.range(of: ">") else { continue }
+                searchRange = metaEnd.upperBound..<html.endIndex
+            } else if rest.hasPrefix("<!") {
+                guard let commentEnd = rest.range(of: ">") else { continue }
+                searchRange = commentEnd.upperBound..<html.endIndex
+            } else if rest.hasPrefix("<p>") || rest.hasPrefix("<P>") {
+                searchRange = html.index(searchRange.lowerBound, offsetBy: 3)..<html.endIndex
+            } else {
+                searchRange = html.index(after: searchRange.lowerBound)..<html.endIndex
+            }
+        }
+
+        for folder in stack.reversed() {
+            addToCurrent(folder)
+        }
+        return root
     }
-}
-
-private func extractText(from line: String) -> String? {
-    guard let start = line.firstIndex(of: ">") else { return nil }
-    let after = line[line.index(after: start)...]
-    guard let end = after.firstIndex(of: "<") else { return nil }
-    return String(after[..<end]).trimmingCharacters(in: .whitespaces)
-}
-
-private func extractAttribute(_ line: String, attr: String) -> String? {
-    guard let range = line.range(of: "\(attr)=\"") else { return nil }
-    let after = line[range.upperBound...]
-    guard let end = after.firstIndex(of: "\"") else { return nil }
-    return String(after[..<end])
 }
 
 private extension String {

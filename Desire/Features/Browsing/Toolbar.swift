@@ -130,7 +130,8 @@ struct Toolbar: View {
             Button {
                 showMoreMenu = true
             } label: {
-                Image(systemName: "ellipsis.vertical")
+                Image(systemName: "ellipsis")
+                    .rotationEffect(.degrees(90))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }

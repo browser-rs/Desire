@@ -51,6 +51,15 @@ struct TabBar: View {
 
     private func tabPill(for tab: Tab, at index: Int) -> some View {
         HStack(spacing: 6) {
+            if tab.isLoading {
+                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
+            } else if tab.isIncognito {
+                Image(systemName: "mask").font(.caption)
+            } else if tab.isOnNewTabPage {
+                Image(systemName: "asterisk").font(.caption)
+            } else {
+                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
+            }
             if tab.browser.isPlayingAudio {
                 Button {
                     onToggleAudioMute(index)
@@ -60,15 +69,6 @@ struct TabBar: View {
                         .foregroundStyle(tab.browser.isMuted ? Color.accentColor : .secondary)
                 }
                 .buttonStyle(.plain)
-            }
-            if tab.isLoading {
-                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
-            } else if tab.isIncognito {
-                Image(systemName: "mask").font(.caption)
-            } else if tab.isOnNewTabPage {
-                Image(systemName: "asterisk").font(.caption)
-            } else {
-                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
             }
             Text(tab.displayTitle)
                 .lineLimit(1)

@@ -145,9 +145,9 @@ class BrowserState: ObservableObject {
         let audioJS = """
         (function() {
             function checkAudio() {
-                var playing = false;
-                document.querySelectorAll('audio, video').forEach(function(el) {
-                    if (!el.paused && !el.muted && el.volume > 0) {
+            var playing = false;
+            document.querySelectorAll('audio, video').forEach(function(el) {
+                if (!el.paused && el.volume > 0) {
                         playing = true;
                     }
                 });

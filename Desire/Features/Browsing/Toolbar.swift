@@ -76,6 +76,17 @@ struct Toolbar: View {
                         return .handled
                     }
                     .font(.system(size: 13))
+
+                Button {
+                    onBookmarkCurrentPage()
+                } label: {
+                    Image(systemName: "bookmark")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("添加书签")
+                .disabled(tab.isOnNewTabPage)
             }
             .padding(.horizontal, 8)
             .frame(height: 30)

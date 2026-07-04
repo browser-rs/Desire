@@ -150,8 +150,18 @@ struct WebView: NSViewRepresentable {
 
         // 处理新窗口/弹窗（Google 登录 OAuth 需要）
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            if navigationAction.targetFrame == nil,
-               let url = navigationAction.request.url {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            if let scheme = url.scheme?.lowercased(), Self.externalSchemes.contains(scheme) {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+
+            if navigationAction.targetFrame == nil {
                 // 弹窗式导航（OAuth 等），改为当前窗口加载
                 webView.load(URLRequest(url: url))
                 decisionHandler(.cancel)
@@ -159,6 +169,12 @@ struct WebView: NSViewRepresentable {
             }
             decisionHandler(.allow)
         }
+
+        private static let externalSchemes: Set<String> = [
+            "mailto", "tel", "facetime", "sms",
+            "maps", "itunes", "music", "podcasts",
+            "appstore", "macappstore"
+        ]
 
         // 无法展示的 MIME 类型（.pkg/.dmg/.zip 等直接文件链接）转为下载，
         // 否则 WebKit 会尝试渲染并失败（code 102 "frame load interrupted"）

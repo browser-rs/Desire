@@ -5,87 +5,156 @@ import WebKit
 class ContentBlocker: ObservableObject {
     @Published var isBlockingEnabled = false {
         didSet {
+            guard oldValue != isBlockingEnabled else { return }
             UserDefaults.standard.set(isBlockingEnabled, forKey: "contentBlockerEnabled")
             if isBlockingEnabled {
-                compileRules()
+                ensureCompiled(kind: .ads)
             }
+            reapplyAll()
         }
     }
 
-    private var compiledRules: [WKContentRuleList] = []
+    @Published var isTrackingEnabled = false {
+        didSet {
+            guard oldValue != isTrackingEnabled else { return }
+            UserDefaults.standard.set(isTrackingEnabled, forKey: "trackingProtectionEnabled")
+            if isTrackingEnabled {
+                ensureCompiled(kind: .tracking)
+            }
+            reapplyAll()
+        }
+    }
+
+    private enum Kind { case ads, tracking }
+
+    private var adRuleList: WKContentRuleList?
+    private var trackingRuleList: WKContentRuleList?
+    private var compiling: Set<Kind> = []
+    private var registered: [WeakBox] = []
 
     init() {
         isBlockingEnabled = UserDefaults.standard.bool(forKey: "contentBlockerEnabled")
-        if isBlockingEnabled {
-            compileRules()
+        isTrackingEnabled = UserDefaults.standard.bool(forKey: "trackingProtectionEnabled")
+        if isBlockingEnabled { ensureCompiled(kind: .ads) }
+        if isTrackingEnabled { ensureCompiled(kind: .tracking) }
+    }
+
+    func register(_ controller: WKUserContentController) {
+        registered.removeAll { $0.controller == nil }
+        if !registered.contains(where: { $0.controller === controller }) {
+            registered.append(WeakBox(controller: controller))
         }
+        apply(to: controller)
     }
-
-    deinit {
-        cancellables.forEach { $0.cancel() }
-    }
-
-    private var cancellables: [AnyCancellable] = []
 
     func apply(to config: WKWebViewConfiguration) {
-        for rule in compiledRules {
-            config.userContentController.add(rule)
-        }
+        register(config.userContentController)
     }
 
-    private func compileRules() {
-        compiledRules.removeAll()
-        let rulesJSON = blockRulesJSON
+    private func ensureCompiled(kind: Kind) {
+        switch kind {
+        case .ads where adRuleList != nil: return
+        case .tracking where trackingRuleList != nil: return
+        default: break
+        }
+        guard !compiling.contains(kind) else { return }
+        compiling.insert(kind)
+
+        let identifier = kind == .ads ? "desire-blocker" : "desire-tracking"
+        let json = kind == .ads ? adsRulesJSON : trackingRulesJSON
+
         WKContentRuleListStore.default().compileContentRuleList(
-            forIdentifier: "desire-blocker",
-            encodedContentRuleList: rulesJSON
+            forIdentifier: identifier,
+            encodedContentRuleList: json
         ) { [weak self] ruleList, error in
-            guard let ruleList else {
-                print("Content blocker compile error: \(error?.localizedDescription ?? "unknown")")
-                return
+            Task { @MainActor in
+                guard let self else { return }
+                self.compiling.remove(kind)
+                guard let ruleList else {
+                    print("ContentBlocker[\(kind)] compile error: \(error?.localizedDescription ?? "unknown")")
+                    return
+                }
+                switch kind {
+                case .ads: self.adRuleList = ruleList
+                case .tracking: self.trackingRuleList = ruleList
+                }
+                self.reapplyAll()
             }
-            self?.compiledRules = [ruleList]
         }
     }
 
-    private let blockRulesJSON = {
-        let trackers = [
-            // Google / Alphabet
-            "doubleclick.net", "googlesyndication.com", "googleadservices.com",
-            "google-analytics.com", "googletagmanager.com", "googletagservices.com",
-            "adservice.google.com", "pagead2.googlesyndication.com", "googleads.g.doubleclick.net",
-            "www.googletagmanager.com", "connect.facebook.net", "ad.doubleclick.net",
-            "static.doubleclick.net", "td.doubleclick.net", "googleoptimize.com",
-            // Meta / Facebook
-            "facebook.com/tr", "facebook.net", "fbcdn.net", "connect.facebook.net",
-            "pixel.facebook.com", "an.facebook.com", "atdmt.com",
-            // Microsoft / LinkedIn
-            "bat.bing.com", "c.bing.com", "ads.microsoft.com",
-            "linkedin.com/px", "px.ads.linkedin.com",
-            // Amazon
-            "amazon-adsystem.com", "aax.amazon-adsystem.com", "amazonadsi.com",
-            // Twitter / X
-            "analytics.twitter.com", "ads-twitter.com", "t.co",
-            // TikTok
-            "ads.tiktok.com", "analytics.tiktok.com",
-            // Major ad networks
-            "adsystem.com", "adnxs.com", "criteo.com", "casalemedia.com",
-            "rubiconproject.com", "openx.net", "pubmatic.com",
-            "thetradedesk.com", "adsrvr.org", "adzerk.net",
-            "lijit.com", "sovrn.com", "indexww.com", "quantserve.com",
-            "scorecardresearch.com", "comscore.com", "moatads.com",
-            // Analytics
-            "hotjar.com", "mouseflow.com", "fullstory.com",
-            "crazyegg.com", "clicktale.net", "optimizely.com",
-            "segment.io", "segment.com", "amplitude.com", "mixpanel.com",
-            "heap.com", "branch.io", "adjust.com", "appsflyer.com",
-        ]
+    private func apply(to controller: WKUserContentController) {
+        if isBlockingEnabled, let ad = adRuleList { controller.add(ad) }
+        if isTrackingEnabled, let tr = trackingRuleList { controller.add(tr) }
+    }
 
-        let rules = trackers.enumerated().map { i, domain in
-            """
-            {"trigger":{"url-filter":".*\(domain.replacingOccurrences(of: "/", with: "\\\\/")).*"},"action":{"type":"block"}}
-            """
+    private func reapplyAll() {
+        for box in registered {
+            guard let c = box.controller else { continue }
+            c.removeAllContentRuleLists()
+            apply(to: c)
         }
-        return "[\(rules.joined(separator: ","))]"
-    }()
+    }
+}
+
+private final class WeakBox {
+    weak var controller: WKUserContentController?
+    init(controller: WKUserContentController) { self.controller = controller }
+}
+
+private extension ContentBlocker {
+    var adsRulesJSON: String { ContentRules.ads }
+
+    var trackingRulesJSON: String { ContentRules.tracking }
+}
+
+private enum ContentRules {
+    static let ads = """
+    [{"trigger":{"url-filter":".*doubleclick\\\\.net.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*googlesyndication\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*googleadservices\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*google-analytics\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*googletagmanager\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*googletagservices\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*adservice\\\\.google\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*pagead2\\\\.googlesyndication\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*adsystem\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*adnxs\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*criteo\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*casalemedia\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*rubiconproject\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*openx\\\\.net.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*pubmatic\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*taboola\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*outbrain\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*adsafeprotected\\\\.com.*"},"action":{"type":"block"}}]
+    """
+
+    static let tracking = """
+    [{"trigger":{"url-filter":".*","load-type":["third-party"]},"action":{"type":"block-cookies"}},
+    {"trigger":{"url-filter":".*connect\\\\.facebook\\\\.net.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*\\\\.facebook\\\\.net.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*\\\\.facebook\\\\.com/tr.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*analytics\\\\.twitter\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*ads-twitter\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*\\\\.linkedin\\\\.com/px.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*snap\\\\.licdn\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*api\\\\.segment\\\\.io.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*cdn\\\\.segment\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*api\\\\.mixpanel\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*cdn\\\\.mxpnl\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*api\\\\.amplitude\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*static\\\\.hotjar\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*script\\\\.hotjar\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*rs\\\\.fullstory\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*cdn\\\\.mouseflow\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*static\\\\.chartbeat\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*pingdom\\\\.net.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*clarity\\\\.ms.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*bat\\\\.bing\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*tagmanager\\\\.google\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*scorecardresearch\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*quantserve\\\\.com.*"},"action":{"type":"block"}},
+    {"trigger":{"url-filter":".*\\\\.tiktok\\\\.com/i18n/pixel.*"},"action":{"type":"block"}}]
+    """
 }

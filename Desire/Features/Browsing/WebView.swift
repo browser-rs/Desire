@@ -247,6 +247,7 @@ struct WebView: NSViewRepresentable {
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
+    var httpsUpgradeEnabled: Bool = true
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
 
@@ -278,6 +279,8 @@ struct WebView: NSViewRepresentable {
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
+        private var pendingUpgrade: (https: URL, http: URL)?
+        private var fallbackInProgress: Set<String> = []
 
         private struct DownloadInfo {
             let id: UUID
@@ -392,6 +395,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.state.isSecure = webView.url?.scheme == "https"
+            pendingUpgrade = nil
             if let host = webView.url?.host {
                 let savedZoom = parent.siteSettingsStore.zoom(for: host)
                 if savedZoom != 1.0 {
@@ -437,7 +441,6 @@ struct WebView: NSViewRepresentable {
             }
 
             if navigationAction.targetFrame == nil {
-                // 弹窗式导航（OAuth 等），改为当前窗口加载
                 webView.load(URLRequest(url: url))
                 decisionHandler(.cancel)
                 return
@@ -449,6 +452,22 @@ struct WebView: NSViewRepresentable {
                 decisionHandler(.cancel)
                 return
             }
+
+            // HTTPS 升级
+            if parent.httpsUpgradeEnabled,
+               url.scheme == "http",
+               navigationAction.targetFrame?.isMainFrame == true,
+               !fallbackInProgress.contains(url.absoluteString) {
+                var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                comps?.scheme = "https"
+                if let https = comps?.url {
+                    pendingUpgrade = (https: https, http: url)
+                    webView.load(URLRequest(url: https))
+                    decisionHandler(.cancel)
+                    return
+                }
+            }
+
             decisionHandler(.allow)
         }
 
@@ -471,6 +490,13 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
             parent.state.lastError = error.localizedDescription
+            if let upgrade = pendingUpgrade,
+               let urlError = error as? URLError,
+               urlError.code != .cancelled {
+                pendingUpgrade = nil
+                fallbackInProgress.insert(upgrade.http.absoluteString)
+                webView.load(URLRequest(url: upgrade.http))
+            }
         }
 
         // MARK: - WKUIDelegate - 权限请求

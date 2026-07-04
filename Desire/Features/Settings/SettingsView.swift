@@ -7,8 +7,13 @@ struct SettingsView: View {
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
+    @ObservedObject var historyStore: HistoryStore
     var onDone: () -> Void
     @State private var showClearConfirm = false
+    @State private var clearCookies = true
+    @State private var clearCache = true
+    @State private var clearStorage = true
+    @State private var clearHistory = true
 
     var body: some View {
         TabView {
@@ -48,6 +53,11 @@ struct SettingsView: View {
 
                 Toggle("广告屏蔽", isOn: $contentBlocker.isBlockingEnabled)
 
+                Toggle("跟踪保护", isOn: $contentBlocker.isTrackingEnabled)
+
+                Toggle("HTTPS 升级", isOn: $settings.httpsUpgradeEnabled)
+                    .help("尝试将 HTTP 连接自动升级为 HTTPS")
+
                 Divider()
 
                 Toggle("显示搜索建议", isOn: $settings.showSearchSuggestions)
@@ -63,9 +73,13 @@ struct SettingsView: View {
 
                 Divider()
 
-                Button("清除所有浏览数据", role: .destructive) {
-                    showClearConfirm = true
-                }
+                ClearDataSection(
+                    clearCookies: $clearCookies,
+                    clearCache: $clearCache,
+                    clearStorage: $clearStorage,
+                    clearHistory: $clearHistory,
+                    onClear: { showClearConfirm = true }
+                )
             }
             .padding()
             .tabItem { Label("隐私", systemImage: "hand.raised") }
@@ -76,7 +90,7 @@ struct SettingsView: View {
             KeyboardShortcutsView()
                 .tabItem { Label("快捷键", systemImage: "keyboard") }
         }
-        .frame(width: 440, height: 480)
+        .frame(width: 440, height: 520)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成", action: onDone)
@@ -86,13 +100,55 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
             Button("清除", role: .destructive) { clearBrowsingData() }
         } message: {
-            Text("将清除缓存、Cookies 和本地存储数据。此操作不可撤销。")
+            Text("选中的浏览数据将被清除。此操作不可撤销。")
         }
     }
 
     private func clearBrowsingData() {
-        let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { }
+        var types = Set<String>()
+        if clearCookies { types.insert(WKWebsiteDataTypeCookies) }
+        if clearCache {
+            types.insert(WKWebsiteDataTypeDiskCache)
+            types.insert(WKWebsiteDataTypeMemoryCache)
+        }
+        if clearStorage {
+            types.insert(WKWebsiteDataTypeLocalStorage)
+            types.insert(WKWebsiteDataTypeSessionStorage)
+            types.insert(WKWebsiteDataTypeIndexedDBDatabases)
+            types.insert(WKWebsiteDataTypeWebSQLDatabases)
+        }
+        if !types.isEmpty {
+            WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { }
+        }
+        if clearHistory {
+            historyStore.clearAll()
+        }
+    }
+}
+
+private struct ClearDataSection: View {
+    @Binding var clearCookies: Bool
+    @Binding var clearCache: Bool
+    @Binding var clearStorage: Bool
+    @Binding var clearHistory: Bool
+    let onClear: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("清除浏览数据")
+                .font(.headline)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Cookie", isOn: $clearCookies)
+                    Toggle("缓存", isOn: $clearCache)
+                    Toggle("本地存储", isOn: $clearStorage)
+                    Toggle("浏览历史", isOn: $clearHistory)
+                }
+                .padding(4)
+            }
+            Button("清除", role: .destructive) { onClear() }
+                .disabled(!(clearCookies || clearCache || clearStorage || clearHistory))
+        }
     }
 }
 

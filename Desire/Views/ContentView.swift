@@ -354,7 +354,7 @@ struct ContentView: View {
             }, onClose: { showHistory = false })
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, formAutofillStore: formAutofillStore, permissionStore: permissionStore, onDone: { showSettings = false })
+            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, formAutofillStore: formAutofillStore, permissionStore: permissionStore, historyStore: historyStore, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarkPanel(store: bookmarkStore, onSelect: { url in
@@ -616,6 +616,7 @@ struct ContentView: View {
             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
+            httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
             onOpenLinkInNewTab: { url in
                 tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
             },

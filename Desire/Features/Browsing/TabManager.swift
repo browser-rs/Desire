@@ -14,6 +14,8 @@ class Tab: ObservableObject {
     @Published var isOnNewTabPage = true
     @Published var displayTitle = "新标签页"
     @Published var isPinned = false
+    @Published var isSuspended = false
+    var lastAccessed = Date()
     var suppressHistoryOnce = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -45,16 +47,52 @@ class TabManager: ObservableObject {
     @Published var selectedIndex = 0
     private var tabCancellables: [UUID: AnyCancellable] = [:]
     private var recentlyClosedURLs: [String] = []
+    private var suspendTimer: Timer?
 
     init() {
         NotificationCenter.default.addObserver(
             self, selector: #selector(saveOnTerminate),
             name: NSApplication.willTerminateNotification, object: nil
         )
+        startSuspendTimer()
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        suspendTimer?.invalidate()
+    }
+
+    func startSuspendTimer() {
+        suspendTimer?.invalidate()
+        suspendTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.suspendIdleTabs()
+            }
+        }
+    }
+
+    func stopSuspendTimer() {
+        suspendTimer?.invalidate()
+        suspendTimer = nil
+    }
+
+    private func suspendIdleTabs() {
+        let threshold: TimeInterval = 30 * 60
+        for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
+            if -tab.lastAccessed.timeIntervalSinceNow > threshold {
+                tab.isSuspended = true
+            }
+        }
+    }
+
+    private func unsuspend(_ tab: Tab) {
+        guard tab.isSuspended else { return }
+        tab.isSuspended = false
+        if let url = tab.browser.webView.url {
+            tab.browser.webView.load(URLRequest(url: url))
+        } else if let url = URL(string: tab.urlString) {
+            tab.browser.webView.load(URLRequest(url: url))
+        }
     }
 
     @objc private func saveOnTerminate() {
@@ -143,6 +181,10 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         persistSession()
         selectedIndex = index
+        tabs[index].lastAccessed = Date()
+        if tabs[index].isSuspended {
+            unsuspend(tabs[index])
+        }
     }
 
     // MARK: - Session persistence

@@ -185,6 +185,8 @@ struct ContentView: View {
                                 tab.browser.isReadingMode = false
                             }
                         )
+                    } else if tab.isSuspended {
+                        suspendedTabView(tab)
                     } else if tab.isOnNewTabPage {
                         NewTabPage(store: quickDialStore, urlString: Binding(
                             get: { tab.urlString },
@@ -584,5 +586,41 @@ struct ContentView: View {
         })();
         """
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    @ViewBuilder
+    private func suspendedTabView(_ tab: Tab) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "moon.zzz")
+                .font(.system(size: 40))
+                .foregroundStyle(.tertiary)
+            Text("此标签页已休眠")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("点击以重新加载 — \(tab.displayTitle)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Button("重新加载") {
+                tab.isSuspended = false
+                tab.lastAccessed = Date()
+                if let url = tab.browser.webView.url {
+                    tab.browser.webView.load(URLRequest(url: url))
+                } else if let url = URL(string: tab.urlString) {
+                    tab.browser.webView.load(URLRequest(url: url))
+                }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onTapGesture {
+            tab.isSuspended = false
+            tab.lastAccessed = Date()
+            if let url = tab.browser.webView.url {
+                tab.browser.webView.load(URLRequest(url: url))
+            } else if let url = URL(string: tab.urlString) {
+                tab.browser.webView.load(URLRequest(url: url))
+            }
+        }
     }
 }

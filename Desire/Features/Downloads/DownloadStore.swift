@@ -2,8 +2,8 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct DownloadItem: Identifiable {
-    let id = UUID()
+struct DownloadItem: Identifiable, Codable {
+    let id: UUID
     var filename: String
     var fileURL: URL?
     var totalBytes: Int64
@@ -12,7 +12,7 @@ struct DownloadItem: Identifiable {
     var error: String?
     var cancel: (() -> Void)?
 
-    enum State { case inProgress, completed, failed }
+    enum State: String, Codable { case inProgress, completed, failed }
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }
@@ -20,6 +20,10 @@ struct DownloadItem: Identifiable {
     }
 
     var isIndeterminate: Bool { totalBytes <= 0 && state == .inProgress }
+
+    enum CodingKeys: String, CodingKey {
+        case id, filename, fileURL, totalBytes, downloadedBytes, state, error
+    }
 }
 
 @MainActor
@@ -30,6 +34,7 @@ class DownloadStore: ObservableObject {
     private var pollTimer: Timer?
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
+    private let historyKey = "desire.downloadHistory"
 
     var hasActive: Bool { downloads.contains { $0.state == .inProgress } }
     var activeCount: Int { downloads.filter { $0.state == .inProgress }.count }
@@ -42,6 +47,7 @@ class DownloadStore: ObservableObject {
                 accessedURL = custom.url
             }
         }
+        loadHistory()
     }
 
     private static func defaultDownloadsURL() -> URL {
@@ -134,6 +140,7 @@ class DownloadStore: ObservableObject {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
         stopPollingIfNeeded()
+        saveHistory()
     }
 
     func fail(id: UUID, message: String) {
@@ -141,6 +148,7 @@ class DownloadStore: ObservableObject {
         downloads[i].state = .failed
         downloads[i].error = message
         stopPollingIfNeeded()
+        saveHistory()
     }
 
     func remove(id: UUID) {
@@ -153,6 +161,20 @@ class DownloadStore: ObservableObject {
 
     func clearFinished() {
         downloads.removeAll { $0.state != .inProgress }
+        saveHistory()
+    }
+
+    private func saveHistory() {
+        let finished = downloads.filter { $0.state != .inProgress }
+        if let data = try? JSONEncoder().encode(finished) {
+            UserDefaults.standard.set(data, forKey: historyKey)
+        }
+    }
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: historyKey),
+              let history = try? JSONDecoder().decode([DownloadItem].self, from: data) else { return }
+        downloads = history
     }
 
     func revealInFinder(_ item: DownloadItem) {

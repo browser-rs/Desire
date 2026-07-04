@@ -25,6 +25,7 @@ struct Toolbar: View {
     let downloadStore: DownloadStore
     let bookmarkStore: BookmarkStore
     let historyStore: HistoryStore
+    let passwordStore: PasswordStore
     var isUrlFocused: FocusState<Bool>.Binding
 
     let actions: Actions
@@ -35,6 +36,7 @@ struct Toolbar: View {
     @Binding var showSettings: Bool
 
     @State private var showDownloads = false
+    @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
 
@@ -139,6 +141,7 @@ struct Toolbar: View {
                     VStack(spacing: 0) {
                         moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                         moreMenuItem("书签", "bookmark") { showBookmarks = true }
+                        moreMenuItem("密码", "lock.keyhole") { showPasswords = true }
                         moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
                         moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
                         moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
@@ -163,6 +166,9 @@ struct Toolbar: View {
     .padding(.horizontal, 8)
         .padding(.bottom, 6)
         .background(.bar)
+        .popover(isPresented: $showPasswords) {
+            PasswordPanel(passwordStore: passwordStore)
+        }
         .onChange(of: isUrlFocused.wrappedValue) { _, focused in
             if !focused { suggestionModel.reset() }
         }

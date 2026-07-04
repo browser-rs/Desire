@@ -14,6 +14,7 @@ struct ContentView: View {
     @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var downloadStore = DownloadStore()
     @StateObject private var quickDialStore = QuickDialStore()
+    @StateObject private var passwordStore = PasswordStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -71,6 +72,7 @@ struct ContentView: View {
                     downloadStore: downloadStore,
                     bookmarkStore: bookmarkStore,
                     historyStore: historyStore,
+                    passwordStore: passwordStore,
                     isUrlFocused: $isUrlFocused,
                     actions: Toolbar.Actions(
                         goBack: { tab.browser.webView.goBack() },
@@ -142,6 +144,7 @@ struct ContentView: View {
                         WebView(
                             state: tab.browser,
                             downloadStore: downloadStore,
+                            passwordStore: passwordStore,
                             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
                             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
                             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),

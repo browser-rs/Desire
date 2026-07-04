@@ -165,6 +165,30 @@ class BrowserState: ObservableObject {
         let audioScript = WKUserScript(source: audioJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(audioScript)
 
+        let passwordJS = """
+        (function() {
+            function detectLoginForm() {
+                var pwd = document.querySelector('input[type=password]');
+                if (!pwd) return;
+                var form = pwd.closest('form');
+                if (!form) return;
+                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=login]');
+                if (!username) {
+                    username = form.querySelector('input:not([type=password]):not([type=hidden])');
+                }
+                if (username) {
+                    window.webkit.messageHandlers.passwordDetect.postMessage({
+                        username: username.name || username.id || 'username'
+                    });
+                }
+            }
+            document.addEventListener('DOMContentLoaded', detectLoginForm);
+            setTimeout(detectLoginForm, 1000);
+        })();
+        """
+        let passwordScript = WKUserScript(source: passwordJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        config.userContentController.addUserScript(passwordScript)
+
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
@@ -174,6 +198,7 @@ class BrowserState: ObservableObject {
 struct WebView: NSViewRepresentable {
     @ObservedObject var state: BrowserState
     @ObservedObject var downloadStore: DownloadStore
+    @ObservedObject var passwordStore: PasswordStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -216,6 +241,7 @@ struct WebView: NSViewRepresentable {
 
         func observe(_ webView: WKWebView) {
             webView.configuration.userContentController.add(self, name: "audioState")
+            webView.configuration.userContentController.add(self, name: "passwordDetect")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -233,6 +259,7 @@ struct WebView: NSViewRepresentable {
             observations.removeAll()
             let wv = parent.state.webView
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -242,6 +269,22 @@ struct WebView: NSViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
+                      let usernameName = dict["username"],
+                      let host = parent.state.webView.url?.host {
+                let entries = parent.passwordStore.find(domain: host)
+                guard !entries.isEmpty else { return }
+                let js = """
+                (function() {
+                    var f = document.querySelector('input[type=password]').closest('form');
+                    if (!f) return;
+                    var u = f.querySelector('input[name=\(usernameName)], input[id=\(usernameName)], input[type=text], input[type=email]');
+                    if (u) u.value = '\(entries[0].username)';
+                    var p = f.querySelector('input[type=password]');
+                    if (p) p.value = '\(entries[0].password)';
+                })();
+                """
+                parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
             }
         }
 
@@ -434,6 +477,7 @@ struct WebView: NSViewRepresentable {
             download.delegate = self
             let filename = download.originalRequest?.url?.lastPathComponent ?? "下载项"
             let id = parent.downloadStore.add(item: DownloadItem(
+                id: UUID(),
                 filename: filename,
                 fileURL: nil,
                 totalBytes: 0,

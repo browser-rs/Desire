@@ -34,6 +34,10 @@ class BrowserState: ObservableObject {
         }
         config.applicationNameForUserAgent = "Version/18.6 Safari/605.1.15"
         config.defaultWebpagePreferences.preferredContentMode = .desktop
+        // Explicitly enable HTML5 Fullscreen API for video sites (YouTube, etc.).
+        // Defaults to true, but being explicit avoids edge cases where the
+        // fullscreen transition silently no-ops inside SwiftUI-hosted WKWebView.
+        config.preferences.isElementFullscreenEnabled = true
         contentBlocker?.apply(to: config)
 
         let audioJS = """

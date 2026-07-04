@@ -24,7 +24,7 @@ struct PasswordPanel: View {
 
             if filtered.isEmpty {
                 Spacer()
-                emptyState("没有保存的密码")
+                EmptyState(message: "没有保存的密码")
                 Spacer()
             } else {
                 List {

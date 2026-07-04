@@ -17,7 +17,7 @@ struct UserScriptPanel: View {
             .padding()
 
             if store.scripts.isEmpty {
-                emptyState("暂无用户脚本")
+                EmptyState(message: "暂无用户脚本")
             } else {
                 List(store.scripts) { script in
                     HStack {

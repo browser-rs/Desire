@@ -61,7 +61,7 @@ struct SidebarView: View {
         .listStyle(.plain)
         .overlay {
             if bookmarkStore.allBookmarks.isEmpty {
-                emptyState("无书签")
+                EmptyState(message: "无书签")
             }
         }
     }
@@ -81,7 +81,7 @@ struct SidebarView: View {
         .listStyle(.plain)
         .overlay {
             if historyStore.entries.isEmpty {
-                emptyState("无历史记录")
+                EmptyState(message: "无历史记录")
             }
         }
     }
@@ -101,7 +101,7 @@ struct SidebarView: View {
         .listStyle(.plain)
         .overlay {
             if readingListStore.items.isEmpty {
-                emptyState("阅读列表为空")
+                EmptyState(message: "阅读列表为空")
             }
         }
     }

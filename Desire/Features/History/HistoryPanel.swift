@@ -40,7 +40,7 @@ struct HistoryPanel: View {
             }
 
             if filtered.isEmpty {
-                emptyState(searchText.isEmpty ? "暂无浏览记录" : "未找到匹配记录")
+                EmptyState(message: searchText.isEmpty ? "暂无浏览记录" : "未找到匹配记录")
             } else {
                 List(filtered) { entry in
                     EntryRow(

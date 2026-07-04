@@ -290,11 +290,15 @@ struct WebView: NSViewRepresentable {
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
-                    self?.parent.state.estimatedProgress = wv.estimatedProgress
+                    DispatchQueue.main.async { [weak self] in
+                        self?.parent.state.estimatedProgress = wv.estimatedProgress
+                    }
                 },
                 webView.observe(\.title, options: [.initial, .new]) { [weak self] wv, _ in
                     if let title = wv.title, !title.isEmpty {
-                        self?.parent.state.pageTitle = title
+                        DispatchQueue.main.async { [weak self] in
+                            self?.parent.state.pageTitle = title
+                        }
                     }
                 },
             ]

@@ -16,7 +16,7 @@ class Tab: ObservableObject {
     @Published var isPinned = false
     @Published var isSuspended = false
     @Published var isResponsiveMode = false
-    var responsiveSize = CGSize(width: 375, height: 667)
+    @Published var responsiveSize = CGSize(width: 375, height: 667)
     var lastAccessed = Date()
     var suppressHistoryOnce = false
 
@@ -50,18 +50,25 @@ class TabManager: ObservableObject {
     private var tabCancellables: [UUID: AnyCancellable] = [:]
     private var recentlyClosedURLs: [String] = []
     private var suspendTimer: Timer?
+    private var sessionSaveTimer: Timer?
 
     init() {
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(saveOnTerminate),
-            name: NSApplication.willTerminateNotification, object: nil
-        )
+        startSessionSaveTimer()
         startSuspendTimer()
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
         suspendTimer?.invalidate()
+        sessionSaveTimer?.invalidate()
+    }
+
+    private func startSessionSaveTimer() {
+        sessionSaveTimer?.invalidate()
+        sessionSaveTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.persistSession()
+            }
+        }
     }
 
     func startSuspendTimer() {
@@ -95,10 +102,6 @@ class TabManager: ObservableObject {
         } else if let url = URL(string: tab.urlString) {
             tab.browser.webView.load(URLRequest(url: url))
         }
-    }
-
-    @objc private func saveOnTerminate() {
-        persistSession()
     }
 
     var selectedTab: Tab? {
@@ -217,7 +220,7 @@ class TabManager: ObservableObject {
 
     private func captureInteractionState(for tab: Tab) -> Data? {
         guard let state = tab.browser.webView.interactionState else { return nil }
-        return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
+        return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: false)
     }
 
     @discardableResult
@@ -237,12 +240,14 @@ class TabManager: ObservableObject {
             tab.isPinned = saved.isPinned
 
             if let data = saved.sessionState,
-               let state = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSObject.self], from: data) {
+               let state = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) {
                 tab.browser.webView.interactionState = state
             }
 
             tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
-                self?.objectWillChange.send()
+                DispatchQueue.main.async { [weak self] in
+                    self?.objectWillChange.send()
+                }
             }
             tabs.append(tab)
             if !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {

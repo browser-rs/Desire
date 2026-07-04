@@ -182,10 +182,12 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 0) {
-                        ResponsiveDesignBar(
-                            isEnabled: Binding(get: { tab.isResponsiveMode }, set: { tab.isResponsiveMode = $0 }),
-                            deviceSize: Binding(get: { tab.responsiveSize }, set: { tab.responsiveSize = $0 })
-                        )
+                        if tab.isResponsiveMode {
+                            ResponsiveDesignBar(
+                                isEnabled: Binding(get: { tab.isResponsiveMode }, set: { tab.isResponsiveMode = $0 }),
+                                deviceSize: Binding(get: { tab.responsiveSize }, set: { tab.responsiveSize = $0 })
+                            )
+                        }
 
                         if isFindBarVisible {
                             FindBar(
@@ -209,7 +211,7 @@ struct ContentView: View {
                             }
                         )
                     } else if tab.isSuspended {
-                        suspendedTabView(tab)
+                        SuspendedTabView(tab: tab)
                     } else if tab.isOnNewTabPage {
                         NewTabPage(store: quickDialStore, urlString: Binding(
                             get: { tab.urlString },
@@ -218,51 +220,12 @@ struct ContentView: View {
                             navigateToURL(input, for: tab)
                         })
                     } else {
-                        let webContent = WebView(
-                            state: tab.browser,
-                            downloadStore: downloadStore,
-                            passwordStore: passwordStore,
-                            formAutofillStore: formAutofillStore,
-                            permissionStore: permissionStore,
-                            siteSettingsStore: siteSettingsStore,
-                            urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
-                            isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
-                            canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
-                            canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
-                            onOpenLinkInNewTab: { url in
-                                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
-                            },
-                            onPageFinished: { url, title in
-                                if tab.suppressHistoryOnce {
-                                    tab.suppressHistoryOnce = false
-                                } else if !tab.isIncognito {
-                                    historyStore.addEntry(url: url.absoluteString, title: title)
-                                }
-                                userScriptStore.injectScripts(into: tab.browser.webView)
-                            }
-                        )
-
-                        if tab.isResponsiveMode {
-                            GeometryReader { geo in
-                                let size = tab.responsiveSize
-                                let scale = min(
-                                    (geo.size.width - 40) / size.width,
-                                    (geo.size.height - 40) / size.height,
-                                    1.0
-                                )
-                                let displayW = size.width * scale
-                                let displayH = size.height * scale
-                                ZStack {
-                                    Color(nsColor: .windowBackgroundColor).opacity(0.8)
-                                    webContent
-                                        .frame(width: displayW, height: displayH)
-                                        .clipShape(RoundedRectangle(cornerRadius: 2))
-                                        .shadow(color: .black.opacity(0.2), radius: 12)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
-                        } else {
-                            webContent
+                        GeometryReader { geo in
+                            let responsiveSize = tab.responsiveSize
+                            let responsiveW: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.width, geo.size.width - 40) : nil
+                            let responsiveH: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.height, geo.size.height - 40) : nil
+                            makeWebView(for: tab)
+                                .frame(width: responsiveW, height: responsiveH)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
@@ -285,7 +248,33 @@ struct ContentView: View {
                 }
                 .overlay {
                     if let error = tab.browser.lastError, !tab.isOnNewTabPage {
-                        errorView(message: error, tab: tab)
+                        ErrorPageView(message: error, tab: tab)
+                    }
+                }
+                .overlay {
+                    if tab.isResponsiveMode {
+                        GeometryReader { geo in
+                            let size = tab.responsiveSize
+                            let scale = min(
+                                (geo.size.width - 40) / size.width,
+                                (geo.size.height - 40) / size.height,
+                                1.0
+                            )
+                            let displayW = size.width * scale
+                            let displayH = size.height * scale
+                            ZStack(alignment: .topTrailing) {
+                                Color(nsColor: .windowBackgroundColor).opacity(0.6)
+                                RoundedRectangle(cornerRadius: 2)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                                    .frame(width: displayW, height: displayH)
+                                Text("\(Int(size.width))×\(Int(size.height))")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                                    .padding(6)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .allowsHitTesting(false)
+                        }
                     }
                 }
             }
@@ -449,34 +438,6 @@ struct ContentView: View {
 
     private func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)
-    }
-
-    private func errorView(message: String, tab: Tab) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-
-            Text("无法加载页面")
-                .font(.title2)
-
-            Text(message)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .frame(maxWidth: 400)
-
-            Button("重新加载") {
-                tab.browser.lastError = nil
-                if let url = URL(string: tab.urlString) {
-                    tab.browser.webView.load(URLRequest(url: url))
-                }
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func toggleBookmark() {
@@ -643,39 +604,29 @@ struct ContentView: View {
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    @ViewBuilder
-    private func suspendedTabView(_ tab: Tab) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "moon.zzz")
-                .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
-            Text("此标签页已休眠")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("点击以重新加载 — \(tab.displayTitle)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Button("重新加载") {
-                tab.isSuspended = false
-                tab.lastAccessed = Date()
-                if let url = tab.browser.webView.url {
-                    tab.browser.webView.load(URLRequest(url: url))
-                } else if let url = URL(string: tab.urlString) {
-                    tab.browser.webView.load(URLRequest(url: url))
+    private func makeWebView(for tab: Tab) -> WebView {
+        WebView(
+            state: tab.browser,
+            downloadStore: downloadStore,
+            passwordStore: passwordStore,
+            formAutofillStore: formAutofillStore,
+            permissionStore: permissionStore,
+            siteSettingsStore: siteSettingsStore,
+            urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
+            isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
+            canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
+            canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
+            onOpenLinkInNewTab: { url in
+                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            },
+            onPageFinished: { url, title in
+                if tab.suppressHistoryOnce {
+                    tab.suppressHistoryOnce = false
+                } else if !tab.isIncognito {
+                    historyStore.addEntry(url: url.absoluteString, title: title)
                 }
+                userScriptStore.injectScripts(into: tab.browser.webView)
             }
-            .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onTapGesture {
-            tab.isSuspended = false
-            tab.lastAccessed = Date()
-            if let url = tab.browser.webView.url {
-                tab.browser.webView.load(URLRequest(url: url))
-            } else if let url = URL(string: tab.urlString) {
-                tab.browser.webView.load(URLRequest(url: url))
-            }
-        }
+        )
     }
 }

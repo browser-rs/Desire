@@ -61,7 +61,7 @@ struct BookmarkPanel: View {
             }
 
             if flatItems.isEmpty {
-                emptyState(searchText.isEmpty ? "暂无书签" : "未找到匹配书签")
+                EmptyState(message: searchText.isEmpty ? "暂无书签" : "未找到匹配书签")
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {

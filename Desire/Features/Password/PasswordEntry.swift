@@ -1,6 +1,6 @@
 import Foundation
 
-struct PasswordEntry: Identifiable, Codable {
+struct PasswordEntry: Identifiable {
     let id: UUID
     var domain: String
     var username: String

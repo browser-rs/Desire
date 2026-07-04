@@ -18,7 +18,7 @@ struct DownloadPanel: View {
             Divider()
 
             if store.downloads.isEmpty {
-                emptyState("暂无下载")
+                EmptyState(message: "暂无下载")
             } else {
                 ScrollView {
                     VStack(spacing: 0) {

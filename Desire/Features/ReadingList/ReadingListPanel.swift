@@ -24,7 +24,7 @@ struct ReadingListPanel: View {
             .padding()
 
             if store.items.isEmpty {
-                emptyState("阅读列表为空\n在浏览器菜单中选择「添加到阅读列表」来保存文章稍后阅读")
+                EmptyState(message: "阅读列表为空\n在浏览器菜单中选择「添加到阅读列表」来保存文章稍后阅读")
             } else {
                 List {
                     ForEach(store.items) { item in

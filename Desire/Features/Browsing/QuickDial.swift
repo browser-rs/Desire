@@ -22,5 +22,5 @@ let defaultDials: [QuickDial] = [
     QuickDial(title: "Reddit", url: "https://www.reddit.com", icon: "bubble.left.and.bubble.right"),
     QuickDial(title: "Apple", url: "https://www.apple.com", icon: "apple.logo"),
     QuickDial(title: "Twitter/X", url: "https://x.com", icon: "bird"),
-    QuickDial(title: "Baidu", url: "https://www.baidu.com", icon: "spider"),
+    QuickDial(title: "Baidu", url: "https://www.baidu.com", icon: "globe"),
 ]

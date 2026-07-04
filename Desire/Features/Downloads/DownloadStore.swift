@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct DownloadItem: Identifiable, Codable {
+struct DownloadItem: Identifiable {
     let id: UUID
     var filename: String
     var fileURL: URL?
@@ -20,10 +20,6 @@ struct DownloadItem: Identifiable, Codable {
     }
 
     var isIndeterminate: Bool { totalBytes <= 0 && state == .inProgress }
-
-    enum CodingKeys: String, CodingKey {
-        case id, filename, fileURL, totalBytes, downloadedBytes, state, error
-    }
 }
 
 @MainActor
@@ -156,6 +152,7 @@ class DownloadStore: ObservableObject {
             item.cancel?()
         }
         downloads.removeAll { $0.id == id }
+        saveHistory()
         stopPollingIfNeeded()
     }
 
@@ -166,15 +163,16 @@ class DownloadStore: ObservableObject {
 
     private func saveHistory() {
         let finished = downloads.filter { $0.state != .inProgress }
-        if let data = try? JSONEncoder().encode(finished) {
+        let items = finished.map { HistoryItem($0) }
+        if let data = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(data, forKey: historyKey)
         }
     }
 
     private func loadHistory() {
         guard let data = UserDefaults.standard.data(forKey: historyKey),
-              let history = try? JSONDecoder().decode([DownloadItem].self, from: data) else { return }
-        downloads = history
+              let items = try? JSONDecoder().decode([HistoryItem].self, from: data) else { return }
+        downloads = items.map { $0.toDownloadItem() }
     }
 
     func revealInFinder(_ item: DownloadItem) {
@@ -207,6 +205,35 @@ class DownloadStore: ObservableObject {
             let size = (try? FileManager.default.attributesOfItem(atPath: path.path)[.size]) as? Int64
             downloads[i].downloadedBytes = size ?? downloads[i].downloadedBytes
         }
+    }
+}
+
+private struct HistoryItem: Codable {
+    let id: UUID
+    var filename: String
+    var fileURL: URL?
+    var totalBytes: Int64
+    var downloadedBytes: Int64
+    var state: String
+    var error: String?
+
+    init(_ item: DownloadItem) {
+        id = item.id
+        filename = item.filename
+        fileURL = item.fileURL
+        totalBytes = item.totalBytes
+        downloadedBytes = item.downloadedBytes
+        state = item.state.rawValue
+        error = item.error
+    }
+
+    func toDownloadItem() -> DownloadItem {
+        DownloadItem(
+            id: id, filename: filename, fileURL: fileURL,
+            totalBytes: totalBytes, downloadedBytes: downloadedBytes,
+            state: DownloadItem.State(rawValue: state) ?? .failed,
+            error: error, cancel: nil
+        )
     }
 }
 

@@ -1,15 +1,18 @@
 import SwiftUI
 
-@ViewBuilder
-func emptyState(_ message: String) -> some View {
-    VStack {
-        Spacer()
-        Text(message).foregroundStyle(.secondary)
-        Spacer()
+struct EmptyState: View {
+    let message: String
+
+    var body: some View {
+        VStack {
+            Spacer()
+            Text(message).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
-    .frame(maxWidth: .infinity)
 }
 
 #Preview {
-    emptyState("暂无数据")
+    EmptyState(message: "暂无数据")
 }

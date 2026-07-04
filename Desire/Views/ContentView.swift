@@ -23,6 +23,7 @@ struct ContentView: View {
     @StateObject private var pluginStore = PluginStore()
     @StateObject private var tabGroupStore = TabGroupStore()
     @StateObject private var elementBlockStore = ElementBlockStore()
+    @StateObject private var screenshotStore = ScreenshotStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -178,7 +179,8 @@ struct ContentView: View {
                             })();
                             """
                             tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-                        }
+                        },
+                        screenshot: { screenshotStore.startCapture() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -440,6 +442,8 @@ struct ContentView: View {
                 bookmarkStore.exportToHTML()
             case .importBookmarks:
                 bookmarkStore.importFromHTML()
+            case .screenshot:
+                screenshotStore.startCapture()
             }
         }
         .sheet(isPresented: $showHistory) {
@@ -536,6 +540,21 @@ struct ContentView: View {
                 .padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        .overlay {
+            if case .selecting = screenshotStore.phase {
+                ScreenshotSelectionOverlay(
+                    onCancel: { screenshotStore.cancelCapture() },
+                    onCapture: { rect in screenshotStore.capture(rect: rect) }
+                )
+                .edgesIgnoringSafeArea(.all)
+            }
+        }
+        .sheet(isPresented: .init(
+            get: { if case .editing = screenshotStore.phase { true } else { false } },
+            set: { if !$0 { screenshotStore.cancelCapture() } }
+        )) {
+            ScreenshotEditorView(store: screenshotStore)
         }
     }
 

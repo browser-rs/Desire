@@ -101,6 +101,9 @@ struct DesireApp: App {
                 Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
                 Button("Import Bookmarks…") { postCommand(.importBookmarks) }
                 Divider()
+                Button("Screenshot…") { postCommand(.screenshot) }
+                    .keyboardShortcut("4", modifiers: [.command, .shift])
+                Divider()
                 Button("Print…") { postCommand(.printPage) }
                     .keyboardShortcut("p", modifiers: .command)
             }
@@ -128,6 +131,7 @@ enum BrowserCommand {
     case reload, inspectElement, printPage
     case zoomIn, zoomOut, actualSize
     case clearHistory, exportBookmarks, importBookmarks
+    case screenshot
 }
 
 extension Notification.Name {

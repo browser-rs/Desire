@@ -103,11 +103,20 @@ struct ContentView: View {
             }
 
             if let tab = tabManager.selectedTab {
-                ProgressView(value: tab.browser.estimatedProgress, total: 1)
-                    .progressViewStyle(.linear)
-                    .tint(.accentColor)
-                    .frame(height: tab.isLoading ? 2 : 0)
-                    .opacity(tab.isLoading ? 1 : 0)
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.15))
+                        .frame(height: 2)
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
+                        }
+                }
+                .frame(height: 2)
+                .opacity(tab.isLoading ? 1 : 0)
+                .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
+                .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
                 if isFindBarVisible {
                     FindBar(

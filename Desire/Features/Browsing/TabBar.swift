@@ -94,27 +94,8 @@ struct TabBar: View {
                         : Color.secondary.opacity(0.25),
                         lineWidth: index == selectedIndex ? 1.5 : 0.5)
         )
-        .overlay(alignment: .bottom) {
-            GeometryReader { geo in
-                Capsule()
-                    .fill(Color.accentColor)
-                    .frame(
-                        width: tab.isLoading
-                            ? max(geo.size.width * CGFloat(tab.browser.estimatedProgress), 4)
-                            : 0,
-                        height: 2
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 2)
-                    .padding(.bottom, 1)
-                    .opacity(tab.isLoading ? 1 : 0)
-            }
-            .animation(.smooth(duration: 0.15), value: tab.isLoading)
-            .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
-        }
         .clipShape(Capsule())
-        .animation(.smooth(duration: 0.15), value: tab.isLoading)
-        .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
+        .contentShape(Capsule())
         .contentShape(Capsule())
         .onTapGesture {
             onSelectTab(index)

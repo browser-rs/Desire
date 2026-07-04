@@ -88,22 +88,25 @@ struct TabBar: View {
                       : Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .stroke(index == selectedIndex
-                            ? Color.accentColor
-                            : Color.secondary.opacity(0.25),
-                            lineWidth: index == selectedIndex ? 1.5 : 0.5)
-                if tab.isLoading {
-                    GeometryReader { geo in
-                        Capsule()
-                            .fill(Color.accentColor.opacity(0.3))
-                            .frame(width: max(geo.size.width * CGFloat(tab.browser.estimatedProgress), 4))
-                            .frame(height: geo.size.height, alignment: .leading)
-                    }
-                }
-            }
+            Capsule()
+                .stroke(index == selectedIndex
+                        ? Color.accentColor
+                        : Color.secondary.opacity(0.25),
+                        lineWidth: index == selectedIndex ? 1.5 : 0.5)
         )
+        .overlay(alignment: .bottom) {
+            if tab.isLoading {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(Color.accentColor)
+                        .frame(width: max(geo.size.width * CGFloat(tab.browser.estimatedProgress), 4), height: 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 2)
+                        .padding(.bottom, 1)
+                }
+                .transition(.opacity)
+            }
+        }
         .clipShape(Capsule())
         .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
         .contentShape(Capsule())

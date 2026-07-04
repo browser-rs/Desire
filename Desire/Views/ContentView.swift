@@ -13,6 +13,7 @@ struct ContentView: View {
     @StateObject private var contentBlocker = ContentBlocker()
     @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var downloadStore = DownloadStore()
+    @StateObject private var quickDialStore = QuickDialStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -107,7 +108,7 @@ struct ContentView: View {
 
                 Group {
                     if tab.isOnNewTabPage {
-                        NewTabPage(urlString: Binding(
+                        NewTabPage(store: quickDialStore, urlString: Binding(
                             get: { tab.urlString },
                             set: { tab.urlString = $0 }
                         ), onNavigate: { input in

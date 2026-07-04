@@ -1,11 +1,135 @@
+# NewTabPage Enhancement Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Beautify NewTabPage with macOS-native card UI and support custom QuickDial management (add/delete/edit/reorder).
+
+**Architecture:** QuickDial model extracted to its own file with Codable; QuickDialStore manages `@Published dials` with UserDefaults persistence; NewTabPage receives store via `@ObservedObject` and uses card grid with popover-based add/edit forms.
+
+**Tech Stack:** SwiftUI, Combine, UserDefaults
+
+---
+
+### Task 1: Create QuickDial Model
+
+**Files:**
+- Create: `Desire/Features/Browsing/QuickDial.swift`
+- Remove QuickDial + defaultDials from: `Desire/Features/Browsing/NewTabPage.swift`
+
+- [ ] **Create QuickDial.swift**
+
+```swift
+import Foundation
+
+struct QuickDial: Identifiable, Codable {
+    let id: UUID
+    var title: String
+    var url: String
+    var icon: String
+
+    init(id: UUID = UUID(), title: String, url: String, icon: String = "globe") {
+        self.id = id
+        self.title = title
+        self.url = url
+        self.icon = icon
+    }
+}
+
+let defaultDials: [QuickDial] = [
+    QuickDial(title: "Google", url: "https://www.google.com", icon: "magnifyingglass"),
+    QuickDial(title: "YouTube", url: "https://www.youtube.com", icon: "play.rectangle"),
+    QuickDial(title: "GitHub", url: "https://github.com", icon: "chevron.left.forwardslash.chevron.right"),
+    QuickDial(title: "Wikipedia", url: "https://www.wikipedia.org", icon: "book"),
+    QuickDial(title: "Reddit", url: "https://www.reddit.com", icon: "bubble.left.and.bubble.right"),
+    QuickDial(title: "Apple", url: "https://www.apple.com", icon: "apple.logo"),
+    QuickDial(title: "Twitter/X", url: "https://x.com", icon: "bird"),
+    QuickDial(title: "Baidu", url: "https://www.baidu.com", icon: "spider"),
+]
+```
+
+- [ ] **Remove old QuickDial struct and defaultDials from NewTabPage.swift**
+
+Edit `NewTabPage.swift` to delete the `struct QuickDial` and `let defaultDials` declarations (lines 3-19).
+
+### Task 2: Create QuickDialStore
+
+**Files:**
+- Create: `Desire/Features/Browsing/QuickDialStore.swift`
+
+- [ ] **Create QuickDialStore.swift**
+
+```swift
+import Combine
+import Foundation
+
+@MainActor
+class QuickDialStore: ObservableObject {
+    @Published var dials: [QuickDial] = []
+    private let storageKey = "desire.quickdials"
+
+    init() {
+        load()
+    }
+
+    func add(title: String, url: String) {
+        let dial = QuickDial(title: title, url: url)
+        dials.append(dial)
+        save()
+    }
+
+    func delete(id: UUID) {
+        dials.removeAll { $0.id == id }
+        save()
+    }
+
+    func update(id: UUID, title: String, url: String) {
+        guard let index = dials.firstIndex(where: { $0.id == id }) else { return }
+        dials[index].title = title
+        dials[index].url = url
+        save()
+    }
+
+    func move(from source: Int, to destination: Int) {
+        guard dials.indices.contains(source), dials.indices.contains(destination) else { return }
+        let moved = dials.remove(at: source)
+        let insert = source < destination ? destination - 1 : destination
+        dials.insert(moved, at: min(insert, dials.count))
+        save()
+    }
+
+    private func load() {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([QuickDial].self, from: data),
+              !decoded.isEmpty else {
+            dials = defaultDials
+            return
+        }
+        dials = decoded
+    }
+
+    private func save() {
+        guard let data = try? JSONEncoder().encode(dials) else { return }
+        UserDefaults.standard.set(data, forKey: storageKey)
+    }
+}
+```
+
+### Task 3: Rewrite NewTabPage.swift
+
+**Files:**
+- Rewrite: `Desire/Features/Browsing/NewTabPage.swift`
+
+- [ ] **Rewrite NewTabPage.swift**
+
+```swift
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct NewTabPage: View {
     @ObservedObject var store: QuickDialStore
     @Binding var urlString: String
     var onNavigate: (String) -> Void
+
     @State private var searchText = ""
     @State private var editingDial: QuickDial?
     @State private var editTitle = ""
@@ -72,7 +196,6 @@ struct NewTabPage: View {
             editURL = dial.url
         }
         .onTapGesture {
-            urlString = dial.url
             onNavigate(dial.url)
         }
         .contextMenu {
@@ -168,3 +291,61 @@ private struct DialDropDelegate: DropDelegate {
         return true
     }
 }
+```
+
+### Task 4: Update ContentView.swift
+
+**Files:**
+- Modify: `Desire/Views/ContentView.swift`
+
+- [ ] **Add quickDialStore to ContentView**
+
+Add `@StateObject private var quickDialStore = QuickDialStore()` alongside the other state objects.
+
+- [ ] **Update NewTabPage usage**
+
+Find the NewTabPage instantiation in ContentView.swift and update it:
+
+Before:
+```swift
+NewTabPage(urlString: Binding(
+    get: { tab.urlString },
+    set: { tab.urlString = $0 }
+), onNavigate: { input in
+    navigateToURL(input, for: tab)
+})
+```
+
+After:
+```swift
+NewTabPage(store: quickDialStore, urlString: Binding(
+    get: { tab.urlString },
+    set: { tab.urlString = $0 }
+), onNavigate: { input in
+    navigateToURL(input, for: tab)
+})
+```
+
+### Task 5: Build & Verify
+
+- [ ] **Build the project**
+
+```bash
+xcodebuild -project Desire.xcodeproj -scheme Desire build
+```
+
+Expected: ** BUILD SUCCEEDED **
+
+- [ ] **Commit**
+
+```bash
+git add -A && git commit -m "feat: enhance NewTabPage with macOS-native card UI and QuickDial management
+
+- QuickDial model extracted to own file with Codable persistence
+- QuickDialStore manages CRUD + reorder with UserDefaults
+- Card grid UI with SF Symbol icons, shadows, hover
+- Right-click context menu for edit/delete
+- Popover-based add/edit form
+- Drag reorder via DialDropDelegate
+- \"+\" card with dashed border for adding new dials"
+```

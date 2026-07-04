@@ -64,27 +64,29 @@ struct ContentView: View {
                     bookmarkStore: bookmarkStore,
                     historyStore: historyStore,
                     isUrlFocused: $isUrlFocused,
+                    actions: Toolbar.Actions(
+                        goBack: { tab.browser.webView.goBack() },
+                        goForward: { tab.browser.webView.goForward() },
+                        reload: { tab.browser.webView.reload() },
+                        loadHome: { loadHome(for: tab) },
+                        navigate: { input in
+                            suggestionModel.reset()
+                            isUrlFocused = false
+                            navigateToURL(input, for: tab)
+                        },
+                        toggleBookmark: { toggleBookmark() },
+                        toggleFullScreen: { toggleFullScreen() },
+                        inspectElement: { inspectElement() },
+                        suggestionSelect: { sug in
+                            suggestionModel.reset()
+                            isUrlFocused = false
+                            navigateToURL(sug.url, for: tab)
+                        }
+                    ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
                     showUserScripts: $showUserScripts,
-                    showSettings: $showSettings,
-                    onGoBack: { tab.browser.webView.goBack() },
-                    onGoForward: { tab.browser.webView.goForward() },
-                    onReload: { tab.browser.webView.reload() },
-                    onLoadHome: { loadHome(for: tab) },
-                    onNavigate: { input in
-                        suggestionModel.reset()
-                        isUrlFocused = false
-                        navigateToURL(input, for: tab)
-                    },
-                    onToggleBookmark: { toggleBookmark() },
-                    onToggleFullScreen: { toggleFullScreen() },
-                    onInspectElement: { inspectElement() },
-                    onSuggestionSelect: { sug in
-                        suggestionModel.reset()
-                        isUrlFocused = false
-                        navigateToURL(sug.url, for: tab)
-                    }
+                    showSettings: $showSettings
                 )
             }
 

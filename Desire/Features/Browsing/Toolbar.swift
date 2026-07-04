@@ -3,6 +3,18 @@ import SwiftUI
 import WebKit
 
 struct Toolbar: View {
+    struct Actions {
+        let goBack: () -> Void
+        let goForward: () -> Void
+        let reload: () -> Void
+        let loadHome: () -> Void
+        let navigate: (String) -> Void
+        let toggleBookmark: () -> Void
+        let toggleFullScreen: () -> Void
+        let inspectElement: () -> Void
+        let suggestionSelect: (AddressSuggestion) -> Void
+    }
+
     let tab: Tab
     let settings: Settings
     @ObservedObject var suggestionModel: AddressSuggestionsModel
@@ -11,20 +23,12 @@ struct Toolbar: View {
     let historyStore: HistoryStore
     var isUrlFocused: FocusState<Bool>.Binding
 
+    let actions: Actions
+
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showUserScripts: Bool
     @Binding var showSettings: Bool
-
-    let onGoBack: () -> Void
-    let onGoForward: () -> Void
-    let onReload: () -> Void
-    let onLoadHome: () -> Void
-    let onNavigate: (String) -> Void
-    let onToggleBookmark: () -> Void
-    let onToggleFullScreen: () -> Void
-    let onInspectElement: () -> Void
-    let onSuggestionSelect: (AddressSuggestion) -> Void
 
     @State private var showDownloads = false
     @State private var showMoreMenu = false
@@ -32,12 +36,12 @@ struct Toolbar: View {
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 10) {
-                CapsuleButton(systemName: "chevron.left", action: onGoBack, disabled: !tab.canGoBack, help: "后退")
-                CapsuleButton(systemName: "chevron.right", action: onGoForward, disabled: !tab.canGoForward, help: "前进")
+                CapsuleButton(systemName: "chevron.left", action: actions.goBack, disabled: !tab.canGoBack, help: "后退")
+                CapsuleButton(systemName: "chevron.right", action: actions.goForward, disabled: !tab.canGoForward, help: "前进")
                 CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
-                    if tab.isLoading { tab.browser.webView.stopLoading() } else { onReload() }
+                    if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
                 }, help: tab.isLoading ? "停止" : "重新加载")
-                CapsuleButton(systemName: "house", action: onLoadHome, help: "主页")
+                CapsuleButton(systemName: "house", action: actions.loadHome, help: "主页")
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -54,7 +58,7 @@ struct Toolbar: View {
                     .textFieldStyle(.plain)
                     .focused(isUrlFocused)
                     .onSubmit {
-                        onNavigate(tab.urlString)
+                        actions.navigate(tab.urlString)
                     }
                     .onChange(of: tab.urlString) { _, newValue in
                         if isUrlFocused.wrappedValue {
@@ -77,7 +81,7 @@ struct Toolbar: View {
                     .font(.system(size: 13))
 
                 Button {
-                    onToggleBookmark()
+                    actions.toggleBookmark()
                 } label: {
                     Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 12))
@@ -141,11 +145,11 @@ struct Toolbar: View {
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
                     moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
                     moreMenuItem("用户脚本", "applescript") { showUserScripts = true }
-                    moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { onToggleBookmark() }
+                    moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
                         .disabled(tab.isOnNewTabPage)
                     Divider()
-                    moreMenuItem("检查元素", "ladybug") { onInspectElement() }
-                    moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { onToggleFullScreen() }
+                    moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
+                    moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
                     moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
                 }
                 .padding(4)

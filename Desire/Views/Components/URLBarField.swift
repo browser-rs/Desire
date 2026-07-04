@@ -143,8 +143,6 @@ final class URLTextField: NSTextField {
         editor.backgroundColor = .clear
         editor.drawsBackground = true
         editor.textColor = NSColor.labelColor
-        if editor.responds(to: #selector(setter: NSTextView.insertionPointColor)) {
-            editor.insertionPointColor = NSColor.labelColor
-        }
+        editor.perform(#selector(setter: NSTextView.insertionPointColor), with: NSColor.labelColor)
     }
 }

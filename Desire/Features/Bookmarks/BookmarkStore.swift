@@ -1,12 +1,5 @@
 import Combine
 import Foundation
-import SwiftUI
-
-struct Bookmark: Identifiable, Codable {
-    let id: UUID
-    var title: String
-    var url: String
-}
 
 @MainActor
 class BookmarkStore: ObservableObject {

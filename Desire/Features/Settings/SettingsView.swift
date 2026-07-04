@@ -1,60 +1,5 @@
-import Combine
 import SwiftUI
 import WebKit
-
-enum SearchEngine: String, CaseIterable {
-    case google = "Google"
-    case duckduckgo = "DuckDuckGo"
-    case bing = "Bing"
-    case baidu = "Baidu"
-
-    var searchURL: String {
-        switch self {
-        case .google: "https://www.google.com/search?q="
-        case .duckduckgo: "https://duckduckgo.com/?q="
-        case .bing: "https://www.bing.com/search?q="
-        case .baidu: "https://www.baidu.com/s?wd="
-        }
-    }
-
-    var suggestionURL: String {
-        switch self {
-        case .google: "https://suggestqueries.google.com/complete/search?client=firefox&q="
-        case .duckduckgo: "https://ac.duckduckgo.com/ac/?type=list&q="
-        case .bing: "https://www.bing.com/osjson.aspx?query="
-        case .baidu: "https://suggestion.baidu.com/su?action=opensearch&wd="
-        }
-    }
-}
-
-@MainActor
-class Settings: ObservableObject {
-    @Published var searchEngine: SearchEngine {
-        didSet { UserDefaults.standard.set(searchEngine.rawValue, forKey: "searchEngine") }
-    }
-    @Published var homePage: String {
-        didSet { UserDefaults.standard.set(homePage, forKey: "homePage") }
-    }
-    @Published var isJavaScriptEnabled: Bool {
-        didSet { UserDefaults.standard.set(isJavaScriptEnabled, forKey: "isJavaScriptEnabled") }
-    }
-    @Published var showSearchSuggestions: Bool {
-        didSet { UserDefaults.standard.set(showSearchSuggestions, forKey: "showSearchSuggestions") }
-    }
-
-    static let shared = Settings()
-
-    init() {
-        searchEngine = SearchEngine(rawValue: UserDefaults.standard.string(forKey: "searchEngine") ?? "") ?? .google
-        homePage = UserDefaults.standard.string(forKey: "homePage") ?? "https://www.google.com"
-        isJavaScriptEnabled = UserDefaults.standard.object(forKey: "isJavaScriptEnabled") as? Bool ?? true
-        showSearchSuggestions = UserDefaults.standard.object(forKey: "showSearchSuggestions") as? Bool ?? false
-    }
-
-    var searchURLTemplate: String {
-        searchEngine.searchURL
-    }
-}
 
 struct SettingsView: View {
     @ObservedObject var settings: Settings
@@ -109,7 +54,7 @@ struct SettingsView: View {
                 }
             }
             .padding()
-            .tabItem { Label("隐私", systemImage: "hand.raised") }
+            .tabItem { Label("隐私", systemImage: "hand.raided") }
         }
         .frame(width: 400, height: 320)
         .toolbar {

@@ -1,15 +1,6 @@
 import Combine
 import Foundation
-import SwiftUI
 import WebKit
-
-struct UserScript: Identifiable, Codable {
-    let id: UUID
-    var name: String
-    var urlPattern: String
-    var code: String
-    var isEnabled: Bool
-}
 
 @MainActor
 class UserScriptStore: ObservableObject {

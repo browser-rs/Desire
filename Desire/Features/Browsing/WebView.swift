@@ -320,18 +320,20 @@ struct WebView: NSViewRepresentable {
             if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
-                      let usernameName = dict["username"],
-                      let host = parent.state.webView.url?.host {
+                       let usernameName = dict["username"],
+                       let host = parent.state.webView.url?.host {
                 let entries = parent.passwordStore.find(domain: host)
                 guard !entries.isEmpty else { return }
+                let username = entries[0].username.replacingOccurrences(of: "'", with: "\\'")
+                let password = entries[0].password.replacingOccurrences(of: "'", with: "\\'")
                 let js = """
                 (function() {
                     var f = document.querySelector('input[type=password]').closest('form');
                     if (!f) return;
                     var u = f.querySelector('input[name=\(usernameName)], input[id=\(usernameName)], input[type=text], input[type=email]');
-                    if (u) u.value = '\(entries[0].username)';
+                    if (u) u.value = '\(username)';
                     var p = f.querySelector('input[type=password]');
-                    if (p) p.value = '\(entries[0].password)';
+                    if (p) p.value = '\(password)';
                 })();
                 """
                 parent.state.webView.evaluateJavaScript(js, completionHandler: nil)

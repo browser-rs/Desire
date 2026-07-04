@@ -81,7 +81,6 @@ private struct ReaderWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let wv = WKWebView()
-        wv.isHidden = true
         wv.loadHTMLString(html, baseURL: nil)
         return wv
     }

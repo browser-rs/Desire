@@ -218,7 +218,7 @@ struct ContentView: View {
                             set: { tab.urlString = $0 }
                         ), onNavigate: { input in
                             navigateToURL(input, for: tab)
-                        })
+                        }, suggestionModel: suggestionModel, bookmarkStore: bookmarkStore, historyStore: historyStore, settings: settings)
                     } else {
                         GeometryReader { geo in
                             let responsiveSize = tab.responsiveSize

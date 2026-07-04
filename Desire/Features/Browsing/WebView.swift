@@ -126,6 +126,7 @@ class BrowserState: ObservableObject {
     @Published var lastError: String?
     @Published var pageZoom: Double = 1.0
     @Published var serverTrust: SecTrust?
+    @Published var isPlayingAudio: Bool = false
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -183,13 +184,18 @@ struct WebView: NSViewRepresentable {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
+        private weak var observedWebView: WKWebView?
         private var activeDownloads: [ObjectIdentifier: UUID] = [:]
+        private static var audioContext = 0
 
         init(_ parent: WebView) {
             self.parent = parent
         }
 
         func observe(_ webView: WKWebView) {
+            observedWebView = webView
+            webView.addObserver(self, forKeyPath: "isPlayingAudio", options: [.initial, .new], context: &Self.audioContext)
+
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
                     self?.parent.state.estimatedProgress = wv.estimatedProgress
@@ -204,6 +210,16 @@ struct WebView: NSViewRepresentable {
 
         func stopObserving() {
             observations.removeAll()
+            observedWebView?.removeObserver(self, forKeyPath: "isPlayingAudio")
+            observedWebView = nil
+        }
+
+        override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+            if context == &Self.audioContext {
+                parent.state.isPlayingAudio = change?[.newKey] as? Bool ?? false
+            } else {
+                super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+            }
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -259,6 +275,13 @@ struct WebView: NSViewRepresentable {
             if navigationAction.targetFrame == nil {
                 // 弹窗式导航（OAuth 等），改为当前窗口加载
                 webView.load(URLRequest(url: url))
+                decisionHandler(.cancel)
+                return
+            }
+
+            // Cmd+点击链接 — 后台打开新标签
+            if navigationAction.modifierFlags.contains(.command) {
+                parent.onOpenLinkInNewTab?(url)
                 decisionHandler(.cancel)
                 return
             }

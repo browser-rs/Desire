@@ -74,31 +74,25 @@ struct Toolbar: View {
                                      host: tab.browser.webView.url?.host ?? "")
                 }
 
-                TextField("搜索或输入网址", text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }))
-                    .textFieldStyle(.plain)
-                    .focused(isUrlFocused)
-                    .onSubmit {
-                        actions.navigate(tab.urlString)
-                    }
-                    .onChange(of: tab.urlString) { _, newValue in
-                        if isUrlFocused.wrappedValue {
-                            suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
+                URLBarField(
+                    text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
+                    isFocused: isUrlFocused,
+                    onSubmit: { actions.navigate(tab.urlString) },
+                    onPasteAndGo: {
+                        if let str = NSPasteboard.general.string(forType: .string) {
+                            tab.urlString = str
+                            actions.navigate(str)
                         }
-                    }
-                    .onKeyPress(.upArrow) {
-                        suggestionModel.moveSelection(by: -1)
-                        return .handled
-                    }
-                    .onKeyPress(.downArrow) {
-                        suggestionModel.moveSelection(by: 1)
-                        return .handled
-                    }
-                    .onKeyPress(.escape) {
+                    },
+                    onMoveSelection: { delta in suggestionModel.moveSelection(by: delta) },
+                    onEscape: {
                         suggestionModel.reset()
                         isUrlFocused.wrappedValue = false
-                        return .handled
+                    },
+                    onTextChange: { newValue in
+                        suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
                     }
-                    .font(.system(size: 13))
+                )
 
                 HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
                     .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)

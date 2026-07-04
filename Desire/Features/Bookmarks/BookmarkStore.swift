@@ -21,6 +21,12 @@ class BookmarkStore: ObservableObject {
         save()
     }
 
+    func update(_ bookmark: Bookmark) {
+        guard let i = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
+        bookmarks[i] = bookmark
+        save()
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: saveKey),
               let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) else { return }

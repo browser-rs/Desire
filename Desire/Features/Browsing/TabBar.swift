@@ -51,9 +51,7 @@ struct TabBar: View {
 
     private func tabPill(for tab: Tab, at index: Int) -> some View {
         HStack(spacing: 6) {
-            if tab.isLoading {
-                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
-            } else if tab.isIncognito {
+            if tab.isIncognito {
                 Image(systemName: "mask").font(.caption)
             } else if tab.isOnNewTabPage {
                 Image(systemName: "asterisk").font(.caption)
@@ -90,12 +88,24 @@ struct TabBar: View {
                       : Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
-            Capsule()
-                .stroke(index == selectedIndex
-                        ? Color.accentColor
-                        : Color.secondary.opacity(0.25),
-                        lineWidth: index == selectedIndex ? 1.5 : 0.5)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .stroke(index == selectedIndex
+                            ? Color.accentColor
+                            : Color.secondary.opacity(0.25),
+                            lineWidth: index == selectedIndex ? 1.5 : 0.5)
+                if tab.isLoading {
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.3))
+                            .frame(width: max(geo.size.width * CGFloat(tab.browser.estimatedProgress), 4))
+                            .frame(height: geo.size.height, alignment: .leading)
+                    }
+                }
+            }
         )
+        .clipShape(Capsule())
+        .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
         .contentShape(Capsule())
         .onTapGesture {
             onSelectTab(index)

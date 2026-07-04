@@ -25,6 +25,13 @@ class BrowserWKWebView: WKWebView {
         guard let url = sender.representedObject as? URL else { return }
         onOpenLinkInNewTab?(url)
     }
+
+    @objc func requestInspector() {
+        let sel = Selector(("_requestInspector"))
+        if responds(to: sel) {
+            perform(sel)
+        }
+    }
 }
 
 @MainActor

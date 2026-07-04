@@ -79,6 +79,7 @@ struct ContentView: View {
                     },
                     onToggleBookmark: { toggleBookmark() },
                     onToggleFullScreen: { toggleFullScreen() },
+                    onInspectElement: { inspectElement() },
                     onSuggestionSelect: { sug in
                         suggestionModel.reset()
                         isUrlFocused = false
@@ -270,6 +271,9 @@ struct ContentView: View {
             Button("") { hideFindBar() }
                 .keyboardShortcut(.escape, modifiers: [])
                 .hidden()
+            Button("") { inspectElement() }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .hidden()
         }
     }
 
@@ -288,6 +292,12 @@ struct ContentView: View {
             bookmarkStore.remove(existing)
         } else {
             bookmarkStore.add(title: tab.browser.pageTitle, url: urlString)
+        }
+    }
+
+    private func inspectElement() {
+        if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
+            tab.browser.webView.requestInspector()
         }
     }
 

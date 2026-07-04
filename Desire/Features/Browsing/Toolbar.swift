@@ -23,6 +23,7 @@ struct Toolbar: View {
     let onNavigate: (String) -> Void
     let onToggleBookmark: () -> Void
     let onToggleFullScreen: () -> Void
+    let onInspectElement: () -> Void
     let onSuggestionSelect: (AddressSuggestion) -> Void
 
     @State private var showDownloads = false
@@ -123,6 +124,14 @@ struct Toolbar: View {
             .popover(isPresented: $showDownloads) {
                 DownloadPanel(store: downloadStore)
             }
+
+            Button {
+                onInspectElement()
+            } label: {
+                Image(systemName: "ladybug")
+            }
+            .buttonStyle(.plain)
+            .help("检查元素")
 
             Button {
                 showMoreMenu = true

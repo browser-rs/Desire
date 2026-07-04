@@ -128,7 +128,7 @@ struct Toolbar: View {
             Button {
                 showMoreMenu = true
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "ellipsis.vertical")
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }

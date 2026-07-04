@@ -129,6 +129,8 @@ struct Toolbar: View {
                 showMoreMenu = true
             } label: {
                 Image(systemName: "ellipsis")
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showMoreMenu) {

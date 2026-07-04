@@ -199,6 +199,7 @@ struct WebView: NSViewRepresentable {
     @ObservedObject var state: BrowserState
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var passwordStore: PasswordStore
+    @ObservedObject var formAutofillStore: FormAutofillStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -345,6 +346,9 @@ struct WebView: NSViewRepresentable {
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
                 parent.onPageFinished?(url, parent.state.pageTitle)
+            }
+            if parent.formAutofillStore.isConfigured {
+                webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
             }
         }
 

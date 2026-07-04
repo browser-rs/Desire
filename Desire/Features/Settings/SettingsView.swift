@@ -5,6 +5,7 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var contentBlocker: ContentBlocker
     @ObservedObject var downloadStore: DownloadStore
+    @ObservedObject var formAutofillStore: FormAutofillStore
     var onDone: () -> Void
     @State private var showClearConfirm = false
 
@@ -61,8 +62,11 @@ struct SettingsView: View {
             }
             .padding()
             .tabItem { Label("隐私", systemImage: "hand.raised") }
+
+            FormAutofillSettingsView(store: formAutofillStore)
+                .tabItem { Label("自动填充", systemImage: "doc.text.fill") }
         }
-        .frame(width: 440, height: 420)
+        .frame(width: 440, height: 480)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成", action: onDone)

@@ -46,8 +46,8 @@ struct Toolbar: View {
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 10) {
-                CapsuleButton(systemName: "chevron.left", action: actions.goBack, disabled: !tab.canGoBack, help: "后退")
-                CapsuleButton(systemName: "chevron.right", action: actions.goForward, disabled: !tab.canGoForward, help: "前进")
+                BackForwardButton(direction: .back, webView: tab.browser.webView, canGo: tab.canGoBack, action: actions.goBack)
+                BackForwardButton(direction: .forward, webView: tab.browser.webView, canGo: tab.canGoForward, action: actions.goForward)
                 CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
                     if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
                 }, help: tab.isLoading ? "停止" : "重新加载")
@@ -204,6 +204,41 @@ struct Toolbar: View {
         }
         .buttonStyle(.plain)
         .padding(8)
+    }
+}
+
+private struct BackForwardButton: View {
+    enum Direction { case back, forward }
+    let direction: Direction
+    let webView: WKWebView
+    let canGo: Bool
+    let action: () -> Void
+
+    private var list: [WKBackForwardListItem] {
+        direction == .back ? webView.backForwardList.backList.reversed()
+                           : webView.backForwardList.forwardList
+    }
+
+    private var systemName: String {
+        direction == .back ? "chevron.left" : "chevron.right"
+    }
+
+    private var help: String {
+        direction == .back ? "后退" : "前进"
+    }
+
+    var body: some View {
+        CapsuleButton(systemName: systemName, action: action, disabled: !canGo, help: help)
+            .contextMenu {
+                if list.isEmpty {
+                    Text(direction == .back ? "没有历史记录" : "没有前进记录")
+                }
+                ForEach(list, id: \.url) { item in
+                    Button(item.title ?? item.url.absoluteString) {
+                        webView.go(to: item)
+                    }
+                }
+            }
     }
 }
 

@@ -50,10 +50,10 @@ struct TabBar: View {
 
     private func tabPill(for tab: Tab, at index: Int) -> some View {
         HStack(spacing: 6) {
-            if tab.isLoading {
-                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
-            } else if tab.browser.isPlayingAudio {
+            if tab.browser.isPlayingAudio {
                 Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
+            } else if tab.isLoading {
+                ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
             } else if tab.isIncognito {
                 Image(systemName: "mask").font(.caption)
             } else if tab.isOnNewTabPage {

@@ -141,6 +141,29 @@ class BrowserState: ObservableObject {
         config.defaultWebpagePreferences.preferredContentMode = .desktop
         contentBlocker?.apply(to: config)
 
+        let audioJS = """
+        (function() {
+            function checkAudio() {
+                var playing = false;
+                document.querySelectorAll('audio, video').forEach(function(el) {
+                    if (!el.paused && !el.muted && el.volume > 0) {
+                        playing = true;
+                    }
+                });
+                window.webkit.messageHandlers.audioState.postMessage(playing);
+            }
+            document.addEventListener('play', checkAudio, true);
+            document.addEventListener('pause', checkAudio, true);
+            document.addEventListener('volumechange', checkAudio, true);
+            new MutationObserver(function() {
+                if (document.querySelectorAll('audio, video').length) checkAudio();
+            }).observe(document.body, { childList: true, subtree: true });
+            setTimeout(checkAudio, 500);
+        })();
+        """
+        let audioScript = WKUserScript(source: audioJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        config.userContentController.addUserScript(audioScript)
+
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
@@ -180,21 +203,18 @@ struct WebView: NSViewRepresentable {
         coordinator.stopObserving()
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
-        private weak var observedWebView: WKWebView?
         private var activeDownloads: [ObjectIdentifier: UUID] = [:]
-        private static var audioContext = 0
 
         init(_ parent: WebView) {
             self.parent = parent
         }
 
         func observe(_ webView: WKWebView) {
-            observedWebView = webView
-            webView.addObserver(self, forKeyPath: "isPlayingAudio", options: [.initial, .new], context: &Self.audioContext)
+            webView.configuration.userContentController.add(self, name: "audioState")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -210,15 +230,12 @@ struct WebView: NSViewRepresentable {
 
         func stopObserving() {
             observations.removeAll()
-            observedWebView?.removeObserver(self, forKeyPath: "isPlayingAudio")
-            observedWebView = nil
+            parent.state.webView.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
         }
 
-        override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
-            if context == &Self.audioContext {
-                parent.state.isPlayingAudio = change?[.newKey] as? Bool ?? false
-            } else {
-                super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "audioState", let playing = message.body as? Bool {
+                parent.state.isPlayingAudio = playing
             }
         }
 

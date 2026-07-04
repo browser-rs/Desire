@@ -60,7 +60,8 @@ struct TabBar: View {
                         .foregroundStyle(tab.browser.isMuted ? Color.accentColor : .secondary)
                 }
                 .buttonStyle(.plain)
-            } else if tab.isLoading {
+            }
+            if tab.isLoading {
                 ProgressView().scaleEffect(0.4).frame(width: 14, height: 14)
             } else if tab.isIncognito {
                 Image(systemName: "mask").font(.caption)

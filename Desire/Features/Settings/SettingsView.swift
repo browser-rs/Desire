@@ -72,6 +72,9 @@ struct SettingsView: View {
 
             FormAutofillSettingsView(store: formAutofillStore)
                 .tabItem { Label("自动填充", systemImage: "doc.text.fill") }
+
+            KeyboardShortcutsView()
+                .tabItem { Label("快捷键", systemImage: "keyboard") }
         }
         .frame(width: 440, height: 480)
         .toolbar {
@@ -276,5 +279,46 @@ private struct CustomEngineSection: View {
             .padding()
             .frame(width: 420)
         }
+    }
+}
+
+private struct KeyboardShortcutsView: View {
+    private let shortcuts: [(String, String)] = [
+        ("⌘T", "新建标签页"),
+        ("⌘⇧N", "新建无痕标签页"),
+        ("⌘W", "关闭标签页"),
+        ("⌘⇧T", "恢复关闭的标签页"),
+        ("⌘{", "上一个标签页"),
+        ("⌘}", "下一个标签页"),
+        ("⌘1-9", "切换到标签页 1-9"),
+        ("⌘L", "聚焦地址栏"),
+        ("⌘R", "重新加载页面"),
+        ("⌘F", "在页面中查找"),
+        ("⌘G", "查找下一个"),
+        ("⌘⇧G", "查找上一个"),
+        ("⌘[", "后退"),
+        ("⌘]", "前进"),
+        ("⌘=", "放大"),
+        ("⌘-", "缩小"),
+        ("⌘0", "重置缩放"),
+        ("⌘⇧I", "检查元素"),
+        ("⌘Y", "浏览历史"),
+        ("⌘⇧A", "搜索标签页"),
+        ("⌘⇧B", "侧边栏"),
+        ("⌘P", "打印"),
+        ("⌘⇧F", "全屏"),
+    ]
+
+    var body: some View {
+        List(shortcuts, id: \.0) { shortcut in
+            HStack {
+                Text(shortcut.0)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(shortcut.1)
+            }
+        }
+        .padding()
     }
 }

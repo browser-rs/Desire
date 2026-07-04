@@ -161,7 +161,7 @@ struct Toolbar: View {
 
 
     .padding(.horizontal, 8)
-        .padding(.bottom, 8)
+        .padding(.bottom, 6)
         .background(.bar)
         .onChange(of: isUrlFocused.wrappedValue) { _, focused in
             if !focused { suggestionModel.reset() }

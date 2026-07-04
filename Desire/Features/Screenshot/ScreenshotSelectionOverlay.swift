@@ -6,46 +6,49 @@ struct ScreenshotSelectionOverlay: NSViewRepresentable {
     let onCapture: (NSRect) -> Void
 
     func makeNSView(context: Context) -> NSView {
-        let view = OverlayView()
-        view.onCancel = onCancel
-        view.onCapture = onCapture
-        return view
+        let root = OverlayRootView()
+        root.onCancel = onCancel
+        root.onCapture = onCapture
+        return root
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-private class OverlayView: NSView {
+private class OverlayRootView: NSView {
     var onCancel: (() -> Void)?
     var onCapture: ((NSRect) -> Void)?
 
-    private var selectionPanel: ScreenshotSelectionPanel?
+    private var panel: OverlayPanel?
+    private var monitor: Any?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window != nil {
-            showSelectionPanel()
+            showPanel()
         } else {
-            selectionPanel?.orderOut(nil)
-            selectionPanel = nil
+            hidePanel()
         }
     }
 
-    private func showSelectionPanel() {
+    private func showPanel() {
         guard let screen = NSScreen.main else { return }
-        let panel = ScreenshotSelectionPanel(screen: screen)
-        panel.onCancel = onCancel
-        panel.onCapture = onCapture
-        panel.orderFrontRegardless()
-        selectionPanel = panel
+        let p = OverlayPanel(screen: screen)
+        p.onCancel = onCancel
+        p.onCapture = onCapture
+        p.orderFrontRegardless()
+        panel = p
+    }
+
+    private func hidePanel() {
+        panel?.orderOut(nil)
+        panel = nil
     }
 }
 
-private class ScreenshotSelectionPanel: NSPanel {
+private class OverlayPanel: NSPanel {
     var onCancel: (() -> Void)?
     var onCapture: ((NSRect) -> Void)?
-
-    private var selectionView: SelectionView!
 
     init(screen: NSScreen) {
         super.init(
@@ -61,7 +64,7 @@ private class ScreenshotSelectionPanel: NSPanel {
         ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        selectionView = SelectionView(frame: screen.frame)
+        let selectionView = SelectionView(frame: screen.frame)
         selectionView.onCancel = { [weak self] in
             self?.onCancel?()
             self?.orderOut(nil)
@@ -80,27 +83,23 @@ private class SelectionView: NSView {
 
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
-    private let dimmingLayer = CAShapeLayer()
-    private let selectionLayer = CAShapeLayer()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        wantsLayer = true
-        layer?.addSublayer(dimmingLayer)
-        layer?.addSublayer(selectionLayer)
-
-        dimmingLayer.fillColor = NSColor.black.withAlphaComponent(0.15).cgColor
-        dimmingLayer.fillRule = .evenOdd
-        selectionLayer.strokeColor = NSColor.white.cgColor
-        selectionLayer.fillColor = NSColor.clear.cgColor
-        selectionLayer.lineWidth = 2
-        selectionLayer.shadowColor = NSColor.black.cgColor
-        selectionLayer.shadowOffset = .zero
-        selectionLayer.shadowRadius = 2
-        selectionLayer.shadowOpacity = 0.5
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+        NSCursor.crosshair.push()
+    }
+
+    override func removeFromSuperview() {
+        NSCursor.crosshair.pop()
+        super.removeFromSuperview()
+    }
 
     override func mouseDown(with event: NSEvent) {
         startPoint = convert(event.locationInWindow, from: nil)
@@ -109,16 +108,14 @@ private class SelectionView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         currentPoint = convert(event.locationInWindow, from: nil)
-        updateSelection()
+        needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard let start = startPoint, let end = currentPoint else { return }
-        let rect = rectBetween(start, end)
-        guard rect.width > 5 && rect.height > 5 else {
-            onCancel?()
-            return
-        }
+        defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
+        guard let start = startPoint, let current = currentPoint else { return }
+        let rect = rectBetween(start, current)
+        guard rect.width > 5 && rect.height > 5 else { return }
         onCapture?(rect)
     }
 
@@ -130,22 +127,69 @@ private class SelectionView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
-    private func updateSelection() {
-        guard let start = startPoint, let end = currentPoint else {
-            selectionLayer.path = nil
-            dimmingLayer.path = nil
-            return
-        }
-        let rect = rectBetween(start, end)
-        selectionLayer.path = CGPath(rect: rect, transform: nil)
-        dimmingLayer.path = dimmingPath(selectedRect: rect)
-    }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
 
-    private func dimmingPath(selectedRect: CGRect) -> CGPath {
-        let path = CGMutablePath()
-        path.addRect(bounds)
-        path.addRect(selectedRect)
-        return path
+        // full-screen dim
+        ctx.setFillColor(NSColor.black.withAlphaComponent(0.3).cgColor)
+        ctx.fill(bounds)
+
+        if let start = startPoint, let current = currentPoint {
+            let rect = rectBetween(start, current)
+
+            // clear the selected area
+            ctx.clear(rect)
+
+            // selection border
+            ctx.setStrokeColor(NSColor.white.cgColor)
+            ctx.setLineWidth(2)
+            ctx.addRect(rect)
+            ctx.strokePath()
+
+            // corner handles
+            let handleSize: CGFloat = 6
+            ctx.setFillColor(NSColor.white.cgColor)
+            for corner in [rect.origin,
+                           CGPoint(x: rect.maxX, y: rect.minY),
+                           CGPoint(x: rect.minX, y: rect.maxY),
+                           CGPoint(x: rect.maxX, y: rect.maxY)] {
+                ctx.fillEllipse(in: CGRect(x: corner.x - handleSize/2, y: corner.y - handleSize/2, width: handleSize, height: handleSize))
+            }
+
+            // dimension label
+            let dimText = "\(Int(rect.width)) × \(Int(rect.height))" as NSString
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                .foregroundColor: NSColor.white
+            ]
+            let textSize = dimText.size(withAttributes: attrs)
+            let labelX = rect.midX - textSize.width / 2
+            let labelY: CGFloat
+            if rect.maxY + 22 + textSize.height < bounds.maxY {
+                labelY = rect.maxY + 8
+            } else {
+                labelY = rect.minY - textSize.height - 8
+            }
+            ctx.setFillColor(NSColor.black.withAlphaComponent(0.5).cgColor)
+            let bgRect = CGRect(x: labelX - 4, y: labelY - 2, width: textSize.width + 8, height: textSize.height + 4)
+            ctx.fill(bgRect)
+            dimText.draw(at: CGPoint(x: labelX, y: labelY), withAttributes: attrs)
+        } else {
+            // hint text when no drag in progress
+            let hint = NSLocalizedString("Click and drag to select a region. Esc to cancel.", comment: "")
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 14),
+                .foregroundColor: NSColor.white
+            ]
+            let size = (hint as NSString).size(withAttributes: attrs)
+            let point = CGPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2 + 100)
+            ctx.setFillColor(NSColor.black.withAlphaComponent(0.4).cgColor)
+            let bg = CGRect(x: point.x - 10, y: point.y - 6, width: size.width + 20, height: size.height + 12)
+            let bgPath = CGPath(roundedRect: bg, cornerWidth: 8, cornerHeight: 8, transform: nil)
+            ctx.addPath(bgPath)
+            ctx.fillPath()
+            (hint as NSString).draw(at: point, withAttributes: attrs)
+        }
     }
 
     private func rectBetween(_ a: NSPoint, _ b: NSPoint) -> NSRect {

@@ -10,6 +10,15 @@ struct SettingsView: View {
     @ObservedObject var historyStore: HistoryStore
     var onDone: () -> Void
     @State private var showClearConfirm = false
+    @State private var screenshotDirDisplay: String = {
+        if let bookmarkData = UserDefaults.standard.data(forKey: "screenshotSaveDirectoryBookmark") {
+            var isStale = false
+            if let url = try? URL(resolvingBookmarkData: bookmarkData, bookmarkDataIsStale: &isStale) {
+                return url.lastPathComponent
+            }
+        }
+        return "Pictures"
+    }()
     @State private var clearCookies = true
     @State private var clearCache = true
     @State private var clearStorage = true
@@ -43,6 +52,18 @@ struct SettingsView: View {
                     Button("Change…") {
                         downloadStore.chooseDownloadFolder()
                     }
+                }
+
+                Divider()
+
+                HStack {
+                    Text("Screenshot save location")
+                    Spacer()
+                    Text(screenshotDirDisplay)
+                        .foregroundStyle(.secondary)
+                    Button("Change…") { chooseScreenshotDir() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding()
@@ -105,6 +126,17 @@ struct SettingsView: View {
         } message: {
             Text("Selected browsing data will be cleared. This action cannot be undone.")
         }
+    }
+
+    private func chooseScreenshotDir() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.message = String(localized: "Choose screenshot save location")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        UserDefaults.standard.set(bookmarkData, forKey: "screenshotSaveDirectoryBookmark")
+        screenshotDirDisplay = url.lastPathComponent
     }
 
     private func clearBrowsingData() {

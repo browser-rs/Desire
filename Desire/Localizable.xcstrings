@@ -5589,6 +5589,46 @@
           }
         }
       }
+    },
+    "Screenshot…": {
+      "comment": "Screenshot menu item",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Screenshot…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "截图…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "截圖…" } }
+      }
+    },
+    "Screenshot": {
+      "comment": "Screenshot toolbar help",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Screenshot" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "截图" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "截圖" } }
+      }
+    },
+    "Screenshot save location": {
+      "comment": "Settings label",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Screenshot save location" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "截图保存位置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "截圖儲存位置" } }
+      }
+    },
+    "Choose screenshot save location": {
+      "comment": "Open panel message",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose screenshot save location" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择截图保存位置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇截圖儲存位置" } }
+      }
+    },
+    "Esc to cancel": {
+      "comment": "Editor bottom bar hint",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Esc to cancel" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Esc 取消" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Esc 取消" } }
+      }
     }
   },
   "version": "1.0"

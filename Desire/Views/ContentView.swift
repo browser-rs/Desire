@@ -16,6 +16,7 @@ struct ContentView: View {
     @StateObject private var quickDialStore = QuickDialStore()
     @StateObject private var passwordStore = PasswordStore()
     @StateObject private var formAutofillStore = FormAutofillStore()
+    @StateObject private var permissionStore = PermissionStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -147,6 +148,7 @@ struct ContentView: View {
                             downloadStore: downloadStore,
                             passwordStore: passwordStore,
                             formAutofillStore: formAutofillStore,
+                            permissionStore: permissionStore,
                             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
                             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
                             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
@@ -252,7 +254,7 @@ struct ContentView: View {
             }, onClose: { showHistory = false })
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, formAutofillStore: formAutofillStore, onDone: { showSettings = false })
+            SettingsView(settings: settings, contentBlocker: contentBlocker, downloadStore: downloadStore, formAutofillStore: formAutofillStore, permissionStore: permissionStore, onDone: { showSettings = false })
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarkPanel(store: bookmarkStore, onSelect: { url in

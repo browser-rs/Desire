@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject var contentBlocker: ContentBlocker
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
+    @ObservedObject var permissionStore: PermissionStore
     var onDone: () -> Void
     @State private var showClearConfirm = false
 
@@ -53,6 +54,10 @@ struct SettingsView: View {
                 Divider()
 
                 SiteDataSection()
+
+                Divider()
+
+                PermissionSection(store: permissionStore)
 
                 Divider()
 
@@ -153,6 +158,58 @@ private struct SiteDataSection: View {
         case WKWebsiteDataTypeIndexedDBDatabases: return "IndexedDB"
         case WKWebsiteDataTypeWebSQLDatabases: return "WebSQL"
         default: return type
+        }
+    }
+}
+
+private struct PermissionSection: View {
+    @ObservedObject var store: PermissionStore
+    @State private var showClear = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("网站权限")
+                    .font(.headline)
+                Spacer()
+                if !store.rules.isEmpty {
+                    Button("重置全部", role: .destructive) { showClear = true }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            if store.rules.isEmpty {
+                Text("没有保存的权限设置")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                List {
+                    ForEach(store.rules, id: \.host) { rule in
+                        HStack {
+                            Text(rule.host).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                            Spacer()
+                            Text(rule.decision == .deny ? "已拒绝" : "已允许")
+                                .font(.caption)
+                                .foregroundStyle(rule.decision == .deny ? .red : .green)
+                            Button("撤销") {
+                                store.remove(host: rule.host)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .frame(height: 100)
+            }
+        }
+        .alert("重置所有权限", isPresented: $showClear) {
+            Button("取消", role: .cancel) {}
+            Button("重置", role: .destructive) { store.removeAll() }
+        } message: {
+            Text("这将清除所有网站保存的摄像头、麦克风和位置权限设置。")
         }
     }
 }

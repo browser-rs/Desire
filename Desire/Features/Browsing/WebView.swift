@@ -200,6 +200,7 @@ struct WebView: NSViewRepresentable {
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var passwordStore: PasswordStore
     @ObservedObject var formAutofillStore: FormAutofillStore
+    @ObservedObject var permissionStore: PermissionStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -410,30 +411,54 @@ struct WebView: NSViewRepresentable {
         // MARK: - WKUIDelegate - 权限请求
 
         func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            let pType: PermissionType = switch type {
+            case .camera: .camera
+            case .microphone: .microphone
+            case .cameraAndMicrophone: .cameraAndMicrophone
+            @unknown default: .camera
+            }
+            let host = origin.host
+            if let saved = parent.permissionStore.decision(for: host, type: pType) {
+                decisionHandler(saved == .allow ? .grant : .deny)
+                return
+            }
             let deviceName: String = switch type {
             case .camera: "摄像头"
             case .microphone: "麦克风"
             case .cameraAndMicrophone: "摄像头和麦克风"
             @unknown default: "媒体设备"
             }
-            let host = origin.host
             let alert = NSAlert()
             alert.messageText = "\(host) 想要访问你的\(deviceName)"
             alert.informativeText = "允许此网站访问\(deviceName)吗？"
             alert.addButton(withTitle: "允许")
             alert.addButton(withTitle: "拒绝")
+            let checkbox = NSButton(checkboxWithTitle: "记住此选择", target: nil, action: nil)
+            alert.accessoryView = checkbox
             let response = alert.runModal()
+            if checkbox.state == .on {
+                parent.permissionStore.set(host: host, type: pType, decision: response == .alertFirstButtonReturn ? .allow : .deny)
+            }
             decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
         }
 
         func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
             let host = origin.host
+            if let saved = parent.permissionStore.decision(for: host, type: .geolocation) {
+                decisionHandler(saved == .allow ? .grant : .deny)
+                return
+            }
             let alert = NSAlert()
             alert.messageText = "\(host) 想要获取你的位置信息"
             alert.informativeText = "允许此网站获取你的位置吗？"
             alert.addButton(withTitle: "允许")
             alert.addButton(withTitle: "拒绝")
+            let checkbox = NSButton(checkboxWithTitle: "记住此选择", target: nil, action: nil)
+            alert.accessoryView = checkbox
             let response = alert.runModal()
+            if checkbox.state == .on {
+                parent.permissionStore.set(host: host, type: .geolocation, decision: response == .alertFirstButtonReturn ? .allow : .deny)
+            }
             decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
         }
 

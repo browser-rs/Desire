@@ -13,6 +13,8 @@ struct TabBar: View {
     let onMoveTab: (Int, Int) -> Void
     let onReloadTab: (Tab) -> Void
     let onCopyTabURL: (Tab) -> Void
+    @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
     let onToggleAudioMute: (Int) -> Void
@@ -60,6 +62,14 @@ struct TabBar: View {
         .background(Color.clear)
         .overlay(alignment: .topLeading) {
             if showSwitcher { tabSwitcher() }
+        }
+        .onChange(of: showSwitcher) { _, shown in
+            if shown {
+                searchText = ""
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isSearchFocused = true
+                }
+            }
         }
     }
 
@@ -156,34 +166,73 @@ struct TabBar: View {
     }
 
     private func tabSwitcher() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(tab.isLoading ? Color.accentColor : (tab.isOnNewTabPage ? Color.secondary.opacity(0.3) : .clear))
-                        .frame(width: 6, height: 6)
+        let filtered: [(offset: Int, element: Tab)]
+        if searchText.isEmpty {
+            filtered = Array(tabs.enumerated())
+        } else {
+            let q = searchText.lowercased()
+            filtered = tabs.enumerated().filter { _, t in
+                t.displayTitle.lowercased().contains(q) ||
+                t.urlString.lowercased().contains(q) ||
+                (t.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
+            }
+        }
 
-                    if tab.isIncognito {
-                        Image(systemName: "mask").font(.caption).foregroundStyle(.purple)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                TextField("搜索标签页…", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($isSearchFocused)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filtered, id: \.element.id) { index, tab in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(tab.isLoading ? Color.accentColor : (tab.isOnNewTabPage ? Color.secondary.opacity(0.3) : .clear))
+                                .frame(width: 6, height: 6)
+
+                            if tab.isIncognito {
+                                Image(systemName: "mask").font(.caption).foregroundStyle(.purple)
+                            }
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tab.displayTitle)
+                                    .lineLimit(1)
+                                    .font(.system(size: 13))
+                                if !tab.isOnNewTabPage {
+                                    Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                                        .lineLimit(1)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            Spacer()
+                            if index == selectedIndex {
+                                Image(systemName: "checkmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(index == selectedIndex ? Color.accentColor.opacity(0.1) : .clear)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onSelectTab(index)
+                        }
                     }
-                    Text(tab.displayTitle)
-                        .lineLimit(1)
-                        .font(.system(size: 13))
-                    Spacer()
-                    if index == selectedIndex {
-                        Image(systemName: "checkmark")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(index == selectedIndex ? Color.accentColor.opacity(0.1) : .clear)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onSelectTab(index)
                 }
             }
+            .frame(maxHeight: 300)
 
             Divider()
 
@@ -193,13 +242,27 @@ struct TabBar: View {
                 } label: {
                     Label("新标签页", systemImage: "plus")
                 }
-                .keyboardShortcut("t", modifiers: .command)
+                .buttonStyle(.plain)
+                .font(.system(size: 12))
 
                 Spacer()
+
+                Text("\(filtered.count) / \(tabs.count)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
             .padding(8)
         }
-        .frame(width: 280)
+        .frame(width: 320)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
+        )
     }
 }
 

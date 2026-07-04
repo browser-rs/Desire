@@ -48,6 +48,8 @@ struct DesireApp: App {
             CommandGroup(replacing: .windowArrangement) {
                 Button("浏览历史") { postCommand(.showHistory) }
                     .keyboardShortcut("y", modifiers: .command)
+                Button("搜索标签页") { postCommand(.tabSearch) }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
             }
         }
     }
@@ -60,7 +62,7 @@ struct DesireApp: App {
 enum BrowserCommand {
     case newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int), showHistory
-    case bookmarkPage, toggleFullScreen, toggleFind
+    case bookmarkPage, toggleFullScreen, toggleFind, tabSearch
 }
 
 extension Notification.Name {

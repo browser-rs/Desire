@@ -268,6 +268,9 @@ struct ContentView: View {
             case .toggleFullScreen: toggleFullScreen()
             case .toggleFind:
                 if isFindBarVisible { hideFindBar() } else { showFindBar() }
+            case .tabSearch:
+                showTabSwitcher.toggle()
+                if showTabSwitcher { isUrlFocused = false }
             }
         }
         .sheet(isPresented: $showHistory) {

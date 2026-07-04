@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 struct ContentView: View {
@@ -111,7 +112,8 @@ struct ContentView: View {
                                 tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
                                 tab.browser.isReadingMode = true
                             }
-                        }
+                        },
+                        captureFullPage: { captureFullPage() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -512,5 +514,27 @@ struct ContentView: View {
         printInfo.rightMargin = 20
         let operation = tab.browser.webView.printOperation(with: printInfo)
         operation.run()
+    }
+
+    private func captureFullPage() {
+        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
+        let webView = tab.browser.webView
+        let config = WKPDFConfiguration()
+        webView.createPDF(configuration: config) { result in
+            switch result {
+            case .success(let pdfData):
+                let panel = NSSavePanel()
+                panel.title = "保存全页截图"
+                panel.nameFieldStringValue = "\(tab.displayTitle).pdf"
+                panel.allowedContentTypes = [.pdf]
+                panel.begin { response in
+                    if response == .OK, let url = panel.url {
+                        try? pdfData.write(to: url)
+                    }
+                }
+            case .failure:
+                break
+            }
+        }
     }
 }

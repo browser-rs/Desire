@@ -18,6 +18,7 @@ struct Toolbar: View {
         let zoomOut: () -> Void
         let resetZoom: () -> Void
         let toggleReader: () -> Void
+        let captureFullPage: () -> Void
     }
 
     let tab: Tab
@@ -156,6 +157,7 @@ struct Toolbar: View {
                         moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
                         moreMenuItem("重置缩放", "1.magnifyingglass") { actions.resetZoom() }
                         moreMenuItem("打印…", "printer") { actions.printPage() }
+                        moreMenuItem("全页截图…", "photo.on.rectangle.angled") { actions.captureFullPage() }
                         Divider()
                         moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
                         moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }

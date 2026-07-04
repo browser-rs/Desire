@@ -17,10 +17,12 @@ struct Toolbar: View {
         let zoomIn: () -> Void
         let zoomOut: () -> Void
         let resetZoom: () -> Void
+        let toggleReader: () -> Void
     }
 
     let tab: Tab
     let settings: Settings
+    let isReadingMode: Bool
     @ObservedObject var suggestionModel: AddressSuggestionsModel
     let downloadStore: DownloadStore
     let bookmarkStore: BookmarkStore
@@ -95,6 +97,9 @@ struct Toolbar: View {
                         suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
                     }
                 )
+
+                HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "退出阅读模式" : "阅读模式")
+                    .foregroundStyle(isReadingMode ? Color.accentColor : .secondary)
 
                 HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
                     .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)

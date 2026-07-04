@@ -128,6 +128,9 @@ class BrowserState: ObservableObject {
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
     @Published var isMuted: Bool = false
+    @Published var isReadingMode = false
+    @Published var readerTitle = ""
+    @Published var readerContent = ""
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -189,6 +192,44 @@ class BrowserState: ObservableObject {
         let passwordScript = WKUserScript(source: passwordJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(passwordScript)
 
+        let readerJS = """
+        (function() {
+            window._desireReader = function() {
+                function score(el) {
+                    var score = 0;
+                    if (!el || !el.tagName) return 0;
+                    var id = (el.id || '').toLowerCase();
+                    var cls = (el.className || '').toLowerCase();
+                    if (/article|post|content|main|story|entry/.test(id) || /article|post|content|main|story|entry/.test(cls)) score += 10;
+                    if (/comment|sidebar|footer|header|nav|menu/.test(id) || /comment|sidebar|footer|header|nav|menu/.test(cls)) score -= 10;
+                    var text = el.innerText || '';
+                    var links = el.querySelectorAll('a').length;
+                    var textLen = text.replace(/\\\\s+/g, ' ').length;
+                    if (textLen > 100) score += Math.min(5, Math.floor(textLen / 500));
+                    if (links > 0) score -= Math.min(3, Math.floor(links / 50));
+                    return score;
+                }
+                var candidates = [];
+                var els = document.querySelectorAll('article, [role=main], main, .post, .article, .content, #content, #article');
+                if (els.length === 0) els = document.querySelectorAll('p');
+                if (els.length > 0) {
+                    for (var i = 0; i < els.length; i++) {
+                        var el = els[i];
+                        var s = score(el);
+                        if (s > 0) candidates.push({el: el, score: s});
+                    }
+                    candidates.sort(function(a,b) { return b.score - a.score; });
+                }
+                var best = candidates.length > 0 ? candidates[0].el : document.body;
+                var title = document.title || '';
+                var content = best.innerHTML || best.innerText || '';
+                window.webkit.messageHandlers.readerContent.postMessage({title: title, content: content, html: best.outerHTML});
+            };
+        })();
+        """
+        let readerScript = WKUserScript(source: readerJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        config.userContentController.addUserScript(readerScript)
+
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
@@ -245,6 +286,7 @@ struct WebView: NSViewRepresentable {
         func observe(_ webView: WKWebView) {
             webView.configuration.userContentController.add(self, name: "audioState")
             webView.configuration.userContentController.add(self, name: "passwordDetect")
+            webView.configuration.userContentController.add(self, name: "readerContent")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -263,6 +305,7 @@ struct WebView: NSViewRepresentable {
             let wv = parent.state.webView
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -288,6 +331,9 @@ struct WebView: NSViewRepresentable {
                 })();
                 """
                 parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
+            } else if message.name == "readerContent", let dict = message.body as? [String: String] {
+                parent.state.readerTitle = dict["title"] ?? ""
+                parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
             }
         }
 

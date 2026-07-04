@@ -75,6 +75,7 @@ struct ContentView: View {
                 Toolbar(
                     tab: tab,
                     settings: settings,
+                    isReadingMode: tab.browser.isReadingMode,
                     suggestionModel: suggestionModel,
                     downloadStore: downloadStore,
                     bookmarkStore: bookmarkStore,
@@ -102,7 +103,15 @@ struct ContentView: View {
                         printPage: { printPage() },
                         zoomIn: { zoomTab(by: 0.1) },
                         zoomOut: { zoomTab(by: -0.1) },
-                        resetZoom: { zoomTab(to: 1.0) }
+                        resetZoom: { zoomTab(to: 1.0) },
+                        toggleReader: {
+                            if tab.browser.isReadingMode {
+                                tab.browser.isReadingMode = false
+                            } else {
+                                tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                                tab.browser.isReadingMode = true
+                            }
+                        }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -140,7 +149,15 @@ struct ContentView: View {
                 }
 
                 Group {
-                    if tab.isOnNewTabPage {
+                    if tab.browser.isReadingMode {
+                        ReaderView(
+                            title: tab.browser.readerTitle,
+                            contentHTML: tab.browser.readerContent,
+                            onClose: {
+                                tab.browser.isReadingMode = false
+                            }
+                        )
+                    } else if tab.isOnNewTabPage {
                         NewTabPage(store: quickDialStore, urlString: Binding(
                             get: { tab.urlString },
                             set: { tab.urlString = $0 }

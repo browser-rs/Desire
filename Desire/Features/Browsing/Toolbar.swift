@@ -32,15 +32,12 @@ struct Toolbar: View {
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 10) {
-                navButton(systemName: "chevron.left") { onGoBack() }
-                    .disabled(!tab.canGoBack)
-                navButton(systemName: "chevron.right") { onGoForward() }
-                    .disabled(!tab.canGoForward)
-                navButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise") {
+                CapsuleButton(systemName: "chevron.left", action: onGoBack, disabled: !tab.canGoBack, help: "后退")
+                CapsuleButton(systemName: "chevron.right", action: onGoForward, disabled: !tab.canGoForward, help: "前进")
+                CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
                     if tab.isLoading { tab.browser.webView.stopLoading() } else { onReload() }
-                }
-                .help(tab.isLoading ? "停止" : "重新加载")
-                navButton(systemName: "house") { onLoadHome() }
+                }, help: tab.isLoading ? "停止" : "重新加载")
+                CapsuleButton(systemName: "house", action: onLoadHome, help: "主页")
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -167,13 +164,6 @@ struct Toolbar: View {
     private var isBookmarked: Bool {
         guard let url = tab.browser.webView.url?.absoluteString else { return false }
         return bookmarkStore.bookmarks.contains(where: { $0.url == url })
-    }
-
-    private func navButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-        }
-        .buttonStyle(.plain)
     }
 
     private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {

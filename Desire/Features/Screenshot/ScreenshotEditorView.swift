@@ -1,6 +1,49 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Presenter
+enum ScreenshotEditorPresenter {
+    private static weak var window: NSWindow?
+
+    static func show(store: ScreenshotStore) {
+        hide()
+        let hosting = NSHostingView(rootView: ScreenshotEditorView(store: store))
+        hosting.sizingOptions = [.standardBounds]
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = String(localized: "Edit Screenshot")
+        win.contentView = hosting
+        win.center()
+        win.makeKeyAndOrderFront(nil)
+        win.isRestorable = false
+        win.delegate = WindowCloseDelegate.shared
+        window = win
+    }
+
+    static func hide() {
+        window?.delegate = nil
+        window?.close()
+        window = nil
+    }
+}
+
+private class WindowCloseDelegate: NSObject, NSWindowDelegate {
+    static let shared = WindowCloseDelegate()
+
+    func windowWillClose(_ notification: Notification) {
+        guard let win = notification.object as? NSWindow,
+              let hosting = win.contentView as? NSHostingView<ScreenshotEditorView> else { return }
+        let store = hosting.rootView.store
+        if case .editing = store.phase {
+            store.cancelCapture()
+        }
+    }
+}
+
 struct ScreenshotEditorView: View {
     @ObservedObject var store: ScreenshotStore
     @State private var isDrawing = false
@@ -213,6 +256,9 @@ struct ScreenshotEditorView: View {
                                 if store.currentTool == .text {
                                     editingText = ""
                                     editingTextImagePoint = pt
+                                } else if store.currentTool == .pen && isDrawing {
+                                    store.pushUndo()
+                                    store.annotations.append(PenAnnotation(points: currentPoints, color: store.currentColor, strokeWidth: store.strokeWidth))
                                 }
                                 return
                             }

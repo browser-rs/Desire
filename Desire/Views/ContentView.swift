@@ -542,20 +542,19 @@ struct ContentView: View {
             }
         }
         .onChange(of: screenshotStore.phase) { _, phase in
-            if case .selecting = phase {
+            switch phase {
+            case .selecting:
                 ScreenshotOverlayPresenter.show(
                     onCancel: { screenshotStore.cancelCapture() },
                     onCapture: { rect in screenshotStore.capture(rect: rect) }
                 )
-            } else {
+            case .editing:
                 ScreenshotOverlayPresenter.hide()
+                ScreenshotEditorPresenter.show(store: screenshotStore)
+            case .idle:
+                ScreenshotOverlayPresenter.hide()
+                ScreenshotEditorPresenter.hide()
             }
-        }
-        .sheet(isPresented: .init(
-            get: { if case .editing = screenshotStore.phase { true } else { false } },
-            set: { if !$0 { screenshotStore.cancelCapture() } }
-        )) {
-            ScreenshotEditorView(store: screenshotStore)
         }
     }
 

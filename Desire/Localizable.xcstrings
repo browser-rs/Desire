@@ -93,6 +93,9 @@
         }
       }
     },
+    "%lldpx" : {
+
+    },
     "×" : {
 
     },
@@ -4137,6 +4140,9 @@
         }
       }
     },
+    "Redo" : {
+
+    },
     "Reload" : {
       "comment" : "Reload button",
       "localizations" : {
@@ -5069,6 +5075,9 @@
           }
         }
       }
+    },
+    "Stroke: %lldpx" : {
+
     },
     "Suggestion URL (optional)" : {
       "comment" : "Add custom search engine suggestion URL placeholder",

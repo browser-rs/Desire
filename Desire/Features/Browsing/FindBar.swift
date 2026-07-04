@@ -18,7 +18,7 @@ struct FindBar: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 180)
                 .focused(isFindFocused)
-                .onChange(of: findString) {
+                .onChange(of: findString) { _, _ in
                     onFindAll()
                 }
                 .onSubmit { onFindNext() }

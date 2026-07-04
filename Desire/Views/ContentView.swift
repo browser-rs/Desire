@@ -156,6 +156,11 @@ struct ContentView: View {
                         .transition(.opacity)
                     }
                 }
+                .overlay {
+                    if let error = tab.browser.lastError, !tab.isOnNewTabPage {
+                        errorView(message: error, tab: tab)
+                    }
+                }
             }
         }
         .ignoresSafeArea(.all, edges: .top)
@@ -290,6 +295,34 @@ struct ContentView: View {
 
     private func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)
+    }
+
+    private func errorView(message: String, tab: Tab) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+
+            Text("无法加载页面")
+                .font(.title2)
+
+            Text(message)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .frame(maxWidth: 400)
+
+            Button("重新加载") {
+                tab.browser.lastError = nil
+                if let url = URL(string: tab.urlString) {
+                    tab.browser.webView.load(URLRequest(url: url))
+                }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func toggleBookmark() {

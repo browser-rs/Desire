@@ -80,16 +80,8 @@ struct Toolbar: View {
                     }
                     .font(.system(size: 13))
 
-                Button {
-                    actions.toggleBookmark()
-                } label: {
-                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 12))
-                        .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(isBookmarked ? "删除书签" : "添加书签")
-                .disabled(tab.isOnNewTabPage)
+                HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
+                    .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
             }
             .padding(.horizontal, 8)
             .frame(height: 30)
@@ -103,32 +95,7 @@ struct Toolbar: View {
             .layoutPriority(1)
 
             HStack(spacing: 6) {
-                Button {
-                    showDownloads.toggle()
-                } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: downloadStore.hasActive
-                              ? "arrow.down.circle.fill"
-                              : "arrow.down.circle")
-                            .foregroundStyle(downloadStore.hasActive ? Color.accentColor : .primary)
-                        if downloadStore.activeCount > 0 {
-                            Text("\(downloadStore.activeCount)")
-                                .font(.system(size: 9, weight: .bold))
-                                .padding(3)
-                                .background(Color.accentColor)
-                                .foregroundStyle(.white)
-                                .clipShape(Circle())
-                                .offset(x: 7, y: -7)
-                        }
-                    }
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("下载")
-                .popover(isPresented: $showDownloads) {
-                    DownloadPanel(store: downloadStore)
-                }
+                DownloadButton(store: downloadStore, showDownloads: $showDownloads)
 
                 Button {
                     showMoreMenu = true
@@ -140,7 +107,7 @@ struct Toolbar: View {
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showMoreMenu) {
-                VStack(spacing: 0) {
+                    VStack(spacing: 0) {
                     moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
                     moreMenuItem("书签", "bookmark") { showBookmarks = true }
                     moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
@@ -180,5 +147,43 @@ struct Toolbar: View {
         }
         .buttonStyle(.plain)
         .padding(8)
+    }
+}
+
+private struct DownloadButton: View {
+    @ObservedObject var store: DownloadStore
+    @Binding var showDownloads: Bool
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            showDownloads.toggle()
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: store.hasActive ? "arrow.down.circle.fill" : "arrow.down.circle")
+                    .foregroundStyle(store.hasActive ? Color.accentColor : .primary)
+                if store.activeCount > 0 {
+                    Text("\(store.activeCount)")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(3)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(Circle())
+                        .offset(x: 7, y: -7)
+                }
+            }
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovering ? Color(nsColor: .controlBackgroundColor) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("下载")
+        .onHover { isHovering = $0 }
+        .popover(isPresented: $showDownloads) {
+            DownloadPanel(store: store)
+        }
     }
 }

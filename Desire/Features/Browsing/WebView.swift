@@ -38,6 +38,7 @@ class BrowserState: ObservableObject {
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
+    @Published var lastError: String?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -120,6 +121,7 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             parent.isLoading = true
             parent.state.estimatedProgress = 0
+            parent.state.lastError = nil
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
@@ -131,6 +133,7 @@ struct WebView: NSViewRepresentable {
             parent.state.estimatedProgress = 1
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
+            parent.state.lastError = nil
             if let url = webView.url {
                 parent.urlString = url.absoluteString
                 lastNavigatedURL = url.absoluteString
@@ -141,6 +144,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
+            parent.state.lastError = error.localizedDescription
         }
 
         // 处理新窗口/弹窗（Google 登录 OAuth 需要）
@@ -167,6 +171,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
+            parent.state.lastError = error.localizedDescription
         }
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {

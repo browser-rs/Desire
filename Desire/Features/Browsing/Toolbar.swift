@@ -70,25 +70,8 @@ struct Toolbar: View {
                 .buttonStyle(.plain)
                 .help(tab.browser.isSecure ? "连接安全" : "连接不安全")
                 .popover(isPresented: $showSecurityInfo) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
-                                .foregroundStyle(tab.browser.isSecure ? .green : .orange)
-                            Text(tab.browser.isSecure ? "连接安全" : "连接不安全")
-                                .font(.headline)
-                        }
-                        Divider()
-                        Label(tab.browser.webView.url?.host ?? "", systemImage: "globe")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                        if tab.browser.isSecure {
-                            Label("此连接使用 HTTPS 加密", systemImage: "checkmark.shield")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(16)
-                    .frame(width: 260)
+                    SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
+                                     host: tab.browser.webView.url?.host ?? "")
                 }
 
                 TextField("搜索或输入网址", text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }))
@@ -178,9 +161,11 @@ struct Toolbar: View {
                     }
                 .padding(4)
                 .frame(width: 200)
-            }
         }
     }
+}
+
+
     .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .background(.bar)

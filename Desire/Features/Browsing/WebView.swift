@@ -1,4 +1,5 @@
 import Combine
+import Security
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
@@ -124,6 +125,7 @@ class BrowserState: ObservableObject {
     @Published var isSecure: Bool = false
     @Published var lastError: String?
     @Published var pageZoom: Double = 1.0
+    @Published var serverTrust: SecTrust?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
         let config = WKWebViewConfiguration()
@@ -207,6 +209,14 @@ struct WebView: NSViewRepresentable {
             parent.isLoading = true
             parent.state.estimatedProgress = 0
             parent.state.lastError = nil
+            parent.state.serverTrust = nil
+        }
+
+        func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+                parent.state.serverTrust = challenge.protectionSpace.serverTrust
+            }
+            completionHandler(.performDefaultHandling, nil)
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {

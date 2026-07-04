@@ -13,20 +13,20 @@ struct ElementBlockPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("元素拦截").font(.headline)
+                Text("Element Blocker").font(.headline)
                 Spacer()
-                Button("页面选取") { onStartPicker(); onClose() }
+                Button("Pick from Page") { onStartPicker(); onClose() }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
-                Button("添加规则") { showAddSheet = true }
+                Button("Add Rule") { showAddSheet = true }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
-                Button("关闭", action: onClose)
+                Button("Close", action: onClose)
             }
             .padding()
 
             if store.rules.isEmpty {
-                EmptyState(message: "暂无拦截规则")
+                EmptyState(message: String(localized: "No Blocking Rules"))
             } else {
                 List {
                     ForEach(store.rules) { rule in
@@ -59,7 +59,7 @@ struct ElementBlockPanel: View {
                             }
                         }
                         .contextMenu {
-                            Button("删除", role: .destructive) { store.remove(id: rule.id) }
+                            Button("Delete", role: .destructive) { store.remove(id: rule.id) }
                         }
                     }
                 }
@@ -69,13 +69,13 @@ struct ElementBlockPanel: View {
         .frame(width: 420, height: 400)
         .sheet(isPresented: $showAddSheet) {
             VStack(spacing: 12) {
-                Text("添加拦截规则").font(.headline)
-                TextField("URL 模式（如 example.com, * 为全部）", text: $newPattern)
-                TextField("CSS 选择器", text: $newCss)
-                TextField("XPath（可选）", text: $newXpath)
+                Text("Add Blocking Rule").font(.headline)
+                TextField("URL Pattern (e.g. example.com, * for all)", text: $newPattern)
+                TextField("CSS Selector", text: $newCss)
+                TextField("XPath (optional)", text: $newXpath)
                 HStack {
-                    Button("取消") { showAddSheet = false }
-                    Button("添加") {
+                    Button("Cancel") { showAddSheet = false }
+                    Button("Add") {
                         let pattern = newPattern.trimmingCharacters(in: .whitespaces)
                         let css = newCss.trimmingCharacters(in: .whitespaces)
                         guard !pattern.isEmpty, !css.isEmpty else { return }

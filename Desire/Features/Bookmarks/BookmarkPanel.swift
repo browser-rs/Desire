@@ -31,21 +31,21 @@ struct BookmarkPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("书签").font(.headline)
+                Text("Bookmarks").font(.headline)
                 Spacer()
                 Button("", systemImage: "square.and.arrow.up") { store.exportToHTML() }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
-                    .help("导出")
+                    .help("Export")
                 Button("", systemImage: "square.and.arrow.down") { store.importFromHTML() }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
-                    .help("导入")
+                    .help("Import")
                 Button("", systemImage: "folder.badge.plus") { showNewFolder = true }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
-                    .help("新建文件夹")
-                Button("关闭", action: onClose)
+                    .help("New Folder")
+                Button("Close", action: onClose)
             }
             .padding()
 
@@ -53,7 +53,7 @@ struct BookmarkPanel: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("搜索书签…", text: $searchText)
+                    TextField("Search Bookmarks…", text: $searchText)
                         .textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 12)
@@ -61,7 +61,7 @@ struct BookmarkPanel: View {
             }
 
             if flatItems.isEmpty {
-                EmptyState(message: searchText.isEmpty ? "暂无书签" : "未找到匹配书签")
+                EmptyState(message: searchText.isEmpty ? String(localized: "No Bookmarks") : String(localized: "No Matching Bookmarks"))
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -75,14 +75,14 @@ struct BookmarkPanel: View {
                                     )
                                     .padding(.leading, CGFloat(item.level * 16))
                                     .contextMenu {
-                                        Button("在新标签页中打开") { onSelect(url) }
-                                        Button("复制链接") {
+                                        Button("Open in New Tab") { onSelect(url) }
+                                        Button("Copy Link") {
                                             NSPasteboard.general.clearContents()
                                             NSPasteboard.general.setString(url, forType: .string)
                                         }
                                         Divider()
-                                        Button("编辑…") { startEditing(item.bookmark) }
-                                        Button("删除", role: .destructive) { onDelete(item.bookmark) }
+                                        Button("Edit…") { startEditing(item.bookmark) }
+                                        Button("Delete", role: .destructive) { onDelete(item.bookmark) }
                                     }
                                 } else {
                                     HStack(spacing: 6) {
@@ -97,8 +97,8 @@ struct BookmarkPanel: View {
                                     .padding(.vertical, 4)
                                     .contentShape(Rectangle())
                                     .contextMenu {
-                                        Button("编辑文件夹…") { startEditing(item.bookmark) }
-                                        Button("删除文件夹", role: .destructive) { onDelete(item.bookmark) }
+                                        Button("Edit Folder…") { startEditing(item.bookmark) }
+                                        Button("Delete Folder", role: .destructive) { onDelete(item.bookmark) }
                                     }
                                 }
                                 Divider()
@@ -121,19 +121,19 @@ struct BookmarkPanel: View {
         }
         .sheet(isPresented: $showNewFolder) {
             VStack(spacing: 16) {
-                Text("新建文件夹").font(.headline)
-                TextField("文件夹名称", text: $newFolderName)
+                Text("New Folder").font(.headline)
+                TextField("Folder Name", text: $newFolderName)
                     .textFieldStyle(.roundedBorder)
                 HStack(spacing: 12) {
-                    Button("取消") {
+                    Button("Cancel") {
                         newFolderName = ""
                         showNewFolder = false
                     }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
-                    Button("创建") {
+                    Button("Create") {
                         let name = newFolderName.trimmingCharacters(in: .whitespaces)
-                        store.addFolder(title: name.isEmpty ? "新建文件夹" : name)
+                        store.addFolder(title: name.isEmpty ? String(localized: "New Folder") : name)
                         newFolderName = ""
                         showNewFolder = false
                     }
@@ -158,18 +158,18 @@ private struct BookmarkEditor: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text(bookmark.isFolder ? "编辑文件夹" : "编辑书签").font(.headline)
+            Text(bookmark.isFolder ? "Edit Folder" : "Edit Bookmark").font(.headline)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("名称").font(.caption).foregroundStyle(.secondary)
-                TextField("名称", text: $bookmark.title)
+                Text("Name").font(.caption).foregroundStyle(.secondary)
+                TextField("Name", text: $bookmark.title)
                     .textFieldStyle(.roundedBorder)
             }
 
             if bookmark.isLeaf {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("地址").font(.caption).foregroundStyle(.secondary)
-                    TextField("地址", text: Binding(
+                    Text("URL").font(.caption).foregroundStyle(.secondary)
+                    TextField("URL", text: Binding(
                         get: { bookmark.url ?? "" },
                         set: { bookmark.url = $0.isEmpty ? nil : $0 }
                     ))
@@ -178,10 +178,10 @@ private struct BookmarkEditor: View {
             }
 
             HStack(spacing: 12) {
-                Button("取消", action: onCancel)
+                Button("Cancel", action: onCancel)
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                Button("保存") { onSave(bookmark) }
+                Button("Save") { onSave(bookmark) }
                     .buttonStyle(.borderedProminent)
             }
         }

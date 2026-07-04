@@ -18,96 +18,96 @@ struct DesireApp: App {
         .commands {
             // MARK: - File
             CommandGroup(replacing: .newItem) {
-                Button("新建标签页") { postCommand(.newTab) }
+                Button("New Tab") { postCommand(.newTab) }
                     .keyboardShortcut("t", modifiers: .command)
-                Button("新建无痕标签页") { postCommand(.newIncognitoTab) }
+                Button("New Incognito Tab") { postCommand(.newIncognitoTab) }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                 Divider()
-                Button("关闭标签页") { postCommand(.closeTab) }
+                Button("Close Tab") { postCommand(.closeTab) }
                     .keyboardShortcut("w", modifiers: .command)
-                Button("恢复关闭的标签页") { postCommand(.reopenClosedTab) }
+                Button("Reopen Closed Tab") { postCommand(.reopenClosedTab) }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
             }
 
             // MARK: - Edit (add Find after pasteboard)
             CommandGroup(after: .pasteboard) {
                 Divider()
-                Button("在页面中查找…") { postCommand(.toggleFind) }
+                Button("Find in Page…") { postCommand(.toggleFind) }
                     .keyboardShortcut("f", modifiers: .command)
             }
 
             // MARK: - View
-            CommandMenu("显示") {
-                Button("实际大小") { postCommand(.actualSize) }
+            CommandMenu("View") {
+                Button("Actual Size") { postCommand(.actualSize) }
                     .keyboardShortcut("0", modifiers: .command)
-                Button("放大") { postCommand(.zoomIn) }
+                Button("Zoom In") { postCommand(.zoomIn) }
                     .keyboardShortcut("=", modifiers: .command)
-                Button("缩小") { postCommand(.zoomOut) }
+                Button("Zoom Out") { postCommand(.zoomOut) }
                     .keyboardShortcut("-", modifiers: .command)
                 Divider()
-                Button("进入全屏") { postCommand(.toggleFullScreen) }
+                Button("Enter Full Screen") { postCommand(.toggleFullScreen) }
                     .keyboardShortcut("f", modifiers: [.control, .command])
                 Divider()
-                Button("重新载入页面") { postCommand(.reload) }
+                Button("Reload Page") { postCommand(.reload) }
                     .keyboardShortcut("r", modifiers: .command)
-                Button("阅读模式") { postCommand(.toggleReader) }
+                Button("Reader View") { postCommand(.toggleReader) }
                 Divider()
-                Button("检查元素") { postCommand(.inspectElement) }
+                Button("Inspect Element") { postCommand(.inspectElement) }
                     .keyboardShortcut("i", modifiers: [.command, .shift])
-                Button("响应式设计模式") { postCommand(.toggleResponsiveMode) }
+                Button("Responsive Design Mode") { postCommand(.toggleResponsiveMode) }
                     .keyboardShortcut("m", modifiers: [.command, .shift])
             }
 
             // MARK: - History
-            CommandMenu("历史记录") {
-                Button("浏览历史") { postCommand(.showHistory) }
+            CommandMenu("History") {
+                Button("Show History") { postCommand(.showHistory) }
                     .keyboardShortcut("y", modifiers: .command)
                 Divider()
-                Button("清除历史…") { postCommand(.clearHistory) }
+                Button("Clear History…") { postCommand(.clearHistory) }
             }
 
-            // MARK: - 书签
-            CommandMenu("书签") {
-                Button("书签面板") { postCommand(.showBookmarks) }
+            // MARK: - Bookmarks
+            CommandMenu("Bookmarks") {
+                Button("Bookmarks Panel") { postCommand(.showBookmarks) }
                 Divider()
-                Button("添加书签") { postCommand(.bookmarkPage) }
+                Button("Add Bookmark") { postCommand(.bookmarkPage) }
                     .keyboardShortcut("d", modifiers: .command)
             }
 
-            // MARK: - 标签页
-            CommandMenu("标签页") {
-                Button("搜索标签页") { postCommand(.tabSearch) }
+            // MARK: - Tabs
+            CommandMenu("Tabs") {
+                Button("Search Tabs") { postCommand(.tabSearch) }
                     .keyboardShortcut("\\", modifiers: .command)
-                Button("侧边栏") { postCommand(.toggleSidebar) }
+                Button("Sidebar") { postCommand(.toggleSidebar) }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                 Divider()
-                Button("上一个标签页") { postCommand(.previousTab) }
+                Button("Previous Tab") { postCommand(.previousTab) }
                     .keyboardShortcut("{", modifiers: .command)
-                Button("下一个标签页") { postCommand(.nextTab) }
+                Button("Next Tab") { postCommand(.nextTab) }
                     .keyboardShortcut("}", modifiers: .command)
                 Divider()
                 ForEach(1...9, id: \.self) { n in
-                    Button("切换到标签页 \(n)") { postCommand(.selectTab(n - 1)) }
+                    Button("Switch to Tab \(n)") { postCommand(.selectTab(n - 1)) }
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
 
             // MARK: - Tools
-            CommandMenu("工具") {
-                Button("插件") { postCommand(.showPlugins) }
+            CommandMenu("Tools") {
+                Button("Plugins") { postCommand(.showPlugins) }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
-                Button("元素拦截") { postCommand(.showElementBlock) }
+                Button("Element Blocker") { postCommand(.showElementBlock) }
                 Divider()
-                Button("导出书签") { postCommand(.exportBookmarks) }
-                Button("导入书签") { postCommand(.importBookmarks) }
+                Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
+                Button("Import Bookmarks…") { postCommand(.importBookmarks) }
                 Divider()
-                Button("打印…") { postCommand(.printPage) }
+                Button("Print…") { postCommand(.printPage) }
                     .keyboardShortcut("p", modifiers: .command)
             }
 
             // MARK: - Window
             CommandGroup(replacing: .windowArrangement) {
-                Button("设置") { postCommand(.showSettings) }
+                Button("Settings…") { postCommand(.showSettings) }
                     .keyboardShortcut(",", modifiers: .command)
             }
         }

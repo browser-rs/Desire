@@ -34,17 +34,17 @@ class BrowserWKWebView: WKWebView {
             let bgImageURL = info["bgImageUrl"].flatMap(URL.init)
 
             if let url = imageURL ?? bgImageURL {
-                let save = NSMenuItem(title: "保存图片", action: #selector(self.saveImage), keyEquivalent: "")
+                let save = NSMenuItem(title: String(localized: "Save Image"), action: #selector(self.saveImage), keyEquivalent: "")
                 save.target = self
                 save.representedObject = url
                 menu.addItem(save)
 
-                let copyURL = NSMenuItem(title: "复制图片地址", action: #selector(self.copyImageURL), keyEquivalent: "")
+                let copyURL = NSMenuItem(title: String(localized: "Copy Image URL"), action: #selector(self.copyImageURL), keyEquivalent: "")
                 copyURL.target = self
                 copyURL.representedObject = url
                 menu.addItem(copyURL)
 
-                let copyImage = NSMenuItem(title: "复制图片", action: #selector(self.copyImage), keyEquivalent: "")
+                let copyImage = NSMenuItem(title: String(localized: "Copy Image"), action: #selector(self.copyImage), keyEquivalent: "")
                 copyImage.target = self
                 copyImage.representedObject = url
                 menu.addItem(copyImage)
@@ -52,12 +52,12 @@ class BrowserWKWebView: WKWebView {
 
             if let url = linkURL {
                 if imageURL != nil || bgImageURL != nil { menu.addItem(.separator()) }
-                let open = NSMenuItem(title: "在新标签页中打开链接", action: #selector(self.openLinkInNewTab), keyEquivalent: "")
+                let open = NSMenuItem(title: String(localized: "Open Link in New Tab"), action: #selector(self.openLinkInNewTab), keyEquivalent: "")
                 open.target = self
                 open.representedObject = url
                 menu.addItem(open)
 
-                let copyLink = NSMenuItem(title: "复制链接地址", action: #selector(self.copyLinkURL), keyEquivalent: "")
+                let copyLink = NSMenuItem(title: String(localized: "Copy Link URL"), action: #selector(self.copyLinkURL), keyEquivalent: "")
                 copyLink.target = self
                 copyLink.representedObject = url
                 menu.addItem(copyLink)

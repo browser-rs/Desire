@@ -15,7 +15,7 @@ struct FindBar: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
 
-            TextField("在页面中查找…", text: $findString)
+            TextField("Find in page…", text: $findString)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 180)
                 .focused(isFindFocused)
@@ -30,22 +30,22 @@ struct FindBar: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             } else if !findString.isEmpty {
-                Text("未找到")
+                Text("Not found")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Button("上一条", systemImage: "chevron.up") { onFindPrevious() }
+            Button("Previous", systemImage: "chevron.up") { onFindPrevious() }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .disabled(findString.isEmpty)
 
-            Button("下一条", systemImage: "chevron.down") { onFindNext() }
+            Button("Next", systemImage: "chevron.down") { onFindNext() }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .disabled(findString.isEmpty)
 
-            Button("完成") { onHide() }
+            Button("Done") { onHide() }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.accentColor)
         }

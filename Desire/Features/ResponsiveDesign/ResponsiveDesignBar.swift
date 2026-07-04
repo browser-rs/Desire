@@ -8,7 +8,7 @@ struct ResponsiveDesignBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button("退出响应式") {
+            Button("Exit Responsive") {
                 isEnabled = false
             }
             .buttonStyle(.plain)

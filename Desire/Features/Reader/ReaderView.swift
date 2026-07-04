@@ -12,7 +12,7 @@ struct ReaderView: View {
                 Button(action: onClose) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                        Text("返回")
+                        Text("Back")
                     }
                     .font(.system(size: 13))
                 }

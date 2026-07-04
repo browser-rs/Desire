@@ -90,8 +90,8 @@ struct Toolbar: View {
             BackForwardButton(direction: .forward, webView: tab.browser.webView, canGo: tab.canGoForward, action: actions.goForward)
             CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
                 if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
-            }, help: tab.isLoading ? "停止" : "重新加载")
-            CapsuleButton(systemName: "house", action: actions.loadHome, help: "主页")
+            }, help: tab.isLoading ? "Stop" : "Reload")
+            CapsuleButton(systemName: "house", action: actions.loadHome, help: "Home")
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
@@ -112,7 +112,7 @@ struct Toolbar: View {
                     .imageScale(.small)
             }
             .buttonStyle(.plain)
-            .help(tab.browser.isSecure ? "连接安全" : "连接不安全")
+            .help(tab.browser.isSecure ? "Connection Secure" : "Connection Not Secure")
             .popover(isPresented: $showSecurityInfo) {
                 SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
                                  host: tab.browser.webView.url?.host ?? "")
@@ -138,10 +138,10 @@ struct Toolbar: View {
                 }
             )
 
-            HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "退出阅读模式" : "阅读模式")
+            HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "Exit Reader Mode" : "Reader Mode")
                 .foregroundStyle(isReadingMode ? Color.accentColor : .secondary)
 
-            HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "删除书签" : "添加书签")
+            HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "Remove Bookmark" : "Bookmark This Page")
                 .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
         }
         .padding(.horizontal, 8)
@@ -173,7 +173,7 @@ struct Toolbar: View {
                 .frame(width: 36, height: 22)
         }
         .buttonStyle(.plain)
-        .help("缩放比例 — 点击重置为 100%")
+        .help("Zoom Level — Click to reset to 100%")
     }
 
     // MARK: - Trailing Buttons
@@ -202,49 +202,49 @@ struct Toolbar: View {
 
     private var moreMenuContent: some View {
         VStack(spacing: 0) {
-            moreMenuItem("浏览历史", "clock.arrow.circlepath") { showHistory = true }
-            moreMenuItem("书签", "bookmark") { showBookmarks = true }
-            moreMenuItem("密码", "key.fill") { showPasswords = true }
-            moreMenuItem("下载", "arrow.down.circle") { showDownloads = true }
-            moreMenuItem("阅读列表", "bookmark.slash") { showReadingList = true }
-            moreMenuItem("插件", "applescript") { showPlugins = true }
-            moreMenuItem("元素拦截", "eye.slash") { showElementBlock = true }
-            moreMenuItem(isBookmarked ? "删除书签" : "添加书签", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
+            moreMenuItem("History", "clock.arrow.circlepath") { showHistory = true }
+            moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
+            moreMenuItem("Passwords", "key.fill") { showPasswords = true }
+            moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
+            moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
+            moreMenuItem("Plugins", "applescript") { showPlugins = true }
+            moreMenuItem("Element Blocker", "eye.slash") { showElementBlock = true }
+            moreMenuItem(isBookmarked ? "Remove Bookmark" : "Bookmark This Page", isBookmarked ? "bookmark.slash" : "bookmark.fill") { actions.toggleBookmark() }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("添加到阅读列表", "bookmark.slash") {
+            moreMenuItem("Add to Reading List", "bookmark.slash") {
                 let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
                 let title = tab.browser.pageTitle
                 actions.addToReadingList(title, url)
             }
             .disabled(tab.isOnNewTabPage)
-            moreMenuItem("暗色模式", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
+            moreMenuItem("Dark Mode", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("画中画", "pip") { actions.togglePictureInPicture() }
+            moreMenuItem("Picture in Picture", "pip") { actions.togglePictureInPicture() }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("分享…", "square.and.arrow.up") { shareCurrentPage() }
+            moreMenuItem("Share…", "square.and.arrow.up") { shareCurrentPage() }
                 .disabled(tab.isOnNewTabPage)
             Divider()
-            moreMenuItem("放大", "plus.magnifyingglass") { actions.zoomIn() }
-            moreMenuItem("缩小", "minus.magnifyingglass") { actions.zoomOut() }
-            moreMenuItem("重置缩放", "1.magnifyingglass") { actions.resetZoom() }
-            moreMenuItem("打印…", "printer") { actions.printPage() }
-            moreMenuItem("全页截图…", "photo.on.rectangle.angled") { actions.captureFullPage() }
+            moreMenuItem("Zoom In", "plus.magnifyingglass") { actions.zoomIn() }
+            moreMenuItem("Zoom Out", "minus.magnifyingglass") { actions.zoomOut() }
+            moreMenuItem("Reset Zoom", "1.magnifyingglass") { actions.resetZoom() }
+            moreMenuItem("Print…", "printer") { actions.printPage() }
+            moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
             Divider()
-            moreMenuItem("检查元素", "ladybug") { actions.inspectElement() }
-            moreMenuItem("响应式设计模式", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
-            moreMenuItem("全屏", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
-            moreMenuItem("偏好设置…", "gearshape") { showSettings = true }
+            moreMenuItem("Inspect Element", "ladybug") { actions.inspectElement() }
+            moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle") { actions.toggleResponsiveMode() }
+            moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right") { actions.toggleFullScreen() }
+            moreMenuItem("Preferences…", "gearshape") { showSettings = true }
         }
         .padding(4)
         .frame(width: 200)
     }
 
-    private func moreMenuItem(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
+    private func moreMenuItem(_ titleKey: LocalizedStringKey, _ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: {
             showMoreMenu = false
             action()
         }) {
-            Label(title, systemImage: icon)
+            Label(titleKey, systemImage: icon)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
@@ -278,14 +278,14 @@ private struct BackForwardButton: View {
     }
 
     private var help: String {
-        direction == .back ? "后退" : "前进"
+        direction == .back ? "Back" : "Forward"
     }
 
     var body: some View {
         CapsuleButton(systemName: systemName, action: action, disabled: !canGo, help: help)
             .contextMenu {
                 if list.isEmpty {
-                    Text(direction == .back ? "没有历史记录" : "没有前进记录")
+                    Text(direction == .back ? "No History" : "No Forward History")
                 }
                 ForEach(list, id: \.url) { item in
                     Button(item.title ?? item.url.absoluteString) {
@@ -326,7 +326,7 @@ private struct DownloadButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("下载")
+        .help("Downloads")
         .onHover { isHovering = $0 }
         .popover(isPresented: $showDownloads) {
             DownloadPanel(store: store)

@@ -11,7 +11,7 @@ struct ErrorPageView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
-            Text("无法加载页面")
+            Text("Cannot Load Page")
                 .font(.title2)
 
             Text(message)
@@ -21,7 +21,7 @@ struct ErrorPageView: View {
                 .lineLimit(3)
                 .frame(maxWidth: 400)
 
-            Button("重新加载") {
+            Button("Reload") {
                 tab.browser.lastError = nil
                 if let url = URL(string: tab.urlString) {
                     tab.browser.webView.load(URLRequest(url: url))

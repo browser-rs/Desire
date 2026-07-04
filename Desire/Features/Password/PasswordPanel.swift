@@ -10,11 +10,11 @@ struct PasswordPanel: View {
             HStack {
                 Image(systemName: "lock.keyhole.fill")
                     .foregroundStyle(.secondary)
-                Text("密码管理")
+                Text("Passwords")
                     .font(.headline)
                 Spacer()
                 if !filtered.isEmpty {
-                    Button("清除全部") { showClearConfirmation = true }
+                    Button("Clear All") { showClearConfirmation = true }
                         .buttonStyle(.plain)
                         .foregroundStyle(.red)
                         .font(.caption)
@@ -24,7 +24,7 @@ struct PasswordPanel: View {
 
             if filtered.isEmpty {
                 Spacer()
-                EmptyState(message: "没有保存的密码")
+                EmptyState(message: String(localized: "No Saved Passwords"))
                 Spacer()
             } else {
                 List {
@@ -36,12 +36,12 @@ struct PasswordPanel: View {
             }
         }
         .frame(width: 420, height: 400)
-        .searchable(text: $searchText, prompt: "搜索域名")
-        .alert("清除所有密码", isPresented: $showClearConfirmation) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) { passwordStore.clearAll() }
+        .searchable(text: $searchText, prompt: "Search Domains")
+        .alert("Clear All Passwords", isPresented: $showClearConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) { passwordStore.clearAll() }
         } message: {
-            Text("此操作将删除所有保存的密码，不可撤销。")
+            Text("This will permanently delete all saved passwords.")
         }
     }
 
@@ -90,7 +90,7 @@ private struct PasswordRow: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help(showPassword ? "隐藏密码" : "显示密码")
+            .help(showPassword ? "Hide Password" : "Show Password")
 
             Button(role: .destructive) {
                 onDelete()
@@ -100,7 +100,7 @@ private struct PasswordRow: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("删除")
+            .help("Delete")
         }
         .padding(.vertical, 4)
     }

@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum SidebarTab: String, CaseIterable {
-    case bookmarks = "书签"
-    case history = "历史"
-    case readingList = "阅读列表"
+    case bookmarks
+    case history
+    case readingList
 
     var icon: String {
         switch self {
@@ -53,15 +53,15 @@ struct SidebarView: View {
                     if let url = bookmark.url { onNavigate(url) }
                 }
                 .contextMenu {
-                    Button("打开") { if let url = bookmark.url { onNavigate(url) } }
-                    Button("删除", role: .destructive) { bookmarkStore.remove(bookmark) }
+                    Button("Open") { if let url = bookmark.url { onNavigate(url) } }
+                    Button("Delete", role: .destructive) { bookmarkStore.remove(bookmark) }
                 }
             }
         }
         .listStyle(.plain)
         .overlay {
             if bookmarkStore.allBookmarks.isEmpty {
-                EmptyState(message: "无书签")
+                EmptyState(message: String(localized: "No Bookmarks"))
             }
         }
     }
@@ -73,15 +73,15 @@ struct SidebarView: View {
                     onNavigate(entry.url)
                 }
                 .contextMenu {
-                    Button("打开") { onNavigate(entry.url) }
-                    Button("删除", role: .destructive) { historyStore.removeEntry(id: entry.id) }
+                    Button("Open") { onNavigate(entry.url) }
+                    Button("Delete", role: .destructive) { historyStore.removeEntry(id: entry.id) }
                 }
             }
         }
         .listStyle(.plain)
         .overlay {
             if historyStore.entries.isEmpty {
-                EmptyState(message: "无历史记录")
+                EmptyState(message: String(localized: "No History"))
             }
         }
     }
@@ -93,15 +93,15 @@ struct SidebarView: View {
                     onNavigate(item.url)
                 }
                 .contextMenu {
-                    Button(item.isRead ? "标记未读" : "标记已读") { readingListStore.toggleRead(item.id) }
-                    Button("删除", role: .destructive) { readingListStore.remove(item.id) }
+                    Button(item.isRead ? String(localized: "Mark as Unread") : String(localized: "Mark as Read")) { readingListStore.toggleRead(item.id) }
+                    Button("Delete", role: .destructive) { readingListStore.remove(item.id) }
                 }
             }
         }
         .listStyle(.plain)
         .overlay {
             if readingListStore.items.isEmpty {
-                EmptyState(message: "阅读列表为空")
+                EmptyState(message: String(localized: "Reading List is Empty"))
             }
         }
     }

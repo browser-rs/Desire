@@ -8,23 +8,23 @@ struct ReadingListPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("阅读列表")
+                Text("Reading List")
                     .font(.headline)
                 Spacer()
                 if !store.items.isEmpty {
-                    Button("全部清除") { store.clearAll() }
+                    Button("Clear All") { store.clearAll() }
                         .buttonStyle(.plain)
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
-                Button("关闭") { onClose() }
+                Button("Close") { onClose() }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.escape)
             }
             .padding()
 
             if store.items.isEmpty {
-                EmptyState(message: "阅读列表为空\n在浏览器菜单中选择「添加到阅读列表」来保存文章稍后阅读")
+                EmptyState(message: String(localized: "Reading List is Empty\nChoose 'Add to Reading List' from the Tools menu to save articles for later."))
             } else {
                 List {
                     ForEach(store.items) { item in
@@ -53,8 +53,8 @@ struct ReadingListPanel: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
-                                Button(item.isRead ? "标记为未读" : "标记为已读") { store.toggleRead(item.id) }
-                                Button("删除") { store.remove(item.id) }
+                                Button(item.isRead ? String(localized: "Mark as Unread") : String(localized: "Mark as Read")) { store.toggleRead(item.id) }
+                                Button("Delete") { store.remove(item.id) }
                             }
                         }
                         .padding(.vertical, 4)

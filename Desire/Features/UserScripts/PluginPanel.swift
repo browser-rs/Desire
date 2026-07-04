@@ -12,10 +12,10 @@ struct PluginPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("插件").font(.headline)
+                Text("Plugins").font(.headline)
                 Spacer()
                 Button("", systemImage: "plus") {
-                    let p = Plugin(name: "新插件", jsCode: "// 在此编写你的 JavaScript 代码\nconsole.log('Desire plugin loaded');")
+                    let p = Plugin(name: String(localized: "New Plugin"), jsCode: "// Plugin JavaScript code\nconsole.log('Desire plugin loaded');")
                     store.add(p)
                     editingPlugin = p
                 }
@@ -27,7 +27,7 @@ struct PluginPanel: View {
             .padding()
 
             if store.plugins.isEmpty {
-                EmptyState(message: "暂无插件")
+                EmptyState(message: String(localized: "No Plugins"))
             } else {
                 List {
                     ForEach(store.plugins) { plugin in
@@ -85,14 +85,14 @@ struct PluginPanel: View {
                 if let plugin = store.importPlugin(from: url) {
                     store.add(plugin)
                 } else {
-                    importError = "无法导入插件：文件格式无效"
+                    importError = String(localized: "Failed to import plugin: invalid file format")
                 }
             case .failure(let error):
                 importError = error.localizedDescription
             }
         }
-        .alert("导入失败", isPresented: .init(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
-            Button("确定") { importError = nil }
+        .alert("Import Failed", isPresented: .init(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK") { importError = nil }
         } message: {
             Text(importError ?? "")
         }
@@ -135,13 +135,13 @@ private struct PluginEditor: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("编辑插件").font(.headline)
+                Text("Edit Plugin").font(.headline)
                 Spacer()
-                Button("取消") {
+                Button("Cancel") {
                     store.update(plugin)
                     dismiss()
                 }
-                Button("保存") {
+                Button("Save") {
                     var p = plugin
                     p.jsCode = jsCode
                     p.cssCode = cssCode
@@ -155,37 +155,37 @@ private struct PluginEditor: View {
             }
 
             HStack(spacing: 8) {
-                TextField("名称", text: $plugin.name)
+                TextField("Name", text: $plugin.name)
                     .frame(width: 180)
-                TextField("版本", text: $plugin.version)
+                TextField("Version", text: $plugin.version)
                     .frame(width: 60)
-                TextField("作者", text: $plugin.author)
+                TextField("Author", text: $plugin.author)
                     .frame(width: 120)
             }
 
-            TextField("描述", text: $plugin.description)
+            TextField("Description", text: $plugin.description)
 
             HStack {
-                Picker("注入时机", selection: $plugin.runAt) {
+                Picker("Run At", selection: $plugin.runAt) {
                     ForEach(RunAt.allCases, id: \.self) { at in
                         Text(at.rawValue.replacingOccurrences(of: "_", with: " ")).tag(at)
                     }
                 }
                 .frame(width: 200)
                 Spacer()
-                Toggle("启用", isOn: $plugin.isEnabled)
+                Toggle("Enabled", isOn: $plugin.isEnabled)
             }
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("URL 匹配模式（每行一个）").font(.caption)
+                    Text("URL Match Patterns (one per line)").font(.caption)
                     TextEditor(text: $urlPatternsText)
                         .font(.system(.caption, design: .monospaced))
                         .frame(height: 80)
                         .border(Color.secondary.opacity(0.2))
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("排除模式（每行一个）").font(.caption)
+                    Text("Exclude Patterns (one per line)").font(.caption)
                     TextEditor(text: $excludePatternsText)
                         .font(.system(.caption, design: .monospaced))
                         .frame(height: 80)
@@ -194,7 +194,7 @@ private struct PluginEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("JavaScript 代码").font(.caption)
+                Text("JavaScript Code").font(.caption)
                 TextEditor(text: $jsCode)
                     .font(.system(.caption, design: .monospaced))
                     .frame(minHeight: 120)
@@ -202,7 +202,7 @@ private struct PluginEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("CSS 代码").font(.caption)
+                Text("CSS Code").font(.caption)
                 TextEditor(text: $cssCode)
                     .font(.system(.caption, design: .monospaced))
                     .frame(minHeight: 80)

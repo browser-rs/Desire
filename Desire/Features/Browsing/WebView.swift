@@ -371,11 +371,12 @@ struct WebView: NSViewRepresentable {
                 let host = challenge.protectionSpace.host
                 DispatchQueue.main.async {
                     let alert = NSAlert()
-                    alert.messageText = "证书无效"
-                    alert.informativeText = "\(host) 的证书不受信任。\n\n\(error?.localizedDescription ?? "未知错误")"
+                    alert.messageText = String(localized: "Invalid Certificate")
+                    let errDesc = error?.localizedDescription ?? String(localized: "Unknown Error")
+                    alert.informativeText = String(localized: "The certificate for \(host) is not trusted.\n\n\(errDesc)")
                     alert.alertStyle = .critical
-                    alert.addButton(withTitle: "继续")
-                    alert.addButton(withTitle: "取消")
+                    alert.addButton(withTitle: String(localized: "Continue Anyway"))
+                    alert.addButton(withTitle: String(localized: "Cancel"))
                     let response = alert.runModal()
                     if response == .alertFirstButtonReturn {
                         let credential = URLCredential(trust: serverTrust)
@@ -547,17 +548,17 @@ struct WebView: NSViewRepresentable {
                 return
             }
             let deviceName: String = switch type {
-            case .camera: "摄像头"
-            case .microphone: "麦克风"
-            case .cameraAndMicrophone: "摄像头和麦克风"
-            @unknown default: "媒体设备"
+            case .camera: String(localized: "Camera")
+            case .microphone: String(localized: "Microphone")
+            case .cameraAndMicrophone: String(localized: "Camera and Microphone")
+            @unknown default: String(localized: "Media Device")
             }
             let alert = NSAlert()
-            alert.messageText = "\(host) 想要访问你的\(deviceName)"
-            alert.informativeText = "允许此网站访问\(deviceName)吗？"
-            alert.addButton(withTitle: "允许")
-            alert.addButton(withTitle: "拒绝")
-            let checkbox = NSButton(checkboxWithTitle: "记住此选择", target: nil, action: nil)
+            alert.messageText = String(localized: "\(host) wants to access your \(deviceName)")
+            alert.informativeText = String(localized: "Allow this website to access your \(deviceName)?")
+            alert.addButton(withTitle: String(localized: "Allow"))
+            alert.addButton(withTitle: String(localized: "Deny"))
+            let checkbox = NSButton(checkboxWithTitle: String(localized: "Remember this decision"), target: nil, action: nil)
             alert.accessoryView = checkbox
             let response = alert.runModal()
             if checkbox.state == .on {
@@ -573,11 +574,11 @@ struct WebView: NSViewRepresentable {
                 return
             }
             let alert = NSAlert()
-            alert.messageText = "\(host) 想要获取你的位置信息"
-            alert.informativeText = "允许此网站获取你的位置吗？"
-            alert.addButton(withTitle: "允许")
-            alert.addButton(withTitle: "拒绝")
-            let checkbox = NSButton(checkboxWithTitle: "记住此选择", target: nil, action: nil)
+            alert.messageText = String(localized: "\(host) wants to access your location")
+            alert.informativeText = String(localized: "Allow this website to access your location?")
+            alert.addButton(withTitle: String(localized: "Allow"))
+            alert.addButton(withTitle: String(localized: "Deny"))
+            let checkbox = NSButton(checkboxWithTitle: String(localized: "Remember this decision"), target: nil, action: nil)
             alert.accessoryView = checkbox
             let response = alert.runModal()
             if checkbox.state == .on {
@@ -600,7 +601,7 @@ struct WebView: NSViewRepresentable {
             let alert = NSAlert()
             alert.messageText = webView.url?.host ?? ""
             alert.informativeText = message
-            alert.addButton(withTitle: "确定")
+            alert.addButton(withTitle: String(localized: "OK"))
             alert.runModal()
         }
 
@@ -608,8 +609,8 @@ struct WebView: NSViewRepresentable {
             let alert = NSAlert()
             alert.messageText = webView.url?.host ?? ""
             alert.informativeText = message
-            alert.addButton(withTitle: "确定")
-            alert.addButton(withTitle: "取消")
+            alert.addButton(withTitle: String(localized: "OK"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
             return alert.runModal() == .alertFirstButtonReturn
         }
 
@@ -617,8 +618,8 @@ struct WebView: NSViewRepresentable {
             let alert = NSAlert()
             alert.messageText = webView.url?.host ?? ""
             alert.informativeText = prompt
-            alert.addButton(withTitle: "确定")
-            alert.addButton(withTitle: "取消")
+            alert.addButton(withTitle: String(localized: "OK"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
             let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
             textField.stringValue = defaultText ?? ""
             alert.accessoryView = textField
@@ -628,7 +629,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
             download.delegate = self
-            let filename = download.originalRequest?.url?.lastPathComponent ?? "下载项"
+            let filename = download.originalRequest?.url?.lastPathComponent ?? String(localized: "Download")
             let id = parent.downloadStore.add(item: DownloadItem(
                 id: UUID(),
                 filename: filename,

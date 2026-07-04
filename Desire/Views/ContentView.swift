@@ -86,12 +86,12 @@ struct ContentView: View {
                     tabGroupStore: tabGroupStore,
                     onCreateGroup: { index in
                         let alert = NSAlert()
-                        alert.messageText = "新建标签分组"
-                        alert.informativeText = "输入分组名称"
+                        alert.messageText = String(localized: "New Tab Group")
+                        alert.informativeText = String(localized: "Enter group name")
                         let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 22))
                         alert.accessoryView = tf
-                        alert.addButton(withTitle: "创建")
-                        alert.addButton(withTitle: "取消")
+                        alert.addButton(withTitle: String(localized: "Create"))
+                        alert.addButton(withTitle: String(localized: "Cancel"))
                         if alert.runModal() == .alertFirstButtonReturn {
                             let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
                             if !name.isEmpty {
@@ -511,8 +511,8 @@ struct ContentView: View {
         .overlay(alignment: .bottom) {
             if showUndoToast {
                 HStack(spacing: 8) {
-                    Text("已屏蔽元素").font(.caption)
-                    Button("撤销") {
+                    Text("Element blocked").font(.caption)
+                    Button("Undo") {
                         if let id = lastBlockedRuleId {
                             elementBlockStore.remove(id: id)
                             let escaped = lastBlockedSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
@@ -707,7 +707,7 @@ struct ContentView: View {
             switch result {
             case .success(let pdfData):
                 let panel = NSSavePanel()
-                panel.title = "保存全页截图"
+                panel.title = String(localized: "Save Full Page PDF")
                 panel.nameFieldStringValue = "\(tab.displayTitle).pdf"
                 panel.allowedContentTypes = [.pdf]
                 panel.begin { response in
@@ -774,14 +774,14 @@ struct ContentView: View {
             return
         }
         let alert = NSAlert()
-        alert.messageText = "屏蔽此元素?"
+        alert.messageText = String(localized: "Block this element?")
         alert.informativeText = "CSS: \(cssSelector)"
         if let xp = xpath {
             alert.informativeText += "\nXPath: \(xp)"
         }
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "屏蔽")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "Block"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             let rule = BlockedElementRule(urlPattern: host, cssSelector: cssSelector, xpath: xpath)
             elementBlockStore.add(cssSelector: cssSelector, xpath: xpath, urlPattern: host)

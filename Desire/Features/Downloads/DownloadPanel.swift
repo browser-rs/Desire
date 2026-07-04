@@ -6,9 +6,9 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("下载").font(.headline)
+                Text("Downloads").font(.headline)
                 Spacer()
-                Button("清除已完成") { store.clearFinished() }
+                Button("Clear Finished") { store.clearFinished() }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .disabled(store.downloads.allSatisfy { $0.state == .inProgress })
@@ -18,7 +18,7 @@ struct DownloadPanel: View {
             Divider()
 
             if store.downloads.isEmpty {
-                EmptyState(message: "暂无下载")
+                EmptyState(message: String(localized: "No Downloads"))
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
@@ -50,7 +50,7 @@ private struct DownloadRow: View {
                         .frame(width: 240)
                     HStack(spacing: 4) {
                         if item.isIndeterminate {
-                            Text("下载中…").font(.caption).foregroundStyle(.secondary)
+                            Text("Downloading…").font(.caption).foregroundStyle(.secondary)
                         } else {
                             Text("\(formatBytes(item.downloadedBytes)) / \(formatBytes(item.totalBytes))")
                                 .font(.caption)
@@ -61,7 +61,7 @@ private struct DownloadRow: View {
                             .foregroundStyle(.secondary)
                     }
                 } else if item.state == .failed {
-                    Text(item.error ?? "下载失败")
+                    Text(item.error ?? String(localized: "Download Failed"))
                         .font(.caption)
                         .foregroundStyle(.red)
                 } else {
@@ -110,14 +110,14 @@ private struct DownloadRow: View {
             HStack(spacing: 12) {
                 Button { store.openFile(item) } label: {
                     Image(systemName: "arrow.up.forward.app")
-                }.buttonStyle(.plain).help("打开")
+                }.buttonStyle(.plain).help("Open")
                 Button { store.revealInFinder(item) } label: {
                     Image(systemName: "folder")
-                }.buttonStyle(.plain).help("在 Finder 中显示")
+                }.buttonStyle(.plain).help("Show in Finder")
                 Button { store.remove(id: item.id) } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)
-                }.buttonStyle(.plain).help("从列表移除")
+                }.buttonStyle(.plain).help("Remove from List")
             }
             .foregroundStyle(.secondary)
         case .failed:

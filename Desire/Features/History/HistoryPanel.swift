@@ -40,23 +40,23 @@ struct HistoryPanel: View {
         }
 
         var sections: [(String, [HistoryEntry])] = []
-        if !today.isEmpty { sections.append(("今天", today)) }
-        if !yesterday.isEmpty { sections.append(("昨天", yesterday)) }
-        if !thisWeek.isEmpty { sections.append(("本周", thisWeek)) }
-        if !earlier.isEmpty { sections.append(("更早", earlier)) }
+        if !today.isEmpty { sections.append((String(localized: "Today"), today)) }
+        if !yesterday.isEmpty { sections.append((String(localized: "Yesterday"), yesterday)) }
+        if !thisWeek.isEmpty { sections.append((String(localized: "This Week"), thisWeek)) }
+        if !earlier.isEmpty { sections.append((String(localized: "Earlier"), earlier)) }
         return sections
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("浏览历史").font(.headline)
+                Text("History").font(.headline)
                 Spacer()
                 if !store.entries.isEmpty {
-                    Button("清除全部", role: .destructive) { store.clearAll() }
+                    Button("Clear All", role: .destructive) { store.clearAll() }
                         .foregroundStyle(.secondary)
                 }
-                Button("关闭", action: onClose)
+                Button("Close", action: onClose)
             }
             .padding()
 
@@ -64,7 +64,7 @@ struct HistoryPanel: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("搜索历史记录…", text: $searchText)
+                    TextField("Search History…", text: $searchText)
                         .textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 12)
@@ -72,7 +72,7 @@ struct HistoryPanel: View {
             }
 
             if filtered.isEmpty {
-                EmptyState(message: searchText.isEmpty ? "暂无浏览记录" : "未找到匹配记录")
+                EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
                 List {
                     ForEach(grouped, id: \.0) { sectionTitle, entries in
@@ -91,13 +91,13 @@ struct HistoryPanel: View {
                                     }
                                 }
                                 .contextMenu {
-                                    Button("在新标签页中打开") { onSelect(entry.url) }
-                                    Button("复制链接") {
+                                    Button("Open in New Tab") { onSelect(entry.url) }
+                                    Button("Copy Link") {
                                         NSPasteboard.general.clearContents()
                                         NSPasteboard.general.setString(entry.url, forType: .string)
                                     }
                                     Divider()
-                                    Button("删除", role: .destructive) { store.removeEntry(id: entry.id) }
+                                    Button("Delete", role: .destructive) { store.removeEntry(id: entry.id) }
                                 }
                             }
                         } header: {

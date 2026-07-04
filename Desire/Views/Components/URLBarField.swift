@@ -17,7 +17,7 @@ struct URLBarField: NSViewRepresentable {
         field.drawsBackground = false
         field.font = NSFont.systemFont(ofSize: 13)
         field.textColor = NSColor.labelColor
-        field.placeholderString = "搜索或输入网址"
+        field.placeholderString = String(localized: "Search or enter address")
         field.delegate = context.coordinator
         field.target = context.coordinator
         field.action = #selector(Coordinator.submit)
@@ -46,25 +46,25 @@ struct URLBarField: NSViewRepresentable {
             self.parent = parent
             self.menu = NSMenu(title: "URL Bar")
             super.init()
-            let pasteAndGo = NSMenuItem(title: "粘贴并转到", action: #selector(pasteAndGoAction), keyEquivalent: "")
+            let pasteAndGo = NSMenuItem(title: String(localized: "Paste and Go"), action: #selector(pasteAndGoAction), keyEquivalent: "")
             pasteAndGo.target = self
             menu.addItem(pasteAndGo)
 
             menu.addItem(NSMenuItem.separator())
 
-            let paste = NSMenuItem(title: "粘贴", action: #selector(pasteAction), keyEquivalent: "v")
+            let paste = NSMenuItem(title: String(localized: "Paste"), action: #selector(pasteAction), keyEquivalent: "v")
             paste.target = self
             menu.addItem(paste)
 
-            let copy = NSMenuItem(title: "复制", action: #selector(copyAction), keyEquivalent: "c")
+            let copy = NSMenuItem(title: String(localized: "Copy"), action: #selector(copyAction), keyEquivalent: "c")
             copy.target = self
             menu.addItem(copy)
 
-            let cut = NSMenuItem(title: "剪切", action: #selector(cutAction), keyEquivalent: "x")
+            let cut = NSMenuItem(title: String(localized: "Cut"), action: #selector(cutAction), keyEquivalent: "x")
             cut.target = self
             menu.addItem(cut)
 
-            let selectAll = NSMenuItem(title: "全选", action: #selector(selectAllAction), keyEquivalent: "a")
+            let selectAll = NSMenuItem(title: String(localized: "Select All"), action: #selector(selectAllAction), keyEquivalent: "a")
             selectAll.target = self
             menu.addItem(selectAll)
         }

@@ -18,7 +18,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             Form {
-                Picker("默认搜索引擎", selection: $settings.searchEngine) {
+                Picker("Default Search Engine", selection: $settings.searchEngine) {
                     ForEach(SearchEngine.allCases, id: \.self) { engine in
                         Text(engine.rawValue).tag(engine)
                     }
@@ -26,13 +26,13 @@ struct SettingsView: View {
 
                 CustomEngineSection(settings: settings)
 
-                TextField("主页 URL", text: $settings.homePage)
+                TextField("Homepage URL", text: $settings.homePage)
 
                 Divider()
 
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("下载位置")
+                        Text("Download Location")
                         Text(downloadStore.downloadFolder.path)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -40,31 +40,31 @@ struct SettingsView: View {
                             .truncationMode(.middle)
                     }
                     Spacer()
-                    Button("更改…") {
+                    Button("Change…") {
                         downloadStore.chooseDownloadFolder()
                     }
                 }
             }
             .padding()
-            .tabItem { Label("常规", systemImage: "gearshape") }
+            .tabItem { Label("General", systemImage: "gearshape") }
 
             Form {
-                Toggle("启用 JavaScript", isOn: $settings.isJavaScriptEnabled)
+                Toggle("Enable JavaScript", isOn: $settings.isJavaScriptEnabled)
 
-                Toggle("广告屏蔽", isOn: $contentBlocker.isBlockingEnabled)
+                Toggle("Block Ads", isOn: $contentBlocker.isBlockingEnabled)
 
-                Toggle("跟踪保护", isOn: $contentBlocker.isTrackingEnabled)
+                Toggle("Tracking Protection", isOn: $contentBlocker.isTrackingEnabled)
 
-                Toggle("HTTPS 升级", isOn: $settings.httpsUpgradeEnabled)
-                    .help("尝试将 HTTP 连接自动升级为 HTTPS")
+                Toggle("HTTPS Upgrade", isOn: $settings.httpsUpgradeEnabled)
+                    .help("Attempt to upgrade HTTP connections to HTTPS automatically")
 
                 Divider()
 
-                Toggle("显示搜索建议", isOn: $settings.showSearchSuggestions)
-                    .help("开启后输入内容会发送给当前搜索引擎以获取建议")
+                Toggle("Show Search Suggestions", isOn: $settings.showSearchSuggestions)
+                    .help("Input will be sent to the search engine to get suggestions")
 
-                Toggle("链接预览", isOn: $settings.showLinkPreview)
-                    .help("鼠标悬停链接时在底部显示目标网址")
+                Toggle("Link Preview", isOn: $settings.showLinkPreview)
+                    .help("Show target URL at bottom when hovering over links")
 
                 Divider()
 
@@ -85,13 +85,13 @@ struct SettingsView: View {
                 )
             }
             .padding()
-            .tabItem { Label("隐私", systemImage: "hand.raised") }
+            .tabItem { Label("Privacy", systemImage: "hand.raised") }
 
             FormAutofillSettingsView(store: formAutofillStore)
-                .tabItem { Label("自动填充", systemImage: "doc.text.fill") }
+                .tabItem { Label("Autofill", systemImage: "doc.text.fill") }
 
             KeyboardShortcutsView()
-                .tabItem { Label("快捷键", systemImage: "keyboard") }
+                .tabItem { Label("Keyboard Shortcuts", systemImage: "keyboard") }
         }
         .frame(width: 440, height: 520)
         .toolbar {
@@ -99,11 +99,11 @@ struct SettingsView: View {
                 Button("完成", action: onDone)
             }
         }
-        .alert("清除浏览数据", isPresented: $showClearConfirm) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) { clearBrowsingData() }
+        .alert("Clear Browsing Data", isPresented: $showClearConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) { clearBrowsingData() }
         } message: {
-            Text("选中的浏览数据将被清除。此操作不可撤销。")
+            Text("Selected browsing data will be cleared. This action cannot be undone.")
         }
     }
 
@@ -138,18 +138,18 @@ private struct ClearDataSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("清除浏览数据")
+            Text("Clear Browsing Data")
                 .font(.headline)
             GroupBox {
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Cookie", isOn: $clearCookies)
-                    Toggle("缓存", isOn: $clearCache)
-                    Toggle("本地存储", isOn: $clearStorage)
-                    Toggle("浏览历史", isOn: $clearHistory)
+                    Toggle("Cookies", isOn: $clearCookies)
+                    Toggle("Cache", isOn: $clearCache)
+                    Toggle("Local Storage", isOn: $clearStorage)
+                    Toggle("Browsing History", isOn: $clearHistory)
                 }
                 .padding(4)
             }
-            Button("清除", role: .destructive) { onClear() }
+            Button("Clear", role: .destructive) { onClear() }
                 .disabled(!(clearCookies || clearCache || clearStorage || clearHistory))
         }
     }
@@ -161,7 +161,7 @@ private struct SiteDataSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("网站数据")
+            Text("Website Data")
                 .font(.headline)
 
             if isLoading {
@@ -169,7 +169,7 @@ private struct SiteDataSection: View {
                     .scaleEffect(0.5)
                     .frame(height: 20)
             } else if records.isEmpty {
-                Text("没有存储的网站数据")
+                Text("No stored website data")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -186,7 +186,7 @@ private struct SiteDataSection: View {
                                     .lineLimit(1)
                             }
                             Spacer()
-                            Button("删除") {
+                            Button("Delete") {
                                 WKWebsiteDataStore.default().removeData(ofTypes: record.dataTypes, for: [record]) {
                                     loadRecords()
                                 }
@@ -217,8 +217,8 @@ private struct SiteDataSection: View {
     private func label(for type: String) -> String {
         switch type {
         case WKWebsiteDataTypeCookies: return "Cookie"
-        case WKWebsiteDataTypeLocalStorage: return "本地存储"
-        case WKWebsiteDataTypeSessionStorage: return "会话存储"
+        case WKWebsiteDataTypeLocalStorage: return String(localized: "Local Storage")
+        case WKWebsiteDataTypeSessionStorage: return String(localized: "Session Storage")
         case WKWebsiteDataTypeIndexedDBDatabases: return "IndexedDB"
         case WKWebsiteDataTypeWebSQLDatabases: return "WebSQL"
         default: return type
@@ -233,18 +233,18 @@ private struct PermissionSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("网站权限")
+                Text("Website Permissions")
                     .font(.headline)
                 Spacer()
                 if !store.rules.isEmpty {
-                    Button("重置全部", role: .destructive) { showClear = true }
+                    Button("Reset All", role: .destructive) { showClear = true }
                         .buttonStyle(.plain)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
             }
             if store.rules.isEmpty {
-                Text("没有保存的权限设置")
+                Text("No saved permission settings")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -253,10 +253,10 @@ private struct PermissionSection: View {
                         HStack {
                             Text(rule.host).font(.system(size: 12, weight: .medium)).lineLimit(1)
                             Spacer()
-                            Text(rule.decision == .deny ? "已拒绝" : "已允许")
+                            Text(rule.decision == .deny ? "Denied" : "Allowed")
                                 .font(.caption)
                                 .foregroundStyle(rule.decision == .deny ? .red : .green)
-                            Button("撤销") {
+                            Button("Revoke") {
                                 store.remove(host: rule.host)
                             }
                             .buttonStyle(.plain)
@@ -269,11 +269,11 @@ private struct PermissionSection: View {
                 .frame(height: 100)
             }
         }
-        .alert("重置所有权限", isPresented: $showClear) {
-            Button("取消", role: .cancel) {}
-            Button("重置", role: .destructive) { store.removeAll() }
+        .alert("Reset All Permissions", isPresented: $showClear) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) { store.removeAll() }
         } message: {
-            Text("这将清除所有网站保存的摄像头、麦克风和位置权限设置。")
+            Text("This will clear all saved camera, microphone, and location permission settings for all websites.")
         }
     }
 }
@@ -289,17 +289,17 @@ private struct CustomEngineSection: View {
         VStack(alignment: .leading, spacing: 6) {
             Divider()
             HStack {
-                Text("自定义搜索引擎")
+                Text("Custom Search Engines")
                     .font(.headline)
                 Spacer()
-                Button("添加") { showAdd = true }
+                Button("Add") { showAdd = true }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
                     .font(.caption)
             }
 
             if settings.customEngines.isEmpty {
-                Text("暂无自定义搜索引擎")
+                Text("No custom search engines")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -308,7 +308,7 @@ private struct CustomEngineSection: View {
                         HStack {
                             Text(engine.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
                             Spacer()
-                            Button("删除") { settings.removeCustomEngine(engine.id) }
+                            Button("Delete") { settings.removeCustomEngine(engine.id) }
                                 .buttonStyle(.plain)
                                 .foregroundStyle(.red)
                                 .font(.caption)
@@ -321,13 +321,13 @@ private struct CustomEngineSection: View {
         }
         .sheet(isPresented: $showAdd) {
             VStack(spacing: 16) {
-                Text("添加搜索引擎").font(.headline)
-                TextField("名称（如：Wikipedia）", text: $newName)
-                TextField("搜索 URL（如：https://en.wikipedia.org/wiki/Special:Search?search=）", text: $newURL)
-                TextField("建议 URL（可选）", text: $newSuggestionURL)
+                Text("Add Search Engine").font(.headline)
+                TextField("Name (e.g. Wikipedia)", text: $newName)
+                TextField("Search URL (e.g. https://en.wikipedia.org/wiki/Special:Search?search=)", text: $newURL)
+                TextField("Suggestion URL (optional)", text: $newSuggestionURL)
                 HStack {
-                    Button("取消") { showAdd = false }
-                    Button("添加") {
+                    Button("Cancel") { showAdd = false }
+                    Button("Add") {
                         settings.addCustomEngine(name: newName, searchURL: newURL, suggestionURL: newSuggestionURL)
                         newName = ""; newURL = ""; newSuggestionURL = ""
                         showAdd = false
@@ -342,31 +342,31 @@ private struct CustomEngineSection: View {
 }
 
 private struct KeyboardShortcutsView: View {
-    private let shortcuts: [(String, String)] = [
-        ("⌘T", "新建标签页"),
-        ("⌘⇧N", "新建无痕标签页"),
-        ("⌘W", "关闭标签页"),
-        ("⌘⇧T", "恢复关闭的标签页"),
-        ("⌘{", "上一个标签页"),
-        ("⌘}", "下一个标签页"),
-        ("⌘1-9", "切换到标签页 1-9"),
-        ("⌘L", "聚焦地址栏"),
-        ("⌘R", "重新加载页面"),
-        ("⌘F", "在页面中查找"),
-        ("⌘G", "查找下一个"),
-        ("⌘⇧G", "查找上一个"),
-        ("Esc", "退出查找"),
-        ("⌘[", "后退"),
-        ("⌘]", "前进"),
-        ("⌘=", "放大"),
-        ("⌘-", "缩小"),
-        ("⌘0", "重置缩放"),
-        ("⌘⇧I", "检查元素"),
-        ("⌘P", "打印"),
-        ("⌘Y", "浏览历史"),
-        ("⌘⇧A", "搜索标签页"),
-        ("⌘⇧B", "侧边栏"),
-        ("⌘⇧M", "响应式设计模式"),
+    private let shortcuts: [(String, LocalizedStringKey)] = [
+        ("⌘T", "New Tab"),
+        ("⌘⇧N", "New Incognito Tab"),
+        ("⌘W", "Close Tab"),
+        ("⌘⇧T", "Reopen Closed Tab"),
+        ("⌘{", "Previous Tab"),
+        ("⌘}", "Next Tab"),
+        ("⌘1-9", "Switch to Tab 1-9"),
+        ("⌘L", "Focus Address Bar"),
+        ("⌘R", "Reload Page"),
+        ("⌘F", "Find in Page"),
+        ("⌘G", "Find Next"),
+        ("⌘⇧G", "Find Previous"),
+        ("Esc", "Exit Find"),
+        ("⌘[", "Go Back"),
+        ("⌘]", "Go Forward"),
+        ("⌘=", "Zoom In"),
+        ("⌘-", "Zoom Out"),
+        ("⌘0", "Reset Zoom"),
+        ("⌘⇧I", "Inspect Element"),
+        ("⌘P", "Print"),
+        ("⌘Y", "Browsing History"),
+        ("⌘⇧A", "Search Tabs"),
+        ("⌘⇧B", "Sidebar"),
+        ("⌘⇧M", "Responsive Design Mode"),
     ]
 
     var body: some View {

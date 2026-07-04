@@ -9,13 +9,13 @@ struct SuspendedTabView: View {
             Image(systemName: "moon.zzz")
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
-            Text("此标签页已休眠")
+            Text("Tab Suspended")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("点击以重新加载 — \(tab.displayTitle)")
+            Text("Click to reload — \(tab.displayTitle)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            Button("重新加载") {
+            Button("Reload") {
                 reload()
             }
             .buttonStyle(.borderedProminent)

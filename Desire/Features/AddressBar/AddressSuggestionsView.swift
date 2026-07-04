@@ -78,7 +78,7 @@ struct AddressSuggestionsView: View {
     private func displayTitle(for suggestion: AddressSuggestion) -> String {
         switch suggestion.kind {
         case .searchDefault:
-            return "在\(engineName)中搜索「\(suggestion.title)」"
+            return String(localized: "Search in \(engineName) for '\(suggestion.title)'")
         default:
             return suggestion.title
         }
@@ -97,7 +97,7 @@ struct AddressSuggestionsView: View {
     private func kindBadge(for suggestion: AddressSuggestion) -> some View {
         switch suggestion.kind {
         case .bookmark:
-            Text("书签")
+            Text("Bookmark")
                 .font(.caption2)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
@@ -105,7 +105,7 @@ struct AddressSuggestionsView: View {
                 .clipShape(Capsule())
                 .foregroundStyle(.secondary)
         case .history:
-            Text("历史")
+            Text("History")
                 .font(.caption2)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)

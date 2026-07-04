@@ -12,14 +12,14 @@ struct SecurityInfoView: View {
         var info: [(String, String)] = []
 
         if let summary = SecCertificateCopySubjectSummary(leaf) as String? {
-            info.append(("域名", summary))
+            info.append((String(localized: "Domain"), summary))
         }
 
         // The second cert in the chain is the issuer (CA)
         if chain.count >= 2 {
             let issuer = chain[1]
             if let name = SecCertificateCopySubjectSummary(issuer) as String? {
-                info.append(("颁发者", name))
+                info.append((String(localized: "Issuer"), name))
             }
         }
 
@@ -31,7 +31,7 @@ struct SecurityInfoView: View {
             HStack(spacing: 6) {
                 Image(systemName: trust != nil ? "lock.fill" : "lock.open")
                     .foregroundStyle(trust != nil ? .green : .orange)
-                Text(trust != nil ? "连接安全" : "连接不安全")
+                Text(trust != nil ? "Connection Secure" : "Connection Not Secure")
                     .font(.headline)
             }
 
@@ -55,12 +55,12 @@ struct SecurityInfoView: View {
                     }
                 }
 
-                Text("此连接使用 HTTPS 加密")
+                Text("This connection is encrypted with HTTPS")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
             } else {
-                Text("此连接未加密")
+                Text("This connection is not encrypted")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.top, 4)

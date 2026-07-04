@@ -68,7 +68,7 @@ class BookmarkStore: ObservableObject {
 
     private func seedDefaults() {
         bookmarks = [
-            .folder(title: "常用网站", children: [
+            .folder(title: String(localized: "Common Sites"), children: [
                 .leaf(title: "GitHub", url: "https://github.com"),
                 .leaf(title: "Stack Overflow", url: "https://stackoverflow.com"),
             ]),
@@ -81,7 +81,7 @@ class BookmarkStore: ObservableObject {
 
     func exportToHTML() {
         let panel = NSSavePanel()
-        panel.title = "导出书签"
+        panel.title = String(localized: "Export Bookmarks")
         panel.nameFieldStringValue = "bookmarks.html"
         panel.allowedContentTypes = [.html]
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -91,7 +91,7 @@ class BookmarkStore: ObservableObject {
 
     func importFromHTML() {
         let panel = NSOpenPanel()
-        panel.title = "导入书签"
+        panel.title = String(localized: "Import Bookmarks")
         panel.allowedContentTypes = [.html]
         guard panel.runModal() == .OK, let url = panel.url,
               let html = try? String(contentsOf: url, encoding: .utf8) else { return }
@@ -165,7 +165,7 @@ class BookmarkStore: ObservableObject {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     : ""
                 searchRange = closeTag.upperBound..<html.endIndex
-                stack.append(Bookmark.folder(title: title.isEmpty ? "文件夹" : title))
+                stack.append(Bookmark.folder(title: title.isEmpty ? String(localized: "Folder") : title))
 
             } else if rest.hasPrefix("<DL") || rest.hasPrefix("<DL\t") || rest.hasPrefix("<DL\n") {
                 guard let dlEnd = rest.range(of: ">") else { continue }

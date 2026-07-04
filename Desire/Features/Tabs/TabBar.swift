@@ -96,7 +96,7 @@ struct TabBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("新标签页")
+            .help("New Tab")
         }
         .padding(.leading, isFullScreen ? 12 : 76)
         .padding(.trailing, 8)
@@ -235,37 +235,37 @@ private struct TabPillView: View {
 
     @ViewBuilder
     private var tabContextMenu: some View {
-        Button("新建标签页") { actions.addTab() }
-        Button("复制标签页") { actions.duplicateTab(index) }
-        Button("重新加载") { actions.reloadTab(tab) }
+        Button("New Tab") { actions.addTab() }
+        Button("Duplicate Tab") { actions.duplicateTab(index) }
+        Button("Reload") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
-        Button("复制网址") { actions.copyTabURL(tab) }
+        Button("Copy URL") { actions.copyTabURL(tab) }
             .disabled(tab.isOnNewTabPage)
 
         Divider()
 
         if let group = tabGroupStore.group(for: tab.id) {
-            Menu("分组: \(group.name)") {
-                Button("从分组移除") { tabGroupStore.removeTabFromAll(tab.id) }
+            Menu("Group: \(group.name)") {
+                Button("Remove from Group") { tabGroupStore.removeTabFromAll(tab.id) }
             }
         } else {
-            Menu("添加到分组") {
+            Menu("Add to Group") {
                 ForEach(tabGroupStore.groups) { group in
                     Button(group.name) { tabGroupStore.addTab(tab.id, to: group.id) }
                 }
                 if !tabGroupStore.groups.isEmpty { Divider() }
-                Button("新建分组…") { actions.createGroup(index) }
+                Button("New Group…") { actions.createGroup(index) }
             }
         }
 
-        Button(tab.isPinned ? "取消固定" : "固定标签页") { actions.togglePin(index) }
+        Button(tab.isPinned ? "Unpin" : "Pin Tab") { actions.togglePin(index) }
         Divider()
 
-        Button("关闭标签页") { actions.closeTab(index) }
+        Button("Close Tab") { actions.closeTab(index) }
             .disabled(tabs.count <= 1)
-        Button("关闭其他标签页") { actions.closeOtherTabs(index) }
+        Button("Close Other Tabs") { actions.closeOtherTabs(index) }
             .disabled(tabs.count <= 1)
-        Button("关闭右侧标签页") { actions.closeTabsToRight(index) }
+        Button("Close Tabs to Right") { actions.closeTabsToRight(index) }
             .disabled(index >= tabs.count - 1)
     }
 }
@@ -296,7 +296,7 @@ private struct TabPopoverView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
-                TextField("搜索标签页…", text: $searchText)
+                TextField("Search Tabs…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused(isSearchFocused)
@@ -353,7 +353,7 @@ private struct TabPopoverView: View {
                 Button {
                     onAddTab()
                 } label: {
-                    Label("新标签页", systemImage: "plus")
+                    Label("New Tab", systemImage: "plus")
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 12))

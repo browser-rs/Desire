@@ -18,6 +18,7 @@ struct ContentView: View {
     @StateObject private var passwordStore = PasswordStore()
     @StateObject private var formAutofillStore = FormAutofillStore()
     @StateObject private var permissionStore = PermissionStore()
+    @StateObject private var siteSettingsStore = SiteSettingsStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -153,6 +154,7 @@ struct ContentView: View {
                             passwordStore: passwordStore,
                             formAutofillStore: formAutofillStore,
                             permissionStore: permissionStore,
+                            siteSettingsStore: siteSettingsStore,
                             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
                             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
                             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
@@ -465,12 +467,18 @@ struct ContentView: View {
         let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
         tab.browser.pageZoom = newZoom
         tab.browser.webView.pageZoom = newZoom
+        if let host = tab.browser.webView.url?.host {
+            siteSettingsStore.setZoom(newZoom, for: host)
+        }
     }
 
     private func zoomTab(to value: Double) {
         guard let tab = tabManager.selectedTab else { return }
         tab.browser.pageZoom = value
         tab.browser.webView.pageZoom = value
+        if let host = tab.browser.webView.url?.host {
+            siteSettingsStore.setZoom(value, for: host)
+        }
     }
 
     private func printPage() {

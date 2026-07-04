@@ -201,6 +201,7 @@ struct WebView: NSViewRepresentable {
     @ObservedObject var passwordStore: PasswordStore
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
+    @ObservedObject var siteSettingsStore: SiteSettingsStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -334,6 +335,13 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.state.isSecure = webView.url?.scheme == "https"
+            if let host = webView.url?.host {
+                let savedZoom = parent.siteSettingsStore.zoom(for: host)
+                if savedZoom != 1.0 {
+                    webView.pageZoom = savedZoom
+                    parent.state.pageZoom = savedZoom
+                }
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

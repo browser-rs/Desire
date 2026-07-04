@@ -277,7 +277,12 @@ struct WebView: NSViewRepresentable {
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
-        private var activeDownloads: [ObjectIdentifier: UUID] = [:]
+        private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
+
+        private struct DownloadInfo {
+            let id: UUID
+            let progressObservation: NSKeyValueObservation
+        }
 
         init(_ parent: WebView) {
             self.parent = parent
@@ -575,14 +580,22 @@ struct WebView: NSViewRepresentable {
                 error: nil,
                 cancel: { [weak download] in download?.cancel() }
             ))
-            activeDownloads[ObjectIdentifier(download)] = id
+            let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+                guard let self else { return }
+                parent.downloadStore.updateProgress(
+                    id: id,
+                    totalBytes: progress.totalUnitCount,
+                    downloadedBytes: progress.completedUnitCount
+                )
+            }
+            activeDownloads[ObjectIdentifier(download)] = DownloadInfo(id: id, progressObservation: observation)
         }
 
         func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
             let destination = parent.downloadStore.uniqueURL(for: suggestedFilename)
-            if let id = activeDownloads[ObjectIdentifier(download)] {
+            if let info = activeDownloads[ObjectIdentifier(download)] {
                 parent.downloadStore.setDestination(
-                    id: id,
+                    id: info.id,
                     filename: suggestedFilename,
                     fileURL: destination,
                     totalBytes: response.expectedContentLength
@@ -592,17 +605,15 @@ struct WebView: NSViewRepresentable {
         }
 
         func downloadDidFinish(_ download: WKDownload) {
-            if let id = activeDownloads[ObjectIdentifier(download)] {
-                parent.downloadStore.complete(id: id)
+            if let info = activeDownloads.removeValue(forKey: ObjectIdentifier(download)) {
+                parent.downloadStore.complete(id: info.id)
             }
-            activeDownloads[ObjectIdentifier(download)] = nil
         }
 
         func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-            if let id = activeDownloads[ObjectIdentifier(download)] {
-                parent.downloadStore.fail(id: id, message: error.localizedDescription)
+            if let info = activeDownloads.removeValue(forKey: ObjectIdentifier(download)) {
+                parent.downloadStore.fail(id: info.id, message: error.localizedDescription)
             }
-            activeDownloads[ObjectIdentifier(download)] = nil
         }
     }
 }

@@ -139,7 +139,6 @@ struct TabBar: View {
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
-        .contentShape(Capsule())
         .onTapGesture {
             onSelectTab(index)
         }

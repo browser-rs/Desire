@@ -85,7 +85,5 @@ private struct ReaderWebView: NSViewRepresentable {
         return wv
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {
-        nsView.loadHTMLString(html, baseURL: nil)
-    }
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
 }

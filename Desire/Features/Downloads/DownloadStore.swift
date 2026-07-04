@@ -27,7 +27,6 @@ class DownloadStore: ObservableObject {
     @Published var downloads: [DownloadItem] = []
     @Published private(set) var downloadFolder: URL
 
-    private var pollTimer: Timer?
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
     private let historyKey = "desire.downloadHistory"
@@ -114,7 +113,6 @@ class DownloadStore: ObservableObject {
     func add(item: DownloadItem) -> UUID {
         let id = item.id
         downloads.insert(item, at: 0)
-        ensurePolling()
         return id
     }
 
@@ -123,6 +121,12 @@ class DownloadStore: ObservableObject {
         downloads[i].filename = filename
         downloads[i].fileURL = fileURL
         downloads[i].totalBytes = totalBytes
+    }
+
+    func updateProgress(id: UUID, totalBytes: Int64, downloadedBytes: Int64) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].totalBytes = totalBytes
+        downloads[i].downloadedBytes = downloadedBytes
     }
 
     func complete(id: UUID) {
@@ -135,7 +139,6 @@ class DownloadStore: ObservableObject {
         } else {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
-        stopPollingIfNeeded()
         saveHistory()
     }
 
@@ -143,7 +146,6 @@ class DownloadStore: ObservableObject {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].state = .failed
         downloads[i].error = message
-        stopPollingIfNeeded()
         saveHistory()
     }
 
@@ -153,7 +155,6 @@ class DownloadStore: ObservableObject {
         }
         downloads.removeAll { $0.id == id }
         saveHistory()
-        stopPollingIfNeeded()
     }
 
     func clearFinished() {
@@ -183,29 +184,7 @@ class DownloadStore: ObservableObject {
     func openFile(_ item: DownloadItem) {
         guard let url = item.fileURL else { return }
         NSWorkspace.shared.open(url)
-    }
-
-    private func ensurePolling() {
-        guard pollTimer == nil, hasActive else { return }
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshProgress() }
         }
-    }
-
-    private func stopPollingIfNeeded() {
-        guard !hasActive else { return }
-        pollTimer?.invalidate()
-        pollTimer = nil
-    }
-
-    private func refreshProgress() {
-        guard hasActive else { stopPollingIfNeeded(); return }
-        for i in downloads.indices where downloads[i].state == .inProgress {
-            guard let path = downloads[i].fileURL else { continue }
-            let size = (try? FileManager.default.attributesOfItem(atPath: path.path)[.size]) as? Int64
-            downloads[i].downloadedBytes = size ?? downloads[i].downloadedBytes
-        }
-    }
 }
 
 private struct HistoryItem: Codable {

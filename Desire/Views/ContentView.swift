@@ -191,6 +191,13 @@ struct ContentView: View {
                 showTabSwitcher = false
             case .closeTab:
                 tabManager.closeTab(at: tabManager.selectedIndex)
+            case .reopenClosedTab:
+                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+            case .selectTab(let index):
+                isUrlFocused = false
+                tabManager.selectTab(at: index)
+            case .showHistory:
+                showHistory = true
             case .previousTab:
                 guard tabManager.selectedIndex > 0 else { return }
                 isUrlFocused = false

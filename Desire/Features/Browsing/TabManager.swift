@@ -43,6 +43,7 @@ class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
     private var tabCancellables: [UUID: AnyCancellable] = [:]
+    private var recentlyClosedURLs: [String] = []
 
     var selectedTab: Tab? {
         guard tabs.indices.contains(selectedIndex) else { return nil }
@@ -62,12 +63,23 @@ class TabManager: ObservableObject {
     func closeTab(at index: Int) {
         guard tabs.count > 1, tabs.indices.contains(index) else { return }
         let tab = tabs[index]
+        if let url = tab.browser.webView.url?.absoluteString {
+            recentlyClosedURLs.append(url)
+            if recentlyClosedURLs.count > 20 { recentlyClosedURLs.removeFirst() }
+        }
         tabCancellables[tab.id] = nil
         tabs.remove(at: index)
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
         }
         persistSession()
+    }
+
+    @discardableResult
+    func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) -> Bool {
+        guard let url = recentlyClosedURLs.popLast() else { return false }
+        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+        return true
     }
 
     func closeOthers(keeping index: Int) {

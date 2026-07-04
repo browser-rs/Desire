@@ -31,10 +31,23 @@ struct DesireApp: App {
             CommandMenu("标签页") {
                 Button("关闭标签页") { postCommand(.closeTab) }
                     .keyboardShortcut("w", modifiers: .command)
+                Button("恢复关闭的标签页") { postCommand(.reopenClosedTab) }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                Divider()
                 Button("上一个标签页") { postCommand(.previousTab) }
                     .keyboardShortcut("{", modifiers: .command)
                 Button("下一个标签页") { postCommand(.nextTab) }
                     .keyboardShortcut("}", modifiers: .command)
+                Divider()
+                ForEach(1...9, id: \.self) { n in
+                    Button("切换到标签页 \(n)") { postCommand(.selectTab(n - 1)) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+                }
+            }
+
+            CommandGroup(replacing: .windowArrangement) {
+                Button("浏览历史") { postCommand(.showHistory) }
+                    .keyboardShortcut("y", modifiers: .command)
             }
         }
     }
@@ -46,6 +59,7 @@ struct DesireApp: App {
 
 enum BrowserCommand {
     case newTab, newIncognitoTab, closeTab, previousTab, nextTab
+    case reopenClosedTab, selectTab(Int), showHistory
     case bookmarkPage, toggleFullScreen, toggleFind
 }
 

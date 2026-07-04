@@ -191,97 +191,97 @@ struct ContentView: View {
 
                         if isFindBarVisible {
                             FindBar(
-                        findString: $findString,
-                        findHasMatch: findHasMatch,
-                        isFindFocused: $isFindFocused,
-                        onFindNext: { performFindNext() },
-                        onFindPrevious: { performFindPrevious() },
-                        onHide: { hideFindBar() },
-                        onFindAll: { performFindAll() }
-                    )
-                }
-
-                Group {
-                    if tab.browser.isReadingMode {
-                        ReaderView(
-                            title: tab.browser.readerTitle,
-                            contentHTML: tab.browser.readerContent,
-                            onClose: {
-                                tab.browser.isReadingMode = false
-                            }
-                        )
-                    } else if tab.isSuspended {
-                        SuspendedTabView(tab: tab)
-                    } else if tab.isOnNewTabPage {
-                        NewTabPage(store: quickDialStore, urlString: Binding(
-                            get: { tab.urlString },
-                            set: { tab.urlString = $0 }
-                        ), onNavigate: { input in
-                            navigateToURL(input, for: tab)
-                        }, suggestionModel: suggestionModel, bookmarkStore: bookmarkStore, historyStore: historyStore, settings: settings)
-                    } else {
-                        GeometryReader { geo in
-                            let responsiveSize = tab.responsiveSize
-                            let responsiveW: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.width, geo.size.width - 40) : nil
-                            let responsiveH: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.height, geo.size.height - 40) : nil
-                            makeWebView(for: tab)
-                                .frame(width: responsiveW, height: responsiveH)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                }
-                .id(tab.id)
-                .overlay(alignment: .top) {
-                    if isUrlFocused && !suggestionModel.isEmpty {
-                        AddressSuggestionsView(
-                            model: suggestionModel,
-                            engineName: settings.searchEngine.rawValue
-                        ) { sug in
-                            suggestionModel.reset()
-                            isUrlFocused = false
-                            navigateToURL(sug.url, for: tab)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.top, 2)
-                        .transition(.opacity)
-                    }
-                }
-                .overlay {
-                    if let error = tab.browser.lastError, !tab.isOnNewTabPage {
-                        ErrorPageView(message: error, tab: tab)
-                    }
-                }
-                .overlay {
-                    if tab.isResponsiveMode {
-                        GeometryReader { geo in
-                            let size = tab.responsiveSize
-                            let scale = min(
-                                (geo.size.width - 40) / size.width,
-                                (geo.size.height - 40) / size.height,
-                                1.0
+                                findString: $findString,
+                                findHasMatch: findHasMatch,
+                                isFindFocused: $isFindFocused,
+                                onFindNext: { performFindNext() },
+                                onFindPrevious: { performFindPrevious() },
+                                onHide: { hideFindBar() },
+                                onFindAll: { performFindAll() }
                             )
-                            let displayW = size.width * scale
-                            let displayH = size.height * scale
-                            ZStack(alignment: .topTrailing) {
-                                Color(nsColor: .windowBackgroundColor).opacity(0.6)
-                                RoundedRectangle(cornerRadius: 2)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                                    .frame(width: displayW, height: displayH)
-                                Text("\(Int(size.width))×\(Int(size.height))")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                                    .padding(6)
+                        }
+
+                        Group {
+                            if tab.browser.isReadingMode {
+                                ReaderView(
+                                    title: tab.browser.readerTitle,
+                                    contentHTML: tab.browser.readerContent,
+                                    onClose: {
+                                        tab.browser.isReadingMode = false
+                                    }
+                                )
+                            } else if tab.isSuspended {
+                                SuspendedTabView(tab: tab)
+                            } else if tab.isOnNewTabPage {
+                                NewTabPage(store: quickDialStore, urlString: Binding(
+                                    get: { tab.urlString },
+                                    set: { tab.urlString = $0 }
+                                ), onNavigate: { input in
+                                    navigateToURL(input, for: tab)
+                                }, suggestionModel: suggestionModel, bookmarkStore: bookmarkStore, historyStore: historyStore, settings: settings)
+                            } else {
+                                GeometryReader { geo in
+                                    let responsiveSize = tab.responsiveSize
+                                    let responsiveW: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.width, geo.size.width - 40) : nil
+                                    let responsiveH: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.height, geo.size.height - 40) : nil
+                                    makeWebView(for: tab)
+                                        .frame(width: responsiveW, height: responsiveH)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .allowsHitTesting(false)
+                        }
+                        .id(tab.id)
+                        .overlay(alignment: .top) {
+                            if isUrlFocused && !suggestionModel.isEmpty {
+                                AddressSuggestionsView(
+                                    model: suggestionModel,
+                                    engineName: settings.searchEngine.rawValue
+                                ) { sug in
+                                    suggestionModel.reset()
+                                    isUrlFocused = false
+                                    navigateToURL(sug.url, for: tab)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.top, 2)
+                                .transition(.opacity)
+                            }
+                        }
+                        .overlay {
+                            if let error = tab.browser.lastError, !tab.isOnNewTabPage {
+                                ErrorPageView(message: error, tab: tab)
+                            }
+                        }
+                        .overlay {
+                            if tab.isResponsiveMode {
+                                GeometryReader { geo in
+                                    let size = tab.responsiveSize
+                                    let scale = min(
+                                        (geo.size.width - 40) / size.width,
+                                        (geo.size.height - 40) / size.height,
+                                        1.0
+                                    )
+                                    let displayW = size.width * scale
+                                    let displayH = size.height * scale
+                                    ZStack(alignment: .topTrailing) {
+                                        Color(nsColor: .windowBackgroundColor).opacity(0.6)
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                                            .frame(width: displayW, height: displayH)
+                                        Text("\(Int(size.width))×\(Int(size.height))")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                            .padding(6)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .allowsHitTesting(false)
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            }
-            }
+        }
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard())
         .onAppear {

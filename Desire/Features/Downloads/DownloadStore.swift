@@ -184,7 +184,7 @@ class DownloadStore: ObservableObject {
     func openFile(_ item: DownloadItem) {
         guard let url = item.fileURL else { return }
         NSWorkspace.shared.open(url)
-        }
+    }
 }
 
 private struct HistoryItem: Codable {

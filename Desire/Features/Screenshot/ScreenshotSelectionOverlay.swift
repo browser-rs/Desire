@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Presenter (called from ContentView)
+// MARK: - Presenter
 enum ScreenshotOverlayPresenter {
-    private static var activePanel: OverlayPanel?
+    private static weak var activePanel: OverlayPanel?
 
     static func show(onCancel: @escaping () -> Void, onCapture: @escaping (NSRect) -> Void) {
         hide()
@@ -34,12 +34,13 @@ private class OverlayPanel: NSPanel {
             backing: .buffered,
             defer: false
         )
-        level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+        level = .screenSaver
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
         ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        isRestorable = false
 
         let sel = SelectionView(frame: screen.frame)
         sel.onCancel = { [weak self] in
@@ -72,12 +73,26 @@ private class SelectionView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
-        window?.invalidateCursorRects(for: self)
+        NSCursor.crosshair.set()
     }
 
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        addCursorRect(bounds, cursor: .crosshair)
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for ta in trackingAreas { removeTrackingArea(ta) }
+        let ta = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self, userInfo: nil
+        )
+        addTrackingArea(ta)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSCursor.crosshair.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        NSCursor.crosshair.set()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -99,9 +114,7 @@ private class SelectionView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            onCancel?()
-        }
+        if event.keyCode == 53 { onCancel?() }
     }
 
     override var acceptsFirstResponder: Bool { true }

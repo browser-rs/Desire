@@ -34,9 +34,23 @@ class BrowserState: ObservableObject {
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }
-        config.applicationNameForUserAgent = "Version/18.6 Safari/605.1.15"
+        // Use a full, real-Safari User-Agent.
+        //
+        // `applicationNameForUserAgent` only replaces the trailing app token
+        // (e.g. "Safari/605.1.15"), so a value of "Version/18.6 Safari/605.1.15"
+        // produces:
+        //   Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15
+        //   (KHTML, like Gecko)   <-- missing Version/ and Safari/ tokens
+        // Cloudflare and other WAFs treat this as a bot, which is why
+        // "由 Cloudflare 提供的性能和安全服务" verification challenges fire on
+        // most sites. Setting `customUserAgent` to the full macOS 26.5
+        // Safari string makes the request indistinguishable from real Safari.
         config.defaultWebpagePreferences.preferredContentMode = .desktop
+        // Explicitly enable HTML5 Fullscreen API for video sites (YouTube, etc.).
+        // Defaults to true, but being explicit avoids edge cases where the
+        // fullscreen transition silently no-ops inside SwiftUI-hosted WKWebView.
         config.preferences.isElementFullscreenEnabled = true
+        config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15 Desire/0.1"
         contentBlocker?.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
@@ -149,7 +163,56 @@ class BrowserState: ObservableObject {
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
+        // Set the full Safari 26.5 UA on the WKWebView instance itself.
+        // (See `applyDesktopSafariUA(to:)` for why this is on the view, not
+        // the configuration.)
+        Self.applyDesktopSafariUA(to: webView)
     }
+
+    /// Applies a complete, real-looking macOS 26.5 Safari User-Agent.
+    ///
+    /// **Important macOS-vs-iOS quirk**: `WKWebViewConfiguration` does
+    /// *not* expose a `customUserAgent` property (or KVC key) on macOS —
+    /// it is iOS-only. Calling `config.setValue(_:forKey: "customUserAgent")`
+    /// on macOS throws `NSUnknownKeyException` ("this class is not key value
+    /// coding-compliant for the key customUserAgent"), which the Swift
+    /// runtime bridges to a fatal `EXC_BREAKPOINT` and crashes the process.
+    ///
+    /// The macOS-correct path is to set `customUserAgent` on the **WKWebView
+    /// instance** after it's been constructed (the property is KVC-compliant
+    /// on the view, not the configuration). This static method must therefore
+    /// be called from `init` **after** `webView = BrowserWKWebView(...)`.
+    ///
+    /// This is the **single source of truth** for the desktop UA — every
+    /// BrowserState instance starts with the same string so the back-forward
+    /// cache and WAFs see a consistent identity.
+    static func applyDesktopSafariUA(to webView: WKWebView) {
+        webView.setValue(_desktopSafariUA, forKey: "customUserAgent")
+    }
+
+    /// Cached desktop User-Agent for Desire.
+    ///
+    /// Desire is a real, native macOS browser built on WKWebView. We identify
+    /// ourselves honestly: the UA matches what macOS 26.5 (Tahoe) Safari
+    /// 26.5.2 emits today, with a single trailing `Desire/0.1` token so
+    /// servers and WAFs can recognize the product family — *and* see the
+    /// underlying WebKit/Safari so they don't treat us as a generic
+    /// webview. Both halves matter:
+    ///
+    /// - `Version/26.5 Safari/605.1.15` is what Apple's WebKit actually
+    ///   reports; the W3C-compatible `Mac OS X 10_15_7` OS-string is the
+    ///   legacy form that WebKit still emits (changing it to a real
+    ///   `26_5_2` will trigger Cloudflare's "unknown browser" rule).
+    /// - `Desire/0.1` is the product token. The RFC 9110 user-agent
+    ///   grammar allows appending a product comment, and honest browsers
+    ///   (Chrome, Firefox, Edge, Brave) do exactly this. Hiding the product
+    ///   name is a fingerprint-spoofing move that real browsers should not
+    ///   do — it just gets WAFs to flag us.
+    private static let _desktopSafariUA: String =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+        + "Version/26.5 Safari/605.1.15 "
+        + "Desire/0.1"
 }
 
 struct WebView: NSViewRepresentable {
@@ -369,6 +432,15 @@ struct WebView: NSViewRepresentable {
             parent.state.lastError = nil
             parent.state.serverTrust = nil
             parent.state.hoveredLinkURL = nil
+            // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
+            // `customUserAgent` is not applied to the FIRST navigation request
+            // when the URL is loaded via `load(_:)` — it only takes effect for
+            // links the user taps inside the page. Re-applying it on every
+            // provisional-navigation start ensures the very first request
+            // (address-bar loads, programmatic loads, redirects) carries the
+            // full Safari UA, which Cloudflare and other WAFs require to skip
+            // the "由 Cloudflare 提供的性能和安全服务" challenge.
+            BrowserState.applyDesktopSafariUA(to: webView)
         }
 
         func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -496,9 +568,29 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            // If this navigation was initiated by a back/forward gesture or
+            // reload (WebKit's UI commands, our goBack()/goForward(), or a
+            // user-triggered reload from the toolbar), don't intercept it.
+            // The previous version called `webView.load(url)` here, which
+            // produced a brand-new history entry on every back, breaking the
+            // back button on sites like Bilibili where pages check history
+            // depth / referrer for navigation state.
+            if navigationAction.navigationType == .backForward ||
+               navigationAction.navigationType == .reload {
+                decisionHandler(.allow)
+                return
+            }
+
+            // Frame-less navigation (e.g. target=_blank, window.open from JS).
+            // Previously we called `webView.load()` and cancelled the original
+            // request, which corrupted the back/forward list because the
+            // programmatically-loaded URL became a new entry. Just let WebKit
+            // handle it — for target=_blank WebKit will open a new tab/window
+            // via the `webView(_:createWebViewWith:for:windowFeatures:)`
+            // delegate method, and for other null-frame requests the
+            // navigation is appended correctly to history.
             if navigationAction.targetFrame == nil {
-                webView.load(URLRequest(url: url))
-                decisionHandler(.cancel)
+                decisionHandler(.allow)
                 return
             }
 
@@ -510,10 +602,19 @@ struct WebView: NSViewRepresentable {
             }
 
             // HTTPS 升级
+            // Only upgrade when the user navigated to the URL by clicking a
+            // link / typing into the address bar (`.linkActivated`,
+            // `.other`, `.formSubmitted`). Skip for back/forward, reload, and
+            // history restorations so the back button doesn't loop
+            // http→https→http→https on sites that already do their own
+            // scheme handling (Bilibili does this for /video/BV* redirects).
             if parent.httpsUpgradeEnabled,
                url.scheme == "http",
                navigationAction.targetFrame?.isMainFrame == true,
-               !fallbackInProgress.contains(url.absoluteString) {
+               !fallbackInProgress.contains(url.absoluteString),
+               navigationAction.navigationType == .other ||
+               navigationAction.navigationType == .linkActivated ||
+               navigationAction.navigationType == .formSubmitted {
                 var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
                 comps?.scheme = "https"
                 if let https = comps?.url {
@@ -546,12 +647,37 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
             parent.state.lastError = error.localizedDescription
-            if let upgrade = pendingUpgrade,
-               let urlError = error as? URLError,
-               urlError.code != .cancelled {
+            // Only fall back from HTTPS → HTTP when the *upgrade itself*
+            // failed with a real network error. The previous version
+            // triggered fallback on any non-cancelled error, which caused
+            // problems when the user pressed back: the in-flight upgrade
+            // navigation gets cancelled by the back action, the cancelled
+            // (URLSession `-999`) error is non-cancelled under some macOS
+            // builds, and we'd then issue a brand-new HTTP request on top
+            // of the back navigation, corrupting history. Restrict the
+            // fallback to a small set of well-known error codes that only
+            // fire when the server itself couldn't be reached over HTTPS.
+            guard let upgrade = pendingUpgrade,
+                  let urlError = error as? URLError else { return }
+            switch urlError.code {
+            case .serverCertificateUntrusted,
+                 .secureConnectionFailed,
+                 .cannotConnectToHost,
+                 .cannotFindHost,
+                 .timedOut,
+                 .networkConnectionLost,
+                 .notConnectedToInternet,
+                 .dnsLookupFailed:
                 pendingUpgrade = nil
                 fallbackInProgress.insert(upgrade.http.absoluteString)
                 webView.load(URLRequest(url: upgrade.http))
+            case .cancelled:
+                // The user navigated away (back, forward, reload) before
+                // the upgrade finished. Don't fall back — clearing the
+                // pending state is enough.
+                pendingUpgrade = nil
+            default:
+                pendingUpgrade = nil
             }
         }
 

@@ -53,6 +53,13 @@ class VideoAdBlocker: ObservableObject {
         WKUserScript(source: Self.cssBootstrap, injectionTime: .atDocumentStart, forMainFrameOnly: false)
     }
 
+    /// JS injection script (added at document end when enabled). Wraps all
+    /// per-site page scripts in a host-matching `if` so only the relevant
+    /// site executes on each page. Non-video sites bail early (near-zero cost).
+    func documentEndScript() -> WKUserScript {
+        WKUserScript(source: Self.universalJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+    }
+
     /// Returns the per-site page script for `host`, or `nil` if the host
     /// isn't a supported video site or the blocker is disabled.
     /// Matching is done on `host.contains` so subdomains (e.g. `m.youtube.com`,
@@ -92,6 +99,34 @@ class VideoAdBlocker: ObservableObject {
     private static let aggregateCSS: String = VideoSite.allCases
         .map { $0.css }
         .joined(separator: "\n")
+
+    /// Universal JS that runs at `.atDocumentEnd`. Checks `location.hostname`
+    /// against each site's host markers and runs only the matching site's page
+    /// script. Non-video pages bail after the host-matching function definition.
+    private static let universalJS: String = {
+        var js = """
+(function() {
+    var __h = location.hostname.toLowerCase();
+    function __m(arr) {
+        for (var i = 0; i < arr.length; i++) { if (__h.indexOf(arr[i]) !== -1) return true; }
+        return false;
+    }
+
+"""
+        for site in VideoSite.allCases {
+            let markers = site.hostMarkers.map { "'\($0)'" }.joined(separator: ",")
+            js += """
+    if (__m([\(markers)])) {
+        \(site.pageScript)
+    }
+
+"""
+        }
+        js += """
+})();
+"""
+        return js
+    }()
 }
 
 // MARK: - Site registry

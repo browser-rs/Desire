@@ -1715,6 +1715,9 @@
         }
       }
     },
+    "Desire can't reach the network. Check that Wi-Fi or Ethernet is on, and that no app is in Airplane Mode." : {
+
+    },
     "Disabled" : {
       "comment" : "Plugin list section header for disabled plugins",
       "localizations" : {
@@ -3243,6 +3246,9 @@
         }
       }
     },
+    "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
+
+    },
     "Mark as Read" : {
       "comment" : "Context menu: mark reading list item read",
       "localizations" : {
@@ -3772,6 +3778,9 @@
         }
       }
     },
+    "No Internet Connection" : {
+
+    },
     "No Matching Bookmarks" : {
       "comment" : "Empty bookmark search state",
       "localizations" : {
@@ -4024,6 +4033,9 @@
           }
         }
       }
+    },
+    "Open in Safari" : {
+
     },
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
@@ -5372,6 +5384,9 @@
         }
       }
     },
+    "Secure Connection Failed" : {
+
+    },
     "Select" : {
       "comment" : "Screenshot tool: select / move region",
       "localizations" : {
@@ -5440,6 +5455,9 @@
           }
         }
       }
+    },
+    "Server Unreachable" : {
+
     },
     "Session Storage" : {
       "comment" : "Site data type label",
@@ -5878,6 +5896,15 @@
           }
         }
       }
+    },
+    "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test." : {
+
+    },
+    "The site requires a client certificate. Open Settings → Privacy → Certificates to manage installed client certs." : {
+
+    },
+    "The site's certificate is not trusted by macOS. This often means your system clock is wrong, or a corporate / security product is intercepting the connection. Check Date & Time in System Settings, then reload." : {
+
     },
     "Thick" : {
       "comment" : "Screenshot brush: thick stroke",

@@ -54,6 +54,7 @@ class BrowserState: ObservableObject {
         contentBlocker?.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
+            config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
         }
 
         let audioJS = """

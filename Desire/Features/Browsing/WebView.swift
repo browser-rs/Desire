@@ -20,8 +20,10 @@ class BrowserState: ObservableObject {
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
     @Published var isPickingElement = false
+    let videoAdBlocker: VideoAdBlocker?
 
-    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
+        self.videoAdBlocker = videoAdBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let webpagePrefs = WKWebpagePreferences()
@@ -34,11 +36,11 @@ class BrowserState: ObservableObject {
         }
         config.applicationNameForUserAgent = "Version/18.6 Safari/605.1.15"
         config.defaultWebpagePreferences.preferredContentMode = .desktop
-        // Explicitly enable HTML5 Fullscreen API for video sites (YouTube, etc.).
-        // Defaults to true, but being explicit avoids edge cases where the
-        // fullscreen transition silently no-ops inside SwiftUI-hosted WKWebView.
         config.preferences.isElementFullscreenEnabled = true
         contentBlocker?.apply(to: config)
+        if let videoAdBlocker, videoAdBlocker.isEnabled {
+            config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
+        }
 
         let audioJS = """
         (function() {
@@ -430,6 +432,9 @@ struct WebView: NSViewRepresentable {
                     }
                 })();
                 """
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+            if let host = webView.url?.host, let js = parent.state.videoAdBlocker?.pageScript(for: host) {
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
             if let host = webView.url?.host {

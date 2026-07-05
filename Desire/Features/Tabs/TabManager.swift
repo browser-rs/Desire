@@ -22,9 +22,9 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
         self.isIncognito = incognito
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -109,8 +109,8 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil) {
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
         tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -119,11 +119,11 @@ class TabManager: ObservableObject {
         persistSession()
     }
 
-    func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) {
+    func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) {
         guard tabs.indices.contains(index) else { return }
         let source = tabs[index]
         let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
-        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
         newTab.isPinned = source.isPinned
         tabCancellables[newTab.id] = newTab.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
@@ -149,9 +149,9 @@ class TabManager: ObservableObject {
     }
 
     @discardableResult
-    func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) -> Bool {
+    func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
         guard let url = recentlyClosedURLs.popLast() else { return false }
-        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
         return true
     }
 
@@ -238,7 +238,7 @@ class TabManager: ObservableObject {
     }
 
     @discardableResult
-    func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?) -> Bool {
+    func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
         guard let data = UserDefaults.standard.data(forKey: sessionKey),
               let session = try? JSONDecoder().decode(SavedSession.self, from: data),
               !session.tabs.isEmpty else {
@@ -250,7 +250,7 @@ class TabManager: ObservableObject {
 
         for saved in session.tabs {
             let url = saved.isOnNewTabPage ? nil : saved.url
-            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker)
+            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
             tab.isPinned = saved.isPinned
 
             if let data = saved.sessionState,

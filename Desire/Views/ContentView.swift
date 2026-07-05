@@ -23,6 +23,7 @@ struct ContentView: View {
     @StateObject private var pluginStore = PluginStore()
     @StateObject private var tabGroupStore = TabGroupStore()
     @StateObject private var elementBlockStore = ElementBlockStore()
+    @StateObject private var videoAdBlocker = VideoAdBlocker()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -60,7 +61,7 @@ struct ContentView: View {
                     },
                     onCloseTab: { tabManager.closeTab(at: $0) },
                     onAddTab: {
-                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
                         showTabSwitcher = false
                     },
                     onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
@@ -103,7 +104,7 @@ struct ContentView: View {
                         }
                     },
                     onDuplicateTab: { index in
-                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
                     }
                 )
 
@@ -340,10 +341,11 @@ struct ContentView: View {
             if tabManager.tabs.isEmpty {
                 let restored = tabManager.restoreSession(
                     javaScriptEnabled: settings.isJavaScriptEnabled,
-                    contentBlocker: contentBlocker
+                    contentBlocker: contentBlocker,
+                    videoAdBlocker: videoAdBlocker
                 )
                 if !restored {
-                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
                 }
             }
         }
@@ -362,15 +364,15 @@ struct ContentView: View {
             guard let command = notification.object as? BrowserCommand else { return }
             switch command {
             case .newTab:
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
                 showTabSwitcher = false
             case .newIncognitoTab:
-                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
                 showTabSwitcher = false
             case .closeTab:
                 tabManager.closeTab(at: tabManager.selectedIndex)
             case .reopenClosedTab:
-                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
             case .selectTab(let index):
                 isUrlFocused = false
                 tabManager.selectTab(at: index)
@@ -799,7 +801,7 @@ struct ContentView: View {
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
             onOpenLinkInNewTab: { url in
-                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker)
+                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
             },
             onPageFinished: { url, title in
                 if tab.suppressHistoryOnce {

@@ -145,9 +145,11 @@ struct ContentView: View {
                         toggleReader: {
                             if tab.browser.isReadingMode {
                                 tab.browser.isReadingMode = false
+                                tab.browser.isReaderLoading = false
                             } else {
-                                tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                                tab.browser.isReaderLoading = true
                                 tab.browser.isReadingMode = true
+                                tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
                             }
                         },
                         captureFullPage: { captureFullPage() },
@@ -246,8 +248,10 @@ struct ContentView: View {
                                 ReaderView(
                                     title: tab.browser.readerTitle,
                                     contentHTML: tab.browser.readerContent,
+                                    isLoading: tab.browser.isReaderLoading,
                                     onClose: {
                                         tab.browser.isReadingMode = false
+                                        tab.browser.isReaderLoading = false
                                     }
                                 )
                             } else if tab.isSuspended {
@@ -438,14 +442,16 @@ struct ContentView: View {
             case .clearHistory:
                 historyStore.clearAll()
             case .toggleReader:
-                if let tab = tabManager.selectedTab {
-                    if tab.browser.isReadingMode {
-                        tab.browser.isReadingMode = false
-                    } else {
-                        tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
-                        tab.browser.isReadingMode = true
+                    if let tab = tabManager.selectedTab {
+                        if tab.browser.isReadingMode {
+                            tab.browser.isReadingMode = false
+                            tab.browser.isReaderLoading = false
+                        } else {
+                            tab.browser.isReaderLoading = true
+                            tab.browser.isReadingMode = true
+                            tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                        }
                     }
-                }
             case .exportBookmarks:
                 bookmarkStore.exportToHTML()
             case .importBookmarks:

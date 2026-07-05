@@ -16,6 +16,7 @@ class BrowserState: ObservableObject {
     @Published var isPlayingAudio: Bool = false
     @Published var isMuted: Bool = false
     @Published var isReadingMode = false
+    @Published var isReaderLoading = false
     @Published var readerTitle = ""
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
@@ -82,21 +83,38 @@ class BrowserState: ObservableObject {
 
         let passwordJS = """
         (function() {
-            function detectLoginForm() {
+            function detectPasswordForm() {
                 var pwd = document.querySelector('input[type=password]');
                 if (!pwd) return;
                 var form = pwd.closest('form');
                 if (!form) return;
-                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=login]');
-                if (!username) {
-                    username = form.querySelector('input:not([type=password]):not([type=hidden])');
-                }
-                if (username) {
-                    window.webkit.messageHandlers.passwordDetect.postMessage({
-                        username: username.name || username.id || 'username'
-                    });
-                }
+                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=login], input[name*=mail], input[name*=account]');
+                if (!username) username = form.querySelector('input:not([type=password]):not([type=hidden])');
+                return { form: form, pwd: pwd, username: username };
             }
+            /* Auto-fill detection */
+            function detectLoginForm() {
+                var r = detectPasswordForm();
+                if (!r || !r.username) return;
+                window.webkit.messageHandlers.passwordDetect.postMessage({
+                    username: r.username.name || r.username.id || 'username'
+                });
+            }
+            /* Save-prompt: listen for form submit */
+            document.addEventListener('submit', function(e) {
+                var form = e.target;
+                var pwd = form.querySelector('input[type=password]');
+                if (!pwd || !pwd.value) return;
+                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=mail], input[name*=login], input[name*=account]');
+                if (!username) username = form.querySelector('input:not([type=password]):not([type=hidden])');
+                var userVal = username ? username.value : '';
+                setTimeout(function() {
+                    window.webkit.messageHandlers.passwordSave.postMessage({
+                        username: userVal,
+                        password: pwd.value
+                    });
+                }, 500);
+            }, true);
             document.addEventListener('DOMContentLoaded', detectLoginForm);
             setTimeout(detectLoginForm, 1000);
         })();
@@ -108,34 +126,40 @@ class BrowserState: ObservableObject {
         (function() {
             window._desireReader = function() {
                 function score(el) {
-                    var score = 0;
                     if (!el || !el.tagName) return 0;
                     var id = (el.id || '').toLowerCase();
                     var cls = (el.className || '').toLowerCase();
-                    if (/article|post|content|main|story|entry/.test(id) || /article|post|content|main|story|entry/.test(cls)) score += 10;
-                    if (/comment|sidebar|footer|header|nav|menu/.test(id) || /comment|sidebar|footer|header|nav|menu/.test(cls)) score -= 10;
+                    var s = 0;
+                    if (/article|post|content|main|story|entry/.test(id) || /article|post|content|main|story|entry/.test(cls)) s += 10;
+                    if (/comment|sidebar|footer|header|nav|menu/.test(id) || /comment|sidebar|footer|header|nav|menu/.test(cls)) s -= 10;
                     var text = el.innerText || '';
                     var links = el.querySelectorAll('a').length;
                     var textLen = text.replace(/\\\\s+/g, ' ').length;
-                    if (textLen > 100) score += Math.min(5, Math.floor(textLen / 500));
-                    if (links > 0) score -= Math.min(3, Math.floor(links / 50));
-                    return score;
+                    if (textLen > 100) s += Math.min(5, Math.floor(textLen / 500));
+                    if (links > 0) s -= Math.min(3, Math.floor(links / 50));
+                    return s;
                 }
                 var candidates = [];
-                var els = document.querySelectorAll('article, [role=main], main, .post, .article, .content, #content, #article');
-                if (els.length === 0) els = document.querySelectorAll('p');
-                if (els.length > 0) {
-                    for (var i = 0; i < els.length; i++) {
-                        var el = els[i];
-                        var s = score(el);
-                        if (s > 0) candidates.push({el: el, score: s});
-                    }
-                    candidates.sort(function(a,b) { return b.score - a.score; });
+                var els = document.querySelectorAll('article, [role=main], main, .post, .article, .content, #content, #article, .entry, .post-content');
+                for (var i = 0; i < els.length; i++) {
+                    var s = score(els[i]);
+                    if (s > 0) candidates.push({el: els[i], score: s});
                 }
-                var best = candidates.length > 0 ? candidates[0].el : document.body;
+                candidates.sort(function(a,b) { return b.score - a.score; });
+                var best = candidates.length > 0 ? candidates[0].el : null;
+                /* Fallback #1: collect all <p> inside body */
+                if (!best || best.innerText.trim().length < 100) {
+                    var container = document.createElement('div');
+                    document.querySelectorAll('body p').forEach(function(p) {
+                        if (p.innerText.trim().length > 20) container.appendChild(p.cloneNode(true));
+                    });
+                    if (container.children.length > 3) { best = container; }
+                }
+                /* Fallback #2: use entire body */
+                if (!best || best.innerText.trim().length < 50) { best = document.body; }
                 var title = document.title || '';
-                var content = best.innerHTML || best.innerText || '';
-                window.webkit.messageHandlers.readerContent.postMessage({title: title, content: content, html: best.outerHTML});
+                var isFallback = (best === document.body || best.tagName === 'DIV');
+                window.webkit.messageHandlers.readerContent.postMessage({title: title, content: best.innerHTML || best.innerText || '', html: best.outerHTML, fallback: isFallback ? '1' : '0'});
             };
         })();
         """
@@ -354,6 +378,7 @@ struct WebView: NSViewRepresentable {
         func observe(_ webView: WKWebView) {
             webView.configuration.userContentController.add(self, name: "audioState")
             webView.configuration.userContentController.add(self, name: "passwordDetect")
+            webView.configuration.userContentController.add(self, name: "passwordSave")
             webView.configuration.userContentController.add(self, name: "readerContent")
             webView.configuration.userContentController.add(self, name: "hoverLink")
             webView.configuration.userContentController.add(self, name: "elementPicker")
@@ -380,6 +405,7 @@ struct WebView: NSViewRepresentable {
             let wv = parent.state.webView
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordSave")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
@@ -411,9 +437,27 @@ struct WebView: NSViewRepresentable {
                 })();
                 """
                 parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
+            } else if message.name == "passwordSave", let dict = message.body as? [String: String],
+                       let username = dict["username"], let password = dict["password"],
+                       !username.isEmpty, !password.isEmpty,
+                       let host = parent.state.webView.url?.host {
+                let existing = parent.passwordStore.find(domain: host)
+                if existing.contains(where: { $0.username == username }) { return }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    let alert = NSAlert()
+                    alert.messageText = String(localized: "Save Password for \(host)?")
+                    alert.informativeText = String(localized: "Username: \(username)")
+                    alert.addButton(withTitle: String(localized: "Save"))
+                    alert.addButton(withTitle: String(localized: "Not Now"))
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        self.parent.passwordStore.save(domain: host, username: username, password: password)
+                    }
+                }
             } else if message.name == "readerContent", let dict = message.body as? [String: String] {
                 parent.state.readerTitle = dict["title"] ?? ""
                 parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
+                parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
             } else if message.name == "elementPicker", let dict = message.body as? [String: String],

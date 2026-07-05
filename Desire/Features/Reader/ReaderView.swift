@@ -4,6 +4,7 @@ import WebKit
 struct ReaderView: View {
     let title: String
     let contentHTML: String
+    let isLoading: Bool
     let onClose: () -> Void
 
     var body: some View {
@@ -18,14 +19,44 @@ struct ReaderView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(height: 16)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
 
             Divider()
 
-            ReaderWebView(html: wrappedHTML)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if isLoading {
+                Spacer()
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Extracting content…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            } else if contentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No readable content found")
+                        .font(.headline)
+                    Text("This page may not have a readable article format.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            } else {
+                ReaderWebView(html: wrappedHTML)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -89,6 +120,6 @@ private struct ReaderWebView: NSViewRepresentable {
 }
 
 #Preview {
-    ReaderView(title: "示例文章标题", contentHTML: "<p>这是阅读模式的内容预览。</p><p>第二段内容。</p>", onClose: {})
+    ReaderView(title: "示例文章标题", contentHTML: "<p>这是阅读模式的内容预览。</p><p>第二段内容。</p>", isLoading: false, onClose: {})
         .frame(width: 600, height: 400)
 }

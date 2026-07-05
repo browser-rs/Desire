@@ -167,6 +167,11 @@ struct WebView: NSViewRepresentable {
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
     var onElementPicked: ((String, String?) -> Void)?
+    /// Forwarded from the `videoAdBlocked` WKScriptMessage handler.
+    /// Parameters: (blockedCount, siteKey, actionKey). `siteKey` is one of
+    /// "youtube" / "bilibili" / "tencent" / ... `actionKey` is optional
+    /// ("skip" / "seek") — when set the count is already 1.
+    var onVideoAdBlocked: ((Int, String?, String?) -> Void)?
     @ObservedObject var elementBlockStore: ElementBlockStore
 
     static let pickerJS = """
@@ -288,6 +293,7 @@ struct WebView: NSViewRepresentable {
             webView.configuration.userContentController.add(self, name: "readerContent")
             webView.configuration.userContentController.add(self, name: "hoverLink")
             webView.configuration.userContentController.add(self, name: "elementPicker")
+            webView.configuration.userContentController.add(self, name: "videoAdBlocked")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -313,6 +319,7 @@ struct WebView: NSViewRepresentable {
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "videoAdBlocked")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -349,6 +356,10 @@ struct WebView: NSViewRepresentable {
                       let selector = dict["cssSelector"] {
                 let xpath = dict["xpath"]
                 parent.onElementPicked?(selector, xpath)
+            } else if message.name == "videoAdBlocked", let dict = message.body as? [String: Any],
+                      let count = dict["count"] as? Int, count > 0 {
+                // Forward to the optional closure so the host can show a toast.
+                parent.onVideoAdBlocked?(count, dict["site"] as? String, dict["action"] as? String)
             }
         }
 

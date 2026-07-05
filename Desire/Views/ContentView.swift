@@ -37,6 +37,7 @@ struct ContentView: View {
     @State private var showElementBlock = false
     @State private var showUndoToast = false
     @State private var screenshotToast: String?
+    @State private var videoAdBlockerToast: String?
     @State private var lastBlockedRuleId: UUID?
     @State private var lastBlockedSelector = ""
     @State private var lastBlockedXpath: String?
@@ -567,6 +568,23 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay(alignment: .top) {
+            if let message = videoAdBlockerToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                    Text(message)
+                        .font(.caption.weight(.medium))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .clipShape(Capsule())
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
     }
 
     // MARK: - Actions
@@ -804,6 +822,8 @@ struct ContentView: View {
                 tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
             },
             onPageFinished: { url, title in
+                // Reset per-page counter so the toast reflects this navigation.
+                videoAdBlocker.resetCount()
                 if tab.suppressHistoryOnce {
                     tab.suppressHistoryOnce = false
                 } else if !tab.isIncognito {
@@ -814,8 +834,48 @@ struct ContentView: View {
             onElementPicked: { cssSelector, xpath in
                 handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab)
             },
+            onVideoAdBlocked: { count, site, action in
+                let siteName = Self.videoSiteDisplayName(site)
+                let actionSuffix: String
+                if action == "skip" {
+                    actionSuffix = String(localized: "（已跳过）")
+                } else if action == "seek" {
+                    actionSuffix = String(localized: "（已快进）")
+                } else {
+                    actionSuffix = ""
+                }
+                videoAdBlockerToast = String(format: String(localized: "已拦截 %d 个 %@ 广告%@"), count, siteName, actionSuffix)
+                scheduleVideoAdBlockerToastReset()
+            },
             elementBlockStore: elementBlockStore
         )
+    }
+
+    /// Maps the JS `site` key (e.g. "youtube") to a localized display name.
+    private static func videoSiteDisplayName(_ key: String?) -> String {
+        switch key {
+        case "youtube": String(localized: "YouTube")
+        case "bilibili": String(localized: "Bilibili")
+        case "tencent": String(localized: "腾讯视频")
+        case "iqiyi": String(localized: "爱奇艺")
+        case "youku": String(localized: "优酷")
+        case "mgtv": String(localized: "芒果TV")
+        case "tiktok": String(localized: "TikTok")
+        case "twitter": String(localized: "X")
+        default: String(localized: "视频")
+        }
+    }
+
+    /// Schedules the video-ad-blocker toast to disappear after 2.5s.
+    /// Uses an id-based schedule to allow overlapping updates (latest wins).
+    private var videoAdBlockerToastToken: Int { 0 }
+    private func scheduleVideoAdBlockerToastReset() {
+        let snapshot = videoAdBlockerToast
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            if videoAdBlockerToast == snapshot {
+                videoAdBlockerToast = nil
+            }
+        }
     }
     
     private func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) {

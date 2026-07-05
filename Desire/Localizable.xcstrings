@@ -7,6 +7,12 @@
     "(%lld)" : {
 
     },
+    "（已快进）" : {
+
+    },
+    "（已跳过）" : {
+
+    },
     "%@ / %@" : {
       "localizations" : {
         "en" : {
@@ -479,6 +485,9 @@
           }
         }
       }
+    },
+    "Bilibili" : {
+
     },
     "Black" : {
       "comment" : "Screenshot palette color: black",
@@ -6031,6 +6040,9 @@
         }
       }
     },
+    "TikTok" : {
+
+    },
     "Today" : {
       "comment" : "History section header",
       "localizations" : {
@@ -6339,6 +6351,9 @@
     "White" : {
 
     },
+    "X" : {
+
+    },
     "XPath (optional)" : {
       "comment" : "Add rule XPath placeholder",
       "localizations" : {
@@ -6407,6 +6422,9 @@
           }
         }
       }
+    },
+    "YouTube" : {
+
     },
     "Zoom In" : {
       "comment" : "Keyboard shortcut",
@@ -6477,6 +6495,9 @@
         }
       }
     },
+    "优酷" : {
+
+    },
     "保存" : {
 
     },
@@ -6510,6 +6531,16 @@
     "姓名" : {
 
     },
+    "已拦截 %d 个 %@ 广告%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已拦截 %1$d 个 %2$@ 广告%3$@"
+          }
+        }
+      }
+    },
     "搜索或输入网址" : {
 
     },
@@ -6519,10 +6550,16 @@
     "添加" : {
 
     },
+    "爱奇艺" : {
+
+    },
     "电话" : {
 
     },
     "省/州" : {
+
+    },
+    "视频" : {
 
     },
     "编辑" : {
@@ -6532,6 +6569,12 @@
 
     },
     "联系方式" : {
+
+    },
+    "腾讯视频" : {
+
+    },
+    "芒果TV" : {
 
     },
     "街道地址" : {

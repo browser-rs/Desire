@@ -24,6 +24,7 @@ struct Toolbar: View {
         let togglePictureInPicture: () -> Void
         let toggleResponsiveMode: () -> Void
         let toggleDarkMode: () -> Void
+        let toggleAIPanel: () -> Void
     }
 
     let tab: Tab
@@ -235,6 +236,8 @@ struct Toolbar: View {
             moreMenuItem("Inspect Element", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
+            Divider()
+            moreMenuItem("AI Assistant", "wand.and.stars") { actions.toggleAIPanel() }
             moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { showSettings = true }
         }
         .padding(4)

@@ -279,6 +279,12 @@
         }
       }
     },
+    "AI" : {
+
+    },
+    "AI Assistant" : {
+
+    },
     "Allow" : {
       "comment" : "Permission allow button",
       "localizations" : {
@@ -371,6 +377,9 @@
         }
       }
     },
+    "API Key" : {
+
+    },
     "Arrow" : {
       "comment" : "Screenshot tool: arrow annotation",
       "localizations" : {
@@ -393,6 +402,9 @@
           }
         }
       }
+    },
+    "Ask AI..." : {
+
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
@@ -2181,6 +2193,9 @@
         }
       }
     },
+    "Endpoint URL" : {
+
+    },
     "Enter Full Screen" : {
       "comment" : "View menu",
       "localizations" : {
@@ -2412,6 +2427,9 @@
           }
         }
       }
+    },
+    "Extracting content…" : {
+
     },
     "Failed to import plugin: invalid file format" : {
       "comment" : "Plugin import error",
@@ -2829,6 +2847,9 @@
       }
     },
     "H" : {
+
+    },
+    "Hide" : {
 
     },
     "Hide Password" : {
@@ -3295,6 +3316,9 @@
         }
       }
     },
+    "Max Tokens" : {
+
+    },
     "Media Device" : {
       "comment" : "Fallback media device name",
       "localizations" : {
@@ -3363,6 +3387,9 @@
           }
         }
       }
+    },
+    "Model" : {
+
     },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
@@ -3850,6 +3877,9 @@
         }
       }
     },
+    "No readable content found" : {
+
+    },
     "No Saved Passwords" : {
       "comment" : "Empty passwords state",
       "localizations" : {
@@ -3941,6 +3971,9 @@
           }
         }
       }
+    },
+    "Not Now" : {
+
     },
     "Number" : {
       "comment" : "Screenshot tool: numbered label annotation",
@@ -4728,6 +4761,9 @@
         }
       }
     },
+    "Remove" : {
+
+    },
     "Remove Bookmark" : {
       "comment" : "Remove bookmark tooltip",
       "localizations" : {
@@ -5049,6 +5085,9 @@
           }
         }
       }
+    },
+    "Save Password for %@?" : {
+
     },
     "Saved to %@" : {
       "comment" : "Toast: screenshot saved to a file (filename substituted for %@)",
@@ -5456,6 +5495,9 @@
         }
       }
     },
+    "Send" : {
+
+    },
     "Server Unreachable" : {
 
     },
@@ -5550,6 +5592,9 @@
           }
         }
       }
+    },
+    "Show" : {
+
     },
     "Show History" : {
       "comment" : "History menu",
@@ -5805,6 +5850,9 @@
         }
       }
     },
+    "System Prompt" : {
+
+    },
     "Tab Suspended" : {
       "comment" : "Suspended tab view title",
       "localizations" : {
@@ -5850,6 +5898,9 @@
           }
         }
       }
+    },
+    "Temperature" : {
+
     },
     "Text" : {
       "comment" : "Screenshot tool: text annotation",
@@ -5997,6 +6048,9 @@
           }
         }
       }
+    },
+    "This page may not have a readable article format." : {
+
     },
     "This Week" : {
       "comment" : "History section header",
@@ -6276,6 +6330,9 @@
           }
         }
       }
+    },
+    "Username: %@" : {
+
     },
     "v%@" : {
 

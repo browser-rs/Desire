@@ -17,6 +17,7 @@ import SwiftUI
 struct SettingsView: View {
     enum Section: String, CaseIterable, Identifiable {
         case general
+        case ai
         case privacy
         case autofill
         case keyboardShortcuts
@@ -26,6 +27,7 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .general: "gearshape"
+            case .ai: "brain.head.profile"
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
@@ -35,6 +37,7 @@ struct SettingsView: View {
         var title: LocalizedStringKey {
             switch self {
             case .general: "General"
+            case .ai: "AI"
             case .privacy: "Privacy"
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
@@ -43,6 +46,7 @@ struct SettingsView: View {
     }
 
     @ObservedObject var settings: Settings
+    @ObservedObject var aiPreference: AIPreferenceStore
     @ObservedObject var contentBlocker: ContentBlocker
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
@@ -63,6 +67,8 @@ struct SettingsView: View {
             switch selectedSection {
             case .general:
                 GeneralSettingsSection(settings: settings, downloadStore: downloadStore)
+            case .ai:
+                AISettingsSection(store: aiPreference)
             case .privacy:
                 PrivacySettingsSection(
                     settings: settings,

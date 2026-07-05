@@ -21,6 +21,7 @@ class BrowserState: ObservableObject {
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
     @Published var isPickingElement = false
+    var onAIElementPicked: ((String, String) -> Void)?
     let videoAdBlocker: VideoAdBlocker?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
@@ -463,7 +464,21 @@ struct WebView: NSViewRepresentable {
             } else if message.name == "elementPicker", let dict = message.body as? [String: String],
                       let selector = dict["cssSelector"] {
                 let xpath = dict["xpath"]
-                parent.onElementPicked?(selector, xpath)
+                if let aiHandler = parent.state.onAIElementPicked {
+                    let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                    parent.state.webView.evaluateJavaScript("""
+                    (function() {
+                        var el = document.querySelector('\(escaped)');
+                        return el ? el.outerHTML.substring(0, 2000) : '';
+                    })()
+                    """) { result, _ in
+                        if let html = result as? String {
+                            aiHandler(selector, html)
+                        }
+                    }
+                } else {
+                    parent.onElementPicked?(selector, xpath)
+                }
             } else if message.name == "videoAdBlocked", let dict = message.body as? [String: Any],
                       let count = dict["count"] as? Int, count > 0 {
                 // Forward to the optional closure so the host can show a toast.

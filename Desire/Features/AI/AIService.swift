@@ -1,0 +1,170 @@
+import Foundation
+
+enum AIStreamEvent {
+    case text(String)
+    case toolCall(AIToolCall)
+}
+
+enum AIServiceError: LocalizedError {
+    case noAPIKey
+    case network(Error)
+    case decoding(Error)
+    case httpStatus(Int, String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noAPIKey: return "API Key not configured. Set it in Settings > AI."
+        case .network(let e): return "Network error: \(e.localizedDescription)"
+        case .decoding(let e): return "Response parsing error: \(e.localizedDescription)"
+        case .httpStatus(let code, let body): return "HTTP \(code): \(body.prefix(200))"
+        }
+    }
+}
+
+struct AIService {
+    static func stream(messages: [AIMessage], tools: [AIToolDef], prefs: AIPreferenceStore) -> AsyncThrowingStream<AIStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                guard let apiKey = prefs.loadAPIKey() else {
+                    continuation.finish(throwing: AIServiceError.noAPIKey)
+                    return
+                }
+
+                let urlStr = prefs.endpoint.hasSuffix("/chat/completions")
+                    ? prefs.endpoint : prefs.endpoint + "/chat/completions"
+                guard let url = URL(string: urlStr) else {
+                    continuation.finish(throwing: AIServiceError.network(NSError(domain: "AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid endpoint URL"])))
+                    return
+                }
+
+                var req = URLRequest(url: url)
+                req.httpMethod = "POST"
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                req.setValue("chatcmpl-\(String(UUID().uuidString.prefix(8)))", forHTTPHeaderField: "X-Request-Id")
+
+                let bodyDict: [String: Any] = [
+                    "model": prefs.model,
+                    "messages": messages.map(self.encodeMessage),
+                    "stream": true,
+                    "max_tokens": prefs.maxTokens,
+                    "temperature": prefs.temperature,
+                ]
+
+                var body: [String: Any] = bodyDict
+                if !tools.isEmpty {
+                    body["tools"] = tools.map { t in
+                        [
+                            "type": t.type,
+                            "function": [
+                                "name": t.function.name,
+                                "description": t.function.description,
+                                "parameters": t.function.parameters,
+                            ],
+                        ]
+                    }
+                }
+
+                req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+                do {
+                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        continuation.finish(throwing: AIServiceError.network(NSError(domain: "AI", code: -1)))
+                        return
+                    }
+                    guard http.statusCode == 200 else {
+                        var errBody = ""
+                        for try await line in bytes.lines { errBody += line }
+                        continuation.finish(throwing: AIServiceError.httpStatus(http.statusCode, errBody))
+                        return
+                    }
+
+                    var toolCallID = ""
+                    var toolCallName = ""
+                    var toolCallArgs = ""
+                    var hasToolCall = false
+
+                    for try await line in bytes.lines {
+                        guard line.hasPrefix("data: ") else { continue }
+                        let data = String(line.dropFirst(6))
+                        if data == "[DONE]" { break }
+                        guard let json = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any],
+                              let choices = json["choices"] as? [[String: Any]],
+                              let choice = choices.first,
+                              let delta = choice["delta"] as? [String: Any] else { continue }
+
+                        if let text = delta["content"] as? String {
+                            continuation.yield(.text(text))
+                        }
+
+                        if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+                            for tc in toolCalls {
+                                let idx = tc["index"] as? Int ?? 0
+                                if idx == 0 {
+                                    if let id = tc["id"] as? String {
+                                        toolCallID = id
+                                        hasToolCall = true
+                                    }
+                                    if let fn = tc["function"] as? [String: Any] {
+                                        if let name = fn["name"] as? String, !name.isEmpty {
+                                            toolCallName += name
+                                        }
+                                        if let args = fn["arguments"] as? String {
+                                            toolCallArgs += args
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let finishReason = choice["finish_reason"] as? String,
+                           finishReason == "tool_calls", hasToolCall {
+                            let call = AIToolCall(
+                                id: toolCallID,
+                                type: "function",
+                                function: AIToolFunction(name: toolCallName, arguments: toolCallArgs)
+                            )
+                            continuation.yield(.toolCall(call))
+                            toolCallID = ""; toolCallName = ""; toolCallArgs = ""; hasToolCall = false
+                        }
+                    }
+
+                    if hasToolCall {
+                        let call = AIToolCall(
+                            id: toolCallID,
+                            type: "function",
+                            function: AIToolFunction(name: toolCallName, arguments: toolCallArgs)
+                        )
+                        continuation.yield(.toolCall(call))
+                    }
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: AIServiceError.network(error))
+                }
+            }
+        }
+    }
+
+    private static func encodeMessage(_ msg: AIMessage) -> [String: Any] {
+        var m: [String: Any] = ["role": msg.role.rawValue]
+        if let content = msg.content { m["content"] = content }
+        if let tcs = msg.toolCalls {
+            m["tool_calls"] = tcs.map { tc in
+                [
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": [
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    ],
+                ]
+            }
+        }
+        if let tid = msg.toolCallId {
+            m["tool_call_id"] = tid
+        }
+        return m
+    }
+}

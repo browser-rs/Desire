@@ -24,6 +24,7 @@ struct ContentView: View {
     @StateObject private var tabGroupStore = TabGroupStore()
     @StateObject private var elementBlockStore = ElementBlockStore()
     @StateObject private var videoAdBlocker = VideoAdBlocker()
+    @StateObject private var aiSession = AISessionStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isFindBarVisible = false
@@ -46,6 +47,7 @@ struct ContentView: View {
     @State private var findMatchCount = 0
     @State private var findCurrentIndex = 0
     @State private var isFullScreen = false
+    @State private var showAIPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -184,7 +186,8 @@ struct ContentView: View {
                             })();
                             """
                             tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-                        }
+                        },
+                        toggleAIPanel: { showAIPanel.toggle() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -328,7 +331,14 @@ struct ContentView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if showAIPanel {
+                    Divider()
+                        .frame(width: 1)
+                    AIPanel(store: aiSession)
+                        .frame(width: 320)
                 }
+            }
             }
 
             if settings.showLinkPreview, let tab = tabManager.selectedTab, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
@@ -471,6 +481,7 @@ struct ContentView: View {
             showSettings = false
             SettingsWindowController.shared.show(
                 settings: settings,
+                aiPreference: aiSession.preference,
                 contentBlocker: contentBlocker,
                 downloadStore: downloadStore,
                 formAutofillStore: formAutofillStore,
@@ -817,7 +828,11 @@ struct ContentView: View {
     }
 
     private func makeWebView(for tab: Tab) -> WebView {
-        WebView(
+        tab.browser.onAIElementPicked = { selector, html in
+            aiSession.addContext(html: html, selector: selector)
+        }
+        aiSession.setWebView(tab.browser.webView)
+        return WebView(
             state: tab.browser,
             downloadStore: downloadStore,
             passwordStore: passwordStore,

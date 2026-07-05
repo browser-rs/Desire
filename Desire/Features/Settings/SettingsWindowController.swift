@@ -28,6 +28,7 @@ final class SettingsWindowController {
 
     func show(
         settings: Settings,
+        aiPreference: AIPreferenceStore,
         contentBlocker: ContentBlocker,
         downloadStore: DownloadStore,
         formAutofillStore: FormAutofillStore,
@@ -42,6 +43,7 @@ final class SettingsWindowController {
 
         let view = SettingsView(
             settings: settings,
+            aiPreference: aiPreference,
             contentBlocker: contentBlocker,
             downloadStore: downloadStore,
             formAutofillStore: formAutofillStore,

@@ -10,7 +10,7 @@ class BrowserState: ObservableObject {
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
-    @Published var lastError: String?
+    @Published var lastError: Error?
     @Published var pageZoom: Double = 1.0
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
@@ -552,7 +552,10 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
-            parent.state.lastError = error.localizedDescription
+            // Store the underlying `Error` so ErrorPageView can map
+            // `URLError.code` to category-specific copy (TLS, offline, …)
+            // instead of just dumping the raw localized description.
+            parent.state.lastError = error
         }
 
         // 处理新窗口/弹窗（Google 登录 OAuth 需要）
@@ -646,7 +649,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
-            parent.state.lastError = error.localizedDescription
+            parent.state.lastError = error
             // Only fall back from HTTPS → HTTP when the *upgrade itself*
             // failed with a real network error. The previous version
             // triggered fallback on any non-cancelled error, which caused

@@ -288,7 +288,12 @@ struct ContentView: View {
                         }
                         .overlay {
                             if let error = tab.browser.lastError, !tab.isOnNewTabPage {
-                                ErrorPageView(message: error, tab: tab)
+                                // Pass the underlying Error (typically a
+                                // URLError) so ErrorPageView can map it to
+                                // category-specific copy — TLS handshake,
+                                // offline, server unreachable, etc. — rather
+                                // than just dumping the raw string.
+                                ErrorPageView(error: error, tab: tab)
                             }
                         }
                         .overlay {

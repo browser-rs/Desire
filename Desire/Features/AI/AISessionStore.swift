@@ -1,11 +1,43 @@
 import Combine
 import WebKit
 
+enum AIQuickAction: CaseIterable {
+    case summarize
+    case askAboutPage
+    case translate
+
+    var title: String {
+        switch self {
+        case .summarize: String(localized: "Summarize")
+        case .askAboutPage: String(localized: "Ask about Page")
+        case .translate: String(localized: "Translate")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .summarize: "text.alignleft"
+        case .askAboutPage: "question.bubble"
+        case .translate: "translate"
+        }
+    }
+
+    var prompt: String {
+        switch self {
+        case .summarize: String(localized: "Summarize the current page in detail")
+        case .askAboutPage: String(localized: "I'm looking at this page and want to ask:")
+        case .translate: String(localized: "Translate this page to Chinese")
+        }
+    }
+}
+
 @MainActor
 class AISessionStore: ObservableObject {
     @Published var messages: [AIMessage] = []
     @Published var isProcessing = false
     @Published var currentAction: String?
+    @Published var awaitingQuestion = false
+    @Published var streamingVersion = 0
 
     var preference = AIPreferenceStore()
     private let toolProvider = BrowserToolProvider()
@@ -14,6 +46,36 @@ class AISessionStore: ObservableObject {
 
     func setWebView(_ wv: WKWebView?) {
         webView = wv
+    }
+
+    func configureStores(
+        tabManager: TabManager?,
+        bookmarkStore: BookmarkStore?,
+        historyStore: HistoryStore?,
+        contentBlocker: ContentBlocker?,
+        readingListStore: ReadingListStore?,
+        downloadStore: DownloadStore?,
+        siteSettingsStore: SiteSettingsStore?,
+        settings: Settings?,
+        videoAdBlocker: VideoAdBlocker?,
+        pluginStore: PluginStore? = nil,
+        elementBlockStore: ElementBlockStore? = nil,
+        tabGroupStore: TabGroupStore? = nil,
+        quickDialStore: QuickDialStore? = nil
+    ) {
+        toolProvider.tabManager = tabManager
+        toolProvider.bookmarkStore = bookmarkStore
+        toolProvider.historyStore = historyStore
+        toolProvider.contentBlocker = contentBlocker
+        toolProvider.readingListStore = readingListStore
+        toolProvider.downloadStore = downloadStore
+        toolProvider.siteSettingsStore = siteSettingsStore
+        toolProvider.settings = settings
+        toolProvider.videoAdBlocker = videoAdBlocker
+        toolProvider.pluginStore = pluginStore
+        toolProvider.elementBlockStore = elementBlockStore
+        toolProvider.tabGroupStore = tabGroupStore
+        toolProvider.quickDialStore = quickDialStore
     }
 
     func sendMessage(_ text: String) {
@@ -25,6 +87,25 @@ class AISessionStore: ObservableObject {
         Task { await processLoop() }
     }
 
+    func performQuickAction(_ action: AIQuickAction) {
+        switch action {
+        case .summarize, .translate:
+            sendMessage(action.prompt)
+        case .askAboutPage:
+            awaitingQuestion = true
+            Task {
+                let text = await fetchPageText()
+                let context = "[Current Page Content]\n\(text)\n\n---\n\(action.prompt)"
+                messages.append(AIMessage(role: .user, content: context))
+            }
+        }
+    }
+
+    func sendFollowUp(_ text: String) {
+        awaitingQuestion = false
+        sendMessage(text)
+    }
+
     func addContext(html: String, selector: String) {
         let context = "<\(selector)>: \(html.prefix(1000))"
         messages.append(AIMessage(role: .user, content: "[Selected element]\n\(context)"))
@@ -34,6 +115,7 @@ class AISessionStore: ObservableObject {
         isCancelled = true
         isProcessing = false
         currentAction = nil
+        awaitingQuestion = false
     }
 
     func clear() {
@@ -41,6 +123,16 @@ class AISessionStore: ObservableObject {
         isProcessing = false
         currentAction = nil
         isCancelled = false
+        awaitingQuestion = false
+    }
+
+    private func fetchPageText() async -> String {
+        guard let wv = webView else { return "" }
+        return await withCheckedContinuation { continuation in
+            wv.evaluateJavaScript("document.body.innerText.substring(0, 20000)") { result, _ in
+                continuation.resume(returning: (result as? String) ?? "")
+            }
+        }
     }
 
     private func processLoop() async {
@@ -59,35 +151,58 @@ class AISessionStore: ObservableObject {
                 prefs: preference
             )
 
-            var assistantMsg = AIMessage(role: .assistant, content: "")
-            messages.append(assistantMsg)
+            var assistantMsg: AIMessage?
+            var hasContent = false
 
             do {
                 for try await event in stream {
                     if isCancelled { return }
                     switch event {
                     case .text(let delta):
-                        assistantMsg.content = (assistantMsg.content ?? "") + delta
-                        if let idx = messages.lastIndex(where: { $0.id == assistantMsg.id }) {
-                            messages[idx] = assistantMsg
+                        if assistantMsg == nil {
+                            assistantMsg = AIMessage(role: .assistant, content: "")
+                            messages.append(assistantMsg!)
                         }
+                        assistantMsg!.content = (assistantMsg!.content ?? "") + delta
+                        if let idx = messages.lastIndex(where: { $0.id == assistantMsg!.id }) {
+                            messages[idx] = assistantMsg!
+                            streamingVersion += 1
+                        }
+                        hasContent = true
                     case .toolCall(let call):
-                        assistantMsg.toolCalls = (assistantMsg.toolCalls ?? []) + [call]
-                        if let idx = messages.lastIndex(where: { $0.id == assistantMsg.id }) {
-                            messages[idx] = assistantMsg
+                        if assistantMsg == nil {
+                            assistantMsg = AIMessage(role: .assistant, content: "")
+                            messages.append(assistantMsg!)
                         }
+                        assistantMsg!.toolCalls = (assistantMsg!.toolCalls ?? []) + [call]
+                        if let idx = messages.lastIndex(where: { $0.id == assistantMsg!.id }) {
+                            messages[idx] = assistantMsg!
+                            streamingVersion += 1
+                        }
+                        hasContent = true
                     }
                 }
             } catch {
-                messages.append(AIMessage(role: .assistant, content: "Error: \(error.localizedDescription)"))
+                let errorText = "Error: \(error.localizedDescription)"
+                if let idx = assistantMsg.flatMap({ m in messages.firstIndex(where: { $0.id == m.id }) }) {
+                    messages[idx].content = errorText
+                    messages[idx].toolCalls = nil
+                } else {
+                    messages.append(AIMessage(role: .assistant, content: errorText))
+                }
+                streamingVersion += 1
                 return
             }
 
-            if let idx = messages.firstIndex(where: { $0.id == assistantMsg.id }) {
-                messages[idx] = assistantMsg
+            guard hasContent, let msg = assistantMsg else { return }
+
+            if assistantMsg?.content?.isEmpty ?? true {
+                if let idx = messages.firstIndex(where: { $0.id == msg.id }) {
+                    messages[idx] = msg
+                }
             }
 
-            guard let tcs = assistantMsg.toolCalls, !tcs.isEmpty else { return }
+            guard let tcs = msg.toolCalls, !tcs.isEmpty else { return }
 
             for tc in tcs {
                 if isCancelled { return }

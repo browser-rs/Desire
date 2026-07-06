@@ -25,6 +25,10 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    func recentEntries(count: Int) -> [HistoryEntry] {
+        Array(entries.prefix(count))
+    }
+
     func clearAll() {
         entries.removeAll()
         save()

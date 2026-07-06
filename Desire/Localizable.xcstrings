@@ -82,6 +82,9 @@
         }
       }
     },
+    "%lld." : {
+
+    },
     "%lld×%lld" : {
       "localizations" : {
         "en" : {
@@ -91,6 +94,9 @@
           }
         }
       }
+    },
+    "•" : {
+
     },
     "×" : {
 
@@ -403,7 +409,13 @@
         }
       }
     },
+    "Ask about Page" : {
+
+    },
     "Ask AI..." : {
+
+    },
+    "Ask questions, summarize pages,\ntranslate content, and more." : {
 
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
@@ -1014,6 +1026,9 @@
         }
       }
     },
+    "Clear conversation" : {
+
+    },
     "Clear Finished" : {
       "comment" : "Clear finished downloads button",
       "localizations" : {
@@ -1428,6 +1443,9 @@
         }
       }
     },
+    "Copy message" : {
+
+    },
     "Copy URL" : {
       "comment" : "Context menu: copy tab URL",
       "localizations" : {
@@ -1519,6 +1537,9 @@
           }
         }
       }
+    },
+    "Custom Model Name" : {
+
     },
     "Custom Search Engines" : {
       "comment" : "Custom search engines section title",
@@ -2289,6 +2310,9 @@
         }
       }
     },
+    "Executing tools…" : {
+
+    },
     "Exit Find" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -2967,6 +2991,9 @@
           }
         }
       }
+    },
+    "I'm looking at this page and want to ask:" : {
+
     },
     "Import" : {
       "comment" : "Bookmark import help",
@@ -5017,6 +5044,9 @@
         }
       }
     },
+    "Running %@…" : {
+
+    },
     "Save" : {
       "comment" : "Save button",
       "localizations" : {
@@ -5039,6 +5069,9 @@
           }
         }
       }
+    },
+    "Save as PDF" : {
+
     },
     "Save Full Page PDF" : {
       "comment" : "Save PDF panel title",
@@ -5499,9 +5532,6 @@
         }
       }
     },
-    "Send" : {
-
-    },
     "Server Unreachable" : {
 
     },
@@ -5808,6 +5838,12 @@
         }
       }
     },
+    "Summarize" : {
+
+    },
+    "Summarize the current page in detail" : {
+
+    },
     "Switch to Tab %lld" : {
       "comment" : "Tabs menu: switch to tab number",
       "localizations" : {
@@ -5904,6 +5940,9 @@
       }
     },
     "Temperature" : {
+
+    },
+    "Test Connection" : {
 
     },
     "Text" : {
@@ -6197,6 +6236,12 @@
         }
       }
     },
+    "Translate" : {
+
+    },
+    "Translate this page to Chinese" : {
+
+    },
     "Undo" : {
       "comment" : "Undo button",
       "localizations" : {
@@ -6435,6 +6480,9 @@
           }
         }
       }
+    },
+    "What would you like to know about this page?" : {
+
     },
     "White" : {
 

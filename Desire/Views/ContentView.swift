@@ -27,6 +27,7 @@ struct ContentView: View {
     @StateObject private var aiSession = AISessionStore()
     @Environment(\.scenePhase) private var scenePhase
 
+    @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
     @State private var showHistory = false
     @State private var showSettings = false
@@ -358,6 +359,24 @@ struct ContentView: View {
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard())
         .onAppear {
+            if !isAIConfigured {
+                aiSession.configureStores(
+                    tabManager: tabManager,
+                    bookmarkStore: bookmarkStore,
+                    historyStore: historyStore,
+                    contentBlocker: contentBlocker,
+                    readingListStore: readingListStore,
+                    downloadStore: downloadStore,
+                    siteSettingsStore: siteSettingsStore,
+                    settings: settings,
+                    videoAdBlocker: videoAdBlocker,
+                    pluginStore: pluginStore,
+                    elementBlockStore: elementBlockStore,
+                    tabGroupStore: tabGroupStore,
+                    quickDialStore: quickDialStore
+                )
+                isAIConfigured = true
+            }
             if tabManager.tabs.isEmpty {
                 let restored = tabManager.restoreSession(
                     javaScriptEnabled: settings.isJavaScriptEnabled,
@@ -547,6 +566,9 @@ struct ContentView: View {
                 .keyboardShortcut(.escape, modifiers: [])
                 .hidden()
             }
+            Button("") { showAIPanel.toggle() }
+                .keyboardShortcut("'", modifiers: .command)
+                .hidden()
         }
         .overlay(alignment: .bottom) {
             if showUndoToast {

@@ -1,17 +1,5 @@
-//
-//  GeneralSettingsSection.swift
-//  Desire
-//
-//  Created by mankong on 2026/7/5.
-//
-
 import SwiftUI
 
-/// Detail content for the "General" section of the Settings window.
-///
-/// Extracted from the old TabView-based `SettingsView` so the new
-/// `NavigationSplitView` shell can switch between sections without bundling
-/// all of their Form bodies into one file.
 struct GeneralSettingsSection: View {
     @ObservedObject var settings: Settings
     @ObservedObject var downloadStore: DownloadStore
@@ -30,38 +18,36 @@ struct GeneralSettingsSection: View {
 
             Divider()
 
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Download Location")
+            LabeledContent("Download Location") {
+                HStack(spacing: 8) {
                     Text(downloadStore.downloadFolder.path)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                }
-                Spacer()
-                Button("Change…") {
-                    downloadStore.chooseDownloadFolder()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    Button("Change…") {
+                        downloadStore.chooseDownloadFolder()
+                    }
                 }
             }
 
             Divider()
 
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Screenshot save location")
+            LabeledContent("Screenshot Save Location") {
+                HStack(spacing: 8) {
                     Text(settings.screenshotFolder.path)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                }
-                Spacer()
-                Button("Change…") {
-                    settings.chooseScreenshotFolder()
-                }
-                Button("Reset") {
-                    settings.resetScreenshotFolder()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    Button("Change…") {
+                        settings.chooseScreenshotFolder()
+                    }
+                    Button("Reset") {
+                        settings.resetScreenshotFolder()
+                    }
                 }
             }
         }
@@ -77,38 +63,28 @@ private struct CustomEngineSection: View {
     @State private var newSuggestionURL = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Divider()
-            HStack {
-                Text("Custom Search Engines")
-                    .font(.headline)
-                Spacer()
-                Button("Add") { showAdd = true }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                    .font(.caption)
-            }
-
+        Section("Custom Search Engines") {
             if settings.customEngines.isEmpty {
                 Text("No custom search engines")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                List {
-                    ForEach(settings.customEngines) { engine in
-                        HStack {
-                            Text(engine.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                            Spacer()
-                            Button("Delete") { settings.removeCustomEngine(engine.id) }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        }
+                ForEach(settings.customEngines) { engine in
+                    HStack {
+                        Text(engine.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                        Spacer()
+                        Button("Delete") { settings.removeCustomEngine(engine.id) }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+                            .font(.caption)
                     }
                 }
-                .listStyle(.plain)
-                .frame(height: 80)
             }
+            Button("Add") { showAdd = true }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
         }
         .sheet(isPresented: $showAdd) {
             VStack(spacing: 16) {

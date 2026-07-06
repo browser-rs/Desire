@@ -1,18 +1,6 @@
-//
-//  PrivacySettingsSection.swift
-//  Desire
-//
-//  Created by mankong on 2026/7/5.
-//
-
 import SwiftUI
 import WebKit
 
-/// Detail content for the "Privacy" section of the Settings window.
-///
-/// Extracted from the old TabView-based `SettingsView`. Owns the
-/// `Clear Browsing Data` alert state and `clearBrowsingData()` action —
-/// those move here because they're only relevant when this section is shown.
 struct PrivacySettingsSection: View {
     @ObservedObject var settings: Settings
     @ObservedObject var contentBlocker: ContentBlocker
@@ -28,11 +16,8 @@ struct PrivacySettingsSection: View {
     var body: some View {
         Form {
             Toggle("Enable JavaScript", isOn: $settings.isJavaScriptEnabled)
-
             Toggle("Block Ads", isOn: $contentBlocker.isBlockingEnabled)
-
             Toggle("Tracking Protection", isOn: $contentBlocker.isTrackingEnabled)
-
             Toggle("HTTPS Upgrade", isOn: $settings.httpsUpgradeEnabled)
                 .help("Attempt to upgrade HTTP connections to HTTPS automatically")
 
@@ -40,20 +25,13 @@ struct PrivacySettingsSection: View {
 
             Toggle("Show Search Suggestions", isOn: $settings.showSearchSuggestions)
                 .help("Input will be sent to the search engine to get suggestions")
-
             Toggle("Link Preview", isOn: $settings.showLinkPreview)
                 .help("Show target URL at bottom when hovering over links")
 
             Divider()
 
             SiteDataSection()
-
-            Divider()
-
             PermissionSection(store: permissionStore)
-
-            Divider()
-
             ClearDataSection(
                 clearCookies: $clearCookies,
                 clearCache: $clearCache,
@@ -101,18 +79,11 @@ private struct ClearDataSection: View {
     let onClear: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Clear Browsing Data")
-                .font(.headline)
-            GroupBox {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Cookies", isOn: $clearCookies)
-                    Toggle("Cache", isOn: $clearCache)
-                    Toggle("Local Storage", isOn: $clearStorage)
-                    Toggle("Browsing History", isOn: $clearHistory)
-                }
-                .padding(4)
-            }
+        Section("Clear Browsing Data") {
+            Toggle("Cookies", isOn: $clearCookies)
+            Toggle("Cache", isOn: $clearCache)
+            Toggle("Local Storage", isOn: $clearStorage)
+            Toggle("Browsing History", isOn: $clearHistory)
             Button("Clear", role: .destructive) { onClear() }
                 .disabled(!(clearCookies || clearCache || clearStorage || clearHistory))
         }
@@ -124,10 +95,7 @@ private struct SiteDataSection: View {
     @State private var isLoading = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Website Data")
-                .font(.headline)
-
+        Section("Website Data") {
             if isLoading {
                 ProgressView()
                     .scaleEffect(0.5)
@@ -137,32 +105,28 @@ private struct SiteDataSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                List {
-                    ForEach(records, id: \.displayName) { record in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(record.displayName)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
-                                Text(record.dataTypes.map { label(for: $0) }.joined(separator: "、"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Button("Delete") {
-                                WKWebsiteDataStore.default().removeData(ofTypes: record.dataTypes, for: [record]) {
-                                    loadRecords()
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                ForEach(records, id: \.displayName) { record in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.displayName)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                            Text(record.dataTypes.map { label(for: $0) }.joined(separator: "、"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
+                        Spacer()
+                        Button("Delete") {
+                            WKWebsiteDataStore.default().removeData(ofTypes: record.dataTypes, for: [record]) {
+                                loadRecords()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.red)
+                        .font(.caption)
                     }
                 }
-                .listStyle(.plain)
-                .frame(height: 120)
             }
         }
         .onAppear(perform: loadRecords)
@@ -195,42 +159,28 @@ private struct PermissionSection: View {
     @State private var showClear = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Website Permissions")
-                    .font(.headline)
-                Spacer()
-                if !store.rules.isEmpty {
-                    Button("Reset All", role: .destructive) { showClear = true }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
+        Section("Website Permissions") {
             if store.rules.isEmpty {
                 Text("No saved permission settings")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                List {
-                    ForEach(store.rules, id: \.host) { rule in
-                        HStack {
-                            Text(rule.host).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                            Spacer()
-                            Text(rule.decision == .deny ? "Denied" : "Allowed")
-                                .font(.caption)
-                                .foregroundStyle(rule.decision == .deny ? .red : .green)
-                            Button("Revoke") {
-                                store.remove(host: rule.host)
-                            }
+                ForEach(store.rules, id: \.host) { rule in
+                    HStack {
+                        Text(rule.host).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                        Spacer()
+                        Text(rule.decision == .deny ? "Denied" : "Allowed")
+                            .font(.caption)
+                            .foregroundStyle(rule.decision == .deny ? .red : .green)
+                        Button("Revoke") { store.remove(host: rule.host) }
                             .buttonStyle(.plain)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        }
                     }
                 }
-                .listStyle(.plain)
-                .frame(height: 100)
+                Button("Reset All", role: .destructive) { showClear = true }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
             }
         }
         .alert("Reset All Permissions", isPresented: $showClear) {

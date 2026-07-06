@@ -5183,6 +5183,7 @@
     },
     "Screenshot save location" : {
       "comment" : "Settings label",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5203,6 +5204,9 @@
           }
         }
       }
+    },
+    "Screenshot Save Location" : {
+
     },
     "Screenshot…" : {
       "comment" : "Screenshot menu item",

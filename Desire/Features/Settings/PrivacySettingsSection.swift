@@ -31,6 +31,7 @@ struct PrivacySettingsSection: View {
             Divider()
 
             SiteDataSection()
+            CookieManagementSection()
             PermissionSection(store: permissionStore)
             ClearDataSection(
                 clearCookies: $clearCookies,
@@ -150,6 +151,30 @@ private struct SiteDataSection: View {
         case WKWebsiteDataTypeIndexedDBDatabases: return "IndexedDB"
         case WKWebsiteDataTypeWebSQLDatabases: return "WebSQL"
         default: return type
+        }
+    }
+}
+
+private struct CookieManagementSection: View {
+    @State private var showPanel = false
+
+    var body: some View {
+        Section("Cookies") {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Manage Cookies")
+                    Text("View and delete individual cookies")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Manage…") { showPanel = true }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .sheet(isPresented: $showPanel) {
+            CookiePanel()
         }
     }
 }

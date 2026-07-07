@@ -5,6 +5,7 @@
 //  Created by mankong on 2026/7/5.
 //
 
+import Combine
 import SwiftUI
 
 /// Modern two-column Settings window content (System Settings.app style).
@@ -79,51 +80,163 @@ struct SettingsView: View {
             case .autofill:
                 FormAutofillSettingsView(store: formAutofillStore)
             case .keyboardShortcuts:
-                KeyboardShortcutsView()
+                KeyboardShortcutsEditorView()
             }
         }
         .frame(minWidth: 600, minHeight: 420)
     }
 }
 
-private struct KeyboardShortcutsView: View {
-    private let shortcuts: [(String, LocalizedStringKey)] = [
-        ("⌘T", "New Tab"),
-        ("⌘⇧N", "New Incognito Tab"),
-        ("⌘W", "Close Tab"),
-        ("⌘⇧T", "Reopen Closed Tab"),
-        ("⌘{", "Previous Tab"),
-        ("⌘}", "Next Tab"),
-        ("⌘1-9", "Switch to Tab 1-9"),
-        ("⌘L", "Focus Address Bar"),
-        ("⌘R", "Reload Page"),
-        ("⌘F", "Find in Page"),
-        ("⌘G", "Find Next"),
-        ("⌘⇧G", "Find Previous"),
-        ("Esc", "Exit Find"),
-        ("⌘[", "Go Back"),
-        ("⌘]", "Go Forward"),
-        ("⌘=", "Zoom In"),
-        ("⌘-", "Zoom Out"),
-        ("⌘0", "Reset Zoom"),
-        ("⌘⇧I", "Inspect Element"),
-        ("⌘P", "Print"),
-        ("⌘Y", "Browsing History"),
-        ("⌘⇧A", "Search Tabs"),
-        ("⌘⇧B", "Sidebar"),
-        ("⌘⇧M", "Responsive Design Mode"),
-    ]
+private struct KeyboardShortcutsEditorView: View {
+    @StateObject private var store = KeyboardShortcutStore()
+    @State private var editing: ShortcutMapping?
+    @State private var showRecorder = false
 
     var body: some View {
-        List(shortcuts, id: \.0) { shortcut in
+        VStack(spacing: 0) {
             HStack {
-                Text(shortcut.0)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Text("Keyboard Shortcuts").font(.headline)
                 Spacer()
-                Text(shortcut.1)
+                Button("Reset All") { store.resetAll() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+
+            List {
+                ForEach(store.shortcuts) { mapping in
+                    HStack {
+                        Text(mapping.commandName)
+                            .font(.system(size: 12))
+                        Spacer()
+                        Button {
+                            editing = mapping
+                            showRecorder = true
+                        } label: {
+                            Text(mapping.displayText)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(mapping.isCustomized ? Color.accentColor : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color(nsColor: .controlBackgroundColor))
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .listStyle(.plain)
+        }
+        .sheet(isPresented: $showRecorder) {
+            if let mapping = editing {
+                ShortcutRecorderView(shortcut: mapping) { updated in
+                    store.update(updated)
+                    showRecorder = false
+                } onCancel: {
+                    showRecorder = false
+                }
             }
         }
-        .padding()
+    }
+}
+
+private struct ShortcutRecorderView: View {
+    @State var shortcut: ShortcutMapping
+    let onSave: (ShortcutMapping) -> Void
+    let onCancel: () -> Void
+
+    @State private var isRecording = false
+    @State private var recordedKey = ""
+    @State private var recordedFlags: UInt = 0
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Customize Shortcut").font(.headline)
+            Text(shortcut.commandName).font(.subheadline)
+
+            if isRecording {
+                Text("Press new shortcut…")
+                    .font(.system(.title2, design: .monospaced))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .cornerRadius(8)
+            } else {
+                Button("Click to Record") {
+                    isRecording = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Text("Current: \(shortcut.displayText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                Button("Save") {
+                    if !recordedKey.isEmpty {
+                        shortcut.keyEquivalent = recordedKey
+                        shortcut.modifierFlags = recordedFlags
+                        shortcut.isCustomized = true
+                    }
+                    onSave(shortcut)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRecording)
+            }
+        }
+        .padding(24)
+        .frame(width: 320)
+        .background(ShortcutRecorderNSView(
+            isRecording: $isRecording,
+            recordedKey: $recordedKey,
+            recordedFlags: $recordedFlags
+        ))
+    }
+}
+
+private struct ShortcutRecorderNSView: NSViewRepresentable {
+    @Binding var isRecording: Bool
+    @Binding var recordedKey: String
+    @Binding var recordedFlags: UInt
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.isRecording = isRecording
+        if isRecording {
+            context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard let characters = event.charactersIgnoringModifiers else { return event }
+                let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+                guard !flags.isEmpty else { return event }
+
+                recordedKey = characters.lowercased()
+                recordedFlags = flags.rawValue
+                isRecording = false
+                context.coordinator.monitor = nil
+                return nil
+            }
+        } else if context.coordinator.monitor != nil {
+            context.coordinator.monitor = nil
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    class Coordinator {
+        var isRecording = false
+        var monitor: Any?
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
     }
 }

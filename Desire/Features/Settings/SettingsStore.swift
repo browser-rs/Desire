@@ -28,6 +28,24 @@ class Settings: ObservableObject {
     @Published var showLinkPreview: Bool {
         didSet { UserDefaults.standard.set(showLinkPreview, forKey: "showLinkPreview") }
     }
+    @Published var appearanceTheme: AppearanceTheme {
+        didSet { UserDefaults.standard.set(appearanceTheme.rawValue, forKey: "appearanceTheme") }
+    }
+    @Published var accentColor: AccentColor {
+        didSet { UserDefaults.standard.set(accentColor.rawValue, forKey: "accentColor") }
+    }
+    @Published var newTabPosition: NewTabPosition {
+        didSet { UserDefaults.standard.set(newTabPosition.rawValue, forKey: "newTabPosition") }
+    }
+    @Published var confirmCloseMultipleTabs: Bool {
+        didSet { UserDefaults.standard.set(confirmCloseMultipleTabs, forKey: "confirmCloseMultipleTabs") }
+    }
+    @Published var startupBehavior: StartupBehavior {
+        didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
+    }
+    @Published var autoPlayPolicy: AutoPlayPolicy {
+        didSet { UserDefaults.standard.set(autoPlayPolicy.rawValue, forKey: "autoPlayPolicy") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -43,6 +61,12 @@ class Settings: ObservableObject {
         showSearchSuggestions = UserDefaults.standard.object(forKey: "showSearchSuggestions") as? Bool ?? false
         httpsUpgradeEnabled = UserDefaults.standard.object(forKey: "httpsUpgradeEnabled") as? Bool ?? true
         showLinkPreview = UserDefaults.standard.object(forKey: "showLinkPreview") as? Bool ?? false
+        appearanceTheme = AppearanceTheme(rawValue: UserDefaults.standard.string(forKey: "appearanceTheme") ?? "") ?? .system
+        accentColor = AccentColor(rawValue: UserDefaults.standard.string(forKey: "accentColor") ?? "") ?? .blue
+        newTabPosition = NewTabPosition(rawValue: UserDefaults.standard.string(forKey: "newTabPosition") ?? "") ?? .end
+        confirmCloseMultipleTabs = UserDefaults.standard.object(forKey: "confirmCloseMultipleTabs") as? Bool ?? true
+        startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
+        autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be

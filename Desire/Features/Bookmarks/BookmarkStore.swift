@@ -61,9 +61,14 @@ class BookmarkStore: ObservableObject {
         bookmarks = decoded
     }
 
-    private func save() {
+    func save() {
         guard let data = try? JSONEncoder().encode(bookmarks) else { return }
         UserDefaults.standard.set(data, forKey: saveKey)
+    }
+
+    func saveImported(_ newBookmarks: [Bookmark]) {
+        bookmarks.append(contentsOf: newBookmarks)
+        save()
     }
 
     private func seedDefaults() {

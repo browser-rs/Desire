@@ -22,9 +22,9 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         self.isIncognito = incognito
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -109,21 +109,28 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end) {
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
         tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        tabs.append(tab)
-        selectedIndex = tabs.count - 1
+        switch newTabPosition {
+        case .end:
+            tabs.append(tab)
+            selectedIndex = tabs.count - 1
+        case .afterCurrent:
+            let insertIndex = min(selectedIndex + 1, tabs.count)
+            tabs.insert(tab, at: insertIndex)
+            selectedIndex = insertIndex
+        }
         persistSession()
     }
 
-    func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) {
+    func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         guard tabs.indices.contains(index) else { return }
         let source = tabs[index]
         let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
-        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
         newTab.isPinned = source.isPinned
         tabCancellables[newTab.id] = newTab.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
@@ -149,9 +156,9 @@ class TabManager: ObservableObject {
     }
 
     @discardableResult
-    func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
+    func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) -> Bool {
         guard let url = recentlyClosedURLs.popLast() else { return false }
-        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
         return true
     }
 

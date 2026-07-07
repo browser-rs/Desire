@@ -121,11 +121,16 @@ private struct DownloadRow: View {
             }
             .foregroundStyle(.secondary)
         case .failed:
-            Button { store.remove(id: item.id) } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button { store.retry(item) } label: {
+                    Image(systemName: "arrow.clockwise")
+                }.buttonStyle(.plain).help("Retry")
+                Button { store.remove(id: item.id) } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                }.buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
         }
     }
 }

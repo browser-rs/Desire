@@ -11,6 +11,7 @@ struct DownloadItem: Identifiable {
     var state: State
     var error: String?
     var cancel: (() -> Void)?
+    var sourceURL: URL?
 
     enum State: String, Codable { case inProgress, completed, failed }
 
@@ -187,6 +188,45 @@ class DownloadStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    func retry(_ item: DownloadItem) {
+        guard let sourceURL = item.sourceURL else { return }
+        remove(id: item.id)
+        let downloadTask = URLSession.shared.downloadTask(with: sourceURL) { [weak self] tempURL, response, error in
+            Task { @MainActor in
+                guard let self, let tempURL, let response else {
+                    if let error {
+                        Task { @MainActor in
+                            _ = self?.add(item: DownloadItem(
+                                id: UUID(), filename: item.filename, fileURL: nil,
+                                totalBytes: 0, downloadedBytes: 0,
+                                state: .failed, error: error.localizedDescription,
+                                cancel: nil, sourceURL: sourceURL
+                            ))
+                        }
+                    }
+                    return
+                }
+                let destination = self.uniqueURL(for: item.filename)
+                try? FileManager.default.moveItem(at: tempURL, to: destination)
+                let size = (try? FileManager.default.attributesOfItem(atPath: destination.path))?[.size] as? Int64 ?? 0
+                _ = self.add(item: DownloadItem(
+                    id: UUID(), filename: item.filename, fileURL: destination,
+                    totalBytes: size, downloadedBytes: size,
+                    state: .completed, error: nil,
+                    cancel: nil, sourceURL: sourceURL
+                ))
+                self.notifyDownload(filename: item.filename)
+            }
+        }
+        downloadTask.resume()
+        _ = add(item: DownloadItem(
+            id: UUID(), filename: item.filename, fileURL: nil,
+            totalBytes: 0, downloadedBytes: 0,
+            state: .inProgress, error: nil,
+            cancel: { downloadTask.cancel() }, sourceURL: sourceURL
+        ))
+    }
+
     private func notifyDownload(filename: String) {
         NSApp.requestUserAttention(.informationalRequest)
         let userInfo: [String: Any] = ["filename": filename]
@@ -206,6 +246,7 @@ private struct HistoryItem: Codable {
     var downloadedBytes: Int64
     var state: String
     var error: String?
+    var sourceURL: URL?
 
     init(_ item: DownloadItem) {
         id = item.id
@@ -215,6 +256,7 @@ private struct HistoryItem: Codable {
         downloadedBytes = item.downloadedBytes
         state = item.state.rawValue
         error = item.error
+        sourceURL = item.sourceURL
     }
 
     func toDownloadItem() -> DownloadItem {
@@ -222,7 +264,7 @@ private struct HistoryItem: Codable {
             id: id, filename: filename, fileURL: fileURL,
             totalBytes: totalBytes, downloadedBytes: downloadedBytes,
             state: DownloadItem.State(rawValue: state) ?? .failed,
-            error: error, cancel: nil
+            error: error, cancel: nil, sourceURL: sourceURL
         )
     }
 }

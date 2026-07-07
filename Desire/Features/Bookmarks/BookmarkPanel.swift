@@ -37,10 +37,22 @@ struct BookmarkPanel: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .help("Export")
-                Button("", systemImage: "square.and.arrow.down") { store.importFromHTML() }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .help("Import")
+                Menu {
+                    ForEach(BookmarkImportService.ImportSource.allCases) { source in
+                        Button {
+                            importFrom(source)
+                        } label: {
+                            Label(source.displayName, systemImage: source.icon)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(width: 24, height: 24)
+                .help("Import")
                 Button("", systemImage: "folder.badge.plus") { showNewFolder = true }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
@@ -148,6 +160,12 @@ struct BookmarkPanel: View {
     private func startEditing(_ bookmark: Bookmark) {
         editingBookmark = bookmark
         showEditor = true
+    }
+
+    private func importFrom(_ source: BookmarkImportService.ImportSource) {
+        guard let bookmarks = BookmarkImportService.importBookmarks(from: source),
+              !bookmarks.isEmpty else { return }
+        store.saveImported(bookmarks)
     }
 }
 

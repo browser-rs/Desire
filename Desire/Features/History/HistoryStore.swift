@@ -34,6 +34,14 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    func removeAll(from domain: String) {
+        entries.removeAll { entry in
+            guard let url = URL(string: entry.url), let host = url.host else { return false }
+            return host == domain || host.hasSuffix(".\(domain)")
+        }
+        save()
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: saveKey),
               let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) else { return }

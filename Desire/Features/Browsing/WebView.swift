@@ -24,7 +24,7 @@ class BrowserState: ObservableObject {
     var onAIElementPicked: ((String, String) -> Void)?
     let videoAdBlocker: VideoAdBlocker?
 
-    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil) {
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         self.videoAdBlocker = videoAdBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -32,7 +32,15 @@ class BrowserState: ObservableObject {
         webpagePrefs.allowsContentJavaScript = javaScriptEnabled
         config.defaultWebpagePreferences = webpagePrefs
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
-        config.mediaTypesRequiringUserActionForPlayback = []
+        switch autoPlayPolicy {
+        case .allowAll:
+            config.mediaTypesRequiringUserActionForPlayback = []
+        case .requireUserAction:
+            config.mediaTypesRequiringUserActionForPlayback = [.video, .audio]
+        case .never:
+            config.mediaTypesRequiringUserActionForPlayback = [.video, .audio]
+            config.preferences.javaScriptCanOpenWindowsAutomatically = false
+        }
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }
@@ -841,6 +849,7 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
             download.delegate = self
             let filename = download.originalRequest?.url?.lastPathComponent ?? String(localized: "Download")
+            let sourceURL = download.originalRequest?.url
             let id = parent.downloadStore.add(item: DownloadItem(
                 id: UUID(),
                 filename: filename,
@@ -849,7 +858,8 @@ struct WebView: NSViewRepresentable {
                 downloadedBytes: 0,
                 state: .inProgress,
                 error: nil,
-                cancel: { [weak download] in download?.cancel() }
+                cancel: { [weak download] in download?.cancel() },
+                sourceURL: sourceURL
             ))
             let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
                 Task { @MainActor [weak self] in

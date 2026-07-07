@@ -1,23 +1,21 @@
-//
-//  DesireApp.swift
-//  Desire
-//
-//  Created by mankong on 2026/7/3.
-//
-
 import SwiftUI
 
 @main
 struct DesireApp: App {
+    @StateObject private var appState = AppState()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(appState: appState)
                 .frame(minWidth: 800, minHeight: 600)
+                .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
         .commands {
             // MARK: - File
             CommandGroup(replacing: .newItem) {
+                Button("New Window") { postCommand(.newWindow) }
+                    .keyboardShortcut("n", modifiers: .command)
                 Button("New Tab") { postCommand(.newTab) }
                     .keyboardShortcut("t", modifiers: .command)
                 Button("New Incognito Tab") { postCommand(.newIncognitoTab) }
@@ -99,7 +97,12 @@ struct DesireApp: App {
                 Button("Element Blocker") { postCommand(.showElementBlock) }
                 Divider()
                 Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
-                Button("Import Bookmarks…") { postCommand(.importBookmarks) }
+                Menu("Import Bookmarks") {
+                    Button("From Safari…") { postCommand(.importBookmarksFrom(.safari)) }
+                    Button("From Chrome…") { postCommand(.importBookmarksFrom(.chrome)) }
+                    Button("From Firefox…") { postCommand(.importBookmarksFrom(.firefox)) }
+                    Button("From HTML File…") { postCommand(.importBookmarksFrom(.html)) }
+                }
                 Divider()
                 Button("Print…") { postCommand(.printPage) }
                     .keyboardShortcut("p", modifiers: .command)
@@ -121,7 +124,7 @@ struct DesireApp: App {
 }
 
 enum BrowserCommand {
-    case newTab, newIncognitoTab, closeTab, previousTab, nextTab
+    case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings
     case showPlugins, showElementBlock
@@ -129,7 +132,7 @@ enum BrowserCommand {
     case toggleResponsiveMode, toggleReader
     case reload, inspectElement, printPage
     case zoomIn, zoomOut, actualSize
-    case clearHistory, exportBookmarks, importBookmarks
+    case clearHistory, exportBookmarks, importBookmarksFrom(BookmarkImportService.ImportSource)
     case screenshot
 }
 

@@ -6,6 +6,11 @@ struct HistoryPanel: View {
     var onClose: () -> Void
 
     @State private var searchText = ""
+    @State private var groupMode: GroupMode = .date
+
+    enum GroupMode: String, CaseIterable {
+        case date, site
+    }
 
     private var filtered: [HistoryEntry] {
         guard !searchText.isEmpty else { return store.entries }
@@ -15,7 +20,7 @@ struct HistoryPanel: View {
         }
     }
 
-    private var grouped: [(String, [HistoryEntry])] {
+    private var dateGrouped: [(String, [HistoryEntry])] {
         let cal = Calendar.current
         let now = Date()
         let todayStart = cal.startOfDay(for: now)
@@ -47,6 +52,20 @@ struct HistoryPanel: View {
         return sections
     }
 
+    private var siteGrouped: [(String, [HistoryEntry])] {
+        var groups: [String: [HistoryEntry]] = [:]
+        for entry in filtered {
+            let domain = domainFromURL(entry.url) ?? String(localized: "Other")
+            groups[domain, default: []].append(entry)
+        }
+        return groups.sorted { $0.key < $1.key }
+    }
+
+    private func domainFromURL(_ urlString: String) -> String? {
+        guard let url = URL(string: urlString), let host = url.host else { return nil }
+        return host
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -61,11 +80,24 @@ struct HistoryPanel: View {
             .padding()
 
             if !store.entries.isEmpty {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search History…", text: $searchText)
-                        .textFieldStyle(.plain)
+                HStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search History…", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                    Picker("Group by", selection: $groupMode) {
+                        Image(systemName: "calendar").tag(GroupMode.date)
+                        Image(systemName: "globe").tag(GroupMode.site)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 70)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
@@ -75,7 +107,8 @@ struct HistoryPanel: View {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
                 List {
-                    ForEach(grouped, id: \.0) { sectionTitle, entries in
+                    let sections = groupMode == .date ? dateGrouped : siteGrouped
+                    ForEach(sections, id: \.0) { sectionTitle, entries in
                         Section {
                             ForEach(entries) { entry in
                                 EntryRow(
@@ -98,6 +131,11 @@ struct HistoryPanel: View {
                                     }
                                     Divider()
                                     Button("Delete", role: .destructive) { store.removeEntry(id: entry.id) }
+                                    if groupMode == .site, let domain = domainFromURL(entry.url) {
+                                        Button("Delete All from \"\(domain)\"", role: .destructive) {
+                                            store.removeAll(from: domain)
+                                        }
+                                    }
                                 }
                             }
                         } header: {
@@ -112,9 +150,4 @@ struct HistoryPanel: View {
         }
         .frame(width: 420, height: 500)
     }
-}
-
-#Preview {
-    HistoryPanel(store: HistoryStore(), onSelect: { _ in }, onClose: {})
-        .frame(width: 420, height: 500)
 }

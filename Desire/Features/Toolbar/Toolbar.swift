@@ -23,6 +23,7 @@ struct Toolbar: View {
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
         let toggleResponsiveMode: () -> Void
+        let toggleTranslate: () -> Void
         let toggleDarkMode: () -> Void
         let toggleAIPanel: () -> Void
     }
@@ -233,6 +234,7 @@ struct Toolbar: View {
             moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
             moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             Divider()
+            moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
             moreMenuItem("Inspect Element", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }

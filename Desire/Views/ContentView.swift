@@ -5,27 +5,33 @@ import UniformTypeIdentifiers
 import WebKit
 
 struct ContentView: View {
+    let appState: AppState
+
     @StateObject private var tabManager = TabManager()
+    @StateObject private var suggestionModel = AddressSuggestionsModel()
+    @StateObject private var aiSession = AISessionStore()
+    @StateObject private var translationService = TranslationService()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
-    @StateObject private var settings = Settings()
-    @StateObject private var contentBlocker = ContentBlocker()
-    @StateObject private var bookmarkStore = BookmarkStore()
-    @StateObject private var historyStore = HistoryStore()
-    @StateObject private var passwordStore = PasswordStore()
-    @StateObject private var formAutofillStore = FormAutofillStore()
-    @StateObject private var downloadStore = DownloadStore()
-    @StateObject private var permissionStore = PermissionStore()
-    @StateObject private var siteSettingsStore = SiteSettingsStore()
-    @StateObject private var quickDialStore = QuickDialStore()
-    @StateObject private var suggestionModel = AddressSuggestionsModel()
-    @StateObject private var readingListStore = ReadingListStore()
-    @StateObject private var pluginStore = PluginStore()
-    @StateObject private var tabGroupStore = TabGroupStore()
-    @StateObject private var elementBlockStore = ElementBlockStore()
-    @StateObject private var videoAdBlocker = VideoAdBlocker()
-    @StateObject private var aiSession = AISessionStore()
+    @State private var showTranslateBar = false
     @Environment(\.scenePhase) private var scenePhase
+
+    // Convenience accessors for shared stores
+    private var settings: Settings { appState.settings }
+    private var contentBlocker: ContentBlocker { appState.contentBlocker }
+    private var bookmarkStore: BookmarkStore { appState.bookmarkStore }
+    private var historyStore: HistoryStore { appState.historyStore }
+    private var passwordStore: PasswordStore { appState.passwordStore }
+    private var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
+    private var downloadStore: DownloadStore { appState.downloadStore }
+    private var permissionStore: PermissionStore { appState.permissionStore }
+    private var siteSettingsStore: SiteSettingsStore { appState.siteSettingsStore }
+    private var quickDialStore: QuickDialStore { appState.quickDialStore }
+    private var readingListStore: ReadingListStore { appState.readingListStore }
+    private var pluginStore: PluginStore { appState.pluginStore }
+    private var tabGroupStore: TabGroupStore { appState.tabGroupStore }
+    private var elementBlockStore: ElementBlockStore { appState.elementBlockStore }
+    private var videoAdBlocker: VideoAdBlocker { appState.videoAdBlocker }
 
     @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
@@ -65,7 +71,7 @@ struct ContentView: View {
                     },
                     onCloseTab: { tabManager.closeTab(at: $0) },
                     onAddTab: {
-                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                         showTabSwitcher = false
                     },
                     onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
@@ -108,7 +114,7 @@ struct ContentView: View {
                         }
                     },
                     onDuplicateTab: { index in
-                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
                     }
                 )
 
@@ -164,6 +170,14 @@ struct ContentView: View {
                         toggleResponsiveMode: {
                             if let tab = tabManager.selectedTab {
                                 tab.isResponsiveMode.toggle()
+                            }
+                        },
+                        toggleTranslate: {
+                            showTranslateBar.toggle()
+                            if showTranslateBar {
+                                Task {
+                                    await translationService.detectLanguage(webView: tab.browser.webView)
+                                }
                             }
                         },
                         toggleDarkMode: {
@@ -356,6 +370,8 @@ struct ContentView: View {
                 .background(.bar)
             }
         }
+        .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
+        .tint(settings.accentColor.color)
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard())
         .onAppear {
@@ -378,13 +394,18 @@ struct ContentView: View {
                 isAIConfigured = true
             }
             if tabManager.tabs.isEmpty {
-                let restored = tabManager.restoreSession(
-                    javaScriptEnabled: settings.isJavaScriptEnabled,
-                    contentBlocker: contentBlocker,
-                    videoAdBlocker: videoAdBlocker
-                )
+                let restored: Bool
+                if settings.startupBehavior == .restoreSession {
+                    restored = tabManager.restoreSession(
+                        javaScriptEnabled: settings.isJavaScriptEnabled,
+                        contentBlocker: contentBlocker,
+                        videoAdBlocker: videoAdBlocker
+                    )
+                } else {
+                    restored = false
+                }
                 if !restored {
-                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                 }
             }
         }
@@ -402,16 +423,36 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }
             switch command {
+            case .newWindow:
+                let hosting = NSHostingView(rootView: ContentView(appState: appState))
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
+                                      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                      backing: .buffered, defer: false)
+                window.contentView = hosting
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate()
             case .newTab:
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                 showTabSwitcher = false
             case .newIncognitoTab:
-                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                 showTabSwitcher = false
             case .closeTab:
-                tabManager.closeTab(at: tabManager.selectedIndex)
+                let count = tabManager.tabs.count
+                if settings.confirmCloseMultipleTabs && count > 1 {
+                    let alert = NSAlert()
+                    alert.messageText = String(localized: "Close Tab")
+                    alert.informativeText = String(localized: "Are you sure you want to close this tab?")
+                    alert.addButton(withTitle: String(localized: "Close"))
+                    alert.addButton(withTitle: String(localized: "Cancel"))
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        tabManager.closeTab(at: tabManager.selectedIndex)
+                    }
+                } else {
+                    tabManager.closeTab(at: tabManager.selectedIndex)
+                }
             case .reopenClosedTab:
-                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
             case .selectTab(let index):
                 isUrlFocused = false
                 tabManager.selectTab(at: index)
@@ -483,8 +524,10 @@ struct ContentView: View {
                     }
             case .exportBookmarks:
                 bookmarkStore.exportToHTML()
-            case .importBookmarks:
-                bookmarkStore.importFromHTML()
+            case .importBookmarksFrom(let source):
+                if let bookmarks = BookmarkImportService.importBookmarks(from: source), !bookmarks.isEmpty {
+                    bookmarkStore.saveImported(bookmarks)
+                }
             case .screenshot:
                 startScreenshot()
             }
@@ -627,6 +670,16 @@ struct ContentView: View {
                 .clipShape(Capsule())
                 .padding(.top, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if showTranslateBar, let tab = tabManager.selectedTab {
+                TranslateBar(
+                    service: translationService,
+                    webView: tab.browser.webView,
+                    onDismiss: { showTranslateBar = false }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
@@ -867,7 +920,7 @@ struct ContentView: View {
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
             onOpenLinkInNewTab: { url in
-                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
             },
             onPageFinished: { url, title in
                 // Reset per-page counter so the toast reflects this navigation.

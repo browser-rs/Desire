@@ -46,10 +46,13 @@ enum ScreenshotCapture {
                 contentFilter: filter,
                 configuration: config
             )
-            // NSImage point-size matches the screen's point frame so the overlay's
-            // isFlipped coordinate math stays correct. Backing resolution is preserved
-            // implicitly because the CGImage is sized in backing pixels.
-            return NSImage(cgImage: cgImage, size: screen.frame.size)
+            // Create NSImage with explicit backing scale so the overlay
+            // drawing and composite pipeline see the full Retina resolution.
+            let image = NSImage(size: screen.frame.size)
+            let rep = NSBitmapImageRep(cgImage: cgImage)
+            rep.size = screen.frame.size
+            image.addRepresentation(rep)
+            return image
         } catch {
             return nil
         }

@@ -101,6 +101,9 @@
     "×" : {
 
     },
+    "Accent Color" : {
+
+    },
     "Actual Size" : {
       "comment" : "View menu",
       "localizations" : {
@@ -285,6 +288,9 @@
         }
       }
     },
+    "After current tab" : {
+
+    },
     "AI" : {
 
     },
@@ -313,6 +319,9 @@
           }
         }
       }
+    },
+    "Allow All" : {
+
     },
     "Allow this website to access your %@?" : {
       "comment" : "Media permission prompt with device name",
@@ -386,6 +395,12 @@
     "API Key" : {
 
     },
+    "Appearance" : {
+
+    },
+    "Are you sure you want to close this tab?" : {
+
+    },
     "Arrow" : {
       "comment" : "Screenshot tool: arrow annotation",
       "localizations" : {
@@ -416,6 +431,9 @@
 
     },
     "Ask questions, summarize pages,\ntranslate content, and more." : {
+
+    },
+    "At the end" : {
 
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
@@ -463,6 +481,9 @@
           }
         }
       }
+    },
+    "Auto-play" : {
+
     },
     "Autofill" : {
       "comment" : "Settings tab label",
@@ -980,6 +1001,9 @@
         }
       }
     },
+    "Clear All Cookies" : {
+
+    },
     "Clear All Passwords" : {
       "comment" : "Clear all passwords alert title",
       "localizations" : {
@@ -1074,6 +1098,9 @@
           }
         }
       }
+    },
+    "Click to Record" : {
+
     },
     "Click to reload — %@" : {
       "comment" : "Click to reload suspended tab, with tab title",
@@ -1212,6 +1239,9 @@
           }
         }
       }
+    },
+    "Confirm before closing multiple tabs" : {
+
     },
     "Connection Not Secure" : {
       "comment" : "Not secure connection status",
@@ -1538,6 +1568,9 @@
         }
       }
     },
+    "Current: %@" : {
+
+    },
     "Custom Model Name" : {
 
     },
@@ -1564,6 +1597,9 @@
         }
       }
     },
+    "Customize Shortcut" : {
+
+    },
     "Cut" : {
       "comment" : "Edit menu item",
       "localizations" : {
@@ -1587,6 +1623,9 @@
         }
       }
     },
+    "Dark" : {
+
+    },
     "Dark Mode" : {
       "comment" : "More menu: toggle dark mode",
       "localizations" : {
@@ -1609,6 +1648,9 @@
           }
         }
       }
+    },
+    "Default Browser" : {
+
     },
     "Default Search Engine" : {
       "comment" : "Settings picker label",
@@ -1655,6 +1697,12 @@
           }
         }
       }
+    },
+    "Delete All from \"%@\"" : {
+
+    },
+    "Delete Cookie" : {
+
     },
     "Delete Folder" : {
       "comment" : "Context menu: delete folder",
@@ -1749,6 +1797,9 @@
       }
     },
     "Desire can't reach the network. Check that Wi-Fi or Ethernet is on, and that no app is in Airplane Mode." : {
+
+    },
+    "Desire is your default browser" : {
 
     },
     "Disabled" : {
@@ -2315,6 +2366,7 @@
     },
     "Exit Find" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2382,6 +2434,9 @@
           }
         }
       }
+    },
+    "Expires: %@" : {
+
     },
     "Export" : {
       "comment" : "Bookmark export help",
@@ -2503,6 +2558,7 @@
     },
     "Find in Page" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2572,6 +2628,7 @@
     },
     "Find Next" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2595,6 +2652,7 @@
     },
     "Find Previous" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2618,6 +2676,7 @@
     },
     "Focus Address Bar" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2709,6 +2768,18 @@
         }
       }
     },
+    "From Chrome…" : {
+
+    },
+    "From Firefox…" : {
+
+    },
+    "From HTML File…" : {
+
+    },
+    "From Safari…" : {
+
+    },
     "Full Page PDF…" : {
       "comment" : "More menu: capture full page as PDF",
       "localizations" : {
@@ -2780,6 +2851,7 @@
     },
     "Go Back" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2803,6 +2875,7 @@
     },
     "Go Forward" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2846,6 +2919,9 @@
           }
         }
       }
+    },
+    "Group by" : {
+
     },
     "Group: %@" : {
       "comment" : "Context menu: group submenu with name",
@@ -2969,6 +3045,9 @@
         }
       }
     },
+    "HttpOnly" : {
+
+    },
     "HTTPS Upgrade" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -3041,8 +3120,12 @@
         }
       }
     },
+    "Import Bookmarks from HTML" : {
+
+    },
     "Import Bookmarks…" : {
       "comment" : "Tools menu",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3086,6 +3169,9 @@
           }
         }
       }
+    },
+    "In Firefox, use \"Library → Bookmarks → Import and Backup → Export Bookmarks to HTML\"" : {
+
     },
     "Input will be sent to the search engine to get suggestions" : {
       "comment" : "Search suggestions toggle help",
@@ -3248,6 +3334,9 @@
         }
       }
     },
+    "Light" : {
+
+    },
     "Link Preview" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -3270,6 +3359,9 @@
           }
         }
       }
+    },
+    "Loading translator…" : {
+
     },
     "Local Storage" : {
       "comment" : "Clear data option",
@@ -3295,6 +3387,12 @@
       }
     },
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
+
+    },
+    "Manage Cookies" : {
+
+    },
+    "Manage…" : {
 
     },
     "Mark as Read" : {
@@ -3344,6 +3442,9 @@
       }
     },
     "Max Tokens" : {
+
+    },
+    "Media" : {
 
     },
     "Media Device" : {
@@ -3487,6 +3588,15 @@
         }
       }
     },
+    "Navigate to ~/Library/Safari/ and select Bookmarks.plist" : {
+
+    },
+    "Navigate to Chrome's profile folder and select Bookmarks" : {
+
+    },
+    "Never Auto-play" : {
+
+    },
     "New Folder" : {
       "comment" : "New folder title/button/default name",
       "localizations" : {
@@ -3625,6 +3735,12 @@
         }
       }
     },
+    "New tabs open" : {
+
+    },
+    "New Window" : {
+
+    },
     "Next" : {
       "comment" : "Next match button",
       "localizations" : {
@@ -3739,6 +3855,9 @@
           }
         }
       }
+    },
+    "No Cookies" : {
+
     },
     "No custom search engines" : {
       "comment" : "Empty custom engines state",
@@ -4048,6 +4167,9 @@
         }
       }
     },
+    "On Launch" : {
+
+    },
     "Open" : {
       "comment" : "Open file/destination",
       "localizations" : {
@@ -4120,6 +4242,9 @@
         }
       }
     },
+    "Open new tab page" : {
+
+    },
     "Open Settings" : {
       "comment" : "Screenshot permission alert button: open System Settings",
       "localizations" : {
@@ -4166,6 +4291,9 @@
         }
       }
     },
+    "Other" : {
+
+    },
     "Outlined" : {
       "comment" : "Screenshot shape fill toggle: outlined state",
       "localizations" : {
@@ -4188,6 +4316,9 @@
           }
         }
       }
+    },
+    "Page translated" : {
+
     },
     "Passwords" : {
       "comment" : "Passwords panel title",
@@ -4419,6 +4550,9 @@
         }
       }
     },
+    "Press new shortcut…" : {
+
+    },
     "Previous" : {
       "comment" : "Previous match button",
       "localizations" : {
@@ -4467,6 +4601,7 @@
     },
     "Print" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4719,6 +4854,9 @@
         }
       }
     },
+    "Refresh" : {
+
+    },
     "Reload" : {
       "comment" : "Reload button",
       "localizations" : {
@@ -4883,6 +5021,9 @@
         }
       }
     },
+    "Require User Action" : {
+
+    },
     "Reset" : {
       "comment" : "Reset button",
       "localizations" : {
@@ -4997,6 +5138,12 @@
           }
         }
       }
+    },
+    "Restore previous session" : {
+
+    },
+    "Retry" : {
+
     },
     "Revoke" : {
       "comment" : "Revoke permission button",
@@ -5265,6 +5412,9 @@
         }
       }
     },
+    "Search" : {
+
+    },
     "Search Bookmarks…" : {
       "comment" : "Search bookmarks placeholder",
       "localizations" : {
@@ -5287,6 +5437,9 @@
           }
         }
       }
+    },
+    "Search cookies…" : {
+
     },
     "Search Domains" : {
       "comment" : "Search passwords prompt",
@@ -5509,6 +5662,15 @@
         }
       }
     },
+    "Select Chrome Bookmarks File" : {
+
+    },
+    "Select Firefox Bookmarks File" : {
+
+    },
+    "Select Safari Bookmarks File" : {
+
+    },
     "Selected browsing data will be cleared. This action cannot be undone." : {
       "comment" : "Clear browsing data alert message",
       "localizations" : {
@@ -5557,6 +5719,12 @@
           }
         }
       }
+    },
+    "Set as Default…" : {
+
+    },
+    "Set Desire as your default browser" : {
+
     },
     "Settings" : {
       "comment" : "Settings window title",
@@ -5676,6 +5844,9 @@
         }
       }
     },
+    "Show Original" : {
+
+    },
     "Show Password" : {
       "comment" : "Show password button help",
       "localizations" : {
@@ -5791,6 +5962,9 @@
         }
       }
     },
+    "Startup" : {
+
+    },
     "Stop" : {
       "comment" : "Stop loading button help",
       "extractionState" : "stale",
@@ -5869,6 +6043,7 @@
     },
     "Switch to Tab 1-9" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5889,6 +6064,9 @@
           }
         }
       }
+    },
+    "System" : {
+
     },
     "System Prompt" : {
 
@@ -6000,6 +6178,9 @@
     "The site's certificate is not trusted by macOS. This often means your system clock is wrong, or a corporate / security product is intercepting the connection. Check Date & Time in System Settings, then reload." : {
 
     },
+    "Theme" : {
+
+    },
     "Thick" : {
       "comment" : "Screenshot brush: thick stroke",
       "localizations" : {
@@ -6092,6 +6273,9 @@
         }
       }
     },
+    "This page is in" : {
+
+    },
     "This page may not have a readable article format." : {
 
     },
@@ -6163,6 +6347,9 @@
           }
         }
       }
+    },
+    "This will remove all cookies. Some websites may log you out." : {
+
     },
     "TikTok" : {
 
@@ -6240,6 +6427,12 @@
 
     },
     "Translate this page to Chinese" : {
+
+    },
+    "Translate this page?" : {
+
+    },
+    "Translate…" : {
 
     },
     "Undo" : {
@@ -6431,6 +6624,9 @@
           }
         }
       }
+    },
+    "View and delete individual cookies" : {
+
     },
     "W" : {
 

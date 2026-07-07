@@ -8,20 +8,15 @@ struct GeneralSettingsSection: View {
     var body: some View {
         Form {
             AppearanceSection(settings: settings)
-            Divider()
             StartupSection(settings: settings)
-            Divider()
             TabBehaviorSection(settings: settings)
-            Divider()
             MediaSection(settings: settings)
-            Divider()
             SearchSection(settings: settings)
-            Divider()
             DownloadsSection(settings: settings, downloadStore: downloadStore)
-            Divider()
             SystemSection()
         }
-        .padding()
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
     }
 }
 

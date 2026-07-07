@@ -9,15 +9,16 @@ struct ContentView: View {
 
     @StateObject private var tabManager = TabManager()
     @StateObject private var suggestionModel = AddressSuggestionsModel()
-    @StateObject private var aiSession = AISessionStore()
     @StateObject private var translationService = TranslationService()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
     @State private var showTranslateBar = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
 
     // Convenience accessors for shared stores
     private var settings: Settings { appState.settings }
+    private var aiSession: AISessionStore { appState.aiSession }
     private var contentBlocker: ContentBlocker { appState.contentBlocker }
     private var bookmarkStore: BookmarkStore { appState.bookmarkStore }
     private var historyStore: HistoryStore { appState.historyStore }
@@ -36,7 +37,6 @@ struct ContentView: View {
     @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
     @State private var showHistory = false
-    @State private var showSettings = false
     @State private var showBookmarks = false
     @State private var showPlugins = false
     @State private var showReadingList = false
@@ -207,9 +207,9 @@ struct ContentView: View {
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
                     showPlugins: $showPlugins,
-                    showSettings: $showSettings,
                     showReadingList: $showReadingList,
-                    showElementBlock: $showElementBlock
+                    showElementBlock: $showElementBlock,
+                    openWindow: { openWindow(id: $0) }
                 )
             }
 
@@ -486,7 +486,7 @@ struct ContentView: View {
             case .showElementBlock:
                 showElementBlock = true
             case .showSettings:
-                showSettings = true
+                openWindow(id: "settings")
             case .reload:
                 if let tab = tabManager.selectedTab { tab.browser.webView.reload() }
             case .inspectElement:
@@ -537,19 +537,6 @@ struct ContentView: View {
                 showHistory = false
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onClose: { showHistory = false })
-        }
-        .onChange(of: showSettings) { _, isShown in
-            guard isShown else { return }
-            showSettings = false
-            SettingsWindowController.shared.show(
-                settings: settings,
-                aiPreference: aiSession.preference,
-                contentBlocker: contentBlocker,
-                downloadStore: downloadStore,
-                formAutofillStore: formAutofillStore,
-                permissionStore: permissionStore,
-                historyStore: historyStore
-            )
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarkPanel(store: bookmarkStore, onSelect: { url in

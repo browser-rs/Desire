@@ -18,6 +18,7 @@ class AppState: ObservableObject {
     let tabGroupStore: TabGroupStore
     let elementBlockStore: ElementBlockStore
     let videoAdBlocker: VideoAdBlocker
+    let aiSession: AISessionStore
 
     init() {
         settings = Settings()
@@ -35,5 +36,6 @@ class AppState: ObservableObject {
         tabGroupStore = TabGroupStore()
         elementBlockStore = ElementBlockStore()
         videoAdBlocker = VideoAdBlocker()
+        aiSession = AISessionStore()
     }
 }

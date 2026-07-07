@@ -60,9 +60,11 @@ struct SettingsView: View {
         NavigationSplitView {
             List(Section.allCases, selection: $selectedSection) { section in
                 Label(section.title, systemImage: section.icon)
+                    .labelStyle(.titleAndIcon)
                     .tag(section)
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            .navigationSplitViewStyle(.balanced)
             .listStyle(.sidebar)
         } detail: {
             switch selectedSection {
@@ -83,7 +85,6 @@ struct SettingsView: View {
                 KeyboardShortcutsEditorView()
             }
         }
-        .frame(minWidth: 600, minHeight: 420)
     }
 }
 

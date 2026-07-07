@@ -42,9 +42,9 @@ struct Toolbar: View {
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showPlugins: Bool
-    @Binding var showSettings: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
+    let openWindow: (String) -> Void
 
     @State private var showDownloads = false
     @State private var showPasswords = false
@@ -240,7 +240,7 @@ struct Toolbar: View {
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
             Divider()
             moreMenuItem("AI Assistant", "wand.and.stars") { actions.toggleAIPanel() }
-            moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { showSettings = true }
+            moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
         }
         .padding(4)
         .frame(width: 240)

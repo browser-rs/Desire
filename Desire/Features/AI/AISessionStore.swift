@@ -144,10 +144,13 @@ class AISessionStore: ObservableObject {
         for _ in 0..<20 {
             if isCancelled { return }
 
-            let hasTools = !messages.contains { $0.role == .tool }
+            // Tool definitions must be sent on EVERY call in a tool-use
+            // conversation: the second call sends back tool results, and
+            // the model still needs to know the tool schemas to decide
+            // what to do next (or to make another tool call).
             let stream = AIService.stream(
                 messages: messages,
-                tools: hasTools ? BrowserToolProvider.toolDefs : [],
+                tools: BrowserToolProvider.toolDefs,
                 prefs: preference
             )
 
@@ -208,7 +211,12 @@ class AISessionStore: ObservableObject {
                 if isCancelled { return }
                 currentAction = tc.function.name
                 let result = await toolProvider.execute(tc, in: webView ?? WKWebView())
-                messages.append(AIMessage(role: .tool, content: result, toolCallId: tc.id))
+                messages.append(AIMessage(
+                    role: .tool,
+                    content: result,
+                    toolCallId: tc.id,
+                    toolName: tc.function.name
+                ))
             }
             currentAction = nil
         }

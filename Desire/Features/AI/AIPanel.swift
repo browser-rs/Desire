@@ -206,37 +206,46 @@ struct AIPanel: View {
 
     private var inputBar: some View {
         HStack(alignment: .bottom, spacing: 6) {
-            TextEditor(text: $inputText)
-                .font(.system(size: 12))
-                .frame(minHeight: 28, maxHeight: 80)
-                .focused($isInputFocused)
-                .scrollContentBackground(.hidden)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
-                .overlay(alignment: .leading) {
-                    if inputText.isEmpty {
-                        Text("Ask AI...")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
-                            .padding(.leading, 6)
-                            .allowsHitTesting(false)
+            // Input + send button merged into a single visual unit.
+            // The send button is overlaid inside the text field's
+            // bottom-right corner, so it sits inside the same hit-tested
+            // capsule as the text editor — no separate hot zone to
+            // misclick. Enter sends; ⇧⏎ inserts a newline.
+            ZStack(alignment: .bottomTrailing) {
+                TextEditor(text: $inputText)
+                    .font(.system(size: 12))
+                    .frame(minHeight: 28, maxHeight: 80)
+                    .focused($isInputFocused)
+                    .scrollContentBackground(.hidden)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+                    .overlay(alignment: .leading) {
+                        if inputText.isEmpty {
+                            Text("Ask AI...")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                                .padding(.leading, 6)
+                                .allowsHitTesting(false)
+                        }
                     }
-                }
+                    .padding(.trailing, 26) // room for inline send button
+                    .onSubmit(submit)      // ⏎ sends (⇧⏎ for newline)
 
-            Button {
-                submit()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(canSubmit ? Color.accentColor : Color(nsColor: .separatorColor))
+                Button {
+                    submit()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(canSubmit ? Color.accentColor : Color(nsColor: .separatorColor))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+                .padding(4)
             }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-            .keyboardShortcut(.return, modifiers: .command)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

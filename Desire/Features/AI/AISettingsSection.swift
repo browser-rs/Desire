@@ -8,6 +8,8 @@ private enum ModelPreset: String, CaseIterable {
     case claude35Sonnet = "claude-3-5-sonnet-20241022"
     case claude35Haiku = "claude-3-5-haiku-20241022"
     case deepseekV3 = "deepseek-chat"
+    case deepseekV4Flash = "deepseek-v4-flash"
+    case deepseekV4Pro = "deepseek-v4-pro"
     case custom = ""
 
     var displayName: String {
@@ -18,6 +20,8 @@ private enum ModelPreset: String, CaseIterable {
         case .claude35Sonnet: "Anthropic Claude 3.5 Sonnet"
         case .claude35Haiku: "Anthropic Claude 3.5 Haiku"
         case .deepseekV3: "DeepSeek V3"
+        case .deepseekV4Flash: "DeepSeek V4 Flash"
+        case .deepseekV4Pro: "DeepSeek V4 Pro"
         case .custom: "Custom…"
         }
     }
@@ -66,7 +70,12 @@ struct AISettingsSection: View {
             Picker("Model", selection: Binding(
                 get: { ModelPreset.matching(store.model) },
                 set: { newPreset in
-                    if newPreset != .custom {
+                    if newPreset == .custom {
+                        // Clear the model so the user can type a fresh name.
+                        // Without this, the text field below would show
+                        // the previously selected preset value.
+                        store.model = ""
+                    } else {
                         store.model = newPreset.rawValue
                     }
                 }
@@ -77,6 +86,7 @@ struct AISettingsSection: View {
             }
             if ModelPreset.matching(store.model) == .custom {
                 TextField("Custom Model Name", text: $store.model)
+                    .textFieldStyle(.roundedBorder)
             }
 
             LabeledContent("Max Tokens") {

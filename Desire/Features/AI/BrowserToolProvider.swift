@@ -23,23 +23,23 @@ class BrowserToolProvider {
             // --- Page reading ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the visible text content of the current page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageHTML", description: "Get the full HTML of the current page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageTitle", description: "Get the page title",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "screenshot", description: "Take a screenshot of the current viewport, returns base64 PNG",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getSelectedText", description: "Get the text currently selected by the user on the page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Navigation ---
@@ -49,11 +49,11 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "goBack", description: "Go back in history",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "goForward", description: "Go forward in history",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Tab management ---
@@ -67,7 +67,7 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listTabs", description: "List all open tabs with their titles and indices",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "switchTab", description: "Switch to a tab by its index (0-based)",
@@ -81,7 +81,7 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listBookmarks", description: "List all bookmarks with titles and URLs",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "removeBookmark", description: "Remove a bookmark by its URL",
@@ -95,7 +95,7 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "clearHistory", description: "Clear all browsing history",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Page controls ---
@@ -105,23 +105,23 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "toggleDarkMode", description: "Toggle dark mode for the current website",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "toggleReaderMode", description: "Toggle reader mode for the current page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "zoomIn", description: "Zoom in the page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "zoomOut", description: "Zoom out the page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "resetZoom", description: "Reset zoom to default (100%)",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Content blockers ---
@@ -143,13 +143,13 @@ class BrowserToolProvider {
             // --- Downloads ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listDownloads", description: "List all downloads with filenames and status",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Plugins ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listPlugins", description: "List all installed user scripts and plugins",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "togglePlugin", description: "Enable or disable a plugin by name",
@@ -162,7 +162,7 @@ class BrowserToolProvider {
             // --- Element blocker ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listBlockedElements", description: "List all blocked element rules",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "unblockElement", description: "Remove a blocked element rule by its CSS selector",
@@ -178,13 +178,13 @@ class BrowserToolProvider {
             // --- Picture in Picture ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "togglePictureInPicture", description: "Toggle picture-in-picture for the current video",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Tab groups ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listTabGroups", description: "List all tab groups",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "addTabToGroup", description: "Add the current tab to a tab group",
@@ -192,23 +192,23 @@ class BrowserToolProvider {
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "removeTabFromGroup", description: "Remove the current tab from its tab group",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Print & PDF ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "printPage", description: "Print the current page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "saveAsPDF", description: "Save the current page as a PDF file",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Quick Dials ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "listQuickDials", description: "List quick dial shortcuts on the new tab page",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "addQuickDial", description: "Add a quick dial shortcut",
@@ -231,7 +231,7 @@ class BrowserToolProvider {
             // --- Sidebar ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "toggleSidebar", description: "Toggle the sidebar (bookmarks, history, reading list)",
-                parameters: AIJSONSchema(type: "object")
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- DOM interaction ---

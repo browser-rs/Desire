@@ -10,14 +10,16 @@ struct AIMessage: Identifiable, Codable, Sendable {
     var content: String?
     var toolCalls: [AIToolCall]?
     var toolCallId: String?
+    var toolName: String?
     let createdAt: Date
 
-    init(role: AIMessageRole, content: String? = nil, toolCalls: [AIToolCall]? = nil, toolCallId: String? = nil) {
+    init(role: AIMessageRole, content: String? = nil, toolCalls: [AIToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+        self.toolName = toolName
         self.createdAt = Date()
     }
 }
@@ -49,6 +51,10 @@ struct AIJSONSchema: Codable, Sendable {
     var properties: [String: AIJSONSchemaValue]?
     var required: [String]?
     var description: String?
+    // DeepSeek / OpenCode Go require `additionalProperties: false` on every
+    // object schema — otherwise they reject the request with
+    // "Upstream request failed / invalid_request_error".
+    var additionalProperties: Bool? = false
 }
 
 struct AIJSONSchemaValue: Codable, Sendable {

@@ -59,13 +59,22 @@ struct AIService {
                             "function": [
                                 "name": t.function.name,
                                 "description": t.function.description,
-                                "parameters": t.function.parameters,
+                                "parameters": encodeJSONSchema(t.function.parameters),
                             ],
                         ]
                     }
                 }
 
                 req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+                #if DEBUG
+                // Diagnostic: log the exact request body to help debug
+                // 400 "Upstream request failed" errors from OpenCode Go.
+                if let data = try? JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys]),
+                   let s = String(data: data, encoding: .utf8) {
+                    print("──── AI request body ────\n\(s)\n─────────────────────────")
+                }
+                #endif
 
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: req)
@@ -164,7 +173,26 @@ struct AIService {
         }
         if let tid = msg.toolCallId {
             m["tool_call_id"] = tid
+            // OpenCode Go (and several OpenAI-compatible proxies) require
+            // the `name` field on tool messages — the function name that
+            // produced this result. Without it they 400 with
+            // "invalid_request_error / Upstream request failed" on the
+            // second turn of a tool-use conversation.
+            if let name = msg.toolName {
+                m["name"] = name
+            }
         }
         return m
+    }
+
+    // `AIJSONSchema` is a Swift `Codable` struct, not an `[String: Any]`,
+    // so JSONSerialization refuses to encode it ("Invalid type in JSON
+    // write __SwiftValue"). Round-trip through `JSONEncoder` to get a real
+    // dictionary we can hand to JSONSerialization.
+    private static func encodeJSONSchema(_ schema: AIJSONSchema) -> [String: Any] {
+        guard let data = try? JSONEncoder().encode(schema),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return [:] }
+        return dict
     }
 }

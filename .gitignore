@@ -33,3 +33,6 @@ Carthage/Build
 
 # Trae agent working files
 .trae/
+
+# Local debug scripts (not part of the app)
+test_ai_stream.swift

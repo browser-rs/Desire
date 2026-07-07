@@ -392,8 +392,6 @@ final class ScreenshotOverlayView: NSView {
             ctx.beginPath()
             ctx.addRect(bounds)
             ctx.addRect(selectionRect)
-            ctx.addPath(CGPath(rect: bounds, transform: nil))
-            ctx.addPath(CGPath(rect: selectionRect, transform: nil))
             ctx.fillPath(using: .evenOdd)
         }
         ctx.restoreGState()

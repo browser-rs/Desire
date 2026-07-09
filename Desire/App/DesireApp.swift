@@ -136,6 +136,8 @@ struct DesireApp: App {
         CommandMenu("Tools") {
             Button("Plugins") { postCommand(.showPlugins) }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
+            Button("Extensions") { postCommand(.showExtensions) }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Divider()
             Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
@@ -168,7 +170,7 @@ enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings
-    case showPlugins, showElementBlock
+    case showPlugins, showExtensions, showElementBlock
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader
     case reload, inspectElement, printPage

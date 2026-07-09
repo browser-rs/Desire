@@ -44,6 +44,7 @@ struct ContentView: View {
     @State private var showHistory = false
     @State private var showBookmarks = false
     @State private var showPlugins = false
+    @State private var showExtensions = false
     @State private var showReadingList = false
     @State private var showTabSwitcher = false
     @State private var showSidebar = false
@@ -553,6 +554,8 @@ struct ContentView: View {
                 showBookmarks = true
             case .showPlugins:
                 showPlugins = true
+            case .showExtensions:
+                showExtensions = true
             case .showElementBlock:
                 showElementBlock = true
             case .showSettings:
@@ -628,6 +631,9 @@ struct ContentView: View {
             guard isShown else { return }
             showPlugins = false
             PluginsWindowController.shared.show(pluginStore: pluginStore)
+        }
+        .sheet(isPresented: $showExtensions) {
+            SafariExtensionPanel(manager: appState.safariExtensionManager)
         }
         .sheet(isPresented: $showReadingList) {
             ReadingListPanel(store: readingListStore, onSelect: { url in

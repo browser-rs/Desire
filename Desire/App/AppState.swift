@@ -21,6 +21,7 @@ class AppState: ObservableObject {
     lazy var quickDialStore: QuickDialStore = QuickDialStore()
     lazy var readingListStore: ReadingListStore = ReadingListStore()
     lazy var pluginStore: PluginStore = PluginStore()
+    lazy var safariExtensionManager: SafariExtensionManager = SafariExtensionManager()
     lazy var tabGroupStore: TabGroupStore = TabGroupStore()
     lazy var elementBlockStore: ElementBlockStore = ElementBlockStore()
     lazy var videoAdBlocker: VideoAdBlocker = VideoAdBlocker()

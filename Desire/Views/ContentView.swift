@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var translationService = TranslationService()
     @StateObject private var responsiveDesignStore = ResponsiveDesignStore()
+    @StateObject private var thumbnailStore = TabThumbnailStore()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
     @State private var showTranslateBar = false
@@ -35,6 +36,8 @@ struct ContentView: View {
     private var elementBlockStore: ElementBlockStore { appState.elementBlockStore }
     private var videoAdBlocker: VideoAdBlocker { appState.videoAdBlocker }
     private var conversationStore: ConversationStore { appState.conversationStore }
+    private var devToolsStore: DevToolsStore { appState.devToolsStore }
+    private var searchHistoryStore: SearchHistoryStore { appState.searchHistoryStore }
 
     @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
@@ -45,6 +48,7 @@ struct ContentView: View {
     @State private var showTabSwitcher = false
     @State private var showSidebar = false
     @State private var showElementBlock = false
+    @State private var showSearchHistory = false
     @State private var showUndoToast = false
     @State private var screenshotToast: String?
     @State private var mediaQueries: [MediaQueryItem] = []
@@ -59,6 +63,7 @@ struct ContentView: View {
     @State private var isFullScreen = false
     @State private var showAIPanel = false
     @State private var aiFloatingPanel: AIFloatingPanel?
+    @State private var showDevToolsPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,8 +77,15 @@ struct ContentView: View {
                         isUrlFocused = false
                         tabManager.selectTab(at: index)
                         showTabSwitcher = false
+                        // 更新选中标签页的缩略图
+                        thumbnailStore.updateSelectedTabThumbnail(tabManager.selectedTab)
                     },
-                    onCloseTab: { tabManager.closeTab(at: $0) },
+                    onCloseTab: { index in
+                        // 清除关闭标签页的缩略图缓存
+                        let tabId = tabManager.tabs[index].id
+                        thumbnailStore.clearThumbnail(for: tabId)
+                        tabManager.closeTab(at: index)
+                    },
                     onAddTab: {
                         tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                         showTabSwitcher = false
@@ -86,20 +98,30 @@ struct ContentView: View {
                             NSPasteboard.general.setString(url.absoluteString, forType: .string)
                         }
                     },
-                    onCloseOtherTabs: { tabManager.closeOthers(keeping: $0) },
-                    onCloseTabsToRight: { tabManager.closeToTheRight(of: $0) },
+                    onCloseOtherTabs: { index in
+                        // 清除其他标签页的缩略图缓存
+                        let keptId = tabManager.tabs[index].id
+                        for tab in tabManager.tabs where tab.id != keptId {
+                            thumbnailStore.clearThumbnail(for: tab.id)
+                        }
+                        tabManager.closeOthers(keeping: index)
+                    },
+                    onCloseTabsToRight: { index in
+                        // 清除右侧标签页的缩略图缓存
+                        for i in (index + 1..<tabManager.tabs.count) {
+                            thumbnailStore.clearThumbnail(for: tabManager.tabs[i].id)
+                        }
+                        tabManager.closeToTheRight(of: index)
+                    },
                     onToggleAudioMute: { index in
-                        let tab = tabManager.tabs[index]
-                        tab.browser.isMuted.toggle()
-                        let js = tab.browser.isMuted
-                            ? "document.querySelectorAll('audio, video').forEach(e => e.muted = true)"
-                            : "document.querySelectorAll('audio, video').forEach(e => e.muted = false)"
-                        tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+                        // 使用 Tab 的 audioMuted 属性
+                        tabManager.tabs[index].audioMuted.toggle()
                     },
                     onTogglePin: { index in
                         tabManager.tabs[index].isPinned.toggle()
                     },
                     tabGroupStore: tabGroupStore,
+                    thumbnailStore: thumbnailStore,
                     onCreateGroup: { index in
                         let alert = NSAlert()
                         alert.messageText = String(localized: "New Tab Group")
@@ -132,6 +154,7 @@ struct ContentView: View {
                     historyStore: historyStore,
                     passwordStore: passwordStore,
                     siteSettingsStore: siteSettingsStore,
+                    devToolsStore: devToolsStore,
                     isUrlFocused: $isUrlFocused,
                     actions: Toolbar.Actions(
                         goBack: { tab.browser.webView.goBack() },
@@ -207,13 +230,15 @@ struct ContentView: View {
                             tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
                         },
                         toggleAIPanel: { showAIPanel.toggle() },
-                        toggleAIFloatingPanel: { aiFloatingPanel?.toggle() }
+                        toggleAIFloatingPanel: { aiFloatingPanel?.toggle() },
+                        toggleDevTools: { toggleDevTools() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
                     showPlugins: $showPlugins,
                     showReadingList: $showReadingList,
                     showElementBlock: $showElementBlock,
+                    showSearchHistory: $showSearchHistory,
                     openWindow: { openWindow(id: $0) }
                 )
             }
@@ -335,15 +360,24 @@ struct ContentView: View {
                         }
                         .id(tab.id)
                         .overlay(alignment: .top) {
-                            if isUrlFocused && !suggestionModel.isEmpty {
+                            if isUrlFocused {
                                 AddressSuggestionsView(
                                     model: suggestionModel,
-                                    engineName: settings.searchEngine.rawValue
-                                ) { sug in
-                                    suggestionModel.reset()
-                                    isUrlFocused = false
-                                    navigateToURL(sug.url, for: tab)
-                                }
+                                    engineName: settings.searchEngine.rawValue,
+                                    searchHistoryStore: searchHistoryStore,
+                                    onSelect: { sug in
+                                        suggestionModel.reset()
+                                        isUrlFocused = false
+                                        navigateToURL(sug.url, for: tab)
+                                    },
+                                    onSearchHistorySelect: { query in
+                                        suggestionModel.reset()
+                                        isUrlFocused = false
+                                        let url = settings.searchURLTemplate
+                                            + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
+                                        navigateToURL(url, for: tab)
+                                    }
+                                )
                                 .padding(.horizontal, 12)
                                 .padding(.top, 2)
                                 .transition(.opacity)
@@ -375,6 +409,16 @@ struct ContentView: View {
                         .frame(width: 1)
                     AIPanel(store: aiSession, conversationStore: conversationStore)
                         .frame(width: 320)
+                }
+
+                if showDevToolsPanel {
+                    Divider()
+                        .frame(width: 1)
+                    DevToolsPanel(store: devToolsStore, tab: tab, onStartElementPicker: {
+                        tab.browser.isPickingElement = true
+                        tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                    })
+                    .frame(width: 380)
                 }
             }
             }
@@ -570,6 +614,16 @@ struct ContentView: View {
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             }, onDelete: { bookmark in bookmarkStore.remove(bookmark) }, onClose: { showBookmarks = false })
         }
+        .sheet(isPresented: $showSearchHistory) {
+            SearchHistoryPanel(store: searchHistoryStore, onSelect: { query in
+                showSearchHistory = false
+                if let tab = tabManager.selectedTab {
+                    let url = settings.searchURLTemplate
+                        + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
+                    navigateToURL(url, for: tab)
+                }
+            }, onClose: { showSearchHistory = false })
+        }
         .onChange(of: showPlugins) { _, isShown in
             guard isShown else { return }
             showPlugins = false
@@ -721,6 +775,11 @@ struct ContentView: View {
         }
     }
 
+    private func toggleDevTools() {
+        showDevToolsPanel.toggle()
+        devToolsStore.toggleDevMode()
+    }
+
     private func loadHome(for tab: Tab) {
         guard let url = URL(string: settings.homePage) else { return }
         tab.isOnNewTabPage = false
@@ -736,6 +795,10 @@ struct ContentView: View {
                 text = "https://" + text
             } else {
                 guard let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
+                // Record search history
+                if !tab.isIncognito {
+                    searchHistoryStore.add(query: text, engine: settings.searchEngine)
+                }
                 text = settings.searchURLTemplate + encoded
             }
         }
@@ -956,6 +1019,7 @@ struct ContentView: View {
             formAutofillStore: formAutofillStore,
             permissionStore: permissionStore,
             siteSettingsStore: siteSettingsStore,
+            devToolsStore: devToolsStore,
             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
@@ -989,6 +1053,9 @@ struct ContentView: View {
                 }
                 videoAdBlockerToast = String(format: String(localized: "已拦截 %d 个 %@ 广告%@"), count, siteName, actionSuffix)
                 scheduleVideoAdBlockerToastReset()
+            },
+            onInspectedElement: { element in
+                devToolsStore.setInspectedElement(element)
             },
             elementBlockStore: elementBlockStore
         )

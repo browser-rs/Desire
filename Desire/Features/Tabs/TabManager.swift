@@ -21,6 +21,23 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// 音频静音状态（通过 BrowserState 控制）
+    var audioMuted: Bool {
+        get { browser.isMuted }
+        set {
+            browser.isMuted = newValue
+            let js = newValue
+                ? "document.querySelectorAll('audio, video').forEach(e => e.muted = true)"
+                : "document.querySelectorAll('audio, video').forEach(e => e.muted = false)"
+            browser.webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    /// 是否正在播放音频
+    var isPlayingAudio: Bool {
+        browser.isPlayingAudio
+    }
+
     init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         self.isIncognito = incognito
         browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)

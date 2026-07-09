@@ -53,6 +53,7 @@ struct SettingsView: View {
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var historyStore: HistoryStore
+    @ObservedObject var privacyModeStore: PrivacyModeStore
 
     @State private var selectedSection: Section = .general
 
@@ -77,7 +78,8 @@ struct SettingsView: View {
                     settings: settings,
                     contentBlocker: contentBlocker,
                     permissionStore: permissionStore,
-                    historyStore: historyStore
+                    historyStore: historyStore,
+                    privacyModeStore: privacyModeStore
                 )
             case .autofill:
                 FormAutofillSettingsView(store: formAutofillStore)

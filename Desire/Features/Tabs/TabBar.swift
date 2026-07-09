@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
@@ -20,6 +21,7 @@ struct TabBar: View {
     let onToggleAudioMute: (Int) -> Void
     let onTogglePin: (Int) -> Void
     @ObservedObject var tabGroupStore: TabGroupStore
+    @ObservedObject var thumbnailStore: TabThumbnailStore
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
 
@@ -50,6 +52,7 @@ struct TabBar: View {
                                 ),
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
+                                thumbnailStore: thumbnailStore,
                                 onMoveTab: onMoveTab
                             )
                                 .frame(width: 50)
@@ -79,6 +82,7 @@ struct TabBar: View {
                                 ),
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
+                                thumbnailStore: thumbnailStore,
                                 onMoveTab: onMoveTab
                             )
                         }
@@ -149,8 +153,11 @@ private struct TabPillView: View {
     let actions: TabBar.TabPillActions
     let tabs: [Tab]
     let tabGroupStore: TabGroupStore
+    let thumbnailStore: TabThumbnailStore
     let onMoveTab: (Int, Int) -> Void
     @State private var isHovering = false
+    @State private var showPreview = false
+    @State private var hoverTimer: Timer?
 
     private let tabGroupColors: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]
 
@@ -178,15 +185,16 @@ private struct TabPillView: View {
                         }
                     }
             }
-            if tab.browser.isPlayingAudio {
+            if tab.isPlayingAudio {
                 Button {
-                    actions.toggleAudioMute(index)
+                    tab.audioMuted.toggle()
                 } label: {
-                    Image(systemName: tab.browser.isMuted ? "speaker.slash" : "speaker.wave.2")
+                    Image(systemName: tab.audioMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.caption2)
-                        .foregroundStyle(tab.browser.isMuted ? Color.accentColor : .secondary)
+                        .foregroundStyle(tab.audioMuted ? .secondary : Color.accentColor)
                 }
                 .buttonStyle(.plain)
+                .help(tab.audioMuted ? "Unmute tab" : "Mute tab")
             }
             if !tab.isPinned {
                 Text(tab.displayTitle)
@@ -221,11 +229,43 @@ private struct TabPillView: View {
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
-        .onHover { isHovering = $0 }
+        .overlay(alignment: .top) {
+            if showPreview {
+                TabPreviewPopup(
+                    tab: tab,
+                    thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                    isHovering: isHovering
+                )
+                .offset(y: -8)
+                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                .zIndex(100)
+            }
+        }
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering && !tab.isOnNewTabPage {
+                // 延迟显示预览（1秒后）
+                hoverTimer?.invalidate()
+                hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
+                    Task { @MainActor in
+                        showPreview = true
+                        // 悬停时捕获缩略图
+                        thumbnailStore.captureThumbnail(for: tab)
+                    }
+                }
+            } else {
+                hoverTimer?.invalidate()
+                showPreview = false
+            }
+        }
         .onTapGesture {
+            hoverTimer?.invalidate()
+            showPreview = false
             actions.selectTab(index)
         }
         .onDrag {
+            hoverTimer?.invalidate()
+            showPreview = false
             let provider = NSItemProvider(object: NSString(string: "\(index)"))
             return provider
         }
@@ -392,5 +432,103 @@ private struct TabDropDelegate: DropDelegate {
             }
         }
         return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        // 提供视觉反馈，显示拖拽目标位置
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        // 拖拽退出时的处理（可用于视觉反馈）
+    }
+}
+
+/// 拖拽到新窗口的检测和处理器
+private class TabDragToNewWindowHandler: ObservableObject {
+    @Published var isDraggingToNewWindow = false
+    private var dragStartLocation: CGPoint = .zero
+    private let thresholdDistance: CGFloat = 100 // 拖拽距离阈值
+
+    func startDrag(at location: CGPoint) {
+        dragStartLocation = location
+        isDraggingToNewWindow = false
+    }
+
+    func updateDrag(at location: CGPoint, windowBounds: CGRect) {
+        // 检测是否拖拽到窗口外
+        let distance = hypot(location.x - dragStartLocation.x, location.y - dragStartLocation.y)
+        let isOutsideWindow = !windowBounds.contains(location)
+
+        if distance > thresholdDistance && isOutsideWindow {
+            isDraggingToNewWindow = true
+        }
+    }
+
+    func endDrag() {
+        dragStartLocation = .zero
+        isDraggingToNewWindow = false
+    }
+}
+
+/// 标签页预览弹出视图
+private struct TabPreviewPopup: View {
+    let tab: Tab
+    let thumbnail: NSImage?
+    let isHovering: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // 缩略图
+            if let image = thumbnail {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 280, height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .frame(width: 280, height: 180)
+                    .overlay {
+                        VStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.tertiary)
+                            Text("Loading...")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+            }
+
+            // 标题和 URL
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tab.displayTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+
+                if !tab.isOnNewTabPage {
+                    Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .padding(12)
+        .frame(width: 300)
+        .background(
+            RoundedRectangle(cornerRadius: .radiusPopover)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadowProminent()
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: .radiusPopover)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
+        )
+        .animation(.easeOut(duration: 0.2), value: isHovering)
     }
 }

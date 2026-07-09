@@ -6,6 +6,7 @@ struct PrivacySettingsSection: View {
     @ObservedObject var contentBlocker: ContentBlocker
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var historyStore: HistoryStore
+    @ObservedObject var privacyModeStore: PrivacyModeStore
 
     @State private var showClearConfirm = false
     @State private var clearCookies = true
@@ -20,6 +21,17 @@ struct PrivacySettingsSection: View {
             Toggle("Tracking Protection", isOn: $contentBlocker.isTrackingEnabled)
             Toggle("HTTPS Upgrade", isOn: $settings.httpsUpgradeEnabled)
                 .help("Attempt to upgrade HTTP connections to HTTPS automatically")
+
+            Divider()
+
+            Section("Cookie Policy") {
+                Picker("Cookie Accept Policy", selection: $privacyModeStore.cookieAcceptPolicy) {
+                    ForEach(CookieAcceptPolicy.allCases, id: \.self) { policy in
+                        Text(policy.displayName).tag(policy)
+                    }
+                }
+                .help("Control which cookies are accepted by the browser")
+            }
 
             Divider()
 

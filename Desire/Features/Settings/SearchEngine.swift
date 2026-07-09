@@ -7,7 +7,7 @@ struct CustomSearchEngine: Codable, Identifiable, Equatable {
     var suggestionURL: String
 }
 
-enum SearchEngine: String, CaseIterable {
+enum SearchEngine: String, CaseIterable, Codable {
     case google = "Google"
     case duckduckgo = "DuckDuckGo"
     case bing = "Bing"

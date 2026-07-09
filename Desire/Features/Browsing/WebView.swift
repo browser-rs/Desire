@@ -90,6 +90,55 @@ class BrowserState: ObservableObject {
         let audioScript = WKUserScript(source: audioJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(audioScript)
 
+        // Console interceptor for DevTools
+        let consoleJS = """
+        (function() {
+            var originalConsole = {
+                log: console.log,
+                warn: console.warn,
+                error: console.error,
+                info: console.info,
+                debug: console.debug
+            };
+            function sendToDevTools(level, args) {
+                try {
+                    var message = Array.from(args).map(function(arg) {
+                        if (typeof arg === 'object') {
+                            try { return JSON.stringify(arg); }
+                            catch(e) { return String(arg); }
+                        }
+                        return String(arg);
+                    }).join(' ');
+                    var stack = new Error().stack;
+                    var line = null, col = null, url = null;
+                    if (stack) {
+                        var match = stack.match(/:(\\d+):(\\d+)/);
+                        if (match) { line = parseInt(match[1]); col = parseInt(match[2]); }
+                        var urlMatch = stack.match(/https?:\\/\\/[^\\s]+/);
+                        if (urlMatch) { url = urlMatch[0].split(':')[0]; }
+                    }
+                    window.webkit.messageHandlers.devConsole.postMessage({
+                        level: level,
+                        message: message,
+                        url: url,
+                        line: line,
+                        column: col
+                    });
+                } catch(e) {}
+            }
+            console.log = function() { sendToDevTools('log', arguments); originalConsole.log.apply(console, arguments); };
+            console.warn = function() { sendToDevTools('warn', arguments); originalConsole.warn.apply(console, arguments); };
+            console.error = function() { sendToDevTools('error', arguments); originalConsole.error.apply(console, arguments); };
+            console.info = function() { sendToDevTools('info', arguments); originalConsole.info.apply(console, arguments); };
+            console.debug = function() { sendToDevTools('debug', arguments); originalConsole.debug.apply(console, arguments); };
+            window.addEventListener('error', function(e) {
+                sendToDevTools('error', [e.message]);
+            });
+        })();
+        """
+        let consoleScript = WKUserScript(source: consoleJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        config.userContentController.addUserScript(consoleScript)
+
         let passwordJS = """
         (function() {
             function detectPasswordForm() {
@@ -256,6 +305,7 @@ struct WebView: NSViewRepresentable {
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var siteSettingsStore: SiteSettingsStore
+    @ObservedObject var devToolsStore: DevToolsStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -269,6 +319,7 @@ struct WebView: NSViewRepresentable {
     /// "youtube" / "bilibili" / "tencent" / ... `actionKey` is optional
     /// ("skip" / "seek") — when set the count is already 1.
     var onVideoAdBlocked: ((Int, String?, String?) -> Void)?
+    var onInspectedElement: ((InspectedElement) -> Void)?
     @ObservedObject var elementBlockStore: ElementBlockStore
 
     static let pickerJS = """
@@ -392,6 +443,7 @@ struct WebView: NSViewRepresentable {
             webView.configuration.userContentController.add(self, name: "hoverLink")
             webView.configuration.userContentController.add(self, name: "elementPicker")
             webView.configuration.userContentController.add(self, name: "videoAdBlocked")
+            webView.configuration.userContentController.add(self, name: "devConsole")
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -419,6 +471,7 @@ struct WebView: NSViewRepresentable {
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "videoAdBlocked")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "devConsole")
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -428,6 +481,14 @@ struct WebView: NSViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "devConsole", let dict = message.body as? [String: Any],
+                      let levelStr = dict["level"] as? String,
+                      let msgText = dict["message"] as? String {
+                let level = ConsoleMessage.Level(rawValue: levelStr) ?? .log
+                let url = dict["url"] as? String
+                let line = dict["line"] as? Int
+                let column = dict["column"] as? Int
+                parent.devToolsStore.addConsoleMessage(level: level, message: msgText, url: url, line: line, column: column)
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
                        let usernameName = dict["username"],
                        let host = parent.state.webView.url?.host {

@@ -33,7 +33,8 @@ struct DesireApp: App {
                 downloadStore: appState.downloadStore,
                 formAutofillStore: appState.formAutofillStore,
                 permissionStore: appState.permissionStore,
-                historyStore: appState.historyStore
+                historyStore: appState.historyStore,
+                privacyModeStore: appState.privacyModeStore
             )
             .frame(minWidth: 700, idealWidth: 900, minHeight: 480, idealHeight: 600)
         }

@@ -20,6 +20,9 @@ class AppState: ObservableObject {
     let videoAdBlocker: VideoAdBlocker
     let aiSession: AISessionStore
     let conversationStore: ConversationStore
+    let privacyModeStore: PrivacyModeStore
+    let devToolsStore: DevToolsStore
+    let searchHistoryStore: SearchHistoryStore
 
     init() {
         settings = Settings()
@@ -39,6 +42,9 @@ class AppState: ObservableObject {
         videoAdBlocker = VideoAdBlocker()
         aiSession = AISessionStore()
         conversationStore = ConversationStore()
+        privacyModeStore = PrivacyModeStore()
+        devToolsStore = DevToolsStore()
+        searchHistoryStore = SearchHistoryStore()
         aiSession.conversationStore = conversationStore
     }
 }

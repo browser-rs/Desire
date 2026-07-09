@@ -3,14 +3,27 @@ import SwiftUI
 struct AddressSuggestionsView: View {
     @ObservedObject var model: AddressSuggestionsModel
     var engineName: String
+    var searchHistoryStore: SearchHistoryStore?
     var onSelect: (AddressSuggestion) -> Void
+    var onSearchHistorySelect: ((String) -> Void)?
+
+    @State private var showSearchHistory = false
+
+    private var recentSearches: [SearchHistory] {
+        guard let store = searchHistoryStore else { return [] }
+        return store.entries.prefix(5).map { $0 }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                row(for: suggestion, at: index)
-                if index < model.suggestions.count - 1 {
-                    Divider()
+            if !recentSearches.isEmpty && model.suggestions.isEmpty {
+                searchHistorySection
+            } else {
+                ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                    row(for: suggestion, at: index)
+                    if index < model.suggestions.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }
@@ -22,6 +35,47 @@ struct AddressSuggestionsView: View {
             RoundedRectangle(cornerRadius: .radiusPopover)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
         )
+    }
+
+    private var searchHistorySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Recent Searches")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                Spacer()
+            }
+            Divider()
+            ForEach(recentSearches) { entry in
+                HStack(spacing: 10) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                    Text(entry.query)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(entry.engine.rawValue)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onSearchHistorySelect?(entry.query)
+                }
+                if entry.id != recentSearches.last?.id {
+                    Divider()
+                }
+            }
+        }
     }
 
     @ViewBuilder

@@ -27,6 +27,7 @@ struct Toolbar: View {
         let toggleDarkMode: () -> Void
         let toggleAIPanel: () -> Void
         let toggleAIFloatingPanel: () -> Void
+        let toggleDevTools: () -> Void
     }
 
     let tab: Tab
@@ -38,6 +39,7 @@ struct Toolbar: View {
     let historyStore: HistoryStore
     let passwordStore: PasswordStore
     @ObservedObject var siteSettingsStore: SiteSettingsStore
+    @ObservedObject var devToolsStore: DevToolsStore
     var isUrlFocused: FocusState<Bool>.Binding
     let actions: Actions
     @Binding var showHistory: Bool
@@ -45,6 +47,7 @@ struct Toolbar: View {
     @Binding var showPlugins: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
+    @Binding var showSearchHistory: Bool
     let openWindow: (String) -> Void
 
     @State private var showDownloads = false
@@ -147,6 +150,8 @@ struct Toolbar: View {
 
             HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "Remove Bookmark" : "Bookmark This Page")
                 .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+
+            searchEngineButton
         }
         .padding(.horizontal, 8)
         .frame(height: 30)
@@ -163,6 +168,47 @@ struct Toolbar: View {
                 .animation(.transitionNormal, value: isUrlFocused.wrappedValue)
         )
         .layoutPriority(1)
+    }
+
+    private var searchEngineButton: some View {
+        Menu {
+            ForEach(SearchEngine.allCases, id: \.self) { engine in
+                Button {
+                    settings.searchEngine = engine
+                } label: {
+                    HStack {
+                        Text(engine.rawValue)
+                        if settings.searchEngine == engine {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            Divider()
+            ForEach(settings.customEngines) { engine in
+                Button {
+                    settings.selectedCustomEngineId = engine.id
+                } label: {
+                    HStack {
+                        Text(engine.name)
+                        if settings.selectedCustomEngineId == engine.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            if settings.customEngines.isEmpty {
+                Text("No custom engines")
+                    .foregroundStyle(.secondary)
+            }
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .imageScale(.small)
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 20)
+        .help("Search Engine: \(settings.searchEngine.rawValue)")
     }
 
     // MARK: - Zoom Button
@@ -193,6 +239,16 @@ struct Toolbar: View {
             .buttonStyle(.plain)
             .help("AI Assistant (Floating Window)")
 
+            Button { actions.toggleDevTools() } label: {
+                Image(systemName: "ladybug")
+                    .font(.system(size: 12))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(devToolsStore.isDevModeEnabled ? Color.accentColor : .primary)
+            .help("Developer Tools")
+
             DownloadButton(store: downloadStore, showDownloads: $showDownloads)
 
             Button {
@@ -217,6 +273,7 @@ struct Toolbar: View {
         VStack(spacing: 0) {
             moreMenuItem("History", "clock.arrow.circlepath", shortcut: "⌘Y") { showHistory = true }
             moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
+            moreMenuItem("Search History", "magnifyingglass") { showSearchHistory = true }
             moreMenuItem("Passwords", "key.fill") { showPasswords = true }
             moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
             moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
@@ -246,6 +303,7 @@ struct Toolbar: View {
             Divider()
             moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
             moreMenuItem("Inspect Element", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
+            moreMenuItem("Developer Tools", "ladybug", shortcut: "⇧⌘D") { actions.toggleDevTools() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
             Divider()

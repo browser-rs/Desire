@@ -34,6 +34,7 @@ struct ContentView: View {
     private var tabGroupStore: TabGroupStore { appState.tabGroupStore }
     private var elementBlockStore: ElementBlockStore { appState.elementBlockStore }
     private var videoAdBlocker: VideoAdBlocker { appState.videoAdBlocker }
+    private var conversationStore: ConversationStore { appState.conversationStore }
 
     @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
@@ -57,6 +58,7 @@ struct ContentView: View {
     @State private var findCurrentIndex = 0
     @State private var isFullScreen = false
     @State private var showAIPanel = false
+    @State private var aiFloatingPanel: AIFloatingPanel?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -204,7 +206,8 @@ struct ContentView: View {
                             """
                             tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
                         },
-                        toggleAIPanel: { showAIPanel.toggle() }
+                        toggleAIPanel: { showAIPanel.toggle() },
+                        toggleAIFloatingPanel: { aiFloatingPanel?.toggle() }
                     ),
                     showHistory: $showHistory,
                     showBookmarks: $showBookmarks,
@@ -370,7 +373,7 @@ struct ContentView: View {
                 if showAIPanel {
                     Divider()
                         .frame(width: 1)
-                    AIPanel(store: aiSession)
+                    AIPanel(store: aiSession, conversationStore: conversationStore)
                         .frame(width: 320)
                 }
             }
@@ -395,6 +398,9 @@ struct ContentView: View {
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard())
         .onAppear {
+            if aiFloatingPanel == nil {
+                aiFloatingPanel = AIFloatingPanel(store: aiSession, conversationStore: conversationStore)
+            }
             if !isAIConfigured {
                 aiSession.configureStores(
                     tabManager: tabManager,
@@ -583,7 +589,7 @@ struct ContentView: View {
                 }
             }, onClose: { showElementBlock = false })
         }
-        .overlay {
+        .overlay(alignment: .center) {
             Button("") {
                 isUrlFocused = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

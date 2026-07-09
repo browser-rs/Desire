@@ -26,6 +26,7 @@ struct Toolbar: View {
         let toggleTranslate: () -> Void
         let toggleDarkMode: () -> Void
         let toggleAIPanel: () -> Void
+        let toggleAIFloatingPanel: () -> Void
     }
 
     let tab: Tab
@@ -183,6 +184,15 @@ struct Toolbar: View {
 
     private var trailingButtons: some View {
         HStack(spacing: 6) {
+            Button { actions.toggleAIFloatingPanel() } label: {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 12))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("AI Assistant (Floating Window)")
+
             DownloadButton(store: downloadStore, showDownloads: $showDownloads)
 
             Button {

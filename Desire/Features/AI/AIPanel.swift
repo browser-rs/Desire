@@ -2,69 +2,96 @@ import SwiftUI
 
 struct AIPanel: View {
     @ObservedObject var store: AISessionStore
+    let conversationStore: ConversationStore
     @State private var inputText = ""
     @State private var showActions = true
+    @State private var showHistory = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
 
-            Divider()
-
-            if store.messages.isEmpty {
-                emptyState
+            if showHistory {
+                historyList
             } else {
-                messageList
-            }
-
-            if !store.messages.isEmpty {
                 Divider()
-            }
 
-            if store.awaitingQuestion {
-                awaitingQuestionBar
-            } else if showActions && !store.isProcessing {
-                quickActions
-            }
+                if store.messages.isEmpty {
+                    emptyState
+                } else {
+                    messageList
+                }
 
-            inputBar
+                if !store.messages.isEmpty {
+                    Divider()
+                }
+
+                if store.awaitingQuestion {
+                    awaitingQuestionBar
+                } else if showActions && !store.isProcessing {
+                    quickActions
+                }
+
+                inputBar
+            }
         }
     }
 
     private var header: some View {
         HStack(spacing: 6) {
-            Image(systemName: "wand.and.stars")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("AI Assistant")
-                .font(.headline)
-            Spacer()
-            Text(store.preference.model)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 80)
-            if store.isProcessing {
-                HStack(spacing: 4) {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                    if let action = store.currentAction {
-                        Text(action)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            if !store.messages.isEmpty {
-                Button { store.clear() } label: {
-                    Image(systemName: "trash")
+            if showHistory {
+                Button { showHistory = false } label: {
+                    Image(systemName: "chevron.left")
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Clear conversation")
+                Text("History")
+                    .font(.headline)
+                Spacer()
+            } else {
+                Image(systemName: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("AI Assistant")
+                    .font(.headline)
+                Spacer()
+                Text(store.preference.model)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 80)
+                if store.isProcessing {
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        if let action = store.currentAction {
+                            Text(action)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if !conversationStore.conversations.isEmpty {
+                    Button { showHistory = true } label: {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Conversation history")
+                }
+                if !store.messages.isEmpty {
+                    Button { store.clear() } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Clear conversation")
+                }
             }
         }
         .padding(.horizontal, 10)
@@ -375,6 +402,50 @@ struct AIPanel: View {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
         }
+    }
+
+    private var historyList: some View {
+        List {
+            ForEach(conversationStore.conversations) { conv in
+                Button {
+                    store.loadConversation(conv.id)
+                    showHistory = false
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(conv.title)
+                            .font(.callout)
+                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text(conv.messages.count == 1 ? "1 message" : "\(conv.messages.count) messages")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Text("·")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Text(conv.updatedAt, style: .relative)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .swipeActions {
+                    Button(role: .destructive) {
+                        conversationStore.delete(conv.id)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+            .onDelete { indexSet in
+                for idx in indexSet {
+                    conversationStore.delete(conversationStore.conversations[idx].id)
+                }
+            }
+        }
+        .listStyle(.plain)
     }
 
     private func submit() {

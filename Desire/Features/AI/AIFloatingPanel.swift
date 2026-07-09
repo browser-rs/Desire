@@ -5,9 +5,11 @@ import AppKit
 class AIFloatingPanel {
     private var window: NSWindow?
     private let store: AISessionStore
+    private let conversationStore: ConversationStore
 
-    init(store: AISessionStore) {
+    init(store: AISessionStore, conversationStore: ConversationStore) {
         self.store = store
+        self.conversationStore = conversationStore
     }
 
     var isVisible: Bool { window?.isVisible ?? false }
@@ -33,7 +35,7 @@ class AIFloatingPanel {
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentViewController = NSHostingController(rootView: AIPanel(store: store))
+        panel.contentViewController = NSHostingController(rootView: AIPanel(store: store, conversationStore: conversationStore))
         panel.setFrameAutosaveName("AIFloatingPanel")
         panel.center()
         panel.makeKeyAndOrderFront(nil)

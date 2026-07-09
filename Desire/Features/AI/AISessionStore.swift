@@ -38,11 +38,14 @@ class AISessionStore: ObservableObject {
     @Published var currentAction: String?
     @Published var awaitingQuestion = false
     @Published var streamingVersion = 0
+    @Published var conversationId: UUID?
+    @Published var conversationTitle: String?
 
     var preference = AIPreferenceStore()
     private let toolProvider = BrowserToolProvider()
     private weak var webView: WKWebView?
     private var isCancelled = false
+    weak var conversationStore: ConversationStore?
 
     func setWebView(_ wv: WKWebView?) {
         webView = wv
@@ -82,6 +85,10 @@ class AISessionStore: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         messages.append(AIMessage(role: .user, content: trimmed))
+        if conversationId == nil {
+            conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        saveCurrentConversation()
         isProcessing = true
         isCancelled = false
         Task { await processLoop() }
@@ -120,10 +127,39 @@ class AISessionStore: ObservableObject {
 
     func clear() {
         messages.removeAll()
+        conversationId = nil
+        conversationTitle = nil
         isProcessing = false
         currentAction = nil
         isCancelled = false
         awaitingQuestion = false
+    }
+
+    func loadConversation(_ id: UUID) {
+        guard let conv = conversationStore?.conversation(for: id) else { return }
+        messages = conv.messages
+        conversationId = conv.id
+        conversationTitle = conv.title
+        awaitingQuestion = false
+        currentAction = nil
+        streamingVersion += 1
+    }
+
+    private func saveCurrentConversation() {
+        guard let store = conversationStore else { return }
+        let id = conversationId ?? UUID()
+        conversationId = id
+        let title: String
+        if let t = conversationTitle, !t.isEmpty {
+            title = t
+        } else if let firstUserMsg = messages.first(where: { $0.role == .user })?.content {
+            title = String(firstUserMsg.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        } else {
+            title = "New Conversation"
+        }
+        conversationTitle = title
+        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: messages)
+        store.save(conv)
     }
 
     private func fetchPageText() async -> String {
@@ -219,6 +255,7 @@ class AISessionStore: ObservableObject {
                 ))
             }
             currentAction = nil
+            saveCurrentConversation()
         }
     }
 }

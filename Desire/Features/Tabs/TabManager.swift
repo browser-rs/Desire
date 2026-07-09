@@ -64,7 +64,8 @@ class TabManager: ObservableObject {
     private func startSessionSaveTimer() {
         sessionSaveTimer?.invalidate()
         sessionSaveTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
                 self?.persistSession()
             }
         }
@@ -73,7 +74,8 @@ class TabManager: ObservableObject {
     func startSuspendTimer() {
         suspendTimer?.invalidate()
         suspendTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
                 self?.suspendIdleTabs()
             }
         }
@@ -260,7 +262,7 @@ class TabManager: ObservableObject {
             tab.isPinned = saved.isPinned
 
             if let data = saved.sessionState,
-               let state = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) {
+               let state = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSObject.self], from: data) {
                 tab.browser.webView.interactionState = state
             }
 

@@ -138,6 +138,9 @@
     "%lld requests" : {
 
     },
+    "%lld tabs" : {
+
+    },
     "%lld." : {
 
     },
@@ -173,6 +176,9 @@
           }
         }
       }
+    },
+    "%lldms" : {
+
     },
     "%llds" : {
 
@@ -407,6 +413,9 @@
 
     },
     "AI is typing" : {
+
+    },
+    "All" : {
 
     },
     "All Categories" : {
@@ -897,6 +906,9 @@
           }
         }
       }
+    },
+    "Bounding Box" : {
+
     },
     "Browsing History" : {
       "comment" : "Keyboard shortcut",
@@ -1745,6 +1757,12 @@
         }
       }
     },
+    "Create Group" : {
+
+    },
+    "Create Tab Group" : {
+
+    },
     "CSS Code" : {
       "comment" : "Plugin editor CSS code label",
       "localizations" : {
@@ -1966,6 +1984,9 @@
         }
       }
     },
+    "Delete Group" : {
+
+    },
     "Delete Selected (%lld)" : {
 
     },
@@ -2072,6 +2093,9 @@
           }
         }
       }
+    },
+    "Document" : {
+
     },
     "Domain" : {
       "comment" : "Certificate domain label",
@@ -2448,6 +2472,9 @@
         }
       }
     },
+    "Element Information" : {
+
+    },
     "Ellipse" : {
       "comment" : "Screenshot tool: ellipse annotation",
       "localizations" : {
@@ -2574,6 +2601,9 @@
           }
         }
       }
+    },
+    "Errors" : {
+
     },
     "Esc to cancel" : {
       "comment" : "Editor bottom bar hint",
@@ -2823,6 +2853,9 @@
           }
         }
       }
+    },
+    "Filter" : {
+
     },
     "Filter messages" : {
 
@@ -3197,6 +3230,9 @@
     "Group by" : {
 
     },
+    "Group Name" : {
+
+    },
     "Group: %@" : {
       "comment" : "Context menu: group submenu with name",
       "localizations" : {
@@ -3360,6 +3396,9 @@
     "I'm looking at this page and want to ask:" : {
 
     },
+    "Image" : {
+
+    },
     "Import" : {
       "comment" : "Bookmark import help",
       "localizations" : {
@@ -3463,6 +3502,12 @@
 
     },
     "In Progress" : {
+
+    },
+    "Info" : {
+
+    },
+    "Inner HTML" : {
 
     },
     "Input will be sent to the search engine to get suggestions" : {
@@ -3804,6 +3849,9 @@
       }
     },
     "Memory Status" : {
+
+    },
+    "Method" : {
 
     },
     "Microphone" : {
@@ -4541,6 +4589,9 @@
           }
         }
       }
+    },
+    "Open Group" : {
+
     },
     "Open in New Tab" : {
       "comment" : "Context menu: open in new tab",
@@ -5812,6 +5863,9 @@
         }
       }
     },
+    "Script" : {
+
+    },
     "Script %lld" : {
 
     },
@@ -6410,6 +6464,9 @@
     "Startup" : {
 
     },
+    "Status" : {
+
+    },
     "Stop" : {
       "comment" : "Stop loading button help",
       "localizations" : {
@@ -6437,6 +6494,9 @@
 
     },
     "streaming" : {
+
+    },
+    "Stylesheet" : {
 
     },
     "Suggestion URL (optional)" : {
@@ -6528,6 +6588,9 @@
 
     },
     "System under memory pressure" : {
+
+    },
+    "Tab Groups" : {
 
     },
     "Tab Suspended" : {
@@ -6822,6 +6885,9 @@
     "TikTok" : {
 
     },
+    "Time" : {
+
+    },
     "Today" : {
       "comment" : "History section header",
       "localizations" : {
@@ -6907,6 +6973,9 @@
 
     },
     "Translate…" : {
+
+    },
+    "Type" : {
 
     },
     "Undo" : {
@@ -7111,6 +7180,9 @@
     "W" : {
 
     },
+    "Warnings" : {
+
+    },
     "Website Data" : {
       "comment" : "Website data section title",
       "localizations" : {
@@ -7161,6 +7233,9 @@
 
     },
     "X" : {
+
+    },
+    "XHR" : {
 
     },
     "XPath (optional)" : {

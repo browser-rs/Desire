@@ -186,6 +186,18 @@ private struct AssistantBubble: View {
 private struct ToolBubble: View {
     let content: String
 
+    /// Detect if content looks like a base64-encoded PNG (from screenshot tool).
+    /// PNG files start with the signature bytes iVBORw0KGgo when base64-encoded.
+    private var isBase64Image: Bool {
+        content.count > 100 && content.hasPrefix("iVBORw0KGgo")
+    }
+
+    private var decodedImage: NSImage? {
+        guard isBase64Image,
+              let data = Data(base64Encoded: content, options: .ignoreUnknownCharacters) else { return nil }
+        return NSImage(data: data)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: "wrench.adjustable")
@@ -193,17 +205,74 @@ private struct ToolBubble: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 22, alignment: .center)
                 .padding(.top, 2)
-            Text(content)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.tertiary)
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let image = decodedImage {
+                // Screenshot result: display the image with click-to-copy
+                ScreenshotView(image: image)
+            } else {
+                // Regular tool result: display as text
+                Text(content)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(4)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+            }
             Spacer(minLength: 40)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Screenshot view
+
+private struct ScreenshotView: View {
+    let image: NSImage
+    @State private var isHovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: 280)
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.5)
+                )
+
+            if isHovering {
+                HStack(spacing: 8) {
+                    Label("Screenshot", systemImage: "photo")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        copyImageToPasteboard()
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 9))
+                            Text("Copy")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .onHover { isHovering = $0 }
+        .animation(.hoverFast, value: isHovering)
+    }
+
+    private func copyImageToPasteboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
     }
 }
 

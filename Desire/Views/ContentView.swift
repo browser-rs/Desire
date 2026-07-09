@@ -10,6 +10,7 @@ struct ContentView: View {
     @StateObject private var tabManager = TabManager()
     @StateObject private var suggestionModel = AddressSuggestionsModel()
     @StateObject private var translationService = TranslationService()
+    @StateObject private var responsiveDesignStore = ResponsiveDesignStore()
     @FocusState private var isUrlFocused: Bool
     @FocusState private var isFindFocused: Bool
     @State private var showTranslateBar = false
@@ -45,6 +46,7 @@ struct ContentView: View {
     @State private var showElementBlock = false
     @State private var showUndoToast = false
     @State private var screenshotToast: String?
+    @State private var mediaQueries: [MediaQueryItem] = []
     @State private var videoAdBlockerToast: String?
     @State private var lastBlockedRuleId: UUID?
     @State private var lastBlockedSelector = ""
@@ -169,7 +171,7 @@ struct ContentView: View {
                         togglePictureInPicture: { togglePictureInPicture() },
                         toggleResponsiveMode: {
                             if let tab = tabManager.selectedTab {
-                                tab.isResponsiveMode.toggle()
+                                tab.responsiveConfig.isEnabled.toggle()
                             }
                         },
                         toggleTranslate: {
@@ -241,10 +243,11 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 0) {
-                        if tab.isResponsiveMode {
+                        if tab.responsiveConfig.isEnabled {
                             ResponsiveDesignBar(
-                                isEnabled: Binding(get: { tab.isResponsiveMode }, set: { tab.isResponsiveMode = $0 }),
-                                deviceSize: Binding(get: { tab.responsiveSize }, set: { tab.responsiveSize = $0 })
+                                config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
+                                responsiveStore: responsiveDesignStore,
+                                onScreenshot: { captureResponsiveScreenshot(for: tab) }
                             )
                         }
 
@@ -283,12 +286,47 @@ struct ContentView: View {
                                 }, suggestionModel: suggestionModel, bookmarkStore: bookmarkStore, historyStore: historyStore, settings: settings)
                             } else {
                                 GeometryReader { geo in
-                                    let responsiveSize = tab.responsiveSize
-                                    let responsiveW: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.width, geo.size.width - 40) : nil
-                                    let responsiveH: CGFloat? = tab.isResponsiveMode ? min(responsiveSize.height, geo.size.height - 40) : nil
+                                    let effectiveSize = tab.responsiveConfig.effectiveSize
+                                    let responsiveW: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.width, geo.size.width - 40) : nil
+                                    let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
                                     makeWebView(for: tab)
                                         .frame(width: responsiveW, height: responsiveH)
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .overlay {
+                                            if tab.responsiveConfig.isEnabled {
+                                                DeviceFrameOverlay(config: tab.responsiveConfig, viewportSize: effectiveSize)
+                                            }
+                                        }
+                                        .overlay {
+                                            if tab.responsiveConfig.isEnabled {
+                                                DragHandleOverlay(
+                                                    config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
+                                                    viewportSize: effectiveSize
+                                                )
+                                            }
+                                        }
+                                        .overlay {
+                                            if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showRulers {
+                                                RulerOverlay(viewportSize: effectiveSize)
+                                            }
+                                        }
+                                        .onChange(of: tab.responsiveConfig.touchSimulationEnabled) { _, enabled in
+                                            if enabled {
+                                                TouchSimulation.apply(to: tab.browser.webView)
+                                            } else {
+                                                TouchSimulation.remove(from: tab.browser.webView)
+                                            }
+                                        }
+                                        .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
+                                            if show {
+                                                refreshMediaQueries(for: tab)
+                                            }
+                                        }
+                                        .onChange(of: tab.responsiveConfig.effectiveSize) { _, _ in
+                                            if tab.responsiveConfig.showMediaQueryInspector {
+                                                refreshMediaQueries(for: tab)
+                                            }
+                                        }
                                 }
                             }
                         }
@@ -318,34 +356,16 @@ struct ContentView: View {
                                 ErrorPageView(error: error, tab: tab)
                             }
                         }
-                        .overlay {
-                            if tab.isResponsiveMode {
-                                GeometryReader { geo in
-                                    let size = tab.responsiveSize
-                                    let scale = min(
-                                        (geo.size.width - 40) / size.width,
-                                        (geo.size.height - 40) / size.height,
-                                        1.0
-                                    )
-                                    let displayW = size.width * scale
-                                    let displayH = size.height * scale
-                                    ZStack(alignment: .topTrailing) {
-                                        Color(nsColor: .windowBackgroundColor).opacity(0.6)
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                                            .frame(width: displayW, height: displayH)
-                                        Text("\(Int(size.width))×\(Int(size.height))")
-                                            .font(.caption)
-                                            .foregroundStyle(.tertiary)
-                                            .padding(6)
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .allowsHitTesting(false)
-                                }
-                            }
-                        }
+
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
+                    Divider()
+                        .frame(width: 1)
+                    MediaQueryInspector(queries: mediaQueries)
+                        .frame(width: 220)
+                }
 
                 if showAIPanel {
                     Divider()
@@ -477,7 +497,7 @@ struct ContentView: View {
                 showSidebar.toggle()
             case .toggleResponsiveMode:
                 if let tab = tabManager.selectedTab {
-                    tab.isResponsiveMode.toggle()
+                    tab.responsiveConfig.isEnabled.toggle()
                 }
             case .showBookmarks:
                 showBookmarks = true
@@ -846,6 +866,35 @@ struct ContentView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         screenshotToast = nil
                     }
+                }
+            }
+        }
+    }
+
+    private func refreshMediaQueries(for tab: Tab) {
+        tab.browser.webView.evaluateJavaScript(mediaQueryExtractorJS) { result, _ in
+            if let rules = result as? [[String: Any]] {
+                mediaQueries = rules.map {
+                    MediaQueryItem(query: $0["query"] as? String ?? "", isActive: $0["active"] as? Bool ?? false)
+                }
+            }
+        }
+    }
+
+    private func captureResponsiveScreenshot(for tab: Tab) {
+        let snapConfig = WKSnapshotConfiguration()
+        snapConfig.rect = CGRect(origin: .zero, size: tab.responsiveConfig.effectiveSize)
+        tab.browser.webView.takeSnapshot(with: snapConfig) { image, error in
+            guard let image, error == nil else { return }
+            let panel = NSSavePanel()
+            panel.title = String(localized: "Save Responsive Screenshot")
+            panel.nameFieldStringValue = "responsive-\(Int(tab.responsiveConfig.effectiveSize.width))x\(Int(tab.responsiveConfig.effectiveSize.height)).png"
+            panel.allowedContentTypes = [.png]
+            panel.begin { response in
+                if response == .OK, let url = panel.url,
+                   let tiffData = image.tiffRepresentation,
+                   let bitmap = NSBitmapImageRep(data: tiffData) {
+                    try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
                 }
             }
         }

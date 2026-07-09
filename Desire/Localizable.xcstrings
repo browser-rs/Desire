@@ -98,6 +98,9 @@
     "•" : {
 
     },
+    "← Exit" : {
+
+    },
     "×" : {
 
     },
@@ -2414,6 +2417,7 @@
     },
     "Exit Responsive" : {
       "comment" : "Exit responsive design mode",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3470,6 +3474,12 @@
         }
       }
     },
+    "Media Q" : {
+
+    },
+    "Media Queries" : {
+
+    },
     "Medium" : {
       "comment" : "Screenshot stroke/font size: medium",
       "localizations" : {
@@ -3999,6 +4009,9 @@
           }
         }
       }
+    },
+    "No media queries found" : {
+
     },
     "No Plugins" : {
       "comment" : "Empty plugins state",
@@ -5168,6 +5181,9 @@
         }
       }
     },
+    "Rulers" : {
+
+    },
     "Run At" : {
       "comment" : "Plugin injection timing picker label",
       "localizations" : {
@@ -5267,6 +5283,9 @@
       }
     },
     "Save Password for %@?" : {
+
+    },
+    "Save Responsive Screenshot" : {
 
     },
     "Saved to %@" : {
@@ -6377,6 +6396,9 @@
         }
       }
     },
+    "Toggle Orientation" : {
+
+    },
     "Tools" : {
       "comment" : "Tools menu title",
       "localizations" : {
@@ -6399,6 +6421,9 @@
           }
         }
       }
+    },
+    "Touch" : {
+
     },
     "Tracking Protection" : {
       "comment" : "Settings toggle",

@@ -518,12 +518,14 @@ class BrowserToolProvider {
         // --- Responsive design ---
         case "toggleResponsiveMode":
             guard let tab = tabManager?.selectedTab else { return "No active tab" }
-            tab.isResponsiveMode.toggle()
+            tab.responsiveConfig.isEnabled.toggle()
             if let deviceName = args["device"] as? String,
                let preset = devicePresets.first(where: { $0.name.lowercased() == deviceName.lowercased() }) {
-                tab.responsiveSize = CGSize(width: CGFloat(preset.width), height: CGFloat(preset.height))
+                tab.responsiveConfig.selectedPresetID = preset.id
+                tab.responsiveConfig.customWidth = preset.width
+                tab.responsiveConfig.customHeight = preset.height
             }
-            return tab.isResponsiveMode ? "Responsive mode enabled" : "Responsive mode disabled"
+            return tab.responsiveConfig.isEnabled ? "Responsive mode enabled" : "Responsive mode disabled"
 
         // --- Picture in Picture ---
         case "togglePictureInPicture":

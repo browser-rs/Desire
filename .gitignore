@@ -36,3 +36,6 @@ Carthage/Build
 
 # Local debug scripts (not part of the app)
 test_ai_stream.swift
+
+# Superpowers brainstorming artifacts
+.superpowers/

@@ -3519,6 +3519,9 @@
     "Loading translator…" : {
 
     },
+    "Loading…" : {
+
+    },
     "Local Storage" : {
       "comment" : "Clear data option",
       "localizations" : {

@@ -38,16 +38,6 @@
     "#%@" : {
 
     },
-    "%@ / %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ / %2$@"
-          }
-        }
-      }
-    },
     "%@ wants to access your %@" : {
       "comment" : "Media permission prompt with host and device",
       "localizations" : {
@@ -117,6 +107,9 @@
         }
       }
     },
+    "%lld active" : {
+
+    },
     "%lld failed" : {
 
     },
@@ -126,6 +119,19 @@
     "%lld messages" : {
 
     },
+    "%lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld paused" : {
+
+    },
     "%lld pending" : {
 
     },
@@ -133,6 +139,9 @@
 
     },
     "%lld." : {
+
+    },
+    "%lld%%" : {
 
     },
     "%lld×%lld" : {
@@ -145,7 +154,33 @@
         }
       }
     },
+    "%lldh %lldm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldh %2$lldm"
+          }
+        }
+      }
+    },
+    "%lldm %llds" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldm %2$llds"
+          }
+        }
+      }
+    },
+    "%llds" : {
+
+    },
     "•" : {
+
+    },
+    "• %@" : {
 
     },
     "← Exit" : {
@@ -374,6 +409,9 @@
     "AI is typing" : {
 
     },
+    "All Categories" : {
+
+    },
     "All Levels" : {
 
     },
@@ -479,6 +517,9 @@
 
     },
     "API Key" : {
+
+    },
+    "API Permissions:" : {
 
     },
     "Appearance" : {
@@ -628,6 +669,9 @@
           }
         }
       }
+    },
+    "Background" : {
+
     },
     "Bilibili" : {
 
@@ -998,6 +1042,9 @@
         }
       }
     },
+    "Cancel All" : {
+
+    },
     "Cannot Load Page" : {
       "comment" : "Error page title",
       "localizations" : {
@@ -1221,7 +1268,22 @@
     "Clear Network Log" : {
 
     },
+    "Clear This Month" : {
+
+    },
+    "Clear This Week" : {
+
+    },
+    "Clear Today" : {
+
+    },
+    "Clear Yesterday" : {
+
+    },
     "Click on an element to inspect" : {
+
+    },
+    "Click to customize" : {
 
     },
     "Click to Record" : {
@@ -1365,6 +1427,9 @@
         }
       }
     },
+    "Completed" : {
+
+    },
     "Computed Style" : {
 
     },
@@ -1418,6 +1483,9 @@
       }
     },
     "Connection Security" : {
+
+    },
+    "Content Scripts" : {
 
     },
     "Continue Anyway" : {
@@ -1726,6 +1794,9 @@
         }
       }
     },
+    "CSS: %@" : {
+
+    },
     "Current Memory Usage:" : {
 
     },
@@ -1873,6 +1944,7 @@
     },
     "Delete Folder" : {
       "comment" : "Context menu: delete folder",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1893,6 +1965,9 @@
           }
         }
       }
+    },
+    "Delete Selected (%lld)" : {
+
     },
     "Denied" : {
       "comment" : "Permission denied status",
@@ -1969,6 +2044,9 @@
     "Desire is your default browser" : {
 
     },
+    "Details" : {
+
+    },
     "Developer Tools" : {
 
     },
@@ -2040,6 +2118,9 @@
           }
         }
       }
+    },
+    "Done Selecting" : {
+
     },
     "Download" : {
       "comment" : "Default download filename",
@@ -2253,6 +2334,7 @@
     },
     "Edit Folder…" : {
       "comment" : "Context menu: edit folder",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2684,7 +2766,16 @@
         }
       }
     },
+    "Extension Information" : {
+
+    },
+    "Extensions" : {
+
+    },
     "Extracting content…" : {
+
+    },
+    "Failed" : {
 
     },
     "Failed to import plugin: invalid file format" : {
@@ -3158,6 +3249,9 @@
         }
       }
     },
+    "High Priority" : {
+
+    },
     "History" : {
       "comment" : "History panel title",
       "localizations" : {
@@ -3227,6 +3321,9 @@
           }
         }
       }
+    },
+    "Host Permissions:" : {
+
     },
     "How can I help?" : {
 
@@ -3336,6 +3433,9 @@
         }
       }
     },
+    "Import Extension" : {
+
+    },
     "Import Failed" : {
       "comment" : "Plugin import failure alert title",
       "localizations" : {
@@ -3360,6 +3460,9 @@
       }
     },
     "In Firefox, use \"Library → Bookmarks → Import and Backup → Export Bookmarks to HTML\"" : {
+
+    },
+    "In Progress" : {
 
     },
     "Input will be sent to the search engine to get suggestions" : {
@@ -3477,6 +3580,9 @@
         }
       }
     },
+    "JS: %@" : {
+
+    },
     "Keyboard Shortcuts" : {
       "comment" : "Settings tab label",
       "localizations" : {
@@ -3578,6 +3684,9 @@
         }
       }
     },
+    "Low Priority" : {
+
+    },
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
 
     },
@@ -3632,6 +3741,9 @@
           }
         }
       }
+    },
+    "Matches: %@" : {
+
     },
     "Max Tokens" : {
 
@@ -4193,6 +4305,9 @@
     "No matching conversations" : {
 
     },
+    "No Matching Downloads" : {
+
+    },
     "No Matching Records" : {
       "comment" : "Empty history search state",
       "localizations" : {
@@ -4246,6 +4361,9 @@
 
     },
     "No results for \"%@\"" : {
+
+    },
+    "No Safari Extensions Installed" : {
 
     },
     "No Saved Passwords" : {
@@ -4319,6 +4437,9 @@
           }
         }
       }
+    },
+    "Normal Priority" : {
+
     },
     "Not found" : {
       "comment" : "Find in page no results",
@@ -4545,7 +4666,13 @@
         }
       }
     },
+    "Override" : {
+
+    },
     "Page translated" : {
+
+    },
+    "Page: %@" : {
 
     },
     "Passwords" : {
@@ -4617,6 +4744,15 @@
         }
       }
     },
+    "Pause" : {
+
+    },
+    "Pause All" : {
+
+    },
+    "Paused" : {
+
+    },
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
       "localizations" : {
@@ -4639,6 +4775,9 @@
           }
         }
       }
+    },
+    "Permissions" : {
+
     },
     "Pick color…" : {
       "comment" : "Screenshot toolbar: open system color picker",
@@ -5264,6 +5403,9 @@
     "Require User Action" : {
 
     },
+    "Requires permissions" : {
+
+    },
     "Reset" : {
       "comment" : "Reset button",
       "localizations" : {
@@ -5333,6 +5475,9 @@
         }
       }
     },
+    "Reset to default" : {
+
+    },
     "Reset Zoom" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -5380,6 +5525,15 @@
       }
     },
     "Restore previous session" : {
+
+    },
+    "Results" : {
+
+    },
+    "Resume" : {
+
+    },
+    "Resume All" : {
 
     },
     "Retry" : {
@@ -5433,6 +5587,9 @@
           }
         }
       }
+    },
+    "Safari Extensions" : {
+
     },
     "Save" : {
       "comment" : "Save button",
@@ -5655,6 +5812,12 @@
         }
       }
     },
+    "Script %lld" : {
+
+    },
+    "Scripts: %@" : {
+
+    },
     "Search" : {
 
     },
@@ -5712,6 +5875,9 @@
           }
         }
       }
+    },
+    "Search Downloads…" : {
+
     },
     "Search Engine: %@" : {
 
@@ -5801,6 +5967,9 @@
           }
         }
       }
+    },
+    "Search Shortcuts…" : {
+
     },
     "Search Tabs" : {
       "comment" : "Keyboard shortcut",
@@ -5926,6 +6095,9 @@
     "Select Firefox Bookmarks File" : {
 
     },
+    "Select Multiple" : {
+
+    },
     "Select Safari Bookmarks File" : {
 
     },
@@ -5956,6 +6128,9 @@
 
     },
     "Server Unreachable" : {
+
+    },
+    "Service Worker: %@" : {
 
     },
     "Session Storage" : {
@@ -6055,6 +6230,9 @@
           }
         }
       }
+    },
+    "Shortcut Conflict" : {
+
     },
     "Show" : {
 
@@ -6557,10 +6735,16 @@
         }
       }
     },
+    "This Month" : {
+
+    },
     "This page is in" : {
 
     },
     "This page may not have a readable article format." : {
+
+    },
+    "This shortcut conflicts with: %@" : {
 
     },
     "This Week" : {
@@ -6747,6 +6931,9 @@
           }
         }
       }
+    },
+    "Uninstall" : {
+
     },
     "Unknown Error" : {
       "comment" : "Fallback error description",

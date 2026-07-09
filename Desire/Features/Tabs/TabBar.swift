@@ -24,6 +24,10 @@ struct TabBar: View {
     @ObservedObject var thumbnailStore: TabThumbnailStore
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
+    
+    // Preview state - managed at TabBar level for proper positioning
+    @State private var previewTab: Tab?
+    @State private var previewPosition: CGRect = .zero
 
     var body: some View {
         HStack(spacing: 6) {
@@ -53,7 +57,14 @@ struct TabBar: View {
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
                                 thumbnailStore: thumbnailStore,
-                                onMoveTab: onMoveTab
+                                onMoveTab: onMoveTab,
+                                onShowPreview: { tab, position in
+                                    previewTab = tab
+                                    previewPosition = position
+                                },
+                                onHidePreview: {
+                                    previewTab = nil
+                                }
                             )
                                 .frame(width: 50)
                         }
@@ -83,7 +94,14 @@ struct TabBar: View {
                                 tabs: tabs,
                                 tabGroupStore: tabGroupStore,
                                 thumbnailStore: thumbnailStore,
-                                onMoveTab: onMoveTab
+                                onMoveTab: onMoveTab,
+                                onShowPreview: { tab, position in
+                                    previewTab = tab
+                                    previewPosition = position
+                                },
+                                onHidePreview: {
+                                    previewTab = nil
+                                }
                             )
                         }
                     }
@@ -117,6 +135,18 @@ struct TabBar: View {
                     searchText: $searchText,
                     isSearchFocused: $isSearchFocused
                 )
+            }
+        }
+        .overlay(alignment: .top) {
+            if let tab = previewTab {
+                TabPreviewPopup(
+                    tab: tab,
+                    thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                    isHovering: true
+                )
+                .offset(x: previewPosition.midX - 150, y: -previewPosition.height - 8)
+                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                .zIndex(1000)
             }
         }
         .onChange(of: showSwitcher) { _, shown in
@@ -155,9 +185,12 @@ private struct TabPillView: View {
     let tabGroupStore: TabGroupStore
     let thumbnailStore: TabThumbnailStore
     let onMoveTab: (Int, Int) -> Void
+    let onShowPreview: (Tab, CGRect) -> Void
+    let onHidePreview: () -> Void
+    
     @State private var isHovering = false
-    @State private var showPreview = false
     @State private var hoverTimer: Timer?
+    @State private var pillFrame: CGRect = .zero
 
     private let tabGroupColors: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]
 
@@ -229,43 +262,36 @@ private struct TabPillView: View {
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
-        .overlay(alignment: .top) {
-            if showPreview {
-                TabPreviewPopup(
-                    tab: tab,
-                    thumbnail: thumbnailStore.thumbnail(for: tab.id),
-                    isHovering: isHovering
-                )
-                .offset(y: -8)
-                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
-                .zIndex(100)
+        .background(
+            GeometryReader { geo in
+                Color.clear.onAppear { pillFrame = geo.frame(in: .global) }
             }
-        }
+        )
         .onHover { hovering in
             isHovering = hovering
             if hovering && !tab.isOnNewTabPage {
-                // 延迟显示预览（1秒后）
+                // Delay showing preview (1 second)
                 hoverTimer?.invalidate()
                 hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
                     Task { @MainActor in
-                        showPreview = true
-                        // 悬停时捕获缩略图
+                        onShowPreview(tab, pillFrame)
+                        // Capture thumbnail on hover
                         thumbnailStore.captureThumbnail(for: tab)
                     }
                 }
             } else {
                 hoverTimer?.invalidate()
-                showPreview = false
+                onHidePreview()
             }
         }
         .onTapGesture {
             hoverTimer?.invalidate()
-            showPreview = false
+            onHidePreview()
             actions.selectTab(index)
         }
         .onDrag {
             hoverTimer?.invalidate()
-            showPreview = false
+            onHidePreview()
             let provider = NSItemProvider(object: NSString(string: "\(index)"))
             return provider
         }

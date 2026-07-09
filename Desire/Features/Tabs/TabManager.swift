@@ -45,6 +45,10 @@ class Tab: ObservableObject {
         if let url {
             urlString = url
             isOnNewTabPage = false
+            // 立即加载 URL，确保新标签页能够正确显示内容
+            if let validURL = URL(string: url) {
+                browser.webView.load(URLRequest(url: validURL))
+            }
         }
         browser.$pageTitle
             .sink { [weak self] title in

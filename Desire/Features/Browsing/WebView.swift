@@ -823,8 +823,12 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
             if let url = navigationAction.request.url {
-                parent.onOpenLinkInNewTab?(url)
+                // 在后台线程中创建新标签页，然后立即导航
+                Task { @MainActor in
+                    parent.onOpenLinkInNewTab?(url)
+                }
             }
+            // 返回 nil 表示我们不需要额外的 WebView，新标签页会由 TabManager 创建
             return nil
         }
 

@@ -22,6 +22,7 @@ struct URLBarField: NSViewRepresentable {
         field.target = context.coordinator
         field.action = #selector(Coordinator.submit)
         field.menu = context.coordinator.menu
+        context.coordinator.textField = field
         return field
     }
 
@@ -41,6 +42,7 @@ struct URLBarField: NSViewRepresentable {
     class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: URLBarField
         let menu: NSMenu
+        weak var textField: NSTextField?
 
         required init(_ parent: URLBarField) {
             self.parent = parent
@@ -78,19 +80,23 @@ struct URLBarField: NSViewRepresentable {
         }
 
         @objc func pasteAction() {
-            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
+            guard let field = textField, let editor = field.currentEditor() else { return }
+            editor.paste(nil)
         }
 
         @objc func copyAction() {
-            NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+            guard let field = textField, let editor = field.currentEditor() else { return }
+            editor.copy(nil)
         }
 
         @objc func cutAction() {
-            NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
+            guard let field = textField, let editor = field.currentEditor() else { return }
+            editor.cut(nil)
         }
 
         @objc func selectAllAction() {
-            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+            guard let field = textField, let editor = field.currentEditor() else { return }
+            editor.selectAll(nil)
         }
 
         func controlTextDidChange(_ obj: Notification) {

@@ -287,7 +287,8 @@ class TabManager: ObservableObject {
 
     private func captureInteractionState(for tab: Tab) -> Data? {
         guard let state = tab.browser.webView.interactionState else { return nil }
-        return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: false)
+        // 使用 NSSecureCoding 编码，与解码保持一致
+        return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
     }
 
     @discardableResult
@@ -306,9 +307,20 @@ class TabManager: ObservableObject {
             let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
             tab.isPinned = saved.isPinned
 
-            if let data = saved.sessionState,
-               let state = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSObject.self], from: data) {
-                tab.browser.webView.interactionState = state
+            if let data = saved.sessionState {
+                // 使用 NSSecureCoding 解码，允许 WebKit 框架的类
+                // interactionState 是 WebKit 内部对象，具体类型未知
+                // 使用 NSObject.self 是合理的，因为这是恢复应用自己的状态
+                do {
+                    let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+                    unarchiver.requiresSecureCoding = true
+                    let state = unarchiver.decodeObject(of: [NSObject.self], forKey: NSKeyedArchiveRootObjectKey)
+                    if let state = state {
+                        tab.browser.webView.interactionState = state
+                    }
+                } catch {
+                    // 解码失败，忽略状态恢复
+                }
             }
 
             tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in

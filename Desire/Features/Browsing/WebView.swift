@@ -403,6 +403,7 @@ struct WebView: NSViewRepresentable {
         let webView = state.webView
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
+        webView.autoresizingMask = [.width, .height]
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
         }
@@ -423,7 +424,7 @@ struct WebView: NSViewRepresentable {
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
-        private var pendingUpgrade: (https: URL, http: URL)?
+        private var pendingUpgrades: [String: URL] = [:]
         private var fallbackInProgress: Set<String> = []
 
         private struct DownloadInfo {
@@ -610,7 +611,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.state.isSecure = webView.url?.scheme == "https"
-            pendingUpgrade = nil
+            pendingUpgrades.removeAll()
             if let host = webView.url?.host {
                 let savedZoom = parent.siteSettingsStore.zoom(for: host)
                 if savedZoom != 1.0 {
@@ -714,15 +715,12 @@ struct WebView: NSViewRepresentable {
             }
 
             // Frame-less navigation (e.g. target=_blank, window.open from JS).
-            // Previously we called `webView.load()` and cancelled the original
-            // request, which corrupted the back/forward list because the
-            // programmatically-loaded URL became a new entry. Just let WebKit
-            // handle it — for target=_blank WebKit will open a new tab/window
-            // via the `webView(_:createWebViewWith:for:windowFeatures:)`
-            // delegate method, and for other null-frame requests the
-            // navigation is appended correctly to history.
+            // Open in a new tab instead of allowing WebKit to open a new window.
             if navigationAction.targetFrame == nil {
-                decisionHandler(.allow)
+                if let url = navigationAction.request.url {
+                    parent.onOpenLinkInNewTab?(url)
+                }
+                decisionHandler(.cancel)
                 return
             }
 
@@ -750,7 +748,7 @@ struct WebView: NSViewRepresentable {
                 var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
                 comps?.scheme = "https"
                 if let https = comps?.url {
-                    pendingUpgrade = (https: https, http: url)
+                    pendingUpgrades[https.absoluteString] = url
                     webView.load(URLRequest(url: https))
                     decisionHandler(.cancel)
                     return
@@ -789,8 +787,9 @@ struct WebView: NSViewRepresentable {
             // of the back navigation, corrupting history. Restrict the
             // fallback to a small set of well-known error codes that only
             // fire when the server itself couldn't be reached over HTTPS.
-            guard let upgrade = pendingUpgrade,
-                  let urlError = error as? URLError else { return }
+            guard let urlError = error as? URLError,
+                  let failingURL = urlError.userInfo[NSURLErrorFailingURLErrorKey] as? URL,
+                  let httpURL = pendingUpgrades.removeValue(forKey: failingURL.absoluteString) else { return }
             switch urlError.code {
             case .serverCertificateUntrusted,
                  .secureConnectionFailed,
@@ -800,17 +799,22 @@ struct WebView: NSViewRepresentable {
                  .networkConnectionLost,
                  .notConnectedToInternet,
                  .dnsLookupFailed:
-                pendingUpgrade = nil
-                fallbackInProgress.insert(upgrade.http.absoluteString)
-                webView.load(URLRequest(url: upgrade.http))
+                fallbackInProgress.insert(httpURL.absoluteString)
+                webView.load(URLRequest(url: httpURL))
             case .cancelled:
-                // The user navigated away (back, forward, reload) before
-                // the upgrade finished. Don't fall back — clearing the
-                // pending state is enough.
-                pendingUpgrade = nil
+                break
             default:
-                pendingUpgrade = nil
+                break
             }
+        }
+
+        // MARK: - WKUIDelegate - 新窗口
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url {
+                parent.onOpenLinkInNewTab?(url)
+            }
+            return nil
         }
 
         // MARK: - WKUIDelegate - 权限请求

@@ -10,7 +10,7 @@ class TabThumbnailStore: ObservableObject {
     @Published private var thumbnails: [UUID: NSImage] = [:]
 
     /// 缩略图尺寸配置
-    private let thumbnailSize = CGSize(width: 280, height: 180)
+    private let thumbnailSize = CGSize(width: 236, height: 150)
 
     /// 更新定时器
     private var updateTimer: Timer?

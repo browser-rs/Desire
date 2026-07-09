@@ -25,9 +25,10 @@ struct TabBar: View {
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
     
-    // Preview state - managed at TabBar level for proper positioning
+    // Preview state
     @State private var previewTab: Tab?
     @State private var previewPosition: CGRect = .zero
+    @State private var previewFrame: CGRect = .zero
 
     var body: some View {
         HStack(spacing: 6) {
@@ -124,7 +125,13 @@ struct TabBar: View {
         .padding(.trailing, 8)
         .padding(.top, 4)
         .padding(.bottom, 4)
-        .background(Color.clear)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { previewFrame = geo.frame(in: .global) }
+                    .onChange(of: geo.frame(in: .global)) { _, new in previewFrame = new }
+            }
+        )
         .overlay(alignment: .topLeading) {
             if showSwitcher {
                 TabPopoverView(
@@ -137,15 +144,16 @@ struct TabBar: View {
                 )
             }
         }
-        .overlay(alignment: .top) {
+        .overlay(alignment: .topLeading) {
             if let tab = previewTab {
+                let tabMidX = previewPosition.midX - previewFrame.minX
                 TabPreviewPopup(
                     tab: tab,
                     thumbnail: thumbnailStore.thumbnail(for: tab.id),
                     isHovering: true
                 )
-                .offset(x: previewPosition.midX - 150, y: -previewPosition.height - 8)
-                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                .offset(x: tabMidX - 130, y: 42)
+                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
                 .zIndex(1000)
             }
         }
@@ -504,48 +512,50 @@ private struct TabPreviewPopup: View {
     let isHovering: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             // 缩略图
-            if let image = thumbnail {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 280, height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .frame(width: 280, height: 180)
-                    .overlay {
-                        VStack(spacing: 4) {
+            Group {
+                if let image = thumbnail {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 150)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .frame(height: 150)
+                        .overlay {
                             Image(systemName: "photo")
-                                .font(.system(size: 32))
-                                .foregroundStyle(.tertiary)
-                            Text("Loading...")
-                                .font(.caption)
+                                .font(.system(size: 22))
                                 .foregroundStyle(.tertiary)
                         }
-                    }
-            }
-
-            // 标题和 URL
-            VStack(alignment: .leading, spacing: 4) {
-                Text(tab.displayTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-
-                if !tab.isOnNewTabPage {
-                    Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                 }
             }
-            .padding(.horizontal, 4)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            // 标题 + URL
+            HStack(spacing: 8) {
+                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 16)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tab.displayTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+
+                    if !tab.isOnNewTabPage {
+                        Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+            }
+            .padding(.top, 10)
         }
         .padding(12)
-        .frame(width: 300)
+        .frame(width: 260)
         .background(
             RoundedRectangle(cornerRadius: .radiusPopover)
                 .fill(Color(nsColor: .windowBackgroundColor))
@@ -555,6 +565,5 @@ private struct TabPreviewPopup: View {
             RoundedRectangle(cornerRadius: .radiusPopover)
                 .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
         )
-        .animation(.easeOut(duration: 0.2), value: isHovering)
     }
 }

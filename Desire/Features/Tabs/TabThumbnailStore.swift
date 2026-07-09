@@ -67,28 +67,40 @@ class TabThumbnailStore: ObservableObject {
             return
         }
 
+        // 不捕获正在加载的页面
+        guard !tab.isLoading else {
+            completion?(thumbnails[tab.id])
+            return
+        }
+
         capturingTabs.insert(tab.id)
 
         let configuration = WKSnapshotConfiguration()
-        configuration.rect = CGRect(origin: .zero, size: thumbnailSize)
         configuration.afterScreenUpdates = true
 
         tab.browser.webView.takeSnapshot(with: configuration) { [weak self] image, error in
-            guard let self = self, let image = image, error == nil else {
-                self?.capturingTabs.remove(tab.id)
-                completion?(nil)
-                return
+            Task { @MainActor [weak self] in
+                guard let self = self else {
+                    completion?(nil)
+                    return
+                }
+
+                self.capturingTabs.remove(tab.id)
+
+                guard let image = image, error == nil else {
+                    completion?(nil)
+                    return
+                }
+
+                // 缩放图像到目标尺寸
+                let resizedImage = self.resizeImage(image, to: self.thumbnailSize)
+
+                self.thumbnails[tab.id] = resizedImage
+                self.thumbnailTimestamps[tab.id] = Date()
+                self.objectWillChange.send()
+
+                completion?(resizedImage)
             }
-
-            // 缩放图像到目标尺寸
-            let resizedImage = self.resizeImage(image, to: self.thumbnailSize)
-
-            self.thumbnails[tab.id] = resizedImage
-            self.thumbnailTimestamps[tab.id] = Date()
-            self.capturingTabs.remove(tab.id)
-            self.objectWillChange.send()
-
-            completion?(resizedImage)
         }
     }
 

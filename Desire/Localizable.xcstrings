@@ -4,6 +4,25 @@
     "" : {
 
     },
+    ":" : {
+
+    },
+    ":%lld" : {
+
+    },
+    ":%lld:%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : ":%1$lld:%2$lld"
+          }
+        }
+      }
+    },
+    "!important" : {
+
+    },
     "·" : {
 
     },
@@ -14,6 +33,9 @@
 
     },
     "（已跳过）" : {
+
+    },
+    "#%@" : {
 
     },
     "%@ / %@" : {
@@ -85,6 +107,28 @@
         }
       }
     },
+    "%lld × %lld px" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld × %2$lld px"
+          }
+        }
+      }
+    },
+    "%lld failed" : {
+
+    },
+    "%lld messages" : {
+
+    },
+    "%lld pending" : {
+
+    },
+    "%lld requests" : {
+
+    },
     "%lld." : {
 
     },
@@ -105,6 +149,9 @@
 
     },
     "×" : {
+
+    },
+    "=" : {
 
     },
     "Accent Color" : {
@@ -312,6 +359,12 @@
     "AI is typing" : {
 
     },
+    "All Levels" : {
+
+    },
+    "All Types" : {
+
+    },
     "Allow" : {
       "comment" : "Permission allow button",
       "localizations" : {
@@ -407,6 +460,9 @@
         }
       }
     },
+    "Always accept" : {
+
+    },
     "API Key" : {
 
     },
@@ -474,6 +530,9 @@
         }
       }
     },
+    "Attributes" : {
+
+    },
     "Author" : {
       "comment" : "Plugin author field label",
       "localizations" : {
@@ -522,6 +581,9 @@
           }
         }
       }
+    },
+    "Automatically upgrade HTTP connections to secure HTTPS." : {
+
     },
     "Back" : {
       "comment" : "Reader view back button",
@@ -617,6 +679,21 @@
           }
         }
       }
+    },
+    "Block Analytics Trackers" : {
+
+    },
+    "Block Browser Fingerprinting" : {
+
+    },
+    "Block Cryptocurrency Miners" : {
+
+    },
+    "Block Social Media Trackers" : {
+
+    },
+    "Block Third-Party Cookies" : {
+
     },
     "Block this element?" : {
       "comment" : "Element picker confirmation",
@@ -1065,6 +1142,9 @@
         }
       }
     },
+    "Clear Console" : {
+
+    },
     "Clear Finished" : {
       "comment" : "Clear finished downloads button",
       "localizations" : {
@@ -1110,6 +1190,12 @@
           }
         }
       }
+    },
+    "Clear Network Log" : {
+
+    },
+    "Click on an element to inspect" : {
+
     },
     "Click to Record" : {
 
@@ -1252,6 +1338,9 @@
         }
       }
     },
+    "Computed Style" : {
+
+    },
     "Confirm before closing multiple tabs" : {
 
     },
@@ -1301,6 +1390,9 @@
         }
       }
     },
+    "Connection Security" : {
+
+    },
     "Continue Anyway" : {
       "comment" : "Certificate alert continue button",
       "localizations" : {
@@ -1323,6 +1415,24 @@
           }
         }
       }
+    },
+    "Control which cookies are accepted by the browser" : {
+
+    },
+    "Controls which cookies are accepted from websites." : {
+
+    },
+    "Cookie Accept Policy" : {
+
+    },
+    "Cookie Accept Policy:" : {
+
+    },
+    "Cookie Policy" : {
+
+    },
+    "Cookie Settings" : {
+
     },
     "Cookies" : {
       "comment" : "Clear cookies option",
@@ -1491,6 +1601,9 @@
     "Copy message" : {
 
     },
+    "Copy Query" : {
+
+    },
     "Copy URL" : {
       "comment" : "Context menu: copy tab URL",
       "localizations" : {
@@ -1559,6 +1672,9 @@
           }
         }
       }
+    },
+    "CSS Properties" : {
+
     },
     "CSS Selector" : {
       "comment" : "CSS selector field placeholder",
@@ -1665,6 +1781,9 @@
       }
     },
     "Default Browser" : {
+
+    },
+    "Default Browsing Mode" : {
 
     },
     "Default Search Engine" : {
@@ -1818,6 +1937,9 @@
 
     },
     "Desire is your default browser" : {
+
+    },
+    "Developer Tools" : {
 
     },
     "Disabled" : {
@@ -2260,6 +2382,9 @@
         }
       }
     },
+    "Enable Private Mode by Default" : {
+
+    },
     "Enabled" : {
       "comment" : "Toggle label",
       "localizations" : {
@@ -2284,6 +2409,9 @@
       }
     },
     "Endpoint URL" : {
+
+    },
+    "Enforce HTTPS Connections" : {
 
     },
     "Enter Full Screen" : {
@@ -2571,6 +2699,12 @@
           }
         }
       }
+    },
+    "Filter messages" : {
+
+    },
+    "Filter URLs" : {
+
     },
     "Find in Page" : {
       "comment" : "Keyboard shortcut",
@@ -3064,6 +3198,9 @@
     "How can I help?" : {
 
     },
+    "HTML" : {
+
+    },
     "HttpOnly" : {
 
     },
@@ -3382,6 +3519,9 @@
     "Loading translator…" : {
 
     },
+    "Loading..." : {
+
+    },
     "Local Storage" : {
       "comment" : "Clear data option",
       "localizations" : {
@@ -3567,6 +3707,9 @@
         }
       }
     },
+    "Mute tab" : {
+
+    },
     "Name" : {
       "comment" : "Name field label",
       "localizations" : {
@@ -3617,6 +3760,9 @@
 
     },
     "Navigate to Chrome's profile folder and select Bookmarks" : {
+
+    },
+    "Never accept" : {
 
     },
     "Never Auto-play" : {
@@ -3887,6 +4033,9 @@
     "No Cookies" : {
 
     },
+    "No custom engines" : {
+
+    },
     "No custom search engines" : {
       "comment" : "Empty custom engines state",
       "localizations" : {
@@ -4060,6 +4209,9 @@
     "No readable content found" : {
 
     },
+    "No results for \"%@\"" : {
+
+    },
     "No Saved Passwords" : {
       "comment" : "Empty passwords state",
       "localizations" : {
@@ -4105,6 +4257,9 @@
           }
         }
       }
+    },
+    "No Search History" : {
+
     },
     "No stored website data" : {
       "comment" : "Empty website data state",
@@ -4202,6 +4357,9 @@
       }
     },
     "On Launch" : {
+
+    },
+    "Only from same domain" : {
 
     },
     "Open" : {
@@ -4469,6 +4627,9 @@
         }
       }
     },
+    "Pick Element" : {
+
+    },
     "Pick from Page" : {
       "comment" : "Element picker button",
       "localizations" : {
@@ -4703,6 +4864,9 @@
         }
       }
     },
+    "Private mode does not save browsing history, cookies, or cache." : {
+
+    },
     "Quick actions" : {
 
     },
@@ -4798,6 +4962,9 @@
           }
         }
       }
+    },
+    "Recent Searches" : {
+
     },
     "Rectangle" : {
       "comment" : "Screenshot tool: rectangle annotation",
@@ -5455,6 +5622,9 @@
     "Search" : {
 
     },
+    "Search Again" : {
+
+    },
     "Search Bookmarks…" : {
       "comment" : "Search bookmarks placeholder",
       "localizations" : {
@@ -5506,6 +5676,12 @@
           }
         }
       }
+    },
+    "Search Engine: %@" : {
+
+    },
+    "Search History" : {
+
     },
     "Search History…" : {
       "comment" : "Search history placeholder",
@@ -5563,6 +5739,9 @@
           }
         }
       }
+    },
+    "Search in history..." : {
+
     },
     "Search or enter address" : {
       "comment" : "URL bar placeholder",
@@ -5984,6 +6163,9 @@
           }
         }
       }
+    },
+    "Size:" : {
+
     },
     "Small" : {
       "comment" : "Screenshot font size: small",
@@ -6541,6 +6723,9 @@
         }
       }
     },
+    "Unmute tab" : {
+
+    },
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -6765,6 +6950,9 @@
           }
         }
       }
+    },
+    "XPath:" : {
+
     },
     "Yellow" : {
       "comment" : "Screenshot palette color: yellow",

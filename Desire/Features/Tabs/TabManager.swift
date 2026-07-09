@@ -103,11 +103,35 @@ class TabManager: ObservableObject {
         suspendTimer = nil
     }
 
+    /// Suspend idle tabs to save battery and memory.
+    /// When a tab is suspended, its WKWebView content is unloaded but
+    /// the view is kept so it can be restored quickly.
     private func suspendIdleTabs() {
-        let threshold: TimeInterval = 30 * 60
+        // Use AppStorage for user-configurable threshold
+        let threshold: TimeInterval = UserDefaults.standard.double(forKey: "suspendAfterMinutes") * 60
+        let defaultThreshold: TimeInterval = 30 * 60
+        let actualThreshold = threshold > 0 ? threshold : defaultThreshold
+
         for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
-            if -tab.lastAccessed.timeIntervalSinceNow > threshold {
+            if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
+                // Only suspend if not already suspended
+                if !tab.isSuspended {
+                    tab.isSuspended = true
+                    // Stop loading and clear content to save memory/battery
+                    tab.browser.webView.stopLoading()
+                    tab.browser.webView.loadHTMLString("", baseURL: nil)
+                }
+            }
+        }
+    }
+
+    /// Immediately suspend all tabs except the selected one (for memory pressure)
+    func suspendAllBackgroundTabs() {
+        for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito {
+            if !tab.isSuspended {
                 tab.isSuspended = true
+                tab.browser.webView.stopLoading()
+                tab.browser.webView.loadHTMLString("", baseURL: nil)
             }
         }
     }

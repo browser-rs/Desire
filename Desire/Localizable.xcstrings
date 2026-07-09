@@ -120,6 +120,9 @@
     "%lld failed" : {
 
     },
+    "%lld MB" : {
+
+    },
     "%lld messages" : {
 
     },
@@ -152,6 +155,18 @@
 
     },
     "=" : {
+
+    },
+    "1 hour" : {
+
+    },
+    "5 minutes" : {
+
+    },
+    "10 minutes" : {
+
+    },
+    "30 minutes" : {
 
     },
     "Accent Color" : {
@@ -582,6 +597,12 @@
         }
       }
     },
+    "Automatic Cache Cleanup" : {
+
+    },
+    "Automatically clears browser cache when memory usage is high." : {
+
+    },
     "Automatically upgrade HTTP connections to secure HTTPS." : {
 
     },
@@ -905,6 +926,9 @@
         }
       }
     },
+    "Cache Management" : {
+
+    },
     "Camera" : {
       "comment" : "Camera device name",
       "localizations" : {
@@ -1092,6 +1116,9 @@
           }
         }
       }
+    },
+    "Clear All Caches" : {
+
     },
     "Clear All Cookies" : {
 
@@ -1698,6 +1725,9 @@
           }
         }
       }
+    },
+    "Current Memory Usage:" : {
+
     },
     "Current: %@" : {
 
@@ -2383,6 +2413,9 @@
       }
     },
     "Enable Private Mode by Default" : {
+
+    },
+    "Enable Tab Suspension" : {
 
     },
     "Enabled" : {
@@ -3657,6 +3690,9 @@
           }
         }
       }
+    },
+    "Memory Status" : {
+
     },
     "Microphone" : {
       "comment" : "Microphone device name",
@@ -6254,6 +6290,12 @@
     "Summarize the current page in detail" : {
 
     },
+    "Suspend after:" : {
+
+    },
+    "Suspended tabs free memory but need to reload when activated." : {
+
+    },
     "Switch to Tab %lld" : {
       "comment" : "Tabs menu: switch to tab number",
       "localizations" : {
@@ -6307,6 +6349,9 @@
     "System Prompt" : {
 
     },
+    "System under memory pressure" : {
+
+    },
     "Tab Suspended" : {
       "comment" : "Suspended tab view title",
       "localizations" : {
@@ -6329,6 +6374,9 @@
           }
         }
       }
+    },
+    "Tab Suspension" : {
+
     },
     "Tabs" : {
       "comment" : "Tabs menu title",

@@ -7,6 +7,7 @@ struct HistoryPanel: View {
 
     @State private var searchText = ""
     @State private var groupMode: GroupMode = .date
+    @State private var showClearOptions = false
 
     enum GroupMode: String, CaseIterable {
         case date, site
@@ -26,10 +27,12 @@ struct HistoryPanel: View {
         let todayStart = cal.startOfDay(for: now)
         guard let yesterdayStart = cal.date(byAdding: .day, value: -1, to: todayStart) else { return [] }
         guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return [] }
+        guard let monthStart = cal.date(byAdding: .month, value: -1, to: now) else { return [] }
 
         var today: [HistoryEntry] = []
         var yesterday: [HistoryEntry] = []
         var thisWeek: [HistoryEntry] = []
+        var thisMonth: [HistoryEntry] = []
         var earlier: [HistoryEntry] = []
 
         for entry in filtered {
@@ -39,6 +42,8 @@ struct HistoryPanel: View {
                 yesterday.append(entry)
             } else if entry.timestamp >= weekStart {
                 thisWeek.append(entry)
+            } else if entry.timestamp >= monthStart {
+                thisMonth.append(entry)
             } else {
                 earlier.append(entry)
             }
@@ -48,6 +53,7 @@ struct HistoryPanel: View {
         if !today.isEmpty { sections.append((String(localized: "Today"), today)) }
         if !yesterday.isEmpty { sections.append((String(localized: "Yesterday"), yesterday)) }
         if !thisWeek.isEmpty { sections.append((String(localized: "This Week"), thisWeek)) }
+        if !thisMonth.isEmpty { sections.append((String(localized: "This Month"), thisMonth)) }
         if !earlier.isEmpty { sections.append((String(localized: "Earlier"), earlier)) }
         return sections
     }
@@ -72,8 +78,29 @@ struct HistoryPanel: View {
                 Text("History").font(.headline)
                 Spacer()
                 if !store.entries.isEmpty {
-                    Button("Clear All", role: .destructive) { store.clearAll() }
-                        .foregroundStyle(.secondary)
+                    Menu {
+                        Button("Clear Today") {
+                            clearHistory(.today)
+                        }
+                        Button("Clear Yesterday") {
+                            clearHistory(.yesterday)
+                        }
+                        Button("Clear This Week") {
+                            clearHistory(.thisWeek)
+                        }
+                        Button("Clear This Month") {
+                            clearHistory(.thisMonth)
+                        }
+                        Divider()
+                        Button("Clear All", role: .destructive) {
+                            store.clearAll()
+                        }
+                    } label: {
+                        Label("Clear", systemImage: "trash")
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                 }
                 Button("Close", action: onClose)
             }
@@ -139,9 +166,15 @@ struct HistoryPanel: View {
                                 }
                             }
                         } header: {
-                            Text(sectionTitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack {
+                                Text(sectionTitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(entries.count)")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                 }
@@ -149,5 +182,28 @@ struct HistoryPanel: View {
             }
         }
         .frame(width: 420, height: 500)
+    }
+
+    private enum ClearRange {
+        case today, yesterday, thisWeek, thisMonth
+    }
+
+    private func clearHistory(_ range: ClearRange) {
+        let cal = Calendar.current
+        let now = Date()
+        let threshold: Date
+
+        switch range {
+        case .today:
+            threshold = cal.startOfDay(for: now)
+        case .yesterday:
+            threshold = cal.startOfDay(for: cal.date(byAdding: .day, value: -1, to: now) ?? now)
+        case .thisWeek:
+            threshold = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
+        case .thisMonth:
+            threshold = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
+        }
+
+        store.removeAll(before: threshold)
     }
 }

@@ -32,6 +32,11 @@ class BrowserState: ObservableObject {
         webpagePrefs.allowsContentJavaScript = javaScriptEnabled
         config.defaultWebpagePreferences = webpagePrefs
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
+
+        // Performance optimizations
+        config.preferences.setValue(true, forKey: "DOMPasteAllowed")
+        config.preferences.setValue(false, forKey: "suppressesIncrementalRendering") // Render progressively
+
         switch autoPlayPolicy {
         case .allowAll:
             config.mediaTypesRequiringUserActionForPlayback = []

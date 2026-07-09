@@ -42,6 +42,16 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    func removeAll(before date: Date) {
+        entries.removeAll { $0.timestamp < date }
+        save()
+    }
+
+    func removeAll(after date: Date) {
+        entries.removeAll { $0.timestamp >= date }
+        save()
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: saveKey),
               let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) else { return }

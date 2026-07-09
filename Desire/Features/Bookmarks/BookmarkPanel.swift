@@ -17,10 +17,13 @@ struct BookmarkPanel: View {
     @State private var showEditor = false
     @State private var showNewFolder = false
     @State private var newFolderName = ""
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var isSelecting = false
+    @State private var expandedFolders: Set<UUID> = []
 
     private var flatItems: [FlatBookmark] {
         guard !searchText.isEmpty else {
-            return store.bookmarks.flatMap { $0.flattened() }.map { FlatBookmark(id: $0.0.id, bookmark: $0.0, level: $0.1) }
+            return flattenBookmarks(store.bookmarks, level: 0)
         }
         return store.bookmarks.flatMap { $0.flattened() }.filter { item in
             item.0.title.localizedCaseInsensitiveContains(searchText) ||
@@ -28,11 +31,48 @@ struct BookmarkPanel: View {
         }.map { FlatBookmark(id: $0.0.id, bookmark: $0.0, level: $0.1) }
     }
 
+    private func flattenBookmarks(_ bookmarks: [Bookmark], level: Int) -> [FlatBookmark] {
+        var result: [FlatBookmark] = []
+        for bookmark in bookmarks {
+            result.append(FlatBookmark(id: bookmark.id, bookmark: bookmark, level: level))
+            if bookmark.isFolder && expandedFolders.contains(bookmark.id) {
+                result.append(contentsOf: flattenBookmarks(bookmark.children, level: level + 1))
+            }
+        }
+        return result
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Header
             HStack {
                 Text("Bookmarks").font(.headline)
                 Spacer()
+
+                // Selection mode toggle
+                Button {
+                    isSelecting.toggle()
+                    if !isSelecting { selectedIDs.removeAll() }
+                } label: {
+                    Image(systemName: isSelecting ? "checkmark.circle.fill" : "checkmark.circle")
+                        .foregroundStyle(isSelecting ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isSelecting ? "Done Selecting" : "Select Multiple")
+
+                if isSelecting && !selectedIDs.isEmpty {
+                    Button {
+                        deleteSelected()
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete Selected (\(selectedIDs.count))")
+                }
+
+                Divider().frame(height: 16)
+
                 Button("", systemImage: "square.and.arrow.up") { store.exportToHTML() }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
@@ -61,6 +101,7 @@ struct BookmarkPanel: View {
             }
             .padding()
 
+            // Search
             if !store.bookmarks.isEmpty {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -72,49 +113,14 @@ struct BookmarkPanel: View {
                 .padding(.bottom, 8)
             }
 
+            // Content
             if flatItems.isEmpty {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Bookmarks") : String(localized: "No Matching Bookmarks"))
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(flatItems.enumerated()), id: \.element.id) { _, item in
-                            VStack(spacing: 0) {
-                                if let url = item.bookmark.url {
-                                    EntryRow(
-                                        title: item.bookmark.title,
-                                        subtitle: url,
-                                        action: { onSelect(url) }
-                                    )
-                                    .padding(.leading, CGFloat(item.level * 16))
-                                    .contextMenu {
-                                        Button("Open in New Tab") { onSelect(url) }
-                                        Button("Copy Link") {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(url, forType: .string)
-                                        }
-                                        Divider()
-                                        Button("Edit…") { startEditing(item.bookmark) }
-                                        Button("Delete", role: .destructive) { onDelete(item.bookmark) }
-                                    }
-                                } else {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "folder")
-                                            .foregroundStyle(Color.accentColor)
-                                            .font(.system(size: 13))
-                                        Text(item.bookmark.title)
-                                            .font(.body)
-                                        Spacer()
-                                    }
-                                    .padding(.leading, CGFloat(item.level * 16))
-                                    .padding(.vertical, 4)
-                                    .contentShape(Rectangle())
-                                    .contextMenu {
-                                        Button("Edit Folder…") { startEditing(item.bookmark) }
-                                        Button("Delete Folder", role: .destructive) { onDelete(item.bookmark) }
-                                    }
-                                }
-                                Divider()
-                            }
+                            bookmarkRow(item)
                         }
                     }
                 }
@@ -157,9 +163,124 @@ struct BookmarkPanel: View {
         }
     }
 
+    @ViewBuilder
+    private func bookmarkRow(_ item: FlatBookmark) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                // Selection checkbox (when in selecting mode)
+                if isSelecting {
+                    Button {
+                        if selectedIDs.contains(item.id) {
+                            selectedIDs.remove(item.id)
+                        } else {
+                            selectedIDs.insert(item.id)
+                        }
+                    } label: {
+                        Image(systemName: selectedIDs.contains(item.id) ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(selectedIDs.contains(item.id) ? Color.accentColor : .secondary)
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Folder expand/collapse
+                if item.bookmark.isFolder && !searchText.isEmpty {
+                    Button {
+                        if expandedFolders.contains(item.id) {
+                            expandedFolders.remove(item.id)
+                        } else {
+                            expandedFolders.insert(item.id)
+                        }
+                    } label: {
+                        Image(systemName: expandedFolders.contains(item.id) ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let url = item.bookmark.url {
+                    FaviconView(urlString: url, size: 16)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.bookmark.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .lineLimit(1)
+                        Text(url)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                } else {
+                    Image(systemName: "folder.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 14))
+                    Text(item.bookmark.title)
+                        .font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    if !searchText.isEmpty {
+                        Text("\(item.bookmark.children.count)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(.leading, CGFloat(item.level * 16 + (isSelecting ? 0 : 8)))
+            .padding(.vertical, 6)
+            .padding(.trailing, 8)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(selectedIDs.contains(item.id) ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+            .onTapGesture {
+                if isSelecting {
+                    if selectedIDs.contains(item.id) {
+                        selectedIDs.remove(item.id)
+                    } else {
+                        selectedIDs.insert(item.id)
+                    }
+                } else {
+                    if let url = item.bookmark.url {
+                        onSelect(url)
+                    } else if item.bookmark.isFolder {
+                        if expandedFolders.contains(item.id) {
+                            expandedFolders.remove(item.id)
+                        } else {
+                            expandedFolders.insert(item.id)
+                        }
+                    }
+                }
+            }
+            .contextMenu {
+                if let url = item.bookmark.url {
+                    Button("Open in New Tab") { onSelect(url) }
+                    Button("Copy Link") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(url, forType: .string)
+                    }
+                    Divider()
+                }
+                Button("Edit…") { startEditing(item.bookmark) }
+                Button("Delete", role: .destructive) { onDelete(item.bookmark) }
+            }
+
+            Divider()
+        }
+    }
+
     private func startEditing(_ bookmark: Bookmark) {
         editingBookmark = bookmark
         showEditor = true
+    }
+
+    private func deleteSelected() {
+        for id in selectedIDs {
+            if let bookmark = store.bookmarks.find { $0.id == id } {
+                store.remove(bookmark)
+            }
+        }
+        selectedIDs.removeAll()
     }
 
     private func importFrom(_ source: BookmarkImportService.ImportSource) {

@@ -85,9 +85,6 @@
         }
       }
     },
-    "%lld messages" : {
-
-    },
     "%lld." : {
 
     },
@@ -110,10 +107,10 @@
     "×" : {
 
     },
-    "1 message" : {
+    "Accent Color" : {
 
     },
-    "Accent Color" : {
+    "Active model: %@" : {
 
     },
     "Actual Size" : {
@@ -312,6 +309,9 @@
     "AI Assistant (Floating Window)" : {
 
     },
+    "AI is typing" : {
+
+    },
     "Allow" : {
       "comment" : "Permission allow button",
       "localizations" : {
@@ -442,10 +442,10 @@
     "Ask about Page" : {
 
     },
-    "Ask AI..." : {
+    "Ask questions, summarize pages,\ntranslate content, and more." : {
 
     },
-    "Ask questions, summarize pages,\ntranslate content, and more." : {
+    "Asking about this page" : {
 
     },
     "At the end" : {
@@ -1065,9 +1065,6 @@
         }
       }
     },
-    "Clear conversation" : {
-
-    },
     "Clear Finished" : {
       "comment" : "Clear finished downloads button",
       "localizations" : {
@@ -1327,9 +1324,6 @@
         }
       }
     },
-    "Conversation history" : {
-
-    },
     "Cookies" : {
       "comment" : "Clear cookies option",
       "localizations" : {
@@ -1352,6 +1346,9 @@
           }
         }
       }
+    },
+    "Copied" : {
+
     },
     "Copied to clipboard" : {
       "comment" : "Toast: screenshot copied to clipboard",
@@ -1717,6 +1714,9 @@
       }
     },
     "Delete All from \"%@\"" : {
+
+    },
+    "Delete conversation" : {
 
     },
     "Delete Cookie" : {
@@ -2378,9 +2378,6 @@
           }
         }
       }
-    },
-    "Executing tools…" : {
-
     },
     "Exit Find" : {
       "comment" : "Keyboard shortcut",
@@ -3063,6 +3060,9 @@
           }
         }
       }
+    },
+    "How can I help?" : {
+
     },
     "HttpOnly" : {
 
@@ -3881,6 +3881,9 @@
         }
       }
     },
+    "No conversations yet" : {
+
+    },
     "No Cookies" : {
 
     },
@@ -4001,6 +4004,9 @@
           }
         }
       }
+    },
+    "No matching conversations" : {
+
     },
     "No Matching Records" : {
       "comment" : "Empty history search state",
@@ -4697,6 +4703,9 @@
         }
       }
     },
+    "Quick actions" : {
+
+    },
     "Reader Mode" : {
       "comment" : "Enter reader mode tooltip",
       "extractionState" : "stale",
@@ -5222,9 +5231,6 @@
         }
       }
     },
-    "Running %@…" : {
-
-    },
     "Save" : {
       "comment" : "Save button",
       "localizations" : {
@@ -5471,6 +5477,9 @@
           }
         }
       }
+    },
+    "Search conversations" : {
+
     },
     "Search cookies…" : {
 
@@ -5727,6 +5736,9 @@
           }
         }
       }
+    },
+    "Send (⏎)" : {
+
     },
     "Server Unreachable" : {
 
@@ -5996,12 +6008,14 @@
         }
       }
     },
+    "Start chatting and your history\nwill appear here." : {
+
+    },
     "Startup" : {
 
     },
     "Stop" : {
       "comment" : "Stop loading button help",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6022,6 +6036,12 @@
           }
         }
       }
+    },
+    "Stop generation" : {
+
+    },
+    "streaming" : {
+
     },
     "Suggestion URL (optional)" : {
       "comment" : "Add custom search engine suggestion URL placeholder",
@@ -6716,9 +6736,6 @@
           }
         }
       }
-    },
-    "What would you like to know about this page?" : {
-
     },
     "White" : {
 

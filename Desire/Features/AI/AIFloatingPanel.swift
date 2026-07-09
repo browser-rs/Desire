@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 @MainActor
 class AIFloatingPanel {
@@ -24,18 +24,29 @@ class AIFloatingPanel {
             window?.makeKeyAndOrderFront(nil)
             return
         }
+
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 600),
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         panel.title = "AI Assistant"
+        panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentViewController = NSHostingController(rootView: AIPanel(store: store, conversationStore: conversationStore))
+        panel.minSize = NSSize(width: 320, height: 480)
+
+        let hostingController = NSHostingController(
+            rootView: GeometryReader { _ in
+                AIPanel(store: self.store, conversationStore: self.conversationStore)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        )
+        panel.contentViewController = hostingController
+
         panel.setFrameAutosaveName("AIFloatingPanel")
         panel.center()
         panel.makeKeyAndOrderFront(nil)

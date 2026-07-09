@@ -1,161 +1,100 @@
 import SwiftUI
 
+/// Composition root for the AI Assistant side panel. Renders the
+/// header, message list / empty state, quick-action strip, and input
+/// bar. The history view takes over the body when toggled.
+///
+/// This view always fills its container's available height — the host
+/// (sidebar GeometryReader or floating NSPanel) controls the overall
+/// height, and AIPanel fills that space.
 struct AIPanel: View {
     @ObservedObject var store: AISessionStore
-    let conversationStore: ConversationStore
+    @ObservedObject var conversationStore: ConversationStore
+
     @State private var inputText = ""
-    @State private var showActions = true
     @State private var showHistory = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-
             if showHistory {
-                historyList
+                AIHistoryListView(
+                    conversationStore: conversationStore,
+                    sessionStore: store,
+                    onSelect: { id in
+                        store.loadConversation(id)
+                        showHistory = false
+                    },
+                    onBack: { showHistory = false }
+                )
             } else {
-                Divider()
-
-                if store.messages.isEmpty {
-                    emptyState
-                } else {
-                    messageList
-                }
-
-                if !store.messages.isEmpty {
-                    Divider()
-                }
-
-                if store.awaitingQuestion {
-                    awaitingQuestionBar
-                } else if showActions && !store.isProcessing {
-                    quickActions
-                }
-
-                inputBar
+                mainContent
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private var header: some View {
-        HStack(spacing: 6) {
-            if showHistory {
-                Button { showHistory = false } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+    // MARK: - Main content
+
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            AIHeaderView(
+                store: store,
+                hasHistory: !conversationStore.conversations.isEmpty,
+                onShowHistory: { showHistory = true }
+            )
+
+            if store.messages.isEmpty {
+                AIEmptyStateView { action in
+                    store.performQuickAction(action)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                Text("History")
-                    .font(.headline)
-                Spacer()
             } else {
-                Image(systemName: "wand.and.stars")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("AI Assistant")
-                    .font(.headline)
-                Spacer()
-                Text(store.preference.model)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 80)
-                if store.isProcessing {
-                    HStack(spacing: 4) {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                        if let action = store.currentAction {
-                            Text(action)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                if !conversationStore.conversations.isEmpty {
-                    Button { showHistory = true } label: {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Conversation history")
-                }
-                if !store.messages.isEmpty {
-                    Button { store.clear() } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Clear conversation")
+                messageScrollView
+            }
+
+            if !store.messages.isEmpty && !store.awaitingQuestion && !store.isProcessing {
+                AIQuickActionBar(isProcessing: store.isProcessing) { action in
+                    store.performQuickAction(action)
                 }
             }
+
+            AIInputBar(
+                text: $inputText,
+                isProcessing: store.isProcessing,
+                awaitingQuestion: store.awaitingQuestion,
+                canSubmit: canSubmit,
+                onSubmit: submit,
+                onCancelQuestion: {
+                    store.awaitingQuestion = false
+                    store.cancel()
+                },
+                isFocused: $isInputFocused
+            )
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 32))
-                .foregroundStyle(.tertiary)
+    // MARK: - Message list
 
-            Text("AI Assistant")
-                .font(.title3).fontWeight(.semibold)
-
-            Text("Ask questions, summarize pages,\ntranslate content, and more.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(2)
-
-            VStack(spacing: 6) {
-                ForEach(AIQuickAction.allCases, id: \.title) { action in
-                    Button {
-                        store.performQuickAction(action)
-                        showActions = false
-                    } label: {
-                        Label(action.title, systemImage: action.icon)
-                            .font(.caption)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(nsColor: .separatorColor).opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 24)
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var messageList: some View {
+    private var messageScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(store.messages) { msg in
-                        messageRow(msg)
-                            .id(msg.id)
+                        AIMessageBubble(
+                            message: msg,
+                            isStreamingTail: isStreamingTail(msg),
+                            streamingVersion: store.streamingVersion
+                        )
+                        .id(msg.id)
                     }
-                    if let last = store.messages.last,
-                       last.role == .assistant,
-                       let tcs = last.toolCalls, !tcs.isEmpty,
-                       store.isProcessing {
-                        toolExecutionProgress
-                            .id("tool-progress")
-                    }
+                    Color.clear
+                        .frame(height: 1)
+                        .id("__bottom__")
                 }
-                .padding(10)
+                .padding(.vertical, 12)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: store.messages.count) { _, _ in
                 scrollToBottom(proxy)
             }
@@ -165,297 +104,38 @@ struct AIPanel: View {
         }
     }
 
-    private var toolExecutionProgress: some View {
-        HStack(spacing: 6) {
-            ProgressView()
-                .scaleEffect(0.5)
-            if let action = store.currentAction {
-                Text("Running \(action)…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Executing tools…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .separatorColor).opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-
-    private var quickActions: some View {
-        HStack(spacing: 6) {
-            ForEach(AIQuickAction.allCases, id: \.title) { action in
-                Button {
-                    store.performQuickAction(action)
-                    showActions = false
-                } label: {
-                    Label(action.title, systemImage: action.icon)
-                        .font(.caption)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(nsColor: .separatorColor).opacity(0.15))
-                .clipShape(Capsule())
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    private var awaitingQuestionBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "ellipsis.bubble")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("What would you like to know about this page?")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Button("Cancel") {
-                store.awaitingQuestion = false
-                store.cancel()
-            }
-            .buttonStyle(.plain)
-            .font(.caption)
-            .foregroundStyle(.red)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-    }
-
-    private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 6) {
-            // Input + send button merged into a single visual unit.
-            // The send button is overlaid inside the text field's
-            // bottom-right corner, so it sits inside the same hit-tested
-            // capsule as the text editor — no separate hot zone to
-            // misclick. Enter sends; ⇧⏎ inserts a newline.
-            ZStack(alignment: .bottomTrailing) {
-                TextEditor(text: $inputText)
-                    .font(.system(size: 12))
-                    .frame(minHeight: 28, maxHeight: 80)
-                    .focused($isInputFocused)
-                    .scrollContentBackground(.hidden)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
-                    .overlay(alignment: .leading) {
-                        if inputText.isEmpty {
-                            Text("Ask AI...")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                                .padding(.leading, 6)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .padding(.trailing, 26) // room for inline send button
-                    .onSubmit(submit)      // ⏎ sends (⇧⏎ for newline)
-
-                Button {
-                    submit()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(canSubmit ? Color.accentColor : Color(nsColor: .separatorColor))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSubmit)
-                .padding(4)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-    }
-
-    private var canSubmit: Bool {
-        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.isProcessing
-    }
-
-    @ViewBuilder
-    private func messageRow(_ msg: AIMessage) -> some View {
-        switch msg.role {
-        case .user:
-            HStack {
-                Spacer(minLength: 40)
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(msg.content ?? "")
-                        .font(.system(size: 13))
-                        .padding(10)
-                        .background(Color.accentColor.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    copyButton(msg.content ?? "")
-                }
-            }
-        case .assistant:
-            let isError = msg.content?.hasPrefix("Error:") == true
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    if isError {
-                        errorContent(msg.content ?? "")
-                    } else if let text = msg.content, !text.isEmpty {
-                        MarkdownRendererView(text: text)
-                    }
-                    if let tcs = msg.toolCalls {
-                        toolCallList(tcs)
-                    }
-                    if !isError && (msg.content?.isEmpty ?? true) && (msg.toolCalls?.isEmpty ?? true) {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(maxWidth: .infinity, minHeight: 20)
-                    }
-                }
-                .padding(10)
-                .background(Color(nsColor: isError ? .systemRed : .controlBackgroundColor).opacity(isError ? 0.06 : 1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    isError
-                        ? RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.3), lineWidth: 0.5)
-                        : nil
-                )
-                Spacer(minLength: 40)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if let text = msg.content, !text.isEmpty, !isError {
-                    copyButton(text)
-                        .offset(x: -4, y: 2)
-                }
-            }
-        case .tool:
-            HStack {
-                HStack(spacing: 4) {
-                    Image(systemName: "wrench.adjustable")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Text(msg.content?.prefix(120) ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(nsColor: .separatorColor).opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                Spacer()
-            }
-        case .system:
-            EmptyView()
-        }
-    }
-
-    private func copyButton(_ text: String) -> some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-        } label: {
-            Image(systemName: "doc.on.doc")
-                .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
-        }
-        .buttonStyle(.plain)
-        .help("Copy message")
-    }
-
-    @ViewBuilder
-    private func errorContent(_ text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-            Text(text)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func toolCallList(_ tcs: [AIToolCall]) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(tcs) { tc in
-                HStack(spacing: 4) {
-                    Image(systemName: "wrench")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Text(tc.function.name)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-        }
+    private func isStreamingTail(_ msg: AIMessage) -> Bool {
+        guard store.isProcessing, msg.role == .assistant else { return false }
+        return store.messages.last?.id == msg.id
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        if let last = store.messages.last {
-            withAnimation(.easeOut(duration: 0.15)) {
-                proxy.scrollTo(last.id, anchor: .bottom)
-            }
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo("__bottom__", anchor: .bottom)
         }
     }
 
-    private var historyList: some View {
-        List {
-            ForEach(conversationStore.conversations) { conv in
-                Button {
-                    store.loadConversation(conv.id)
-                    showHistory = false
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(conv.title)
-                            .font(.callout)
-                            .lineLimit(1)
-                        HStack(spacing: 4) {
-                            Text(conv.messages.count == 1 ? "1 message" : "\(conv.messages.count) messages")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Text("·")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Text(conv.updatedAt, style: .relative)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .swipeActions {
-                    Button(role: .destructive) {
-                        conversationStore.delete(conv.id)
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                }
-            }
-            .onDelete { indexSet in
-                for idx in indexSet {
-                    conversationStore.delete(conversationStore.conversations[idx].id)
-                }
-            }
-        }
-        .listStyle(.plain)
+    // MARK: - Submit
+
+    private var canSubmit: Bool {
+        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func submit() {
         let text = inputText
         inputText = ""
-        showActions = false
         if store.awaitingQuestion {
             store.sendFollowUp(text)
         } else {
             store.sendMessage(text)
         }
     }
+}
+
+#Preview {
+    let store = AISessionStore()
+    store.preference.model = "gpt-4o"
+    let conversationStore = ConversationStore()
+    return AIPanel(store: store, conversationStore: conversationStore)
+        .frame(width: 360, height: 560)
 }

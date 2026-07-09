@@ -72,7 +72,16 @@ struct AIService {
                 // 400 "Upstream request failed" errors from OpenCode Go.
                 if let data = try? JSONSerialization.data(withJSONObject: body, options: [.prettyPrinted, .sortedKeys]),
                    let s = String(data: data, encoding: .utf8) {
-                    print("──── AI request body ────\n\(s)\n─────────────────────────")
+                    print("──── AI request body ────")
+                    print("Endpoint: \(url.absoluteString)")
+                    print("Model: \(prefs.model)")
+                    print("Messages: \(messages.count)")
+                    for (i, msg) in messages.enumerated() {
+                        print("  [\(i)] role=\(msg.role.rawValue), hasContent=\(msg.content != nil), toolCallId=\(msg.toolCallId ?? "nil"), toolName=\(msg.toolName ?? "nil")")
+                    }
+                    print("Tools: \(tools.count)")
+                    print(s)
+                    print("─────────────────────────")
                 }
                 #endif
 
@@ -85,6 +94,13 @@ struct AIService {
                     guard http.statusCode == 200 else {
                         var errBody = ""
                         for try await line in bytes.lines { errBody += line }
+                        #if DEBUG
+                        print("──── AI request failed ────")
+                        print("Status: \(http.statusCode)")
+                        print("URL: \(url.absoluteString)")
+                        print("Response: \(errBody)")
+                        print("──────────────────────────")
+                        #endif
                         continuation.finish(throwing: AIServiceError.httpStatus(http.statusCode, errBody))
                         return
                     }

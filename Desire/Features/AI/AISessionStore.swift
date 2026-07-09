@@ -17,7 +17,7 @@ enum AIQuickAction: CaseIterable {
     var icon: String {
         switch self {
         case .summarize: "text.alignleft"
-        case .askAboutPage: "question.bubble"
+        case .askAboutPage: "text.bubble"
         case .translate: "translate"
         }
     }

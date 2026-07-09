@@ -25,10 +25,8 @@ struct TabBar: View {
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
     
-    // Preview state
-    @State private var previewTab: Tab?
-    @State private var previewPosition: CGRect = .zero
-    @State private var previewFrame: CGRect = .zero
+    // Preview state - preview shown via separate NSPanel
+    @State private var previewTabId: UUID?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -59,12 +57,25 @@ struct TabBar: View {
                                 tabGroupStore: tabGroupStore,
                                 thumbnailStore: thumbnailStore,
                                 onMoveTab: onMoveTab,
-                                onShowPreview: { tab, position in
-                                    previewTab = tab
-                                    previewPosition = position
+                                onShowPreview: { tab, frame in
+                                    previewTabId = tab.id
+                                    let nsWindow = NSApp.keyWindow ?? NSApp.mainWindow
+                                    TabPreviewPanel.shared.show(
+                                        tab: tab,
+                                        thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                                        anchor: frame,
+                                        in: nsWindow
+                                    )
+                                },
+                                onUpdatePreview: { tab in
+                                    TabPreviewPanel.shared.updateThumbnail(
+                                        thumbnailStore.thumbnail(for: tab.id),
+                                        for: tab
+                                    )
                                 },
                                 onHidePreview: {
-                                    previewTab = nil
+                                    previewTabId = nil
+                                    TabPreviewPanel.shared.hide()
                                 }
                             )
                                 .frame(width: 50)
@@ -96,12 +107,25 @@ struct TabBar: View {
                                 tabGroupStore: tabGroupStore,
                                 thumbnailStore: thumbnailStore,
                                 onMoveTab: onMoveTab,
-                                onShowPreview: { tab, position in
-                                    previewTab = tab
-                                    previewPosition = position
+                                onShowPreview: { tab, frame in
+                                    previewTabId = tab.id
+                                    let nsWindow = NSApp.keyWindow ?? NSApp.mainWindow
+                                    TabPreviewPanel.shared.show(
+                                        tab: tab,
+                                        thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                                        anchor: frame,
+                                        in: nsWindow
+                                    )
+                                },
+                                onUpdatePreview: { tab in
+                                    TabPreviewPanel.shared.updateThumbnail(
+                                        thumbnailStore.thumbnail(for: tab.id),
+                                        for: tab
+                                    )
                                 },
                                 onHidePreview: {
-                                    previewTab = nil
+                                    previewTabId = nil
+                                    TabPreviewPanel.shared.hide()
                                 }
                             )
                         }
@@ -125,13 +149,7 @@ struct TabBar: View {
         .padding(.trailing, 8)
         .padding(.top, 4)
         .padding(.bottom, 4)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { previewFrame = geo.frame(in: .global) }
-                    .onChange(of: geo.frame(in: .global)) { _, new in previewFrame = new }
-            }
-        )
+        .background(Color.clear)
         .overlay(alignment: .topLeading) {
             if showSwitcher {
                 TabPopoverView(
@@ -144,19 +162,6 @@ struct TabBar: View {
                 )
             }
         }
-        .overlay(alignment: .topLeading) {
-            if let tab = previewTab {
-                let tabMidX = previewPosition.midX - previewFrame.minX
-                TabPreviewPopup(
-                    tab: tab,
-                    thumbnail: thumbnailStore.thumbnail(for: tab.id),
-                    isHovering: true
-                )
-                .offset(x: tabMidX - 130, y: 42)
-                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
-                .zIndex(1000)
-            }
-        }
         .onChange(of: showSwitcher) { _, shown in
             if shown {
                 searchText = ""
@@ -164,6 +169,9 @@ struct TabBar: View {
                     isSearchFocused = true
                 }
             }
+        }
+        .onDisappear {
+            TabPreviewPanel.shared.hide()
         }
     }
 
@@ -194,6 +202,7 @@ private struct TabPillView: View {
     let thumbnailStore: TabThumbnailStore
     let onMoveTab: (Int, Int) -> Void
     let onShowPreview: (Tab, CGRect) -> Void
+    let onUpdatePreview: (Tab) -> Void
     let onHidePreview: () -> Void
     
     @State private var isHovering = false
@@ -272,7 +281,11 @@ private struct TabPillView: View {
         .contentShape(Capsule())
         .background(
             GeometryReader { geo in
-                Color.clear.onAppear { pillFrame = geo.frame(in: .global) }
+                Color.clear
+                    .onAppear { pillFrame = geo.frame(in: .global) }
+                    .onChange(of: geo.frame(in: .global)) { _, new in
+                        pillFrame = new
+                    }
             }
         )
         .onHover { hovering in
@@ -284,7 +297,9 @@ private struct TabPillView: View {
                     Task { @MainActor in
                         onShowPreview(tab, pillFrame)
                         // Capture thumbnail on hover
-                        thumbnailStore.captureThumbnail(for: tab)
+                        thumbnailStore.captureThumbnail(for: tab) { _ in
+                            onUpdatePreview(tab)
+                        }
                     }
                 }
             } else {
@@ -505,65 +520,3 @@ private class TabDragToNewWindowHandler: ObservableObject {
     }
 }
 
-/// 标签页预览弹出视图
-private struct TabPreviewPopup: View {
-    let tab: Tab
-    let thumbnail: NSImage?
-    let isHovering: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 缩略图
-            Group {
-                if let image = thumbnail {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 150)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .frame(height: 150)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(.system(size: 22))
-                                .foregroundStyle(.tertiary)
-                        }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            // 标题 + URL
-            HStack(spacing: 8) {
-                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 16)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(tab.displayTitle)
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-
-                    if !tab.isOnNewTabPage {
-                        Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-            }
-            .padding(.top, 10)
-        }
-        .padding(12)
-        .frame(width: 260)
-        .background(
-            RoundedRectangle(cornerRadius: .radiusPopover)
-                .fill(Color(nsColor: .windowBackgroundColor))
-                .shadowProminent()
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: .radiusPopover)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-        )
-    }
-}

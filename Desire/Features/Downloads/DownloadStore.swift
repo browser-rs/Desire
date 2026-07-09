@@ -12,8 +12,14 @@ struct DownloadItem: Identifiable {
     var error: String?
     var cancel: (() -> Void)?
     var sourceURL: URL?
+    var priority: Priority = .normal
+    var isPaused: Bool = false
+    var startTime: Date = Date()
+    var lastUpdateTime: Date = Date()
+    var speed: Int64 = 0 // bytes per second
 
-    enum State: String, Codable { case inProgress, completed, failed }
+    enum State: String, Codable { case inProgress, completed, failed, paused }
+    enum Priority: Int, Codable { case low = 0, normal = 1, high = 2 }
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }
@@ -21,19 +27,62 @@ struct DownloadItem: Identifiable {
     }
 
     var isIndeterminate: Bool { totalBytes <= 0 && state == .inProgress }
+
+    var estimatedTimeRemaining: TimeInterval? {
+        guard totalBytes > 0, downloadedBytes > 0, speed > 0 else { return nil }
+        let remaining = totalBytes - downloadedBytes
+        return TimeInterval(remaining) / TimeInterval(speed)
+    }
+
+    var fileType: FileType {
+        guard !filename.isEmpty else { return .other }
+        let ext = (filename as NSString).pathExtension.lowercased()
+        switch ext {
+        case "jpg", "jpeg", "png", "gif", "bmp", "tiff", "heic", "webp": return .image
+        case "mp4", "mov", "avi", "mkv", "wmv", "flv", "webm": return .video
+        case "mp3", "aac", "wav", "flac", "m4a", "ogg": return .audio
+        case "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf": return .document
+        case "zip", "rar", "tar", "gz", "7z", "dmg", "iso": return .archive
+        case "app", "exe", "sh", "bash": return .application
+        default: return .other
+        }
+    }
+
+    enum FileType: String, CaseIterable {
+        case image, video, audio, document, archive, application, other
+        var icon: String {
+            switch self {
+            case .image: return "photo"
+            case .video: return "video"
+            case .audio: return "music.note"
+            case .document: return "doc.text"
+            case .archive: return "archivebox"
+            case .application: return "app"
+            case .other: return "doc"
+            }
+        }
+    }
 }
 
 @MainActor
 class DownloadStore: ObservableObject {
     @Published var downloads: [DownloadItem] = []
     @Published private(set) var downloadFolder: URL
+    @Published var groupingMode: GroupingMode = .date
+    @Published var fileTypeFilter: DownloadItem.FileType? = nil
 
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
     private let historyKey = "desire.downloadHistory"
+    private var speedUpdateTimer: Timer?
 
-    var hasActive: Bool { downloads.contains { $0.state == .inProgress } }
-    var activeCount: Int { downloads.filter { $0.state == .inProgress }.count }
+    enum GroupingMode: String, CaseIterable {
+        case date, fileType, status
+    }
+
+    var hasActive: Bool { downloads.contains { $0.state == .inProgress && !$0.isPaused } }
+    var activeCount: Int { downloads.filter { $0.state == .inProgress && !$0.isPaused }.count }
+    var pausedCount: Int { downloads.filter { $0.isPaused }.count }
 
     init() {
         downloadFolder = DownloadStore.defaultDownloadsURL()
@@ -44,6 +93,30 @@ class DownloadStore: ObservableObject {
             }
         }
         loadHistory()
+        startSpeedUpdateTimer()
+    }
+
+    deinit {
+        speedUpdateTimer?.invalidate()
+    }
+
+    private func startSpeedUpdateTimer() {
+        speedUpdateTimer?.invalidate()
+        speedUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                self?.updateDownloadSpeeds()
+            }
+        }
+    }
+
+    private func updateDownloadSpeeds() {
+        let now = Date()
+        for i in downloads.indices {
+            if downloads[i].state == .inProgress && !downloads[i].isPaused {
+                downloads[i].lastUpdateTime = now
+            }
+        }
     }
 
     private static func defaultDownloadsURL() -> URL {
@@ -126,8 +199,146 @@ class DownloadStore: ObservableObject {
 
     func updateProgress(id: UUID, totalBytes: Int64, downloadedBytes: Int64) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(downloads[i].lastUpdateTime)
+        let oldBytes = downloads[i].downloadedBytes
+        let newSpeed = elapsed > 0 ? Int64(Double(downloadedBytes - oldBytes) / elapsed) : downloads[i].speed
+
         downloads[i].totalBytes = totalBytes
         downloads[i].downloadedBytes = downloadedBytes
+        downloads[i].speed = max(0, newSpeed)
+        downloads[i].lastUpdateTime = now
+    }
+
+    func pause(id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].state == .inProgress else { return }
+        downloads[i].isPaused = true
+        downloads[i].speed = 0
+    }
+
+    func resume(id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isPaused else { return }
+        downloads[i].isPaused = false
+        downloads[i].lastUpdateTime = Date()
+    }
+
+    func setPriority(id: UUID, priority: DownloadItem.Priority) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].priority = priority
+        // Re-sort downloads by priority
+        sortDownloadsByPriority()
+    }
+
+    private func sortDownloadsByPriority() {
+        downloads.sort { $0.priority.rawValue > $1.priority.rawValue }
+    }
+
+    func pauseAll() {
+        for i in downloads.indices {
+            if downloads[i].state == .inProgress && !downloads[i].isPaused {
+                downloads[i].isPaused = true
+                downloads[i].speed = 0
+            }
+        }
+    }
+
+    func resumeAll() {
+        for i in downloads.indices {
+            if downloads[i].isPaused {
+                downloads[i].isPaused = false
+                downloads[i].lastUpdateTime = Date()
+            }
+        }
+    }
+
+    func cancelAll() {
+        for item in downloads where item.state == .inProgress {
+            item.cancel?()
+        }
+        downloads.removeAll { $0.state == .inProgress }
+        saveHistory()
+    }
+
+    // MARK: - Grouping
+
+    func groupedByDate() -> [(String, [DownloadItem])] {
+        let cal = Calendar.current
+        let now = Date()
+        let todayStart = cal.startOfDay(for: now)
+        guard let yesterdayStart = cal.date(byAdding: .day, value: -1, to: todayStart) else { return [] }
+        guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return [] }
+        guard let monthStart = cal.date(byAdding: .month, value: -1, to: now) else { return [] }
+
+        var today: [DownloadItem] = []
+        var yesterday: [DownloadItem] = []
+        var thisWeek: [DownloadItem] = []
+        var thisMonth: [DownloadItem] = []
+        var earlier: [DownloadItem] = []
+
+        let filtered = fileTypeFilter != nil
+            ? downloads.filter { $0.fileType == fileTypeFilter }
+            : downloads
+
+        for item in filtered {
+            if item.startTime >= todayStart {
+                today.append(item)
+            } else if item.startTime >= yesterdayStart {
+                yesterday.append(item)
+            } else if item.startTime >= weekStart {
+                thisWeek.append(item)
+            } else if item.startTime >= monthStart {
+                thisMonth.append(item)
+            } else {
+                earlier.append(item)
+            }
+        }
+
+        var sections: [(String, [DownloadItem])] = []
+        if !today.isEmpty { sections.append((String(localized: "Today"), today)) }
+        if !yesterday.isEmpty { sections.append((String(localized: "Yesterday"), yesterday)) }
+        if !thisWeek.isEmpty { sections.append((String(localized: "This Week"), thisWeek)) }
+        if !thisMonth.isEmpty { sections.append((String(localized: "This Month"), thisMonth)) }
+        if !earlier.isEmpty { sections.append((String(localized: "Earlier"), earlier)) }
+        return sections
+    }
+
+    func groupedByFileType() -> [(String, [DownloadItem])] {
+        var groups: [DownloadItem.FileType: [DownloadItem]] = [:]
+        for item in downloads {
+            groups[item.fileType, default: []].append(item)
+        }
+        return groups.sorted { $0.key.rawValue < $1.key.rawValue }.map { ($0.key.rawValue.capitalized, $0.value) }
+    }
+
+    func groupedByStatus() -> [(String, [DownloadItem])] {
+        var inProgress: [DownloadItem] = []
+        var paused: [DownloadItem] = []
+        var completed: [DownloadItem] = []
+        var failed: [DownloadItem] = []
+
+        let filtered = fileTypeFilter != nil
+            ? downloads.filter { $0.fileType == fileTypeFilter }
+            : downloads
+
+        for item in filtered {
+            if item.isPaused {
+                paused.append(item)
+            } else {
+                switch item.state {
+                case .inProgress: inProgress.append(item)
+                case .completed: completed.append(item)
+                case .failed: failed.append(item)
+                case .paused: paused.append(item)
+                }
+            }
+        }
+
+        var sections: [(String, [DownloadItem])] = []
+        if !inProgress.isEmpty { sections.append((String(localized: "In Progress"), inProgress)) }
+        if !paused.isEmpty { sections.append((String(localized: "Paused"), paused)) }
+        if !completed.isEmpty { sections.append((String(localized: "Completed"), completed)) }
+        if !failed.isEmpty { sections.append((String(localized: "Failed"), failed)) }
+        return sections
     }
 
     func complete(id: UUID) {
@@ -191,11 +402,11 @@ class DownloadStore: ObservableObject {
     func retry(_ item: DownloadItem) {
         guard let sourceURL = item.sourceURL else { return }
         remove(id: item.id)
-        let downloadTask = URLSession.shared.downloadTask(with: sourceURL) { [weak self] tempURL, response, error in
-            Task { @MainActor in
-                guard let self, let tempURL, let response else {
+        let downloadTask = URLSession.shared.downloadTask(with: sourceURL) { tempURL, _, error in
+            Task { @MainActor [weak self] in
+                guard let self, let tempURL else {
                     if let error {
-                        Task { @MainActor in
+                        Task { @MainActor [weak self] in
                             _ = self?.add(item: DownloadItem(
                                 id: UUID(), filename: item.filename, fileURL: nil,
                                 totalBytes: 0, downloadedBytes: 0,
@@ -247,6 +458,8 @@ private struct HistoryItem: Codable {
     var state: String
     var error: String?
     var sourceURL: URL?
+    var priority: Int
+    var startTime: Date
 
     init(_ item: DownloadItem) {
         id = item.id
@@ -257,6 +470,8 @@ private struct HistoryItem: Codable {
         state = item.state.rawValue
         error = item.error
         sourceURL = item.sourceURL
+        priority = item.priority.rawValue
+        startTime = item.startTime
     }
 
     func toDownloadItem() -> DownloadItem {
@@ -264,7 +479,9 @@ private struct HistoryItem: Codable {
             id: id, filename: filename, fileURL: fileURL,
             totalBytes: totalBytes, downloadedBytes: downloadedBytes,
             state: DownloadItem.State(rawValue: state) ?? .failed,
-            error: error, cancel: nil, sourceURL: sourceURL
+            error: error, cancel: nil, sourceURL: sourceURL,
+            priority: DownloadItem.Priority(rawValue: priority) ?? .normal,
+            startTime: startTime
         )
     }
 }
@@ -274,4 +491,26 @@ func formatBytes(_ bytes: Int64) -> String {
     formatter.allowedUnits = [.useKB, .useMB, .useGB]
     formatter.countStyle = .file
     return formatter.string(fromByteCount: bytes)
+}
+
+func formatSpeed(_ bytesPerSecond: Int64) -> String {
+    let formatter = ByteCountFormatter()
+    formatter.allowedUnits = [.useKB, .useMB, .useGB]
+    formatter.countStyle = .file
+    return formatter.string(fromByteCount: bytesPerSecond) + "/s"
+}
+
+func formatTimeRemaining(_ seconds: TimeInterval) -> String {
+    guard seconds > 0 else { return "" }
+    let hours = Int(seconds) / 3600
+    let minutes = (Int(seconds) % 3600) / 60
+    let secs = Int(seconds) % 60
+
+    if hours > 0 {
+        return String(localized: "\(hours)h \(minutes)m")
+    } else if minutes > 0 {
+        return String(localized: "\(minutes)m \(secs)s")
+    } else {
+        return String(localized: "\(secs)s")
+    }
 }

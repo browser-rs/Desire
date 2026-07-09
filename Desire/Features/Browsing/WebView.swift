@@ -316,6 +316,7 @@ struct WebView: NSViewRepresentable {
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     var httpsUpgradeEnabled: Bool = true
+    var extensionManager: SafariExtensionManager?
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
     var onElementPicked: ((String, String?) -> Void)?
@@ -637,6 +638,11 @@ struct WebView: NSViewRepresentable {
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
                 parent.onPageFinished?(url, parent.state.pageTitle)
+
+                // Inject content scripts from Safari extensions
+                if let extensionManager = parent.extensionManager {
+                    extensionManager.injectContentScripts(into: webView, for: url)
+                }
             }
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
                 let js = """

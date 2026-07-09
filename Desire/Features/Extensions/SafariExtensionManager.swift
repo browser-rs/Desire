@@ -81,27 +81,20 @@ class SafariExtensionManager: ObservableObject {
 
     private func injectJS(_ scripts: [String], into webView: WKWebView) {
         for script in scripts {
-            let escaped = script
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-                .replacingOccurrences(of: "\n", with: "\\n")
-            webView.evaluateJavaScript("(function() { \(escaped) })();", completionHandler: nil)
+            webView.evaluateJavaScript(script, completionHandler: nil)
         }
     }
 
     private func injectCSS(_ styles: [String], into webView: WKWebView) {
         for css in styles {
-            let escaped = css
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-                .replacingOccurrences(of: "\n", with: "\\n")
-            webView.evaluateJavaScript("""
+            let js = """
             (function() {
-                var s = document.createElement('style');
-                s.textContent = '\(escaped)';
-                document.head.appendChild(s);
+                var style = document.createElement('style');
+                style.textContent = '\(css)';
+                document.head.appendChild(style);
             })();
-            """, completionHandler: nil)
+            """
+            webView.evaluateJavaScript(js, completionHandler: nil)
         }
     }
 

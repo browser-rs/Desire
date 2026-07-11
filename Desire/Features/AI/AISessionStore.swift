@@ -45,6 +45,12 @@ class AISessionStore: ObservableObject {
     /// See `docs/ARCHITECTURE.md` (AgentRuntime v2, roadmap L3 stage 2).
     @Published var pendingApproval: PendingToolApproval?
 
+    /// Human-readable label of the provider that handled the most recent
+    /// stream call (e.g. "Cloud", "On-device", "Ollama"). Set by
+    /// `RoutingProvider`'s onDecision callback when `providerKind == .routing`;
+    /// `nil` otherwise. The AI panel shows it as a "via ..." badge.
+    @Published var lastProviderUsed: String?
+
     var preference = AIPreferenceStore()
     private let toolProvider = BrowserToolProvider()
     private weak var webView: WKWebView?
@@ -67,6 +73,23 @@ class AISessionStore: ObservableObject {
     /// Soft cap on agent loop iterations to prevent runaway execution.
     /// Replaces the old hardcoded `0..<20` limit. Configurable later.
     private let maxIterations = 50
+
+    /// The provider the agent loop actually calls. When `providerKind` is
+    /// `.routing`, this builds a `RoutingProvider` wired to report its
+    /// per-call decision back into `lastProviderUsed` (so the UI can show
+    /// "via Cloud / via On-device"). For every other kind it delegates to
+    /// `preference.provider` and clears the label.
+    private var activeProvider: any ModelProvider {
+        if preference.providerKind == .routing {
+            lastProviderUsed = "Auto"
+            return RoutingProvider(prefs: preference) { [weak self] kind in
+                self?.lastProviderUsed = kind.viaLabel
+            }
+        } else {
+            lastProviderUsed = nil
+            return preference.provider
+        }
+    }
 
     func setWebView(_ wv: WKWebView?) {
         webView = wv
@@ -160,6 +183,10 @@ class AISessionStore: ObservableObject {
         currentAction = nil
         isCancelled = false
         awaitingQuestion = false
+        // Reset the router's session-sticky lock so a new conversation
+        // starts fresh (a prior tool chain shouldn't pin the new one to cloud).
+        preference.routingLockedToCloud = false
+        lastProviderUsed = nil
     }
 
     func loadConversation(_ id: UUID) {
@@ -218,11 +245,12 @@ class AISessionStore: ObservableObject {
             // the model still needs to know the tool schemas to decide
             // what to do next (or to make another tool call).
             //
-            // Routed through `preference.provider` (a `ModelProvider`)
-            // instead of `AIService` directly, so Foundation Models /
-            // Ollama / a routing provider can be swapped in without
-            // touching the agent loop.
-            let stream = preference.provider.stream(
+            // Routed through `activeProvider` (a `ModelProvider`) instead of
+            // `AIService` directly, so Foundation Models / Ollama / a routing
+            // provider can be swapped in without touching the agent loop.
+            // When `providerKind == .routing`, each call may target a
+            // different concrete provider and report it via lastProviderUsed.
+            let stream = activeProvider.stream(
                 messages: messages,
                 tools: BrowserToolProvider.toolDefs,
                 prefs: preference

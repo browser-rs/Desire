@@ -45,6 +45,21 @@ struct AIPanel: View {
                 onShowHistory: { showHistory = true }
             )
 
+            // "via Cloud / via On-device" indicator, shown only when the
+            // router is active (lastProviderUsed is set by activeProvider).
+            if let via = store.lastProviderUsed {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 9))
+                    Text("via \(via)")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 12)
+                .padding(.top, 2)
+            }
+
             if store.messages.isEmpty {
                 AIEmptyStateView { action in
                     store.performQuickAction(action)

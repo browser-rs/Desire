@@ -42,13 +42,27 @@ class AIPreferenceStore: ObservableObject {
     /// stored) so changing the kind immediately takes effect on the next
     /// agent loop iteration. All providers are stateless value types, so
     /// constructing one per access is free.
+    ///
+    /// Note: `.routing` constructs a `RoutingProvider` WITHOUT an
+    /// `onDecision` callback — used by external callers that don't need the
+    /// "via ..." label. `AISessionStore` builds its own `RoutingProvider`
+    /// with a callback via `activeProvider` so the UI can show which model
+    /// each call used.
     var provider: any ModelProvider {
         switch providerKind {
         case .cloud:            return CloudOpenAIProvider()
         case .foundationModels: return FoundationModelsProvider()
         case .ollama:           return OllamaProvider()
+        case .routing:          return RoutingProvider(prefs: self) { _ in }
         }
     }
+
+    /// Session-sticky lock used by `RoutingProvider`. Once a conversation
+    /// turns to tool use, all subsequent calls must go to a tool-capable
+    /// provider (Foundation Models is text-only and would choke on tool
+    /// messages). Non-persistent — resets every app launch. Mutated by
+    /// `RoutingProvider.decide`, read on every routing call.
+    var routingLockedToCloud = false
 
     private let keychainService = "me.siwi.Desire"
     private let keychainAccount = "ai-api-key"
@@ -133,16 +147,32 @@ When the user asks you to do something, use the available tools. Always explain 
 ///   tool calling lands with AgentRuntime v2.
 /// - `.ollama`: Local Ollama server (`http://localhost:11434`). OpenAI-
 ///   compatible, full tool-calling support, user must run Ollama + pull a model.
+/// - `.routing`: Automatic per-task routing via `RoutingProvider`. Summaries
+///   and translations run on-device when available; complex actions and tool
+///   chains run in the cloud. The chosen model is shown as a "via ..." label.
 enum ModelProviderKind: String, CaseIterable, Codable {
     case cloud
     case foundationModels
     case ollama
+    case routing
+
+    /// Short label for the "via ..." indicator in the AI panel. Keep these
+    /// concise since they render inline next to the assistant response.
+    var viaLabel: String {
+        switch self {
+        case .cloud:            "Cloud"
+        case .foundationModels: "On-device"
+        case .ollama:           "Ollama"
+        case .routing:          "Auto"
+        }
+    }
 
     var displayName: String {
         switch self {
         case .cloud:            "Cloud (OpenAI-compatible)"
         case .foundationModels: "Apple Foundation Models (on-device)"
         case .ollama:           "Ollama (local server)"
+        case .routing:          "Auto (route automatically)"
         }
     }
 
@@ -151,6 +181,7 @@ enum ModelProviderKind: String, CaseIterable, Codable {
         case .cloud:            "Requires API key. Supports browser tools."
         case .foundationModels: "No key, no network. Privacy-first. Text only (no tools yet)."
         case .ollama:           "Runs locally via Ollama. Supports browser tools."
+        case .routing:          "Picks the best model per task: on-device for summaries/translations, cloud for complex actions."
         }
     }
 }

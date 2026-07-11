@@ -63,13 +63,13 @@ struct ContentView: View {
             ),
             actions: .init(
                 newWindow: {
-                    let hosting = NSHostingView(rootView: ContentView(appState: appState))
-                    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
-                                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                                          backing: .buffered, defer: false)
-                    window.contentView = hosting
-                    window.makeKeyAndOrderFront(nil)
-                    NSApp.activate()
+                    // Open a native SwiftUI window via the id'd WindowGroup.
+                    // Each window gets its own ContentView (and TabManager),
+                    // sharing the global AppState. Replaces the manual
+                    // NSHostingView+NSWindow approach so window lifecycle,
+                    // state restoration, and standard chrome are handled by
+                    // SwiftUI. See docs/ARCHITECTURE.md (L2 multi-window).
+                    openWindow(id: "main")
                 },
                 toggleBookmark: { toggleBookmark() },
                 toggleFullScreen: { toggleFullScreen() },
@@ -337,17 +337,28 @@ struct ContentView: View {
                 isAIConfigured = true
             }
             if tabManager.tabs.isEmpty {
-                let restored: Bool
-                if settings.startupBehavior == .restoreSession {
-                    restored = tabManager.restoreSession(
-                        javaScriptEnabled: settings.isJavaScriptEnabled,
-                        contentBlocker: contentBlocker,
-                        videoAdBlocker: videoAdBlocker
-                    )
+                // Only the first window restores the saved session; later
+                // user-opened windows start with a single fresh tab. Without
+                // this gate, every new window would clone the saved tabs
+                // (restoreSession reads global UserDefaults). See
+                // AppState.hasRestoredSession.
+                if !appState.hasRestoredSession {
+                    appState.hasRestoredSession = true
+                    let restored: Bool
+                    if settings.startupBehavior == .restoreSession {
+                        restored = tabManager.restoreSession(
+                            javaScriptEnabled: settings.isJavaScriptEnabled,
+                            contentBlocker: contentBlocker,
+                            videoAdBlocker: videoAdBlocker
+                        )
+                    } else {
+                        restored = false
+                    }
+                    if !restored {
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
+                    }
                 } else {
-                    restored = false
-                }
-                if !restored {
+                    // Subsequent window — fresh tab, no restore.
                     tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                 }
             }

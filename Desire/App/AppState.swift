@@ -35,6 +35,12 @@ class AppState: ObservableObject {
     // Flag to track if AI has been initialized
     private var aiInitialized = false
 
+    /// Tracks whether the launch session has been restored. Set to true by
+    /// the first window's `onAppear`; subsequent user-opened windows skip
+    /// restore and open a fresh tab instead of cloning the saved session.
+    /// Non-persistent — resets each app launch.
+    var hasRestoredSession = false
+
     init() {
         // Only create essential stores synchronously
         settings = Settings()

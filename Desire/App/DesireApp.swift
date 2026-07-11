@@ -10,7 +10,12 @@ struct DesireApp: App {
     }
 
     private var mainWindow: some Scene {
-        WindowGroup {
+        // An id'd WindowGroup so new windows can be opened via
+        // `@Environment(\.openWindow)` with `openWindow(id: "main")`. Each
+        // window gets its own ContentView (hence its own TabManager — tabs
+        // are per-window), while sharing the app-level AppState (bookmarks,
+        // history, settings, downloads, AI are global).
+        WindowGroup(id: "main") {
             ContentView(appState: appState)
                 .frame(minWidth: 800, minHeight: 600)
                 .environmentObject(appState)

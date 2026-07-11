@@ -21,22 +21,57 @@ class AIPreferenceStore: ObservableObject {
     }
     @Published var hasAPIKey: Bool = false
 
-    /// The model backend the agent loop talks to. Defaults to the cloud
-    /// OpenAI-compatible provider; future providers (Foundation Models,
-    /// Ollama, a rule-based router) replace this instance. Reading is
-    /// nonisolated-safe because the property is only mutated on MainActor
-    /// and the agent loop captures it before firing its Task.
-    var provider: any ModelProvider = CloudOpenAIProvider()
+    /// Which model backend the agent loop talks to. Persisted so the user's
+    /// choice survives relaunch. See `ModelProviderKind` for the options.
+    @Published var providerKind: ModelProviderKind {
+        didSet { UserDefaults.standard.set(providerKind.rawValue, forKey: "aiProviderKind") }
+    }
+
+    /// Ollama server base URL. Only used when `providerKind == .ollama`.
+    @Published var ollamaHost: String {
+        didSet { UserDefaults.standard.set(ollamaHost, forKey: "aiOllamaHost") }
+    }
+
+    /// Ollama model name (e.g. `llama3.2`, `qwen2.5`). Only used when
+    /// `providerKind == .ollama`.
+    @Published var ollamaModel: String {
+        didSet { UserDefaults.standard.set(ollamaModel, forKey: "aiOllamaModel") }
+    }
+
+    /// The model backend instance matching `providerKind`. Computed (not
+    /// stored) so changing the kind immediately takes effect on the next
+    /// agent loop iteration. All providers are stateless value types, so
+    /// constructing one per access is free.
+    var provider: any ModelProvider {
+        switch providerKind {
+        case .cloud:            return CloudOpenAIProvider()
+        case .foundationModels: return FoundationModelsProvider()
+        case .ollama:           return OllamaProvider()
+        }
+    }
 
     private let keychainService = "me.siwi.Desire"
     private let keychainAccount = "ai-api-key"
 
     init() {
+        // Initialize all stored @Published properties before calling any
+        // self method (loadAPIKey) — Swift requires full initialization first.
         model = UserDefaults.standard.string(forKey: "aiModel") ?? "gpt-4o"
         endpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? "https://api.openai.com/v1"
         systemPrompt = UserDefaults.standard.string(forKey: "aiSystemPrompt") ?? Self.defaultPrompt
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
+
+        if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
+           let kind = ModelProviderKind(rawValue: savedKind) {
+            providerKind = kind
+        } else {
+            providerKind = .cloud
+        }
+        ollamaHost = UserDefaults.standard.string(forKey: "aiOllamaHost") ?? "http://localhost:11434/v1"
+        ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
+
+        // Now fully initialized — safe to call self methods.
         hasAPIKey = loadAPIKey() != nil
     }
 
@@ -88,3 +123,35 @@ You are an AI assistant integrated into the Desire browser. You can:
 When the user asks you to do something, use the available tools. Always explain what you're doing. Prefer non-destructive actions.
 """
 }
+
+/// Selectable model backends for the AI assistant.
+///
+/// - `.cloud`: OpenAI-compatible cloud API (OpenAI, OpenRouter, DeepSeek, …).
+///   Requires an API key and network. Full tool-calling support.
+/// - `.foundationModels`: Apple Foundation Models on-device (macOS 26+,
+///   Apple Intelligence). Zero network, full privacy. Text-only in stage 1;
+///   tool calling lands with AgentRuntime v2.
+/// - `.ollama`: Local Ollama server (`http://localhost:11434`). OpenAI-
+///   compatible, full tool-calling support, user must run Ollama + pull a model.
+enum ModelProviderKind: String, CaseIterable, Codable {
+    case cloud
+    case foundationModels
+    case ollama
+
+    var displayName: String {
+        switch self {
+        case .cloud:            "Cloud (OpenAI-compatible)"
+        case .foundationModels: "Apple Foundation Models (on-device)"
+        case .ollama:           "Ollama (local server)"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .cloud:            "Requires API key. Supports browser tools."
+        case .foundationModels: "No key, no network. Privacy-first. Text only (no tools yet)."
+        case .ollama:           "Runs locally via Ollama. Supports browser tools."
+        }
+    }
+}
+

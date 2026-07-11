@@ -47,6 +47,10 @@ enum AIServiceError: LocalizedError {
     case network(Error)
     case decoding(Error)
     case httpStatus(Int, String)
+    /// The chosen model backend is not usable right now — e.g. Apple
+    /// Intelligence not enabled, or the device is ineligible. The caller
+    /// should hint the user to switch provider or enable the prerequisite.
+    case modelUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -54,6 +58,7 @@ enum AIServiceError: LocalizedError {
         case .network(let e): return "Network error: \(e.localizedDescription)"
         case .decoding(let e): return "Response parsing error: \(e.localizedDescription)"
         case .httpStatus(let code, let body): return "HTTP \(code): \(body.prefix(200))"
+        case .modelUnavailable(let reason): return "Model unavailable: \(reason)"
         }
     }
 }

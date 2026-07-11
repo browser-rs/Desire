@@ -39,6 +39,49 @@ struct ContentView: View {
     private var devToolsStore: DevToolsStore { appState.devToolsStore }
     private var searchHistoryStore: SearchHistoryStore { appState.searchHistoryStore }
 
+    /// Rebuilt each render from current state. Cheap — it's a value type.
+    /// Routes `BrowserCommand`s from the app menus. See `CommandDispatcher`
+    /// and `docs/ARCHITECTURE.md` (L1-1).
+    private var commandDispatcher: CommandDispatcher {
+        CommandDispatcher(
+            tabManager: tabManager,
+            settings: settings,
+            contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker,
+            bookmarkStore: bookmarkStore,
+            historyStore: historyStore,
+            openSettings: { openWindow(id: "settings") },
+            bindings: .init(
+                showHistory: $showHistory,
+                showBookmarks: $showBookmarks,
+                showPlugins: $showPlugins,
+                showExtensions: $showExtensions,
+                showElementBlock: $showElementBlock,
+                showTabSwitcher: $showTabSwitcher,
+                showSidebar: $showSidebar,
+                isFindBarVisible: $isFindBarVisible
+            ),
+            actions: .init(
+                newWindow: {
+                    let hosting = NSHostingView(rootView: ContentView(appState: appState))
+                    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
+                                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                          backing: .buffered, defer: false)
+                    window.contentView = hosting
+                    window.makeKeyAndOrderFront(nil)
+                    NSApp.activate()
+                },
+                toggleBookmark: { toggleBookmark() },
+                toggleFullScreen: { toggleFullScreen() },
+                showFindBar: { showFindBar() },
+                hideFindBar: { hideFindBar() },
+                printPage: { printPage() },
+                startScreenshot: { startScreenshot() },
+                clearUrlFocus: { isUrlFocused = false }
+            )
+        )
+    }
+
     @State private var isAIConfigured = false
     @State private var isFindBarVisible = false
     @State private var showHistory = false
@@ -69,179 +112,8 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
-                TabBar(
-                    tabs: tabManager.tabs,
-                    selectedIndex: tabManager.selectedIndex,
-                    isFullScreen: isFullScreen,
-                    showSwitcher: showTabSwitcher,
-                    onSelectTab: { index in
-                        isUrlFocused = false
-                        tabManager.selectTab(at: index)
-                        showTabSwitcher = false
-                        // 更新选中标签页的缩略图
-                        thumbnailStore.updateSelectedTabThumbnail(tabManager.selectedTab)
-                    },
-                    onCloseTab: { index in
-                        // 清除关闭标签页的缩略图缓存
-                        let tabId = tabManager.tabs[index].id
-                        thumbnailStore.clearThumbnail(for: tabId)
-                        tabManager.closeTab(at: index)
-                    },
-                    onAddTab: {
-                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
-                        showTabSwitcher = false
-                    },
-                    onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
-                    onReloadTab: { $0.browser.webView.reload() },
-                    onCopyTabURL: { tab in
-                        if let url = tab.browser.webView.url {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                        }
-                    },
-                    onCloseOtherTabs: { index in
-                        // 清除其他标签页的缩略图缓存
-                        let keptId = tabManager.tabs[index].id
-                        for tab in tabManager.tabs where tab.id != keptId {
-                            thumbnailStore.clearThumbnail(for: tab.id)
-                        }
-                        tabManager.closeOthers(keeping: index)
-                    },
-                    onCloseTabsToRight: { index in
-                        // 清除右侧标签页的缩略图缓存
-                        for i in (index + 1..<tabManager.tabs.count) {
-                            thumbnailStore.clearThumbnail(for: tabManager.tabs[i].id)
-                        }
-                        tabManager.closeToTheRight(of: index)
-                    },
-                    onToggleAudioMute: { index in
-                        // 使用 Tab 的 audioMuted 属性
-                        tabManager.tabs[index].audioMuted.toggle()
-                    },
-                    onTogglePin: { index in
-                        tabManager.tabs[index].isPinned.toggle()
-                    },
-                    tabGroupStore: tabGroupStore,
-                    thumbnailStore: thumbnailStore,
-                    onCreateGroup: { index in
-                        let alert = NSAlert()
-                        alert.messageText = String(localized: "New Tab Group")
-                        alert.informativeText = String(localized: "Enter group name")
-                        let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 22))
-                        alert.accessoryView = tf
-                        alert.addButton(withTitle: String(localized: "Create"))
-                        alert.addButton(withTitle: String(localized: "Cancel"))
-                        if alert.runModal() == .alertFirstButtonReturn {
-                            let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
-                            if !name.isEmpty {
-                                let group = tabGroupStore.create(name: name)
-                                let tabId = tabManager.tabs[index].id
-                                tabGroupStore.addTab(tabId, to: group.id)
-                            }
-                        }
-                    },
-                    onDuplicateTab: { index in
-                        tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
-                    }
-                )
-
-                Toolbar(
-                    tab: tab,
-                    settings: settings,
-                    isReadingMode: tab.browser.isReadingMode,
-                    suggestionModel: suggestionModel,
-                    downloadStore: downloadStore,
-                    bookmarkStore: bookmarkStore,
-                    historyStore: historyStore,
-                    passwordStore: passwordStore,
-                    siteSettingsStore: siteSettingsStore,
-                    devToolsStore: devToolsStore,
-                    isUrlFocused: $isUrlFocused,
-                    actions: Toolbar.Actions(
-                        goBack: { tab.browser.webView.goBack() },
-                        goForward: { tab.browser.webView.goForward() },
-                        reload: { tab.browser.webView.reload() },
-                        loadHome: { loadHome(for: tab) },
-                        navigate: { input in
-                            suggestionModel.reset()
-                            isUrlFocused = false
-                            navigateToURL(input, for: tab)
-                        },
-                        toggleBookmark: { toggleBookmark() },
-                        toggleFullScreen: { toggleFullScreen() },
-                        inspectElement: { inspectElement() },
-                        suggestionSelect: { sug in
-                            suggestionModel.reset()
-                            isUrlFocused = false
-                            navigateToURL(sug.url, for: tab)
-                        },
-                        printPage: { printPage() },
-                        zoomIn: { zoomTab(by: 0.1) },
-                        zoomOut: { zoomTab(by: -0.1) },
-                        resetZoom: { zoomTab(to: 1.0) },
-                        toggleReader: {
-                            if tab.browser.isReadingMode {
-                                tab.browser.isReadingMode = false
-                                tab.browser.isReaderLoading = false
-                            } else {
-                                tab.browser.isReaderLoading = true
-                                tab.browser.isReadingMode = true
-                                tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
-                            }
-                        },
-                        captureFullPage: { captureFullPage() },
-                        captureScreenshot: { startScreenshot() },
-                        addToReadingList: { title, url in
-                            readingListStore.add(title: title, url: url)
-                        },
-                        togglePictureInPicture: { togglePictureInPicture() },
-                        toggleResponsiveMode: {
-                            if let tab = tabManager.selectedTab {
-                                tab.responsiveConfig.isEnabled.toggle()
-                            }
-                        },
-                        toggleTranslate: {
-                            showTranslateBar.toggle()
-                            if showTranslateBar {
-                                Task {
-                                    await translationService.detectLanguage(webView: tab.browser.webView)
-                                }
-                            }
-                        },
-                        toggleDarkMode: {
-                            guard let host = tab.browser.webView.url?.host else { return }
-                            let enabled = !siteSettingsStore.darkModeEnabled(for: host)
-                            siteSettingsStore.setDarkMode(enabled, for: host)
-                            let js = """
-                            (function() {
-                                var el = document.getElementById('desire-dark-mode');
-                                if (\(enabled)) {
-                                    if (!el) {
-                                        var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
-                                        var s = document.createElement('style');
-                                        s.id = 'desire-dark-mode';
-                                        s.textContent = css;
-                                        document.head.appendChild(s);
-                                    }
-                                } else {
-                                    if (el) el.remove();
-                                }
-                            })();
-                            """
-                            tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-                        },
-                        toggleAIPanel: { showAIPanel.toggle() },
-                        toggleAIFloatingPanel: { aiFloatingPanel?.toggle() },
-                        toggleDevTools: { toggleDevTools() }
-                    ),
-                    showHistory: $showHistory,
-                    showBookmarks: $showBookmarks,
-                    showPlugins: $showPlugins,
-                    showReadingList: $showReadingList,
-                    showElementBlock: $showElementBlock,
-                    showSearchHistory: $showSearchHistory,
-                    openWindow: { openWindow(id: $0) }
-                )
+                tabBarSection(for: tab)
+                toolbarSection(for: tab)
             }
 
             if let tab = tabManager.selectedTab {
@@ -493,117 +365,7 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .browserCommand)) { notification in
             guard let command = notification.object as? BrowserCommand else { return }
-            switch command {
-            case .newWindow:
-                let hosting = NSHostingView(rootView: ContentView(appState: appState))
-                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
-                                      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                                      backing: .buffered, defer: false)
-                window.contentView = hosting
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate()
-            case .newTab:
-                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
-                showTabSwitcher = false
-            case .newIncognitoTab:
-                tabManager.addTab(incognito: true, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
-                showTabSwitcher = false
-            case .closeTab:
-                let count = tabManager.tabs.count
-                if settings.confirmCloseMultipleTabs && count > 1 {
-                    let alert = NSAlert()
-                    alert.messageText = String(localized: "Close Tab")
-                    alert.informativeText = String(localized: "Are you sure you want to close this tab?")
-                    alert.addButton(withTitle: String(localized: "Close"))
-                    alert.addButton(withTitle: String(localized: "Cancel"))
-                    if alert.runModal() == .alertFirstButtonReturn {
-                        tabManager.closeTab(at: tabManager.selectedIndex)
-                    }
-                } else {
-                    tabManager.closeTab(at: tabManager.selectedIndex)
-                }
-            case .reopenClosedTab:
-                tabManager.reopenLastClosedTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
-            case .selectTab(let index):
-                isUrlFocused = false
-                tabManager.selectTab(at: index)
-            case .showHistory:
-                showHistory = true
-            case .previousTab:
-                guard tabManager.selectedIndex > 0 else { return }
-                isUrlFocused = false
-                tabManager.selectTab(at: tabManager.selectedIndex - 1)
-            case .nextTab:
-                guard tabManager.selectedIndex < tabManager.tabs.count - 1 else { return }
-                isUrlFocused = false
-                tabManager.selectTab(at: tabManager.selectedIndex + 1)
-            case .bookmarkPage: toggleBookmark()
-            case .toggleFullScreen: toggleFullScreen()
-            case .toggleFind:
-                if isFindBarVisible { hideFindBar() } else { showFindBar() }
-            case .tabSearch:
-                showTabSwitcher.toggle()
-                if showTabSwitcher { isUrlFocused = false }
-            case .toggleSidebar:
-                showSidebar.toggle()
-            case .toggleResponsiveMode:
-                if let tab = tabManager.selectedTab {
-                    tab.responsiveConfig.isEnabled.toggle()
-                }
-            case .showBookmarks:
-                showBookmarks = true
-            case .showPlugins:
-                showPlugins = true
-            case .showExtensions:
-                showExtensions = true
-            case .showElementBlock:
-                showElementBlock = true
-            case .showSettings:
-                openWindow(id: "settings")
-            case .reload:
-                if let tab = tabManager.selectedTab { tab.browser.webView.reload() }
-            case .inspectElement:
-                if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
-                    tab.browser.webView.requestInspector()
-                }
-            case .printPage:
-                printPage()
-            case .zoomIn:
-                guard let tab = tabManager.selectedTab else { return }
-                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + 0.1))
-                tab.browser.pageZoom = newZoom
-                tab.browser.webView.pageZoom = newZoom
-            case .zoomOut:
-                guard let tab = tabManager.selectedTab else { return }
-                let newZoom = min(5.0, max(0.5, tab.browser.pageZoom - 0.1))
-                tab.browser.pageZoom = newZoom
-                tab.browser.webView.pageZoom = newZoom
-            case .actualSize:
-                guard let tab = tabManager.selectedTab else { return }
-                tab.browser.pageZoom = 1.0
-                tab.browser.webView.pageZoom = 1.0
-            case .clearHistory:
-                historyStore.clearAll()
-            case .toggleReader:
-                    if let tab = tabManager.selectedTab {
-                        if tab.browser.isReadingMode {
-                            tab.browser.isReadingMode = false
-                            tab.browser.isReaderLoading = false
-                        } else {
-                            tab.browser.isReaderLoading = true
-                            tab.browser.isReadingMode = true
-                            tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
-                        }
-                    }
-            case .exportBookmarks:
-                bookmarkStore.exportToHTML()
-            case .importBookmarksFrom(let source):
-                if let bookmarks = BookmarkImportService.importBookmarks(from: source), !bookmarks.isEmpty {
-                    bookmarkStore.saveImported(bookmarks)
-                }
-            case .screenshot:
-                startScreenshot()
-            }
+            commandDispatcher.handle(command)
         }
         .sheet(isPresented: $showHistory) {
             HistoryPanel(store: historyStore, onSelect: { url in
@@ -755,6 +517,194 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+    }
+
+    // MARK: - Body sections
+
+    /// Tab strip. Extracted from `body` (L1-1) to keep `body` scannable.
+    /// Pure view slice — no state or logic moved, closures retained verbatim.
+    @ViewBuilder
+    private func tabBarSection(for tab: Tab) -> some View {
+        TabBar(
+            tabs: tabManager.tabs,
+            selectedIndex: tabManager.selectedIndex,
+            isFullScreen: isFullScreen,
+            showSwitcher: showTabSwitcher,
+            onSelectTab: { index in
+                isUrlFocused = false
+                tabManager.selectTab(at: index)
+                showTabSwitcher = false
+                // 更新选中标签页的缩略图
+                thumbnailStore.updateSelectedTabThumbnail(tabManager.selectedTab)
+            },
+            onCloseTab: { index in
+                // 清除关闭标签页的缩略图缓存
+                let tabId = tabManager.tabs[index].id
+                thumbnailStore.clearThumbnail(for: tabId)
+                tabManager.closeTab(at: index)
+            },
+            onAddTab: {
+                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
+                showTabSwitcher = false
+            },
+            onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
+            onReloadTab: { $0.browser.webView.reload() },
+            onCopyTabURL: { tab in
+                if let url = tab.browser.webView.url {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                }
+            },
+            onCloseOtherTabs: { index in
+                // 清除其他标签页的缩略图缓存
+                let keptId = tabManager.tabs[index].id
+                for tab in tabManager.tabs where tab.id != keptId {
+                    thumbnailStore.clearThumbnail(for: tab.id)
+                }
+                tabManager.closeOthers(keeping: index)
+            },
+            onCloseTabsToRight: { index in
+                // 清除右侧标签页的缩略图缓存
+                for i in (index + 1..<tabManager.tabs.count) {
+                    thumbnailStore.clearThumbnail(for: tabManager.tabs[i].id)
+                }
+                tabManager.closeToTheRight(of: index)
+            },
+            onToggleAudioMute: { index in
+                // 使用 Tab 的 audioMuted 属性
+                tabManager.tabs[index].audioMuted.toggle()
+            },
+            onTogglePin: { index in
+                tabManager.tabs[index].isPinned.toggle()
+            },
+            tabGroupStore: tabGroupStore,
+            thumbnailStore: thumbnailStore,
+            onCreateGroup: { index in
+                let alert = NSAlert()
+                alert.messageText = String(localized: "New Tab Group")
+                alert.informativeText = String(localized: "Enter group name")
+                let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 22))
+                alert.accessoryView = tf
+                alert.addButton(withTitle: String(localized: "Create"))
+                alert.addButton(withTitle: String(localized: "Cancel"))
+                if alert.runModal() == .alertFirstButtonReturn {
+                    let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty {
+                        let group = tabGroupStore.create(name: name)
+                        let tabId = tabManager.tabs[index].id
+                        tabGroupStore.addTab(tabId, to: group.id)
+                    }
+                }
+            },
+            onDuplicateTab: { index in
+                tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
+            }
+        )
+    }
+
+    /// Navigation toolbar + address bar. Extracted from `body` (L1-1).
+    /// Pure view slice — closures retained verbatim. The `toggleDarkMode`
+    /// closure still holds an inline JS template; it will move to the
+    /// JS Bridge in roadmap stage 1.
+    @ViewBuilder
+    private func toolbarSection(for tab: Tab) -> some View {
+        Toolbar(
+            tab: tab,
+            settings: settings,
+            isReadingMode: tab.browser.isReadingMode,
+            suggestionModel: suggestionModel,
+            downloadStore: downloadStore,
+            bookmarkStore: bookmarkStore,
+            historyStore: historyStore,
+            passwordStore: passwordStore,
+            siteSettingsStore: siteSettingsStore,
+            devToolsStore: devToolsStore,
+            isUrlFocused: $isUrlFocused,
+            actions: Toolbar.Actions(
+                goBack: { tab.browser.webView.goBack() },
+                goForward: { tab.browser.webView.goForward() },
+                reload: { tab.browser.webView.reload() },
+                loadHome: { loadHome(for: tab) },
+                navigate: { input in
+                    suggestionModel.reset()
+                    isUrlFocused = false
+                    navigateToURL(input, for: tab)
+                },
+                toggleBookmark: { toggleBookmark() },
+                toggleFullScreen: { toggleFullScreen() },
+                inspectElement: { inspectElement() },
+                suggestionSelect: { sug in
+                    suggestionModel.reset()
+                    isUrlFocused = false
+                    navigateToURL(sug.url, for: tab)
+                },
+                printPage: { printPage() },
+                zoomIn: { zoomTab(by: 0.1) },
+                zoomOut: { zoomTab(by: -0.1) },
+                resetZoom: { zoomTab(to: 1.0) },
+                toggleReader: {
+                    if tab.browser.isReadingMode {
+                        tab.browser.isReadingMode = false
+                        tab.browser.isReaderLoading = false
+                    } else {
+                        tab.browser.isReaderLoading = true
+                        tab.browser.isReadingMode = true
+                        tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                    }
+                },
+                captureFullPage: { captureFullPage() },
+                captureScreenshot: { startScreenshot() },
+                addToReadingList: { title, url in
+                    readingListStore.add(title: title, url: url)
+                },
+                togglePictureInPicture: { togglePictureInPicture() },
+                toggleResponsiveMode: {
+                    if let tab = tabManager.selectedTab {
+                        tab.responsiveConfig.isEnabled.toggle()
+                    }
+                },
+                toggleTranslate: {
+                    showTranslateBar.toggle()
+                    if showTranslateBar {
+                        Task {
+                            await translationService.detectLanguage(webView: tab.browser.webView)
+                        }
+                    }
+                },
+                toggleDarkMode: {
+                    guard let host = tab.browser.webView.url?.host else { return }
+                    let enabled = !siteSettingsStore.darkModeEnabled(for: host)
+                    siteSettingsStore.setDarkMode(enabled, for: host)
+                    let js = """
+                    (function() {
+                        var el = document.getElementById('desire-dark-mode');
+                        if (\(enabled)) {
+                            if (!el) {
+                                var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
+                                var s = document.createElement('style');
+                                s.id = 'desire-dark-mode';
+                                s.textContent = css;
+                                document.head.appendChild(s);
+                            }
+                        } else {
+                            if (el) el.remove();
+                        }
+                    })();
+                    """
+                    tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+                },
+                toggleAIPanel: { showAIPanel.toggle() },
+                toggleAIFloatingPanel: { aiFloatingPanel?.toggle() },
+                toggleDevTools: { toggleDevTools() }
+            ),
+            showHistory: $showHistory,
+            showBookmarks: $showBookmarks,
+            showPlugins: $showPlugins,
+            showReadingList: $showReadingList,
+            showElementBlock: $showElementBlock,
+            showSearchHistory: $showSearchHistory,
+            openWindow: { openWindow(id: $0) }
+        )
     }
 
     // MARK: - Actions

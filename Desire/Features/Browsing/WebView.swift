@@ -72,180 +72,24 @@ class BrowserState: ObservableObject {
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
         }
 
-        let audioJS = """
-        (function() {
-            function checkAudio() {
-            var playing = false;
-            document.querySelectorAll('audio, video').forEach(function(el) {
-                if (!el.paused && el.volume > 0) {
-                        playing = true;
-                    }
-                });
-                window.webkit.messageHandlers.audioState.postMessage(playing);
-            }
-            document.addEventListener('play', checkAudio, true);
-            document.addEventListener('pause', checkAudio, true);
-            document.addEventListener('volumechange', checkAudio, true);
-            new MutationObserver(function() {
-                if (document.querySelectorAll('audio, video').length) checkAudio();
-            }).observe(document.body, { childList: true, subtree: true });
-            setTimeout(checkAudio, 500);
-        })();
-        """
-        let audioScript = WKUserScript(source: audioJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        // All injected scripts live in Desire/UserScripts/*.js and are loaded
+        // via UserScriptLoader. See docs/ARCHITECTURE.md (L1-2) for the
+        // resource-bundling rationale.
+        let audioScript = WKUserScript(source: UserScriptLoader.load("audio-state"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(audioScript)
 
-        // Console interceptor for DevTools
-        let consoleJS = """
-        (function() {
-            var originalConsole = {
-                log: console.log,
-                warn: console.warn,
-                error: console.error,
-                info: console.info,
-                debug: console.debug
-            };
-            function sendToDevTools(level, args) {
-                try {
-                    var message = Array.from(args).map(function(arg) {
-                        if (typeof arg === 'object') {
-                            try { return JSON.stringify(arg); }
-                            catch(e) { return String(arg); }
-                        }
-                        return String(arg);
-                    }).join(' ');
-                    var stack = new Error().stack;
-                    var line = null, col = null, url = null;
-                    if (stack) {
-                        var match = stack.match(/:(\\d+):(\\d+)/);
-                        if (match) { line = parseInt(match[1]); col = parseInt(match[2]); }
-                        var urlMatch = stack.match(/https?:\\/\\/[^\\s]+/);
-                        if (urlMatch) { url = urlMatch[0].split(':')[0]; }
-                    }
-                    window.webkit.messageHandlers.devConsole.postMessage({
-                        level: level,
-                        message: message,
-                        url: url,
-                        line: line,
-                        column: col
-                    });
-                } catch(e) {}
-            }
-            console.log = function() { sendToDevTools('log', arguments); originalConsole.log.apply(console, arguments); };
-            console.warn = function() { sendToDevTools('warn', arguments); originalConsole.warn.apply(console, arguments); };
-            console.error = function() { sendToDevTools('error', arguments); originalConsole.error.apply(console, arguments); };
-            console.info = function() { sendToDevTools('info', arguments); originalConsole.info.apply(console, arguments); };
-            console.debug = function() { sendToDevTools('debug', arguments); originalConsole.debug.apply(console, arguments); };
-            window.addEventListener('error', function(e) {
-                sendToDevTools('error', [e.message]);
-            });
-        })();
-        """
-        let consoleScript = WKUserScript(source: consoleJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        // Console interceptor for DevTools — forwards console.{log,…} and
+        // window 'error' events to the `devConsole` message handler.
+        let consoleScript = WKUserScript(source: UserScriptLoader.load("console-intercept"), injectionTime: .atDocumentStart, forMainFrameOnly: false)
         config.userContentController.addUserScript(consoleScript)
 
-        let passwordJS = """
-        (function() {
-            function detectPasswordForm() {
-                var pwd = document.querySelector('input[type=password]');
-                if (!pwd) return;
-                var form = pwd.closest('form');
-                if (!form) return;
-                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=login], input[name*=mail], input[name*=account]');
-                if (!username) username = form.querySelector('input:not([type=password]):not([type=hidden])');
-                return { form: form, pwd: pwd, username: username };
-            }
-            /* Auto-fill detection */
-            function detectLoginForm() {
-                var r = detectPasswordForm();
-                if (!r || !r.username) return;
-                window.webkit.messageHandlers.passwordDetect.postMessage({
-                    username: r.username.name || r.username.id || 'username'
-                });
-            }
-            /* Save-prompt: listen for form submit */
-            document.addEventListener('submit', function(e) {
-                var form = e.target;
-                var pwd = form.querySelector('input[type=password]');
-                if (!pwd || !pwd.value) return;
-                var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=mail], input[name*=login], input[name*=account]');
-                if (!username) username = form.querySelector('input:not([type=password]):not([type=hidden])');
-                var userVal = username ? username.value : '';
-                setTimeout(function() {
-                    window.webkit.messageHandlers.passwordSave.postMessage({
-                        username: userVal,
-                        password: pwd.value
-                    });
-                }, 500);
-            }, true);
-            document.addEventListener('DOMContentLoaded', detectLoginForm);
-            setTimeout(detectLoginForm, 1000);
-        })();
-        """
-        let passwordScript = WKUserScript(source: passwordJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        let passwordScript = WKUserScript(source: UserScriptLoader.load("password-detect"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(passwordScript)
 
-        let readerJS = """
-        (function() {
-            window._desireReader = function() {
-                function score(el) {
-                    if (!el || !el.tagName) return 0;
-                    var id = (el.id || '').toLowerCase();
-                    var cls = (el.className || '').toLowerCase();
-                    var s = 0;
-                    if (/article|post|content|main|story|entry/.test(id) || /article|post|content|main|story|entry/.test(cls)) s += 10;
-                    if (/comment|sidebar|footer|header|nav|menu/.test(id) || /comment|sidebar|footer|header|nav|menu/.test(cls)) s -= 10;
-                    var text = el.innerText || '';
-                    var links = el.querySelectorAll('a').length;
-                    var textLen = text.replace(/\\\\s+/g, ' ').length;
-                    if (textLen > 100) s += Math.min(5, Math.floor(textLen / 500));
-                    if (links > 0) s -= Math.min(3, Math.floor(links / 50));
-                    return s;
-                }
-                var candidates = [];
-                var els = document.querySelectorAll('article, [role=main], main, .post, .article, .content, #content, #article, .entry, .post-content');
-                for (var i = 0; i < els.length; i++) {
-                    var s = score(els[i]);
-                    if (s > 0) candidates.push({el: els[i], score: s});
-                }
-                candidates.sort(function(a,b) { return b.score - a.score; });
-                var best = candidates.length > 0 ? candidates[0].el : null;
-                /* Fallback #1: collect all <p> inside body */
-                if (!best || best.innerText.trim().length < 100) {
-                    var container = document.createElement('div');
-                    document.querySelectorAll('body p').forEach(function(p) {
-                        if (p.innerText.trim().length > 20) container.appendChild(p.cloneNode(true));
-                    });
-                    if (container.children.length > 3) { best = container; }
-                }
-                /* Fallback #2: use entire body */
-                if (!best || best.innerText.trim().length < 50) { best = document.body; }
-                var title = document.title || '';
-                var isFallback = (best === document.body || best.tagName === 'DIV');
-                window.webkit.messageHandlers.readerContent.postMessage({title: title, content: best.innerHTML || best.innerText || '', html: best.outerHTML, fallback: isFallback ? '1' : '0'});
-            };
-        })();
-        """
-        let readerScript = WKUserScript(source: readerJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        let readerScript = WKUserScript(source: UserScriptLoader.load("reader-content"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(readerScript)
 
-        let hoverJS = """
-        (function() {
-            document.addEventListener('mouseover', function(e) {
-                var link = e.target.closest('a');
-                if (link && link.href) {
-                    window.webkit.messageHandlers.hoverLink.postMessage(link.href);
-                }
-            }, true);
-            document.addEventListener('mouseout', function(e) {
-                var link = e.target.closest('a');
-                if (link) {
-                    window.webkit.messageHandlers.hoverLink.postMessage('');
-                }
-            }, true);
-        })();
-        """
-        let hoverScript = WKUserScript(source: hoverJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        let hoverScript = WKUserScript(source: UserScriptLoader.load("hover-link"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(hoverScript)
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
@@ -328,78 +172,11 @@ struct WebView: NSViewRepresentable {
     var onInspectedElement: ((InspectedElement) -> Void)?
     @ObservedObject var elementBlockStore: ElementBlockStore
 
-    static let pickerJS = """
-    (function() {
-        var style = document.createElement('style');
-        style.id = 'desire-picker-style';
-        style.textContent = '.desire-picker-highlight{outline:3px solid #ff4444 !important;outline-offset:-1px !important;background:rgba(255,68,68,0.08) !important;cursor:crosshair !important}';
-        document.head.appendChild(style);
+    // Computed (not `static let`) so the file is read from the bundle lazily
+    // on first use rather than at type-init time, before Bundle.main is ready.
+    static var pickerJS: String { UserScriptLoader.load("element-picker") }
 
-        var hl;
-
-        function getSelector(el) {
-            if (el.id) return '#' + CSS.escape(el.id);
-            var parts = [];
-            while (el && el.nodeType === 1) {
-                var tag = el.tagName.toLowerCase();
-                if (el.id) { parts.unshift('#' + CSS.escape(el.id)); break; }
-                var p = el.parentElement;
-                if (p) {
-                    var ch = Array.from(p.children);
-                    var idx = ch.indexOf(el);
-                    var same = ch.filter(function(c) { return c.tagName === el.tagName; });
-                    if (same.length > 1) tag += ':nth-child(' + (idx + 1) + ')';
-                }
-                parts.unshift(tag);
-                el = p;
-            }
-            return parts.join(' > ');
-        }
-
-        function getXPath(el) {
-            if (el.id) return '//*[@id="' + el.id + '"]';
-            var parts = [];
-            while (el && el.nodeType === 1) {
-                var tag = el.tagName.toLowerCase();
-                if (el.id) { parts.unshift('*[@id="' + el.id + '"]'); break; }
-                var p = el.parentElement;
-                if (p) {
-                    var ch = Array.from(p.children);
-                    var idx = ch.indexOf(el) + 1;
-                    tag += '[' + idx + ']';
-                }
-                parts.unshift(tag);
-                el = p;
-            }
-            return '/' + parts.join('/');
-        }
-
-        function onOver(e) { if (hl) hl.classList.remove('desire-picker-highlight'); hl = e.target; hl.classList.add('desire-picker-highlight'); e.stopPropagation(); }
-        function onOut(e) { if (hl) hl.classList.remove('desire-picker-highlight'); hl = null; e.stopPropagation(); }
-        function onPick(e) {
-            e.preventDefault(); e.stopPropagation();
-            if (hl) hl.classList.remove('desire-picker-highlight');
-            var sel = getSelector(e.target), xp = getXPath(e.target);
-            document.head.removeChild(style);
-            document.removeEventListener('mouseover', onOver, true);
-            document.removeEventListener('mouseout', onOut, true);
-            document.removeEventListener('click', onPick, true);
-            window.webkit.messageHandlers.elementPicker.postMessage({cssSelector: sel, xpath: xp});
-        }
-        document.addEventListener('mouseover', onOver, true);
-        document.addEventListener('mouseout', onOut, true);
-        document.addEventListener('click', onPick, true);
-    })();
-    """
-
-    static let exitPickerJS = """
-    (function() {
-        var s = document.getElementById('desire-picker-style');
-        if (s) s.remove();
-        var h = document.querySelector('.desire-picker-highlight');
-        if (h) h.classList.remove('desire-picker-highlight');
-    })();
-    """
+    static var exitPickerJS: String { UserScriptLoader.load("element-picker-exit") }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -645,18 +422,7 @@ struct WebView: NSViewRepresentable {
                 }
             }
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
-                let js = """
-                (function() {
-                    if (!document.getElementById('desire-dark-mode')) {
-                        var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
-                        var s = document.createElement('style');
-                        s.id = 'desire-dark-mode';
-                        s.textContent = css;
-                        document.head.appendChild(s);
-                    }
-                })();
-                """
-                webView.evaluateJavaScript(js, completionHandler: nil)
+                webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)
             }
             if let host = webView.url?.host, let js = parent.state.videoAdBlocker?.pageScript(for: host) {
                 webView.evaluateJavaScript(js, completionHandler: nil)

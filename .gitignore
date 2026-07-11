@@ -39,3 +39,6 @@ test_ai_stream.swift
 
 # Superpowers brainstorming artifacts
 .superpowers/
+
+# ZCode agent working files
+.zcode/

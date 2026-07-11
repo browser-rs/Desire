@@ -1,28 +1,19 @@
 import Foundation
 
-enum AIStreamEvent {
-    case text(String)
-    case toolCall(AIToolCall)
-}
-
-enum AIServiceError: LocalizedError {
-    case noAPIKey
-    case network(Error)
-    case decoding(Error)
-    case httpStatus(Int, String)
-
-    var errorDescription: String? {
-        switch self {
-        case .noAPIKey: return "API Key not configured. Set it in Settings > AI."
-        case .network(let e): return "Network error: \(e.localizedDescription)"
-        case .decoding(let e): return "Response parsing error: \(e.localizedDescription)"
-        case .httpStatus(let code, let body): return "HTTP \(code): \(body.prefix(200))"
-        }
-    }
-}
-
-struct AIService {
-    static func stream(messages: [AIMessage], tools: [AIToolDef], prefs: AIPreferenceStore) -> AsyncThrowingStream<AIStreamEvent, Error> {
+/// Cloud model provider speaking the OpenAI Chat Completions streaming
+/// protocol. Works with OpenAI directly and any compatible proxy
+/// (OpenRouter, LiteLLM, OpenCode Go, DeepSeek, Together, …).
+///
+/// History note: this type was previously `struct AIService` with a single
+/// `static func stream(...)`. It has been renamed to `CloudOpenAIProvider`
+/// and conforms to `ModelProvider` so the agent loop can swap providers.
+/// The `AIService` typealias below keeps any external references compiling.
+struct CloudOpenAIProvider: ModelProvider {
+    func stream(
+        messages: [AIMessage],
+        tools: [AIToolDef],
+        prefs: AIPreferenceStore
+    ) -> AsyncThrowingStream<AIStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             Task {
                 guard let apiKey = prefs.loadAPIKey() else {
@@ -45,7 +36,7 @@ struct AIService {
 
                 let bodyDict: [String: Any] = [
                     "model": prefs.model,
-                    "messages": messages.map(self.encodeMessage),
+                    "messages": messages.map(Self.encodeMessage),
                     "stream": true,
                     "max_tokens": prefs.maxTokens,
                     "temperature": prefs.temperature,
@@ -59,7 +50,7 @@ struct AIService {
                             "function": [
                                 "name": t.function.name,
                                 "description": t.function.description,
-                                "parameters": encodeJSONSchema(t.function.parameters),
+                                "parameters": Self.encodeJSONSchema(t.function.parameters),
                             ],
                         ]
                     }
@@ -210,5 +201,19 @@ struct AIService {
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return [:] }
         return dict
+    }
+}
+
+/// Backward-compatibility facade. Existing call sites that referenced
+/// `AIService.stream(...)` continue to work, delegating to the default
+/// cloud provider. New code should go through `ModelProvider` / the
+/// `provider` on `AIPreferenceStore`.
+enum AIService {
+    static func stream(
+        messages: [AIMessage],
+        tools: [AIToolDef],
+        prefs: AIPreferenceStore
+    ) -> AsyncThrowingStream<AIStreamEvent, Error> {
+        CloudOpenAIProvider().stream(messages: messages, tools: tools, prefs: prefs)
     }
 }

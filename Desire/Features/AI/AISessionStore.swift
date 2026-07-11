@@ -184,7 +184,12 @@ class AISessionStore: ObservableObject {
             // conversation: the second call sends back tool results, and
             // the model still needs to know the tool schemas to decide
             // what to do next (or to make another tool call).
-            let stream = AIService.stream(
+            //
+            // Routed through `preference.provider` (a `ModelProvider`)
+            // instead of `AIService` directly, so Foundation Models /
+            // Ollama / a routing provider can be swapped in without
+            // touching the agent loop.
+            let stream = preference.provider.stream(
                 messages: messages,
                 tools: BrowserToolProvider.toolDefs,
                 prefs: preference

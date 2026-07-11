@@ -21,6 +21,13 @@ class AIPreferenceStore: ObservableObject {
     }
     @Published var hasAPIKey: Bool = false
 
+    /// The model backend the agent loop talks to. Defaults to the cloud
+    /// OpenAI-compatible provider; future providers (Foundation Models,
+    /// Ollama, a rule-based router) replace this instance. Reading is
+    /// nonisolated-safe because the property is only mutated on MainActor
+    /// and the agent loop captures it before firing its Task.
+    var provider: any ModelProvider = CloudOpenAIProvider()
+
     private let keychainService = "me.siwi.Desire"
     private let keychainAccount = "ai-api-key"
 

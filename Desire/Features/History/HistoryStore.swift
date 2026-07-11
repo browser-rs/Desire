@@ -4,7 +4,10 @@ import Foundation
 @MainActor
 class HistoryStore: ObservableObject {
     @Published var entries: [HistoryEntry] = []
-    private let saveKey = "desire.history"
+    /// DiskStore key (file: App Support/Desire/storage/history.json).
+    private let storageKey = "history"
+    /// Legacy UserDefaults key — read once during migration, then deleted.
+    private let legacyKey = "desire.history"
     private let maxEntries = 500
 
     init() {
@@ -53,13 +56,23 @@ class HistoryStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) else { return }
-        entries = decoded
+        // Migrated store: read from DiskStore first.
+        if let decoded = DiskStore.load([HistoryEntry].self, key: storageKey) {
+            entries = decoded
+            return
+        }
+        // One-time migration from legacy UserDefaults blob. If present,
+        // import it to DiskStore and remove the old key so we never read
+        // stale data again.
+        if let data = UserDefaults.standard.data(forKey: legacyKey),
+           let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) {
+            entries = decoded
+            DiskStore.save(decoded, key: storageKey)
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+        }
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(entries, key: storageKey)
     }
 }

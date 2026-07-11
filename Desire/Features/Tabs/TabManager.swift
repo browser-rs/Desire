@@ -261,7 +261,12 @@ class TabManager: ObservableObject {
 
     // MARK: - Session persistence
 
-    private let sessionKey = "desire.session"
+    /// DiskStore key (file: App Support/Desire/storage/session.json).
+    /// Session data includes WKWebView.interactionState blobs which can be
+    /// MBs per tab — too large for UserDefaults (debt A4). See DiskStore.
+    private let sessionStorageKey = "session"
+    /// Legacy UserDefaults key — read once during migration, then deleted.
+    private let legacySessionKey = "desire.session"
 
     func persistSession() {
         var savedTabs: [SavedTab] = []
@@ -276,13 +281,11 @@ class TabManager: ObservableObject {
             }
         }
         guard !savedTabs.isEmpty else {
-            UserDefaults.standard.removeObject(forKey: sessionKey)
+            DiskStore.remove(key: sessionStorageKey)
             return
         }
         let session = SavedSession(tabs: savedTabs, selectedIndex: selectedIndex)
-        if let data = try? JSONEncoder().encode(session) {
-            UserDefaults.standard.set(data, forKey: sessionKey)
-        }
+        DiskStore.save(session, key: sessionStorageKey)
     }
 
     private func captureInteractionState(for tab: Tab) -> Data? {
@@ -293,9 +296,19 @@ class TabManager: ObservableObject {
 
     @discardableResult
     func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlocker?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
-        guard let data = UserDefaults.standard.data(forKey: sessionKey),
-              let session = try? JSONDecoder().decode(SavedSession.self, from: data),
-              !session.tabs.isEmpty else {
+        // Migrated: load from DiskStore first.
+        var session = DiskStore.load(SavedSession.self, key: sessionStorageKey)
+        if session == nil {
+            // One-time migration from legacy UserDefaults blob. If present,
+            // import it to DiskStore and remove the old key.
+            if let data = UserDefaults.standard.data(forKey: legacySessionKey),
+               let decoded = try? JSONDecoder().decode(SavedSession.self, from: data) {
+                session = decoded
+                DiskStore.save(decoded, key: sessionStorageKey)
+                UserDefaults.standard.removeObject(forKey: legacySessionKey)
+            }
+        }
+        guard let session, !session.tabs.isEmpty else {
             return false
         }
 

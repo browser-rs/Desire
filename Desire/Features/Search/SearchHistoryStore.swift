@@ -4,7 +4,10 @@ import Foundation
 @MainActor
 class SearchHistoryStore: ObservableObject {
     @Published var entries: [SearchHistory] = []
-    private let saveKey = "desire.searchHistory"
+    /// DiskStore key (file: App Support/Desire/storage/search-history.json).
+    private let storageKey = "search-history"
+    /// Legacy UserDefaults key — read once during migration, then deleted.
+    private let legacyKey = "desire.searchHistory"
     private let maxEntries = 100
 
     init() {
@@ -36,13 +39,20 @@ class SearchHistoryStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([SearchHistory].self, from: data) else { return }
-        entries = decoded
+        if let decoded = DiskStore.load([SearchHistory].self, key: storageKey) {
+            entries = decoded
+            return
+        }
+        // One-time migration from legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: legacyKey),
+           let decoded = try? JSONDecoder().decode([SearchHistory].self, from: data) {
+            entries = decoded
+            DiskStore.save(decoded, key: storageKey)
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+        }
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(entries, key: storageKey)
     }
 }

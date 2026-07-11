@@ -453,6 +453,9 @@
     "Allow All" : {
 
     },
+    "Allow Once" : {
+
+    },
     "Allow this website to access your %@?" : {
       "comment" : "Media permission prompt with device name",
       "localizations" : {
@@ -523,6 +526,9 @@
       }
     },
     "Always accept" : {
+
+    },
+    "Always Allow" : {
 
     },
     "API Key" : {
@@ -654,6 +660,9 @@
 
     },
     "Automatically upgrade HTTP connections to secure HTTPS." : {
+
+    },
+    "Available" : {
 
     },
     "Back" : {
@@ -3880,6 +3889,9 @@
     "Model" : {
 
     },
+    "Model (e.g. llama3.2, qwen2.5, mistral)" : {
+
+    },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
       "localizations" : {
@@ -4561,6 +4573,9 @@
         }
       }
     },
+    "Ollama Host" : {
+
+    },
     "On Launch" : {
 
     },
@@ -5091,6 +5106,9 @@
       }
     },
     "Private mode does not save browsing history, cookies, or cache." : {
+
+    },
+    "Provider" : {
 
     },
     "Quick actions" : {
@@ -6645,6 +6663,9 @@
     "Temperature" : {
 
     },
+    "Test" : {
+
+    },
     "Test Connection" : {
 
     },
@@ -6978,6 +6999,9 @@
     "Type" : {
 
     },
+    "Unavailable" : {
+
+    },
     "Undo" : {
       "comment" : "Undo button",
       "localizations" : {
@@ -7150,6 +7174,9 @@
           }
         }
       }
+    },
+    "via %@" : {
+
     },
     "View" : {
       "comment" : "View menu title",

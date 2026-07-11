@@ -59,6 +59,15 @@ struct AIPanel: View {
                 }
             }
 
+            if let approval = store.pendingApproval {
+                ToolApprovalBar(
+                    approval: approval,
+                    onAllowOnce: { store.resolveApproval(.allowOnce) },
+                    onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
+                    onDeny: { store.resolveApproval(.deny) }
+                )
+            }
+
             AIInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,

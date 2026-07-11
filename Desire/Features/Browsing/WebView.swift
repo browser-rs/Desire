@@ -83,6 +83,12 @@ class BrowserState: ObservableObject {
         let consoleScript = WKUserScript(source: UserScriptLoader.load("console-intercept"), injectionTime: .atDocumentStart, forMainFrameOnly: false)
         config.userContentController.addUserScript(consoleScript)
 
+        // DOM tool functions used by BrowserToolProvider (AI agent) via
+        // callAsyncJavaScript. Injected at documentStart so they exist before
+        // any tool call. See docs/ARCHITECTURE.md (L2 JS Bridge).
+        let domToolsScript = WKUserScript(source: UserScriptLoader.load("dom-tools"), injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        config.userContentController.addUserScript(domToolsScript)
+
         let passwordScript = WKUserScript(source: UserScriptLoader.load("password-detect"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(passwordScript)
 

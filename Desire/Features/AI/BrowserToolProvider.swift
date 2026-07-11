@@ -634,89 +634,43 @@ class BrowserToolProvider {
             NotificationCenter.default.post(name: .browserCommand, object: BrowserCommand.toggleSidebar)
             return "Sidebar toggled"
 
-        // --- DOM interaction (existing) ---
+        // --- DOM interaction ---
+        // These tools invoke page-world functions (UserScripts/dom-tools.js)
+        // via callAsyncJavaScript, passing parameters as native values.
+        // NO string interpolation: model-controlled selectors/values cannot
+        // break out into code. See docs/ARCHITECTURE.md (L2 JS Bridge).
         case "click":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await eval(webView, """
-            (function() {
-                var el = document.querySelector('\(sel.jsEscaped)');
-                if (!el) return 'Element not found: \(sel.jsEscaped)';
-                el.click();
-                return 'Clicked';
-            })()
-            """)
+            return await callAsync(webView, function: "__desireClick", args: ["selector": sel])
 
         case "fill":
             guard let sel = args["selector"] as? String, let val = args["value"] as? String else { return "Missing selector or value" }
-            return await eval(webView, """
-            (function() {
-                var el = document.querySelector('\(sel.jsEscaped)');
-                if (!el) return 'Element not found';
-                el.value = '\(val.jsEscaped)';
-                el.dispatchEvent(new Event('input', {bubbles:true}));
-                el.dispatchEvent(new Event('change', {bubbles:true}));
-                return 'Filled';
-            })()
-            """)
+            return await callAsync(webView, function: "__desireFill", args: ["selector": sel, "value": val])
 
         case "select":
             guard let sel = args["selector"] as? String, let val = args["value"] as? String else { return "Missing selector or value" }
-            return await eval(webView, """
-            (function() {
-                var el = document.querySelector('\(sel.jsEscaped)');
-                if (!el) return 'Element not found';
-                el.value = '\(val.jsEscaped)';
-                el.dispatchEvent(new Event('change', {bubbles:true}));
-                return 'Selected';
-            })()
-            """)
+            return await callAsync(webView, function: "__desireSelect", args: ["selector": sel, "value": val])
 
         case "scroll":
             let x = args["x"] as? Double ?? 0
             let y = args["y"] as? Double ?? 0
-            return await eval(webView, "window.scrollTo(\(x), \(y)); 'Scrolled'")
+            return await callAsync(webView, function: "__desireScroll", args: ["x": x, "y": y])
 
         case "hover":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await eval(webView, """
-            (function() {
-                var el = document.querySelector('\(sel.jsEscaped)');
-                if (!el) return 'Element not found';
-                el.dispatchEvent(new MouseEvent('mouseover', {bubbles:true}));
-                return 'Hovered';
-            })()
-            """)
+            return await callAsync(webView, function: "__desireHover", args: ["selector": sel])
 
         case "focus":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await eval(webView, """
-            (function() {
-                var el = document.querySelector('\(sel.jsEscaped)');
-                if (!el) return 'Element not found';
-                el.focus();
-                return 'Focused';
-            })()
-            """)
+            return await callAsync(webView, function: "__desireFocus", args: ["selector": sel])
 
         case "extract":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await eval(webView, """
-            (function() {
-                var els = document.querySelectorAll('\(sel.jsEscaped)');
-                return Array.from(els).map(function(e){ return e.textContent.trim(); }).filter(Boolean).join('\\n---\\n');
-            })()
-            """)
+            return await callAsync(webView, function: "__desireExtract", args: ["selector": sel])
 
         case "findElements":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await eval(webView, """
-            (function() {
-                var els = document.querySelectorAll('\(sel.jsEscaped)');
-                if (els.length === 0) return 'No elements found';
-                var first = els[0].textContent.trim().substring(0, 200);
-                return 'Found ' + els.length + ' elements. First: ' + first;
-            })()
-            """)
+            return await callAsync(webView, function: "__desireFindElements", args: ["selector": sel])
 
         // --- Utilities ---
         case "wait":
@@ -727,20 +681,7 @@ class BrowserToolProvider {
         case "waitForElement":
             let sel = args["selector"] as? String ?? ""
             let timeout = args["timeout"] as? Int ?? 5000
-            return await eval(webView, """
-            (function() {
-                var start = Date.now();
-                return new Promise(function(resolve) {
-                    function check() {
-                        var el = document.querySelector('\(sel.jsEscaped)');
-                        if (el) return resolve('Found element');
-                        if (Date.now() - start > \(timeout)) return resolve('Timeout');
-                        setTimeout(check, 200);
-                    }
-                    check();
-                });
-            })()
-            """)
+            return await callAsync(webView, function: "__desireWaitForElement", args: ["selector": sel, "timeout": timeout])
 
         case "executeJS":
             guard let code = args["code"] as? String else { return "Missing code" }
@@ -773,6 +714,30 @@ class BrowserToolProvider {
         }
     }
 
+    /// Invokes a pre-injected page-world function (defined in
+    /// `UserScripts/dom-tools.js`) via `callAsyncJavaScript`. Parameters are
+    /// passed as native typed values — NO string interpolation, NO escaping —
+    /// so model-controlled selectors/values cannot break out into code.
+    ///
+    /// `function` is the JS function name (e.g. `__desireClick`); `args` keys
+    /// must match the function's parameter names. Returns a status string
+    /// shaped like `eval` so call sites stay unchanged.
+    private func callAsync(_ wv: WKWebView, function: String, args: [String: Any]) async -> String {
+        // callAsyncJavaScript runs `functionBody` as an async closure with
+        // `args` injected as named JS consts. We await the page function.
+        let paramList = args.keys.sorted().joined(separator: ",")
+        let body = "return await \(function)(\(paramList))"
+        do {
+            let result = try await wv.callAsyncJavaScript(body, arguments: args, in: nil, contentWorld: .page)
+            if let s = result as? String { return s }
+            if let n = result as? NSNumber { return n.stringValue }
+            if result != nil { return "\(result!)" }
+            return ""
+        } catch {
+            return "Error: \(error.localizedDescription)"
+        }
+    }
+
     private func captureScreenshot(_ wv: WKWebView) async -> String {
         await withCheckedContinuation { continuation in
             wv.takeSnapshot(with: nil) { image, error in
@@ -792,14 +757,5 @@ class BrowserToolProvider {
                 }
             }
         }
-    }
-}
-
-private extension String {
-    var jsEscaped: String {
-        self.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "")
     }
 }

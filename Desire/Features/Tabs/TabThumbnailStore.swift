@@ -6,8 +6,14 @@ import WebKit
 /// 负责捕获、缓存和更新标签页的缩略图截图
 @MainActor
 class TabThumbnailStore: ObservableObject {
-    /// 缩略图缓存字典（Tab ID -> 缩略图）
-    @Published private var thumbnails: [UUID: NSImage] = [:]
+    /// Bounded thumbnail cache (Tab ID string -> thumbnail). `NSCache`
+    /// auto-evicts under memory pressure and enforces a count cap, replacing
+    /// the previous unbounded `[UUID: NSImage]` that grew with tab count.
+    private let thumbnails: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 64
+        return cache
+    }()
 
     /// 缩略图尺寸配置
     private let thumbnailSize = CGSize(width: 236, height: 150)
@@ -47,7 +53,7 @@ class TabThumbnailStore: ObservableObject {
             return nil
         }
 
-        return thumbnails[tabId]
+        return thumbnails.object(forKey: tabId.uuidString as NSString)
     }
 
     /// 为指定 Tab 捕获并缓存缩略图
@@ -57,7 +63,7 @@ class TabThumbnailStore: ObservableObject {
     func captureThumbnail(for tab: Tab, completion: ((NSImage?) -> Void)? = nil) {
         // 避免重复捕获
         guard !capturingTabs.contains(tab.id) else {
-            completion?(thumbnails[tab.id])
+            completion?(thumbnails.object(forKey: tab.id.uuidString as NSString))
             return
         }
 
@@ -69,7 +75,7 @@ class TabThumbnailStore: ObservableObject {
 
         // 不捕获正在加载的页面
         guard !tab.isLoading else {
-            completion?(thumbnails[tab.id])
+            completion?(thumbnails.object(forKey: tab.id.uuidString as NSString))
             return
         }
 
@@ -77,6 +83,7 @@ class TabThumbnailStore: ObservableObject {
 
         let configuration = WKSnapshotConfiguration()
         configuration.afterScreenUpdates = true
+        let targetSize = thumbnailSize
 
         tab.browser.webView.takeSnapshot(with: configuration) { [weak self] image, error in
             Task { @MainActor [weak self] in
@@ -92,14 +99,21 @@ class TabThumbnailStore: ObservableObject {
                     return
                 }
 
-                // 缩放图像到目标尺寸
-                let resizedImage = self.resizeImage(image, to: self.thumbnailSize)
-
-                self.thumbnails[tab.id] = resizedImage
-                self.thumbnailTimestamps[tab.id] = Date()
-                self.objectWillChange.send()
-
-                completion?(resizedImage)
+                // Resize off-main: the previous path used `lockFocus` on the
+                // main thread (window/backing-required, blocks UI for each
+                // snapshot completion). `NSImage(size:flipped:drawing:)` is
+                // thread-safe and needs no window.
+                let key = tab.id.uuidString as NSString
+                let source = image
+                Task.detached(priority: .userInitiated) {
+                    let resizedImage = Self.resizeOffMain(source, to: targetSize)
+                    await MainActor.run {
+                        self.thumbnails.setObject(resizedImage, forKey: key)
+                        self.thumbnailTimestamps[tab.id] = Date()
+                        self.objectWillChange.send()
+                        completion?(resizedImage)
+                    }
+                }
             }
         }
     }
@@ -107,14 +121,14 @@ class TabThumbnailStore: ObservableObject {
     /// 清除指定 Tab 的缩略图缓存
     /// - Parameter tabId: Tab 的唯一标识
     func clearThumbnail(for tabId: UUID) {
-        thumbnails.removeValue(forKey: tabId)
+        thumbnails.removeObject(forKey: tabId.uuidString as NSString)
         thumbnailTimestamps.removeValue(forKey: tabId)
         objectWillChange.send()
     }
 
     /// 清除所有缩略图缓存
     func clearAllThumbnails() {
-        thumbnails.removeAll()
+        thumbnails.removeAllObjects()
         thumbnailTimestamps.removeAll()
         objectWillChange.send()
     }
@@ -169,14 +183,16 @@ class TabThumbnailStore: ObservableObject {
         }
     }
 
-    private func resizeImage(_ image: NSImage, to size: CGSize) -> NSImage {
-        let resized = NSImage(size: size)
-        resized.lockFocus()
-        image.draw(in: CGRect(origin: .zero, size: size),
-                   from: CGRect(origin: .zero, size: image.size),
-                   operation: .copy,
-                   fraction: 1.0)
-        resized.unlockFocus()
+    /// Thread-safe resize (no `lockFocus`, no window required). Runs off the
+    /// main actor via `Task.detached` from `captureThumbnail`.
+    nonisolated private static func resizeOffMain(_ image: NSImage, to size: CGSize) -> NSImage {
+        let resized = NSImage(size: size, flipped: false) { rect in
+            image.draw(in: rect,
+                       from: CGRect(origin: .zero, size: image.size),
+                       operation: .copy,
+                       fraction: 1.0)
+            return true
+        }
         return resized
     }
 }

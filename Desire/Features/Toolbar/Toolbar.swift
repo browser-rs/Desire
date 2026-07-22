@@ -39,7 +39,11 @@ struct Toolbar: View {
     let historyStore: HistoryStore
     let passwordStore: PasswordStore
     @ObservedObject var siteSettingsStore: SiteSettingsStore
-    @ObservedObject var devToolsStore: DevToolsStore
+    /// Dev-tools toggle tint. Passed as a plain Bool (refreshed by the parent
+    /// when `toggleDevTools()` flips the panel flag) instead of observing the
+    /// whole DevToolsStore — otherwise every console message / network event
+    /// from a chatty page would re-render the toolbar.
+    let isDevModeEnabled: Bool
     var isUrlFocused: FocusState<Bool>.Binding
     let actions: Actions
     @Binding var showHistory: Bool
@@ -302,7 +306,7 @@ struct Toolbar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(devToolsStore.isDevModeEnabled ? Color.accentColor : .primary)
+            .foregroundStyle(isDevModeEnabled ? Color.accentColor : .primary)
             .help("Developer Tools")
 
             DownloadButton(store: downloadStore, showDownloads: $showDownloads)

@@ -435,7 +435,7 @@ struct ContentView: View {
             historyStore: historyStore,
             passwordStore: passwordStore,
             siteSettingsStore: siteSettingsStore,
-            devToolsStore: devToolsStore,
+            isDevModeEnabled: devToolsStore.isDevModeEnabled,
             isUrlFocused: $isUrlFocused,
             actions: Toolbar.Actions(
                 goBack: { tab.browser.webView.goBack() },

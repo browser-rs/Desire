@@ -74,7 +74,6 @@ class DownloadStore: ObservableObject {
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
     private let historyKey = "desire.downloadHistory"
-    private var speedUpdateTimer: Timer?
 
     enum GroupingMode: String, CaseIterable {
         case date, fileType, status
@@ -93,30 +92,6 @@ class DownloadStore: ObservableObject {
             }
         }
         loadHistory()
-        startSpeedUpdateTimer()
-    }
-
-    deinit {
-        speedUpdateTimer?.invalidate()
-    }
-
-    private func startSpeedUpdateTimer() {
-        speedUpdateTimer?.invalidate()
-        speedUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.updateDownloadSpeeds()
-            }
-        }
-    }
-
-    private func updateDownloadSpeeds() {
-        let now = Date()
-        for i in downloads.indices {
-            if downloads[i].state == .inProgress && !downloads[i].isPaused {
-                downloads[i].lastUpdateTime = now
-            }
-        }
     }
 
     private static func defaultDownloadsURL() -> URL {

@@ -160,7 +160,11 @@ struct WebView: NSViewRepresentable {
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var siteSettingsStore: SiteSettingsStore
-    @ObservedObject var devToolsStore: DevToolsStore
+    /// Write-only reference (used in the `devConsole` message handler to push
+    /// console messages into the store). Not `@ObservedObject`: WebView never
+    /// renders from this store, so observing it would invalidate the
+    /// representable on every console line from every frame — pure overhead.
+    let devToolsStore: DevToolsStore
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool

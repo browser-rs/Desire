@@ -5,7 +5,15 @@ import Foundation
 class FaviconStore {
     static let shared = FaviconStore()
 
-    private var memoryCache: [String: NSImage] = [:]
+    /// Bounded in-memory cache. `NSCache` auto-evicts under memory pressure
+    /// (replacing the previous unbounded `[String: NSImage]` that grew forever
+    /// — one entry per distinct visited domain, never released). Keys are
+    /// domain strings, values are the decoded favicons.
+    private let memoryCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 256
+        return cache
+    }()
     private let diskCacheDir: URL
 
     private init() {
@@ -27,8 +35,9 @@ class FaviconStore {
 
     func favicon(for urlString: String) async -> NSImage? {
         guard let domain = Self.domainKey(from: urlString) else { return nil }
+        let key = domain as NSString
 
-        if let cached = memoryCache[domain] {
+        if let cached = memoryCache.object(forKey: key) {
             return cached
         }
 
@@ -36,7 +45,7 @@ class FaviconStore {
         if FileManager.default.fileExists(atPath: diskPath.path),
            let data = try? Data(contentsOf: diskPath),
            let img = NSImage(data: data) {
-            memoryCache[domain] = img
+            memoryCache.setObject(img, forKey: key)
             return img
         }
 
@@ -55,7 +64,7 @@ class FaviconStore {
             // Reject tiny 1x1 placeholder images that some CDNs return
             if data.count < 32 { continue }
             if let img = NSImage(data: data), img.size.width >= 4 {
-                memoryCache[domain] = img
+                memoryCache.setObject(img, forKey: key)
                 try? data.write(to: diskPath, options: .atomic)
                 return img
             }

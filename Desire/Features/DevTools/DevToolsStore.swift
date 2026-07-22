@@ -11,6 +11,15 @@ class DevToolsStore: ObservableObject {
     @Published var activePanel: DevPanel = .console
     @Published var pendingRequests: [UUID: NetworkRequest] = [:]
 
+    /// Incrementally maintained so the panel header badges don't re-scan the
+    /// whole (up to 1000-entry) console array on every publish.
+    @Published private(set) var consoleErrorCount = 0
+    @Published private(set) var consoleWarningCount = 0
+    @Published private(set) var networkFailedCount = 0
+
+    /// Max retained console entries.
+    private let consoleCap = 1000
+
     enum DevPanel: String, CaseIterable {
         case console = "Console"
         case network = "Network"
@@ -21,14 +30,25 @@ class DevToolsStore: ObservableObject {
 
     func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil) {
         let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column)
-        consoleMessages.append(msg)
-        if consoleMessages.count > 1000 {
-            consoleMessages.removeFirst(consoleMessages.count - 1000)
+        // Mutate the backing array once (append + optional trim), then publish
+        // a single time. The previous append-then-trim sequence published twice.
+        var newMessages = consoleMessages
+        newMessages.append(msg)
+        if newMessages.count > consoleCap {
+            let dropped = newMessages.prefix(newMessages.count - consoleCap)
+            newMessages.removeFirst(newMessages.count - consoleCap)
+            for dropped in dropped {
+                applyCount(dropped.level, delta: -1)
+            }
         }
+        consoleMessages = newMessages
+        applyCount(msg.level, delta: 1)
     }
 
     func clearConsole() {
         consoleMessages.removeAll()
+        consoleErrorCount = 0
+        consoleWarningCount = 0
     }
 
     func startNetworkRequest(url: String, method: String, resourceType: NetworkRequest.ResourceType, requestHeaders: [String: String]? = nil, requestBody: String? = nil) -> UUID {
@@ -53,12 +73,14 @@ class DevToolsStore: ObservableObject {
         pendingRequests.removeValue(forKey: id)
         if let index = networkRequests.firstIndex(where: { $0.id == id }) {
             networkRequests[index] = failed
+            networkFailedCount += 1
         }
     }
 
     func clearNetworkRequests() {
         networkRequests.removeAll()
         pendingRequests.removeAll()
+        networkFailedCount = 0
     }
 
     func setInspectedElement(_ element: InspectedElement?) {
@@ -78,19 +100,15 @@ class DevToolsStore: ObservableObject {
         activePanel = panel
     }
 
-    var consoleErrorCount: Int {
-        consoleMessages.filter { $0.level == .error }.count
-    }
-
-    var consoleWarningCount: Int {
-        consoleMessages.filter { $0.level == .warn }.count
-    }
-
-    var networkFailedCount: Int {
-        networkRequests.filter { $0.failed }.count
-    }
-
     var networkPendingCount: Int {
         pendingRequests.count
+    }
+
+    private func applyCount(_ level: ConsoleMessage.Level, delta: Int) {
+        switch level {
+        case .error: consoleErrorCount = max(0, consoleErrorCount + delta)
+        case .warn: consoleWarningCount = max(0, consoleWarningCount + delta)
+        default: break
+        }
     }
 }

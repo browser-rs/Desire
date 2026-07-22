@@ -353,15 +353,23 @@ class DownloadStore: ObservableObject {
     private func saveHistory() {
         let finished = downloads.filter { $0.state != .inProgress }
         let items = finished.map { HistoryItem($0) }
-        if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: historyKey)
-        }
+        DiskStore.save(items, key: historyKey)
     }
 
     private func loadHistory() {
-        guard let data = UserDefaults.standard.data(forKey: historyKey),
-              let items = try? JSONDecoder().decode([HistoryItem].self, from: data) else { return }
-        downloads = items.map { $0.toDownloadItem() }
+        if let items = DiskStore.load([HistoryItem].self, key: historyKey) {
+            downloads = items.map { $0.toDownloadItem() }
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: historyKey),
+           let items = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+            downloads = items.map { $0.toDownloadItem() }
+            // Re-save finished items to DiskStore and drop the legacy key.
+            let finished = downloads.filter { $0.state != .inProgress }.map { HistoryItem($0) }
+            DiskStore.save(finished, key: historyKey)
+            UserDefaults.standard.removeObject(forKey: historyKey)
+        }
     }
 
     func revealInFinder(_ item: DownloadItem) {

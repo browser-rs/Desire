@@ -44,14 +44,20 @@ class TabGroupStore: ObservableObject {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(groups) {
-            UserDefaults.standard.set(data, forKey: storageKey)
-        }
+        DiskStore.save(groups, key: storageKey)
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([TabGroup].self, from: data) else { return }
-        groups = decoded
+        if let decoded = DiskStore.load([TabGroup].self, key: storageKey) {
+            groups = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([TabGroup].self, from: data) {
+            groups = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: storageKey)
+        }
     }
 }

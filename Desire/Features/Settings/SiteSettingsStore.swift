@@ -11,12 +11,21 @@ struct SiteSettings: Codable {
 class SiteSettingsStore: ObservableObject {
     @Published private var settings: [String: SiteSettings] = [:]
 
+    /// DiskStore key. Also reused as the legacy UserDefaults key for the
+    /// one-time migration.
     private let key = "desire.siteSettings"
 
     init() {
+        if let decoded = DiskStore.load([String: SiteSettings].self, key: key) {
+            settings = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: key),
-           let settings = try? JSONDecoder().decode([String: SiteSettings].self, from: data) {
-            self.settings = settings
+           let decoded = try? JSONDecoder().decode([String: SiteSettings].self, from: data) {
+            settings = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 
@@ -86,8 +95,6 @@ class SiteSettingsStore: ObservableObject {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(settings) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
+        DiskStore.save(settings, key: key)
     }
 }

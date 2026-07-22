@@ -113,13 +113,20 @@ class PluginStore: ObservableObject {
     // MARK: - Persistence
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([Plugin].self, from: data) else { return }
-        plugins = decoded
+        if let decoded = DiskStore.load([Plugin].self, key: saveKey) {
+            plugins = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+           let decoded = try? JSONDecoder().decode([Plugin].self, from: data) {
+            plugins = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: saveKey)
+        }
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(plugins) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(plugins, key: saveKey)
     }
 }

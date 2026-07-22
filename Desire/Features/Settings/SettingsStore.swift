@@ -124,15 +124,21 @@ class Settings: ObservableObject {
     }
 
     private func saveCustomEngines() {
-        if let data = try? JSONEncoder().encode(customEngines) {
-            UserDefaults.standard.set(data, forKey: customEnginesKey)
-        }
+        DiskStore.save(customEngines, key: customEnginesKey)
     }
 
     private static func loadCustomEngines(key: String) -> [CustomSearchEngine] {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let engines = try? JSONDecoder().decode([CustomSearchEngine].self, from: data) else { return [] }
-        return engines
+        if let engines = DiskStore.load([CustomSearchEngine].self, key: key) {
+            return engines
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: key),
+           let engines = try? JSONDecoder().decode([CustomSearchEngine].self, from: data) {
+            DiskStore.save(engines, key: key)
+            UserDefaults.standard.removeObject(forKey: key)
+            return engines
+        }
+        return []
     }
 
     // MARK: - Screenshot folder

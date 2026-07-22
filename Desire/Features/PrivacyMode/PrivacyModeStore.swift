@@ -17,19 +17,25 @@ class PrivacyModeStore: ObservableObject {
         }
     }
 
+    /// DiskStore key for the state blob. Also reused as the legacy
+    /// UserDefaults key for the one-time migration.
     private let stateKey = "privacyModeState"
     private var registeredWebViews: [WeakWebViewBox] = []
 
     init() {
-        // Load saved state
-        if let data = UserDefaults.standard.data(forKey: stateKey),
-           let savedState = try? JSONDecoder().decode(PrivacyModeState.self, from: data) {
+        // Load saved state (DiskStore, with one-time legacy migration).
+        if let savedState = DiskStore.load(PrivacyModeState.self, key: stateKey) {
             state = savedState
+        } else if let data = UserDefaults.standard.data(forKey: stateKey),
+                  let savedState = try? JSONDecoder().decode(PrivacyModeState.self, from: data) {
+            state = savedState
+            DiskStore.save(savedState, key: stateKey)
+            UserDefaults.standard.removeObject(forKey: stateKey)
         } else {
             state = PrivacyModeState()
         }
 
-        // Load cookie policy
+        // Load cookie policy (scalar — stays on UserDefaults).
         if let policyRaw = UserDefaults.standard.string(forKey: "cookieAcceptPolicy"),
            let policy = CookieAcceptPolicy(rawValue: policyRaw) {
             cookieAcceptPolicy = policy
@@ -39,9 +45,7 @@ class PrivacyModeStore: ObservableObject {
     }
 
     private func saveState() {
-        if let data = try? JSONEncoder().encode(state) {
-            UserDefaults.standard.set(data, forKey: stateKey)
-        }
+        DiskStore.save(state, key: stateKey)
     }
 
     /// Register a WKWebView configuration to apply privacy settings

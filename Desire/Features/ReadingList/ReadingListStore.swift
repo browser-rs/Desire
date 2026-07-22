@@ -5,6 +5,8 @@ import Foundation
 class ReadingListStore: ObservableObject {
     @Published var items: [ReadingListItem] = []
 
+    /// DiskStore key. Also reused as the legacy UserDefaults key for the
+    /// one-time migration.
     private let storageKey = "desire.readingList"
 
     init() {
@@ -41,14 +43,20 @@ class ReadingListStore: ObservableObject {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: storageKey)
-        }
+        DiskStore.save(items, key: storageKey)
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([ReadingListItem].self, from: data) else { return }
-        items = decoded
+        if let decoded = DiskStore.load([ReadingListItem].self, key: storageKey) {
+            items = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([ReadingListItem].self, from: data) {
+            items = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: storageKey)
+        }
     }
 }

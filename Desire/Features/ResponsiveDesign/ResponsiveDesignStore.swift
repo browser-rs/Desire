@@ -31,13 +31,20 @@ class ResponsiveDesignStore: ObservableObject {
     }
 
     private func loadCustomPresets() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let presets = try? JSONDecoder().decode([DevicePreset].self, from: data) else { return }
-        customPresets = presets
+        if let presets = DiskStore.load([DevicePreset].self, key: saveKey) {
+            customPresets = presets
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+           let presets = try? JSONDecoder().decode([DevicePreset].self, from: data) {
+            customPresets = presets
+            persistCustomPresets()
+            UserDefaults.standard.removeObject(forKey: saveKey)
+        }
     }
 
     private func persistCustomPresets() {
-        guard let data = try? JSONEncoder().encode(customPresets) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(customPresets, key: saveKey)
     }
 }

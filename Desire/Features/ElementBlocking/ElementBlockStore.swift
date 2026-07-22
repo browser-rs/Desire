@@ -5,6 +5,8 @@ import Foundation
 class ElementBlockStore: ObservableObject {
     @Published var rules: [BlockedElementRule] = []
 
+    /// DiskStore key. Also reused as the legacy UserDefaults key for the
+    /// one-time migration.
     private let saveKey = "desire.elementBlockRules"
 
     init() { load() }
@@ -25,13 +27,20 @@ class ElementBlockStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([BlockedElementRule].self, from: data) else { return }
-        rules = decoded
+        if let decoded = DiskStore.load([BlockedElementRule].self, key: saveKey) {
+            rules = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+           let decoded = try? JSONDecoder().decode([BlockedElementRule].self, from: data) {
+            rules = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: saveKey)
+        }
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(rules) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(rules, key: saveKey)
     }
 }

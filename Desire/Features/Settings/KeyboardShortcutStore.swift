@@ -160,24 +160,36 @@ class KeyboardShortcutStore: ObservableObject {
     }
 
     private func load() {
+        // Primary: DiskStore.
+        if let stored = DiskStore.load([ShortcutMapping].self, key: saveKey) {
+            shortcuts = Self.mergeOverDefaults(stored)
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: saveKey),
            let custom = try? JSONDecoder().decode([ShortcutMapping].self, from: data) {
-            var merged = ShortcutMapping.defaults
-            for c in custom where c.isCustomized {
-                if let i = merged.firstIndex(where: { $0.id == c.id }) {
-                    merged[i] = c
-                }
-            }
-            shortcuts = merged
-        } else {
-            shortcuts = ShortcutMapping.defaults
+            shortcuts = Self.mergeOverDefaults(custom)
+            save()
+            UserDefaults.standard.removeObject(forKey: saveKey)
+            return
         }
+        shortcuts = ShortcutMapping.defaults
+    }
+
+    /// Merges stored/custom mappings over the builtin defaults so newly-added
+    /// default shortcuts appear even if the persisted list predates them.
+    private static func mergeOverDefaults(_ custom: [ShortcutMapping]) -> [ShortcutMapping] {
+        var merged = ShortcutMapping.defaults
+        for c in custom where c.isCustomized {
+            if let i = merged.firstIndex(where: { $0.id == c.id }) {
+                merged[i] = c
+            }
+        }
+        return merged
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(shortcuts) {
-            UserDefaults.standard.set(data, forKey: saveKey)
-        }
+        DiskStore.save(shortcuts, key: saveKey)
     }
 
     func registerLocalMonitor() {

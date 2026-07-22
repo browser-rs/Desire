@@ -19,12 +19,21 @@ struct PermissionRule: Codable {
 class PermissionStore: ObservableObject {
     @Published private(set) var rules: [PermissionRule] = []
 
+    /// DiskStore key. Also reused as the legacy UserDefaults key for the
+    /// one-time migration.
     private let key = "desire.permissionRules"
 
     init() {
+        if let decoded = DiskStore.load([PermissionRule].self, key: key) {
+            rules = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: key),
-           let rules = try? JSONDecoder().decode([PermissionRule].self, from: data) {
-            self.rules = rules
+           let decoded = try? JSONDecoder().decode([PermissionRule].self, from: data) {
+            rules = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 
@@ -49,8 +58,6 @@ class PermissionStore: ObservableObject {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(rules) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
+        DiskStore.save(rules, key: key)
     }
 }

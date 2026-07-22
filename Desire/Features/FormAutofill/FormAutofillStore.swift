@@ -7,18 +7,28 @@ class FormAutofillStore: ObservableObject {
         didSet { save() }
     }
 
+    /// DiskStore key. Also reused as the legacy UserDefaults key for the
+    /// one-time migration.
     private let key = "desire.formAutofillProfile"
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: key),
-           let profile = try? JSONDecoder().decode(FormAutofillProfile.self, from: data) {
-            self.profile = profile
-        } else {
-            self.profile = FormAutofillProfile(
-                givenName: "", familyName: "", email: "", phone: "",
-                organization: "", streetAddress: "", city: "", state: "", zipCode: "", country: ""
-            )
+        let empty = FormAutofillProfile(
+            givenName: "", familyName: "", email: "", phone: "",
+            organization: "", streetAddress: "", city: "", state: "", zipCode: "", country: ""
+        )
+        if let decoded = DiskStore.load(FormAutofillProfile.self, key: key) {
+            self.profile = decoded
+            return
         }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: key),
+           let decoded = try? JSONDecoder().decode(FormAutofillProfile.self, from: data) {
+            self.profile = decoded
+            DiskStore.save(decoded, key: key)
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+        self.profile = empty
     }
 
     var isConfigured: Bool {
@@ -48,9 +58,7 @@ class FormAutofillStore: ObservableObject {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(profile) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
+        DiskStore.save(profile, key: key)
     }
 }
 

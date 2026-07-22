@@ -206,13 +206,20 @@ class SafariExtensionManager: ObservableObject {
     // MARK: - Persistence
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([SafariExtension].self, from: data) else { return }
-        extensions = decoded
+        if let decoded = DiskStore.load([SafariExtension].self, key: saveKey) {
+            extensions = decoded
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+           let decoded = try? JSONDecoder().decode([SafariExtension].self, from: data) {
+            extensions = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: saveKey)
+        }
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(extensions) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(extensions, key: saveKey)
     }
 }

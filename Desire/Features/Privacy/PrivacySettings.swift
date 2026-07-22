@@ -74,19 +74,24 @@ class PrivacySettings: ObservableObject, Codable {
     init() {}
     
     // MARK: - Persistence
-    
+
     private static let storageKey = "privacySettings"
-    
+
     func save() {
-        guard let data = try? JSONEncoder().encode(self) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
+        DiskStore.save(self, key: Self.storageKey)
     }
-    
+
     static func load() -> PrivacySettings {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let settings = try? JSONDecoder().decode(PrivacySettings.self, from: data) else {
-            return PrivacySettings()
+        if let settings = DiskStore.load(PrivacySettings.self, key: storageKey) {
+            return settings
         }
-        return settings
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let settings = try? JSONDecoder().decode(PrivacySettings.self, from: data) {
+            DiskStore.save(settings, key: storageKey)
+            UserDefaults.standard.removeObject(forKey: storageKey)
+            return settings
+        }
+        return PrivacySettings()
     }
 }

@@ -37,17 +37,23 @@ class QuickDialStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([QuickDial].self, from: data),
-              !decoded.isEmpty else {
-            dials = defaultDials
+        if let decoded = DiskStore.load([QuickDial].self, key: storageKey), !decoded.isEmpty {
+            dials = decoded
             return
         }
-        dials = decoded
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([QuickDial].self, from: data),
+           !decoded.isEmpty {
+            dials = decoded
+            save()
+            UserDefaults.standard.removeObject(forKey: storageKey)
+            return
+        }
+        dials = defaultDials
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(dials) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        DiskStore.save(dials, key: storageKey)
     }
 }

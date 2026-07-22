@@ -51,11 +51,22 @@ class AISessionStore: ObservableObject {
     /// `nil` otherwise. The AI panel shows it as a "via ..." badge.
     @Published var lastProviderUsed: String?
 
-    var preference = AIPreferenceStore()
+    /// AI preferences (model, endpoint, API key, provider kind, ...). Owned
+    /// by `AIState` and injected here so the Settings window and the agent
+    /// loop share the exact same instance — edits in Settings reach the live
+    /// agent, and `routingLockedToCloud` is visible everywhere.
+    let preference: AIPreferenceStore
+    /// Conversation history store. Strongly held by `AIState`; injected here
+    /// at construction so save/load paths work without post-init wiring.
+    let conversationStore: ConversationStore
     private let toolProvider = BrowserToolProvider()
     private weak var webView: WKWebView?
     private var isCancelled = false
-    weak var conversationStore: ConversationStore?
+
+    init(preference: AIPreferenceStore, conversationStore: ConversationStore) {
+        self.preference = preference
+        self.conversationStore = conversationStore
+    }
 
     /// Tools the user has whitelisted with "Always Allow". Persisted across
     /// launches. `.dangerous` tools are never honored here — they always
@@ -190,7 +201,7 @@ class AISessionStore: ObservableObject {
     }
 
     func loadConversation(_ id: UUID) {
-        guard let conv = conversationStore?.conversation(for: id) else { return }
+        guard let conv = conversationStore.conversation(for: id) else { return }
         messages = conv.messages
         conversationId = conv.id
         conversationTitle = conv.title
@@ -200,7 +211,6 @@ class AISessionStore: ObservableObject {
     }
 
     private func saveCurrentConversation() {
-        guard let store = conversationStore else { return }
         let id = conversationId ?? UUID()
         conversationId = id
         let title: String
@@ -213,7 +223,7 @@ class AISessionStore: ObservableObject {
         }
         conversationTitle = title
         let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: messages)
-        store.save(conv)
+        conversationStore.save(conv)
     }
 
     private func fetchPageText() async -> String {

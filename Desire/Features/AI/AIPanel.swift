@@ -156,9 +156,10 @@ struct AIPanel: View {
 }
 
 #Preview {
-    let store = AISessionStore()
-    store.preference.model = "gpt-4o"
+    let preference = AIPreferenceStore()
+    preference.model = "gpt-4o"
     let conversationStore = ConversationStore()
+    let store = AISessionStore(preference: preference, conversationStore: conversationStore)
     return AIPanel(store: store, conversationStore: conversationStore)
         .frame(width: 360, height: 560)
 }

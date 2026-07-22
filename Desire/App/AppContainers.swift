@@ -34,18 +34,22 @@ class BrowsingState: ObservableObject {
     }
 }
 
-/// AI stores. (Step 2 will hoist `AIPreferenceStore` out of `AISessionStore`
-/// to be owned here directly; for now it stays nested inside `aiSession` and
-/// is exposed via the `preference` accessor so consumers already migrate to
-/// `ai.preference`.)
+/// AI stores. `AIPreferenceStore` is the single source of truth for AI
+/// preferences (model, endpoint, API key, provider kind, ...), owned here and
+/// injected into `AISessionStore` so the Settings window and the agent loop
+/// share the exact same instance. `ConversationStore` is likewise injected
+/// (strong) so the agent's save/load paths work without post-init wiring.
 @MainActor
 class AIState: ObservableObject {
-    lazy var aiSession = AISessionStore()
-    lazy var conversationStore = ConversationStore()
+    let preference: AIPreferenceStore
+    let conversationStore: ConversationStore
+    let aiSession: AISessionStore
 
-    /// Convenience: the AI preference store. Currently nested inside
-    /// `aiSession`; will become a top-level `let` in step 2.
-    var preference: AIPreferenceStore { aiSession.preference }
+    init() {
+        preference = AIPreferenceStore()
+        conversationStore = ConversationStore()
+        aiSession = AISessionStore(preference: preference, conversationStore: conversationStore)
+    }
 }
 
 /// Privacy / security stores: content blocking, passwords, autofill,

@@ -5,45 +5,64 @@ import Foundation
 class ConversationStore: ObservableObject {
     @Published var conversations: [Conversation] = []
 
-    private var storageURL: URL {
+    /// Legacy on-disk directory used before this store was routed through
+    /// `DiskStore`. Read once at init for migration, then ignored.
+    private let legacyDirectory: URL = {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let dir = paths[0].appendingPathComponent("me.siwi.Desire/conversations")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
+        return paths[0].appendingPathComponent("me.siwi.Desire/conversations")
+    }()
 
     init() {
         loadAll()
     }
 
+    /// Rebuilds the in-memory list from disk. Only used at init and after
+    /// `delete`; `save` updates the list in place instead (avoids re-reading
+    /// every conversation file on every save, which used to stall the AI
+    /// agent loop as conversations accumulated).
     func loadAll() {
-        let fm = FileManager.default
-        let dir = storageURL
-        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-            conversations = []
-            return
-        }
         var result: [Conversation] = []
-        for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let conv = try? JSONDecoder().decode(Conversation.self, from: data) else { continue }
-            result.append(conv)
+        let fm = FileManager.default
+
+        // Primary: DiskStore-managed files under Application Support/Desire/storage.
+        let dir = DiskStore.directory
+        if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            for file in files where file.pathExtension == "json" {
+                let name = file.deletingPathExtension().lastPathComponent
+                guard name.hasPrefix("conversation-"),
+                      let data = try? Data(contentsOf: file),
+                      let conv = try? JSONDecoder().decode(Conversation.self, from: data) else { continue }
+                result.append(conv)
+            }
         }
+
+        // One-time migration from the legacy directory. If the legacy folder
+        // exists and still holds files, import them through DiskStore and then
+        // remove the legacy folder so this branch is a no-op next launch.
+        if result.isEmpty {
+            let migrated = migrateLegacyIfNeeded()
+            result.append(contentsOf: migrated)
+        }
+
         result.sort { $0.updatedAt > $1.updatedAt }
         conversations = result
     }
 
+    /// Saves `conversation` via the debounced off-main `DiskStore`, then upserts
+    /// the in-memory list in place — no full reload.
     func save(_ conversation: Conversation) {
-        let url = storageURL.appendingPathComponent("\(conversation.id.uuidString).json")
-        guard let data = try? JSONEncoder().encode(conversation) else { return }
-        try? data.write(to: url, options: .atomic)
-        loadAll()
+        DiskStore.save(conversation, key: "conversation-\(conversation.id.uuidString)")
+        if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
+            conversations[idx] = conversation
+        } else {
+            conversations.append(conversation)
+        }
+        conversations.sort { $0.updatedAt > $1.updatedAt }
     }
 
     func delete(_ id: UUID) {
-        let url = storageURL.appendingPathComponent("\(id.uuidString).json")
-        try? FileManager.default.removeItem(at: url)
-        loadAll()
+        DiskStore.remove(key: "conversation-\(id.uuidString)")
+        conversations.removeAll { $0.id == id }
     }
 
     func rename(_ id: UUID, to title: String) {
@@ -53,14 +72,37 @@ class ConversationStore: ObservableObject {
         save(conv)
     }
 
+    /// Returns the conversation for `id`, preferring the in-memory list (which
+    /// is always up to date with the latest `save`) and falling back to disk.
     func conversation(for id: UUID) -> Conversation? {
-        let url = storageURL.appendingPathComponent("\(id.uuidString).json")
-        guard let data = try? Data(contentsOf: url),
-              let conv = try? JSONDecoder().decode(Conversation.self, from: data) else { return nil }
-        return conv
+        if let conv = conversations.first(where: { $0.id == id }) {
+            return conv
+        }
+        return DiskStore.load(Conversation.self, key: "conversation-\(id.uuidString)")
     }
 
     func create(title: String = "New Conversation") -> Conversation {
         Conversation(id: UUID(), title: title, createdAt: Date(), updatedAt: Date(), messages: [])
+    }
+
+    /// Reads any conversations from the pre-DiskStore directory, writes them
+    /// through DiskStore, and removes the legacy folder. Returns the migrated
+    /// conversations so the caller can include them in the initial list.
+    private func migrateLegacyIfNeeded() -> [Conversation] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: legacyDirectory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var migrated: [Conversation] = []
+        for file in files where file.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: file),
+                  let conv = try? JSONDecoder().decode(Conversation.self, from: data) else { continue }
+            DiskStore.save(conv, key: "conversation-\(conv.id.uuidString)")
+            migrated.append(conv)
+        }
+        if !migrated.isEmpty {
+            try? fm.removeItem(at: legacyDirectory)
+        }
+        return migrated
     }
 }

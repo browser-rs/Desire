@@ -107,8 +107,7 @@ struct AIPanel: View {
                     ForEach(store.messages) { msg in
                         AIMessageBubble(
                             message: msg,
-                            isStreamingTail: isStreamingTail(msg),
-                            streamingVersion: store.streamingVersion
+                            isStreamingTail: isStreamingTail(msg)
                         )
                         .id(msg.id)
                     }

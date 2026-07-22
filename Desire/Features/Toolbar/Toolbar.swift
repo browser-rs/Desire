@@ -30,7 +30,7 @@ struct Toolbar: View {
         let toggleDevTools: () -> Void
     }
 
-    let tab: Tab
+    @ObservedObject var tab: Tab
     let settings: Settings
     let isReadingMode: Bool
     @ObservedObject var suggestionModel: AddressSuggestionsModel
@@ -54,20 +54,48 @@ struct Toolbar: View {
     @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
+    /// Cached bookmark-state for the current page, recomputed only when the
+    /// page URL or the bookmark set changes — not on every body evaluation.
+    /// `bookmarkStore.contains` is O(1) (URL index), but recomputing it 3×
+    /// per render still allocates; this keeps the hot path allocation-free.
+    @State private var isBookmarked = false
+    /// Local editing buffer for the address field. Binding the field directly
+    /// to `tab.urlString` (a `@Published` property observed by this view)
+    /// created a feedback loop: each keystroke wrote `tab.urlString`, which
+    /// fired `tab.objectWillChange`, which re-evaluated `body`, which rebuilt
+    /// `URLBarField` and disrupted the NSTextField's field editor mid-edit
+    /// (broken input). The local buffer keeps typing off the publish path;
+    /// it only commits to `tab.urlString` on submit / paste-and-go, and is
+    /// refreshed from the page URL when not actively editing.
+    @State private var editingURL: String = ""
 
     private var zoomPercent: String {
         let pct = Int((tab.browser.pageZoom * 100).rounded())
         return "\(pct)%"
     }
 
-    private var isBookmarked: Bool {
-        guard let url = tab.browser.webView.url?.absoluteString else { return false }
-        return bookmarkStore.contains(url: url)
+    /// Recomputes `isBookmarked` from the current page URL. Idempotent; cheap.
+    private func refreshBookmarkState() {
+        guard let url = tab.browser.webView.url?.absoluteString else {
+            isBookmarked = false
+            return
+        }
+        isBookmarked = bookmarkStore.contains(url: url)
     }
 
     private var isDarkMode: Bool {
         guard let host = tab.browser.webView.url?.host else { return false }
         return siteSettingsStore.darkModeEnabled(for: host)
+    }
+
+    /// What the address field should show when not actively editing: the
+    /// current page URL, or the tab's `urlString` for pages that haven't
+    /// committed yet (new tab, in-flight navigation).
+    private var displayedURL: String {
+        if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
+            return url
+        }
+        return tab.isOnNewTabPage ? "" : tab.urlString
     }
 
     var body: some View {
@@ -85,8 +113,29 @@ struct Toolbar: View {
             PasswordPanel(passwordStore: passwordStore)
         }
         .onChange(of: isUrlFocused.wrappedValue) { _, focused in
-            if !focused { suggestionModel.reset() }
+            if focused {
+                // Entering edit mode: seed the buffer with what's currently
+                // displayed so the user edits the visible URL.
+                editingURL = displayedURL
+            } else {
+                suggestionModel.reset()
+                // Leaving edit mode: revert to the page URL. Submit/escape
+                // handlers already committed or reverted as needed; this
+                // covers the click-away case.
+                editingURL = displayedURL
+            }
         }
+        .onAppear {
+            editingURL = displayedURL
+            refreshBookmarkState()
+        }
+        // When the page navigates (and the field is not focused), keep the
+        // address field in sync with the new URL.
+        .onChange(of: displayedURL) { _, value in
+            if !isUrlFocused.wrappedValue { editingURL = value }
+        }
+        .onChange(of: tab.browser.webView.url) { _, _ in refreshBookmarkState() }
+        .onChange(of: bookmarkStore.bookmarks) { _, _ in refreshBookmarkState() }
     }
 
     // MARK: - Nav Group
@@ -126,11 +175,16 @@ struct Toolbar: View {
             }
 
             URLBarField(
-                text: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
+                text: $editingURL,
                 isFocused: isUrlFocused,
-                onSubmit: { actions.navigate(tab.urlString) },
+                onSubmit: {
+                    let target = editingURL
+                    tab.urlString = target
+                    actions.navigate(target)
+                },
                 onPasteAndGo: {
                     if let str = NSPasteboard.general.string(forType: .string) {
+                        editingURL = str
                         tab.urlString = str
                         actions.navigate(str)
                     }
@@ -139,6 +193,8 @@ struct Toolbar: View {
                 onEscape: {
                     suggestionModel.reset()
                     isUrlFocused.wrappedValue = false
+                    // Restore the field to the current page URL on escape.
+                    editingURL = displayedURL
                 },
                 onTextChange: { newValue in
                     suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)

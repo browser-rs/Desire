@@ -3,16 +3,21 @@ import SwiftUI
 struct MarkdownRendererView: View {
     let text: String
 
+    /// Parsed blocks, memoized so re-renders don't re-parse the markdown.
+    /// Reparsed only when `text` actually changes (i.e. on each streaming
+    /// token for the tail bubble — but not for the bubbles above it, which
+    /// is the win: before this, every token re-parsed *every* bubble).
+    @State private var blocks: [MarkdownBlock] = []
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(blocks.indices, id: \.self) { index in
                 renderBlock(blocks[index])
             }
         }
-    }
-
-    private var blocks: [MarkdownBlock] {
-        MarkdownParser.parse(text)
+        .task(id: text) {
+            blocks = MarkdownParser.parse(text)
+        }
     }
 
     @ViewBuilder
@@ -79,9 +84,8 @@ struct MarkdownRendererView: View {
         attributed.font = Font.system(size: 13)
 
         // Inline code: `code`
-        let codePattern = try! NSRegularExpression(pattern: "`([^`]+)`")
         let nsRange = NSRange(text.startIndex..., in: text)
-        for match in codePattern.matches(in: text, range: nsRange).reversed() {
+        for match in InlinePatterns.code.matches(in: text, range: nsRange).reversed() {
             guard let range = Range(match.range(at: 1), in: text) else { continue }
             let fullRange = Range(match.range(at: 0), in: text)!
             let codeStr = String(text[range])
@@ -94,9 +98,8 @@ struct MarkdownRendererView: View {
         }
 
         // Bold: **text**
-        let boldPattern = try! NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*")
         let nsRange2 = NSRange(text.startIndex..., in: text)
-        for match in boldPattern.matches(in: text, range: nsRange2).reversed() {
+        for match in InlinePatterns.bold.matches(in: text, range: nsRange2).reversed() {
             guard let range = Range(match.range(at: 1), in: text) else { continue }
             let fullRange = Range(match.range(at: 0), in: text)!
             var boldAttr = AttributedString(String(text[range]))
@@ -107,9 +110,8 @@ struct MarkdownRendererView: View {
         }
 
         // Italic: *text*
-        let italicPattern = try! NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
         let nsRange3 = NSRange(text.startIndex..., in: text)
-        for match in italicPattern.matches(in: text, range: nsRange3).reversed() {
+        for match in InlinePatterns.italic.matches(in: text, range: nsRange3).reversed() {
             guard let range = Range(match.range(at: 1), in: text) else { continue }
             let fullRange = Range(match.range(at: 0), in: text)!
             var italicAttr = AttributedString(String(text[range]))
@@ -164,6 +166,14 @@ private enum MarkdownBlock {
     case orderedList([String])
     case thematicBreak
     case empty
+}
+
+/// Compiled once and reused — `inlineContent` used to compile these three
+/// `NSRegularExpression`s on every call (multiple times per bubble per render).
+private enum InlinePatterns {
+    static let code = try! NSRegularExpression(pattern: "`([^`]+)`")
+    static let bold = try! NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*")
+    static let italic = try! NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
 }
 
 private enum MarkdownParser {

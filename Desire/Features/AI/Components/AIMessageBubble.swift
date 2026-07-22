@@ -8,7 +8,6 @@ struct AIMessageBubble: View {
     /// Whether this is the most recent assistant message that is still
     /// being streamed. Controls the trailing typing indicator.
     var isStreamingTail: Bool = false
-    var streamingVersion: Int = 0
 
     var body: some View {
         switch message.role {
@@ -17,8 +16,7 @@ struct AIMessageBubble: View {
         case .assistant:
             AssistantBubble(
                 message: message,
-                isStreamingTail: isStreamingTail,
-                streamingVersion: streamingVersion
+                isStreamingTail: isStreamingTail
             )
         case .tool:
             ToolBubble(content: message.content ?? "")
@@ -77,7 +75,6 @@ private struct UserBubble: View {
 private struct AssistantBubble: View {
     let message: AIMessage
     let isStreamingTail: Bool
-    let streamingVersion: Int
     @State private var isHovering = false
 
     private var isError: Bool {

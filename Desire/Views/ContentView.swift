@@ -7,42 +7,42 @@ import WebKit
 struct ContentView: View {
     let appState: AppState
 
-    @StateObject private var tabManager = TabManager()
-    @StateObject private var suggestionModel = AddressSuggestionsModel()
-    @StateObject private var translationService = TranslationService()
-    @StateObject private var responsiveDesignStore = ResponsiveDesignStore()
-    @StateObject private var thumbnailStore = TabThumbnailStore()
-    @FocusState private var isUrlFocused: Bool
-    @FocusState private var isFindFocused: Bool
-    @State private var showTranslateBar = false
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openWindow) private var openWindow
+    @StateObject fileprivate var tabManager = TabManager()
+    @StateObject fileprivate var suggestionModel = AddressSuggestionsModel()
+    @StateObject fileprivate var translationService = TranslationService()
+    @StateObject fileprivate var responsiveDesignStore = ResponsiveDesignStore()
+    @StateObject fileprivate var thumbnailStore = TabThumbnailStore()
+    @FocusState fileprivate var isUrlFocused: Bool
+    @FocusState fileprivate var isFindFocused: Bool
+    @State fileprivate var showTranslateBar = false
+    @Environment(\.scenePhase) fileprivate var scenePhase
+    @Environment(\.openWindow) fileprivate var openWindow
 
     // Convenience accessors for shared stores
-    private var settings: Settings { appState.settings }
-    private var aiSession: AISessionStore { appState.aiSession }
-    private var contentBlocker: ContentBlocker { appState.contentBlocker }
-    private var bookmarkStore: BookmarkStore { appState.bookmarkStore }
-    private var historyStore: HistoryStore { appState.historyStore }
-    private var passwordStore: PasswordStore { appState.passwordStore }
-    private var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
-    private var downloadStore: DownloadStore { appState.downloadStore }
-    private var permissionStore: PermissionStore { appState.permissionStore }
-    private var siteSettingsStore: SiteSettingsStore { appState.siteSettingsStore }
-    private var quickDialStore: QuickDialStore { appState.quickDialStore }
-    private var readingListStore: ReadingListStore { appState.readingListStore }
-    private var pluginStore: PluginStore { appState.pluginStore }
-    private var tabGroupStore: TabGroupStore { appState.tabGroupStore }
-    private var elementBlockStore: ElementBlockStore { appState.elementBlockStore }
-    private var videoAdBlocker: VideoAdBlocker { appState.videoAdBlocker }
-    private var conversationStore: ConversationStore { appState.conversationStore }
-    private var devToolsStore: DevToolsStore { appState.devToolsStore }
-    private var searchHistoryStore: SearchHistoryStore { appState.searchHistoryStore }
+    fileprivate var settings: Settings { appState.settings }
+    fileprivate var aiSession: AISessionStore { appState.aiSession }
+    fileprivate var contentBlocker: ContentBlocker { appState.contentBlocker }
+    fileprivate var bookmarkStore: BookmarkStore { appState.bookmarkStore }
+    fileprivate var historyStore: HistoryStore { appState.historyStore }
+    fileprivate var passwordStore: PasswordStore { appState.passwordStore }
+    fileprivate var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
+    fileprivate var downloadStore: DownloadStore { appState.downloadStore }
+    fileprivate var permissionStore: PermissionStore { appState.permissionStore }
+    fileprivate var siteSettingsStore: SiteSettingsStore { appState.siteSettingsStore }
+    fileprivate var quickDialStore: QuickDialStore { appState.quickDialStore }
+    fileprivate var readingListStore: ReadingListStore { appState.readingListStore }
+    fileprivate var pluginStore: PluginStore { appState.pluginStore }
+    fileprivate var tabGroupStore: TabGroupStore { appState.tabGroupStore }
+    fileprivate var elementBlockStore: ElementBlockStore { appState.elementBlockStore }
+    fileprivate var videoAdBlocker: VideoAdBlocker { appState.videoAdBlocker }
+    fileprivate var conversationStore: ConversationStore { appState.conversationStore }
+    fileprivate var devToolsStore: DevToolsStore { appState.devToolsStore }
+    fileprivate var searchHistoryStore: SearchHistoryStore { appState.searchHistoryStore }
 
     /// Rebuilt each render from current state. Cheap — it's a value type.
     /// Routes `BrowserCommand`s from the app menus. See `CommandDispatcher`
     /// and `docs/ARCHITECTURE.md` (L1-1).
-    private var commandDispatcher: CommandDispatcher {
+    fileprivate var commandDispatcher: CommandDispatcher {
         CommandDispatcher(
             tabManager: tabManager,
             settings: settings,
@@ -82,232 +82,38 @@ struct ContentView: View {
         )
     }
 
-    @State private var isAIConfigured = false
-    @State private var isFindBarVisible = false
-    @State private var showHistory = false
-    @State private var showBookmarks = false
-    @State private var showPlugins = false
-    @State private var showExtensions = false
-    @State private var showReadingList = false
-    @State private var showTabSwitcher = false
-    @State private var showSidebar = false
-    @State private var showElementBlock = false
-    @State private var showSearchHistory = false
-    @State private var showUndoToast = false
-    @State private var screenshotToast: String?
-    @State private var mediaQueries: [MediaQueryItem] = []
-    @State private var videoAdBlockerToast: String?
-    @State private var lastBlockedRuleId: UUID?
-    @State private var lastBlockedSelector = ""
-    @State private var lastBlockedXpath: String?
-    @State private var findString = ""
-    @State private var findHasMatch = false
-    @State private var findMatchCount = 0
-    @State private var findCurrentIndex = 0
-    @State private var isFullScreen = false
-    @State private var showAIPanel = false
-    @State private var aiFloatingPanel: AIFloatingPanel?
-    @State private var showDevToolsPanel = false
+    @State fileprivate var isAIConfigured = false
+    @State fileprivate var isFindBarVisible = false
+    @State fileprivate var showHistory = false
+    @State fileprivate var showBookmarks = false
+    @State fileprivate var showPlugins = false
+    @State fileprivate var showExtensions = false
+    @State fileprivate var showReadingList = false
+    @State fileprivate var showTabSwitcher = false
+    @State fileprivate var showSidebar = false
+    @State fileprivate var showElementBlock = false
+    @State fileprivate var showSearchHistory = false
+    @State fileprivate var showUndoToast = false
+    @State fileprivate var screenshotToast: String?
+    @State fileprivate var mediaQueries: [MediaQueryItem] = []
+    @State fileprivate var videoAdBlockerToast: String?
+    @State fileprivate var lastBlockedRuleId: UUID?
+    @State fileprivate var lastBlockedSelector = ""
+    @State fileprivate var lastBlockedXpath: String?
+    @State fileprivate var findString = ""
+    @State fileprivate var findHasMatch = false
+    @State fileprivate var findMatchCount = 0
+    @State fileprivate var findCurrentIndex = 0
+    @State fileprivate var isFullScreen = false
+    @State fileprivate var showAIPanel = false
+    @State fileprivate var aiFloatingPanel: AIFloatingPanel?
+    @State fileprivate var showDevToolsPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
                 tabBarSection(for: tab)
-                toolbarSection(for: tab)
-            }
-
-            if let tab = tabManager.selectedTab {
-                GeometryReader { geo in
-                    Capsule()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(height: 2)
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.accentColor)
-                                .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
-                        }
-                }
-                .frame(height: 2)
-                .opacity(tab.isLoading ? 1 : 0)
-                .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
-                .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
-
-                HStack(spacing: 0) {
-                    if showSidebar {
-                        SidebarView(
-                            bookmarkStore: bookmarkStore,
-                            historyStore: historyStore,
-                            readingListStore: readingListStore,
-                            onNavigate: { url in navigateToURL(url, for: tab) }
-                        )
-                        Divider()
-                    }
-
-                    VStack(spacing: 0) {
-                        if tab.responsiveConfig.isEnabled {
-                            ResponsiveDesignBar(
-                                config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
-                                responsiveStore: responsiveDesignStore,
-                                onScreenshot: { captureResponsiveScreenshot(for: tab) }
-                            )
-                        }
-
-                        if isFindBarVisible {
-                            FindBar(
-                                findString: $findString,
-                                findMatchCount: findMatchCount,
-                                findCurrentIndex: findCurrentIndex,
-                                isFindFocused: $isFindFocused,
-                                onFindNext: { performFindNext() },
-                                onFindPrevious: { performFindPrevious() },
-                                onHide: { hideFindBar() },
-                                onFindAll: { performFindAll() }
-                            )
-                        }
-
-                        Group {
-                            if tab.browser.isReadingMode {
-                                ReaderView(
-                                    title: tab.browser.readerTitle,
-                                    contentHTML: tab.browser.readerContent,
-                                    isLoading: tab.browser.isReaderLoading,
-                                    onClose: {
-                                        tab.browser.isReadingMode = false
-                                        tab.browser.isReaderLoading = false
-                                    }
-                                )
-                            } else if tab.isSuspended {
-                                SuspendedTabView(tab: tab)
-                            } else if tab.isOnNewTabPage {
-                                NewTabPage(store: quickDialStore, urlString: Binding(
-                                    get: { tab.urlString },
-                                    set: { tab.urlString = $0 }
-                                ), onNavigate: { input in
-                                    navigateToURL(input, for: tab)
-                                }, suggestionModel: suggestionModel, bookmarkStore: bookmarkStore, historyStore: historyStore, settings: settings)
-                            } else {
-                                GeometryReader { geo in
-                                    let effectiveSize = tab.responsiveConfig.effectiveSize
-                                    let responsiveW: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.width, geo.size.width - 40) : nil
-                                    let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
-                                    makeWebView(for: tab)
-                                        .frame(width: responsiveW, height: responsiveH)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .overlay {
-                                            if tab.responsiveConfig.isEnabled {
-                                                DeviceFrameOverlay(config: tab.responsiveConfig, viewportSize: effectiveSize)
-                                            }
-                                        }
-                                        .overlay {
-                                            if tab.responsiveConfig.isEnabled {
-                                                DragHandleOverlay(
-                                                    config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
-                                                    viewportSize: effectiveSize
-                                                )
-                                            }
-                                        }
-                                        .overlay {
-                                            if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showRulers {
-                                                RulerOverlay(viewportSize: effectiveSize)
-                                            }
-                                        }
-                                        .onChange(of: tab.responsiveConfig.touchSimulationEnabled) { _, enabled in
-                                            if enabled {
-                                                TouchSimulation.apply(to: tab.browser.webView)
-                                            } else {
-                                                TouchSimulation.remove(from: tab.browser.webView)
-                                            }
-                                        }
-                                        .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
-                                            if show {
-                                                refreshMediaQueries(for: tab)
-                                            }
-                                        }
-                                        .onChange(of: tab.responsiveConfig.effectiveSize) { _, _ in
-                                            if tab.responsiveConfig.showMediaQueryInspector {
-                                                refreshMediaQueries(for: tab)
-                                            }
-                                        }
-                                }
-                            }
-                        }
-                        .id(tab.id)
-                        .overlay(alignment: .top) {
-                            if isUrlFocused {
-                                AddressSuggestionsView(
-                                    model: suggestionModel,
-                                    engineName: settings.searchEngine.rawValue,
-                                    searchHistoryStore: searchHistoryStore,
-                                    onSelect: { sug in
-                                        suggestionModel.reset()
-                                        isUrlFocused = false
-                                        navigateToURL(sug.url, for: tab)
-                                    },
-                                    onSearchHistorySelect: { query in
-                                        suggestionModel.reset()
-                                        isUrlFocused = false
-                                        let url = settings.searchURLTemplate
-                                            + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
-                                        navigateToURL(url, for: tab)
-                                    }
-                                )
-                                .padding(.horizontal, 12)
-                                .padding(.top, 2)
-                                .transition(.opacity)
-                            }
-                        }
-                        .overlay {
-                            if let error = tab.browser.lastError, !tab.isOnNewTabPage {
-                                // Pass the underlying Error (typically a
-                                // URLError) so ErrorPageView can map it to
-                                // category-specific copy — TLS handshake,
-                                // offline, server unreachable, etc. — rather
-                                // than just dumping the raw string.
-                                ErrorPageView(error: error, tab: tab)
-                            }
-                        }
-
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
-                    Divider()
-                        .frame(width: 1)
-                    MediaQueryInspector(queries: mediaQueries)
-                        .frame(width: 220)
-                }
-
-                if showAIPanel {
-                    Divider()
-                        .frame(width: 1)
-                    AIPanel(store: aiSession, conversationStore: conversationStore)
-                        .frame(width: 320)
-                }
-
-                if showDevToolsPanel {
-                    Divider()
-                        .frame(width: 1)
-                    DevToolsPanel(store: devToolsStore, tab: tab, onStartElementPicker: {
-                        tab.browser.isPickingElement = true
-                        tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
-                    })
-                    .frame(width: 380)
-                }
-            }
-            }
-
-            if settings.showLinkPreview, let tab = tabManager.selectedTab, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
-                HStack(spacing: 4) {
-                    Text(hoverURL)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 3)
-                .background(.bar)
+                SelectedTabContent(tab: tab, content: self)
             }
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
@@ -535,7 +341,7 @@ struct ContentView: View {
     /// Tab strip. Extracted from `body` (L1-1) to keep `body` scannable.
     /// Pure view slice — no state or logic moved, closures retained verbatim.
     @ViewBuilder
-    private func tabBarSection(for tab: Tab) -> some View {
+    fileprivate func tabBarSection(for tab: Tab) -> some View {
         TabBar(
             tabs: tabManager.tabs,
             selectedIndex: tabManager.selectedIndex,
@@ -618,7 +424,7 @@ struct ContentView: View {
     /// closure still holds an inline JS template; it will move to the
     /// JS Bridge in roadmap stage 1.
     @ViewBuilder
-    private func toolbarSection(for tab: Tab) -> some View {
+    fileprivate func toolbarSection(for tab: Tab) -> some View {
         Toolbar(
             tab: tab,
             settings: settings,
@@ -720,11 +526,11 @@ struct ContentView: View {
 
     // MARK: - Actions
 
-    private func toggleFullScreen() {
+    fileprivate func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)
     }
 
-    private func toggleBookmark() {
+    fileprivate func toggleBookmark() {
         guard let tab = tabManager.selectedTab,
               let url = tab.browser.webView.url,
               !tab.isOnNewTabPage else { return }
@@ -736,25 +542,25 @@ struct ContentView: View {
         }
     }
 
-    private func inspectElement() {
+    fileprivate func inspectElement() {
         if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
             tab.browser.webView.requestInspector()
         }
     }
 
-    private func toggleDevTools() {
+    fileprivate func toggleDevTools() {
         showDevToolsPanel.toggle()
         devToolsStore.toggleDevMode()
     }
 
-    private func loadHome(for tab: Tab) {
+    fileprivate func loadHome(for tab: Tab) {
         guard let url = URL(string: settings.homePage) else { return }
         tab.isOnNewTabPage = false
         tab.urlString = settings.homePage
         tab.browser.webView.load(URLRequest(url: url))
     }
 
-    private func navigateToURL(_ input: String, for tab: Tab) {
+    fileprivate func navigateToURL(_ input: String, for tab: Tab) {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
@@ -775,7 +581,7 @@ struct ContentView: View {
         tab.browser.webView.load(URLRequest(url: url))
     }
 
-    private func showFindBar() {
+    fileprivate func showFindBar() {
         findString = ""
         findHasMatch = false
         findMatchCount = 0
@@ -786,7 +592,7 @@ struct ContentView: View {
         }
     }
 
-    private func hideFindBar() {
+    fileprivate func hideFindBar() {
         isFindBarVisible = false
         findString = ""
         findHasMatch = false
@@ -795,7 +601,7 @@ struct ContentView: View {
         NSApp.mainWindow?.makeFirstResponder(nil)
     }
 
-    private func performFindAll() {
+    fileprivate func performFindAll() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else {
             findHasMatch = false
             findMatchCount = 0
@@ -830,7 +636,7 @@ struct ContentView: View {
         }
     }
 
-    private func performFindNext() {
+    fileprivate func performFindNext() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
         let config = WKFindConfiguration()
         config.wraps = true
@@ -842,7 +648,7 @@ struct ContentView: View {
         }
     }
 
-    private func performFindPrevious() {
+    fileprivate func performFindPrevious() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
         let config = WKFindConfiguration()
         config.backwards = true
@@ -855,7 +661,7 @@ struct ContentView: View {
         }
     }
 
-    private func zoomTab(by delta: Double) {
+    fileprivate func zoomTab(by delta: Double) {
         guard let tab = tabManager.selectedTab else { return }
         let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
         tab.browser.pageZoom = newZoom
@@ -865,7 +671,7 @@ struct ContentView: View {
         }
     }
 
-    private func zoomTab(to value: Double) {
+    fileprivate func zoomTab(to value: Double) {
         guard let tab = tabManager.selectedTab else { return }
         tab.browser.pageZoom = value
         tab.browser.webView.pageZoom = value
@@ -874,7 +680,7 @@ struct ContentView: View {
         }
     }
 
-    private func printPage() {
+    fileprivate func printPage() {
         guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
         let printInfo = NSPrintInfo.shared
         printInfo.horizontalPagination = .fit
@@ -887,7 +693,7 @@ struct ContentView: View {
         operation.run()
     }
 
-    private func startScreenshot() {
+    fileprivate func startScreenshot() {
         ScreenshotSession.start(saveFolder: settings.screenshotFolder) { result in
             Task { @MainActor in
                 switch result {
@@ -907,7 +713,7 @@ struct ContentView: View {
         }
     }
 
-    private func refreshMediaQueries(for tab: Tab) {
+    fileprivate func refreshMediaQueries(for tab: Tab) {
         tab.browser.webView.evaluateJavaScript(mediaQueryExtractorJS) { result, _ in
             if let rules = result as? [[String: Any]] {
                 mediaQueries = rules.map {
@@ -917,7 +723,7 @@ struct ContentView: View {
         }
     }
 
-    private func captureResponsiveScreenshot(for tab: Tab) {
+    fileprivate func captureResponsiveScreenshot(for tab: Tab) {
         let snapConfig = WKSnapshotConfiguration()
         snapConfig.rect = CGRect(origin: .zero, size: tab.responsiveConfig.effectiveSize)
         tab.browser.webView.takeSnapshot(with: snapConfig) { image, error in
@@ -936,7 +742,7 @@ struct ContentView: View {
         }
     }
 
-    private func captureFullPage() {
+    fileprivate func captureFullPage() {
         guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
         let webView = tab.browser.webView
         let config = WKPDFConfiguration()
@@ -958,7 +764,7 @@ struct ContentView: View {
         }
     }
 
-    private func togglePictureInPicture() {
+    fileprivate func togglePictureInPicture() {
         guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
         let js = """
         (function() {
@@ -974,7 +780,7 @@ struct ContentView: View {
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    private func makeWebView(for tab: Tab) -> WebView {
+    fileprivate func makeWebView(for tab: Tab) -> WebView {
         tab.browser.onAIElementPicked = { selector, html in
             aiSession.addContext(html: html, selector: selector)
         }
@@ -1045,8 +851,8 @@ struct ContentView: View {
 
     /// Schedules the video-ad-blocker toast to disappear after 2.5s.
     /// Uses an id-based schedule to allow overlapping updates (latest wins).
-    private var videoAdBlockerToastToken: Int { 0 }
-    private func scheduleVideoAdBlockerToastReset() {
+    fileprivate var videoAdBlockerToastToken: Int { 0 }
+    fileprivate func scheduleVideoAdBlockerToastReset() {
         let snapshot = videoAdBlockerToast
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             if videoAdBlockerToast == snapshot {
@@ -1055,7 +861,7 @@ struct ContentView: View {
         }
     }
     
-    private func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) {
+    fileprivate func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) {
         guard let host = tab.browser.webView.url?.host else {
             tab.browser.isPickingElement = false
             return
@@ -1094,3 +900,218 @@ struct ContentView: View {
         tab.browser.isPickingElement = false
     }
 }
+
+// MARK: - SelectedTabContent
+
+/// Renders everything that must live-update with the selected tab's per-page
+/// state (estimatedProgress, isLoading, reader mode, error overlay, responsive
+/// config, hovered link, ...).
+///
+/// Split out of `ContentView.body` so that `Tab.browser.objectWillChange` —
+/// which fires on every progress tick, hover, and load-state flip — only
+/// re-evaluates *this* view, not the whole `ContentView` (which owns the tab
+/// strip, sheets, toasts, and keyboard-shortcut overlays). `Tab` is observed
+/// directly here via `@ObservedObject`. Before this split, `TabManager`
+/// forwarded every tab's `objectWillChange` up to itself, invalidating the
+/// entire app UI on each tick.
+///
+/// Private sub-view (AGENTS.md file-granularity exception 2): shares
+/// `ContentView`'s state and action methods via `content`, so it lives in the
+/// same file rather than being extracted out.
+private struct SelectedTabContent: View {
+    @ObservedObject var tab: Tab
+    let content: ContentView
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GeometryReader { geo in
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.15))
+                    .frame(height: 2)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
+                    }
+            }
+            .frame(height: 2)
+            .opacity(tab.isLoading ? 1 : 0)
+            .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
+            .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
+
+            HStack(spacing: 0) {
+                if content.showSidebar {
+                    SidebarView(
+                        bookmarkStore: content.bookmarkStore,
+                        historyStore: content.historyStore,
+                        readingListStore: content.readingListStore,
+                        onNavigate: { url in content.navigateToURL(url, for: tab) }
+                    )
+                    Divider()
+                }
+
+                VStack(spacing: 0) {
+                    content.toolbarSection(for: tab)
+
+                    if tab.responsiveConfig.isEnabled {
+                        ResponsiveDesignBar(
+                            config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
+                            responsiveStore: content.responsiveDesignStore,
+                            onScreenshot: { content.captureResponsiveScreenshot(for: tab) }
+                        )
+                    }
+
+                    if content.isFindBarVisible {
+                        FindBar(
+                            findString: content.$findString,
+                            findMatchCount: content.findMatchCount,
+                            findCurrentIndex: content.findCurrentIndex,
+                            isFindFocused: content.$isFindFocused,
+                            onFindNext: { content.performFindNext() },
+                            onFindPrevious: { content.performFindPrevious() },
+                            onHide: { content.hideFindBar() },
+                            onFindAll: { content.performFindAll() }
+                        )
+                    }
+
+                    Group {
+                        if tab.browser.isReadingMode {
+                            ReaderView(
+                                title: tab.browser.readerTitle,
+                                contentHTML: tab.browser.readerContent,
+                                isLoading: tab.browser.isReaderLoading,
+                                onClose: {
+                                    tab.browser.isReadingMode = false
+                                    tab.browser.isReaderLoading = false
+                                }
+                            )
+                        } else if tab.isSuspended {
+                            SuspendedTabView(tab: tab)
+                        } else if tab.isOnNewTabPage {
+                            NewTabPage(store: content.quickDialStore, urlString: Binding(
+                                get: { tab.urlString },
+                                set: { tab.urlString = $0 }
+                            ), onNavigate: { input in
+                                content.navigateToURL(input, for: tab)
+                            }, suggestionModel: content.suggestionModel, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
+                        } else {
+                            GeometryReader { geo in
+                                let effectiveSize = tab.responsiveConfig.effectiveSize
+                                let responsiveW: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.width, geo.size.width - 40) : nil
+                                let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
+                                content.makeWebView(for: tab)
+                                    .frame(width: responsiveW, height: responsiveH)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .overlay {
+                                        if tab.responsiveConfig.isEnabled {
+                                            DeviceFrameOverlay(config: tab.responsiveConfig, viewportSize: effectiveSize)
+                                        }
+                                    }
+                                    .overlay {
+                                        if tab.responsiveConfig.isEnabled {
+                                            DragHandleOverlay(
+                                                config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
+                                                viewportSize: effectiveSize
+                                            )
+                                        }
+                                    }
+                                    .overlay {
+                                        if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showRulers {
+                                            RulerOverlay(viewportSize: effectiveSize)
+                                        }
+                                    }
+                                    .onChange(of: tab.responsiveConfig.touchSimulationEnabled) { _, enabled in
+                                        if enabled {
+                                            TouchSimulation.apply(to: tab.browser.webView)
+                                        } else {
+                                            TouchSimulation.remove(from: tab.browser.webView)
+                                        }
+                                    }
+                                    .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
+                                        if show {
+                                            content.refreshMediaQueries(for: tab)
+                                        }
+                                    }
+                                    .onChange(of: tab.responsiveConfig.effectiveSize) { _, _ in
+                                        if tab.responsiveConfig.showMediaQueryInspector {
+                                            content.refreshMediaQueries(for: tab)
+                                        }
+                                    }
+                            }
+                        }
+                    }
+                    .id(tab.id)
+                    .overlay(alignment: .top) {
+                        if content.isUrlFocused {
+                            AddressSuggestionsView(
+                                model: content.suggestionModel,
+                                engineName: content.settings.searchEngine.rawValue,
+                                searchHistoryStore: content.searchHistoryStore,
+                                onSelect: { sug in
+                                    content.suggestionModel.reset()
+                                    content.isUrlFocused = false
+                                    content.navigateToURL(sug.url, for: tab)
+                                },
+                                onSearchHistorySelect: { query in
+                                    content.suggestionModel.reset()
+                                    content.isUrlFocused = false
+                                    let url = content.settings.searchURLTemplate
+                                        + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
+                                    content.navigateToURL(url, for: tab)
+                                }
+                            )
+                            .padding(.horizontal, 12)
+                            .padding(.top, 2)
+                            .transition(.opacity)
+                        }
+                    }
+                    .overlay {
+                        if let error = tab.browser.lastError, !tab.isOnNewTabPage {
+                            ErrorPageView(error: error, tab: tab)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
+                    Divider()
+                        .frame(width: 1)
+                    MediaQueryInspector(queries: content.mediaQueries)
+                        .frame(width: 220)
+                }
+
+                if content.showAIPanel {
+                    Divider()
+                        .frame(width: 1)
+                    AIPanel(store: content.aiSession, conversationStore: content.conversationStore)
+                        .frame(width: 320)
+                }
+
+                if content.showDevToolsPanel {
+                    Divider()
+                        .frame(width: 1)
+                    DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
+                        tab.browser.isPickingElement = true
+                        tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                    })
+                    .frame(width: 380)
+                }
+            }
+
+            if content.settings.showLinkPreview, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
+                HStack(spacing: 4) {
+                    Text(hoverURL)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+                .background(.bar)
+            }
+        }
+    }
+}
+

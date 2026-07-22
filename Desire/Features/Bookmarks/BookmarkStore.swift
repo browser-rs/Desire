@@ -6,7 +6,28 @@ import UniformTypeIdentifiers
 @MainActor
 class BookmarkStore: ObservableObject {
     @Published var bookmarks: [Bookmark] = []
-    private let saveKey = "desire.bookmarks"
+    private let saveKey = "bookmarks"
+    /// Legacy UserDefaults key — read once during migration, then deleted.
+    private let legacySaveKey = "desire.bookmarks"
+
+    /// URL index of all leaf bookmarks, maintained incrementally so
+    /// `contains(url:)` is O(1) instead of flattening the whole tree on every
+    /// call (it ran 3× per Toolbar render, per keystroke in the address bar).
+    private var leafURLs: Set<String> = []
+
+    /// Flattened, pre-lowercased leaf entries for cheap address-bar matching.
+    /// Rebuilt alongside `leafURLs`. Lets `AddressSuggestionsModel.build` scan
+    /// bookmarks per keystroke without flattening the tree or calling
+    /// `.lowercased()` on each item each time.
+    private(set) var leafEntries: [LeafEntry] = []
+
+    /// A lowercase-indexed bookmark leaf for suggestion matching.
+    struct LeafEntry {
+        let title: String
+        let url: String
+        let titleLower: String
+        let urlLower: String
+    }
 
     init() {
         load()
@@ -24,6 +45,7 @@ class BookmarkStore: ObservableObject {
         } else {
             bookmarks.append(bookmark)
         }
+        leafURLs.insert(url)
         save()
     }
 
@@ -39,16 +61,18 @@ class BookmarkStore: ObservableObject {
 
     func remove(_ bookmark: Bookmark) {
         _ = bookmarks.remove(id: bookmark.id)
+        rebuildURLIndex()
         save()
     }
 
     func update(_ bookmark: Bookmark) {
         _ = bookmarks.update(id: bookmark.id) { $0 = bookmark }
+        rebuildURLIndex()
         save()
     }
 
     func contains(url: String) -> Bool {
-        allBookmarks.contains { $0.url == url }
+        leafURLs.contains(url)
     }
 
     func find(url: String) -> Bookmark? {
@@ -56,19 +80,46 @@ class BookmarkStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: saveKey),
-              let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) else { return }
-        bookmarks = decoded
+        // Primary: DiskStore (debounced, off-main).
+        if let decoded = DiskStore.load([Bookmark].self, key: saveKey) {
+            bookmarks = decoded
+            rebuildURLIndex()
+            return
+        }
+        // One-time migration from the legacy UserDefaults blob.
+        if let data = UserDefaults.standard.data(forKey: legacySaveKey),
+           let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) {
+            bookmarks = decoded
+            rebuildURLIndex()
+            save()
+            UserDefaults.standard.removeObject(forKey: legacySaveKey)
+        }
     }
 
     func save() {
-        guard let data = try? JSONEncoder().encode(bookmarks) else { return }
-        UserDefaults.standard.set(data, forKey: saveKey)
+        DiskStore.save(bookmarks, key: saveKey)
     }
 
     func saveImported(_ newBookmarks: [Bookmark]) {
         bookmarks.append(contentsOf: newBookmarks)
+        rebuildURLIndex()
         save()
+    }
+
+    /// Rebuilds `leafURLs` and `leafEntries` from the current tree. Called
+    /// after load and after mutations that can change many URLs at once
+    /// (remove, update, import).
+    private func rebuildURLIndex() {
+        let leaves = allBookmarks.compactMap { $0.url }
+        leafURLs = Set(leaves)
+        leafEntries = allBookmarks.map {
+            LeafEntry(
+                title: $0.title,
+                url: $0.url ?? "",
+                titleLower: $0.title.lowercased(),
+                urlLower: ($0.url ?? "").lowercased()
+            )
+        }
     }
 
     private func seedDefaults() {
@@ -79,6 +130,7 @@ class BookmarkStore: ObservableObject {
             ]),
             .leaf(title: "Hacker News", url: "https://news.ycombinator.com"),
         ]
+        rebuildURLIndex()
         save()
     }
 
@@ -103,6 +155,7 @@ class BookmarkStore: ObservableObject {
         let parsed = parseBookmarksHTML(html)
         guard !parsed.isEmpty else { return }
         bookmarks = parsed
+        rebuildURLIndex()
         save()
     }
 

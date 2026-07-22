@@ -67,7 +67,6 @@ class Tab: ObservableObject {
 class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
-    private var tabCancellables: [UUID: AnyCancellable] = [:]
     private var recentlyClosedURLs: [String] = []
     private var suspendTimer: Timer?
     private var sessionSaveTimer: Timer?
@@ -157,9 +156,6 @@ class TabManager: ObservableObject {
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end) {
         let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
-        tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
-        }
         switch newTabPosition {
         case .end:
             tabs.append(tab)
@@ -178,9 +174,6 @@ class TabManager: ObservableObject {
         let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
         let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
         newTab.isPinned = source.isPinned
-        tabCancellables[newTab.id] = newTab.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
-        }
         tabs.insert(newTab, at: index + 1)
         selectedIndex = index + 1
         persistSession()
@@ -193,7 +186,7 @@ class TabManager: ObservableObject {
             recentlyClosedURLs.append(url)
             if recentlyClosedURLs.count > 20 { recentlyClosedURLs.removeFirst() }
         }
-        tabCancellables[tab.id] = nil
+        tearDown(tab)
         tabs.remove(at: index)
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
@@ -212,7 +205,7 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let kept = tabs[index]
         for tab in tabs where tab.id != kept.id {
-            tabCancellables[tab.id] = nil
+            tearDown(tab)
         }
         tabs = [kept]
         selectedIndex = 0
@@ -223,11 +216,20 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let toRemove = Array(tabs[(index + 1)...])
         for tab in toRemove {
-            tabCancellables[tab.id] = nil
+            tearDown(tab)
         }
         tabs = Array(tabs.prefix(index + 1))
         if selectedIndex > index { selectedIndex = index }
         persistSession()
+    }
+
+    /// Releases the tab's WKWebView resources so it can be deallocated
+    /// promptly under tab churn. Without this the webview is only freed
+    /// when the `Tab` itself deinits, which can lag behind close.
+    private func tearDown(_ tab: Tab) {
+        tab.browser.webView.stopLoading()
+        tab.browser.webView.uiDelegate = nil
+        tab.browser.webView.navigationDelegate = nil
     }
 
     func moveTab(from source: Int, to target: Int) {
@@ -313,7 +315,6 @@ class TabManager: ObservableObject {
         }
 
         tabs = []
-        tabCancellables = [:]
 
         for saved in session.tabs {
             let url = saved.isOnNewTabPage ? nil : saved.url
@@ -336,11 +337,6 @@ class TabManager: ObservableObject {
                 }
             }
 
-            tabCancellables[tab.id] = tab.objectWillChange.sink { [weak self] _ in
-                DispatchQueue.main.async { [weak self] in
-                    self?.objectWillChange.send()
-                }
-            }
             tabs.append(tab)
             if !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
                 tab.suppressHistoryOnce = true

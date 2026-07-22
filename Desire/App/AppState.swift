@@ -65,4 +65,25 @@ class AppState: ObservableObject {
     var pluginStore: PluginStore { system.pluginStore }
     var safariExtensionManager: SafariExtensionManager { system.safariExtensionManager }
     var performanceManager: PerformanceManager { system.performanceManager }
+
+    // MARK: - BrowserToolSurface runtime wiring
+
+    /// The current window's TabManager. Tabs are per-window (each window owns
+    /// its own TabManager), so AppState can't own one; each window's
+    /// `ContentView` attaches its TabManager here so AI tools can address the
+    /// active tab set. Weak to avoid retaining a per-window object globally.
+    private weak var _tabManager: TabManager?
+
+    /// Attaches the active window's TabManager so `BrowserToolSurface`
+    /// consumers (the AI tool provider) can reach it. Called per window on
+    /// `ContentView.onAppear`.
+    func attach(tabManager: TabManager) {
+        _tabManager = tabManager
+    }
+}
+
+// MARK: - BrowserToolSurface
+
+extension AppState: BrowserToolSurface {
+    var tabManager: TabManager? { _tabManager }
 }

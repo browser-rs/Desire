@@ -4,19 +4,15 @@ import WebKit
 
 @MainActor
 class BrowserToolProvider {
-    weak var tabManager: TabManager?
-    weak var bookmarkStore: BookmarkStore?
-    weak var historyStore: HistoryStore?
-    weak var contentBlocker: ContentBlocker?
-    weak var readingListStore: ReadingListStore?
-    weak var downloadStore: DownloadStore?
-    weak var siteSettingsStore: SiteSettingsStore?
-    weak var settings: Settings?
-    weak var videoAdBlocker: VideoAdBlocker?
-    weak var pluginStore: PluginStore?
-    weak var elementBlockStore: ElementBlockStore?
-    weak var tabGroupStore: TabGroupStore?
-    weak var quickDialStore: QuickDialStore?
+    /// The app-state slice the tools operate over. Weak: owned by the app
+    /// (AppState conforms). Set once per window via `attach(surface:)`.
+    /// Replaces the former 13 individual `weak var ...Store?` injections.
+    weak var surface: BrowserToolSurface?
+
+    /// Attaches the tool surface. Called from `AISessionStore.configure`.
+    func attach(surface: BrowserToolSurface) {
+        self.surface = surface
+    }
 
     static var toolDefs: [AIToolDef] {
         [
@@ -298,6 +294,12 @@ class BrowserToolProvider {
 
     func execute(_ call: AIToolCall, in webView: WKWebView) async -> String {
         let args = (try? JSONSerialization.jsonObject(with: call.function.arguments.data(using: .utf8) ?? Data()) as? [String: Any]) ?? [:]
+        // Tools resolve their store targets through the surface. If it isn't
+        // attached yet, only the pure-webview tools (which don't touch a
+        // store) would work — fail fast for the rest with a clear message.
+        guard let surface else {
+            return "Tool surface not configured"
+        }
         switch call.function.name {
         // --- Page reading ---
         case "getPageText":
@@ -328,20 +330,20 @@ class BrowserToolProvider {
         // --- Tab management ---
         case "newTab":
             let url = args["url"] as? String
-            let jsEnabled = settings?.isJavaScriptEnabled ?? true
-            tabManager?.addTab(url: url, javaScriptEnabled: jsEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+            let jsEnabled = surface.settings.isJavaScriptEnabled
+            surface.tabManager?.addTab(url: url, javaScriptEnabled: jsEnabled, contentBlocker: surface.contentBlocker, videoAdBlocker: surface.videoAdBlocker)
             return url.map { "Opened new tab with \($0)" } ?? "Opened new tab"
 
         case "closeTab":
-            if let index = args["index"] as? Int, index >= 0, index < (tabManager?.tabs.count ?? 0) {
-                tabManager?.closeTab(at: index)
+            if let index = args["index"] as? Int, index >= 0, index < (surface.tabManager?.tabs.count ?? 0) {
+                surface.tabManager?.closeTab(at: index)
                 return "Closed tab at index \(index)"
             }
-            tabManager?.closeTab(at: tabManager?.selectedIndex ?? 0)
+            surface.tabManager?.closeTab(at: surface.tabManager?.selectedIndex ?? 0)
             return "Closed current tab"
 
         case "listTabs":
-            guard let tabs = tabManager?.tabs else { return "No tabs open" }
+            guard let tabs = surface.tabManager?.tabs else { return "No tabs open" }
             let items = tabs.enumerated().map { i, tab in
                 "[\(i)] \(tab.displayTitle) — \(tab.urlString)"
             }
@@ -349,37 +351,36 @@ class BrowserToolProvider {
 
         case "switchTab":
             guard let index = args["index"] as? Int,
-                  index >= 0, index < (tabManager?.tabs.count ?? 0) else { return "Invalid tab index" }
-            tabManager?.selectTab(at: index)
+                  index >= 0, index < (surface.tabManager?.tabs.count ?? 0) else { return "Invalid tab index" }
+            surface.tabManager?.selectTab(at: index)
             return "Switched to tab \(index)"
 
         // --- Bookmarks ---
         case "addBookmark":
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return "No page to bookmark" }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
-            bookmarkStore?.add(title: title, url: url)
+            surface.bookmarkStore.add(title: title, url: url)
             return "Bookmarked: \(title)"
 
         case "listBookmarks":
-            guard let bm = bookmarkStore else { return "No bookmarks" }
-            let all = bm.allBookmarks
+            let all = surface.bookmarkStore.allBookmarks
             guard !all.isEmpty else { return "No bookmarks" }
             return all.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
 
         case "removeBookmark":
-            guard let url = args["url"] as? String, let bm = bookmarkStore?.find(url: url) else { return "Bookmark not found" }
-            bookmarkStore?.remove(bm)
+            guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return "Bookmark not found" }
+            surface.bookmarkStore.remove(bm)
             return "Removed bookmark: \(url)"
 
         // --- History ---
         case "getHistory":
             let count = args["count"] as? Int ?? 20
-            guard let entries = historyStore?.recentEntries(count: count) else { return "No history" }
+            let entries = surface.historyStore.recentEntries(count: count)
             guard !entries.isEmpty else { return "No history entries" }
             return entries.map { "\($0.title ?? "Untitled") — \($0.url)" }.joined(separator: "\n")
 
         case "clearHistory":
-            historyStore?.clearAll()
+            surface.historyStore.clearAll()
             return "History cleared"
 
         // --- Page controls ---
@@ -398,9 +399,8 @@ class BrowserToolProvider {
 
         case "toggleDarkMode":
             guard let host = webView.url?.host else { return "No page loaded" }
-            guard let sss = siteSettingsStore else { return "Site settings unavailable" }
-            let enabled = !sss.darkModeEnabled(for: host)
-            sss.setDarkMode(enabled, for: host)
+            let enabled = !surface.siteSettingsStore.darkModeEnabled(for: host)
+            surface.siteSettingsStore.setDarkMode(enabled, for: host)
             let js = """
             (function() {
                 var el = document.getElementById('desire-dark-mode');
@@ -456,27 +456,26 @@ class BrowserToolProvider {
 
         // --- Content blockers ---
         case "toggleAdBlocking":
-            guard let cb = contentBlocker else { return "Content blocker not available" }
-            let enabled = args["enabled"] as? Bool ?? !cb.isBlockingEnabled
-            cb.isBlockingEnabled = enabled
+            let enabled = args["enabled"] as? Bool ?? !surface.contentBlocker.isBlockingEnabled
+            surface.contentBlocker.isBlockingEnabled = enabled
             return enabled ? "Ad blocking enabled" : "Ad blocking disabled"
 
         case "toggleTrackingProtection":
-            guard let cb = contentBlocker else { return "Content blocker not available" }
-            let enabled = args["enabled"] as? Bool ?? !cb.isTrackingEnabled
-            cb.isTrackingEnabled = enabled
+            let enabled = args["enabled"] as? Bool ?? !surface.contentBlocker.isTrackingEnabled
+            surface.contentBlocker.isTrackingEnabled = enabled
             return enabled ? "Tracking protection enabled" : "Tracking protection disabled"
 
         // --- Reading list ---
         case "addToReadingList":
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return "No page to add" }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
-            readingListStore?.add(title: title, url: url)
+            surface.readingListStore.add(title: title, url: url)
             return "Added to reading list: \(title)"
 
         // --- Downloads ---
         case "listDownloads":
-            guard let items = downloadStore?.downloads, !items.isEmpty else { return "No downloads" }
+            let items = surface.downloadStore.downloads
+            guard !items.isEmpty else { return "No downloads" }
             let active = items.filter { $0.state == .inProgress }
             let completed = items.filter { $0.state == .completed }
             var result: [String] = []
@@ -492,32 +491,34 @@ class BrowserToolProvider {
 
         // --- Plugins ---
         case "listPlugins":
-            guard let plugs = pluginStore?.plugins, !plugs.isEmpty else { return "No plugins installed" }
+            let plugs = surface.pluginStore.plugins
+            guard !plugs.isEmpty else { return "No plugins installed" }
             return plugs.map { "\($0.isEnabled ? "✅" : "⬜") \($0.name) v\($0.version)" }.joined(separator: "\n")
 
         case "togglePlugin":
             guard let name = args["name"] as? String,
                   let enabled = args["enabled"] as? Bool,
-                  let plugin = pluginStore?.plugins.first(where: { $0.name == name }) else { return "Plugin not found" }
+                  let plugin = surface.pluginStore.plugins.first(where: { $0.name == name }) else { return "Plugin not found" }
             var updated = plugin
             updated.isEnabled = enabled
-            pluginStore?.update(updated)
+            surface.pluginStore.update(updated)
             return enabled ? "Enabled plugin: \(name)" : "Disabled plugin: \(name)"
 
         // --- Element blocker ---
         case "listBlockedElements":
-            guard let rules = elementBlockStore?.rules, !rules.isEmpty else { return "No blocked elements" }
+            let rules = surface.elementBlockStore.rules
+            guard !rules.isEmpty else { return "No blocked elements" }
             return rules.map { "\($0.cssSelector) — \($0.urlPattern)" }.joined(separator: "\n")
 
         case "unblockElement":
             guard let selector = args["selector"] as? String,
-                  let rule = elementBlockStore?.rules.first(where: { $0.cssSelector == selector }) else { return "Rule not found" }
-            elementBlockStore?.remove(id: rule.id)
+                  let rule = surface.elementBlockStore.rules.first(where: { $0.cssSelector == selector }) else { return "Rule not found" }
+            surface.elementBlockStore.remove(id: rule.id)
             return "Unblocked: \(selector)"
 
         // --- Responsive design ---
         case "toggleResponsiveMode":
-            guard let tab = tabManager?.selectedTab else { return "No active tab" }
+            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
             tab.responsiveConfig.isEnabled.toggle()
             if let deviceName = args["device"] as? String,
                let preset = devicePresets.first(where: { $0.name.lowercased() == deviceName.lowercased() }) {
@@ -546,28 +547,29 @@ class BrowserToolProvider {
 
         // --- Tab groups ---
         case "listTabGroups":
-            guard let groups = tabGroupStore?.groups, !groups.isEmpty else { return "No tab groups" }
+            let groups = surface.tabGroupStore.groups
+            guard !groups.isEmpty else { return "No tab groups" }
             return groups.map { group in
-                let tabNames = group.tabIds.compactMap { tid in tabManager?.tabs.first(where: { $0.id == tid })?.displayTitle }
+                let tabNames = group.tabIds.compactMap { tid in surface.tabManager?.tabs.first(where: { $0.id == tid })?.displayTitle }
                 return "\(group.name) (\(tabNames.count) tabs)\(tabNames.isEmpty ? "" : ": " + tabNames.joined(separator: ", "))"
             }.joined(separator: "\n")
 
         case "addTabToGroup":
-            guard let tab = tabManager?.selectedTab else { return "No active tab" }
+            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
             guard let groupName = args["groupName"] as? String else { return "Missing group name" }
-            if let existing = tabGroupStore?.groups.first(where: { $0.name == groupName }) {
-                tabGroupStore?.removeTabFromAll(tab.id)
-                tabGroupStore?.addTab(tab.id, to: existing.id)
+            if let existing = surface.tabGroupStore.groups.first(where: { $0.name == groupName }) {
+                surface.tabGroupStore.removeTabFromAll(tab.id)
+                surface.tabGroupStore.addTab(tab.id, to: existing.id)
                 return "Added to group: \(groupName)"
             }
-            let newGroup = tabGroupStore?.create(name: groupName) ?? TabGroup(id: UUID(), name: groupName, colorIndex: 0, tabIds: [])
-            tabGroupStore?.removeTabFromAll(tab.id)
-            tabGroupStore?.addTab(tab.id, to: newGroup.id)
+            let newGroup = surface.tabGroupStore.create(name: groupName) ?? TabGroup(id: UUID(), name: groupName, colorIndex: 0, tabIds: [])
+            surface.tabGroupStore.removeTabFromAll(tab.id)
+            surface.tabGroupStore.addTab(tab.id, to: newGroup.id)
             return "Created and added to group: \(groupName)"
 
         case "removeTabFromGroup":
-            guard let tab = tabManager?.selectedTab else { return "No active tab" }
-            tabGroupStore?.removeTabFromAll(tab.id)
+            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
+            surface.tabGroupStore.removeTabFromAll(tab.id)
             return "Removed from tab group"
 
         // --- Print & PDF ---
@@ -605,18 +607,19 @@ class BrowserToolProvider {
 
         // --- Quick Dials ---
         case "listQuickDials":
-            guard let dials = quickDialStore?.dials, !dials.isEmpty else { return "No quick dials" }
+            let dials = surface.quickDialStore.dials
+            guard !dials.isEmpty else { return "No quick dials" }
             return dials.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
 
         case "addQuickDial":
             guard let title = args["title"] as? String, let url = args["url"] as? String else { return "Missing title or url" }
-            quickDialStore?.add(title: title, url: url)
+            surface.quickDialStore.add(title: title, url: url)
             return "Added quick dial: \(title)"
 
         case "removeQuickDial":
             guard let title = args["title"] as? String,
-                  let dial = quickDialStore?.dials.first(where: { $0.title == title }) else { return "Quick dial not found" }
-            quickDialStore?.delete(id: dial.id)
+                  let dial = surface.quickDialStore.dials.first(where: { $0.title == title }) else { return "Quick dial not found" }
+            surface.quickDialStore.delete(id: dial.id)
             return "Removed quick dial: \(title)"
 
         // --- Search engine ---
@@ -626,7 +629,7 @@ class BrowserToolProvider {
                 let options = SearchEngine.allCases.map(\.rawValue).joined(separator: ", ")
                 return "Invalid engine. Options: \(options)"
             }
-            settings?.searchEngine = engine
+            surface.settings.searchEngine = engine
             return "Search engine changed to \(engine.rawValue)"
 
         // --- Sidebar ---

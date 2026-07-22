@@ -125,21 +125,11 @@ struct ContentView: View {
                 aiFloatingPanel = AIFloatingPanel(store: aiSession, conversationStore: conversationStore)
             }
             if !isAIConfigured {
-                aiSession.configureStores(
-                    tabManager: tabManager,
-                    bookmarkStore: bookmarkStore,
-                    historyStore: historyStore,
-                    contentBlocker: contentBlocker,
-                    readingListStore: readingListStore,
-                    downloadStore: downloadStore,
-                    siteSettingsStore: siteSettingsStore,
-                    settings: settings,
-                    videoAdBlocker: videoAdBlocker,
-                    pluginStore: pluginStore,
-                    elementBlockStore: elementBlockStore,
-                    tabGroupStore: tabGroupStore,
-                    quickDialStore: quickDialStore
-                )
+                // Attach this window's TabManager to the shared tool surface,
+                // then wire the AI agent to it. One `configure(with:)` call
+                // replaces the former 13-parameter `configureStores`.
+                appState.attach(tabManager: tabManager)
+                aiSession.configure(with: appState)
                 isAIConfigured = true
             }
             if tabManager.tabs.isEmpty {

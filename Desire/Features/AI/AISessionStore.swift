@@ -106,34 +106,12 @@ class AISessionStore: ObservableObject {
         webView = wv
     }
 
-    func configureStores(
-        tabManager: TabManager?,
-        bookmarkStore: BookmarkStore?,
-        historyStore: HistoryStore?,
-        contentBlocker: ContentBlocker?,
-        readingListStore: ReadingListStore?,
-        downloadStore: DownloadStore?,
-        siteSettingsStore: SiteSettingsStore?,
-        settings: Settings?,
-        videoAdBlocker: VideoAdBlocker?,
-        pluginStore: PluginStore? = nil,
-        elementBlockStore: ElementBlockStore? = nil,
-        tabGroupStore: TabGroupStore? = nil,
-        quickDialStore: QuickDialStore? = nil
-    ) {
-        toolProvider.tabManager = tabManager
-        toolProvider.bookmarkStore = bookmarkStore
-        toolProvider.historyStore = historyStore
-        toolProvider.contentBlocker = contentBlocker
-        toolProvider.readingListStore = readingListStore
-        toolProvider.downloadStore = downloadStore
-        toolProvider.siteSettingsStore = siteSettingsStore
-        toolProvider.settings = settings
-        toolProvider.videoAdBlocker = videoAdBlocker
-        toolProvider.pluginStore = pluginStore
-        toolProvider.elementBlockStore = elementBlockStore
-        toolProvider.tabGroupStore = tabGroupStore
-        toolProvider.quickDialStore = quickDialStore
+    /// Attaches the browser tool surface (the app-state slice tools operate
+    /// over). Replaces the former 13-parameter `configureStores`. The tab
+    /// manager is per-window, so the caller must also attach it to the
+    /// surface (via `AppState.attach(tabManager:)`).
+    func configure(with surface: BrowserToolSurface) {
+        toolProvider.attach(surface: surface)
     }
 
     func sendMessage(_ text: String) {

@@ -33,7 +33,7 @@ struct DesireApp: App {
         WindowGroup("Settings", id: "settings") {
             SettingsView(
                 settings: appState.settings,
-                aiPreference: appState.aiSession.preference,
+                aiPreference: appState.aiPreference,
                 contentBlocker: appState.contentBlocker,
                 downloadStore: appState.downloadStore,
                 formAutofillStore: appState.formAutofillStore,

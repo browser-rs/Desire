@@ -1,39 +1,22 @@
 import Combine
 import SwiftUI
 
-/// Global app state container. Uses lazy initialization for most stores
-/// to improve startup performance - only essential stores are created
-/// immediately; others are deferred until first access.
+/// Global app state container — now a composition root over four domain
+/// containers (`BrowsingState`, `AIState`, `PrivacyState`, `SystemState`).
+///
+/// Previously this held all ~22 stores flat (a god object / manual service
+/// locator). The stores now live on the scoped containers; the accessors
+/// below forward to them so existing call sites (`appState.bookmarkStore`,
+/// `appState.aiSession`, ...) keep working unchanged.
+///
+/// `hasRestoredSession` is the only non-store state here — a non-persistent
+/// flag set by the first window's `onAppear` to gate session restore.
 @MainActor
 class AppState: ObservableObject {
-    // Essential stores - created immediately for UI that needs them on launch
-    let settings: Settings
-    let contentBlocker: ContentBlocker
-    let bookmarkStore: BookmarkStore
-    let historyStore: HistoryStore
-    let downloadStore: DownloadStore
-
-    // Lazy stores - created on first access to reduce startup time
-    lazy var passwordStore: PasswordStore = PasswordStore()
-    lazy var formAutofillStore: FormAutofillStore = FormAutofillStore()
-    lazy var permissionStore: PermissionStore = PermissionStore()
-    lazy var siteSettingsStore: SiteSettingsStore = SiteSettingsStore()
-    lazy var quickDialStore: QuickDialStore = QuickDialStore()
-    lazy var readingListStore: ReadingListStore = ReadingListStore()
-    lazy var pluginStore: PluginStore = PluginStore()
-    lazy var safariExtensionManager: SafariExtensionManager = SafariExtensionManager()
-    lazy var tabGroupStore: TabGroupStore = TabGroupStore()
-    lazy var elementBlockStore: ElementBlockStore = ElementBlockStore()
-    lazy var videoAdBlocker: VideoAdBlocker = VideoAdBlocker()
-    lazy var aiSession: AISessionStore = AISessionStore()
-    lazy var conversationStore: ConversationStore = ConversationStore()
-    lazy var privacyModeStore: PrivacyModeStore = PrivacyModeStore()
-    lazy var devToolsStore: DevToolsStore = DevToolsStore()
-    lazy var searchHistoryStore: SearchHistoryStore = SearchHistoryStore()
-    lazy var performanceManager: PerformanceManager = PerformanceManager()
-
-    // Flag to track if AI has been initialized
-    private var aiInitialized = false
+    let browsing: BrowsingState
+    let ai: AIState
+    let privacy: PrivacyState
+    let system: SystemState
 
     /// Tracks whether the launch session has been restored. Set to true by
     /// the first window's `onAppear`; subsequent user-opened windows skip
@@ -42,19 +25,44 @@ class AppState: ObservableObject {
     var hasRestoredSession = false
 
     init() {
-        // Only create essential stores synchronously
-        settings = Settings()
-        contentBlocker = ContentBlocker()
-        bookmarkStore = BookmarkStore()
-        historyStore = HistoryStore()
-        downloadStore = DownloadStore()
+        browsing = BrowsingState()
+        ai = AIState()
+        privacy = PrivacyState()
+        system = SystemState()
     }
 
-    /// Initialize AI-related stores on demand (e.g., when user opens AI panel)
-    func initializeAIIfNeeded() {
-        if !aiInitialized {
-            aiInitialized = true
-            aiSession.conversationStore = conversationStore
-        }
-    }
+    // MARK: - Forwarding accessors
+    // Preserve the flat API existing consumers expect; each delegates to the
+    // owning scoped container.
+
+    // Browsing
+    var bookmarkStore: BookmarkStore { browsing.bookmarkStore }
+    var historyStore: HistoryStore { browsing.historyStore }
+    var downloadStore: DownloadStore { browsing.downloadStore }
+    var quickDialStore: QuickDialStore { browsing.quickDialStore }
+    var readingListStore: ReadingListStore { browsing.readingListStore }
+    var tabGroupStore: TabGroupStore { browsing.tabGroupStore }
+    var searchHistoryStore: SearchHistoryStore { browsing.searchHistoryStore }
+
+    // AI
+    var aiSession: AISessionStore { ai.aiSession }
+    var conversationStore: ConversationStore { ai.conversationStore }
+    var aiPreference: AIPreferenceStore { ai.preference }
+
+    // Privacy
+    var contentBlocker: ContentBlocker { privacy.contentBlocker }
+    var passwordStore: PasswordStore { privacy.passwordStore }
+    var formAutofillStore: FormAutofillStore { privacy.formAutofillStore }
+    var permissionStore: PermissionStore { privacy.permissionStore }
+    var elementBlockStore: ElementBlockStore { privacy.elementBlockStore }
+    var videoAdBlocker: VideoAdBlocker { privacy.videoAdBlocker }
+    var privacyModeStore: PrivacyModeStore { privacy.privacyModeStore }
+
+    // System
+    var settings: Settings { system.settings }
+    var siteSettingsStore: SiteSettingsStore { system.siteSettingsStore }
+    var devToolsStore: DevToolsStore { system.devToolsStore }
+    var pluginStore: PluginStore { system.pluginStore }
+    var safariExtensionManager: SafariExtensionManager { system.safariExtensionManager }
+    var performanceManager: PerformanceManager { system.performanceManager }
 }

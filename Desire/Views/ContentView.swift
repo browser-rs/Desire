@@ -384,8 +384,16 @@ struct ContentView: View {
             onTogglePin: { index in
                 tabManager.tabs[index].isPinned.toggle()
             },
-            tabGroupStore: tabGroupStore,
-            thumbnailStore: thumbnailStore,
+            // Derived from TabGroupStore — TabBar no longer holds the store.
+            tabGroupColor: { [gColors = [Color.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]] tabId in
+                tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
+            },
+            tabGroups: tabGroupStore.groups,
+            onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
+            onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },
+            // Derived from TabThumbnailStore — TabBar no longer holds the store.
+            tabThumbnail: { thumbnailStore.thumbnail(for: $0) },
+            onCaptureThumbnail: { thumbnailStore.captureThumbnail(for: $0) },
             onCreateGroup: { index in
                 let alert = NSAlert()
                 alert.messageText = String(localized: "New Tab Group")
@@ -415,16 +423,26 @@ struct ContentView: View {
     /// JS Bridge in roadmap stage 1.
     @ViewBuilder
     fileprivate func toolbarSection(for tab: Tab) -> some View {
+        let host = tab.browser.webView.url?.host
+        let isDark = host.map { siteSettingsStore.darkModeEnabled(for: $0) } ?? false
+        let isBookmarked: Bool = {
+            guard let url = tab.browser.webView.url?.absoluteString, !tab.isOnNewTabPage else { return false }
+            return bookmarkStore.contains(url: url)
+        }()
         Toolbar(
             tab: tab,
-            settings: settings,
             isReadingMode: tab.browser.isReadingMode,
+            isDarkMode: isDark,
+            searchEngineState: .init(
+                currentEngine: settings.searchEngine,
+                customEngines: settings.customEngines,
+                selectedCustomEngineId: settings.selectedCustomEngineId,
+                onSelectEngine: { settings.searchEngine = $0 },
+                onSelectCustom: { settings.selectedCustomEngineId = $0 }
+            ),
             suggestionModel: suggestionModel,
             downloadStore: downloadStore,
-            bookmarkStore: bookmarkStore,
-            historyStore: historyStore,
             passwordStore: passwordStore,
-            siteSettingsStore: siteSettingsStore,
             isDevModeEnabled: devToolsStore.isDevModeEnabled,
             isUrlFocused: $isUrlFocused,
             actions: Toolbar.Actions(
@@ -510,7 +528,11 @@ struct ContentView: View {
             showReadingList: $showReadingList,
             showElementBlock: $showElementBlock,
             showSearchHistory: $showSearchHistory,
-            openWindow: { openWindow(id: $0) }
+            openWindow: { openWindow(id: $0) },
+            onTextChange: { [bm = bookmarkStore, hist = historyStore, st = settings] newValue in
+                suggestionModel.build(query: newValue, settings: st, bookmarks: bm, history: hist)
+            },
+            isBookmarked: isBookmarked
         )
     }
 

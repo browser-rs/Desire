@@ -31,14 +31,17 @@ struct Toolbar: View {
     }
 
     @ObservedObject var tab: Tab
-    let settings: Settings
     let isReadingMode: Bool
+    /// Dark-mode override for the current page (computed by parent from
+    /// `siteSettingsStore.darkModeEnabled(for: host)`). Toolbar no longer
+    /// observes `SiteSettingsStore` directly — it gets the derived value
+    /// when the parent rebuilds it (on URL change or dark-mode toggle).
+    let isDarkMode: Bool
+    /// Search-engine picker state, derived from `Settings`.
+    let searchEngineState: SearchEngineState
     @ObservedObject var suggestionModel: AddressSuggestionsModel
     let downloadStore: DownloadStore
-    let bookmarkStore: BookmarkStore
-    let historyStore: HistoryStore
     let passwordStore: PasswordStore
-    @ObservedObject var siteSettingsStore: SiteSettingsStore
     /// Dev-tools toggle tint. Passed as a plain Bool (refreshed by the parent
     /// when `toggleDevTools()` flips the panel flag) instead of observing the
     /// whole DevToolsStore — otherwise every console message / network event
@@ -54,15 +57,28 @@ struct Toolbar: View {
     @Binding var showSearchHistory: Bool
     let openWindow: (String) -> Void
 
+    /// Called on every keystroke in the address field. The parent captures
+    /// the stores that `suggestionModel.build` needs (`bookmarkStore`,
+    /// `historyStore`, `settings`) so Toolbar doesn't hold them.
+    let onTextChange: (String) -> Void
+
+    /// Derived search-engine state passed in by the parent so Toolbar doesn't
+    /// hold `Settings` directly (AGENTS.md: Composites take Props-in/
+    /// Callbacks-out, not Stores).
+    struct SearchEngineState {
+        let currentEngine: SearchEngine
+        let customEngines: [CustomSearchEngine]
+        let selectedCustomEngineId: UUID?
+        let onSelectEngine: (SearchEngine) -> Void
+        let onSelectCustom: (UUID) -> Void
+    }
+
     @State private var showDownloads = false
     @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
-    /// Cached bookmark-state for the current page, recomputed only when the
-    /// page URL or the bookmark set changes — not on every body evaluation.
-    /// `bookmarkStore.contains` is O(1) (URL index), but recomputing it 3×
-    /// per render still allocates; this keeps the hot path allocation-free.
-    @State private var isBookmarked = false
+    /// Cached bookmark-state for the current page, passed from the parent.
+    let isBookmarked: Bool
     /// Local editing buffer for the address field. Binding the field directly
     /// to `tab.urlString` (a `@Published` property observed by this view)
     /// created a feedback loop: each keystroke wrote `tab.urlString`, which
@@ -76,20 +92,6 @@ struct Toolbar: View {
     private var zoomPercent: String {
         let pct = Int((tab.browser.pageZoom * 100).rounded())
         return "\(pct)%"
-    }
-
-    /// Recomputes `isBookmarked` from the current page URL. Idempotent; cheap.
-    private func refreshBookmarkState() {
-        guard let url = tab.browser.webView.url?.absoluteString else {
-            isBookmarked = false
-            return
-        }
-        isBookmarked = bookmarkStore.contains(url: url)
-    }
-
-    private var isDarkMode: Bool {
-        guard let host = tab.browser.webView.url?.host else { return false }
-        return siteSettingsStore.darkModeEnabled(for: host)
     }
 
     /// What the address field should show when not actively editing: the
@@ -131,15 +133,12 @@ struct Toolbar: View {
         }
         .onAppear {
             editingURL = displayedURL
-            refreshBookmarkState()
         }
         // When the page navigates (and the field is not focused), keep the
         // address field in sync with the new URL.
         .onChange(of: displayedURL) { _, value in
             if !isUrlFocused.wrappedValue { editingURL = value }
         }
-        .onChange(of: tab.browser.webView.url) { _, _ in refreshBookmarkState() }
-        .onChange(of: bookmarkStore.bookmarks) { _, _ in refreshBookmarkState() }
     }
 
     // MARK: - Nav Group
@@ -201,7 +200,7 @@ struct Toolbar: View {
                     editingURL = displayedURL
                 },
                 onTextChange: { newValue in
-                    suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
+                    onTextChange(newValue)
                 }
             )
 
@@ -231,33 +230,34 @@ struct Toolbar: View {
     }
 
     private var searchEngineButton: some View {
-        Menu {
+        let state = searchEngineState
+        return Menu {
             ForEach(SearchEngine.allCases, id: \.self) { engine in
                 Button {
-                    settings.searchEngine = engine
+                    state.onSelectEngine(engine)
                 } label: {
                     HStack {
                         Text(engine.rawValue)
-                        if settings.searchEngine == engine {
+                        if state.currentEngine == engine {
                             Image(systemName: "checkmark")
                         }
                     }
                 }
             }
             Divider()
-            ForEach(settings.customEngines) { engine in
+            ForEach(state.customEngines) { engine in
                 Button {
-                    settings.selectedCustomEngineId = engine.id
+                    state.onSelectCustom(engine.id)
                 } label: {
                     HStack {
                         Text(engine.name)
-                        if settings.selectedCustomEngineId == engine.id {
+                        if state.selectedCustomEngineId == engine.id {
                             Image(systemName: "checkmark")
                         }
                     }
                 }
             }
-            if settings.customEngines.isEmpty {
+            if state.customEngines.isEmpty {
                 Text("No custom engines")
                     .foregroundStyle(.secondary)
             }
@@ -268,7 +268,7 @@ struct Toolbar: View {
         }
         .menuStyle(.borderlessButton)
         .frame(width: 20)
-        .help("Search Engine: \(settings.searchEngine.rawValue)")
+        .help("Search Engine: \(state.currentEngine.rawValue)")
     }
 
     // MARK: - Zoom Button

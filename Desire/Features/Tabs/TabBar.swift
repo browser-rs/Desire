@@ -20,8 +20,15 @@ struct TabBar: View {
     let onCloseTabsToRight: (Int) -> Void
     let onToggleAudioMute: (Int) -> Void
     let onTogglePin: (Int) -> Void
-    @ObservedObject var tabGroupStore: TabGroupStore
-    @ObservedObject var thumbnailStore: TabThumbnailStore
+    /// Derived from TabGroupStore: group color for a tab (nil if ungrouped).
+    let tabGroupColor: (UUID) -> Color?
+    /// Available tab groups (for context menus).
+    let tabGroups: [TabGroup]
+    let onRemoveFromGroup: (UUID) -> Void
+    let onAddToGroup: (UUID, UUID) -> Void
+    /// Derived from TabThumbnailStore: thumbnail image for a tab.
+    let tabThumbnail: (UUID) -> NSImage?
+    let onCaptureThumbnail: (Tab) -> Void
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
     
@@ -54,22 +61,25 @@ struct TabBar: View {
                                     duplicateTab: onDuplicateTab
                                 ),
                                 tabs: tabs,
-                                tabGroupStore: tabGroupStore,
-                                thumbnailStore: thumbnailStore,
+                                groupColor: tabGroupColor(tab.id),
+                                tabGroups: tabGroups,
+                                onRemoveFromGroup: onRemoveFromGroup,
+                                onAddToGroup: onAddToGroup,
+                                onCaptureThumbnail: onCaptureThumbnail,
                                 onMoveTab: onMoveTab,
                                 onShowPreview: { tab, frame in
                                     previewTabId = tab.id
                                     let nsWindow = NSApp.keyWindow ?? NSApp.mainWindow
                                     TabPreviewPanel.shared.show(
                                         tab: tab,
-                                        thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                                        thumbnail: tabThumbnail(tab.id),
                                         anchor: frame,
                                         in: nsWindow
                                     )
                                 },
                                 onUpdatePreview: { tab in
                                     TabPreviewPanel.shared.updateThumbnail(
-                                        thumbnailStore.thumbnail(for: tab.id),
+                                        tabThumbnail(tab.id),
                                         for: tab
                                     )
                                 },
@@ -104,22 +114,25 @@ struct TabBar: View {
                                     duplicateTab: onDuplicateTab
                                 ),
                                 tabs: tabs,
-                                tabGroupStore: tabGroupStore,
-                                thumbnailStore: thumbnailStore,
+                                groupColor: tabGroupColor(tab.id),
+                                tabGroups: tabGroups,
+                                onRemoveFromGroup: onRemoveFromGroup,
+                                onAddToGroup: onAddToGroup,
+                                onCaptureThumbnail: onCaptureThumbnail,
                                 onMoveTab: onMoveTab,
                                 onShowPreview: { tab, frame in
                                     previewTabId = tab.id
                                     let nsWindow = NSApp.keyWindow ?? NSApp.mainWindow
                                     TabPreviewPanel.shared.show(
                                         tab: tab,
-                                        thumbnail: thumbnailStore.thumbnail(for: tab.id),
+                                        thumbnail: tabThumbnail(tab.id),
                                         anchor: frame,
                                         in: nsWindow
                                     )
                                 },
                                 onUpdatePreview: { tab in
                                     TabPreviewPanel.shared.updateThumbnail(
-                                        thumbnailStore.thumbnail(for: tab.id),
+                                        tabThumbnail(tab.id),
                                         for: tab
                                     )
                                 },
@@ -198,8 +211,14 @@ private struct TabPillView: View {
     let selectedIndex: Int
     let actions: TabBar.TabPillActions
     let tabs: [Tab]
-    let tabGroupStore: TabGroupStore
-    let thumbnailStore: TabThumbnailStore
+    /// Derived from TabGroupStore: the color for this tab's group, if any.
+    let groupColor: Color?
+    /// Available tab groups for the context menu.
+    let tabGroups: [TabGroup]
+    let onRemoveFromGroup: (UUID) -> Void
+    let onAddToGroup: (UUID, UUID) -> Void
+    /// Derived from TabThumbnailStore: captures a thumbnail for `tab`.
+    let onCaptureThumbnail: (Tab) -> Void
     let onMoveTab: (Int, Int) -> Void
     let onShowPreview: (Tab, CGRect) -> Void
     let onUpdatePreview: (Tab) -> Void
@@ -209,10 +228,7 @@ private struct TabPillView: View {
     @State private var hoverTimer: Timer?
     @State private var pillFrame: CGRect = .zero
 
-    private let tabGroupColors: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]
-
     var body: some View {
-        let groupColor = tabGroupStore.group(for: tab.id).map { tabGroupColors[$0.colorIndex % tabGroupColors.count] }
         let showClose = !tab.isPinned && isHovering
         HStack(spacing: 6) {
             if let gc = groupColor {
@@ -297,9 +313,8 @@ private struct TabPillView: View {
                     Task { @MainActor in
                         onShowPreview(tab, pillFrame)
                         // Capture thumbnail on hover
-                        thumbnailStore.captureThumbnail(for: tab) { _ in
-                            onUpdatePreview(tab)
-                        }
+                        onCaptureThumbnail(tab)
+                        onUpdatePreview(tab)
                     }
                 }
             } else {
@@ -333,16 +348,16 @@ private struct TabPillView: View {
 
         Divider()
 
-        if let group = tabGroupStore.group(for: tab.id) {
+        if let group = tabGroups.first(where: { $0.tabIds.contains(tab.id) }) {
             Menu("Group: \(group.name)") {
-                Button("Remove from Group") { tabGroupStore.removeTabFromAll(tab.id) }
+                Button("Remove from Group") { onRemoveFromGroup(tab.id) }
             }
         } else {
             Menu("Add to Group") {
-                ForEach(tabGroupStore.groups) { group in
-                    Button(group.name) { tabGroupStore.addTab(tab.id, to: group.id) }
+                ForEach(tabGroups) { group in
+                    Button(group.name) { onAddToGroup(tab.id, group.id) }
                 }
-                if !tabGroupStore.groups.isEmpty { Divider() }
+                if !tabGroups.isEmpty { Divider() }
                 Button("New Group…") { actions.createGroup(index) }
             }
         }

@@ -284,14 +284,10 @@ struct ContentView: View {
                     Button("Undo") {
                         if let id = lastBlockedRuleId {
                             elementBlockStore.remove(id: id)
-                            let escaped = lastBlockedSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-                            tabManager.selectedTab?.browser.webView.evaluateJavaScript("""
-                            (function() {
-                                var s = document.getElementById('desire-blocked-\(id.uuidString)');
-                                if (s) s.remove();
-                                document.querySelectorAll('\(escaped)').forEach(function(el) { el.style.display = ''; });
-                            })();
-                            """, completionHandler: nil)
+                            tabManager.selectedTab?.browser.webView.evaluateJavaScript(
+                                WebView.undoBlockJS(ruleId: id, selector: lastBlockedSelector),
+                                completionHandler: nil
+                            )
                         }
                         showUndoToast = false
                     }
@@ -590,18 +586,7 @@ struct ContentView: View {
                 findCurrentIndex = 0
             }
         }
-        let escaped = findString.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        tab.browser.webView.evaluateJavaScript("""
-        (function() {
-            var t = '\(escaped)';
-            if (!t) return 0;
-            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
-            var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-            while (walk.nextNode()) { c += (walk.nodeValue.match(r) || []).length; }
-            return c;
-        })()
-        """) { value, _ in
+        tab.browser.webView.evaluateJavaScript(WebView.findCountJS(query: findString)) { value, _ in
             if let count = value as? Int {
                 DispatchQueue.main.async {
                     findMatchCount = count

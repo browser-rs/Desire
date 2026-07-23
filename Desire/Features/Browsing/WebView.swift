@@ -188,6 +188,37 @@ struct WebView: NSViewRepresentable {
 
     static var exitPickerJS: String { UserScriptLoader.load("element-picker-exit") }
 
+    /// JS that counts total matches of `query` in the page's text nodes.
+    /// Used by the find-in-page UI.
+    static func findCountJS(query: String) -> String {
+        let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        return """
+        (function() {
+            var t = '\(escaped)';
+            if (!t) return 0;
+            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
+            var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+            while (walk.nextNode()) { c += (walk.nodeValue.match(r) || []).length; }
+            return c;
+        })()
+        """
+    }
+
+    /// JS that removes an element-block `<style>` rule by its ID, then
+    /// restores the hidden elements. Used by the undo-toast overlay.
+    static func undoBlockJS(ruleId: UUID, selector: String) -> String {
+        let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        return """
+        (function() {
+            var s = document.getElementById('desire-blocked-\(ruleId.uuidString)');
+            if (s) s.remove();
+            document.querySelectorAll('\(escaped)').forEach(function(el) { el.style.display = ''; });
+        })();
+        """
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }

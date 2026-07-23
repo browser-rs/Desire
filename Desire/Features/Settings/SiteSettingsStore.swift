@@ -1,12 +1,6 @@
 import Combine
 import Foundation
 
-struct SiteSettings: Codable {
-    var zoom: Double
-    var darkMode: Bool = false
-    var blockedSelectors: [String] = []
-}
-
 @MainActor
 class SiteSettingsStore: ObservableObject {
     @Published private var settings: [String: SiteSettings] = [:]

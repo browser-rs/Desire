@@ -1,20 +1,6 @@
 import Combine
 import Foundation
 
-enum PermissionDecision: String, Codable {
-    case allow, deny
-}
-
-enum PermissionType: String, Codable {
-    case camera, microphone, cameraAndMicrophone, geolocation
-}
-
-struct PermissionRule: Codable {
-    let host: String
-    let type: PermissionType
-    let decision: PermissionDecision
-}
-
 @MainActor
 class PermissionStore: ObservableObject {
     @Published private(set) var rules: [PermissionRule] = []

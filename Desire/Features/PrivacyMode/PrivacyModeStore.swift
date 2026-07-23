@@ -50,17 +50,17 @@ class PrivacyModeStore: ObservableObject {
 
     /// Register a WKWebView configuration to apply privacy settings
     func register(_ configuration: WKWebViewConfiguration) {
-        applyPrivacySettings(to: configuration)
+        applyPrivacySettingsStore(to: configuration)
     }
 
     /// Apply privacy settings to a WKWebView configuration
-    func applyPrivacySettings(to configuration: WKWebViewConfiguration) {
+    func applyPrivacySettingsStore(to configuration: WKWebViewConfiguration) {
         // Apply cookie policy
         configuration.websiteDataStore.httpCookieStore.setCookiePolicy(cookiePolicyForWKWebView())
 
         // Apply tracking prevention
         if state.preventCrossSiteTracking {
-            // This is handled by ContentBlocker's tracking rules
+            // This is handled by ContentBlockerStore's tracking rules
         }
 
         // Apply WebRTC settings
@@ -95,7 +95,7 @@ class PrivacyModeStore: ObservableObject {
             return .disallow
         case .onlyFromMainDocumentDomain:
             // WKHTTPCookieStore doesn't support this directly on macOS
-            // We'll use .allow and rely on ContentBlocker's block-cookies rule
+            // We'll use .allow and rely on ContentBlockerStore's block-cookies rule
             return .allow
         }
     }

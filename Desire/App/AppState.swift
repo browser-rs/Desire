@@ -50,7 +50,7 @@ class AppState: ObservableObject {
     var aiPreference: AIPreferenceStore { ai.preference }
 
     // Privacy
-    var contentBlocker: ContentBlocker { privacy.contentBlocker }
+    var contentBlocker: ContentBlockerStore { privacy.contentBlocker }
     var passwordStore: PasswordStore { privacy.passwordStore }
     var formAutofillStore: FormAutofillStore { privacy.formAutofillStore }
     var permissionStore: PermissionStore { privacy.permissionStore }
@@ -63,7 +63,7 @@ class AppState: ObservableObject {
     var siteSettingsStore: SiteSettingsStore { system.siteSettingsStore }
     var devToolsStore: DevToolsStore { system.devToolsStore }
     var pluginStore: PluginStore { system.pluginStore }
-    var safariExtensionManager: SafariExtensionManager { system.safariExtensionManager }
+    var safariExtensionManager: SafariExtensionStore { system.safariExtensionManager }
     var performanceManager: PerformanceStore { system.performanceManager }
 
     // MARK: - BrowserToolSurface runtime wiring

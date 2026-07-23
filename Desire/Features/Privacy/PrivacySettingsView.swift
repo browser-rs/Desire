@@ -1,8 +1,8 @@
 import SwiftUI
 import WebKit
 
-struct PrivacySettingsView: View {
-    @ObservedObject var settings: PrivacySettings
+struct PrivacySettingsStoreView: View {
+    @ObservedObject var settings: PrivacySettingsStore
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -31,7 +31,7 @@ struct PrivacySettingsView: View {
                         .onChange(of: settings.blockThirdPartyCookies) { _, _ in settings.save() }
                     
                     Picker("Cookie Accept Policy:", selection: $settings.cookieAcceptPolicy) {
-                        ForEach(PrivacySettings.CookieAcceptPolicy.allCases, id: \.self) { policy in
+                        ForEach(PrivacySettingsStore.CookieAcceptPolicy.allCases, id: \.self) { policy in
                             Text(policy.displayName).tag(policy)
                         }
                     }
@@ -75,7 +75,7 @@ struct PrivacySettingsView: View {
 }
 
 #Preview {
-    let settings = PrivacySettings()
-    return PrivacySettingsView(settings: settings)
+    let settings = PrivacySettingsStore()
+    return PrivacySettingsStoreView(settings: settings)
         .frame(width: 400)
 }

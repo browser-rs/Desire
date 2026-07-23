@@ -17,7 +17,7 @@ protocol BrowserToolSurface: AnyObject {
     var tabManager: TabManager? { get }
     var bookmarkStore: BookmarkStore { get }
     var historyStore: HistoryStore { get }
-    var contentBlocker: ContentBlocker { get }
+    var contentBlocker: ContentBlockerStore { get }
     var readingListStore: ReadingListStore { get }
     var downloadStore: DownloadStore { get }
     var siteSettingsStore: SiteSettingsStore { get }

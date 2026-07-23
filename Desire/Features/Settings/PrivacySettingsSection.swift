@@ -1,9 +1,9 @@
 import SwiftUI
 import WebKit
 
-struct PrivacySettingsSection: View {
+struct PrivacySettingsStoreSection: View {
     @ObservedObject var settings: Settings
-    @ObservedObject var contentBlocker: ContentBlocker
+    @ObservedObject var contentBlocker: ContentBlockerStore
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var historyStore: HistoryStore
     @ObservedObject var privacyModeStore: PrivacyModeStore

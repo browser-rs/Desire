@@ -3,7 +3,7 @@ import Foundation
 import WebKit
 
 @MainActor
-class SafariExtensionManager: ObservableObject {
+class SafariExtensionStore: ObservableObject {
     @Published var extensions: [SafariExtension] = []
 
     var installedExtensions: [SafariExtension] { extensions.filter { $0.bundleURL != nil } }

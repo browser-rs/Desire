@@ -24,7 +24,7 @@ import WebKit
 struct CommandDispatcher {
     let tabManager: TabManager
     let settings: Settings
-    let contentBlocker: ContentBlocker
+    let contentBlocker: ContentBlockerStore
     let videoAdBlocker: VideoAdBlocker
     let bookmarkStore: BookmarkStore
     let historyStore: HistoryStore

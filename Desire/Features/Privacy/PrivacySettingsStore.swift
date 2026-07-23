@@ -3,7 +3,7 @@ import Combine
 
 /// Privacy settings that control tracking protection, cookie behavior, and HTTPS upgrade.
 @MainActor
-class PrivacySettings: ObservableObject, Codable {
+class PrivacySettingsStore: ObservableObject, Codable {
     // Tracking protection
     @Published var blockSocialMediaTrackers: Bool = true
     @Published var blockAnalyticsTrackers: Bool = true
@@ -81,17 +81,17 @@ class PrivacySettings: ObservableObject, Codable {
         DiskStore.save(self, key: Self.storageKey)
     }
 
-    static func load() -> PrivacySettings {
-        if let settings = DiskStore.load(PrivacySettings.self, key: storageKey) {
+    static func load() -> PrivacySettingsStore {
+        if let settings = DiskStore.load(PrivacySettingsStore.self, key: storageKey) {
             return settings
         }
         // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: storageKey),
-           let settings = try? JSONDecoder().decode(PrivacySettings.self, from: data) {
+           let settings = try? JSONDecoder().decode(PrivacySettingsStore.self, from: data) {
             DiskStore.save(settings, key: storageKey)
             UserDefaults.standard.removeObject(forKey: storageKey)
             return settings
         }
-        return PrivacySettings()
+        return PrivacySettingsStore()
     }
 }

@@ -24,7 +24,7 @@ class BrowserState: ObservableObject {
     var onAIElementPicked: ((String, String) -> Void)?
     let videoAdBlocker: VideoAdBlocker?
 
-    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlocker? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         self.videoAdBlocker = videoAdBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -170,7 +170,7 @@ struct WebView: NSViewRepresentable {
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     var httpsUpgradeEnabled: Bool = true
-    var extensionManager: SafariExtensionManager?
+    var extensionManager: SafariExtensionStore?
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
     var onElementPicked: ((String, String?) -> Void)?

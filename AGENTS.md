@@ -193,7 +193,7 @@ struct Toolbar: View {
 | Store class | `XxxStore.swift` | `BookmarkStore.swift` |
 | 领域对象 (ObservableObject) | `Xxx.swift` 或随 Store 文件 | `Tab.swift` 或在 `TabManager.swift` 内 |
 | View | `XxxView.swift` / `XxxPanel.swift` | `SettingsView.swift` |
-| Composite | `XxxBar.swift` / `XxxGroup.swift` | `TabBar.swift` |
+| Composite | `XxxBar.swift` / `XxxGroup.swift` / `XxxSection.swift` | `TabBar.swift`, `AISettingsSection.swift` |
 | Page | `XxxPage.swift` | `NewTabPage.swift` |
 | Primitive | `XxxButton.swift` / `XxxRow.swift` 等 | `EntryRow.swift` |
 

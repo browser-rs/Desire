@@ -2,7 +2,7 @@ import Combine
 import WebKit
 
 @MainActor
-class ContentBlocker: ObservableObject {
+class ContentBlockerStore: ObservableObject {
     @Published var isBlockingEnabled = false {
         didSet {
             guard oldValue != isBlockingEnabled else { return }
@@ -71,7 +71,7 @@ class ContentBlocker: ObservableObject {
                 guard let self else { return }
                 self.compiling.remove(kind)
                 guard let ruleList else {
-                    print("ContentBlocker[\(kind)] compile error: \(error?.localizedDescription ?? "unknown")")
+                    print("ContentBlockerStore[\(kind)] compile error: \(error?.localizedDescription ?? "unknown")")
                     return
                 }
                 switch kind {
@@ -102,7 +102,7 @@ private final class WeakBox {
     init(controller: WKUserContentController) { self.controller = controller }
 }
 
-private extension ContentBlocker {
+private extension ContentBlockerStore {
     var adsRulesJSON: String { ContentRules.ads }
 
     var trackingRulesJSON: String { ContentRules.tracking }

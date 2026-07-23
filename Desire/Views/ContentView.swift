@@ -21,7 +21,7 @@ struct ContentView: View {
     // Convenience accessors for shared stores
     fileprivate var settings: Settings { appState.settings }
     fileprivate var aiSession: AISessionStore { appState.aiSession }
-    fileprivate var contentBlocker: ContentBlocker { appState.contentBlocker }
+    fileprivate var contentBlocker: ContentBlockerStore { appState.contentBlocker }
     fileprivate var bookmarkStore: BookmarkStore { appState.bookmarkStore }
     fileprivate var historyStore: HistoryStore { appState.historyStore }
     fileprivate var passwordStore: PasswordStore { appState.passwordStore }

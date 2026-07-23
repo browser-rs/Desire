@@ -48,7 +48,7 @@ struct SettingsView: View {
 
     @ObservedObject var settings: Settings
     @ObservedObject var aiPreference: AIPreferenceStore
-    @ObservedObject var contentBlocker: ContentBlocker
+    @ObservedObject var contentBlocker: ContentBlockerStore
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
@@ -74,7 +74,7 @@ struct SettingsView: View {
             case .ai:
                 AISettingsSection(store: aiPreference)
             case .privacy:
-                PrivacySettingsSection(
+                PrivacySettingsStoreSection(
                     settings: settings,
                     contentBlocker: contentBlocker,
                     permissionStore: permissionStore,

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SafariExtensionPanel: View {
-    @ObservedObject var manager: SafariExtensionManager
+    @ObservedObject var manager: SafariExtensionStore
     @State private var showImportPicker = false
     @State private var importError: String?
     @State private var selectedExtension: SafariExtension?
@@ -146,7 +146,7 @@ struct SafariExtensionPanel: View {
 
 private struct ExtensionDetailView: View {
     let ext: SafariExtension
-    @ObservedObject var manager: SafariExtensionManager
+    @ObservedObject var manager: SafariExtensionStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -283,5 +283,5 @@ private struct InfoRow: View {
 }
 
 #Preview {
-    SafariExtensionPanel(manager: SafariExtensionManager())
+    SafariExtensionPanel(manager: SafariExtensionStore())
 }

@@ -56,7 +56,7 @@ class AIState: ObservableObject {
 /// permissions, element blocking, video ad blocking, private-browsing mode.
 @MainActor
 class PrivacyState: ObservableObject {
-    let contentBlocker: ContentBlocker
+    let contentBlocker: ContentBlockerStore
 
     lazy var passwordStore = PasswordStore()
     lazy var formAutofillStore = FormAutofillStore()
@@ -66,7 +66,7 @@ class PrivacyState: ObservableObject {
     lazy var privacyModeStore = PrivacyModeStore()
 
     init() {
-        contentBlocker = ContentBlocker()
+        contentBlocker = ContentBlockerStore()
     }
 }
 
@@ -79,7 +79,7 @@ class SystemState: ObservableObject {
     lazy var siteSettingsStore = SiteSettingsStore()
     lazy var devToolsStore = DevToolsStore()
     lazy var pluginStore = PluginStore()
-    lazy var safariExtensionManager = SafariExtensionManager()
+    lazy var safariExtensionManager = SafariExtensionStore()
     lazy var performanceManager = PerformanceStore()
 
     init() {

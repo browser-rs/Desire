@@ -68,37 +68,25 @@ class AISessionStore: ObservableObject {
         self.conversationStore = conversationStore
     }
 
-    /// Tools the user has whitelisted with "Always Allow". Persisted across
-    /// launches. `.dangerous` tools are never honored here — they always
-    /// prompt. Stored as the raw tool-name strings.
-    private let allowedToolsKey = "aiAllowedTools"
-    private var allowedTools: Set<String> {
-        get {
-            Set(UserDefaults.standard.stringArray(forKey: allowedToolsKey) ?? [])
-        }
-        set {
-            UserDefaults.standard.set(Array(newValue), forKey: allowedToolsKey)
-        }
-    }
-
     /// Soft cap on agent loop iterations to prevent runaway execution.
     /// Replaces the old hardcoded `0..<20` limit. Configurable later.
     private let maxIterations = 50
 
-    /// The provider the agent loop actually calls. When `providerKind` is
-    /// `.routing`, this builds a `RoutingProvider` wired to report its
-    /// per-call decision back into `lastProviderUsed` (so the UI can show
-    /// "via Cloud / via On-device"). For every other kind it delegates to
-    /// `preference.provider` and clears the label.
-    private var activeProvider: any ModelProvider {
+    /// Builds the provider the agent loop will call for this iteration.
+    /// Returns the provider and the initial "via ..." label to show in the UI
+    /// (nil for non-routing kinds). The caller sets `lastProviderUsed`
+    /// explicitly — this is a factory method, not a getter with side effects
+    /// (the old `activeProvider` computed property mutated `lastProviderUsed`
+    /// on read, which broke the getter-purity contract and could trigger
+    /// spurious SwiftUI invalidations).
+    private func makeActiveProvider() -> (provider: any ModelProvider, viaLabel: String?) {
         if preference.providerKind == .routing {
-            lastProviderUsed = "Auto"
-            return RoutingProvider(prefs: preference) { [weak self] kind in
+            let provider = RoutingProvider(prefs: preference) { [weak self] kind in
                 self?.lastProviderUsed = kind.viaLabel
             }
+            return (provider, "Auto")
         } else {
-            lastProviderUsed = nil
-            return preference.provider
+            return (preference.provider, nil)
         }
     }
 
@@ -238,7 +226,9 @@ class AISessionStore: ObservableObject {
             // provider can be swapped in without touching the agent loop.
             // When `providerKind == .routing`, each call may target a
             // different concrete provider and report it via lastProviderUsed.
-            let stream = activeProvider.stream(
+            let active = makeActiveProvider()
+            lastProviderUsed = active.viaLabel
+            let stream = active.provider.stream(
                 messages: messages,
                 tools: BrowserToolProvider.toolDefs,
                 prefs: preference
@@ -358,7 +348,7 @@ class AISessionStore: ObservableObject {
 
         // Whitelisted side-effect tools run without prompting. Dangerous
         // tools are exempt from the whitelist and always prompt.
-        if risk != .dangerous && allowedTools.contains(toolCall.function.name) {
+        if risk != .dangerous && preference.allowedTools.contains(toolCall.function.name) {
             return .allowedOnce
         }
 
@@ -392,9 +382,9 @@ class AISessionStore: ObservableObject {
             // Persist the whitelist entry. Dangerous tools never reach here
             // because the UI disables the "Always Allow" button for them.
             if approval.risk != .dangerous {
-                var current = allowedTools
+                var current = preference.allowedTools
                 current.insert(approval.toolCall.function.name)
-                allowedTools = current
+                preference.allowedTools = current
             }
             outcome = .allowedAlways
         case .deny:
@@ -421,25 +411,9 @@ class AISessionStore: ObservableObject {
     }
 }
 
-// MARK: - Approval types
+    // MARK: - Approval types
 
-/// The user's decision on a tool approval prompt. Returned by the UI.
-enum ApprovalDecision {
-    case allowOnce
-    case alwaysAllow
-    case deny
-}
-
-/// Internal outcome the agent loop acts on. Distinct from
-/// `ApprovalDecision` because whitelisted / readonly tools resolve to
-/// `.allowedOnce` without ever prompting the user.
-enum ApprovalOutcome {
-    case allowedOnce
-    case allowedAlways
-    case denied
-}
-
-/// A pending tool-call approval. Published by `AISessionStore` so the UI
+    /// A pending tool-call approval. Published by `AISessionStore` so the UI
 /// can render a prompt; the embedded continuation resumes the loop when
 /// the user decides (or when the conversation is cancelled).
 ///

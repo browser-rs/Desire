@@ -15,12 +15,29 @@ class FaviconStore {
         return cache
     }()
     private let diskCacheDir: URL
+    /// Disk-cache entry TTL. Favicons rarely change but the cache shouldn't
+    /// grow unbounded forever; entries older than this are swept on launch.
+    private let diskCacheTTL: TimeInterval = 30 * 24 * 3600
 
     private init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         diskCacheDir = caches.appendingPathComponent("DesireFavicons", isDirectory: true)
         try? FileManager.default.createDirectory(at: diskCacheDir, withIntermediateDirectories: true)
+        // Sweep expired disk entries off-main on init so the cache doesn't
+        // grow forever (one file per distinct domain visited).
+        Task.detached(priority: .utility) { [diskCacheDir, ttl = diskCacheTTL] in
+            let fm = FileManager.default
+            guard let entries = try? fm.contentsOfDirectory(at: diskCacheDir,
+                                                            includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+            let cutoff = Date().addingTimeInterval(-ttl)
+            for entry in entries {
+                if let attrs = try? fm.attributesOfItem(atPath: entry.path),
+                   let mtime = attrs[.modificationDate] as? Date, mtime < cutoff {
+                    try? fm.removeItem(at: entry)
+                }
+            }
+        }
     }
 
     static func domainKey(from urlString: String) -> String? {
@@ -42,9 +59,14 @@ class FaviconStore {
         }
 
         let diskPath = diskCacheDir.appendingPathComponent("\(sanitized(domain)).bin")
-        if FileManager.default.fileExists(atPath: diskPath.path),
-           let data = try? Data(contentsOf: diskPath),
-           let img = NSImage(data: data) {
+        // Disk read off-main: cache misses shouldn't block the main actor
+        // (one miss per address-suggestion row on first encounter).
+        let path = diskPath.path
+        let diskData: Data? = await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: path) else { return nil }
+            return try? Data(contentsOf: URL(fileURLWithPath: path))
+        }.value
+        if let data = diskData, let img = NSImage(data: data) {
             memoryCache.setObject(img, forKey: key)
             return img
         }

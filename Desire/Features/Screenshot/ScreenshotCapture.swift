@@ -178,7 +178,10 @@ enum ScreenshotCapture {
         return result
     }
 
-    /// Write an NSImage to disk as PNG.
+    /// Write an NSImage to disk as PNG. Encoding/compression runs on the
+    /// current thread; the actual `write` is fast for typical screenshots
+    /// but can hitch for full-page captures — callers on @MainActor should
+    /// wrap in `Task.detached`.
     static func writePNG(_ image: NSImage, to url: URL) throws {
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
@@ -190,6 +193,14 @@ enum ScreenshotCapture {
             )
         }
         try png.write(to: url)
+    }
+
+    /// Async variant that bounces the encode + write off the main actor.
+    /// Prefer this on hot paths (screenshot-save button, NSSavePanel).
+    static func writePNGAsync(_ image: NSImage, to url: URL) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            try writePNG(image, to: url)
+        }.value
     }
 
     /// Copy an NSImage to the system pasteboard.

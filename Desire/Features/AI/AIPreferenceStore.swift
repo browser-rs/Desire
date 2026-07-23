@@ -38,6 +38,19 @@ class AIPreferenceStore: ObservableObject {
         didSet { UserDefaults.standard.set(ollamaModel, forKey: "aiOllamaModel") }
     }
 
+    /// Tools the user has whitelisted with "Always Allow". Persisted across
+    /// launches. `.dangerous` tools are never honored here — they always
+    /// prompt. Consolidates the `aiAllowedTools` UserDefaults key that
+    /// previously lived on `AISessionStore`.
+    /// - Note: stored as a native `[String]` via UserDefaults (not DiskStore
+    ///   JSON) because the array is small and benefits from live-read without
+    ///   async overhead in the agent's risk-gating hot path.
+    @Published var allowedTools: Set<String> {
+        didSet {
+            UserDefaults.standard.set(Array(allowedTools), forKey: "aiAllowedTools")
+        }
+    }
+
     /// The model backend instance matching `providerKind`. Computed (not
     /// stored) so changing the kind immediately takes effect on the next
     /// agent loop iteration. All providers are stateless value types, so
@@ -84,6 +97,7 @@ class AIPreferenceStore: ObservableObject {
         }
         ollamaHost = UserDefaults.standard.string(forKey: "aiOllamaHost") ?? "http://localhost:11434/v1"
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
+        allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
 
         // Now fully initialized — safe to call self methods.
         hasAPIKey = loadAPIKey() != nil

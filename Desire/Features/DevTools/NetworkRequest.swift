@@ -18,50 +18,6 @@ struct NetworkRequest: Identifiable, Codable {
     let failed: Bool
     let errorMessage: String?
 
-    enum CodingKeys: String, CodingKey {
-        case id, url, method, statusCode, statusText, mimeType, startTime, endTime, duration, requestHeaders, responseHeaders, requestBody, responseBody, resourceType, failed, errorMessage
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        url = try container.decode(String.self, forKey: .url)
-        method = try container.decode(String.self, forKey: .method)
-        statusCode = try container.decodeIfPresent(Int.self, forKey: .statusCode)
-        statusText = try container.decodeIfPresent(String.self, forKey: .statusText)
-        mimeType = try container.decodeIfPresent(String.self, forKey: .mimeType)
-        startTime = try container.decode(Date.self, forKey: .startTime)
-        endTime = try container.decodeIfPresent(Date.self, forKey: .endTime)
-        duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
-        requestHeaders = try container.decodeIfPresent([String: String].self, forKey: .requestHeaders)
-        responseHeaders = try container.decodeIfPresent([String: String].self, forKey: .responseHeaders)
-        requestBody = try container.decodeIfPresent(String.self, forKey: .requestBody)
-        responseBody = try container.decodeIfPresent(String.self, forKey: .responseBody)
-        resourceType = try container.decode(ResourceType.self, forKey: .resourceType)
-        failed = try container.decode(Bool.self, forKey: .failed)
-        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(url, forKey: .url)
-        try container.encode(method, forKey: .method)
-        try container.encodeIfPresent(statusCode, forKey: .statusCode)
-        try container.encodeIfPresent(statusText, forKey: .statusText)
-        try container.encodeIfPresent(mimeType, forKey: .mimeType)
-        try container.encode(startTime, forKey: .startTime)
-        try container.encodeIfPresent(endTime, forKey: .endTime)
-        try container.encodeIfPresent(duration, forKey: .duration)
-        try container.encodeIfPresent(requestHeaders, forKey: .requestHeaders)
-        try container.encodeIfPresent(responseHeaders, forKey: .responseHeaders)
-        try container.encodeIfPresent(requestBody, forKey: .requestBody)
-        try container.encodeIfPresent(responseBody, forKey: .responseBody)
-        try container.encode(resourceType, forKey: .resourceType)
-        try container.encode(failed, forKey: .failed)
-        try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
-    }
-
     enum ResourceType: String, Codable, CaseIterable {
         case document = "document"
         case script = "script"

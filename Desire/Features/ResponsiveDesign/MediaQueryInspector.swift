@@ -1,11 +1,5 @@
 import SwiftUI
 
-struct MediaQueryItem: Identifiable {
-    let id = UUID()
-    let query: String
-    let isActive: Bool
-}
-
 let mediaQueryExtractorJS = """
 (function() {
     const rules = [];

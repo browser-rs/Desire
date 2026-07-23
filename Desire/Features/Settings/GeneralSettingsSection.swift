@@ -257,3 +257,22 @@ private struct CustomEngineSection: View {
         }
     }
 }
+
+
+// MARK: - AccentColor → SwiftUI Color bridge
+
+/// View-layer mapping so the pure Model enum stays free of `import SwiftUI`.
+extension AccentColor {
+    var color: Color {
+        switch self {
+        case .blue:   .blue
+        case .purple: .purple
+        case .pink:   .pink
+        case .red:    .red
+        case .orange: .orange
+        case .yellow: .yellow
+        case .green:  .green
+        case .teal:   .teal
+        }
+    }
+}

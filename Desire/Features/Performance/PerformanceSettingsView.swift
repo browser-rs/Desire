@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PerformanceSettingsView: View {
-    @ObservedObject var performanceManager: PerformanceManager
+    @ObservedObject var performanceManager: PerformanceStore
     @AppStorage("enableTabSuspension") private var enableTabSuspension = true
     @AppStorage("suspendAfterMinutes") private var suspendAfterMinutes = 30
     @AppStorage("enableCacheCleanup") private var enableCacheCleanup = true
@@ -81,7 +81,7 @@ struct PerformanceSettingsView: View {
 }
 
 #Preview {
-    let manager = PerformanceManager()
+    let manager = PerformanceStore()
     return PerformanceSettingsView(performanceManager: manager)
         .frame(width: 400)
 }

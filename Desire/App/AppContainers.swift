@@ -80,7 +80,7 @@ class SystemState: ObservableObject {
     lazy var devToolsStore = DevToolsStore()
     lazy var pluginStore = PluginStore()
     lazy var safariExtensionManager = SafariExtensionManager()
-    lazy var performanceManager = PerformanceManager()
+    lazy var performanceManager = PerformanceStore()
 
     init() {
         settings = Settings()

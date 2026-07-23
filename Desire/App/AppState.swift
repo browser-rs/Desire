@@ -64,7 +64,7 @@ class AppState: ObservableObject {
     var devToolsStore: DevToolsStore { system.devToolsStore }
     var pluginStore: PluginStore { system.pluginStore }
     var safariExtensionManager: SafariExtensionManager { system.safariExtensionManager }
-    var performanceManager: PerformanceManager { system.performanceManager }
+    var performanceManager: PerformanceStore { system.performanceManager }
 
     // MARK: - BrowserToolSurface runtime wiring
 

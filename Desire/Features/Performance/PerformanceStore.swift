@@ -5,7 +5,7 @@ import WebKit
 /// Performance manager that handles memory optimization, cache cleanup,
 /// and system memory pressure response.
 @MainActor
-class PerformanceManager: ObservableObject {
+class PerformanceStore: ObservableObject {
     // Memory pressure thresholds (MB)
     private let warningThreshold: Int = 500
 

@@ -133,23 +133,6 @@ class TabThumbnailStore: ObservableObject {
         objectWillChange.send()
     }
 
-    /// 更新所有标签页的缩略图
-    /// - Parameter tabs: 标签页数组
-    func updateThumbnails(for tabs: [Tab]) {
-        for tab in tabs {
-            // 只更新未过期且不在捕获中的缩略图
-            if let timestamp = thumbnailTimestamps[tab.id] {
-                let elapsed = Date().timeIntervalSince(timestamp)
-                if elapsed > expirationInterval / 2 {
-                    captureThumbnail(for: tab)
-                }
-            } else {
-                // 没有缓存的标签页，首次捕获
-                captureThumbnail(for: tab)
-            }
-        }
-    }
-
     /// 定时更新当前选中标签页的缩略图
     /// - Parameter selectedTab: 当前选中的标签页
     func updateSelectedTabThumbnail(_ selectedTab: Tab?) {

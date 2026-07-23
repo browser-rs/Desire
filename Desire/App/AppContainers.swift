@@ -71,7 +71,7 @@ class PrivacyState: ObservableObject {
 }
 
 /// System / settings stores: app settings, per-site settings, dev tools,
-/// plugins (userscripts), Safari extensions, performance manager.
+/// plugins (userscripts), Safari extensions.
 @MainActor
 class SystemState: ObservableObject {
     let settings: Settings
@@ -80,7 +80,6 @@ class SystemState: ObservableObject {
     lazy var devToolsStore = DevToolsStore()
     lazy var pluginStore = PluginStore()
     lazy var safariExtensionManager = SafariExtensionStore()
-    lazy var performanceManager = PerformanceStore()
 
     init() {
         settings = Settings()

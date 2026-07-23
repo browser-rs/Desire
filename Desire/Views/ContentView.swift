@@ -12,11 +12,34 @@ struct ContentView: View {
     @StateObject fileprivate var translationService = TranslationService()
     @StateObject fileprivate var responsiveDesignStore = ResponsiveDesignStore()
     @StateObject fileprivate var thumbnailStore = TabThumbnailStore()
+    /// Extracted business-logic coordinator. Replaces the ~25 action methods
+    /// that previously lived on ContentView.
+    @StateObject fileprivate var b: BrowsingActions
     @FocusState fileprivate var isUrlFocused: Bool
     @FocusState fileprivate var isFindFocused: Bool
     @State fileprivate var showTranslateBar = false
     @Environment(\.scenePhase) fileprivate var scenePhase
     @Environment(\.openWindow) fileprivate var openWindow
+
+    init(appState: AppState) {
+        self.appState = appState
+        let tm = TabManager()
+        _tabManager = StateObject(wrappedValue: tm)
+        _suggestionModel = StateObject(wrappedValue: AddressSuggestionsModel())
+        _translationService = StateObject(wrappedValue: TranslationService())
+        _responsiveDesignStore = StateObject(wrappedValue: ResponsiveDesignStore())
+        _thumbnailStore = StateObject(wrappedValue: TabThumbnailStore())
+        _b = StateObject(wrappedValue: BrowsingActions(
+            tabManager: tm,
+            settings: appState.settings,
+            bookmarkStore: appState.bookmarkStore,
+            historyStore: appState.historyStore,
+            siteSettingsStore: appState.siteSettingsStore,
+            searchHistoryStore: appState.searchHistoryStore,
+            elementBlockStore: appState.elementBlockStore,
+            devToolsStore: appState.devToolsStore
+        ))
+    }
 
     // Convenience accessors for shared stores
     fileprivate var settings: Settings { appState.settings }
@@ -94,7 +117,6 @@ struct ContentView: View {
     @State fileprivate var showElementBlock = false
     @State fileprivate var showSearchHistory = false
     @State fileprivate var showUndoToast = false
-    @State fileprivate var screenshotToast: String?
     @State fileprivate var mediaQueries: [MediaQueryItem] = []
     @State fileprivate var videoAdBlockerToast: String?
     @State fileprivate var lastBlockedRuleId: UUID?
@@ -285,7 +307,7 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let message = screenshotToast {
+            if let message = b.screenshotToast {
                 HStack(spacing: 8) {
                     Text(message).font(.caption)
                 }
@@ -496,28 +518,7 @@ struct ContentView: View {
                         }
                     }
                 },
-                toggleDarkMode: {
-                    guard let host = tab.browser.webView.url?.host else { return }
-                    let enabled = !siteSettingsStore.darkModeEnabled(for: host)
-                    siteSettingsStore.setDarkMode(enabled, for: host)
-                    let js = """
-                    (function() {
-                        var el = document.getElementById('desire-dark-mode');
-                        if (\(enabled)) {
-                            if (!el) {
-                                var css = 'html{filter:invert(0.9)hue-rotate(180deg)}img,video,canvas,svg,[style*="background-image"]{filter:invert(1)hue-rotate(180deg)}';
-                                var s = document.createElement('style');
-                                s.id = 'desire-dark-mode';
-                                s.textContent = css;
-                                document.head.appendChild(s);
-                            }
-                        } else {
-                            if (el) el.remove();
-                        }
-                    })();
-                    """
-                    tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-                },
+                toggleDarkMode: { b.toggleDarkMode(for: tab) },
                 toggleAIPanel: { showAIPanel.toggle() },
                 toggleAIFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() }
@@ -542,56 +543,17 @@ struct ContentView: View {
         NSApp.mainWindow?.toggleFullScreen(nil)
     }
 
-    fileprivate func toggleBookmark() {
-        guard let tab = tabManager.selectedTab,
-              let url = tab.browser.webView.url,
-              !tab.isOnNewTabPage else { return }
-        let urlString = url.absoluteString
-        if let existing = bookmarkStore.find(url: urlString) {
-            bookmarkStore.remove(existing)
-        } else {
-            bookmarkStore.add(title: tab.browser.pageTitle, url: urlString)
-        }
-    }
-
-    fileprivate func inspectElement() {
-        if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
-            tab.browser.webView.requestInspector()
-        }
-    }
+    fileprivate func toggleBookmark() { b.toggleBookmark() }
+    fileprivate func inspectElement() { b.inspectElement() }
 
     fileprivate func toggleDevTools() {
         showDevToolsPanel.toggle()
-        devToolsStore.toggleDevMode()
+        b.toggleDevMode()
     }
 
-    fileprivate func loadHome(for tab: Tab) {
-        guard let url = URL(string: settings.homePage) else { return }
-        tab.isOnNewTabPage = false
-        tab.urlString = settings.homePage
-        tab.browser.webView.load(URLRequest(url: url))
-    }
+    fileprivate func loadHome(for tab: Tab) { b.loadHome(for: tab) }
 
-    fileprivate func navigateToURL(_ input: String, for tab: Tab) {
-        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
-            if text.contains(".") {
-                text = "https://" + text
-            } else {
-                guard let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
-                // Record search history
-                if !tab.isIncognito {
-                    searchHistoryStore.add(query: text, engine: settings.searchEngine)
-                }
-                text = settings.searchURLTemplate + encoded
-            }
-        }
-        guard let url = URL(string: text) else { return }
-        tab.isOnNewTabPage = false
-        tab.urlString = text
-        tab.browser.webView.load(URLRequest(url: url))
-    }
+    fileprivate func navigateToURL(_ input: String, for tab: Tab) { b.navigateToURL(input, for: tab) }
 
     fileprivate func showFindBar() {
         findString = ""
@@ -673,124 +635,21 @@ struct ContentView: View {
         }
     }
 
-    fileprivate func zoomTab(by delta: Double) {
-        guard let tab = tabManager.selectedTab else { return }
-        let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
-        tab.browser.pageZoom = newZoom
-        tab.browser.webView.pageZoom = newZoom
-        if let host = tab.browser.webView.url?.host {
-            siteSettingsStore.setZoom(newZoom, for: host)
-        }
-    }
+    fileprivate func zoomTab(by delta: Double) { b.zoom(by: delta) }
 
-    fileprivate func zoomTab(to value: Double) {
-        guard let tab = tabManager.selectedTab else { return }
-        tab.browser.pageZoom = value
-        tab.browser.webView.pageZoom = value
-        if let host = tab.browser.webView.url?.host {
-            siteSettingsStore.setZoom(value, for: host)
-        }
-    }
+    fileprivate func zoomTab(to value: Double) { b.zoom(to: value) }
 
-    fileprivate func printPage() {
-        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
-        let printInfo = NSPrintInfo.shared
-        printInfo.horizontalPagination = .fit
-        printInfo.verticalPagination = .fit
-        printInfo.topMargin = 20
-        printInfo.bottomMargin = 20
-        printInfo.leftMargin = 20
-        printInfo.rightMargin = 20
-        let operation = tab.browser.webView.printOperation(with: printInfo)
-        operation.run()
-    }
+    fileprivate func printPage() { b.printPage() }
 
-    fileprivate func startScreenshot() {
-        ScreenshotSession.start(saveFolder: settings.screenshotFolder) { result in
-            Task { @MainActor in
-                switch result {
-                case .cancelled:
-                    break
-                case .saved(let url):
-                    screenshotToast = String(format: String(localized: "Saved to %@"), url.lastPathComponent)
-                case .copied:
-                    screenshotToast = String(localized: "Copied to clipboard")
-                }
-                if screenshotToast != nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        screenshotToast = nil
-                    }
-                }
-            }
-        }
-    }
+    fileprivate func startScreenshot() { b.startScreenshot(saveFolder: settings.screenshotFolder) }
 
-    fileprivate func refreshMediaQueries(for tab: Tab) {
-        tab.browser.webView.evaluateJavaScript(mediaQueryExtractorJS) { result, _ in
-            if let rules = result as? [[String: Any]] {
-                mediaQueries = rules.map {
-                    MediaQueryItem(query: $0["query"] as? String ?? "", isActive: $0["active"] as? Bool ?? false)
-                }
-            }
-        }
-    }
+    fileprivate func refreshMediaQueries(for tab: Tab) { b.refreshMediaQueries(for: tab) { mediaQueries = $0 } }
 
-    fileprivate func captureResponsiveScreenshot(for tab: Tab) {
-        let snapConfig = WKSnapshotConfiguration()
-        snapConfig.rect = CGRect(origin: .zero, size: tab.responsiveConfig.effectiveSize)
-        tab.browser.webView.takeSnapshot(with: snapConfig) { image, error in
-            guard let image, error == nil else { return }
-            let panel = NSSavePanel()
-            panel.title = String(localized: "Save Responsive Screenshot")
-            panel.nameFieldStringValue = "responsive-\(Int(tab.responsiveConfig.effectiveSize.width))x\(Int(tab.responsiveConfig.effectiveSize.height)).png"
-            panel.allowedContentTypes = [.png]
-            panel.begin { response in
-                if response == .OK, let url = panel.url,
-                   let tiffData = image.tiffRepresentation,
-                   let bitmap = NSBitmapImageRep(data: tiffData) {
-                    try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
-                }
-            }
-        }
-    }
+    fileprivate func captureResponsiveScreenshot(for tab: Tab) { b.captureResponsiveScreenshot(for: tab) }
 
-    fileprivate func captureFullPage() {
-        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
-        let webView = tab.browser.webView
-        let config = WKPDFConfiguration()
-        webView.createPDF(configuration: config) { result in
-            switch result {
-            case .success(let pdfData):
-                let panel = NSSavePanel()
-                panel.title = String(localized: "Save Full Page PDF")
-                panel.nameFieldStringValue = "\(tab.displayTitle).pdf"
-                panel.allowedContentTypes = [.pdf]
-                panel.begin { response in
-                    if response == .OK, let url = panel.url {
-                        try? pdfData.write(to: url)
-                    }
-                }
-            case .failure:
-                break
-            }
-        }
-    }
+    fileprivate func captureFullPage() { b.captureFullPage() }
 
-    fileprivate func togglePictureInPicture() {
-        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
-        let js = """
-        (function() {
-            var v = document.querySelector('video');
-            if (!v) return;
-            if (document.pictureInPictureElement) {
-                document.exitPictureInPicture();
-            } else if (v.readyState >= 2) {
-                v.requestPictureInPicture();
-            }
-        })();
-        """
-        tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
-    }
+    fileprivate func togglePictureInPicture() { b.togglePictureInPicture() }
 
     fileprivate func makeWebView(for tab: Tab) -> WebView {
         tab.browser.onAIElementPicked = { selector, html in
@@ -873,44 +732,7 @@ struct ContentView: View {
         }
     }
     
-    fileprivate func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) {
-        guard let host = tab.browser.webView.url?.host else {
-            tab.browser.isPickingElement = false
-            return
-        }
-        let alert = NSAlert()
-        alert.messageText = String(localized: "Block this element?")
-        alert.informativeText = "CSS: \(cssSelector)"
-        if let xp = xpath {
-            alert.informativeText += "\nXPath: \(xp)"
-        }
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: String(localized: "Block"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        if alert.runModal() == .alertFirstButtonReturn {
-            let rule = BlockedElementRule(urlPattern: host, cssSelector: cssSelector, xpath: xpath)
-            elementBlockStore.add(cssSelector: cssSelector, xpath: xpath, urlPattern: host)
-            let escapedCss = cssSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-            tab.browser.webView.evaluateJavaScript("""
-            (function() {
-                var s = document.createElement('style');
-                s.id = 'desire-blocked-\(rule.id.uuidString)';
-                s.textContent = '\(escapedCss) { display: none !important; }';
-                document.head.appendChild(s);
-            })();
-            """, completionHandler: nil)
-            lastBlockedRuleId = rule.id
-            lastBlockedSelector = cssSelector
-            lastBlockedXpath = xpath
-            showUndoToast = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                if showUndoToast {
-                    showUndoToast = false
-                }
-            }
-        }
-        tab.browser.isPickingElement = false
-    }
+    fileprivate func handleElementPicked(cssSelector: String, xpath: String?, in tab: Tab) { b.handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab) }
 }
 
 // MARK: - SelectedTabContent

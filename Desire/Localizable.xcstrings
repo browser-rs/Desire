@@ -113,9 +113,6 @@
     "%lld failed" : {
 
     },
-    "%lld MB" : {
-
-    },
     "%lld messages" : {
 
     },
@@ -196,18 +193,6 @@
 
     },
     "=" : {
-
-    },
-    "1 hour" : {
-
-    },
-    "5 minutes" : {
-
-    },
-    "10 minutes" : {
-
-    },
-    "30 minutes" : {
 
     },
     "Accent Color" : {
@@ -525,9 +510,6 @@
         }
       }
     },
-    "Always accept" : {
-
-    },
     "Always Allow" : {
 
     },
@@ -653,15 +635,6 @@
         }
       }
     },
-    "Automatic Cache Cleanup" : {
-
-    },
-    "Automatically clears browser cache when memory usage is high." : {
-
-    },
-    "Automatically upgrade HTTP connections to secure HTTPS." : {
-
-    },
     "Available" : {
 
     },
@@ -762,21 +735,6 @@
           }
         }
       }
-    },
-    "Block Analytics Trackers" : {
-
-    },
-    "Block Browser Fingerprinting" : {
-
-    },
-    "Block Cryptocurrency Miners" : {
-
-    },
-    "Block Social Media Trackers" : {
-
-    },
-    "Block Third-Party Cookies" : {
-
     },
     "Block this element?" : {
       "comment" : "Element picker confirmation",
@@ -991,9 +949,6 @@
         }
       }
     },
-    "Cache Management" : {
-
-    },
     "Camera" : {
       "comment" : "Camera device name",
       "localizations" : {
@@ -1184,9 +1139,6 @@
           }
         }
       }
-    },
-    "Clear All Caches" : {
-
     },
     "Clear All Cookies" : {
 
@@ -1503,9 +1455,6 @@
         }
       }
     },
-    "Connection Security" : {
-
-    },
     "Content Scripts" : {
 
     },
@@ -1535,19 +1484,10 @@
     "Control which cookies are accepted by the browser" : {
 
     },
-    "Controls which cookies are accepted from websites." : {
-
-    },
     "Cookie Accept Policy" : {
 
     },
-    "Cookie Accept Policy:" : {
-
-    },
     "Cookie Policy" : {
-
-    },
-    "Cookie Settings" : {
 
     },
     "Cookies" : {
@@ -1824,9 +1764,6 @@
     "CSS: %@" : {
 
     },
-    "Current Memory Usage:" : {
-
-    },
     "Current: %@" : {
 
     },
@@ -1909,9 +1846,6 @@
       }
     },
     "Default Browser" : {
-
-    },
-    "Default Browsing Mode" : {
 
     },
     "Default Search Engine" : {
@@ -2530,12 +2464,6 @@
         }
       }
     },
-    "Enable Private Mode by Default" : {
-
-    },
-    "Enable Tab Suspension" : {
-
-    },
     "Enabled" : {
       "comment" : "Toggle label",
       "localizations" : {
@@ -2560,9 +2488,6 @@
       }
     },
     "Endpoint URL" : {
-
-    },
-    "Enforce HTTPS Connections" : {
 
     },
     "Enter Full Screen" : {
@@ -3857,9 +3782,6 @@
         }
       }
     },
-    "Memory Status" : {
-
-    },
     "Method" : {
 
     },
@@ -3968,9 +3890,6 @@
 
     },
     "Navigate to Chrome's profile folder and select Bookmarks" : {
-
-    },
-    "Never accept" : {
 
     },
     "Never Auto-play" : {
@@ -4579,9 +4498,6 @@
     "On Launch" : {
 
     },
-    "Only from same domain" : {
-
-    },
     "Open" : {
       "comment" : "Open file/destination",
       "localizations" : {
@@ -5104,9 +5020,6 @@
           }
         }
       }
-    },
-    "Private mode does not save browsing history, cookies, or cache." : {
-
     },
     "Provider" : {
 
@@ -6546,12 +6459,6 @@
     "Summarize the current page in detail" : {
 
     },
-    "Suspend after:" : {
-
-    },
-    "Suspended tabs free memory but need to reload when activated." : {
-
-    },
     "Switch to Tab %lld" : {
       "comment" : "Tabs menu: switch to tab number",
       "localizations" : {
@@ -6605,9 +6512,6 @@
     "System Prompt" : {
 
     },
-    "System under memory pressure" : {
-
-    },
     "Tab Groups" : {
 
     },
@@ -6633,9 +6537,6 @@
           }
         }
       }
-    },
-    "Tab Suspension" : {
-
     },
     "Tabs" : {
       "comment" : "Tabs menu title",

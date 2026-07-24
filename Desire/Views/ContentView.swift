@@ -752,6 +752,9 @@ private struct SelectedTabContent: View {
     let showAIPanel: Bool
     let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
+    /// Draggable panel widths (persisted per-session, not across launches).
+    @State private var devToolsWidth: CGFloat = 420
+    @State private var aiPanelWidth: CGFloat = 320
 
     var body: some View {
         VStack(spacing: 0) {
@@ -915,20 +918,18 @@ private struct SelectedTabContent: View {
                 }
 
                 if showAIPanel {
-                    Divider()
-                        .frame(width: 1)
+                    ResizableDivider(width: $aiPanelWidth, range: 260...560)
                     AIPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                        .frame(width: 320)
+                        .frame(width: aiPanelWidth)
                 }
 
                 if showDevToolsPanel {
-                    Divider()
-                        .frame(width: 1)
+                    ResizableDivider(width: $devToolsWidth, range: 300...800)
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                     }, onClose: { content.toggleDevTools() })
-                    .frame(minWidth: 340, idealWidth: 440, maxWidth: 600)
+                    .frame(width: devToolsWidth)
                 }
             }
 

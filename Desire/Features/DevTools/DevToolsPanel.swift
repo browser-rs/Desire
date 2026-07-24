@@ -90,74 +90,125 @@ struct DevToolsPanel: View {
 private struct ConsolePanel: View {
     @ObservedObject var store: DevToolsStore
     @Binding var filter: ConsoleMessage.Level?
+    @State private var searchText = ""
+    @State private var copiedMessageId: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter
-            HStack {
-                Picker("Filter", selection: $filter) {
-                    Text("All").tag(nil as ConsoleMessage.Level?)
-                    Text("Errors").tag(ConsoleMessage.Level.error as ConsoleMessage.Level?)
-                    Text("Warnings").tag(ConsoleMessage.Level.warn as ConsoleMessage.Level?)
-                    Text("Info").tag(ConsoleMessage.Level.info as ConsoleMessage.Level?)
+            // Level filter + search
+            VStack(spacing: 6) {
+                HStack {
+                    Picker("Filter", selection: $filter) {
+                        Text("All").tag(nil as ConsoleMessage.Level?)
+                        Text("Err").tag(ConsoleMessage.Level.error as ConsoleMessage.Level?)
+                        Text("Warn").tag(ConsoleMessage.Level.warn as ConsoleMessage.Level?)
+                        Text("Info").tag(ConsoleMessage.Level.info as ConsoleMessage.Level?)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 220)
+
+                    Spacer()
+
+                    Text("\(filteredMessages.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
-                .pickerStyle(.segmented)
-
-                Spacer()
-
-                Text("\(filteredMessages.count) messages")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.tertiary)
+                        .imageScale(.small)
+                    TextField("Filter messages…", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color(nsColor: .controlBackgroundColor)))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
 
             Divider()
 
-            // Messages
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(filteredMessages) { message in
-                        consoleMessageRow(message)
-                        Divider()
+            // Messages — auto-scroll to latest
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(filteredMessages) { message in
+                            consoleMessageRow(message)
+                            Divider()
+                        }
+                        Color.clear.frame(height: 1).id("__console_bottom__")
                     }
+                }
+                .onChange(of: store.consoleMessages.count) { _, _ in
+                    withAnimation { proxy.scrollTo("__console_bottom__", anchor: .bottom) }
                 }
             }
         }
     }
 
     private var filteredMessages: [ConsoleMessage] {
-        guard let filter = filter else { return store.consoleMessages }
-        return store.consoleMessages.filter { $0.level == filter }
+        var messages = store.consoleMessages
+        if let filter = filter {
+            messages = messages.filter { $0.level == filter }
+        }
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !q.isEmpty {
+            messages = messages.filter { $0.message.lowercased().contains(q) }
+        }
+        return messages
     }
 
     private func consoleMessageRow(_ message: ConsoleMessage) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 6) {
             Image(systemName: levelIcon(message.level))
                 .foregroundStyle(levelColor(message.level))
-                .frame(width: 16)
+                .frame(width: 14)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(message.message)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(8)
 
                 if let url = message.url {
                     Text(url)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            Text(message.timestamp, style: .time)
+            Text(message.timestamp, format: .dateTime.hour().minute().second())
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(levelBackgroundColor(message.level))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(message.message, forType: .string)
+            copiedMessageId = message.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copiedMessageId = nil }
+        }
+        .background(
+            copiedMessageId == message.id
+                ? Color.accentColor.opacity(0.1)
+                : levelBackgroundColor(message.level)
+        )
     }
 
     private func levelIcon(_ level: ConsoleMessage.Level) -> String {

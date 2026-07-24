@@ -51,6 +51,10 @@ class AISessionStore: ObservableObject {
     /// `nil` otherwise. The AI panel shows it as a "via ..." badge.
     @Published var lastProviderUsed: String?
 
+    /// Token-delivery progress during streaming. Reset on `sendMessage`.
+    @Published var streamingTokenCount = 0
+    @Published var streamingTokensPerSecond: Double = 0
+
     /// AI preferences (model, endpoint, API key, provider kind, ...). Owned
     /// by `AIState` and injected here so the Settings window and the agent
     /// loop share the exact same instance — edits in Settings reach the live
@@ -62,6 +66,7 @@ class AISessionStore: ObservableObject {
     private let toolProvider = BrowserToolProvider()
     private weak var webView: WKWebView?
     private var isCancelled = false
+    private var loopTask: Task<Void, Never>?
 
     init(preference: AIPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
@@ -112,7 +117,9 @@ class AISessionStore: ObservableObject {
         saveCurrentConversation()
         isProcessing = true
         isCancelled = false
-        Task { await processLoop() }
+        streamingTokenCount = 0
+        streamingTokensPerSecond = 0
+        loopTask = Task { await processLoop() }
     }
 
     func performQuickAction(_ action: AIQuickAction) {
@@ -144,6 +151,10 @@ class AISessionStore: ObservableObject {
         isProcessing = false
         currentAction = nil
         awaitingQuestion = false
+        // Cancel the streaming Task so the for-try-await loop stops
+        // immediately instead of waiting for the next event/timeout.
+        loopTask?.cancel()
+        loopTask = nil
         // If waiting on an approval, resume the suspended continuation with
         // a deny so the loop wakes up and sees `isCancelled`.
         if let approval = pendingApproval {
@@ -236,6 +247,7 @@ class AISessionStore: ObservableObject {
 
             var assistantMsg: AIMessage?
             var hasContent = false
+            var lastTokenTime = Date()
 
             do {
                 for try await event in stream {
@@ -252,6 +264,13 @@ class AISessionStore: ObservableObject {
                             streamingVersion += 1
                         }
                         hasContent = true
+                        streamingTokenCount += 1
+                        let now = Date()
+                        let interval = now.timeIntervalSince(lastTokenTime)
+                        if interval > 0.001 {
+                            streamingTokensPerSecond = 1.0 / interval
+                        }
+                        lastTokenTime = now
                     case .toolCall(let call):
                         if assistantMsg == nil {
                             assistantMsg = AIMessage(role: .assistant, content: "")

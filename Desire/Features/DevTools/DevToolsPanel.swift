@@ -4,7 +4,7 @@ struct DevToolsPanel: View {
     @ObservedObject var store: DevToolsStore
     var tab: Tab?
     var onStartElementPicker: (() -> Void)?
-    @Environment(\.dismiss) private var dismiss
+    var onClose: (() -> Void)?
 
     @State private var consoleFilter: ConsoleMessage.Level? = nil
     @State private var networkFilter: NetworkRequest.ResourceType? = nil
@@ -27,31 +27,32 @@ struct DevToolsPanel: View {
                                 badge(store.networkFailedCount, color: .red)
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
                         .background(store.activePanel == panel ? Color.accentColor.opacity(0.1) : Color.clear)
                     }
                     .buttonStyle(.plain)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 if store.activePanel == .console {
                     Button("Clear") { store.clearConsole() }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
-                        .fixedSize()
                 } else if store.activePanel == .network {
                     Button("Clear") { store.clearNetworkRequests() }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
-                        .fixedSize()
                 }
 
-                Button("Close") { dismiss() }
-                    .fixedSize()
+                if let onClose = onClose {
+                    Button("Close") { onClose() }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 4)
+                }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.vertical, 4)
 
             Divider()
@@ -220,21 +221,18 @@ private struct NetworkPanel: View {
 
             Divider()
 
-            // Requests — wrapped in a horizontal scroll so the table
-            // columns don't overflow the panel when it's narrower than
-            // the column widths.
-            ScrollView(.horizontal) {
-                Table(filteredRequests) {
+            // Requests
+            Table(filteredRequests) {
                 TableColumn("Method") { request in
                     Text(request.method)
                         .font(.system(size: 11, weight: .medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
                         .background(methodColor(request.method))
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
-                .width(min: 60, max: 80)
+                .width(min: 45, ideal: 55)
 
                 TableColumn("Status") { request in
                     if let status = request.statusCode {
@@ -249,18 +247,20 @@ private struct NetworkPanel: View {
                             .scaleEffect(0.5)
                     }
                 }
-                .width(min: 50, max: 70)
+                .width(min: 40, ideal: 50)
 
                 TableColumn("Type") { request in
                     Text(request.resourceType.rawValue)
                         .font(.caption)
+                        .lineLimit(1)
                 }
-                .width(min: 80, max: 100)
+                .width(min: 60, ideal: 80)
 
                 TableColumn("URL") { request in
                     Text(request.url)
                         .font(.system(size: 11, design: .monospaced))
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
 
                 TableColumn("Time") { request in
@@ -270,8 +270,7 @@ private struct NetworkPanel: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .width(min: 60, max: 80)
-                }
+                .width(min: 50, ideal: 60)
             }
         }
     }

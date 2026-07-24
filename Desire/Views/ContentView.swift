@@ -927,7 +927,7 @@ private struct SelectedTabContent: View {
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
-                    })
+                    }, onClose: { content.toggleDevTools() })
                     .frame(minWidth: 340, idealWidth: 440, maxWidth: 600)
                 }
             }

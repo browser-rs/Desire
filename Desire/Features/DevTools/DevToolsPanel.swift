@@ -40,20 +40,24 @@ struct DevToolsPanel: View {
                     Button("Clear") { store.clearConsole() }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .fixedSize()
                 } else if store.activePanel == .network {
                     Button("Clear") { store.clearNetworkRequests() }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .fixedSize()
                 }
 
                 Button("Close") { dismiss() }
+                    .fixedSize()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
 
             Divider()
 
-            // Content
+            // Content — clipped so long URLs / wide tables don't bleed
+            // into the webview.
             switch store.activePanel {
             case .console:
                 ConsolePanel(store: store, filter: $consoleFilter)
@@ -63,7 +67,7 @@ struct DevToolsPanel: View {
                 ElementPanel(store: store, tab: tab, onStartElementPicker: onStartElementPicker)
             }
         }
-        .frame(minHeight: 400)
+        .clipped()
     }
 
     @ViewBuilder
@@ -97,7 +101,6 @@ private struct ConsolePanel: View {
                     Text("Info").tag(ConsoleMessage.Level.info as ConsoleMessage.Level?)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 300)
 
                 Spacer()
 
@@ -205,7 +208,6 @@ private struct NetworkPanel: View {
                     Text("XHR").tag(NetworkRequest.ResourceType.xhr as NetworkRequest.ResourceType?)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 400)
 
                 Spacer()
 
@@ -218,8 +220,11 @@ private struct NetworkPanel: View {
 
             Divider()
 
-            // Requests
-            Table(filteredRequests) {
+            // Requests — wrapped in a horizontal scroll so the table
+            // columns don't overflow the panel when it's narrower than
+            // the column widths.
+            ScrollView(.horizontal) {
+                Table(filteredRequests) {
                 TableColumn("Method") { request in
                     Text(request.method)
                         .font(.system(size: 11, weight: .medium))
@@ -266,6 +271,7 @@ private struct NetworkPanel: View {
                     }
                 }
                 .width(min: 60, max: 80)
+                }
             }
         }
     }

@@ -928,7 +928,7 @@ private struct SelectedTabContent: View {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                     })
-                    .frame(width: 380)
+                    .frame(minWidth: 340, idealWidth: 440, maxWidth: 600)
                 }
             }
 

@@ -89,6 +89,31 @@ struct AISettingsSection: View {
                     .frame(minHeight: 200)
                     .border(Color(nsColor: .separatorColor), width: 0.5)
             }
+
+            if !store.allowedTools.isEmpty {
+                Section("Always-Allowed Tools") {
+                    ForEach(Array(store.allowedTools.sorted()), id: \.self) { tool in
+                        HStack {
+                            Text(tool)
+                                .font(.caption)
+                            Spacer()
+                            Button("Remove") {
+                                var current = store.allowedTools
+                                current.remove(tool)
+                                store.allowedTools = current
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    Button("Reset All") {
+                        store.allowedTools = []
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding()
         .onAppear {

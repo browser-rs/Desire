@@ -97,6 +97,11 @@ struct AIPanel: View {
                 isFocused: $isInputFocused
             )
         }
+        .onKeyPress { press in
+            if press.key == .return && press.modifiers.contains(.command) { submit(); return .handled }
+            if press.key == .escape && store.isProcessing { store.cancel(); return .handled }
+            return .ignored
+        }
     }
 
     // MARK: - Message list

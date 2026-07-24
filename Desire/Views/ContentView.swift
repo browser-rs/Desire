@@ -135,7 +135,13 @@ struct ContentView: View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
                 tabBarSection(for: tab)
-                SelectedTabContent(tab: tab, content: self)
+                SelectedTabContent(
+                    tab: tab, content: self,
+                    showSidebar: showSidebar,
+                    showAIPanel: showAIPanel,
+                    showDevToolsPanel: showDevToolsPanel,
+                    isFindBarVisible: isFindBarVisible
+                )
             }
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
@@ -740,6 +746,12 @@ struct ContentView: View {
 private struct SelectedTabContent: View {
     @ObservedObject var tab: Tab
     let content: ContentView
+    /// Panel-visibility flags passed explicitly (not read through `content`)
+    /// so SwiftUI correctly re-renders this view when they change.
+    let showSidebar: Bool
+    let showAIPanel: Bool
+    let showDevToolsPanel: Bool
+    let isFindBarVisible: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -764,7 +776,7 @@ private struct SelectedTabContent: View {
             content.toolbarSection(for: tab)
 
             HStack(spacing: 0) {
-                if content.showSidebar {
+                if showSidebar {
                     SidebarView(
                         bookmarkStore: content.bookmarkStore,
                         historyStore: content.historyStore,
@@ -783,7 +795,7 @@ private struct SelectedTabContent: View {
                         )
                     }
 
-                    if content.isFindBarVisible {
+                    if isFindBarVisible {
                         FindBar(
                             findString: content.$findString,
                             findMatchCount: content.findMatchCount,
@@ -902,14 +914,14 @@ private struct SelectedTabContent: View {
                         .frame(width: 220)
                 }
 
-                if content.showAIPanel {
+                if showAIPanel {
                     Divider()
                         .frame(width: 1)
                     AIPanel(store: content.aiSession, conversationStore: content.conversationStore)
                         .frame(width: 320)
                 }
 
-                if content.showDevToolsPanel {
+                if showDevToolsPanel {
                     Divider()
                         .frame(width: 1)
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {

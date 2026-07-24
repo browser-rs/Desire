@@ -63,7 +63,7 @@ struct DevToolsPanel: View {
                 ElementPanel(store: store, tab: tab, onStartElementPicker: onStartElementPicker)
             }
         }
-        .frame(width: 800, height: 500)
+        .frame(minHeight: 400)
     }
 
     @ViewBuilder

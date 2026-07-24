@@ -102,6 +102,17 @@ struct AIPanel: View {
             if press.key == .escape && store.isProcessing { store.cancel(); return .handled }
             return .ignored
         }
+        .contextMenu {
+            Button("Copy Conversation as Text") {
+                let text = store.messages.map { msg in
+                    let role = msg.role.rawValue.capitalized
+                    let body = msg.content ?? msg.toolCalls?.map { "[\($0.function.name)]" }.joined(separator: " ") ?? ""
+                    return "**\(role)**: \(body)"
+                }.joined(separator: "\n\n")
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+        }
     }
 
     // MARK: - Message list

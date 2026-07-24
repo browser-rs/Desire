@@ -19,7 +19,7 @@ struct AIMessageBubble: View {
                 isStreamingTail: isStreamingTail
             )
         case .tool:
-            ToolBubble(content: message.content ?? "")
+            ToolBubble(content: message.content ?? "", toolName: message.toolName)
         case .system:
             EmptyView()
         }
@@ -182,9 +182,8 @@ private struct AssistantBubble: View {
 
 private struct ToolBubble: View {
     let content: String
+    let toolName: String?
 
-    /// Detect if content looks like a base64-encoded PNG (from screenshot tool).
-    /// PNG files start with the signature bytes iVBORw0KGgo when base64-encoded.
     private var isBase64Image: Bool {
         content.count > 100 && content.hasPrefix("iVBORw0KGgo")
     }
@@ -203,17 +202,22 @@ private struct ToolBubble: View {
                 .frame(width: 22, alignment: .center)
                 .padding(.top, 2)
 
-            if let image = decodedImage {
-                // Screenshot result: display the image with click-to-copy
-                ScreenshotView(image: image)
-            } else {
-                // Regular tool result: display as text
-                Text(content)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(4)
-                    .truncationMode(.tail)
-                    .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 3) {
+                if let name = toolName {
+                    Text(name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                if let image = decodedImage {
+                    ScreenshotView(image: image)
+                } else {
+                    Text(content)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(4)
+                        .truncationMode(.tail)
+                        .textSelection(.enabled)
+                }
             }
             Spacer(minLength: 40)
         }

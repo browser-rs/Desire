@@ -758,6 +758,11 @@ private struct SelectedTabContent: View {
             .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
             .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
+            // Toolbar spans full width above the content area (matches
+            // original ContentView.body layout before SelectedTabContent
+            // extraction).
+            content.toolbarSection(for: tab)
+
             HStack(spacing: 0) {
                 if content.showSidebar {
                     SidebarView(
@@ -770,8 +775,6 @@ private struct SelectedTabContent: View {
                 }
 
                 VStack(spacing: 0) {
-                    content.toolbarSection(for: tab)
-
                     if tab.responsiveConfig.isEnabled {
                         ResponsiveDesignBar(
                             config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),

@@ -42,7 +42,8 @@ struct AIPanel: View {
             AIHeaderView(
                 store: store,
                 hasHistory: !conversationStore.conversations.isEmpty,
-                onShowHistory: { showHistory = true }
+                onShowHistory: { showHistory = true },
+                onNewChat: { store.clear() }
             )
 
             // "via Cloud / via On-device" indicator, shown only when the

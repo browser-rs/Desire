@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Sidebar-style list of saved conversations. Supports search and groups
@@ -131,6 +132,18 @@ struct AIHistoryListView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private func confirmDelete(_ conv: Conversation) {
+        let alert = NSAlert()
+        alert.messageText = "Delete Conversation"
+        alert.informativeText = "Are you sure you want to delete \"\(conv.title)\"? This cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            conversationStore.delete(conv.id)
+        }
+    }
+
     private func listBody(grouped: [HistoryGroup]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
@@ -160,7 +173,8 @@ struct AIHistoryListView: View {
                         conversation: conv,
                         isCurrent: conv.id == sessionStore.conversationId,
                         onSelect: { onSelect(conv.id) },
-                        onDelete: { conversationStore.delete(conv.id) }
+                        onDelete: { confirmDelete(conv) },
+                        onRename: { newTitle in conversationStore.rename(conv.id, to: newTitle) }
                     )
                     if conv.id != items.last?.id {
                         Divider()
@@ -239,8 +253,12 @@ private struct ConversationRow: View {
     let isCurrent: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
+    let onRename: (String) -> Void
 
     @State private var isHovering = false
+    @State private var isEditing = false
+    @State private var editTitle = ""
+    @FocusState private var isEditFocused: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -255,11 +273,20 @@ private struct ConversationRow: View {
             .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(conversation.title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                if isEditing {
+                    TextField("Title", text: $editTitle)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .focused($isEditFocused)
+                        .onSubmit { commitRename() }
+                        .onExitCommand { cancelRename() }
+                } else {
+                    Text(conversation.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 HStack(spacing: 4) {
                     Text(messageCountText)
                         .font(.system(size: 10))
@@ -300,6 +327,35 @@ private struct ConversationRow: View {
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
+        .onDisappear { cancelRename() }
+        // nsui gesture for double-click (NSView-style)
+        .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity, pressing: { _ in }, perform: {})
+        .background(
+            DoubleClickHandler { beginRename() }
+        )
+        .onChange(of: isEditFocused) { _, focused in
+            if !focused && isEditing { commitRename() }
+        }
+    }
+
+    private func beginRename() {
+        editTitle = conversation.title
+        isEditing = true
+        isEditFocused = true
+    }
+
+    private func commitRename() {
+        guard isEditing else { return }
+        isEditing = false
+        let trimmed = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, trimmed != conversation.title {
+            onRename(trimmed)
+        }
+    }
+
+    private func cancelRename() {
+        isEditing = false
+        editTitle = ""
     }
 
     private var messageCountText: String {
@@ -322,5 +378,29 @@ private struct ConversationRow: View {
         if isCurrent { return Color.accentColor.opacity(0.08) }
         if isHovering { return Color(nsColor: .controlBackgroundColor).opacity(0.6) }
         return Color.clear
+    }
+}
+
+// MARK: - DoubleClickHandler (NSViewRepresentable)
+
+/// Detects double-click on the hosting view and forwards it to the closure.
+fileprivate struct DoubleClickHandler: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> DoubleClickView {
+        DoubleClickView(action: action)
+    }
+    func updateNSView(_ nsView: DoubleClickView, context: Context) {
+        nsView.action = action
+    }
+
+    final class DoubleClickView: NSView {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError() }
+        override func mouseDown(with event: NSEvent) {
+            if event.clickCount == 2 { action() }
+            super.mouseDown(with: event)
+        }
     }
 }

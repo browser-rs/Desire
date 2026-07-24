@@ -7,6 +7,7 @@ struct AIHeaderView: View {
     @ObservedObject var store: AISessionStore
     let hasHistory: Bool
     var onShowHistory: () -> Void
+    var onNewChat: (() -> Void)?
 
     @State private var isDotPulsing = false
 
@@ -36,6 +37,14 @@ struct AIHeaderView: View {
             )
             .opacity(hasHistory ? 1 : 0.35)
             .disabled(!hasHistory)
+
+            if let onNewChat {
+                HoverIcon(
+                    systemName: "plus.bubble",
+                    action: onNewChat,
+                    help: "New chat"
+                )
+            }
 
             HoverIcon(
                 systemName: "trash",

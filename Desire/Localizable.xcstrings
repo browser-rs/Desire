@@ -4,6 +4,9 @@
     "" : {
 
     },
+    " " : {
+
+    },
     ":" : {
 
     },
@@ -80,6 +83,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 想要取得你的位置資訊"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
           }
         }
       }
@@ -1712,6 +1725,9 @@
     "Create Tab Group" : {
 
     },
+    "CSS" : {
+
+    },
     "CSS Code" : {
       "comment" : "Plugin editor CSS code label",
       "localizations" : {
@@ -2037,7 +2053,7 @@
         }
       }
     },
-    "Document" : {
+    "Doc" : {
 
     },
     "Domain" : {
@@ -2536,7 +2552,7 @@
         }
       }
     },
-    "Errors" : {
+    "Err" : {
 
     },
     "Esc to cancel" : {
@@ -2792,6 +2808,9 @@
 
     },
     "Filter messages" : {
+
+    },
+    "Filter messages…" : {
 
     },
     "Filter URLs" : {
@@ -3330,7 +3349,7 @@
     "I'm looking at this page and want to ask:" : {
 
     },
-    "Image" : {
+    "Img" : {
 
     },
     "Import" : {
@@ -3558,6 +3577,9 @@
           }
         }
       }
+    },
+    "JS" : {
+
     },
     "JS: %@" : {
 
@@ -5794,9 +5816,6 @@
         }
       }
     },
-    "Script" : {
-
-    },
     "Script %lld" : {
 
     },
@@ -6427,9 +6446,6 @@
     "streaming" : {
 
     },
-    "Stylesheet" : {
-
-    },
     "Suggestion URL (optional)" : {
       "comment" : "Add custom search engine suggestion URL placeholder",
       "localizations" : {
@@ -6897,9 +6913,6 @@
     "Translate…" : {
 
     },
-    "Type" : {
-
-    },
     "Unavailable" : {
 
     },
@@ -7108,7 +7121,7 @@
     "W" : {
 
     },
-    "Warnings" : {
+    "Warn" : {
 
     },
     "Website Data" : {

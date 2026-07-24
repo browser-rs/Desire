@@ -246,6 +246,7 @@ private struct ConsolePanel: View {
 private struct NetworkPanel: View {
     @ObservedObject var store: DevToolsStore
     @Binding var filter: NetworkRequest.ResourceType?
+    @State private var selectedRequest: NetworkRequest.ID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -253,76 +254,137 @@ private struct NetworkPanel: View {
             HStack {
                 Picker("Filter", selection: $filter) {
                     Text("All").tag(nil as NetworkRequest.ResourceType?)
-                    Text("Document").tag(NetworkRequest.ResourceType.document as NetworkRequest.ResourceType?)
-                    Text("Script").tag(NetworkRequest.ResourceType.script as NetworkRequest.ResourceType?)
-                    Text("Stylesheet").tag(NetworkRequest.ResourceType.stylesheet as NetworkRequest.ResourceType?)
-                    Text("Image").tag(NetworkRequest.ResourceType.image as NetworkRequest.ResourceType?)
+                    Text("Doc").tag(NetworkRequest.ResourceType.document as NetworkRequest.ResourceType?)
+                    Text("JS").tag(NetworkRequest.ResourceType.script as NetworkRequest.ResourceType?)
+                    Text("CSS").tag(NetworkRequest.ResourceType.stylesheet as NetworkRequest.ResourceType?)
+                    Text("Img").tag(NetworkRequest.ResourceType.image as NetworkRequest.ResourceType?)
                     Text("XHR").tag(NetworkRequest.ResourceType.xhr as NetworkRequest.ResourceType?)
                 }
                 .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
 
                 Spacer()
 
-                Text("\(filteredRequests.count) requests")
+                Text("\(filteredRequests.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
 
             Divider()
 
-            // Requests
-            Table(filteredRequests) {
-                TableColumn("Method") { request in
-                    Text(request.method)
-                        .font(.system(size: 11, weight: .medium))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(methodColor(request.method))
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
-                .width(min: 45, ideal: 55)
-
-                TableColumn("Status") { request in
-                    if let status = request.statusCode {
-                        Text("\(status)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(statusColor(status))
-                    } else if request.failed {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.red)
-                    } else {
-                        ProgressView()
-                            .scaleEffect(0.5)
+            // Table + detail split
+            VStack(spacing: 0) {
+                Table(filteredRequests, selection: $selectedRequest) {
+                    TableColumn("Method") { request in
+                        Text(request.method)
+                            .font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(methodColor(request.method))
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
                     }
-                }
-                .width(min: 40, ideal: 50)
+                    .width(min: 40, ideal: 50)
 
-                TableColumn("Type") { request in
-                    Text(request.resourceType.rawValue)
-                        .font(.caption)
-                        .lineLimit(1)
-                }
-                .width(min: 60, ideal: 80)
-
-                TableColumn("URL") { request in
-                    Text(request.url)
-                        .font(.system(size: 11, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                TableColumn("Time") { request in
-                    if let duration = request.duration {
-                        Text("\(Int(duration * 1000))ms")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    TableColumn("Status") { request in
+                        if let status = request.statusCode {
+                            Text("\(status)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(statusColor(status))
+                        } else if request.failed {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                        } else {
+                            ProgressView().scaleEffect(0.5)
+                        }
                     }
+                    .width(min: 36, ideal: 44)
+
+                    TableColumn("URL") { request in
+                        Text(request.url)
+                            .font(.system(size: 11, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    TableColumn("Time") { request in
+                        if let duration = request.duration {
+                            Text("\(Int(duration * 1000))ms")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .width(min: 44, ideal: 54)
                 }
-                .width(min: 50, ideal: 60)
+                .frame(minHeight: 120)
+
+                // Request detail
+                if let id = selectedRequest,
+                   let request = store.networkRequests.first(where: { $0.id == id }) {
+                    Divider()
+                    requestDetail(request)
+                        .frame(maxHeight: 200)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func requestDetail(_ r: NetworkRequest) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(r.method).bold() + Text(" ") + Text(r.url).font(.caption)
+                    Spacer()
+                    if let code = r.statusCode {
+                        Text("\(code)").foregroundStyle(statusColor(code)).bold()
+                    }
+                }
+                .font(.system(size: 12))
+                .textSelection(.enabled)
+
+                if let reqHeaders = r.requestHeaders, !reqHeaders.isEmpty {
+                    detailSection("Request Headers") {
+                        ForEach(Array(reqHeaders.keys.sorted()), id: \.self) { key in
+                            Text("\(key): \(reqHeaders[key] ?? "")")
+                                .font(.system(size: 10, design: .monospaced))
+                        }
+                    }
+                }
+
+                if let body = r.requestBody, !body.isEmpty {
+                    detailSection("Request Body") {
+                        Text(body).font(.system(size: 10, design: .monospaced))
+                    }
+                }
+
+                if let respHeaders = r.responseHeaders, !respHeaders.isEmpty {
+                    detailSection("Response Headers") {
+                        ForEach(Array(respHeaders.keys.sorted()), id: \.self) { key in
+                            Text("\(key): \(respHeaders[key] ?? "")")
+                                .font(.system(size: 10, design: .monospaced))
+                        }
+                    }
+                }
+
+                if let body = r.responseBody, !body.isEmpty {
+                    detailSection("Response Body") {
+                        Text(body).font(.system(size: 10, design: .monospaced))
+                    }
+                }
+            }
+            .padding(10)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func detailSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption.bold()).foregroundStyle(.secondary)
+            content()
         }
     }
 

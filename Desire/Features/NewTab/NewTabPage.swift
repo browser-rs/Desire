@@ -28,8 +28,7 @@ struct NewTabPage: View {
                 .padding(.horizontal)
                 .padding(.top, 60)
                 .onSubmit {
-                    suggestionModel.reset()
-                    onNavigate(searchText)
+                    submitSearch()
                 }
                 .onChange(of: searchText) { _, newValue in
                     if newValue.isEmpty {
@@ -82,6 +81,13 @@ struct NewTabPage: View {
         .popover(item: $editingDial) { dial in
             editForm(dial: dial)
         }
+    }
+
+    private func submitSearch() {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        suggestionModel.reset()
+        onNavigate(trimmed)
     }
 
     private var recentHistoryItems: [(title: String, url: String)] {

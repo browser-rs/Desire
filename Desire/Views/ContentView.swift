@@ -137,7 +137,7 @@ struct ContentView: View {
             if let tab = tabManager.selectedTab {
                 tabBarSection(for: tab)
                 SelectedTabContent(
-                    tab: tab, content: self,
+                    tab: tab, content: self, actions: b,
                     showSidebar: showSidebar,
                     showAIPanel: showAIPanel,
                     showDevToolsPanel: showDevToolsPanel,
@@ -478,7 +478,7 @@ struct ContentView: View {
                 navigate: { input in
                     suggestionModel.reset()
                     isUrlFocused = false
-                    navigateToURL(input, for: tab)
+                    b.navigateToURL(input, for: tab)
                 },
                 toggleBookmark: { toggleBookmark() },
                 toggleFullScreen: { toggleFullScreen() },
@@ -486,7 +486,7 @@ struct ContentView: View {
                 suggestionSelect: { sug in
                     suggestionModel.reset()
                     isUrlFocused = false
-                    navigateToURL(sug.url, for: tab)
+                    b.navigateToURL(sug.url, for: tab)
                 },
                 printPage: { printPage() },
                 zoomIn: { zoomTab(by: 0.1) },
@@ -747,6 +747,10 @@ struct ContentView: View {
 private struct SelectedTabContent: View {
     @ObservedObject var tab: Tab
     let content: ContentView
+    /// Direct reference to the browsing-actions coordinator so closures
+    /// inside this view call the real object (not a stale struct copy of
+    /// ContentView whose @StateObject may not be managed by SwiftUI here).
+    let actions: BrowsingActions
     /// Panel-visibility flags passed explicitly (not read through `content`)
     /// so SwiftUI correctly re-renders this view when they change.
     let showSidebar: Bool
@@ -785,7 +789,7 @@ private struct SelectedTabContent: View {
                         bookmarkStore: content.bookmarkStore,
                         historyStore: content.historyStore,
                         readingListStore: content.readingListStore,
-                        onNavigate: { url in content.navigateToURL(url, for: tab) }
+                        onNavigate: { url in actions.navigateToURL(url, for: tab) }
                     )
                     Divider()
                 }
@@ -795,7 +799,7 @@ private struct SelectedTabContent: View {
                         ResponsiveDesignBar(
                             config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
                             responsiveStore: content.responsiveDesignStore,
-                            onScreenshot: { content.captureResponsiveScreenshot(for: tab) }
+                            onScreenshot: { actions.captureResponsiveScreenshot(for: tab) }
                         )
                     }
 
@@ -830,7 +834,7 @@ private struct SelectedTabContent: View {
                                 get: { tab.urlString },
                                 set: { tab.urlString = $0 }
                             ), onNavigate: { input in
-                                content.navigateToURL(input, for: tab)
+                                actions.navigateToURL(input, for: tab)
                             }, suggestionModel: content.suggestionModel, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
                         } else {
                             GeometryReader { geo in
@@ -867,12 +871,12 @@ private struct SelectedTabContent: View {
                                     }
                                     .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
                                         if show {
-                                            content.refreshMediaQueries(for: tab)
+                                            actions.refreshMediaQueries(for: tab) { content.mediaQueries = $0 }
                                         }
                                     }
                                     .onChange(of: tab.responsiveConfig.effectiveSize) { _, _ in
                                         if tab.responsiveConfig.showMediaQueryInspector {
-                                            content.refreshMediaQueries(for: tab)
+                                            actions.refreshMediaQueries(for: tab) { content.mediaQueries = $0 }
                                         }
                                     }
                             }
@@ -888,14 +892,14 @@ private struct SelectedTabContent: View {
                                 onSelect: { sug in
                                     content.suggestionModel.reset()
                                     content.isUrlFocused = false
-                                    content.navigateToURL(sug.url, for: tab)
+                                    actions.navigateToURL(sug.url, for: tab)
                                 },
                                 onSearchHistorySelect: { query in
                                     content.suggestionModel.reset()
                                     content.isUrlFocused = false
                                     let url = content.settings.searchURLTemplate
                                         + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
-                                    content.navigateToURL(url, for: tab)
+                                    actions.navigateToURL(url, for: tab)
                                 }
                             )
                             .padding(.horizontal, 12)

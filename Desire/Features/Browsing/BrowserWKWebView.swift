@@ -5,6 +5,7 @@ import WebKit
 @MainActor
 class BrowserWKWebView: WKWebView {
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    var onSearchText: ((String) -> Void)?
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
@@ -17,10 +18,12 @@ class BrowserWKWebView: WKWebView {
             var img = el.closest('img');
             var link = el.closest('a');
             var bg = window.getComputedStyle(el).backgroundImage;
+            var sel = window.getSelection().toString().trim();
             return JSON.stringify({
                 imageUrl: img ? img.src : null,
                 linkUrl: link ? link.href : null,
-                bgImageUrl: bg && bg.startsWith('url(') ? bg.slice(4, -1).replace(/['"]/g, '') : null
+                bgImageUrl: bg && bg.startsWith('url(') ? bg.slice(4, -1).replace(/['"]/g, '') : null,
+                selection: sel.length > 0 ? sel.substring(0, 200) : null
             });
         })()
         """
@@ -32,8 +35,19 @@ class BrowserWKWebView: WKWebView {
             let imageURL = info["imageUrl"].flatMap(URL.init)
             let linkURL = info["linkUrl"].flatMap(URL.init)
             let bgImageURL = info["bgImageUrl"].flatMap(URL.init)
+            let selection = info["selection"]
+
+            if let sel = selection, !sel.isEmpty {
+                let truncated = sel.count > 30 ? String(sel.prefix(30)) + "…" : sel
+                let search = NSMenuItem(title: String(localized: "Search “\(truncated)”"), action: #selector(self.searchSelection), keyEquivalent: "")
+                search.target = self
+                search.representedObject = sel
+                menu.addItem(.separator())
+                menu.addItem(search)
+            }
 
             if let url = imageURL ?? bgImageURL {
+                menu.addItem(.separator())
                 let save = NSMenuItem(title: String(localized: "Save Image"), action: #selector(self.saveImage), keyEquivalent: "")
                 save.target = self
                 save.representedObject = url
@@ -63,6 +77,11 @@ class BrowserWKWebView: WKWebView {
                 menu.addItem(copyLink)
             }
         }
+    }
+
+    @objc private func searchSelection(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        onSearchText?(text)
     }
 
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {

@@ -172,6 +172,7 @@ struct WebView: NSViewRepresentable {
     var httpsUpgradeEnabled: Bool = true
     var extensionManager: SafariExtensionStore?
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    var onSearchText: ((String) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
     var onElementPicked: ((String, String?) -> Void)?
     /// Forwarded from the `videoAdBlocked` WKScriptMessage handler.
@@ -230,6 +231,9 @@ struct WebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
+        }
+        webView.onSearchText = { text in
+            context.coordinator.parent.onSearchText?(text)
         }
         context.coordinator.observe(webView)
         return webView
@@ -300,6 +304,7 @@ struct WebView: NSViewRepresentable {
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
+            wv.onSearchText = nil
             wv.stopLoading()
         }
 

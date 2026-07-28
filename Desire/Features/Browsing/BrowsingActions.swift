@@ -406,6 +406,17 @@ extension BrowsingActions {
                                         autoPlayPolicy: settings.autoPlayPolicy,
                                         newTabPosition: settings.newTabPosition)
             },
+            onSearchText: { [weak self] text in
+                guard let self else { return }
+                let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+                let urlString = self.settings.searchURLTemplate + encoded
+                self.tabManager.addTab(url: urlString,
+                                       javaScriptEnabled: settings.isJavaScriptEnabled,
+                                       contentBlocker: contentBlocker,
+                                       videoAdBlocker: videoAdBlocker,
+                                       autoPlayPolicy: settings.autoPlayPolicy,
+                                       newTabPosition: settings.newTabPosition)
+            },
             onPageFinished: { [weak self] url, title in
                 videoAdBlocker.resetCount()
                 if tab.suppressHistoryOnce {

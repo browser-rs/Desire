@@ -12,6 +12,9 @@ class DownloadStore: ObservableObject {
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
     private let historyKey = "desire.downloadHistory"
+    /// Active URLSession download tasks keyed by DownloadItem.id, so
+    /// pause/resume can actually suspend/resume the network transfer.
+    private var activeTasks: [UUID: URLSessionDownloadTask] = [:]
 
     enum GroupingMode: String, CaseIterable {
         case date, fileType, status
@@ -127,12 +130,16 @@ class DownloadStore: ObservableObject {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].state == .inProgress else { return }
         downloads[i].isPaused = true
         downloads[i].speed = 0
+        // Actually suspend the underlying URLSession task so the network
+        // transfer halts (was display-only before).
+        activeTasks[id]?.suspend()
     }
 
     func resume(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isPaused else { return }
         downloads[i].isPaused = false
         downloads[i].lastUpdateTime = Date()
+        activeTasks[id]?.resume()
     }
 
     func setPriority(id: UUID, priority: DownloadItem.Priority) {
@@ -341,8 +348,10 @@ class DownloadStore: ObservableObject {
                 let destination = self.uniqueURL(for: item.filename)
                 try? FileManager.default.moveItem(at: tempURL, to: destination)
                 let size = (try? FileManager.default.attributesOfItem(atPath: destination.path))?[.size] as? Int64 ?? 0
+                let itemId = UUID()
+                self.activeTasks[itemId] = nil
                 _ = self.add(item: DownloadItem(
-                    id: UUID(), filename: item.filename, fileURL: destination,
+                    id: itemId, filename: item.filename, fileURL: destination,
                     totalBytes: size, downloadedBytes: size,
                     state: .completed, error: nil,
                     cancel: nil, sourceURL: sourceURL
@@ -351,11 +360,16 @@ class DownloadStore: ObservableObject {
             }
         }
         downloadTask.resume()
+        let itemId = UUID()
+        activeTasks[itemId] = downloadTask
         _ = add(item: DownloadItem(
-            id: UUID(), filename: item.filename, fileURL: nil,
+            id: itemId, filename: item.filename, fileURL: nil,
             totalBytes: 0, downloadedBytes: 0,
             state: .inProgress, error: nil,
-            cancel: { downloadTask.cancel() }, sourceURL: sourceURL
+            cancel: { [weak self] in
+                downloadTask.cancel()
+                self?.activeTasks[itemId] = nil
+            }, sourceURL: sourceURL
         ))
     }
 

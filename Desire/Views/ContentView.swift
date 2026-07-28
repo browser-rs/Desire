@@ -25,6 +25,7 @@ struct ContentView: View {
         self.appState = appState
         let tm = TabManager()
         _tabManager = StateObject(wrappedValue: tm)
+        tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
         _suggestionModel = StateObject(wrappedValue: AddressSuggestionsModel())
         _translationService = StateObject(wrappedValue: TranslationService())
         _responsiveDesignStore = StateObject(wrappedValue: ResponsiveDesignStore())

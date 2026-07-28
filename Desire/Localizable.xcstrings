@@ -526,6 +526,9 @@
     "Always Allow" : {
 
     },
+    "Always-Allowed Tools" : {
+
+    },
     "API Key" : {
 
     },
@@ -1574,6 +1577,9 @@
           }
         }
       }
+    },
+    "Copy Conversation as Text" : {
+
     },
     "Copy Image" : {
       "comment" : "Context menu: copy image data",
@@ -6824,6 +6830,9 @@
 
     },
     "Time" : {
+
+    },
+    "Title" : {
 
     },
     "Today" : {

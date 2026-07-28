@@ -67,6 +67,9 @@ class Tab: ObservableObject {
 class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
+    /// Called when the user closes the last tab — the owning window should
+    /// close itself rather than leaving an empty tab bar.
+    var onRequestWindowClose: (() -> Void)?
     private var recentlyClosedURLs: [String] = []
     private var suspendTimer: Timer?
     private var sessionSaveTimer: Timer?
@@ -180,7 +183,13 @@ class TabManager: ObservableObject {
     }
 
     func closeTab(at index: Int) {
-        guard tabs.count > 1, tabs.indices.contains(index) else { return }
+        guard tabs.indices.contains(index) else { return }
+        // Closing the last tab closes the window instead of leaving an
+        // empty tab strip (matches expected macOS browser UX).
+        if tabs.count <= 1 {
+            onRequestWindowClose?()
+            return
+        }
         let tab = tabs[index]
         if let url = tab.browser.webView.url?.absoluteString {
             recentlyClosedURLs.append(url)

@@ -72,6 +72,12 @@ struct URLBarField: NSViewRepresentable {
         }
 
         @objc func submit() {
+            // Sync the field's current value to the binding before
+            // navigating — IME / autocorrect can commit the final text
+            // between the last controlTextDidChange and the submit action.
+            if let field = textField, field.stringValue != parent.text {
+                parent.text = field.stringValue
+            }
             parent.onSubmit()
         }
 

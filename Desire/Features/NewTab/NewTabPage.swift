@@ -40,16 +40,26 @@ struct NewTabPage: View {
                 }
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
-                        dialCard(dial, at: index)
-                    }
+                VStack(spacing: 32) {
+                    LazyVGrid(columns: columns, spacing: 20) {
+                        ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
+                            dialCard(dial, at: index)
+                        }
 
-                    addButton()
+                        addButton()
+                    }
+                    .padding(.horizontal, 40)
+                    .frame(maxWidth: 1100)
+
+                    if !historyStore.entries.isEmpty {
+                        recentSection(
+                            title: "Recently Visited",
+                            items: recentHistoryItems,
+                            icon: "clock"
+                        )
+                    }
                 }
-                .padding(.horizontal, 40)
-                .padding(.top, 48)
-                .frame(maxWidth: 1100)
+                .padding(.top, 36)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,6 +82,56 @@ struct NewTabPage: View {
         .popover(item: $editingDial) { dial in
             editForm(dial: dial)
         }
+    }
+
+    private var recentHistoryItems: [(title: String, url: String)] {
+        historyStore.entries.prefix(8).map { entry in
+            (title: entry.title.isEmpty ? entry.url : entry.title, url: entry.url)
+        }
+    }
+
+    private func recentSection(title: String, items: [(title: String, url: String)], icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+            }
+            .padding(.horizontal, 40)
+
+            VStack(spacing: 0) {
+                ForEach(items, id: \.url) { item in
+                    Button {
+                        onNavigate(item.url)
+                    } label: {
+                        HStack(spacing: 10) {
+                            FaviconView(urlString: item.url, size: 16)
+                                .frame(width: 16, height: 16)
+                            Text(item.title)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Text(URL(string: item.url)?.host ?? "")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: 680)
+                }
+            }
+        }
+        .frame(maxWidth: 1100, alignment: .leading)
     }
 
     private func dialCard(_ dial: QuickDial, at index: Int) -> some View {

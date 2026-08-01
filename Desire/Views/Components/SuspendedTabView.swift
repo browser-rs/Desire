@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 
 struct SuspendedTabView: View {
     let tab: Tab
@@ -30,10 +29,6 @@ struct SuspendedTabView: View {
     private func reload() {
         tab.isSuspended = false
         tab.lastAccessed = Date()
-        if let url = tab.browser.webView.url {
-            tab.browser.webView.load(URLRequest(url: url))
-        } else if let url = URL(string: tab.urlString) {
-            tab.browser.webView.load(URLRequest(url: url))
-        }
+        tab.restoreSuspendedState()
     }
 }

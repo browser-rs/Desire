@@ -19,6 +19,57 @@ class Tab: ObservableObject {
     var lastAccessed = Date()
     var suppressHistoryOnce = false
 
+    /// Snapshot captured *before* a tab is suspended. `loadHTMLString("")`
+    /// destroys the live page (clears `webView.url`, DOM, scroll, form state),
+    /// so we must save what's needed to restore it. `interactionState`
+    /// preserves back/forward history + page state when available.
+    var suspendedURL: URL?
+    var suspendedTitle: String?
+    var suspendedInteractionState: Data?
+
+    /// Capture the current page state so it can survive suspension.
+    /// Must be called *before* the page is blanked.
+    func captureSuspendedState() {
+        suspendedURL = browser.webView.url
+        suspendedTitle = browser.webView.title
+        if let state = browser.webView.interactionState {
+            suspendedInteractionState = try? NSKeyedArchiver.archivedData(
+                withRootObject: state,
+                requiringSecureCoding: true
+            )
+        }
+    }
+
+    /// Restore the page after suspension. Prefers `interactionState` (keeps
+    /// scroll position, form input, JS state, and back/forward history); falls
+    /// back to a plain URL reload if no snapshot was captured.
+    func restoreSuspendedState() {
+        if let data = suspendedInteractionState {
+            do {
+                let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+                unarchiver.requiresSecureCoding = true
+                let state = unarchiver.decodeObject(of: [NSObject.self], forKey: NSKeyedArchiveRootObjectKey)
+                if let state {
+                    browser.webView.interactionState = state
+                    suspendedURL = nil
+                    suspendedTitle = nil
+                    suspendedInteractionState = nil
+                    return
+                }
+            } catch {
+                // Decoding failed — fall through to URL reload below.
+            }
+        }
+        if let url = suspendedURL ?? browser.webView.url {
+            browser.webView.load(URLRequest(url: url))
+        } else if let url = URL(string: urlString) {
+            browser.webView.load(URLRequest(url: url))
+        }
+        suspendedURL = nil
+        suspendedTitle = nil
+        suspendedInteractionState = nil
+    }
+
     private var cancellables = Set<AnyCancellable>()
 
     /// 音频静音状态（通过 BrowserState 控制）
@@ -122,6 +173,10 @@ class TabManager: ObservableObject {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 // Only suspend if not already suspended
                 if !tab.isSuspended {
+                    // Snapshot BEFORE blanking, otherwise `loadHTMLString("")`
+                    // destroys the live page (clears url/DOM/JS/scroll state)
+                    // and the wake path has nothing to restore from.
+                    tab.captureSuspendedState()
                     tab.isSuspended = true
                     // Stop loading and clear content to save memory/battery
                     tab.browser.webView.stopLoading()
@@ -135,6 +190,7 @@ class TabManager: ObservableObject {
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito {
             if !tab.isSuspended {
+                tab.captureSuspendedState()
                 tab.isSuspended = true
                 tab.browser.webView.stopLoading()
                 tab.browser.webView.loadHTMLString("", baseURL: nil)
@@ -145,11 +201,7 @@ class TabManager: ObservableObject {
     private func unsuspend(_ tab: Tab) {
         guard tab.isSuspended else { return }
         tab.isSuspended = false
-        if let url = tab.browser.webView.url {
-            tab.browser.webView.load(URLRequest(url: url))
-        } else if let url = URL(string: tab.urlString) {
-            tab.browser.webView.load(URLRequest(url: url))
-        }
+        tab.restoreSuspendedState()
     }
 
     var selectedTab: Tab? {
@@ -282,6 +334,21 @@ class TabManager: ObservableObject {
     func persistSession() {
         var savedTabs: [SavedTab] = []
         for tab in tabs where !tab.isIncognito {
+            // For a suspended tab the live webview has been blanked, so use
+            // the snapshot captured at suspend time. Otherwise `webView.url`
+            // is nil and `interactionState` encodes an empty page, which
+            // corrupted sessions and produced blank tabs on app restart.
+            if tab.isSuspended {
+                if let url = tab.suspendedURL?.absoluteString, !url.isEmpty {
+                    savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState))
+                } else if tab.isOnNewTabPage {
+                    savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil))
+                } else if tab.urlString.hasPrefix("http") {
+                    savedTabs.append(SavedTab(url: tab.urlString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState))
+                }
+                continue
+            }
+
             let stateData = captureInteractionState(for: tab)
             if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
                 savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData))

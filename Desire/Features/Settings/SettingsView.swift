@@ -68,24 +68,30 @@ struct SettingsView: View {
             .navigationSplitViewStyle(.balanced)
             .listStyle(.sidebar)
         } detail: {
-            switch selectedSection {
-            case .general:
-                GeneralSettingsSection(settings: settings, downloadStore: downloadStore)
-            case .ai:
-                AISettingsSection(store: aiPreference)
-            case .privacy:
-                PrivacySettingsStoreSection(
-                    settings: settings,
-                    contentBlocker: contentBlocker,
-                    permissionStore: permissionStore,
-                    historyStore: historyStore,
-                    privacyModeStore: privacyModeStore
-                )
-            case .autofill:
-                FormAutofillSettingsView(store: formAutofillStore)
-            case .keyboardShortcuts:
-                KeyboardShortcutsEditorView()
-            }
+            detailContent
+                .settingsPageBackground()
+        }
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedSection {
+        case .general:
+            GeneralSettingsSection(settings: settings, downloadStore: downloadStore)
+        case .ai:
+            AISettingsSection(store: aiPreference)
+        case .privacy:
+            PrivacySettingsStoreSection(
+                settings: settings,
+                contentBlocker: contentBlocker,
+                permissionStore: permissionStore,
+                historyStore: historyStore,
+                privacyModeStore: privacyModeStore
+            )
+        case .autofill:
+            FormAutofillSettingsView(store: formAutofillStore)
+        case .keyboardShortcuts:
+            KeyboardShortcutsEditorView()
         }
     }
 }
@@ -98,97 +104,120 @@ private struct KeyboardShortcutsEditorView: View {
     @State private var conflicts: [ShortcutMapping] = []
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Keyboard Shortcuts").font(.headline)
+        SettingsContainer {
+            // MARK: - Header
 
-                if store.filteredShortcuts.count != store.shortcuts.count {
-                    Text("\(store.filteredShortcuts.count) of \(store.shortcuts.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-
-                Spacer()
-
-                Button("Reset All") { store.resetAll() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            // Search and filters
-            HStack(spacing: 8) {
-                // Search
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search Shortcuts…", text: $store.searchText)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                // Category filter
-                Menu {
-                    Button("All Categories") { store.selectedCategory = nil }
-                    Divider()
-                    ForEach(ShortcutMapping.Category.allCases, id: \.self) { category in
-                        Button {
-                            store.selectedCategory = category
-                        } label: {
-                            Label(category.rawValue, systemImage: category.icon)
-                        }
-                    }
-                } label: {
-                    Image(systemName: store.selectedCategory?.icon ?? "filter")
-                        .foregroundStyle(store.selectedCategory != nil ? Color.accentColor : .secondary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .frame(width: 28)
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-
-            Divider()
-
-            // Content
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(store.groupedShortcuts, id: \.0) { category, mappings in
-                        Section {
-                            ForEach(mappings) { mapping in
-                                shortcutRow(mapping)
-                                if mapping.id != mappings.last?.id { Divider() }
-                            }
-                        } header: {
-                            HStack {
-                                Image(systemName: category.icon)
-                                    .foregroundStyle(.secondary)
+            SettingsSection(
+                title: "Keyboard Shortcuts",
+                subtitle: store.filteredShortcuts.count != store.shortcuts.count
+                    ? "\(store.filteredShortcuts.count) of \(store.shortcuts.count) shown."
+                    : "Customize any binding. Click the current shortcut to record a new one.",
+                icon: "keyboard"
+            ) {
+                VStack(spacing: 10) {
+                    // Search field
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        TextField("Search shortcuts…", text: $store.searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                        if !store.searchText.isEmpty {
+                            Button {
+                                store.searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 12))
-                                Text(category.rawValue)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
                                     .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("\(mappings.count)")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color(nsColor: .windowBackgroundColor).opacity(0.9))
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor).opacity(0.7))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                    )
+
+                    // Category filter chips
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            CategoryChip(
+                                title: "All",
+                                systemImage: "square.grid.2x2",
+                                isSelected: store.selectedCategory == nil
+                            ) {
+                                store.selectedCategory = nil
+                            }
+                            ForEach(ShortcutMapping.Category.allCases, id: \.self) { category in
+                                CategoryChip(
+                                    title: category.rawValue,
+                                    systemImage: category.icon,
+                                    isSelected: store.selectedCategory == category
+                                ) {
+                                    store.selectedCategory = category
+                                }
+                            }
                         }
                     }
                 }
+                .padding(12)
+            }
+
+            // MARK: - Grouped Shortcuts
+
+            ForEach(store.groupedShortcuts, id: \.0) { category, mappings in
+                SettingsSection(
+                    title: category.rawValue,
+                    subtitle: "\(mappings.count) shortcut\(mappings.count == 1 ? "" : "s").",
+                    icon: category.icon
+                ) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(mappings.enumerated()), id: \.element.id) { index, mapping in
+                            shortcutRow(mapping)
+                            if index < mappings.count - 1 {
+                                SettingsRowDivider()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // MARK: - Reset
+
+            SettingsSection(
+                title: "Reset",
+                subtitle: "Revert every shortcut to its default binding.",
+                icon: "arrow.counterclockwise"
+            ) {
+                HStack {
+                    Spacer()
+                    Button {
+                        store.resetAll()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 11))
+                            Text("Reset All Shortcuts")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(Color.red.opacity(0.12))
+                        )
+                        .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
         }
         .sheet(isPresented: $showRecorder) {
@@ -225,14 +254,15 @@ private struct KeyboardShortcutsEditorView: View {
 
     @ViewBuilder
     private func shortcutRow(_ mapping: ShortcutMapping) -> some View {
-        HStack(spacing: 8) {
-            Text(mapping.commandName)
-                .font(.system(size: 12))
-
-            if mapping.isCustomized {
-                Image(systemName: "asterisk.circle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.system(size: 10))
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(mapping.commandName)
+                        .font(.system(size: 12, weight: .medium))
+                    if mapping.isCustomized {
+                        StatusPill(text: "Custom", kind: .info)
+                    }
+                }
             }
 
             Spacer()
@@ -241,13 +271,7 @@ private struct KeyboardShortcutsEditorView: View {
                 editing = mapping
                 showRecorder = true
             } label: {
-                Text(mapping.displayText)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(mapping.isCustomized ? Color.accentColor : .secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                ShortcutKeySequence(display: mapping.displayText)
             }
             .buttonStyle(.plain)
             .help("Click to customize")
@@ -257,15 +281,64 @@ private struct KeyboardShortcutsEditorView: View {
                     store.resetOne(id: mapping.id)
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
+                        .frame(width: 22, height: 22)
+                        .background(
+                            Circle().fill(Color.secondary.opacity(0.08))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("Reset to default")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 44)
+    }
+}
+
+// MARK: - Category chip
+
+private struct CategoryChip: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .medium))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(isSelected
+                          ? Color.accentColor.opacity(0.18)
+                          : Color.secondary.opacity(isHovering ? 0.12 : 0.08))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isSelected
+                            ? Color.accentColor.opacity(0.4)
+                            : Color.secondary.opacity(0.18),
+                        lineWidth: 0.5
+                    )
+            )
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.smooth(duration: 0.15), value: isHovering)
+        .animation(.smooth(duration: 0.15), value: isSelected)
     }
 }
 

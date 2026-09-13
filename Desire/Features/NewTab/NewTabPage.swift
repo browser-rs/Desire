@@ -17,57 +17,31 @@ struct NewTabPage: View {
     @FocusState private var searchFocused: Bool
 
     private let columns = [GridItem(.adaptive(minimum: 130, maximum: 160), spacing: 20)]
+    private let contentMaxWidth: CGFloat = 980
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("搜索或输入网址", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
-                .focused($searchFocused)
-                .frame(maxWidth: 480)
-                .padding(.horizontal)
-                .padding(.top, 60)
-                .onSubmit {
-                    submitSearch()
-                }
-                .onChange(of: searchText) { _, newValue in
-                    if newValue.isEmpty {
-                        suggestionModel.reset()
-                    } else {
-                        suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
-                    }
-                }
-                .onChange(of: searchFocused) { _, focused in
-                    // Leaving the box clears its dropdown, so a later visit
-                    // doesn't show suggestions left over from the last edit.
-                    if !focused { suggestionModel.reset() }
-                }
+            Spacer().frame(height: 56)
+
+            searchField
+                .padding(.bottom, 36)
 
             ScrollView {
-                VStack(spacing: 32) {
-                    LazyVGrid(columns: columns, spacing: 20) {
-                        ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
-                            dialCard(dial, at: index)
-                        }
-
-                        addButton()
-                    }
-                    .padding(.horizontal, 40)
-                    .frame(maxWidth: 1100)
+                VStack(alignment: .leading, spacing: 32) {
+                    quickDialsSection
 
                     if !historyStore.entries.isEmpty {
-                        recentSection(
-                            title: "Recently Visited",
-                            items: recentHistoryItems,
-                            icon: "clock"
-                        )
+                        recentSection
                     }
                 }
-                .padding(.top, 36)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 48)
+                .frame(maxWidth: contentMaxWidth, alignment: .center)
+                .frame(maxWidth: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(backgroundGradient)
         .overlay(alignment: .top) {
             if searchFocused && !suggestionModel.isEmpty {
                 AddressSuggestionsView(
@@ -78,9 +52,10 @@ struct NewTabPage: View {
                     searchText = ""
                     onNavigate(sug.url)
                 }
+                .frame(maxWidth: 520)
                 .padding(.horizontal, 12)
                 .padding(.top, 102)
-                .transition(.opacity)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .popover(item: $editingDial) { dial in
@@ -88,123 +63,80 @@ struct NewTabPage: View {
         }
     }
 
-    private func submitSearch() {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        suggestionModel.reset()
-        onNavigate(trimmed)
-    }
+    // MARK: - Search
 
-    private var recentHistoryItems: [(title: String, url: String)] {
-        historyStore.entries.prefix(8).map { entry in
-            (title: entry.title.isEmpty ? entry.url : entry.title, url: entry.url)
-        }
-    }
-
-    private func recentSection(title: String, items: [(title: String, url: String)], icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-            }
-            .padding(.horizontal, 40)
-
-            VStack(spacing: 0) {
-                ForEach(items, id: \.url) { item in
-                    Button {
-                        onNavigate(item.url)
-                    } label: {
-                        HStack(spacing: 10) {
-                            FaviconView(urlString: item.url, size: 16)
-                                .frame(width: 16, height: 16)
-                            Text(item.title)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Text(URL(string: item.url)?.host ?? "")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle())
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+            TextField("搜索或输入网址", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
+                .focused($searchFocused)
+                .onSubmit { submitSearch() }
+                .onChange(of: searchText) { _, newValue in
+                    if newValue.isEmpty {
+                        suggestionModel.reset()
+                    } else {
+                        suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: 680)
                 }
-            }
+                .onChange(of: searchFocused) { _, focused in
+                    if !focused { suggestionModel.reset() }
+                }
         }
-        .frame(maxWidth: 1100, alignment: .leading)
-    }
-
-    private func dialCard(_ dial: QuickDial, at index: Int) -> some View {
-        VStack(spacing: 10) {
-            if dial.icon == "globe" {
-                FaviconView(urlString: dial.url, size: 40)
-                    .frame(width: 56, height: 56)
-            } else {
-                Image(systemName: dial.icon)
-                    .font(.system(size: 36, weight: .regular))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 56, height: 56)
-            }
-
-            Text(dial.title)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: 110)
-        }
-        .frame(width: 130, height: 124)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 560)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
         )
-        .shadowSubtle()
-        .contentShape(RoundedRectangle(cornerRadius: 14))
-        .gesture(ExclusiveGesture(
-            TapGesture(count: 2).onEnded {
-                editingDial = dial
-                editTitle = dial.title
-                editURL = dial.url
-            },
-            TapGesture().onEnded {
-                urlString = dial.url
-                onNavigate(dial.url)
-            }
-        ))
-        .contextMenu {
-            Button("编辑") {
-                editingDial = dial
-                editTitle = dial.title
-                editURL = dial.url
-            }
-            Button("删除") {
-                store.delete(id: dial.id)
-            }
-        }
-        .onDrag {
-            NSItemProvider(object: NSString(string: "\(index)"))
-        }
-        .onDrop(of: [.text], delegate: DialDropDelegate(targetIndex: index, store: store))
+        .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
     }
 
-    private func addButton() -> some View {
+    // MARK: - Quick Dials
+
+    private var quickDialsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(title: "常用网站", icon: "square.grid.2x2")
+
+            LazyVGrid(columns: columns, spacing: 20) {
+                ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
+                    QuickDialCard(
+                        dial: dial,
+                        index: index,
+                        onNavigate: {
+                            urlString = dial.url
+                            onNavigate(dial.url)
+                        },
+                        onEdit: {
+                            editingDial = dial
+                            editTitle = dial.title
+                            editURL = dial.url
+                        },
+                        onDelete: { store.delete(id: dial.id) },
+                        onDragProvider: { NSItemProvider(object: NSString(string: "\(index)")) },
+                        onDropAt: { target in
+                            DialDropDelegate(targetIndex: target, store: store)
+                        }
+                    )
+                }
+
+                addButton
+            }
+        }
+    }
+
+    private var addButton: some View {
         VStack(spacing: 10) {
             Image(systemName: "plus")
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: 26, weight: .light))
             Text("添加")
                 .font(.system(size: 12, weight: .medium))
         }
@@ -216,7 +148,10 @@ struct NewTabPage: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .stroke(
+                    Color.secondary.opacity(0.28),
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                )
         )
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
@@ -225,6 +160,76 @@ struct NewTabPage: View {
             editURL = ""
         }
     }
+
+    // MARK: - Recent
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(title: "最近访问", icon: "clock")
+
+            VStack(spacing: 6) {
+                ForEach(recentEntries) { entry in
+                    RecentVisitedCard(entry: entry) {
+                        onNavigate(entry.url)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var recentEntries: [RecentEntry] {
+        historyStore.entries.prefix(8).map { entry in
+            RecentEntry(
+                id: entry.id,
+                title: entry.title.isEmpty ? (URL(string: entry.url)?.host ?? entry.url) : entry.title,
+                url: entry.url,
+                host: URL(string: entry.url)?.host ?? entry.url
+            )
+        }
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(title: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+        }
+    }
+
+    // MARK: - Background
+
+    private var backgroundGradient: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.06),
+                    .clear
+                ],
+                startPoint: .top,
+                endPoint: .center
+            )
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Actions
+
+    private func submitSearch() {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        suggestionModel.reset()
+        onNavigate(trimmed)
+    }
+
+    // MARK: - Edit Form
 
     private func editForm(dial: QuickDial) -> some View {
         VStack(spacing: 12) {
@@ -261,21 +266,5 @@ struct NewTabPage: View {
         }
         .padding()
         .frame(width: 280)
-    }
-}
-
-private struct DialDropDelegate: DropDelegate {
-    let targetIndex: Int
-    let store: QuickDialStore
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let provider = info.itemProviders(for: [.text]).first else { return false }
-        provider.loadObject(ofClass: NSString.self) { reading, _ in
-            guard let str = reading as? String, let source = Int(str) else { return }
-            Task { @MainActor in
-                store.move(from: source, to: targetIndex)
-            }
-        }
-        return true
     }
 }

@@ -41,16 +41,28 @@ struct AISettingsSection: View {
     @State private var isTesting = false
 
     var body: some View {
-        Form {
-            // MARK: - Provider selection
-            Picker("Provider", selection: $store.providerKind) {
-                ForEach(ModelProviderKind.allCases, id: \.self) { kind in
-                    Text(kind.displayName).tag(kind)
+        SettingsContainer {
+            SettingsSection(
+                title: "Provider",
+                subtitle: store.providerKind.detail,
+                icon: "brain.head.profile"
+            ) {
+                VStack(spacing: 8) {
+                    ForEach(ModelProviderKind.allCases, id: \.self) { kind in
+                        ProviderCard(
+                            title: kind.displayName,
+                            subtitle: kind.tagline,
+                            systemImage: kind.icon,
+                            isSelected: store.providerKind == kind
+                        ) {
+                            store.providerKind = kind
+                        }
+                    }
                 }
+                .padding(12)
             }
-            Text(store.providerKind.detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            // MARK: - Provider-specific config
 
             if store.providerKind == .foundationModels {
                 foundationModelsSection
@@ -64,58 +76,111 @@ struct AISettingsSection: View {
                 ollamaSection
             }
 
-            // MARK: - Shared generation params (apply to all providers)
-            LabeledContent("Max Tokens") {
-                TextField("", value: $store.maxTokens, format: .number)
-                    .frame(width: 80)
-                    .multilineTextAlignment(.trailing)
-            }
+            // MARK: - Generation params (shared)
 
-            LabeledContent("Temperature") {
-                HStack(spacing: 8) {
-                    Slider(value: $store.temperature, in: 0...2, step: 0.1)
-                    Text(String(format: "%.1f", store.temperature))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24)
+            SettingsSection(
+                title: "Generation",
+                subtitle: "Applies to all providers.",
+                icon: "slider.horizontal.3"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsRow("Max Tokens", subtitle: "Upper bound on completion length.", systemImage: "text.alignleft") {
+                        SettingsTextField(
+                            placeholder: "1024",
+                            text: Binding(
+                                get: { String(store.maxTokens) },
+                                set: { newValue in store.maxTokens = Int(newValue) ?? store.maxTokens }
+                            ),
+                            width: 80
+                        )
+                    }
+                    SettingsRowDivider()
+                    SettingsRow("Temperature", subtitle: "Higher values produce more varied responses.", systemImage: "thermometer.medium") {
+                        HStack(spacing: 8) {
+                            Slider(value: $store.temperature, in: 0...2, step: 0.1)
+                                .frame(width: 140)
+                            Text(String(format: "%.1f", store.temperature))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 26, alignment: .trailing)
+                        }
+                    }
                 }
             }
 
-            Divider()
+            // MARK: - System Prompt
 
-            Section("System Prompt") {
+            SettingsSection(
+                title: "System Prompt",
+                subtitle: "Sent to the model on every request. Leave empty to use the default.",
+                icon: "text.book.closed"
+            ) {
                 TextEditor(text: $store.systemPrompt)
                     .font(.system(.caption, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(10)
                     .frame(minHeight: 200)
-                    .border(Color(nsColor: .separatorColor), width: 0.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                    )
+                    .padding(12)
             }
 
+            // MARK: - Allowed Tools
+
             if !store.allowedTools.isEmpty {
-                Section("Always-Allowed Tools") {
-                    ForEach(Array(store.allowedTools.sorted()), id: \.self) { tool in
-                        HStack {
-                            Text(tool)
-                                .font(.caption)
-                            Spacer()
-                            Button("Remove") {
-                                var current = store.allowedTools
-                                current.remove(tool)
-                                store.allowedTools = current
+                SettingsSection(
+                    title: "Always-Allowed Tools",
+                    subtitle: "These tools will run without asking for approval each time.",
+                    icon: "checkmark.shield"
+                ) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(store.allowedTools.sorted().enumerated()), id: \.element) { index, tool in
+                            HStack(spacing: 10) {
+                                Image(systemName: "wrench.and.screwdriver")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22, height: 22)
+                                    .background(Circle().fill(Color.secondary.opacity(0.08)))
+                                Text(tool)
+                                    .font(.system(size: 12, design: .monospaced))
+                                Spacer()
+                                Button {
+                                    var current = store.allowedTools
+                                    current.remove(tool)
+                                    store.allowedTools = current
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove from always-allowed")
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.red)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            if index < store.allowedTools.count - 1 {
+                                SettingsRowDivider()
+                            }
                         }
-                        .padding(.vertical, 2)
+                        SettingsRowDivider()
+                        SettingsActionRow(
+                            "Reset All",
+                            subtitle: "Clear the always-allowed list and prompt again next time.",
+                            systemImage: "arrow.counterclockwise",
+                            buttonTitle: "Reset"
+                        ) {
+                            store.allowedTools = []
+                        }
                     }
-                    Button("Reset All") {
-                        store.allowedTools = []
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding()
         .onAppear {
             apiKey = store.loadAPIKey() ?? ""
         }
@@ -123,28 +188,36 @@ struct AISettingsSection: View {
 
     // MARK: - Foundation Models section
 
-    /// Apple Intelligence on-device model. No credentials needed — just a
-    /// status line showing whether the model is available.
     @ViewBuilder
     private var foundationModelsSection: some View {
-        Divider()
-        LabeledContent("Status") {
-            switch SystemLanguageModel.default.availability {
-            case .available:
-                Label("Available", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            case .unavailable(let reason):
-                VStack(alignment: .trailing) {
-                    Label("Unavailable", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(availabilityDetail(reason))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
+        SettingsSection(
+            title: "Apple Intelligence",
+            subtitle: "On-device model. No credentials required.",
+            icon: "apple.logo"
+        ) {
+            VStack(spacing: 0) {
+                SettingsRow("Status", subtitle: "Whether the system model is available right now.", systemImage: "dot.radiowaves.left.and.right") {
+                    statusView
                 }
             }
         }
-        Divider()
+    }
+
+    @ViewBuilder
+    private var statusView: some View {
+        switch SystemLanguageModel.default.availability {
+        case .available:
+            StatusPill(text: "Available", kind: .success)
+        case .unavailable(let reason):
+            VStack(alignment: .trailing, spacing: 2) {
+                StatusPill(text: "Unavailable", kind: .warning)
+                Text(availabilityDetail(reason))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 220, alignment: .trailing)
+            }
+        }
     }
 
     private func availabilityDetail(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
@@ -160,93 +233,186 @@ struct AISettingsSection: View {
 
     @ViewBuilder
     private var cloudSection: some View {
-        Divider()
-        LabeledContent("API Key") {
-            HStack(spacing: 8) {
-                if showKey {
-                    TextField("", text: $apiKey)
-                } else {
-                    SecureField("", text: $apiKey)
+        SettingsSection(
+            title: "Cloud API",
+            subtitle: "OpenAI / Anthropic / DeepSeek compatible endpoints.",
+            icon: "cloud"
+        ) {
+            VStack(spacing: 0) {
+                SettingsRow(
+                    "API Key",
+                    subtitle: "Stored in the macOS Keychain.",
+                    systemImage: "key"
+                ) {
+                    HStack(spacing: 6) {
+                        SettingsTextField(placeholder: "sk-…", text: $apiKey, isSecure: !showKey, width: 200)
+                        Button {
+                            showKey.toggle()
+                        } label: {
+                            Image(systemName: showKey ? "eye.slash" : "eye")
+                                .font(.system(size: 12))
+                                .frame(width: 24, height: 24)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.secondary.opacity(0.08))
+                                )
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(showKey ? "Hide" : "Show")
+                    }
                 }
-                Button(showKey ? "Hide" : "Show") { showKey.toggle() }
+                SettingsRowDivider()
+
+                SettingsRow(
+                    "Endpoint URL",
+                    subtitle: "Full chat-completions URL.",
+                    systemImage: "link"
+                ) {
+                    SettingsTextField(placeholder: "https://api.openai.com/v1/chat/completions", text: $store.endpoint, width: 260)
+                }
+                SettingsRowDivider()
+
+                SettingsPickerRow(
+                    "Model",
+                    subtitle: "Pick a preset or choose Custom to type a name.",
+                    systemImage: "cpu",
+                    selection: Binding(
+                        get: { ModelPreset.matching(store.model) },
+                        set: { newPreset in
+                            if newPreset == .custom {
+                                store.model = ""
+                            } else {
+                                store.model = newPreset.rawValue
+                            }
+                        }
+                    ),
+                    options: ModelPreset.allCases,
+                    label: { $0.displayName }
+                )
+
+                if ModelPreset.matching(store.model) == .custom {
+                    SettingsRow("Custom Model Name", subtitle: nil, systemImage: "pencil") {
+                        SettingsTextField(placeholder: "e.g. my-fine-tuned-model", text: $store.model, width: 220)
+                    }
+                    .padding(.top, 4)
+                }
+
+                SettingsRowDivider()
+
+                HStack(spacing: 12) {
+                    Button {
+                        store.saveAPIKey(apiKey)
+                    } label: {
+                        Text("Save Key")
+                            .font(.system(size: 12, weight: .medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(Color.accentColor.opacity(0.18))
+                            )
+                            .foregroundStyle(Color.accentColor)
+                    }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-            }
-        }
-        HStack(spacing: 8) {
-            if store.hasAPIKey {
-                Button("Remove", role: .destructive) { store.deleteAPIKey(); apiKey = "" }
-            }
-            Button("Save") { store.saveAPIKey(apiKey) }
-                .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
-            Spacer()
-        }
-        .buttonStyle(.plain)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
 
-        TextField("Endpoint URL", text: $store.endpoint)
+                    if store.hasAPIKey {
+                        Button {
+                            store.deleteAPIKey()
+                            apiKey = ""
+                        } label: {
+                            Text("Remove Key")
+                                .font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule().fill(Color.red.opacity(0.12))
+                                )
+                                .foregroundStyle(Color.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
-        Picker("Model", selection: Binding(
-            get: { ModelPreset.matching(store.model) },
-            set: { newPreset in
-                if newPreset == .custom {
-                    // Clear the model so the user can type a fresh name.
-                    // Without this, the text field below would show
-                    // the previously selected preset value.
-                    store.model = ""
-                } else {
-                    store.model = newPreset.rawValue
+                    Spacer()
+
+                    Button {
+                        testConnection()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isTesting { ProgressView().scaleEffect(0.5) }
+                            Text(isTesting ? "Testing…" : "Test Connection")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(Color.secondary.opacity(0.1))
+                        )
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTesting || apiKey.isEmpty)
+
+                    if let status = testStatus {
+                        StatusPill(
+                            text: status,
+                            kind: status == "Connected" ? .success : .error
+                        )
+                    }
                 }
-            }
-        )) {
-            ForEach(ModelPreset.allCases, id: \.rawValue) { preset in
-                Text(preset.displayName).tag(preset)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
         }
-        if ModelPreset.matching(store.model) == .custom {
-            TextField("Custom Model Name", text: $store.model)
-                .textFieldStyle(.roundedBorder)
-        }
-
-        HStack {
-            Button("Test Connection") { testConnection() }
-                .disabled(isTesting || apiKey.isEmpty)
-            if isTesting {
-                ProgressView()
-                    .scaleEffect(0.5)
-            }
-            if let status = testStatus {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(status == "Connected" ? .green : .red)
-            }
-            Spacer()
-        }
-        Divider()
     }
 
     // MARK: - Ollama section
 
     @ViewBuilder
     private var ollamaSection: some View {
-        Divider()
-        TextField("Ollama Host", text: $store.ollamaHost)
-            .textFieldStyle(.roundedBorder)
-        HStack {
-            TextField("Model (e.g. llama3.2, qwen2.5, mistral)", text: $store.ollamaModel)
-                .textFieldStyle(.roundedBorder)
-            Button("Test") { testOllama() }
-                .disabled(isTesting)
+        SettingsSection(
+            title: "Ollama",
+            subtitle: "Local model server. Run ollama serve and pull a model first.",
+            icon: "server.rack"
+        ) {
+            VStack(spacing: 0) {
+                SettingsRow("Ollama Host", subtitle: "Base URL of the running ollama daemon.", systemImage: "network") {
+                    SettingsTextField(placeholder: "http://127.0.0.1:11434", text: $store.ollamaHost, width: 220)
+                }
+                SettingsRowDivider()
+                SettingsRow("Model", subtitle: "A model pulled on the server (llama3.2, qwen2.5, …).", systemImage: "cpu") {
+                    SettingsTextField(placeholder: "llama3.2", text: $store.ollamaModel, width: 200)
+                }
+                SettingsRowDivider()
+                HStack(spacing: 12) {
+                    Button {
+                        testOllama()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isTesting { ProgressView().scaleEffect(0.5) }
+                            Text(isTesting ? "Testing…" : "Test")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.secondary.opacity(0.1)))
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTesting)
+
+                    if let status = testStatus {
+                        StatusPill(text: status, kind: status == "Connected" ? .success : .error)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
         }
-        if isTesting {
-            ProgressView().scaleEffect(0.5)
-        }
-        if let status = testStatus {
-            Text(status)
-                .font(.caption)
-                .foregroundStyle(status == "Connected" ? .green : .red)
-        }
-        Divider()
     }
+
+    // MARK: - Test connection
 
     private func testOllama() {
         isTesting = true
@@ -316,6 +482,28 @@ struct AISettingsSection: View {
             } catch {
                 testStatus = "Failed: \(error.localizedDescription)"
             }
+        }
+    }
+}
+
+// MARK: - ProviderKind extras
+
+extension ModelProviderKind {
+    var tagline: String {
+        switch self {
+        case .foundationModels: "On-device, free, private."
+        case .cloud: "OpenAI, Anthropic, DeepSeek, and more."
+        case .ollama: "Self-hosted local server."
+        case .routing: "Auto-pick the best model per task."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .foundationModels: "apple.logo"
+        case .cloud: "cloud"
+        case .ollama: "server.rack"
+        case .routing: "arrow.triangle.branch"
         }
     }
 }

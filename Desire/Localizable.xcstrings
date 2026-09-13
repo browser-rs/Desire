@@ -4,9 +4,6 @@
     "" : {
 
     },
-    " " : {
-
-    },
     ":" : {
 
     },
@@ -129,16 +126,6 @@
     "%lld messages" : {
 
     },
-    "%lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld of %2$lld"
-          }
-        }
-      }
-    },
     "%lld paused" : {
 
     },
@@ -206,6 +193,21 @@
 
     },
     "=" : {
+
+    },
+    "1 Hour" : {
+
+    },
+    "2 Hours" : {
+
+    },
+    "5 Minutes" : {
+
+    },
+    "10 Minutes" : {
+
+    },
+    "30 Minutes" : {
 
     },
     "Accent Color" : {
@@ -416,9 +418,6 @@
     "All" : {
 
     },
-    "All Categories" : {
-
-    },
     "All Levels" : {
 
     },
@@ -502,6 +501,7 @@
     },
     "Allowed" : {
       "comment" : "Permission allowed status",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -524,12 +524,6 @@
       }
     },
     "Always Allow" : {
-
-    },
-    "Always-Allowed Tools" : {
-
-    },
-    "API Key" : {
 
     },
     "API Permissions:" : {
@@ -578,6 +572,7 @@
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -650,9 +645,6 @@
           }
         }
       }
-    },
-    "Available" : {
-
     },
     "Back" : {
       "comment" : "Reader view back button",
@@ -731,6 +723,7 @@
     },
     "Block Ads" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -895,6 +888,7 @@
     },
     "Browsing History" : {
       "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -944,6 +938,7 @@
     },
     "Cache" : {
       "comment" : "Clear cache option",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1257,6 +1252,9 @@
     "Clear Network Log" : {
 
     },
+    "Clear Now" : {
+
+    },
     "Clear This Month" : {
 
     },
@@ -1425,6 +1423,9 @@
     "Confirm before closing multiple tabs" : {
 
     },
+    "Connection lost" : {
+
+    },
     "Connection Not Secure" : {
       "comment" : "Not secure connection status",
       "localizations" : {
@@ -1471,6 +1472,9 @@
         }
       }
     },
+    "Connection timed out" : {
+
+    },
     "Content Scripts" : {
 
     },
@@ -1496,15 +1500,6 @@
           }
         }
       }
-    },
-    "Control which cookies are accepted by the browser" : {
-
-    },
-    "Cookie Accept Policy" : {
-
-    },
-    "Cookie Policy" : {
-
     },
     "Cookies" : {
       "comment" : "Clear cookies option",
@@ -1702,6 +1697,9 @@
         }
       }
     },
+    "Could not connect to the server" : {
+
+    },
     "Create" : {
       "comment" : "Create button",
       "localizations" : {
@@ -1787,9 +1785,6 @@
 
     },
     "Current: %@" : {
-
-    },
-    "Custom Model Name" : {
 
     },
     "Custom Search Engines" : {
@@ -1957,6 +1952,7 @@
     },
     "Denied" : {
       "comment" : "Permission denied status",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2249,6 +2245,9 @@
         }
       }
     },
+    "Each container isolates cookies and sessions — use separate containers for different accounts on the same site. New container tabs open from the \"+\" button's right-click menu." : {
+
+    },
     "Earlier" : {
       "comment" : "History section header",
       "localizations" : {
@@ -2465,6 +2464,7 @@
     },
     "Enable JavaScript" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2508,9 +2508,6 @@
           }
         }
       }
-    },
-    "Endpoint URL" : {
-
     },
     "Enter Full Screen" : {
       "comment" : "View menu",
@@ -2786,6 +2783,9 @@
           }
         }
       }
+    },
+    "File not found on the server (404)" : {
+
     },
     "Filled" : {
       "comment" : "Screenshot shape fill toggle: filled state",
@@ -3331,6 +3331,7 @@
     },
     "HTTPS Upgrade" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3471,6 +3472,7 @@
     },
     "Input will be sent to the search engine to get suggestions" : {
       "comment" : "Search suggestions toggle help",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3641,6 +3643,7 @@
     },
     "Link Preview" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3697,10 +3700,7 @@
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
 
     },
-    "Manage Cookies" : {
-
-    },
-    "Manage…" : {
+    "Manage" : {
 
     },
     "Mark as Read" : {
@@ -3750,9 +3750,6 @@
       }
     },
     "Matches: %@" : {
-
-    },
-    "Max Tokens" : {
 
     },
     "Media" : {
@@ -3836,12 +3833,6 @@
         }
       }
     },
-    "Model" : {
-
-    },
-    "Model (e.g. llama3.2, qwen2.5, mistral)" : {
-
-    },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
       "localizations" : {
@@ -3920,7 +3911,16 @@
     "Navigate to Chrome's profile folder and select Bookmarks" : {
 
     },
+    "Never" : {
+
+    },
     "Never Auto-play" : {
+
+    },
+    "New container name" : {
+
+    },
+    "New Container Tab" : {
 
     },
     "New Folder" : {
@@ -4182,6 +4182,12 @@
         }
       }
     },
+    "No containers" : {
+
+    },
+    "No containers — create one in Settings > Tabs" : {
+
+    },
     "No conversations yet" : {
 
     },
@@ -4282,6 +4288,9 @@
           }
         }
       }
+    },
+    "No internet connection" : {
+
     },
     "No Internet Connection" : {
 
@@ -4519,9 +4528,6 @@
           }
         }
       }
-    },
-    "Ollama Host" : {
-
     },
     "On Launch" : {
 
@@ -5049,9 +5055,6 @@
         }
       }
     },
-    "Provider" : {
-
-    },
     "Quick actions" : {
 
     },
@@ -5341,6 +5344,9 @@
         }
       }
     },
+    "Remove from always-allowed" : {
+
+    },
     "Remove from Group" : {
       "comment" : "Context menu: remove from group",
       "localizations" : {
@@ -5387,6 +5393,9 @@
         }
       }
     },
+    "Remove Key" : {
+
+    },
     "Reopen Closed Tab" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -5409,6 +5418,9 @@
           }
         }
       }
+    },
+    "Request timed out" : {
+
     },
     "Require User Action" : {
 
@@ -5484,6 +5496,9 @@
           }
         }
       }
+    },
+    "Reset All Shortcuts" : {
+
     },
     "Reset to default" : {
 
@@ -5672,6 +5687,9 @@
           }
         }
       }
+    },
+    "Save Key" : {
+
     },
     "Save Password for %@?" : {
 
@@ -5981,7 +5999,7 @@
         }
       }
     },
-    "Search Shortcuts…" : {
+    "Search shortcuts…" : {
 
     },
     "Search Tabs" : {
@@ -6052,6 +6070,9 @@
           }
         }
       }
+    },
+    "Secure connection failed" : {
+
     },
     "Secure Connection Failed" : {
 
@@ -6138,6 +6159,18 @@
       }
     },
     "Send (⏎)" : {
+
+    },
+    "Server error (%lld)" : {
+
+    },
+    "Server not found" : {
+
+    },
+    "Server requires authentication" : {
+
+    },
+    "Server returned HTTP %lld" : {
 
     },
     "Server Unreachable" : {
@@ -6324,6 +6357,7 @@
     },
     "Show Search Suggestions" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6347,6 +6381,7 @@
     },
     "Show target URL at bottom when hovering over links" : {
       "comment" : "Link preview toggle help",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6484,6 +6519,9 @@
     "Summarize the current page in detail" : {
 
     },
+    "Suspend background tabs after" : {
+
+    },
     "Switch to Tab %lld" : {
       "comment" : "Tabs menu: switch to tab number",
       "localizations" : {
@@ -6534,7 +6572,7 @@
     "System" : {
 
     },
-    "System Prompt" : {
+    "Tab Containers" : {
 
     },
     "Tab Groups" : {
@@ -6586,13 +6624,13 @@
         }
       }
     },
-    "Temperature" : {
-
-    },
     "Test" : {
 
     },
     "Test Connection" : {
+
+    },
+    "Testing…" : {
 
     },
     "Text" : {
@@ -6640,6 +6678,9 @@
           }
         }
       }
+    },
+    "The download produced no file" : {
+
     },
     "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test." : {
 
@@ -6892,6 +6933,7 @@
     },
     "Tracking Protection" : {
       "comment" : "Settings toggle",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6923,9 +6965,6 @@
 
     },
     "Translate…" : {
-
-    },
-    "Unavailable" : {
 
     },
     "Undo" : {
@@ -7127,9 +7166,6 @@
         }
       }
     },
-    "View and delete individual cookies" : {
-
-    },
     "W" : {
 
     },
@@ -7138,6 +7174,7 @@
     },
     "Website Data" : {
       "comment" : "Website data section title",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7161,6 +7198,7 @@
     },
     "Website Permissions" : {
       "comment" : "Permissions section title",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7341,34 +7379,10 @@
     "保存" : {
 
     },
-    "公司" : {
-
-    },
-    "公司/组织" : {
-
-    },
     "删除" : {
 
     },
     "取消" : {
-
-    },
-    "名" : {
-
-    },
-    "国家" : {
-
-    },
-    "地址" : {
-
-    },
-    "城市" : {
-
-    },
-    "姓" : {
-
-    },
-    "姓名" : {
 
     },
     "已拦截 %d 个 %@ 广告%@" : {
@@ -7393,12 +7407,6 @@
     "爱奇艺" : {
 
     },
-    "电话" : {
-
-    },
-    "省/州" : {
-
-    },
     "视频" : {
 
     },
@@ -7408,22 +7416,10 @@
     "网址" : {
 
     },
-    "联系方式" : {
-
-    },
     "腾讯视频" : {
 
     },
     "芒果TV" : {
-
-    },
-    "街道地址" : {
-
-    },
-    "邮箱" : {
-
-    },
-    "邮编" : {
 
     }
   },

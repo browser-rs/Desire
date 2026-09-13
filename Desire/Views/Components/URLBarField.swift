@@ -2,11 +2,19 @@ import AppKit
 import SwiftUI
 
 struct URLBarField: NSViewRepresentable {
+    /// Posted (object: nil) to make the focused URL field select its whole
+    /// text. The old ⌘L path called `selectText:` on whatever NSTextField
+    /// happened to be first responder — including unrelated text fields.
+    static let selectAllNotification = Notification.Name("URLBarField.selectAll")
+
     @Binding var text: String
     var isFocused: FocusState<Bool>.Binding
     var onSubmit: () -> Void
     var onPasteAndGo: () -> Void
-    var onMoveSelection: (Int) -> Void
+    /// Consumes a suggestion-list arrow move. Return `true` when handled
+    /// (the field then leaves the caret alone); `false` lets up/down move
+    /// the caret as usual — e.g. when the suggestion list is empty.
+    var onMoveSelection: (Int) -> Bool
     var onEscape: () -> Void
     var onTextChange: (String) -> Void
 
@@ -23,15 +31,35 @@ struct URLBarField: NSViewRepresentable {
         field.action = #selector(Coordinator.submit)
         field.menu = context.coordinator.menu
         context.coordinator.textField = field
+        context.coordinator.observer = NotificationCenter.default.addObserver(
+            forName: Self.selectAllNotification, object: nil, queue: .main
+        ) { [weak field] _ in
+            field?.selectText(nil)
+        }
         return field
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
-        if nsView.stringValue != text {
+        // The field editor is always an NSTextView; typed as such because
+        // `hasMarkedText()` (IME state) lives on NSTextInputClient, not NSText.
+        let editor = nsView.currentEditor() as? NSTextView
+        // Never rewrite the text while an IME composition is in flight —
+        // that would destroy the marked pinyin range mid-typing.
+        let composing = editor?.hasMarkedText() ?? false
+        if !composing, nsView.stringValue != text {
             nsView.stringValue = text
         }
-        if isFocused.wrappedValue {
+        // Focus only on the false→true transition. Calling becomeFirstResponder
+        // on every render (the old behavior) fought the field editor while typing.
+        if isFocused.wrappedValue, !context.coordinator.wasFocused {
             nsView.becomeFirstResponder()
+        }
+        context.coordinator.wasFocused = isFocused.wrappedValue
+    }
+
+    static func dismantleNSView(_ nsView: NSTextField, coordinator: Coordinator) {
+        if let observer = coordinator.observer {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -43,6 +71,9 @@ struct URLBarField: NSViewRepresentable {
         var parent: URLBarField
         let menu: NSMenu
         weak var textField: NSTextField?
+        /// Last SwiftUI-side focus state, to detect transitions.
+        var wasFocused = false
+        var observer: NSObjectProtocol?
 
         required init(_ parent: URLBarField) {
             self.parent = parent
@@ -109,17 +140,19 @@ struct URLBarField: NSViewRepresentable {
             guard let field = obj.object as? NSTextField else { return }
             let newValue = field.stringValue
             parent.text = newValue
+            // Skip suggestion rebuilds while an IME composition is active:
+            // marked pinyin fragments would churn the dropdown on every
+            // keystroke. The committed text fires its own change event.
+            guard (field.currentEditor() as? NSTextView)?.hasMarkedText() != true else { return }
             parent.onTextChange(newValue)
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.moveUp(_:)) {
-                parent.onMoveSelection(-1)
-                return true
+                return parent.onMoveSelection(-1)
             }
             if commandSelector == #selector(NSResponder.moveDown(_:)) {
-                parent.onMoveSelection(1)
-                return true
+                return parent.onMoveSelection(1)
             }
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
                 parent.onEscape()

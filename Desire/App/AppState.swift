@@ -74,10 +74,13 @@ class AppState: ObservableObject {
     private weak var _tabManager: TabManager?
 
     /// Attaches the active window's TabManager so `BrowserToolSurface`
-    /// consumers (the AI tool provider) can reach it. Called per window on
-    /// `ContentView.onAppear`.
+    /// consumers (the AI tool provider) can reach it. Called on window
+    /// creation and again whenever the window becomes key
+    /// (WindowChromeGuard.onBecomeKey).
     func attach(tabManager: TabManager) {
         _tabManager = tabManager
+        // Session persistence records the selection of the ACTIVE window.
+        TabSessionCoordinator.shared.setActive(tabManager)
     }
 }
 

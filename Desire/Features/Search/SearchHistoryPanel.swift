@@ -94,7 +94,7 @@ struct SearchHistoryPanel: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text(entry.engine.rawValue)
+                    Text(entry.engine)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

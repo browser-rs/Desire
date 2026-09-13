@@ -16,6 +16,11 @@ extension BrowserToolProvider {
         }
         switch call.function.name {
         // --- Page reading ---
+        case "getPageSnapshot":
+            let maxChars = args["maxChars"] as? Int ?? 12000
+            let maxElements = args["maxElements"] as? Int ?? 60
+            return await callAsync(webView, function: "__desireSnapshot",
+                                   args: ["maxChars": maxChars, "maxElements": maxElements])
         case "getPageText":
             return await eval(webView, "document.body.innerText")
         case "getPageHTML":
@@ -79,7 +84,7 @@ extension BrowserToolProvider {
         case "listBookmarks":
             let all = surface.bookmarkStore.allBookmarks
             guard !all.isEmpty else { return "No bookmarks" }
-            return all.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
+            return all.map { "\($0.title) — \($0.url ?? "[folder]")" }.joined(separator: "\n")
 
         case "removeBookmark":
             guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return "Bookmark not found" }
@@ -91,7 +96,7 @@ extension BrowserToolProvider {
             let count = args["count"] as? Int ?? 20
             let entries = surface.historyStore.recentEntries(count: count)
             guard !entries.isEmpty else { return "No history entries" }
-            return entries.map { "\($0.title ?? "Untitled") — \($0.url)" }.joined(separator: "\n")
+            return entries.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
 
         case "clearHistory":
             surface.historyStore.clearAll()
@@ -131,7 +136,7 @@ extension BrowserToolProvider {
                 }
             })();
             """
-            webView.evaluateJavaScript(js, completionHandler: nil)
+            _ = try? await webView.evaluateJavaScript(js)
             return enabled ? "Dark mode enabled" : "Dark mode disabled"
 
         case "toggleReaderMode":
@@ -153,15 +158,13 @@ extension BrowserToolProvider {
             return await eval(webView, js)
 
         case "zoomIn":
-            guard let wv = webView as? WKWebView else { return "Zoom failed" }
-            let newZoom = min(5.0, max(0.5, wv.pageZoom + 0.1))
-            wv.pageZoom = newZoom
+            let newZoom = min(5.0, max(0.5, webView.pageZoom + 0.1))
+            webView.pageZoom = newZoom
             return "Zoomed in to \(Int(newZoom * 100))%"
 
         case "zoomOut":
-            guard let wv = webView as? WKWebView else { return "Zoom failed" }
-            let newZoom = min(5.0, max(0.5, wv.pageZoom - 0.1))
-            wv.pageZoom = newZoom
+            let newZoom = min(5.0, max(0.5, webView.pageZoom - 0.1))
+            webView.pageZoom = newZoom
             return "Zoomed out to \(Int(newZoom * 100))%"
 
         case "resetZoom":
@@ -276,7 +279,7 @@ extension BrowserToolProvider {
                 surface.tabGroupStore.addTab(tab.id, to: existing.id)
                 return "Added to group: \(groupName)"
             }
-            let newGroup = surface.tabGroupStore.create(name: groupName) ?? TabGroup(id: UUID(), name: groupName, colorIndex: 0, tabIds: [])
+            let newGroup = surface.tabGroupStore.create(name: groupName)
             surface.tabGroupStore.removeTabFromAll(tab.id)
             surface.tabGroupStore.addTab(tab.id, to: newGroup.id)
             return "Created and added to group: \(groupName)"
@@ -338,17 +341,25 @@ extension BrowserToolProvider {
 
         // --- Search engine ---
         case "setSearchEngine":
-            guard let name = args["engine"] as? String,
-                  let engine = SearchEngine.allCases.first(where: { $0.rawValue.lowercased() == name.lowercased() }) else {
-                let options = SearchEngine.allCases.map(\.rawValue).joined(separator: ", ")
-                return "Invalid engine. Options: \(options)"
+            guard let name = args["engine"] as? String else { return "Missing engine name" }
+            // Built-ins first, then custom engines by (case-insensitive) name.
+            if let engine = SearchEngine.allCases.first(where: { $0.rawValue.lowercased() == name.lowercased() }) {
+                surface.settings.searchEngine = engine
+                // A stale custom pick would keep winning the effective
+                // engine regardless of the built-in set here.
+                surface.settings.selectedCustomEngineId = nil
+                return "Search engine changed to \(engine.rawValue)"
             }
-            surface.settings.searchEngine = engine
-            return "Search engine changed to \(engine.rawValue)"
+            if let custom = surface.settings.customEngines.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                surface.settings.selectedCustomEngineId = custom.id
+                return "Search engine changed to custom engine \(custom.name)"
+            }
+            let options = (SearchEngine.allCases.map(\.rawValue) + surface.settings.customEngines.map(\.name)).joined(separator: ", ")
+            return "Invalid engine. Options: \(options)"
 
         // --- Sidebar ---
         case "toggleSidebar":
-            NotificationCenter.default.post(name: .browserCommand, object: BrowserCommand.toggleSidebar)
+            CommandBus.shared.send(.toggleSidebar)
             return "Sidebar toggled"
 
         // --- DOM interaction ---
@@ -358,6 +369,16 @@ extension BrowserToolProvider {
         // break out into code. See docs/ARCHITECTURE.md (L2 JS Bridge).
         case "click":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
+            // Prefer a real (isTrusted=true) mouse click through the AppKit
+            // event pipeline — untrusted `element.click()` is a bot signal
+            // for anti-automation systems (Turnstile) and can get the user's
+            // session challenged. The JS fallback keeps the tool working
+            // when the webview has no window (suspended/background tab) or
+            // the element resolves to no on-screen geometry.
+            if let point = await clickablePoint(selector: sel, in: webView) {
+                await SyntheticInput.click(at: point, in: webView)
+                return "Clicked (trusted mouse event)"
+            }
             return await callAsync(webView, function: "__desireClick", args: ["selector": sel])
 
         case "fill":
@@ -375,6 +396,11 @@ extension BrowserToolProvider {
 
         case "hover":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
+            // Trusted mouse-moved stream, same rationale as `click`.
+            if let point = await clickablePoint(selector: sel, in: webView) {
+                await SyntheticInput.hover(at: point, in: webView)
+                return "Hovered (trusted mouse events)"
+            }
             return await callAsync(webView, function: "__desireHover", args: ["selector": sel])
 
         case "focus":
@@ -402,10 +428,37 @@ extension BrowserToolProvider {
 
         case "executeJS":
             guard let code = args["code"] as? String else { return "Missing code" }
-            return await eval(webView, code) ?? "Executed (no return value)"
+            let result = await eval(webView, code)
+            return result.isEmpty ? "Executed (no return value)" : result
 
         default:
             return "Unknown tool: \(call.function.name)"
         }
+    }
+
+    /// Resolves `selector` to its center point in window-base coordinates
+    /// (what `NSEvent.mouseEvent(location:)` expects) after scrolling the
+    /// element into view. Returns nil when the webview has no window, the
+    /// element is missing, or it has no on-screen geometry — callers then
+    /// fall back to the in-page JS path.
+    private func clickablePoint(selector: String, in webView: WKWebView) async -> CGPoint? {
+        guard webView.window != nil else { return nil }
+        let raw = await callAsync(webView, function: "__desireElementRect", args: ["selector": selector])
+        guard let data = raw.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
+              let x = obj["x"], let y = obj["y"],
+              let w = obj["w"], let h = obj["h"], w > 0, h > 0 else { return nil }
+
+        // The JS rect is CSS px, top-left origin; the NSView pipeline wants
+        // view/base-window px, bottom-left origin. pageZoom scales CSS px
+        // into view px; `isFlipped` covers whichever orientation WKWebView
+        // reports.
+        let zoom = CGFloat(webView.pageZoom)
+        let cssCenter = CGPoint(x: x + w / 2, y: y + h / 2)
+        let viewPoint = CGPoint(x: cssCenter.x * zoom, y: cssCenter.y * zoom)
+        let cocoaPoint = webView.isFlipped
+            ? viewPoint
+            : CGPoint(x: viewPoint.x, y: webView.bounds.height - viewPoint.y)
+        return webView.convert(cocoaPoint, to: nil)
     }
 }

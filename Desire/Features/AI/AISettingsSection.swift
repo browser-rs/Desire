@@ -152,6 +152,7 @@ struct AISettingsSection: View {
         case .deviceNotEligible: "This device does not support Apple Intelligence."
         case .appleIntelligenceNotEnabled: "Enable Apple Intelligence in System Settings."
         case .modelNotReady: "The on-device model is still preparing."
+        @unknown default: "Apple Intelligence is unavailable on this Mac."
         }
     }
 

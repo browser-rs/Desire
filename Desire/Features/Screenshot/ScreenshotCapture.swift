@@ -182,7 +182,10 @@ enum ScreenshotCapture {
     /// current thread; the actual `write` is fast for typical screenshots
     /// but can hitch for full-page captures — callers on @MainActor should
     /// wrap in `Task.detached`.
-    static func writePNG(_ image: NSImage, to url: URL) throws {
+    ///
+    /// `nonisolated`: pure encode + file write with no app state, designed
+    /// to run on whatever thread the caller chose (see `writePNGAsync`).
+    nonisolated static func writePNG(_ image: NSImage, to url: URL) throws {
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
               let png = rep.representation(using: .png, properties: [:]) else {

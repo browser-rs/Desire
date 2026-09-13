@@ -131,7 +131,7 @@ struct DownloadPanel: View {
             Divider()
 
             // Content
-            if sections.isEmpty || sections.allSatisfy { $0.1.isEmpty } {
+            if sections.isEmpty || sections.allSatisfy({ $0.1.isEmpty }) {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Downloads") : String(localized: "No Matching Downloads"))
             } else {
                 ScrollView {

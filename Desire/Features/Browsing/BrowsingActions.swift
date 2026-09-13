@@ -23,6 +23,10 @@ class BrowsingActions: ObservableObject {
     let searchHistoryStore: SearchHistoryStore
     let elementBlockStore: ElementBlockStore
     let devToolsStore: DevToolsStore
+    /// Needed by session restore and fresh-tab creation (both thread the
+    /// blockers into every new tab's webview configuration).
+    let contentBlocker: ContentBlockerStore
+    let videoAdBlocker: VideoAdBlocker
 
     // MARK: - Published results (observed by ContentView)
 
@@ -46,7 +50,9 @@ class BrowsingActions: ObservableObject {
         siteSettingsStore: SiteSettingsStore,
         searchHistoryStore: SearchHistoryStore,
         elementBlockStore: ElementBlockStore,
-        devToolsStore: DevToolsStore
+        devToolsStore: DevToolsStore,
+        contentBlocker: ContentBlockerStore,
+        videoAdBlocker: VideoAdBlocker
     ) {
         self.tabManager = tabManager
         self.settings = settings
@@ -56,29 +62,66 @@ class BrowsingActions: ObservableObject {
         self.searchHistoryStore = searchHistoryStore
         self.elementBlockStore = elementBlockStore
         self.devToolsStore = devToolsStore
+        self.contentBlocker = contentBlocker
+        self.videoAdBlocker = videoAdBlocker
+    }
+
+    // MARK: - Launch tabs
+
+    /// First window at launch: restore the saved session when startup
+    /// behavior asks for it, otherwise open one fresh tab. Only ever called
+    /// for the FIRST window — later windows always open fresh (the gate is
+    /// `AppState.hasRestoredSession`, checked by the caller).
+    func restoreSessionOrOpenFreshTab() {
+        if settings.startupBehavior == .restoreSession,
+           tabManager.restoreSession(
+               javaScriptEnabled: settings.isJavaScriptEnabled,
+               contentBlocker: contentBlocker,
+               videoAdBlocker: videoAdBlocker
+           ) {
+            return
+        }
+        openFreshTab()
+    }
+
+    /// Opens a single fresh tab with the current settings.
+    func openFreshTab() {
+        tabManager.addTab(
+            javaScriptEnabled: settings.isJavaScriptEnabled,
+            contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker,
+            autoPlayPolicy: settings.autoPlayPolicy,
+            newTabPosition: settings.newTabPosition
+        )
     }
 }
 
 // MARK: - Navigation & bookmarks
 
 extension BrowsingActions {
+    /// Navigates a tab based on raw address-bar text. Resolution goes through
+    /// `URLResolution` — the SAME layer the suggestion preview uses, so the
+    /// dropdown's promise is exactly what happens here. A failed URL parse
+    /// falls back to search instead of silently doing nothing; searches are
+    /// recorded to history (unless incognito) only when they actually run.
     func navigateToURL(_ input: String, for tab: Tab) {
-        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if !text.hasPrefix("http://") && !text.hasPrefix("https://") {
-            if text.contains(".") {
-                text = "https://" + text
-            } else {
-                guard let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
-                if !tab.isIncognito {
-                    searchHistoryStore.add(query: text, engine: settings.searchEngine)
-                }
-                text = settings.searchURLTemplate + encoded
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let destination = URLResolution.resolve(text, settings: settings) else { return }
+
+        let urlString: String
+        switch destination {
+        case .url(let resolved):
+            urlString = resolved
+        case .search(let query, let engine):
+            guard let searchURL = URLResolution.searchURL(query: query, target: engine) else { return }
+            if !tab.isIncognito {
+                searchHistoryStore.add(query: query, engine: engine.displayName)
             }
+            urlString = searchURL.absoluteString
         }
-        guard let url = URL(string: text) else { return }
+        guard let url = URL(string: urlString) else { return }
         tab.isOnNewTabPage = false
-        tab.urlString = text
+        tab.urlString = urlString
         tab.browser.webView.load(URLRequest(url: url))
     }
 
@@ -408,9 +451,18 @@ extension BrowsingActions {
             },
             onSearchText: { [weak self] text in
                 guard let self else { return }
-                let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
-                let urlString = self.settings.searchURLTemplate + encoded
-                self.tabManager.addTab(url: urlString,
+                // Route through the shared resolver so a "Search …" menu pick
+                // on URL-looking text navigates instead of searching.
+                let target: String
+                switch URLResolution.resolve(text, settings: self.settings) {
+                case .url(let urlString):
+                    target = urlString
+                case .search(let query, let engine):
+                    target = URLResolution.searchURL(query: query, target: engine)?.absoluteString ?? text
+                case nil:
+                    return
+                }
+                self.tabManager.addTab(url: target,
                                        javaScriptEnabled: settings.isJavaScriptEnabled,
                                        contentBlocker: contentBlocker,
                                        videoAdBlocker: videoAdBlocker,

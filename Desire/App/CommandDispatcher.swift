@@ -2,10 +2,11 @@ import AppKit
 import SwiftUI
 import WebKit
 
-/// Routes `BrowserCommand` values (posted to `.browserCommand` by the menu
-/// commands in `DesireApp`) to the right store action or UI flag.
+/// Routes `BrowserCommand` values (broadcast on the `CommandBus` by the
+/// menu commands in `DesireApp` and by AI tools) to the right store action
+/// or UI flag.
 ///
-/// Extracted from `ContentView`'s `.onReceive(.browserCommand)` handler —
+/// Extracted from `ContentView`'s command handler —
 /// see `docs/ARCHITECTURE.md` (L1-1). This is a value type so it captures
 /// its dependencies by construction; `ContentView` rebuilds it each render
 /// from current state, which is cheap.

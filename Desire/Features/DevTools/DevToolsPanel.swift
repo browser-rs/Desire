@@ -337,7 +337,10 @@ private struct NetworkPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(r.method).bold() + Text(" ") + Text(r.url).font(.caption)
+                    HStack(spacing: 2) {
+                        Text(r.method).bold()
+                        Text(r.url).font(.caption)
+                    }
                     Spacer()
                     if let code = r.statusCode {
                         Text("\(code)").foregroundStyle(statusColor(code)).bold()
@@ -504,7 +507,7 @@ private struct ElementPanel: View {
                     VStack(spacing: 16) {
                         EmptyState(message: "No element inspected")
 
-                        if let tab = tab, let onStartElementPicker = onStartElementPicker {
+                        if tab != nil, let onStartElementPicker = onStartElementPicker {
                             Button {
                                 onStartElementPicker()
                             } label: {

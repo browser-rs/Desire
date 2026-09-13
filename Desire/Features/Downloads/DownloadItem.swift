@@ -20,6 +20,16 @@ struct DownloadItem: Identifiable {
     var lastUpdateTime: Date = Date()
     var speed: Int64 = 0 // bytes per second
 
+    /// Partial-transfer data for pause/retry. In-memory only — resume data
+    /// is meaningless after a relaunch, so `HistoryItem` never persists it.
+    var resumeData: Data? = nil
+    /// Pauses the underlying transfer: `suspend()` for URLSession tasks,
+    /// `cancel(byProducingResumeData:)` for webview downloads (whose pause
+    /// is a resume-data checkpoint — WKDownload cannot be suspended).
+    var pauseAction: (() -> Void)? = nil
+    /// Resumes the underlying transfer; receives `resumeData` when set.
+    var resumeAction: ((Data?) -> Void)? = nil
+
     enum State: String, Codable { case inProgress, completed, failed, paused }
     enum Priority: Int, Codable { case low = 0, normal = 1, high = 2 }
 

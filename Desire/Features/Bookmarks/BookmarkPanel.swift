@@ -276,7 +276,7 @@ struct BookmarkPanel: View {
 
     private func deleteSelected() {
         for id in selectedIDs {
-            if let bookmark = store.bookmarks.find { $0.id == id } {
+            if let bookmark = store.bookmarks.find(where: { $0.id == id }) {
                 store.remove(bookmark)
             }
         }

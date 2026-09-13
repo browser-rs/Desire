@@ -28,7 +28,10 @@ struct AIToolFunctionDef: Codable, Sendable {
     let parameters: AIJSONSchema
 }
 
-struct AIJSONSchema: Codable, Sendable {
+// `nonisolated` pure value types: their Codable conformances are used from
+// nonisolated encoding helpers (OpenAICompatSSE), which a MainActor-isolated
+// conformance would forbid.
+nonisolated struct AIJSONSchema: Codable, Sendable {
     let type: String
     var properties: [String: AIJSONSchemaValue]?
     var required: [String]?
@@ -39,7 +42,7 @@ struct AIJSONSchema: Codable, Sendable {
     var additionalProperties: Bool? = false
 }
 
-struct AIJSONSchemaValue: Codable, Sendable {
+nonisolated struct AIJSONSchemaValue: Codable, Sendable {
     let type: String
     var description: String?
 }

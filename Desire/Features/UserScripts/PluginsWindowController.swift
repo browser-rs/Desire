@@ -50,14 +50,19 @@ final class PluginsWindowController {
             object: newWindow,
             queue: .main
         ) { [weak self] note in
-            guard let self,
-                  let closing = note.object as? NSWindow,
-                  closing === self.window else { return }
-            if let obs = self.closeObserver {
-                NotificationCenter.default.removeObserver(obs)
-                self.closeObserver = nil
+            // The block is @Sendable, but `queue: .main` guarantees it runs
+            // on the main thread — assert that and hop onto the actor so the
+            // MainActor-isolated properties are legally reachable.
+            MainActor.assumeIsolated {
+                guard let self,
+                      let closing = note.object as? NSWindow,
+                      closing === self.window else { return }
+                if let obs = self.closeObserver {
+                    NotificationCenter.default.removeObserver(obs)
+                    self.closeObserver = nil
+                }
+                self.window = nil
             }
-            self.window = nil
         }
 
         window = newWindow

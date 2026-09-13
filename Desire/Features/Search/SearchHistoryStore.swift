@@ -14,7 +14,7 @@ class SearchHistoryStore: ObservableObject {
         load()
     }
 
-    func add(query: String, engine: SearchEngine) {
+    func add(query: String, engine: String) {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let entry = SearchHistory(query: query, engine: engine)
         entries.insert(entry, at: 0)

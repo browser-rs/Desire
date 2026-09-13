@@ -11,6 +11,10 @@ struct TabBar: View {
     let onSelectTab: (Int) -> Void
     let onCloseTab: (Int) -> Void
     let onAddTab: () -> Void
+    /// Registered containers — shown in the "+" button's right-click menu.
+    var containers: [TabContainer] = []
+    /// Opens a new tab inside `container` (right-click on "+").
+    var onAddTabInContainer: ((TabContainer) -> Void)? = nil
     let onMoveTab: (Int, Int) -> Void
     let onReloadTab: (Tab) -> Void
     let onCopyTabURL: (Tab) -> Void
@@ -157,6 +161,24 @@ struct TabBar: View {
             }
             .buttonStyle(.plain)
             .help("New Tab")
+            .contextMenu {
+                if containers.isEmpty {
+                    Text("No containers — create one in Settings > Tabs")
+                } else {
+                    Section("New Container Tab") {
+                        ForEach(containers) { container in
+                            Button {
+                                onAddTabInContainer?(container)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Circle().fill(container.color).frame(width: 8, height: 8)
+                                    Text(container.name)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         .padding(.leading, isFullScreen ? 12 : 76)
         .padding(.trailing, 8)

@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 import WebKit
@@ -7,6 +8,9 @@ class Tab: ObservableObject {
     let id = UUID()
     let browser: BrowserState
     let isIncognito: Bool
+    /// Container this tab belongs to (nil = default store). Fixed at tab
+    /// creation — the data store is baked into the webview configuration.
+    let containerID: UUID?
     @Published var urlString = ""
     @Published var isLoading = false
     @Published var canGoBack = false
@@ -89,9 +93,10 @@ class Tab: ObservableObject {
         browser.isPlayingAudio
     }
 
-    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerID: UUID? = nil) {
         self.isIncognito = incognito
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
+        self.containerID = containerID
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerDataStore: containerID.flatMap { ContainerStore.shared.dataStore(for: $0) })
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -123,26 +128,18 @@ class TabManager: ObservableObject {
     var onRequestWindowClose: (() -> Void)?
     private var recentlyClosedURLs: [String] = []
     private var suspendTimer: Timer?
-    private var sessionSaveTimer: Timer?
 
     init() {
-        startSessionSaveTimer()
+        // Session persistence is process-wide (one shared storage key): each
+        // window's TabManager registers with the coordinator instead of
+        // running its own timer — the per-window timers used to overwrite
+        // the shared key and destroy every other window's tabs.
+        TabSessionCoordinator.shared.register(self)
         startSuspendTimer()
     }
 
     deinit {
         suspendTimer?.invalidate()
-        sessionSaveTimer?.invalidate()
-    }
-
-    private func startSessionSaveTimer() {
-        sessionSaveTimer?.invalidate()
-        sessionSaveTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.persistSession()
-            }
-        }
     }
 
     func startSuspendTimer() {
@@ -164,10 +161,11 @@ class TabManager: ObservableObject {
     /// When a tab is suspended, its WKWebView content is unloaded but
     /// the view is kept so it can be restored quickly.
     private func suspendIdleTabs() {
-        // Use AppStorage for user-configurable threshold
-        let threshold: TimeInterval = UserDefaults.standard.double(forKey: "suspendAfterMinutes") * 60
-        let defaultThreshold: TimeInterval = 30 * 60
-        let actualThreshold = threshold > 0 ? threshold : defaultThreshold
+        // The threshold lives in Settings ("suspendAfterMinutes", written to
+        // this same key). Negative = "Never"; unset/0 keeps the 30-min default.
+        let configured = UserDefaults.standard.double(forKey: "suspendAfterMinutes")
+        guard configured >= 0 else { return }
+        let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
         for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
@@ -209,8 +207,8 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end) {
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil) {
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID)
         switch newTabPosition {
         case .end:
             tabs.append(tab)
@@ -227,7 +225,7 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let source = tabs[index]
         let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
-        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
+        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: source.containerID)
         newTab.isPinned = source.isPinned
         tabs.insert(newTab, at: index + 1)
         selectedIndex = index + 1
@@ -324,15 +322,35 @@ class TabManager: ObservableObject {
 
     // MARK: - Session persistence
 
-    /// DiskStore key (file: App Support/Desire/storage/session.json).
-    /// Session data includes WKWebView.interactionState blobs which can be
-    /// MBs per tab — too large for UserDefaults (debt A4). See DiskStore.
-    private let sessionStorageKey = "session"
     /// Legacy UserDefaults key — read once during migration, then deleted.
+    /// The live key lives on `TabSessionCoordinator.storageKey`.
     private let legacySessionKey = "desire.session"
 
-    func persistSession() {
-        var savedTabs: [SavedTab] = []
+    /// Cached per-tab session archives. Archiving `interactionState` runs
+    /// on the main thread; without the fingerprint check the 15s session
+    /// timer re-archived EVERY tab on EVERY tick even when nothing changed
+    /// (a heavy page costs tens of ms per archive).
+    private struct SessionArchive {
+        let url: String?
+        let title: String?
+        let historyCount: Int
+        let data: Data?
+    }
+    private var sessionArchives: [UUID: SessionArchive] = [:]
+
+    // MARK: - Session persistence
+
+    /// Session persistence is delegated to `TabSessionCoordinator` (one
+    /// shared storage key for ALL windows). This thin wrapper keeps the
+    /// internal call sites and the scenePhase handler unchanged.
+    func persistSession(force: Bool = false) {
+        TabSessionCoordinator.shared.persistAll(force: force)
+    }
+
+    /// Appends this window's non-incognito tabs to the merged session blob.
+    /// Called by the coordinator for every registered window. `fileprivate`
+    /// because `SavedTab` is a private type co-located with the coordinator.
+    fileprivate func appendSessionTabs(into savedTabs: inout [SavedTab], force: Bool) {
         for tab in tabs where !tab.isIncognito {
             // For a suspended tab the live webview has been blanked, so use
             // the snapshot captured at suspend time. Otherwise `webView.url`
@@ -340,30 +358,45 @@ class TabManager: ObservableObject {
             // corrupted sessions and produced blank tabs on app restart.
             if tab.isSuspended {
                 if let url = tab.suspendedURL?.absoluteString, !url.isEmpty {
-                    savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState))
+                    savedTabs.append(SavedTab(tabID: tab.id, url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState, containerID: tab.containerID))
                 } else if tab.isOnNewTabPage {
-                    savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil))
+                    savedTabs.append(SavedTab(tabID: tab.id, url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil, containerID: tab.containerID))
                 } else if tab.urlString.hasPrefix("http") {
-                    savedTabs.append(SavedTab(url: tab.urlString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState))
+                    savedTabs.append(SavedTab(tabID: tab.id, url: tab.urlString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState, containerID: tab.containerID))
                 }
                 continue
             }
 
-            let stateData = captureInteractionState(for: tab)
+            let stateData = force
+                ? captureInteractionState(for: tab)
+                : cachedOrCapturedInteractionState(for: tab)
             if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
-                savedTabs.append(SavedTab(url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData))
+                savedTabs.append(SavedTab(tabID: tab.id, url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData, containerID: tab.containerID))
             } else if tab.isOnNewTabPage {
-                savedTabs.append(SavedTab(url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil))
+                savedTabs.append(SavedTab(tabID: tab.id, url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil, containerID: tab.containerID))
             } else if tab.urlString.hasPrefix("http"), let u = URL(string: tab.urlString) {
-                savedTabs.append(SavedTab(url: u.absoluteString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData))
+                savedTabs.append(SavedTab(tabID: tab.id, url: u.absoluteString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: stateData, containerID: tab.containerID))
             }
         }
-        guard !savedTabs.isEmpty else {
-            DiskStore.remove(key: sessionStorageKey)
-            return
+        // Drop archive entries for closed tabs.
+        let liveIds = Set(tabs.map(\.id))
+        sessionArchives = sessionArchives.filter { liveIds.contains($0.key) }
+    }
+
+    /// Returns the cached archive when the tab's fingerprint (url/title/
+    /// history depth) is unchanged; otherwise archives and refreshes it.
+    private func cachedOrCapturedInteractionState(for tab: Tab) -> Data? {
+        let wv = tab.browser.webView
+        let url = wv.url?.absoluteString
+        let title = wv.title
+        let historyCount = wv.backForwardList.backList.count + wv.backForwardList.forwardList.count
+        if let cached = sessionArchives[tab.id],
+           cached.url == url, cached.title == title, cached.historyCount == historyCount {
+            return cached.data
         }
-        let session = SavedSession(tabs: savedTabs, selectedIndex: selectedIndex)
-        DiskStore.save(session, key: sessionStorageKey)
+        let data = captureInteractionState(for: tab)
+        sessionArchives[tab.id] = SessionArchive(url: url, title: title, historyCount: historyCount, data: data)
+        return data
     }
 
     private func captureInteractionState(for tab: Tab) -> Data? {
@@ -375,14 +408,14 @@ class TabManager: ObservableObject {
     @discardableResult
     func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
         // Migrated: load from DiskStore first.
-        var session = DiskStore.load(SavedSession.self, key: sessionStorageKey)
+        var session = DiskStore.load(SavedSession.self, key: TabSessionCoordinator.storageKey)
         if session == nil {
             // One-time migration from legacy UserDefaults blob. If present,
             // import it to DiskStore and remove the old key.
             if let data = UserDefaults.standard.data(forKey: legacySessionKey),
                let decoded = try? JSONDecoder().decode(SavedSession.self, from: data) {
                 session = decoded
-                DiskStore.save(decoded, key: sessionStorageKey)
+                DiskStore.save(decoded, key: TabSessionCoordinator.storageKey)
                 UserDefaults.standard.removeObject(forKey: legacySessionKey)
             }
         }
@@ -394,7 +427,7 @@ class TabManager: ObservableObject {
 
         for saved in session.tabs {
             let url = saved.isOnNewTabPage ? nil : saved.url
-            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, containerID: saved.containerID)
             tab.isPinned = saved.isPinned
 
             if let data = saved.sessionState {
@@ -426,13 +459,124 @@ class TabManager: ObservableObject {
 }
 
 private struct SavedTab: Codable {
+    /// In-memory only: maps the ACTIVE window's selected tab to its position
+    /// in the merged multi-window list. Deliberately excluded from Codable —
+    /// the on-disk shape is unchanged (old session files still decode).
+    let tabID: UUID
     let url: String?
     let isOnNewTabPage: Bool
     var isPinned: Bool
     let sessionState: Data?
+    let containerID: UUID?
+
+    init(tabID: UUID, url: String?, isOnNewTabPage: Bool, isPinned: Bool, sessionState: Data?, containerID: UUID? = nil) {
+        self.tabID = tabID
+        self.url = url
+        self.isOnNewTabPage = isOnNewTabPage
+        self.isPinned = isPinned
+        self.sessionState = sessionState
+        self.containerID = containerID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case url, isOnNewTabPage, isPinned, sessionState, containerID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tabID = UUID()
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+        isOnNewTabPage = try container.decode(Bool.self, forKey: .isOnNewTabPage)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        sessionState = try container.decodeIfPresent(Data.self, forKey: .sessionState)
+        containerID = try container.decodeIfPresent(UUID.self, forKey: .containerID)
+    }
 }
 
 private struct SavedSession: Codable {
     let tabs: [SavedTab]
     let selectedIndex: Int
+}
+
+/// Process-wide owner of tab-session persistence.
+///
+/// The session lives under ONE storage key for the whole app. Before this
+/// coordinator existed, every window's TabManager ran its own 15s timer and
+/// wrote that key independently — the last writer clobbered every other
+/// window's tabs, so restarting with two windows lost one window entirely.
+/// All managers register here; a single timer (and a single terminate
+/// observer) persists the UNION of all windows' tabs, and the recorded
+/// selection is the ACTIVE window's selected tab.
+///
+/// Restore still reopens everything in the first window — true per-window
+/// restore needs a value-based WindowGroup with persistent per-window ids
+/// (future work, needs SwiftUI window-restoration plumbing).
+@MainActor
+final class TabSessionCoordinator {
+    static let shared = TabSessionCoordinator()
+    static let storageKey = "session"
+
+    private struct WeakManager { weak var manager: TabManager? }
+    private var managers: [WeakManager] = []
+    private var activeManager: TabManager?
+    private var timer: Timer?
+    private var terminateObserver: NSObjectProtocol?
+
+    func register(_ manager: TabManager) {
+        managers.removeAll { $0.manager == nil }
+        guard !managers.contains(where: { $0.manager === manager }) else { return }
+        managers.append(WeakManager(manager: manager))
+        startTimerIfNeeded()
+    }
+
+    /// Called when a window becomes key so the recorded selection follows
+    /// the window the user is actually looking at.
+    func setActive(_ manager: TabManager) {
+        activeManager = manager
+    }
+
+    func persistAll(force: Bool = false) {
+        managers.removeAll { $0.manager == nil }
+        var savedTabs: [SavedTab] = []
+        for box in managers {
+            guard let manager = box.manager else { continue }
+            manager.appendSessionTabs(into: &savedTabs, force: force)
+        }
+        guard !savedTabs.isEmpty else {
+            DiskStore.remove(key: Self.storageKey)
+            return
+        }
+
+        var selectedIndex = 0
+        let active = activeManager ?? managers.last?.manager
+        if let selectedID = active?.selectedTab?.id,
+           let index = savedTabs.firstIndex(where: { $0.tabID == selectedID }) {
+            selectedIndex = index
+        }
+        DiskStore.save(SavedSession(tabs: savedTabs, selectedIndex: selectedIndex),
+                       key: Self.storageKey)
+    }
+
+    private func startTimerIfNeeded() {
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.persistAll()
+            }
+        }
+        // A hard quit inside DiskStore's 500ms debounce window would lose the
+        // last session write; force a full re-archive and flush on terminate.
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            // queue: .main guarantees the main thread; assert it so the
+            // MainActor-isolated coordinator call is legally reachable.
+            MainActor.assumeIsolated {
+                TabSessionCoordinator.shared.persistAll(force: true)
+            }
+            DiskStore.flushSync()
+        }
+    }
 }

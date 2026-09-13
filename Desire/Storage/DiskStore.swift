@@ -51,6 +51,18 @@ enum DiskStore {
         Task { await writer.stageRemoval(key: key) }
     }
 
+    /// Blocks briefly (capped at 3s) until every staged write/removal is on
+    /// disk. Terminate-time only: a hard quit inside the 500 ms debounce
+    /// window would otherwise lose the last save.
+    nonisolated static func flushSync() {
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            await writer.flushNow()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 3)
+    }
+
     /// The storage directory, created on first access. Lazily creates the
     /// full path (`Application Support/Desire/storage/`).
     nonisolated static var directory: URL {
@@ -125,5 +137,23 @@ actor DiskStoreWriter {
         }
         guard let data = pending.removeValue(forKey: key) else { return }
         try? data.write(to: url, options: .atomic)
+    }
+
+    /// Writes every pending payload immediately and cancels debounce timers.
+    /// Terminate-time: a quit must not lose saves still inside their
+    /// debounce window.
+    func flushNow() {
+        for key in tasks.keys { tasks[key]?.cancel() }
+        tasks.removeAll()
+        for key in pendingRemovals {
+            pendingRemovals.remove(key)
+            let url = DiskStore.directory.appendingPathComponent("\(key).json")
+            try? FileManager.default.removeItem(at: url)
+        }
+        for (key, data) in pending {
+            let url = DiskStore.directory.appendingPathComponent("\(key).json")
+            try? data.write(to: url, options: .atomic)
+        }
+        pending.removeAll()
     }
 }

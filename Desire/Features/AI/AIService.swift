@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Shared OpenAI-compatible streaming client.
 ///
@@ -25,20 +26,39 @@ enum OpenAICompatSSE {
                         var errBody = ""
                         for try await line in bytes.lines { errBody += line }
                         #if DEBUG
-                        print("──── AI request failed ────")
-                        print("Status: \(http.statusCode)")
-                        print("URL: \(request.url?.absoluteString ?? "?")")
-                        print("Response: \(errBody)")
-                        print("──────────────────────────")
+                        Log.ai.error("AI request failed — status: \(http.statusCode, privacy: .public), url: \(request.url?.absoluteString ?? "?", privacy: .public), body: \(errBody)")
                         #endif
                         continuation.finish(throwing: AIServiceError.httpStatus(http.statusCode, errBody))
                         return
                     }
 
-                    var toolCallID = ""
-                    var toolCallName = ""
-                    var toolCallArgs = ""
-                    var hasToolCall = false
+                    // A single assistant turn can carry MULTIPLE parallel
+                    // tool calls ("open three tabs and check each"); their
+                    // deltas arrive interleaved, keyed by `index`. The old
+                    // accumulator only kept index 0, silently dropping every
+                    // call after the first. Track one partial per index and
+                    // flush them all in first-seen order.
+                    var partials: [Int: (id: String, name: String, arguments: String)] = [:]
+                    var order: [Int] = []
+
+                    func flushToolCalls() {
+                        for idx in order {
+                            let p = partials[idx] ?? (id: "", name: "", arguments: "")
+                            // Some OpenAI-compatible servers (older Ollama)
+                            // omit ids; the agent loop correlates tool
+                            // results by id, so synthesize a unique one.
+                            let id = p.id.isEmpty
+                                ? "call_\(idx)_\(UUID().uuidString.prefix(8))"
+                                : p.id
+                            continuation.yield(.toolCall(AIToolCall(
+                                id: id,
+                                type: "function",
+                                function: AIToolFunction(name: p.name, arguments: p.arguments)
+                            )))
+                        }
+                        partials.removeAll()
+                        order.removeAll()
+                    }
 
                     for try await line in bytes.lines {
                         guard line.hasPrefix("data: ") else { continue }
@@ -56,43 +76,28 @@ enum OpenAICompatSSE {
                         if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
                             for tc in toolCalls {
                                 let idx = tc["index"] as? Int ?? 0
-                                if idx == 0 {
-                                    if let id = tc["id"] as? String {
-                                        toolCallID = id
-                                        hasToolCall = true
-                                    }
-                                    if let fn = tc["function"] as? [String: Any] {
-                                        if let name = fn["name"] as? String, !name.isEmpty {
-                                            toolCallName += name
-                                        }
-                                        if let args = fn["arguments"] as? String {
-                                            toolCallArgs += args
-                                        }
-                                    }
+                                if partials[idx] == nil {
+                                    partials[idx] = (id: "", name: "", arguments: "")
+                                    order.append(idx)
                                 }
+                                var p = partials[idx]!
+                                if let id = tc["id"] as? String, !id.isEmpty { p.id = id }
+                                if let fn = tc["function"] as? [String: Any] {
+                                    if let name = fn["name"] as? String, !name.isEmpty { p.name += name }
+                                    if let args = fn["arguments"] as? String { p.arguments += args }
+                                }
+                                partials[idx] = p
                             }
                         }
 
                         if let finishReason = choice["finish_reason"] as? String,
-                           finishReason == "tool_calls", hasToolCall {
-                            let call = AIToolCall(
-                                id: toolCallID,
-                                type: "function",
-                                function: AIToolFunction(name: toolCallName, arguments: toolCallArgs)
-                            )
-                            continuation.yield(.toolCall(call))
-                            toolCallID = ""; toolCallName = ""; toolCallArgs = ""; hasToolCall = false
+                           finishReason == "tool_calls" {
+                            flushToolCalls()
                         }
                     }
 
-                    if hasToolCall {
-                        let call = AIToolCall(
-                            id: toolCallID,
-                            type: "function",
-                            function: AIToolFunction(name: toolCallName, arguments: toolCallArgs)
-                        )
-                        continuation.yield(.toolCall(call))
-                    }
+                    // Some servers end the stream without finish_reason.
+                    flushToolCalls()
 
                     continuation.finish()
                 } catch {
@@ -104,7 +109,10 @@ enum OpenAICompatSSE {
 
     /// Encodes an `AIMessage` to the OpenAI chat message dict shape, including
     /// `tool_calls` and `tool_call_id`/`name` fields for tool-use turns.
-    static func encodeMessage(_ msg: AIMessage) -> [String: Any] {
+    ///
+    /// Pure encoding helper with no shared state — `nonisolated` so callers
+    /// from any isolation domain can use it without hopping actors.
+    nonisolated static func encodeMessage(_ msg: AIMessage) -> [String: Any] {
         var m: [String: Any] = ["role": msg.role.rawValue]
         if let content = msg.content { m["content"] = content }
         if let tcs = msg.toolCalls {
@@ -133,8 +141,9 @@ enum OpenAICompatSSE {
         return m
     }
 
-    /// Encodes a tool definition to the OpenAI `tools` array shape.
-    static func encodeTool(_ t: AIToolDef) -> [String: Any] {
+    /// Encodes a tool definition to the OpenAI `tools` array shape. Pure —
+    /// see `encodeMessage` for the `nonisolated` rationale.
+    nonisolated static func encodeTool(_ t: AIToolDef) -> [String: Any] {
         [
             "type": t.type,
             "function": [
@@ -149,7 +158,7 @@ enum OpenAICompatSSE {
     // so JSONSerialization refuses to encode it ("Invalid type in JSON
     // write __SwiftValue"). Round-trip through `JSONEncoder` to get a real
     // dictionary we can hand to JSONSerialization.
-    private static func encodeJSONSchema(_ schema: AIJSONSchema) -> [String: Any] {
+    private nonisolated static func encodeJSONSchema(_ schema: AIJSONSchema) -> [String: Any] {
         guard let data = try? JSONEncoder().encode(schema),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return [:] }
@@ -225,21 +234,13 @@ struct CloudOpenAIProvider: ModelProvider {
 
     #if DEBUG
     static func debugLogRequest(url: URL, model: String, messages: [AIMessage], tools: [AIToolDef], body: Data?) {
-        print("──── AI request body ────")
-        print("Endpoint: \(url.absoluteString)")
-        print("Model: \(model)")
-        print("Messages: \(messages.count)")
-        for (i, msg) in messages.enumerated() {
-            print("  [\(i)] role=\(msg.role.rawValue), hasContent=\(msg.content != nil), toolCallId=\(msg.toolCallId ?? "nil"), toolName=\(msg.toolName ?? "nil")")
-        }
-        print("Tools: \(tools.count)")
+        Log.ai.debug("AI request — endpoint: \(url.absoluteString, privacy: .public), model: \(model, privacy: .public), messages: \(messages.count), tools: \(tools.count)")
         if let data = body,
            let obj = try? JSONSerialization.jsonObject(with: data),
            let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
            let s = String(data: pretty, encoding: .utf8) {
-            print(s)
+            Log.ai.debug("AI request body: \(s)")
         }
-        print("─────────────────────────")
     }
     #endif
 }

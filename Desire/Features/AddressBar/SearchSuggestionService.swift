@@ -5,18 +5,45 @@ class SearchSuggestionService {
     static let shared = SearchSuggestionService()
     private init() {}
 
-    func suggestions(for query: String, engine: SearchEngine, settings: Settings? = nil) async -> [String] {
+    /// Short timeout: a hanging suggest endpoint must not keep stale
+    /// suggestions from being replaced for 60s (URLSession's default).
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 3
+        return URLSession(configuration: config)
+    }()
+
+    /// Small LRU keyed by "template|query" — repeated prefixes (the common
+    /// typing pattern) stop hitting the network entirely.
+    private var cache: [String: [String]] = [:]
+    private var cacheOrder: [String] = []
+    private let cacheLimit = 32
+
+    /// `template` is the ACTIVE engine's suggestion endpoint, already
+    /// resolved by the caller (`Settings.effectiveSuggestionURL`, nil when
+    /// the engine has none — never a different engine's endpoint).
+    func suggestions(for query: String, template: String) async -> [String] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             return []
         }
-        let urlString = settings?.suggestionURLTemplate ?? engine.suggestionURL
-        guard let url = URL(string: urlString + encoded) else { return [] }
+        let key = template + "|" + trimmed
+        if let cached = cache[key] {
+            return cached
+        }
+        guard let url = URL(string: template + encoded) else { return [] }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            return Self.parse(data)
+            let (data, _) = try await Self.session.data(from: url)
+            let result = Self.parse(data)
+            cache[key] = result
+            cacheOrder.append(key)
+            if cacheOrder.count > cacheLimit, let evicted = cacheOrder.first {
+                cacheOrder.removeFirst()
+                cache[evicted] = nil
+            }
+            return result
         } catch {
             return []
         }

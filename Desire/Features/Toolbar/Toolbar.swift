@@ -39,7 +39,11 @@ struct Toolbar: View {
     let isDarkMode: Bool
     /// Search-engine picker state, derived from `Settings`.
     let searchEngineState: SearchEngineState
-    @ObservedObject var suggestionModel: AddressSuggestionsModel
+    /// Not observed on purpose: the toolbar only CALLS into the model
+    /// (move/selected/reset) and never renders its state. Observing it made
+    /// every keystroke's suggestion publish re-render the entire toolbar.
+    /// The suggestion dropdown (in ContentView's overlay) observes the model.
+    let suggestionModel: AddressSuggestionsModel
     let downloadStore: DownloadStore
     let passwordStore: PasswordStore
     /// Dev-tools toggle tint. Passed as a plain Bool (refreshed by the parent
@@ -67,6 +71,9 @@ struct Toolbar: View {
     /// Callbacks-out, not Stores).
     struct SearchEngineState {
         let currentEngine: SearchEngine
+        /// Display name of the engine that would ACTUALLY run a search right
+        /// now (a selected custom engine wins over `currentEngine`).
+        let effectiveEngineName: String
         let customEngines: [CustomSearchEngine]
         let selectedCustomEngineId: UUID?
         let onSelectEngine: (SearchEngine) -> Void
@@ -181,9 +188,17 @@ struct Toolbar: View {
                 text: $editingURL,
                 isFocused: isUrlFocused,
                 onSubmit: {
-                    let target = editingURL
-                    tab.urlString = target
-                    actions.navigate(target)
+                    // Enter commits the keyboard-highlighted suggestion. Row
+                    // 0 IS the typed-text action ("go to X" / "search for
+                    // X"), so a fresh list commits what was typed; an empty
+                    // list falls back to raw navigation.
+                    if let selected = suggestionModel.selected() {
+                        actions.suggestionSelect(selected)
+                    } else {
+                        let target = editingURL
+                        tab.urlString = target
+                        actions.navigate(target)
+                    }
                 },
                 onPasteAndGo: {
                     if let str = NSPasteboard.general.string(forType: .string) {
@@ -192,7 +207,13 @@ struct Toolbar: View {
                         actions.navigate(str)
                     }
                 },
-                onMoveSelection: { delta in suggestionModel.moveSelection(by: delta) },
+                onMoveSelection: { delta in
+                    // Consume up/down only while there is a list to move
+                    // through; otherwise the caret moves normally.
+                    guard !suggestionModel.isEmpty else { return false }
+                    suggestionModel.moveSelection(by: delta)
+                    return true
+                },
                 onEscape: {
                     suggestionModel.reset()
                     isUrlFocused.wrappedValue = false
@@ -268,7 +289,7 @@ struct Toolbar: View {
         }
         .menuStyle(.borderlessButton)
         .frame(width: 20)
-        .help("Search Engine: \(state.currentEngine.rawValue)")
+        .help("Search Engine: \(state.effectiveEngineName)")
     }
 
     // MARK: - Zoom Button

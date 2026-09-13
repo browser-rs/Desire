@@ -46,6 +46,12 @@ class Settings: ObservableObject {
     @Published var autoPlayPolicy: AutoPlayPolicy {
         didSet { UserDefaults.standard.set(autoPlayPolicy.rawValue, forKey: "autoPlayPolicy") }
     }
+    /// Idle minutes before background tabs are suspended. `-1` disables
+    /// suspension entirely. Persisted under the SAME key `TabManager` reads
+    /// each sweep, so changes apply live without a restart.
+    @Published var suspendAfterMinutes: Double {
+        didSet { UserDefaults.standard.set(suspendAfterMinutes, forKey: "suspendAfterMinutes") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -67,6 +73,7 @@ class Settings: ObservableObject {
         confirmCloseMultipleTabs = UserDefaults.standard.object(forKey: "confirmCloseMultipleTabs") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
+        suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be
@@ -105,13 +112,22 @@ class Settings: ObservableObject {
         return searchEngine.searchURL
     }
 
-    var suggestionURLTemplate: String {
+    /// Suggestion endpoint of the engine that would ACTUALLY be used, or
+    /// nil when that engine has none. Deliberately no fallback to the
+    /// built-in engine's endpoint — silently sending queries typed under a
+    /// custom engine to another provider is a privacy leak.
+    var effectiveSuggestionURL: String? {
         if let id = selectedCustomEngineId,
-           let engine = customEngines.first(where: { $0.id == id }),
-           !engine.suggestionURL.isEmpty {
-            return engine.suggestionURL
+           let engine = customEngines.first(where: { $0.id == id }) {
+            return engine.suggestionURL.isEmpty ? nil : engine.suggestionURL
         }
         return searchEngine.suggestionURL
+    }
+
+    /// Display name of the engine currently in effect (custom wins over
+    /// built-in). Used by the toolbar engine menu and the suggestion rows.
+    var effectiveEngineName: String {
+        URLResolution.defaultTarget(self).displayName
     }
 
     func addCustomEngine(name: String, searchURL: String, suggestionURL: String) {

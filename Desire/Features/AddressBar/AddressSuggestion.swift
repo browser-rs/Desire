@@ -1,7 +1,7 @@
 import Foundation
 
 struct AddressSuggestion: Identifiable {
-    enum Kind {
+    enum Kind: String {
         case navigate
         case searchDefault
         case searchSuggestion
@@ -9,9 +9,13 @@ struct AddressSuggestion: Identifiable {
         case history
     }
 
-    let id = UUID()
     let kind: Kind
     let title: String
     let url: String
     let domain: String?
+
+    /// Content-stable identity: the same (kind, url) pair keeps its id
+    /// across rebuilds, so SwiftUI's ForEach diffs rows incrementally
+    /// instead of treating every keystroke's rebuild as all-new rows.
+    var id: String { "\(kind.rawValue)|\(url)" }
 }

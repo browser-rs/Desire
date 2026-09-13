@@ -24,7 +24,7 @@ class BrowserState: ObservableObject {
     var onAIElementPicked: ((String, String) -> Void)?
     let videoAdBlocker: VideoAdBlocker?
 
-    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
         self.videoAdBlocker = videoAdBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -48,24 +48,27 @@ class BrowserState: ObservableObject {
         }
         if incognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
+        } else if let containerDataStore {
+            // Container tab: dedicated persistent data store — cookies,
+            // sessions, and site storage are isolated per container.
+            config.websiteDataStore = containerDataStore
         }
-        // Use a full, real-Safari User-Agent.
-        //
-        // `applicationNameForUserAgent` only replaces the trailing app token
-        // (e.g. "Safari/605.1.15"), so a value of "Version/18.6 Safari/605.1.15"
-        // produces:
+        // Use a full, real-Safari User-Agent (see `_desktopSafariUA` for the
+        // exact requirements). The base macOS WKWebView UA is just
         //   Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15
         //   (KHTML, like Gecko)   <-- missing Version/ and Safari/ tokens
-        // Cloudflare and other WAFs treat this as a bot, which is why
-        // "由 Cloudflare 提供的性能和安全服务" verification challenges fire on
-        // most sites. Setting `customUserAgent` to the full macOS 26.5
-        // Safari string makes the request indistinguishable from real Safari.
+        // Cloudflare and other WAFs treat that as an unknown client, which is
+        // why "由 Cloudflare 提供的性能和安全服务" verification challenges fire on
+        // most sites. `applicationNameForUserAgent` is only the fallback for
+        // the very first request (before the per-view `customUserAgent` below
+        // takes over); it must stay free of extra tokens so the fallback is
+        // also a complete, genuine-shaped Safari UA.
         config.defaultWebpagePreferences.preferredContentMode = .desktop
         // Explicitly enable HTML5 Fullscreen API for video sites (YouTube, etc.).
         // Defaults to true, but being explicit avoids edge cases where the
         // fullscreen transition silently no-ops inside SwiftUI-hosted WKWebView.
         config.preferences.isElementFullscreenEnabled = true
-        config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15 Desire/0.1"
+        config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15"
         contentBlocker?.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
@@ -107,50 +110,45 @@ class BrowserState: ObservableObject {
         Self.applyDesktopSafariUA(to: webView)
     }
 
-    /// Applies a complete, real-looking macOS 26.5 Safari User-Agent.
+    /// Applies the full desktop Safari User-Agent to a WKWebView instance.
     ///
-    /// **Important macOS-vs-iOS quirk**: `WKWebViewConfiguration` does
-    /// *not* expose a `customUserAgent` property (or KVC key) on macOS —
-    /// it is iOS-only. Calling `config.setValue(_:forKey: "customUserAgent")`
-    /// on macOS throws `NSUnknownKeyException` ("this class is not key value
-    /// coding-compliant for the key customUserAgent"), which the Swift
-    /// runtime bridges to a fatal `EXC_BREAKPOINT` and crashes the process.
-    ///
-    /// The macOS-correct path is to set `customUserAgent` on the **WKWebView
-    /// instance** after it's been constructed (the property is KVC-compliant
-    /// on the view, not the configuration). This static method must therefore
-    /// be called from `init` **after** `webView = BrowserWKWebView(...)`.
+    /// The macOS quirk that matters: `WKWebViewConfiguration` has no
+    /// `customUserAgent` (nor a KVC key for one) on any platform — the
+    /// configuration only offers `applicationNameForUserAgent`, which merely
+    /// appends a token to the short default UA. The view-level
+    /// `WKWebView.customUserAgent` property (public since macOS 10.11) is the
+    /// only way to install a complete UA, so it is set right after the view
+    /// is constructed, and again in `didStartProvisionalNavigation` (WebKit
+    /// bug 313542: the first `load(_:)` request can still go out with the
+    /// configuration fallback).
     ///
     /// This is the **single source of truth** for the desktop UA — every
     /// BrowserState instance starts with the same string so the back-forward
     /// cache and WAFs see a consistent identity.
     static func applyDesktopSafariUA(to webView: WKWebView) {
-        webView.setValue(_desktopSafariUA, forKey: "customUserAgent")
+        webView.customUserAgent = _desktopSafariUA
     }
 
     /// Cached desktop User-Agent for Desire.
     ///
-    /// Desire is a real, native macOS browser built on WKWebView. We identify
-    /// ourselves honestly: the UA matches what macOS 26.5 (Tahoe) Safari
-    /// 26.5.2 emits today, with a single trailing `Desire/0.1` token so
-    /// servers and WAFs can recognize the product family — *and* see the
-    /// underlying WebKit/Safari so they don't treat us as a generic
-    /// webview. Both halves matter:
+    /// Byte-identical to what Safari 26.5 on macOS 26.5 (Tahoe) emits. Every
+    /// token matters, and nothing may be appended:
     ///
-    /// - `Version/26.5 Safari/605.1.15` is what Apple's WebKit actually
-    ///   reports; the W3C-compatible `Mac OS X 10_15_7` OS-string is the
-    ///   legacy form that WebKit still emits (changing it to a real
-    ///   `26_5_2` will trigger Cloudflare's "unknown browser" rule).
-    /// - `Desire/0.1` is the product token. The RFC 9110 user-agent
-    ///   grammar allows appending a product comment, and honest browsers
-    ///   (Chrome, Firefox, Edge, Brave) do exactly this. Hiding the product
-    ///   name is a fingerprint-spoofing move that real browsers should not
-    ///   do — it just gets WAFs to flag us.
+    /// - `Mac OS X 10_15_7` is the legacy OS-string WebKit still emits;
+    ///   changing it to a real `26_5_2` trips Cloudflare's "unknown browser"
+    ///   rule.
+    /// - The string must **end** with `Safari/605.1.15`. WAFs validate
+    ///   Safari-claiming UAs against that exact shape, so a trailing product
+    ///   token (`Desire/0.1` — RFC 9110-legal as it is) marks the client as
+    ///   non-genuine and brings back the Cloudflare challenge / block page on
+    ///   plain page loads. Chrome and Firefox can afford extra tokens because
+    ///   they sit on WAFs' known-browser lists; a WebKit browser claiming
+    ///   Safari cannot. Desire's identity travels in other channels (bundle
+    ///   ID, About panel), not in the UA.
     private static let _desktopSafariUA: String =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-        + "Version/26.5 Safari/605.1.15 "
-        + "Desire/0.1"
+        + "Version/26.5 Safari/605.1.15"
 }
 
 struct WebView: NSViewRepresentable {
@@ -252,6 +250,9 @@ struct WebView: NSViewRepresentable {
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
+        /// Partial destination file for in-flight RESUMED downloads, keyed by
+        /// the new WKDownload object (cleared once decideDestination runs).
+        private var resumeDestinations: [ObjectIdentifier: URL] = [:]
         private var pendingUpgrades: [String: URL] = [:]
         private var fallbackInProgress: Set<String> = []
 
@@ -742,17 +743,38 @@ struct WebView: NSViewRepresentable {
             download.delegate = self
             let filename = download.originalRequest?.url?.lastPathComponent ?? String(localized: "Download")
             let sourceURL = download.originalRequest?.url
-            let id = parent.downloadStore.add(item: DownloadItem(
-                id: UUID(),
+            let id = UUID()
+            var item = DownloadItem(
+                id: id,
                 filename: filename,
                 fileURL: nil,
                 totalBytes: 0,
                 downloadedBytes: 0,
                 state: .inProgress,
                 error: nil,
-                cancel: { [weak download] in download?.cancel() },
+                cancel: { [weak download, weak store = parent.downloadStore] in
+                    download?.cancel { resumeData in
+                        Task { @MainActor [weak store] in
+                            store?.storeResumeData(resumeData, for: id)
+                        }
+                    }
+                },
                 sourceURL: sourceURL
-            ))
+            )
+            // REAL pause for webview downloads: WKDownload cannot be
+            // suspended, so pausing cancels it while producing resume data;
+            // resuming restarts from the partial file (see resumeDownload).
+            item.pauseAction = { [weak download, weak store = parent.downloadStore] in
+                download?.cancel { resumeData in
+                    Task { @MainActor [weak store] in
+                        store?.storeResumeData(resumeData, for: id)
+                    }
+                }
+            }
+            item.resumeAction = { [weak self] data in
+                Task { await self?.resumeDownload(data, itemID: id) }
+            }
+            parent.downloadStore.add(item: item)
             let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
                 Task { @MainActor [weak self] in
                     self?.parent.downloadStore.updateProgress(
@@ -766,7 +788,14 @@ struct WebView: NSViewRepresentable {
         }
 
         func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-            let destination = parent.downloadStore.uniqueURL(for: suggestedFilename)
+            let destination: URL
+            if let partial = resumeDestinations[ObjectIdentifier(download)] {
+                // Resumed download — continue into the SAME partial file.
+                destination = partial
+            } else {
+                destination = parent.downloadStore.uniqueURL(for: suggestedFilename)
+            }
+            resumeDestinations.removeValue(forKey: ObjectIdentifier(download))
             if let info = activeDownloads[ObjectIdentifier(download)] {
                 parent.downloadStore.setDestination(
                     id: info.id,
@@ -785,9 +814,33 @@ struct WebView: NSViewRepresentable {
         }
 
         func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-            if let info = activeDownloads.removeValue(forKey: ObjectIdentifier(download)) {
-                parent.downloadStore.fail(id: info.id, message: error.localizedDescription)
+            guard let info = activeDownloads.removeValue(forKey: ObjectIdentifier(download)) else { return }
+            parent.downloadStore.storeResumeData(resumeData, for: info.id)
+            // Pausing a webview download surfaces here as a cancel — keep the
+            // item paused with its resume data instead of failing it.
+            if parent.downloadStore.downloads.first(where: { $0.id == info.id })?.isPaused == true { return }
+            parent.downloadStore.fail(id: info.id, message: DownloadStore.DownloadFailure.describe(error))
+        }
+
+        /// Restores a paused/failed webview download from its resume data,
+        /// keeping the SAME item id and (when known) the SAME partial
+        /// destination file so progress and completion land on the original row.
+        func resumeDownload(_ resumeData: Data?, itemID: UUID) async {
+            guard let resumeData, !resumeData.isEmpty else { return }
+            let download = await parent.state.webView.resumeDownload(fromResumeData: resumeData)
+            download.delegate = self
+            let destination = parent.downloadStore.downloads.first(where: { $0.id == itemID })?.fileURL
+            resumeDestinations[ObjectIdentifier(download)] = destination
+            let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+                Task { @MainActor [weak self] in
+                    self?.parent.downloadStore.updateProgress(
+                        id: itemID,
+                        totalBytes: progress.totalUnitCount,
+                        downloadedBytes: progress.completedUnitCount
+                    )
+                }
             }
+            activeDownloads[ObjectIdentifier(download)] = DownloadInfo(id: itemID, progressObservation: observation)
         }
     }
 }

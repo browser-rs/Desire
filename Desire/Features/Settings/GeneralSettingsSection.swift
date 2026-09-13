@@ -10,6 +10,7 @@ struct GeneralSettingsSection: View {
             AppearanceSection(settings: settings)
             StartupSection(settings: settings)
             TabBehaviorSection(settings: settings)
+            ContainerSection()
             MediaSection(settings: settings)
             SearchSection(settings: settings)
             DownloadsSection(settings: settings, downloadStore: downloadStore)
@@ -77,6 +78,65 @@ private struct TabBehaviorSection: View {
                 Text("After current tab").tag(NewTabPosition.afterCurrent)
             }
             Toggle("Confirm before closing multiple tabs", isOn: $settings.confirmCloseMultipleTabs)
+            Picker("Suspend background tabs after", selection: $settings.suspendAfterMinutes) {
+                Text("5 Minutes").tag(5.0)
+                Text("10 Minutes").tag(10.0)
+                Text("30 Minutes").tag(30.0)
+                Text("1 Hour").tag(60.0)
+                Text("2 Hours").tag(120.0)
+                Text("Never").tag(-1.0)
+            }
+        }
+    }
+}
+
+// MARK: - Tab Containers
+
+/// Manages tab containers (Firefox multi-account-container style). Each
+/// container gets a persistent, isolated website data store; new tabs open
+/// into it via the "+" button's right-click menu in the tab bar.
+private struct ContainerSection: View {
+    @ObservedObject var store = ContainerStore.shared
+    @State private var newName = ""
+
+    var body: some View {
+        Section("Tab Containers") {
+            Text("Each container isolates cookies and sessions — use separate containers for different accounts on the same site. New container tabs open from the \"+\" button's right-click menu.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if store.containers.isEmpty {
+                Text("No containers")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(store.containers) { container in
+                HStack {
+                    Circle()
+                        .fill(container.color)
+                        .frame(width: 9, height: 9)
+                    Text(container.name)
+                    Spacer()
+                    Button("Delete") { store.removeContainer(container.id) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            }
+
+            HStack {
+                TextField("New container name", text: $newName)
+                    .onSubmit {
+                        guard !newName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        store.addContainer(name: newName)
+                        newName = ""
+                    }
+                Button("Add") {
+                    store.addContainer(name: newName)
+                    newName = ""
+                }
+                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
     }
 }

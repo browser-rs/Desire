@@ -8,11 +8,18 @@ extension BrowserToolProvider {
         [
             // --- Page reading ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "getPageText", description: "Get the visible text content of the current page",
+                name: "getPageSnapshot", description: "PREFERRED way to read the current page: returns JSON with the cleaned main-content text plus a list of visible interactive elements. Each element carries a data-desire-ref attribute — act on it with click/fill using the selector [data-desire-ref=\"e12\"].",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "maxChars": AIJSONSchemaValue(type: "number", description: "Max characters of text content (default 12000)"),
+                    "maxElements": AIJSONSchemaValue(type: "number", description: "Max interactive elements listed (default 60)"),
+                ])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "getPageHTML", description: "Get the full HTML of the current page",
+                name: "getPageHTML", description: "Get the full HTML of the current page (very large — use only when getPageSnapshot is not enough).",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
@@ -210,7 +217,7 @@ extension BrowserToolProvider {
 
             // --- Search engine ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "setSearchEngine", description: "Change the default search engine. Options: google, duckduckgo, bing, baidu",
+                name: "setSearchEngine", description: "Change the default search engine. Built-ins: google, duckduckgo, bing, baidu. Custom engines are matched by their name.",
                 parameters: AIJSONSchema(type: "object", properties: ["engine": AIJSONSchemaValue(type: "string", description: "Search engine name")], required: ["engine"])
             )),
 

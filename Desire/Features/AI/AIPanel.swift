@@ -61,6 +61,24 @@ struct AIPanel: View {
                 .padding(.top, 2)
             }
 
+            // The page the agent will actually act on — always the real tool
+            // target, so multi-window mismatches are visible at a glance.
+            if let context = store.contextLabel {
+                HStack(spacing: 4) {
+                    Image(systemName: "scope")
+                        .font(.system(size: 9))
+                    Text(context)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.08))
+            }
+
             if store.messages.isEmpty {
                 AIEmptyStateView { action in
                     store.performQuickAction(action)

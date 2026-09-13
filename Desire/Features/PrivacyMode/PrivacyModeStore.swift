@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 import WebKit
 
 @MainActor
@@ -127,7 +128,7 @@ class PrivacyModeStore: ObservableObject {
         ]
 
         WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) {
-            print("Privacy data cleared")
+            Log.privacy.info("privacy data cleared")
         }
     }
 

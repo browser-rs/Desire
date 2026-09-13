@@ -19,6 +19,15 @@ class FaviconStore {
     /// grow unbounded forever; entries older than this are swept on launch.
     private let diskCacheTTL: TimeInterval = 30 * 24 * 3600
 
+    /// One fetch task per domain — N suggestion rows for the same host used
+    /// to each fire their own 4-source fetch chain in parallel.
+    private var inFlight: [String: Task<NSImage?, Never>] = [:]
+    /// Domains with no favicon, with a retry-after date. Without this, every
+    /// render of a suggestion row for such a domain re-fired the whole
+    /// 4-source chain.
+    private var negativeUntil: [String: Date] = [:]
+    private let negativeTTL: TimeInterval = 10 * 60
+
     private init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
@@ -57,8 +66,30 @@ class FaviconStore {
         if let cached = memoryCache.object(forKey: key) {
             return cached
         }
+        if let until = negativeUntil[domain], until > Date() {
+            return nil
+        }
+        if let running = inFlight[domain] {
+            return await running.value
+        }
 
-        let diskPath = diskCacheDir.appendingPathComponent("\(sanitized(domain)).bin")
+        let path = diskPath(for: domain)
+        let task = Task<NSImage?, Never> { [weak self] in
+            await self?.loadFavicon(domain: domain, diskPath: path)
+        }
+        inFlight[domain] = task
+        let image = await task.value
+        inFlight[domain] = nil
+        return image
+    }
+
+    private func diskPath(for domain: String) -> URL {
+        diskCacheDir.appendingPathComponent("\(sanitized(domain)).bin")
+    }
+
+    /// The actual fetch pipeline, run exactly once per domain at a time.
+    private func loadFavicon(domain: String, diskPath: URL) async -> NSImage? {
+        let key = domain as NSString
         // Disk read off-main: cache misses shouldn't block the main actor
         // (one miss per address-suggestion row on first encounter).
         let path = diskPath.path
@@ -66,7 +97,7 @@ class FaviconStore {
             guard FileManager.default.fileExists(atPath: path) else { return nil }
             return try? Data(contentsOf: URL(fileURLWithPath: path))
         }.value
-        if let data = diskData, let img = NSImage(data: data) {
+        if let img = await Self.decode(diskData) {
             memoryCache.setObject(img, forKey: key)
             return img
         }
@@ -83,15 +114,31 @@ class FaviconStore {
             guard let url = URL(string: source) else { continue }
             guard let (data, response) = try? await URLSession.shared.data(from: url) else { continue }
             if let http = response as? HTTPURLResponse, http.statusCode >= 400 { continue }
-            // Reject tiny 1x1 placeholder images that some CDNs return
-            if data.count < 32 { continue }
-            if let img = NSImage(data: data), img.size.width >= 4 {
+            if let img = await Self.decode(data) {
                 memoryCache.setObject(img, forKey: key)
                 try? data.write(to: diskPath, options: .atomic)
                 return img
             }
         }
+
+        // Remember the failure so suggestion rows for this domain stop
+        // re-firing the whole chain on every render.
+        negativeUntil[domain] = Date().addingTimeInterval(negativeTTL)
+        if negativeUntil.count > 256 {
+            let cutoff = Date()
+            negativeUntil = negativeUntil.filter { $0.value > cutoff }
+        }
         return nil
+    }
+
+    /// Decodes image data off the main actor (NSImage(data:) of a favicon
+    /// is real work; N rows decoding on main hiccuped the UI) and rejects
+    /// tiny 1x1 placeholders some CDNs return.
+    private static func decode(_ data: Data?) async -> NSImage? {
+        guard let data, data.count >= 32 else { return nil }
+        let image = await Task.detached(priority: .userInitiated) { NSImage(data: data) }.value
+        guard let image, image.size.width >= 4 else { return nil }
+        return image
     }
 
     private func sanitized(_ domain: String) -> String {

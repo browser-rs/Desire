@@ -167,7 +167,7 @@ struct DesireApp: App {
     }
 
     private func postCommand(_ command: BrowserCommand) {
-        NotificationCenter.default.post(name: .browserCommand, object: command)
+        CommandBus.shared.send(command)
     }
 }
 
@@ -184,6 +184,3 @@ enum BrowserCommand {
     case screenshot
 }
 
-extension Notification.Name {
-    static let browserCommand = Notification.Name("browserCommand")
-}

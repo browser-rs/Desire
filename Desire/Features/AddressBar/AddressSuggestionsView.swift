@@ -15,26 +15,46 @@ struct AddressSuggestionsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if !recentSearches.isEmpty && model.suggestions.isEmpty {
-                searchHistorySection
-            } else {
-                ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                    row(for: suggestion, at: index)
-                    if index < model.suggestions.count - 1 {
-                        Divider()
+        if model.suggestions.isEmpty && recentSearches.isEmpty {
+            // No rows at all (fresh focus before typing) — render nothing
+            // instead of a stray stroked card.
+            EmptyView()
+        } else {
+            suggestionCard
+        }
+    }
+
+    private var suggestionCard: some View {
+        ScrollViewReader { proxy in
+            VStack(alignment: .leading, spacing: 0) {
+                if !recentSearches.isEmpty && model.suggestions.isEmpty {
+                    searchHistorySection
+                } else {
+                    ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                        row(for: suggestion, at: index)
+                        if index < model.suggestions.count - 1 {
+                            Divider()
+                        }
                     }
                 }
             }
+            .frame(maxWidth: 520, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: .radiusPopover))
+            .shadowElevated()
+            .overlay(
+                RoundedRectangle(cornerRadius: .radiusPopover)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
+            )
+            .onChange(of: model.selectedIndex) { _, newIndex in
+                // Keyboard selection drives the scroll so the highlighted
+                // row is always visible.
+                guard model.suggestions.indices.contains(newIndex) else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(model.suggestions[newIndex].id, anchor: .center)
+                }
+            }
         }
-        .frame(maxWidth: 520, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: .radiusPopover))
-        .shadowElevated()
-        .overlay(
-            RoundedRectangle(cornerRadius: .radiusPopover)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-        )
     }
 
     private var searchHistorySection: some View {
@@ -56,7 +76,7 @@ struct AddressSuggestionsView: View {
                     Text(entry.query)
                         .lineLimit(1)
                     Spacer()
-                    Text(entry.engine.rawValue)
+                    Text(entry.engine)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

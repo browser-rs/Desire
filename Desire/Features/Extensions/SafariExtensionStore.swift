@@ -1,4 +1,5 @@
 import Combine
+import os
 import Foundation
 import WebKit
 
@@ -74,7 +75,7 @@ class SafariExtensionStore: ObservableObject {
                 injectJS(js, into: webView)
                 injectCSS(css, into: webView)
             } catch {
-                print("Error loading content scripts for \(extension_.localizedName): \(error)")
+                Log.extensions.error("failed to load content scripts for \(extension_.localizedName): \(error.localizedDescription)")
             }
         }
     }
@@ -111,7 +112,7 @@ class SafariExtensionStore: ObservableObject {
             // 执行 background script
             webView.evaluateJavaScript(script, completionHandler: nil)
         } catch {
-            print("Error loading background script for \(extension_.localizedName): \(error)")
+            Log.extensions.error("failed to load background script for \(extension_.localizedName): \(error.localizedDescription)")
         }
     }
 

@@ -51,6 +51,11 @@ class AISessionStore: ObservableObject {
     /// `nil` otherwise. The AI panel shows it as a "via ..." badge.
     @Published var lastProviderUsed: String?
 
+    /// Human-readable description of the page the agent will act on
+    /// ("Title — host"), shown in the AI panel header. Always describes the
+    /// REAL tool target (`activeWebView`), never a stale pointer.
+    @Published var contextLabel: String?
+
     /// Token-delivery progress during streaming. Reset on `sendMessage`.
     @Published var streamingTokenCount = 0
     @Published var streamingTokensPerSecond: Double = 0
@@ -97,6 +102,31 @@ class AISessionStore: ObservableObject {
 
     func setWebView(_ wv: WKWebView?) {
         webView = wv
+        refreshContextLabel()
+    }
+
+    /// The webview the agent operates on, resolved AT CALL TIME: the active
+    /// window's selected tab (via the tool surface), falling back to the
+    /// last-bound webview. The old code used the stored `webView` directly —
+    /// with multiple windows it was whichever window rendered last, so the
+    /// agent could read and click the WRONG window's page.
+    private var activeWebView: WKWebView? {
+        toolProvider.surface?.tabManager?.selectedTab?.browser.webView ?? webView
+    }
+
+    private func refreshContextLabel() {
+        guard let wv = activeWebView else {
+            contextLabel = nil
+            return
+        }
+        let host = wv.url?.host ?? ""
+        let title = (wv.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        switch (title.isEmpty, host.isEmpty) {
+        case (true, true): contextLabel = nil
+        case (true, false): contextLabel = host
+        case (false, true): contextLabel = title
+        case (false, false): contextLabel = "\(title) — \(host)"
+        }
     }
 
     /// Attaches the browser tool surface (the app-state slice tools operate
@@ -117,6 +147,7 @@ class AISessionStore: ObservableObject {
         saveCurrentConversation()
         isProcessing = true
         isCancelled = false
+        refreshContextLabel()
         streamingTokenCount = 0
         streamingTokensPerSecond = 0
         loopTask = Task { await processLoop() }
@@ -204,7 +235,7 @@ class AISessionStore: ObservableObject {
     }
 
     private func fetchPageText() async -> String {
-        guard let wv = webView else { return "" }
+        guard let wv = activeWebView else { return "" }
         return await withCheckedContinuation { continuation in
             wv.evaluateJavaScript("document.body.innerText.substring(0, 20000)") { result, _ in
                 continuation.resume(returning: (result as? String) ?? "")
@@ -328,7 +359,7 @@ class AISessionStore: ObservableObject {
                 }
 
                 currentAction = tc.function.name
-                let result = await toolProvider.execute(tc, in: webView ?? WKWebView())
+                let result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
                 messages.append(AIMessage(
                     role: .tool,
                     content: result,
@@ -337,6 +368,9 @@ class AISessionStore: ObservableObject {
                 ))
             }
             currentAction = nil
+            // Tools may have navigated the page — the context label must
+            // describe the post-action state.
+            refreshContextLabel()
             saveCurrentConversation()
 
             if iterations >= maxIterations {

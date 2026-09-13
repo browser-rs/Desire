@@ -1,6 +1,9 @@
 import AppKit
 import Combine
 import SwiftUI
+// `@preconcurrency`: UNUserNotificationCenter is thread-safe but predates
+// Sendable annotations, which trips strict-concurrency captures.
+@preconcurrency import UserNotifications
 
 @MainActor
 class DownloadStore: ObservableObject {
@@ -128,18 +131,27 @@ class DownloadStore: ObservableObject {
 
     func pause(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].state == .inProgress else { return }
+        guard !downloads[i].isPaused else { return }
         downloads[i].isPaused = true
         downloads[i].speed = 0
-        // Actually suspend the underlying URLSession task so the network
-        // transfer halts (was display-only before).
-        activeTasks[id]?.suspend()
+        // Real transfer pause: URLSession tasks suspend; webview downloads
+        // cancel-with-resume-data (WKDownload cannot be suspended).
+        if let pauseAction = downloads[i].pauseAction {
+            pauseAction()
+        } else {
+            activeTasks[id]?.suspend()
+        }
     }
 
     func resume(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isPaused else { return }
         downloads[i].isPaused = false
         downloads[i].lastUpdateTime = Date()
-        activeTasks[id]?.resume()
+        if let resumeAction = downloads[i].resumeAction {
+            resumeAction(downloads[i].resumeData)
+        } else {
+            activeTasks[id]?.resume()
+        }
     }
 
     func setPriority(id: UUID, priority: DownloadItem.Priority) {
@@ -154,20 +166,14 @@ class DownloadStore: ObservableObject {
     }
 
     func pauseAll() {
-        for i in downloads.indices {
-            if downloads[i].state == .inProgress && !downloads[i].isPaused {
-                downloads[i].isPaused = true
-                downloads[i].speed = 0
-            }
+        for i in downloads.indices where downloads[i].state == .inProgress && !downloads[i].isPaused {
+            pause(id: downloads[i].id)
         }
     }
 
     func resumeAll() {
-        for i in downloads.indices {
-            if downloads[i].isPaused {
-                downloads[i].isPaused = false
-                downloads[i].lastUpdateTime = Date()
-            }
+        for i in downloads.indices where downloads[i].isPaused {
+            resume(id: downloads[i].id)
         }
     }
 
@@ -327,60 +333,131 @@ class DownloadStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    /// Re-runs a failed download. Prefers the item's stored resume data
+    /// (partial transfer continues); falls back to a fresh request.
     func retry(_ item: DownloadItem) {
+        if item.resumeData != nil, let resumeAction = item.resumeAction {
+            guard let i = downloads.firstIndex(where: { $0.id == item.id }) else { return }
+            downloads[i].state = .inProgress
+            downloads[i].isPaused = false
+            downloads[i].error = nil
+            downloads[i].lastUpdateTime = Date()
+            resumeAction(item.resumeData)
+            return
+        }
         guard let sourceURL = item.sourceURL else { return }
         remove(id: item.id)
-        let downloadTask = URLSession.shared.downloadTask(with: sourceURL) { tempURL, _, error in
+        startURLSessionDownload(sourceURL: sourceURL, filename: item.filename)
+    }
+
+    /// Store-owned transfer for retries ("下载链接" style): validates the HTTP
+    /// status (URLSession hands us the ERROR PAGE for a 404 and would happily
+    /// save it as the file), classifies failures, and captures resume data
+    /// when the server allows ranges.
+    private func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil) {
+        let itemId = UUID()
+        let completion: @Sendable (URL?, URLResponse?, Error?) -> Void = { [weak self] tempURL, response, error in
             Task { @MainActor [weak self] in
-                guard let self, let tempURL else {
-                    if let error {
-                        Task { @MainActor [weak self] in
-                            _ = self?.add(item: DownloadItem(
-                                id: UUID(), filename: item.filename, fileURL: nil,
-                                totalBytes: 0, downloadedBytes: 0,
-                                state: .failed, error: error.localizedDescription,
-                                cancel: nil, sourceURL: sourceURL
-                            ))
-                        }
-                    }
-                    return
-                }
-                let destination = self.uniqueURL(for: item.filename)
-                try? FileManager.default.moveItem(at: tempURL, to: destination)
-                let size = (try? FileManager.default.attributesOfItem(atPath: destination.path))?[.size] as? Int64 ?? 0
-                let itemId = UUID()
-                self.activeTasks[itemId] = nil
-                _ = self.add(item: DownloadItem(
-                    id: itemId, filename: item.filename, fileURL: destination,
-                    totalBytes: size, downloadedBytes: size,
-                    state: .completed, error: nil,
-                    cancel: nil, sourceURL: sourceURL
-                ))
-                self.notifyDownload(filename: item.filename)
+                self?.finishURLSessionDownload(id: itemId, tempURL: tempURL, response: response, error: error)
             }
         }
-        downloadTask.resume()
-        let itemId = UUID()
-        activeTasks[itemId] = downloadTask
-        _ = add(item: DownloadItem(
-            id: itemId, filename: item.filename, fileURL: nil,
+        let task: URLSessionDownloadTask
+        if let resumeData {
+            task = URLSession.shared.downloadTask(withResumeData: resumeData, completionHandler: completion)
+        } else {
+            task = URLSession.shared.downloadTask(with: sourceURL, completionHandler: completion)
+        }
+        activeTasks[itemId] = task
+        var item = DownloadItem(
+            id: itemId, filename: filename, fileURL: nil,
             totalBytes: 0, downloadedBytes: 0,
             state: .inProgress, error: nil,
-            cancel: { [weak self] in
-                downloadTask.cancel()
-                self?.activeTasks[itemId] = nil
-            }, sourceURL: sourceURL
-        ))
+            cancel: { [weak task] in
+                task?.cancel(byProducingResumeData: { _ in })
+            },
+            sourceURL: sourceURL
+        )
+        item.pauseAction = { [weak task] in task?.suspend() }
+        item.resumeAction = { [weak task] (_: Data?) in task?.resume() }
+        _ = add(item: item)
+        task.resume()
+    }
+
+    private func finishURLSessionDownload(id: UUID, tempURL: URL?, response: URLResponse?, error: Error?) {
+        activeTasks[id] = nil
+        if let error {
+            let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+            storeResumeData(resumeData, for: id)
+            fail(id: id, message: DownloadFailure.describe(error))
+            return
+        }
+        // A 4xx/5xx response still "succeeds" as a transfer — the payload is
+        // the server's error page. Never write that as the downloaded file.
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            fail(id: id, message: DownloadFailure.httpStatus(http.statusCode))
+            return
+        }
+        guard let tempURL else {
+            fail(id: id, message: String(localized: "The download produced no file"))
+            return
+        }
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        let destination = uniqueURL(for: downloads[i].filename)
+        try? FileManager.default.moveItem(at: tempURL, to: destination)
+        downloads[i].fileURL = destination
+        complete(id: id)
+    }
+
+    /// Stashes resume data on the item (in-memory) so pause/retry can
+    /// continue the partial transfer.
+    func storeResumeData(_ data: Data?, for id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].resumeData = data
+    }
+
+    /// Maps transfer failures to short, actionable localized messages.
+    enum DownloadFailure {
+        static func describe(_ error: Error) -> String {
+            if let urlError = error as? URLError {
+                switch urlError.code {
+                case .notConnectedToInternet: return String(localized: "No internet connection")
+                case .networkConnectionLost: return String(localized: "Connection lost")
+                case .timedOut: return String(localized: "Connection timed out")
+                case .cannotFindHost, .dnsLookupFailed: return String(localized: "Server not found")
+                case .cannotConnectToHost: return String(localized: "Could not connect to the server")
+                case .secureConnectionFailed, .serverCertificateUntrusted:
+                    return String(localized: "Secure connection failed")
+                default: break
+                }
+            }
+            return error.localizedDescription
+        }
+
+        static func httpStatus(_ code: Int) -> String {
+            switch code {
+            case 401, 403: return String(localized: "Server requires authentication")
+            case 404: return String(localized: "File not found on the server (404)")
+            case 408: return String(localized: "Request timed out")
+            case 500...599: return String(localized: "Server error (\(code))")
+            default: return String(localized: "Server returned HTTP \(code)")
+            }
+        }
     }
 
     private func notifyDownload(filename: String) {
         NSApp.requestUserAttention(.informationalRequest)
-        let userInfo: [String: Any] = ["filename": filename]
-        let notification = NSUserNotification()
-        notification.title = "下载完成"
-        notification.informativeText = filename
-        notification.userInfo = userInfo
-        NSUserNotificationCenter.default.deliver(notification)
+        // NSUserNotification was deprecated in macOS 11; UserNotifications is
+        // the replacement. The authorization prompt is shown once — macOS
+        // remembers the decision, so a repeated request is a no-op.
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "下载完成"
+            content.body = filename
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            center.add(request)
+        }
     }
 }
 

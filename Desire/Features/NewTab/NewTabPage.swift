@@ -37,6 +37,11 @@ struct NewTabPage: View {
                         suggestionModel.build(query: newValue, settings: settings, bookmarks: bookmarkStore, history: historyStore)
                     }
                 }
+                .onChange(of: searchFocused) { _, focused in
+                    // Leaving the box clears its dropdown, so a later visit
+                    // doesn't show suggestions left over from the last edit.
+                    if !focused { suggestionModel.reset() }
+                }
 
             ScrollView {
                 VStack(spacing: 32) {
@@ -67,7 +72,7 @@ struct NewTabPage: View {
             if searchFocused && !suggestionModel.isEmpty {
                 AddressSuggestionsView(
                     model: suggestionModel,
-                    engineName: settings.searchEngine.rawValue
+                    engineName: settings.effectiveEngineName
                 ) { sug in
                     suggestionModel.reset()
                     searchText = ""

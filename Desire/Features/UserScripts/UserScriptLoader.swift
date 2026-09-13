@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Loads bundled JavaScript resources from `Desire/UserScripts/*.js`.
 ///
@@ -22,14 +23,13 @@ import Foundation
 enum UserScriptLoader {
     static func load(_ name: String) -> String {
         guard let url = Bundle.main.url(forResource: name, withExtension: "js") else {
-            // TODO(stage 0): replace with OSLog once the logging subsystem lands.
-            print("⚠️ UserScriptLoader: resource not found — UserScripts/\(name).js")
+            Log.userScripts.error("resource not found — UserScripts/\(name, privacy: .public).js")
             return ""
         }
         do {
             return try String(contentsOf: url, encoding: .utf8)
         } catch {
-            print("⚠️ UserScriptLoader: failed to read UserScripts/\(name).js — \(error.localizedDescription)")
+            Log.userScripts.error("failed to read UserScripts/\(name, privacy: .public).js: \(error.localizedDescription)")
             return ""
         }
     }

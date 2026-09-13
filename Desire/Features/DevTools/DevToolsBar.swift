@@ -99,7 +99,7 @@ struct DevToolsBar: View {
     store.addConsoleMessage(level: .error, message: "Error")
     store.addConsoleMessage(level: .warn, message: "Warning")
     store.addConsoleMessage(level: .warn, message: "Warning 2")
-    let id = store.startNetworkRequest(url: "https://example.com", method: "GET", resourceType: .document)
+    _ = store.startNetworkRequest(url: "https://example.com", method: "GET", resourceType: .document)
     return VStack {
         DevToolsBar(store: store)
         Divider()

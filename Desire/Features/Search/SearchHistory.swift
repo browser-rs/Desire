@@ -3,10 +3,14 @@ import Foundation
 struct SearchHistory: Identifiable {
     let id: UUID
     let query: String
-    let engine: SearchEngine
+    /// Engine that ran the search — a built-in rawValue ("google") or a
+    /// custom engine's display name. String (not the `SearchEngine` enum)
+    /// so keyword-routed custom engines can be recorded; legacy JSON stored
+    /// the built-in rawValue, which decodes unchanged as a String.
+    let engine: String
     let timestamp: Date
 
-    init(id: UUID = UUID(), query: String, engine: SearchEngine, timestamp: Date = Date()) {
+    init(id: UUID = UUID(), query: String, engine: String, timestamp: Date = Date()) {
         self.id = id
         self.query = query
         self.engine = engine
@@ -27,7 +31,7 @@ extension SearchHistory: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         query = try container.decode(String.self, forKey: .query)
-        engine = try container.decode(SearchEngine.self, forKey: .engine)
+        engine = try container.decode(String.self, forKey: .engine)
         timestamp = try container.decode(Date.self, forKey: .timestamp)
     }
 

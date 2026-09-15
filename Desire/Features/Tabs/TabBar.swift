@@ -26,6 +26,8 @@ struct TabBar: View {
     let onTogglePin: (Int) -> Void
     /// Derived from TabGroupStore: group color for a tab (nil if ungrouped).
     let tabGroupColor: (UUID) -> Color?
+    /// Resolves a tab's container (nil for default-store tabs) for badge display.
+    let containerFor: (UUID?) -> TabContainer?
     /// Available tab groups (for context menus).
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -66,6 +68,7 @@ struct TabBar: View {
                                 ),
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
+                                containerColor: containerFor(tab.containerID)?.color,
                                 tabGroups: tabGroups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -119,6 +122,7 @@ struct TabBar: View {
                                 ),
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
+                                containerColor: containerFor(tab.containerID)?.color,
                                 tabGroups: tabGroups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -235,6 +239,8 @@ private struct TabPillView: View {
     let tabs: [Tab]
     /// Derived from TabGroupStore: the color for this tab's group, if any.
     let groupColor: Color?
+    /// Container badge color, if this tab belongs to a container.
+    let containerColor: Color?
     /// Available tab groups for the context menu.
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -257,6 +263,12 @@ private struct TabPillView: View {
                 Capsule()
                     .fill(gc)
                     .frame(width: 3, height: 14)
+            }
+            if let cc = containerColor {
+                Circle()
+                    .fill(cc)
+                    .frame(width: 7, height: 7)
+                    .help("Container tab")
             }
             if tab.isIncognito {
                 Image(systemName: "mask").font(.caption)

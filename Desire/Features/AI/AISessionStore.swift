@@ -177,6 +177,12 @@ class AISessionStore: ObservableObject {
         messages.append(AIMessage(role: .user, content: "[Selected element]\n\(context)"))
     }
 
+    /// Adds the user's text selection as context; the next typed message can
+    /// reference it ("翻译一下" / "解释第二段" …).
+    func addSelectedTextContext(_ text: String) {
+        messages.append(AIMessage(role: .user, content: "[Selected text]\n\(text)"))
+    }
+
     func cancel() {
         isCancelled = true
         isProcessing = false

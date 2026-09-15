@@ -27,8 +27,15 @@ extension BrowserToolProvider {
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "screenshot", description: "Take a screenshot of the current viewport, returns base64 PNG",
+                name: "screenshot", description: "Take a screenshot of the current viewport, returns base64 PNG. Pairs with clickAt: coordinates are viewport CSS pixels (getPageSnapshot reports the viewport size).",
                 parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). Use when DOM selectors fail (canvas apps, shadow DOM, virtual lists) or when a screenshot shows something you can't locate in the DOM.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "x": AIJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
+                    "y": AIJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),
+                ], required: ["x", "y"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getSelectedText", description: "Get the text currently selected by the user on the page",
@@ -51,8 +58,15 @@ extension BrowserToolProvider {
 
             // --- Tab management ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "newTab", description: "Open a new tab, optionally navigated to a URL",
-                parameters: AIJSONSchema(type: "object", properties: ["url": AIJSONSchemaValue(type: "string", description: "URL to load in the new tab (optional)")])
+                name: "newTab", description: "Open a new tab, optionally navigated to a URL and optionally inside a named container (isolated cookies — see listContainers)",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "url": AIJSONSchemaValue(type: "string", description: "URL to load in the new tab (optional)"),
+                    "container": AIJSONSchemaValue(type: "string", description: "Container name for isolated cookies (optional, see listContainers)"),
+                ])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "listContainers", description: "List tab containers (isolated cookie/session profiles) usable as the newTab container argument",
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "closeTab", description: "Close the current or specified tab by index (0-based)",

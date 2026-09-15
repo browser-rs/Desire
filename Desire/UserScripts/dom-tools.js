@@ -155,6 +155,14 @@ async function __desireSnapshot(maxChars, maxElements) {
     return JSON.stringify({
         title: document.title || "",
         url: location.href,
+        // Viewport geometry in CSS pixels — lets a vision model map
+        // screenshot pixels to clickAt(x, y) coordinates.
+        viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY
+        },
         text: text,
         elements: elements
     });

@@ -31,9 +31,11 @@ struct SelectedTabContent: View {
     /// Panel-visibility flags passed explicitly (not read through `content`)
     /// so SwiftUI correctly re-renders this view when they change.
     let showSidebar: Bool
-    let showAIPanel: Bool
+    @Binding var showAIPanel: Bool
     let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
+    /// Sends an AI prompt (and opens the panel) from the selection bar.
+    let onAskAI: (String) -> Void
     /// Draggable panel widths (persisted per-session, not across launches).
     @State private var devToolsWidth: CGFloat = 420
     @State private var aiPanelWidth: CGFloat = 320
@@ -119,6 +121,30 @@ struct SelectedTabContent: View {
                                 let responsiveW: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.width, geo.size.width - 40) : nil
                                 let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
                                 content.makeWebView(for: tab)
+                                    .overlay(alignment: .topLeading) {
+                                        // AI bar next to the user's text selection.
+                                        if let selection = tab.browser.selectionAI {
+                                            SelectionAIBar(
+                                                onExplain: {
+                                                    onAskAI("请用中文解释以下选中文本的含义，如有术语请一并说明：\n\n\(selection.text)")
+                                                    tab.browser.selectionAI = nil
+                                                },
+                                                onTranslate: {
+                                                    onAskAI("将以下内容翻译成中文（若原文已是中文则翻译成英文），只输出译文：\n\n\(selection.text)")
+                                                    tab.browser.selectionAI = nil
+                                                },
+                                                onAsk: {
+                                                    content.aiSession.addSelectedTextContext(selection.text)
+                                                    showAIPanel = true
+                                                    tab.browser.selectionAI = nil
+                                                }
+                                            )
+                                            .offset(
+                                                x: min(max(selection.viewportX * tab.browser.pageZoom, 8), max(geo.size.width - 220, 8)),
+                                                y: min(max(selection.viewportY * tab.browser.pageZoom + 10, 8), max(geo.size.height - 40, 8))
+                                            )
+                                        }
+                                    }
                                     .frame(width: responsiveW, height: responsiveH)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .overlay {

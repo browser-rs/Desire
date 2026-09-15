@@ -56,7 +56,7 @@ enum ToolRisk: Int, Comparable {
         "getPageSnapshot", "getPageText", "getPageHTML", "getPageTitle", "getSelectedText",
         "screenshot",
         // Listing / inspection
-        "listTabs", "listBookmarks", "getHistory", "listPlugins",
+        "listContainers", "listTabs", "listBookmarks", "getHistory", "listPlugins",
         "listBlockedElements", "listTabGroups", "listQuickDials", "listDownloads",
         // Navigation that doesn't lose state (history traversal)
         "goBack", "goForward",

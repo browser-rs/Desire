@@ -148,9 +148,13 @@ struct ContentView: View {
                 SelectedTabContent(
                     tab: tab, content: self, actions: b,
                     showSidebar: showSidebar,
-                    showAIPanel: showAIPanel,
+                    showAIPanel: $showAIPanel,
                     showDevToolsPanel: showDevToolsPanel,
-                    isFindBarVisible: isFindBarVisible
+                    isFindBarVisible: isFindBarVisible,
+                    onAskAI: { prompt in
+                        aiSession.sendMessage(prompt)
+                        showAIPanel = true
+                    }
                 )
             }
         }
@@ -202,6 +206,16 @@ struct ContentView: View {
         }
         .onReceive(CommandBus.shared.publisher) { command in
             commandDispatcher.handle(command)
+        }
+        .onChange(of: b.undoRule?.id) { _, ruleID in
+            // BrowsingActions publishes the interception; the toast lives in
+            // view state — bridge the two (this link was missing, so the
+            // undo toast never appeared).
+            guard let ruleID, let rule = b.undoRule else { return }
+            lastBlockedRuleId = ruleID
+            lastBlockedSelector = b.undoCssSelector
+            showUndoToast = true
+            _ = rule
         }
         .modifier(PanelsRouter(
             settings: settings,

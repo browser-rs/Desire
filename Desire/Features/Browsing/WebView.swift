@@ -4,9 +4,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
 
+/// A non-empty text selection reported by `selection-ai.js`, with the
+/// selection rect in viewport CSS pixels (for positioning the AI bar).
+struct SelectionAIInfo: Equatable {
+    let text: String
+    let viewportX: CGFloat
+    let viewportY: CGFloat
+}
+
 @MainActor
 class BrowserState: ObservableObject {
     let webView: BrowserWKWebView
+    /// Current user text selection (nil when collapsed/empty) — drives the
+    /// selection AI bar in `SelectedTabContent`.
+    @Published var selectionAI: SelectionAIInfo?
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
@@ -70,6 +81,8 @@ class BrowserState: ObservableObject {
         config.preferences.isElementFullscreenEnabled = true
         config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15"
         contentBlocker?.apply(to: config)
+        // Community filter lists (EasyList) — process-wide singleton.
+        FilterListStore.shared.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
@@ -100,6 +113,9 @@ class BrowserState: ObservableObject {
 
         let hoverScript = WKUserScript(source: UserScriptLoader.load("hover-link"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         config.userContentController.addUserScript(hoverScript)
+        // Text-selection watcher powering the AI selection bar.
+        let selectionScript = WKUserScript(source: UserScriptLoader.load("selection-ai"), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        config.userContentController.addUserScript(selectionScript)
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
@@ -271,6 +287,7 @@ struct WebView: NSViewRepresentable {
             webView.configuration.userContentController.add(self, name: "passwordSave")
             webView.configuration.userContentController.add(self, name: "readerContent")
             webView.configuration.userContentController.add(self, name: "hoverLink")
+            webView.configuration.userContentController.add(self, name: "selectionAI")
             webView.configuration.userContentController.add(self, name: "elementPicker")
             webView.configuration.userContentController.add(self, name: "videoAdBlocked")
             webView.configuration.userContentController.add(self, name: "devConsole")
@@ -299,6 +316,7 @@ struct WebView: NSViewRepresentable {
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordSave")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "selectionAI")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "videoAdBlocked")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "devConsole")
@@ -361,6 +379,14 @@ struct WebView: NSViewRepresentable {
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
+            } else if message.name == "selectionAI", let dict = message.body as? [String: Any] {
+                let text = dict["text"] as? String ?? ""
+                if text.isEmpty {
+                    parent.state.selectionAI = nil
+                } else if let x = (dict["x"] as? NSNumber)?.doubleValue,
+                          let y = (dict["y"] as? NSNumber)?.doubleValue {
+                    parent.state.selectionAI = SelectionAIInfo(text: text, viewportX: x, viewportY: y)
+                }
             } else if message.name == "elementPicker", let dict = message.body as? [String: String],
                       let selector = dict["cssSelector"] {
                 let xpath = dict["xpath"]

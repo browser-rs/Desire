@@ -50,8 +50,25 @@ extension BrowserToolProvider {
         case "newTab":
             let url = args["url"] as? String
             let jsEnabled = surface.settings.isJavaScriptEnabled
-            surface.tabManager?.addTab(url: url, javaScriptEnabled: jsEnabled, contentBlocker: surface.contentBlocker, videoAdBlocker: surface.videoAdBlocker)
-            return url.map { "Opened new tab with \($0)" } ?? "Opened new tab"
+            var containerID: UUID?
+            var containerNote = ""
+            if let containerName = args["container"] as? String, !containerName.isEmpty {
+                guard let container = ContainerStore.shared.containers.first(where: {
+                    $0.name.lowercased() == containerName.lowercased()
+                }) else {
+                    let names = ContainerStore.shared.containers.map(\.name).joined(separator: ", ")
+                    return "Container not found: \(containerName). Available: \(names.isEmpty ? "(none)" : names)"
+                }
+                containerID = container.id
+                containerNote = " in container \(container.name)"
+            }
+            surface.tabManager?.addTab(url: url, javaScriptEnabled: jsEnabled, contentBlocker: surface.contentBlocker, videoAdBlocker: surface.videoAdBlocker, containerID: containerID)
+            return (url.map { "Opened new tab with \($0)" } ?? "Opened new tab") + containerNote
+
+        case "listContainers":
+            let containers = ContainerStore.shared.containers
+            guard !containers.isEmpty else { return "No containers configured" }
+            return containers.map { "\($0.name) (\($0.colorName))" }.joined(separator: "\n")
 
         case "closeTab":
             if let index = args["index"] as? Int, index >= 0, index < (surface.tabManager?.tabs.count ?? 0) {
@@ -381,6 +398,20 @@ extension BrowserToolProvider {
             }
             return await callAsync(webView, function: "__desireClick", args: ["selector": sel])
 
+        case "clickAt":
+            // Vision-loop primitive: pairs with the screenshot tool. x/y are
+            // CSS pixels of the viewport (the coordinate space getPageSnapshot
+            // reports), dispatched as a REAL mouse event.
+            guard let x = args["x"] as? Double, let y = args["y"] as? Double else {
+                return "Missing x or y (viewport CSS pixels)"
+            }
+            guard webView.window != nil else {
+                return "No window attached — coordinate clicks need a visible webview"
+            }
+            let point = windowPoint(fromViewportX: x, y: y, in: webView)
+            await SyntheticInput.click(at: point, in: webView)
+            return "Clicked at (\(Int(x)), \(Int(y)))"
+
         case "fill":
             guard let sel = args["selector"] as? String, let val = args["value"] as? String else { return "Missing selector or value" }
             return await callAsync(webView, function: "__desireFill", args: ["selector": sel, "value": val])
@@ -453,9 +484,15 @@ extension BrowserToolProvider {
         // view/base-window px, bottom-left origin. pageZoom scales CSS px
         // into view px; `isFlipped` covers whichever orientation WKWebView
         // reports.
+        return windowPoint(fromViewportX: x + w / 2, y: y + h / 2, in: webView)
+    }
+
+    /// Converts a viewport CSS-pixel point (the coordinate space of
+    /// `getBoundingClientRect` and screenshots) into window-base coordinates
+    /// for synthetic event dispatch. Accounts for page zoom and view flip.
+    private func windowPoint(fromViewportX x: Double, y: Double, in webView: WKWebView) -> CGPoint {
         let zoom = CGFloat(webView.pageZoom)
-        let cssCenter = CGPoint(x: x + w / 2, y: y + h / 2)
-        let viewPoint = CGPoint(x: cssCenter.x * zoom, y: cssCenter.y * zoom)
+        let viewPoint = CGPoint(x: CGFloat(x) * zoom, y: CGFloat(y) * zoom)
         let cocoaPoint = webView.isFlipped
             ? viewPoint
             : CGPoint(x: viewPoint.x, y: webView.bounds.height - viewPoint.y)

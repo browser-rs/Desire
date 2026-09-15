@@ -18,6 +18,8 @@ struct PrivacySettingsStoreSection: View {
         SettingsContainer {
             // MARK: - Web Content
 
+            FilterListsSection()
+
             SettingsSection(
                 title: "Web Content",
                 subtitle: "Control how scripts, ads, and tracking behave on every site.",
@@ -427,5 +429,65 @@ private struct PermissionSection: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(minHeight: 44)
+    }
+}
+
+
+// MARK: - Filter Lists
+
+/// Community ad filter lists (EasyList China / EasyList) with automatic
+/// weekly updates, backed by `FilterListStore`.
+private struct FilterListsSection: View {
+    @ObservedObject var store = FilterListStore.shared
+
+    var body: some View {
+        SettingsSection(
+            title: "Filter Lists",
+            subtitle: "Community-maintained ad filter lists with weekly auto-updates.",
+            icon: "shield.lefthalf.filled"
+        ) {
+            VStack(spacing: 0) {
+                ForEach(store.lists) { list in
+                    SettingsToggleRow(
+                        list.name,
+                        subtitle: statusLine(for: list),
+                        systemImage: "list.bullet.rectangle",
+                        isOn: Binding(
+                            get: { list.isEnabled },
+                            set: { store.setEnabled($0, for: list.id) }
+                        )
+                    )
+                    SettingsRowDivider()
+                }
+
+                HStack {
+                    Button("立即更新全部") {
+                        for list in store.lists where list.isEnabled {
+                            store.refresh(id: list.id, force: true)
+                        }
+                    }
+                    .disabled(!store.lists.contains(where: { $0.isEnabled && !$0.isUpdating }))
+                    if store.lists.contains(where: { $0.isUpdating }) {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Spacer()
+                    Text("列表由 EasyList 社区维护，每 7 天自动更新")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    private func statusLine(for list: FilterListStore.ListState) -> String {
+        if list.isUpdating { return "正在更新…" }
+        if let error = list.errorText { return "更新失败：\(error)" }
+        guard let last = list.lastUpdated else { return list.subtitle + " · 尚未下载" }
+        let days = Int(Date().timeIntervalSince(last) / 86400)
+        let updated = days == 0 ? "今天" : "\(days) 天前"
+        let count = list.ruleCount.map { "· \($0) 条规则" } ?? ""
+        return "\(list.subtitle) · 上次更新：\(updated) \(count)"
     }
 }

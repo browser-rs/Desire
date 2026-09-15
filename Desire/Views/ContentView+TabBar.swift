@@ -75,6 +75,7 @@ extension ContentView {
             tabGroupColor: { [gColors = [Color.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]] tabId in
                 tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
             },
+            containerFor: { containerStore.container(for: $0) },
             tabGroups: tabGroupStore.groups,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },

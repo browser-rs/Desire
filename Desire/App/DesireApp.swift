@@ -4,6 +4,12 @@ import SwiftUI
 struct DesireApp: App {
     @StateObject private var appState = AppState()
 
+    init() {
+        // Production observability baseline: file MetricKit crash/hang
+        // diagnostics on every launch (crashes arrive the launch AFTER).
+        MetricsManager.shared.start()
+    }
+
     var body: some Scene {
         mainWindow
         settingsWindow

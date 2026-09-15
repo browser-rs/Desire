@@ -27,6 +27,32 @@ class AIPreferenceStore: ObservableObject {
         didSet { UserDefaults.standard.set(providerKind.rawValue, forKey: "aiProviderKind") }
     }
 
+    /// Identifies the active cloud provider ("openai", "deepseek", "zhipu",
+    /// "opencode-go", or a custom id). Used to select the per-provider API
+    /// key from Keychain and to resolve preset endpoint/model values.
+    @Published var cloudProviderID: String {
+        didSet { UserDefaults.standard.set(cloudProviderID, forKey: "aiCloudProviderID") }
+    }
+
+    /// Saved endpoint profiles — each is a self-contained {name, url, model}
+    /// combo. Users add one per model/service combo they use (e.g. "GLM-4
+    /// Plus via Zhipu", "GPT-4o via OpenCode Go"). Switching profiles copies
+    /// the URL + model into the active endpoint/model fields.
+    @Published var savedEndpoints: [SavedAIEndpoint] {
+        didSet { DiskStore.save(savedEndpoints, key: "aiSavedEndpoints") }
+    }
+    /// Which saved endpoint is active (drives the AI's actual API calls).
+    @Published var activeEndpointID: UUID? {
+        didSet { UserDefaults.standard.set(activeEndpointID?.uuidString, forKey: "aiActiveEndpointID") }
+    }
+
+    /// The active saved endpoint, if any. When set, `endpoint` and `model`
+    /// delegates to this entry's values.
+    var activeSavedEndpoint: SavedAIEndpoint? {
+        guard let id = activeEndpointID else { return nil }
+        return savedEndpoints.first(where: { $0.id == id })
+    }
+
     /// Ollama server base URL. Only used when `providerKind == .ollama`.
     @Published var ollamaHost: String {
         didSet { UserDefaults.standard.set(ollamaHost, forKey: "aiOllamaHost") }
@@ -78,7 +104,12 @@ class AIPreferenceStore: ObservableObject {
     var routingLockedToCloud = false
 
     private let keychainService = "me.siwi.Desire"
-    private let keychainAccount = "ai-api-key"
+    /// Legacy single-key account — checked once during migration.
+    private let legacyKeychainAccount = "ai-api-key"
+
+    /// Keychain account for the ACTIVE cloud provider. Each provider gets
+    /// its own key so switching providers switches the credential too.
+    private var keychainAccount: String { "ai-key-" + cloudProviderID }
 
     init() {
         // Initialize all stored @Published properties before calling any
@@ -97,17 +128,48 @@ class AIPreferenceStore: ObservableObject {
         }
         ollamaHost = UserDefaults.standard.string(forKey: "aiOllamaHost") ?? "http://localhost:11434/v1"
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
+        ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
+        cloudProviderID = UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"
+        savedEndpoints = DiskStore.load([SavedAIEndpoint].self, key: "aiSavedEndpoints") ?? []
+        activeEndpointID = UserDefaults.standard.string(forKey: "aiActiveEndpointID").flatMap { UUID(uuidString: $0) }
+
+        // Legacy migration: if the old single "ai-api-key" exists and no
+        // per-provider key has been saved yet for the default provider,
+        // copy it forward so the upgrade is transparent.
+        if loadAPIKey() == nil,
+           let legacyKey = keychainRead(account: legacyKeychainAccount),
+           let legacyData = legacyKey.data(using: .utf8) {
+            keychainWrite(data: legacyData, account: "ai-key-openai")
+            keychainDelete(account: legacyKeychainAccount)
+        }
 
         // Now fully initialized — safe to call self methods.
         hasAPIKey = loadAPIKey() != nil
     }
 
     func loadAPIKey() -> String? {
+        keychainRead(account: keychainAccount)
+    }
+
+    func saveAPIKey(_ key: String) {
+        guard let data = key.data(using: .utf8) else { return }
+        keychainWrite(data: data, account: keychainAccount)
+        hasAPIKey = true
+    }
+
+    func deleteAPIKey() {
+        keychainDelete(account: keychainAccount)
+        hasAPIKey = false
+    }
+
+    // MARK: - Keychain primitives
+
+    private func keychainRead(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -118,27 +180,24 @@ class AIPreferenceStore: ObservableObject {
         return key
     }
 
-    func saveAPIKey(_ key: String) {
-        deleteAPIKey()
-        guard let data = key.data(using: .utf8) else { return }
+    private func keychainWrite(data: Data, account: String) {
+        keychainDelete(account: account)
         let query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrAccount as String: account,
             kSecValueData as String: data,
         ]
         SecItemAdd(query as CFDictionary, nil)
-        hasAPIKey = true
     }
 
-    func deleteAPIKey() {
+    private func keychainDelete(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
-        hasAPIKey = false
     }
 
     static let defaultPrompt = """
@@ -200,3 +259,20 @@ enum ModelProviderKind: String, CaseIterable, Codable {
     }
 }
 
+
+
+/// A saved AI provider configuration (endpoint + model combo).
+/// Persisted via DiskStore alongside the AIPreferenceStore.
+struct SavedAIEndpoint: Identifiable, Codable, Equatable {
+    let id: UUID
+    var name: String
+    var url: String
+    var model: String
+
+    init(id: UUID = UUID(), name: String, url: String, model: String) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.model = model
+    }
+}

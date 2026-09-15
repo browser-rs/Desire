@@ -39,6 +39,9 @@ struct AISettingsSection: View {
     @State private var showKey = false
     @State private var testStatus: String?
     @State private var isTesting = false
+    /// Models fetched from the API's `/models` endpoint (nil = not fetched).
+    @State private var fetchedModels: [String]? = nil
+    @State private var isFetchingModels = false
 
     var body: some View {
         SettingsContainer {
@@ -185,6 +188,160 @@ struct AISettingsSection: View {
         .onAppear {
             apiKey = store.loadAPIKey() ?? ""
         }
+        .onChange(of: store.cloudProviderID) { _, _ in
+            // Switching providers reloads the API key (per-provider keychain).
+            apiKey = store.loadAPIKey() ?? ""
+        }
+    }
+
+    // MARK: - Saved endpoints
+
+    private func saveCurrentEndpoint() {
+        let name = store.cloudProviderID
+        let endpoint = store.endpoint
+        let model = store.model
+        guard !endpoint.isEmpty else { return }
+        store.savedEndpoints.append(SavedAIEndpoint(name: name, url: endpoint, model: model))
+        store.activeEndpointID = store.savedEndpoints.last?.id
+    }
+
+    // MARK: - Saved endpoints
+
+    @ViewBuilder
+    private func savedEndpointRow(_ ep: SavedAIEndpoint) -> some View {
+        let isActive = store.activeEndpointID == ep.id
+        HStack(spacing: 6) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .font(.system(size: 11))
+            Text(ep.name)
+                .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                .lineLimit(1)
+            Spacer()
+            Button {
+                store.savedEndpoints.removeAll { $0.id == ep.id }
+                if store.activeEndpointID == ep.id { store.activeEndpointID = nil }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { switchToEndpoint(ep) }
+    }
+
+    private func switchToEndpoint(_ ep: SavedAIEndpoint) {
+        store.activeEndpointID = ep.id
+        store.endpoint = ep.url
+        store.model = ep.model
+        apiKey = store.loadAPIKey() ?? ""
+    }
+
+    // MARK: - Model picker + fetch
+
+    private var fetchModelsSubtitle: String {
+        if let models = fetchedModels, !models.isEmpty {
+            return "\(models.count) models available"
+        }
+        return "Query the provider's /models endpoint for available models."
+    }
+
+    private func fetchModels() {
+        isFetchingModels = true
+        let ep = store.endpoint
+        let key = apiKey
+        Task {
+            do {
+                let models = try await ModelListFetcher.fetch(endpoint: ep, apiKey: key)
+                fetchedModels = models
+            } catch {
+                fetchedModels = nil
+            }
+            isFetchingModels = false
+        }
+    }
+
+    @ViewBuilder
+    /// Returns the preset model list for the ACTIVE cloud provider.
+    /// Each provider has its own model lineup (Zhipu → GLM series, OpenAI
+    /// → GPT series, etc.) so the picker reflects what's actually available.
+    private var providerModelPresets: [String] {
+        switch store.cloudProviderID {
+        case "openai":
+            return ["gpt-4o", "gpt-4o-mini", "o3-mini", "gpt-4-turbo", "o1-preview"]
+        case "deepseek":
+            return ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"]
+        case "zhipu":
+            return ["glm-4-plus", "glm-4-flash", "glm-4-long", "glm-4v-plus", "glm-4-air"]
+        case "opencode-go":
+            return ["glm-4-plus", "deepseek-chat", "claude-3-5-sonnet"]
+        default:
+            return []
+        }
+    }
+
+    private var modelPickerRow: some View {
+        SettingsRow("Model", subtitle: modelPickerSubtitle, systemImage: "cpu") {
+            Menu {
+                // Presets for the active provider
+                Section("Models") {
+                    ForEach(providerModelPresets, id: \.self) { model in
+                        Button(model) { store.model = model }
+                    }
+                }
+                // Fetched models from the API
+                if let models = fetchedModels, !models.isEmpty {
+                    Section("Fetched from API") {
+                        ForEach(models, id: \.self) { model in
+                            Button(model) { store.model = model }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text(store.model.isEmpty ? "Select a model…" : store.model)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.08))
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .frame(maxWidth: 260, alignment: .leading)
+        }
+    }
+
+    private var modelPickerSubtitle: String {
+        if let models = fetchedModels, !models.isEmpty {
+            return "\(models.count) models from the API"
+        }
+        return "Pick a preset, fetch from the API, or type a custom name."
+    }
+
+    private func presetChip(_ name: String, providerID: String, endpoint: String, model: String) -> some View {
+        Button(name) {
+            store.cloudProviderID = providerID
+            store.endpoint = endpoint
+            if !model.isEmpty { store.model = model }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(Color.secondary.opacity(0.1)))
+        .foregroundStyle(.primary)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Foundation Models section
@@ -274,29 +431,53 @@ struct AISettingsSection: View {
                 }
                 SettingsRowDivider()
 
-                SettingsPickerRow(
-                    "Model",
-                    subtitle: "Pick a preset or choose Custom to type a name.",
-                    systemImage: "cpu",
-                    selection: Binding(
-                        get: { ModelPreset.matching(store.model) },
-                        set: { newPreset in
-                            if newPreset == .custom {
-                                store.model = ""
-                            } else {
-                                store.model = newPreset.rawValue
+                // Provider quick presets — switching sets cloudProviderID,
+                // endpoint, model, AND loads the per-provider API key.
+                SettingsRow("Provider Presets", subtitle: "Quick setup — click to fill endpoint + model.", systemImage: "bolt") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            presetChip("OpenAI", providerID: "openai", endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4o")
+                            presetChip("DeepSeek", providerID: "deepseek", endpoint: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat")
+                            presetChip("Zhipu GLM", providerID: "zhipu", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", model: "glm-4-plus")
+                            presetChip("OpenCode Go", providerID: "opencode-go", endpoint: "https://api.opencode.ai/v1/chat/completions", model: "")
+                        }
+                    }
+                }
+                SettingsRowDivider()
+
+                // Saved endpoint profiles — switch between configurations.
+                if !store.savedEndpoints.isEmpty {
+                    SettingsRow("Saved Configurations", subtitle: "Click to switch.", systemImage: "square.stack") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(store.savedEndpoints) { ep in
+                                savedEndpointRow(ep)
                             }
                         }
-                    ),
-                    options: ModelPreset.allCases,
-                    label: { $0.displayName }
-                )
-
-                if ModelPreset.matching(store.model) == .custom {
-                    SettingsRow("Custom Model Name", subtitle: nil, systemImage: "pencil") {
-                        SettingsTextField(placeholder: "e.g. my-fine-tuned-model", text: $store.model, width: 220)
                     }
-                    .padding(.top, 4)
+                    SettingsRowDivider()
+                }
+
+                // Model picker: dynamic (presets + fetched + custom text).
+                modelPickerRow
+                SettingsRowDivider()
+
+                // Fetch models from the API
+                SettingsRow("Fetch Models", subtitle: fetchModelsSubtitle, systemImage: "arrow.down.circle") {
+                    Button {
+                        fetchModels()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isFetchingModels { ProgressView().scaleEffect(0.5) }
+                            Text(isFetchingModels ? "Fetching…" : "Fetch")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.secondary.opacity(0.1)))
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isFetchingModels || apiKey.isEmpty)
                 }
 
                 SettingsRowDivider()
@@ -333,6 +514,15 @@ struct AISettingsSection: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    Button {
+                        saveCurrentEndpoint()
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Save this endpoint + model configuration")
 
                     Spacer()
 

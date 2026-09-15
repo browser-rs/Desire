@@ -35,8 +35,10 @@ class FilterListStore: ObservableObject {
     @Published private(set) var lists: [ListState] = []
 
     private let definitions: [ListState] = [
+        // China list is ON by default: it is the single highest-value
+        // first-run feature, and the fetch/compile runs in the background.
         ListState(id: "easylist-china", name: "EasyList China", subtitle: "中文广告过滤（国内网站）",
-                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylistchina.txt")!, isEnabled: false),
+                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylistchina.txt")!, isEnabled: true),
         ListState(id: "easylist", name: "EasyList", subtitle: "国际广告过滤（英文网站）",
                   sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylist.txt")!, isEnabled: false),
     ]

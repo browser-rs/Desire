@@ -16,6 +16,14 @@ extension ContentView {
             showSwitcher: showTabSwitcher,
             onSelectTab: { index in
                 isUrlFocused = false
+                // Selecting a tab that belongs to a collapsed group expands
+                // the group first — otherwise the selection would be invisible.
+                if tabManager.tabs.indices.contains(index) {
+                    let tab = tabManager.tabs[index]
+                    if let group = tabGroupStore.group(for: tab.id), group.isCollapsed {
+                        tabGroupStore.setCollapsed(group.id, false)
+                    }
+                }
                 tabManager.selectTab(at: index)
                 showTabSwitcher = false
                 // 更新选中标签页的缩略图
@@ -76,6 +84,8 @@ extension ContentView {
                 tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
             },
             containerFor: { containerStore.container(for: $0) },
+            onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },
+            onDeleteGroup: { tabGroupStore.delete($0) },
             tabGroups: tabGroupStore.groups,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },

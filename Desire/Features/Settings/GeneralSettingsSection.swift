@@ -291,6 +291,7 @@ private struct AccentSwatch: View {
 private struct ContainerSection: View {
     @ObservedObject var store = ContainerStore.shared
     @State private var newName = ""
+    @State private var wipingContainer: TabContainer?
 
     var body: some View {
         SettingsSection(
@@ -344,6 +345,22 @@ private struct ContainerSection: View {
                 .padding(.vertical, 10)
             }
         }
+        .alert(
+            "Wipe container data?",
+            isPresented: Binding(
+                get: { wipingContainer != nil },
+                set: { if !$0 { wipingContainer = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button("Wipe Data", role: .destructive) {
+                if let container = wipingContainer {
+                    Task { await store.purgeData(for: container.id) }
+                }
+            }
+        } message: {
+            Text("This removes all cookies and site data of the container. Websites will log you out.")
+        }
     }
 
     private func containerRow(_ container: TabContainer) -> some View {
@@ -354,6 +371,15 @@ private struct ContainerSection: View {
             Text(container.name)
                 .font(.system(size: 12, weight: .medium))
             Spacer()
+            Button {
+                wipingContainer = container
+            } label: {
+                Image(systemName: "eraser")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Wipe data")
             Button {
                 store.removeContainer(container.id)
             } label: {
@@ -491,6 +517,27 @@ private struct SystemSection: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Diagnostics")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("Crash and performance reports collected via MetricKit.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    MetricsManager.shared.revealDiagnosticsFolder()
+                } label: {
+                    Text("Show in Finder")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.secondary.opacity(0.18)))
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

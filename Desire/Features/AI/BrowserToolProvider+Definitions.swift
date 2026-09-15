@@ -41,6 +41,12 @@ extension BrowserToolProvider {
                 name: "getSelectedText", description: "Get the text currently selected by the user on the page",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "readTab", description: "Get a structured snapshot (text + interactive elements) of ANOTHER tab without switching to it — use with listTabs for cross-tab comparison and research tasks",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "index": AIJSONSchemaValue(type: "number", description: "Tab index (0-based, from listTabs)"),
+                ], required: ["index"])
+            )),
 
             // --- Navigation ---
             AIToolDef(type: "function", function: AIToolFunctionDef(

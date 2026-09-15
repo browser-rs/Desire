@@ -278,7 +278,7 @@ class AISessionStore: ObservableObject {
             lastProviderUsed = active.viaLabel
             let stream = active.provider.stream(
                 messages: messages,
-                tools: BrowserToolProvider.toolDefs,
+                tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
                 prefs: preference
             )
 

@@ -42,6 +42,7 @@ struct AISettingsSection: View {
 
     var body: some View {
         SettingsContainer {
+            MCPServersSection()
             SettingsSection(
                 title: "Provider",
                 subtitle: store.providerKind.detail,
@@ -504,6 +505,91 @@ extension ModelProviderKind {
         case .cloud: "cloud"
         case .ollama: "server.rack"
         case .routing: "arrow.triangle.branch"
+        }
+    }
+}
+
+
+// MARK: - MCP Servers
+
+/// Manages remote MCP servers whose tools are bridged into the agent's
+/// tool table (`MCPStore`). Experimental: HTTP transport only.
+struct MCPServersSection: View {
+    @ObservedObject var store = MCPStore.shared
+    @State private var newName = ""
+    @State private var newURL = ""
+
+    var body: some View {
+        SettingsSection(
+            title: "MCP Servers",
+            subtitle: "Extend the AI with external tools over MCP (HTTP transport). Experimental.",
+            icon: "server.rack"
+        ) {
+            VStack(spacing: 0) {
+                if store.servers.isEmpty {
+                    Text("No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
+                ForEach(store.servers) { server in
+                    HStack(spacing: 10) {
+                        Toggle("", isOn: Binding(
+                            get: { server.isEnabled },
+                            set: { store.setEnabled($0, for: server.id) }
+                        ))
+                        .labelsHidden()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(server.name)
+                                .font(.system(size: 12, weight: .medium))
+                            Text(server.url)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer()
+                        Text(store.statuses[server.id] ?? (server.isEnabled ? "—" : "disabled"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Button {
+                            store.reconnect(server.id)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Reconnect")
+                        Button {
+                            store.removeServer(server.id)
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove")
+                    }
+                    .padding(.vertical, 4)
+                    SettingsRowDivider()
+                }
+
+                HStack {
+                    TextField("Name", text: $newName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                    TextField("http://127.0.0.1:3000/mcp", text: $newURL)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        store.addServer(name: newName, url: newURL)
+                        newName = ""
+                        newURL = ""
+                    }
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
+                              || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(.top, 6)
+            }
         }
     }
 }

@@ -54,6 +54,7 @@ enum ToolRisk: Int, Comparable {
     private static let readonlyTools: Set<String> = [
         // Page reading
         "getPageSnapshot", "getPageText", "getPageHTML", "getPageTitle", "getSelectedText",
+        "readTab",
         "screenshot",
         // Listing / inspection
         "listContainers", "listTabs", "listBookmarks", "getHistory", "listPlugins",

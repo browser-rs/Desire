@@ -45,4 +45,8 @@ nonisolated struct AIJSONSchema: Codable, Sendable {
 nonisolated struct AIJSONSchemaValue: Codable, Sendable {
     let type: String
     var description: String?
+    /// Nested object properties — MCP tool schemas are arbitrarily deep,
+    /// so the value type must recurse (arrays/dicts break the recursion).
+    var properties: [String: AIJSONSchemaValue]?
+    var required: [String]?
 }

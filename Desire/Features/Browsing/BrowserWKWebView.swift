@@ -6,6 +6,9 @@ import WebKit
 class BrowserWKWebView: WKWebView {
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
+    /// Opens `url` in a new tab bound to `container` (isolated cookies) —
+    /// wired by ContentView to TabManager.addTab.
+    var onOpenInContainer: ((URL, TabContainer) -> Void)?
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
@@ -75,6 +78,25 @@ class BrowserWKWebView: WKWebView {
                 copyLink.target = self
                 copyLink.representedObject = url
                 menu.addItem(copyLink)
+
+                // Open this link inside a container tab (isolated cookies).
+                let containers = ContainerStore.shared.containers
+                if !containers.isEmpty {
+                    let containerItem = NSMenuItem(title: String(localized: "Open in Container"), action: nil, keyEquivalent: "")
+                    let submenu = NSMenu()
+                    for container in containers {
+                        let item = NSMenuItem(
+                            title: container.name,
+                            action: #selector(self.openLinkInContainer(_:)),
+                            keyEquivalent: ""
+                        )
+                        item.target = self
+                        item.representedObject = "\(container.id.uuidString)|\(url.absoluteString)"
+                        submenu.addItem(item)
+                    }
+                    containerItem.submenu = submenu
+                    menu.addItem(containerItem)
+                }
             }
         }
     }
@@ -87,6 +109,16 @@ class BrowserWKWebView: WKWebView {
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         onOpenLinkInNewTab?(url)
+    }
+
+    @objc private func openLinkInContainer(_ sender: NSMenuItem) {
+        guard let payload = sender.representedObject as? String else { return }
+        let parts = payload.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let containerID = UUID(uuidString: String(parts[0])),
+              let container = ContainerStore.shared.container(for: containerID),
+              let url = URL(string: String(parts[1])) else { return }
+        onOpenInContainer?(url, container)
     }
 
     @objc private func saveImage(_ sender: NSMenuItem) {

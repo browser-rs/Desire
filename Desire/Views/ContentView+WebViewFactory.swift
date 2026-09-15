@@ -10,6 +10,16 @@ extension ContentView {
             aiSession.addContext(html: html, selector: selector)
         }
         aiSession.setWebView(tab.browser.webView)
+        tab.browser.webView.onOpenInContainer = { url, container in
+            tabManager.addTab(
+                url: url.absoluteString,
+                javaScriptEnabled: settings.isJavaScriptEnabled,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker,
+                newTabPosition: settings.newTabPosition,
+                containerID: container.id
+            )
+        }
         return WebView(
             state: tab.browser,
             downloadStore: downloadStore,

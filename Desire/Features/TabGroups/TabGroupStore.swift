@@ -39,6 +39,17 @@ class TabGroupStore: ObservableObject {
         save()
     }
 
+    func setCollapsed(_ id: UUID, _ collapsed: Bool) {
+        guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
+        groups[i].isCollapsed = collapsed
+        save()
+    }
+
+    func toggleCollapsed(_ id: UUID) {
+        guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
+        setCollapsed(id, !groups[i].isCollapsed)
+    }
+
     func group(for tabId: UUID) -> TabGroup? {
         groups.first { $0.tabIds.contains(tabId) }
     }

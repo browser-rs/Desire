@@ -49,12 +49,28 @@ class ContainerStore: ObservableObject {
     }
 
     /// Removes the container from the list. The underlying website data store
-    /// is intentionally NOT wiped — tabs may still be using it; offering
-    /// "delete container + its data" is future work.
+    /// is intentionally NOT wiped here — tabs may still be using it; use
+    /// `purgeData(for:)` to wipe a container's data explicitly.
     func removeContainer(_ id: UUID) {
         containers.removeAll { $0.id == id }
         dataStores[id] = nil
         save()
+    }
+
+    /// Wipes ALL website data of a container (cookies, storage, caches).
+    /// Every site logged into through this container will sign out.
+    func purgeData(for id: UUID) async {
+        guard let store = dataStore(for: id) else { return }
+        let types: Set<String> = [
+            WKWebsiteDataTypeCookies,
+            WKWebsiteDataTypeLocalStorage,
+            WKWebsiteDataTypeSessionStorage,
+            WKWebsiteDataTypeIndexedDBDatabases,
+            WKWebsiteDataTypeDiskCache,
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeServiceWorkerRegistrations,
+        ]
+        await store.removeData(ofTypes: types, modifiedSince: .distantPast)
     }
 
     private func save() {

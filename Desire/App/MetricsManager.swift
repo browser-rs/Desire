@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MetricKit
 import os
@@ -25,6 +26,12 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         subscribed = true
         MXMetricManager.shared.add(self)
         Log.app.info("MetricKit subscriber registered")
+    }
+
+    /// Reveals (creating if needed) the diagnostics folder in Finder.
+    func revealDiagnosticsFolder() {
+        try? FileManager.default.createDirectory(at: DiagnosticsStore.directory, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([DiagnosticsStore.directory])
     }
 
     /// Daily/weekly performance metrics: launch times, hang rate, memory,

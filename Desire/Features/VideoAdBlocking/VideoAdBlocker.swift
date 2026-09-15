@@ -28,7 +28,10 @@ class VideoAdBlocker: ObservableObject {
     @Published var blockedCount: Int = 0
 
     init() {
-        isEnabled = UserDefaults.standard.bool(forKey: "videoAdBlockerEnabled")
+        // Unset key must default to ON (the declared intent) — plain
+        // `bool(forKey:)` returns false on first launch and silently
+        // disabled the blocker for every new user.
+        isEnabled = UserDefaults.standard.object(forKey: "videoAdBlockerEnabled") as? Bool ?? true
     }
 
     /// Reports that `n` more ads were just removed. Exposed as a method

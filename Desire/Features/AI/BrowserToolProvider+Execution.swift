@@ -21,6 +21,23 @@ extension BrowserToolProvider {
             let maxElements = args["maxElements"] as? Int ?? 60
             return await callAsync(webView, function: "__desireSnapshot",
                                    args: ["maxChars": maxChars, "maxElements": maxElements])
+        case "readTab":
+            // Cross-tab perception: snapshot another tab's page without
+            // switching. Suspended tabs are blanked webviews — say so
+            // instead of returning an empty snapshot.
+            guard let index = args["index"] as? Int,
+                  let tabs = surface.tabManager?.tabs,
+                  tabs.indices.contains(index) else {
+                return "Invalid tab index (use listTabs)"
+            }
+            let target = tabs[index]
+            guard !target.isSuspended else {
+                return "Tab \(index) is suspended — switchTab to it first, then readTab"
+            }
+            let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
+                                           args: ["maxChars": 6000, "maxElements": 25])
+            return "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
+
         case "getPageText":
             return await eval(webView, "document.body.innerText")
         case "getPageHTML":
@@ -463,6 +480,12 @@ extension BrowserToolProvider {
             return result.isEmpty ? "Executed (no return value)" : result
 
         default:
+            // MCP-bridged tools ride the same dispatch path with the same
+            // approval gating as built-ins.
+            if call.function.name.hasPrefix("mcp_") {
+                return await MCPStore.shared.callTool(defName: call.function.name,
+                                                      argumentsJSON: call.function.arguments)
+            }
             return "Unknown tool: \(call.function.name)"
         }
     }

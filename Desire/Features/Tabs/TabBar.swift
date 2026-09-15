@@ -28,6 +28,10 @@ struct TabBar: View {
     let tabGroupColor: (UUID) -> Color?
     /// Resolves a tab's container (nil for default-store tabs) for badge display.
     let containerFor: (UUID?) -> TabContainer?
+    /// Expands/collapses a tab group (collapsed groups render as one pill).
+    let onToggleGroupCollapse: (UUID) -> Void
+    /// Deletes a group (its tabs survive, ungrouped).
+    let onDeleteGroup: (UUID) -> Void
     /// Available tab groups (for context menus).
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -46,7 +50,50 @@ struct TabBar: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     let pinned = tabs.filter(\.isPinned)
-                    let regular = tabs.filter { !$0.isPinned }
+                    // Collapsed groups hide their tabs and render as one pill.
+                    let collapsedGroups = tabGroups
+                        .filter { $0.isCollapsed }
+                        .compactMap { group -> TabGroup? in
+                            tabs.contains(where: { group.tabIds.contains($0.id) }) ? group : nil
+                        }
+                    let collapsedTabIDs = Set(collapsedGroups.flatMap { $0.tabIds })
+                    let regular = tabs.filter { !$0.isPinned && !collapsedTabIDs.contains($0.id) }
+
+                    ForEach(collapsedGroups) { group in
+                        Button {
+                            onToggleGroupCollapse(group.id)
+                        } label: {
+                            HStack(spacing: 5) {
+                                if let color = tabGroupColor(group.tabIds.first ?? UUID()) {
+                                    Circle().fill(color).frame(width: 7, height: 7)
+                                }
+                                Text(group.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                Text("\(group.tabIds.count)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                            .overlay(
+                                Capsule().stroke(
+                                    tabGroupColor(group.tabIds.first ?? UUID()) ?? Color.secondary.opacity(0.3),
+                                    lineWidth: 1
+                                )
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open Group")
+                        .contextMenu {
+                            Button("Open Group") { onToggleGroupCollapse(group.id) }
+                            Button("Delete Group") { onDeleteGroup(group.id) }
+                        }
+                    }
                     ForEach(Array(pinned.enumerated()), id: \.element.id) { index, tab in
                         if let realIndex = tabs.firstIndex(where: { $0.id == tab.id }) {
                             TabPillView(
@@ -69,6 +116,8 @@ struct TabBar: View {
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
                                 containerColor: containerFor(tab.containerID)?.color,
+                                onToggleGroupCollapse: onToggleGroupCollapse,
+                                onDeleteGroup: onDeleteGroup,
                                 tabGroups: tabGroups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -123,6 +172,8 @@ struct TabBar: View {
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
                                 containerColor: containerFor(tab.containerID)?.color,
+                                onToggleGroupCollapse: onToggleGroupCollapse,
+                                onDeleteGroup: onDeleteGroup,
                                 tabGroups: tabGroups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -241,6 +292,8 @@ private struct TabPillView: View {
     let groupColor: Color?
     /// Container badge color, if this tab belongs to a container.
     let containerColor: Color?
+    let onToggleGroupCollapse: (UUID) -> Void
+    let onDeleteGroup: (UUID) -> Void
     /// Available tab groups for the context menu.
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -384,6 +437,13 @@ private struct TabPillView: View {
 
         if let group = tabGroups.first(where: { $0.tabIds.contains(tab.id) }) {
             Menu("Group: \(group.name)") {
+                if group.isCollapsed {
+                    Button("Open Group") { onToggleGroupCollapse(group.id) }
+                } else {
+                    Button("Collapse Group") { onToggleGroupCollapse(group.id) }
+                }
+                Button("Delete Group") { onDeleteGroup(group.id) }
+                Divider()
                 Button("Remove from Group") { onRemoveFromGroup(tab.id) }
             }
         } else {

@@ -78,12 +78,16 @@ class BrowserToolProvider {
                 let scale = min(1, maxDim / max(px.width, px.height))
                 let targetW = Int(px.width * scale)
                 let targetH = Int(px.height * scale)
-                let rep = NSBitmapImageRep(
-                    bitmapDataPlanes: nil, pixelsWide: targetW, pixelsHigh: targetH,
-                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
-                    isPlanar: false, colorSpaceName: .calibratedRGB,
-                    bytesPerRow: 0, bitsPerPixel: 0
-                )!
+                guard targetW > 0, targetH > 0,
+                      let rep = NSBitmapImageRep(
+                          bitmapDataPlanes: nil, pixelsWide: targetW, pixelsHigh: targetH,
+                          bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                          isPlanar: false, colorSpaceName: .calibratedRGB,
+                          bytesPerRow: 0, bitsPerPixel: 0
+                      ) else {
+                    continuation.resume(returning: "")
+                    return
+                }
                 NSGraphicsContext.saveGraphicsState()
                 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
                 image.draw(in: NSRect(x: 0, y: 0, width: targetW, height: targetH))

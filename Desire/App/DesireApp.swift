@@ -105,7 +105,7 @@ struct DesireApp: App {
                 .keyboardShortcut("r", modifiers: .command)
             Button("Reader View") { postCommand(.toggleReader) }
             Divider()
-            Button("Inspect Element") { postCommand(.inspectElement) }
+            Button("Safari Web Inspector") { postCommand(.inspectElement) }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
             Button("Responsive Design Mode") { postCommand(.toggleResponsiveMode) }
                 .keyboardShortcut("m", modifiers: [.command, .shift])

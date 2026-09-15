@@ -88,34 +88,13 @@ class BrowserState: ObservableObject {
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
         }
 
-        // All injected scripts live in Desire/UserScripts/*.js and are loaded
-        // via UserScriptLoader. See docs/ARCHITECTURE.md (L1-2) for the
-        // resource-bundling rationale.
-        let audioScript = WKUserScript(source: UserScriptLoader.load("audio-state"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        config.userContentController.addUserScript(audioScript)
-
-        // Console interceptor for DevTools — forwards console.{log,…} and
-        // window 'error' events to the `devConsole` message handler.
-        let consoleScript = WKUserScript(source: UserScriptLoader.load("console-intercept"), injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        config.userContentController.addUserScript(consoleScript)
-
-        // DOM tool functions used by BrowserToolProvider (AI agent) via
-        // callAsyncJavaScript. Injected at documentStart so they exist before
-        // any tool call. See docs/ARCHITECTURE.md (L2 JS Bridge).
-        let domToolsScript = WKUserScript(source: UserScriptLoader.load("dom-tools"), injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        config.userContentController.addUserScript(domToolsScript)
-
-        let passwordScript = WKUserScript(source: UserScriptLoader.load("password-detect"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        config.userContentController.addUserScript(passwordScript)
-
-        let readerScript = WKUserScript(source: UserScriptLoader.load("reader-content"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        config.userContentController.addUserScript(readerScript)
-
-        let hoverScript = WKUserScript(source: UserScriptLoader.load("hover-link"), injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        config.userContentController.addUserScript(hoverScript)
-        // Text-selection watcher powering the AI selection bar.
-        let selectionScript = WKUserScript(source: UserScriptLoader.load("selection-ai"), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        config.userContentController.addUserScript(selectionScript)
+        // Desire's own always-on user scripts, centralized in
+        // UserScriptLoader.builtinScripts() — the WebExtension registry
+        // rebuilds builtins + extension scripts after enable/disable churn
+        // (removeAllUserScripts is the only removal API available).
+        for script in UserScriptLoader.builtinScripts() {
+            config.userContentController.addUserScript(script)
+        }
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true

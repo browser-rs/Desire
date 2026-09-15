@@ -383,8 +383,8 @@ struct Toolbar: View {
             moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             Divider()
             moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
-            moreMenuItem("Inspect Element", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
-            moreMenuItem("Developer Tools", "ladybug", shortcut: "⇧⌘D") { actions.toggleDevTools() }
+            moreMenuItem("Safari Web Inspector", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
+            moreMenuItem("DevTools Panel (Beta)", "hammer", shortcut: "⇧⌘D") { actions.toggleDevTools() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
             Divider()

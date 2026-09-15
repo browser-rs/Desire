@@ -1,5 +1,6 @@
 import Foundation
 import os
+import WebKit
 
 /// Loads bundled JavaScript resources from `Desire/UserScripts/*.js`.
 ///
@@ -21,6 +22,27 @@ import os
 /// A missing resource is always a build/packaging bug, not a user-facing
 /// condition.
 enum UserScriptLoader {
+    /// Desire's own always-on user scripts, in injection order. Centralized
+    /// here so the WebExtension registry can REBUILD the full set after
+    /// enable/disable churn — WKUserContentController has no per-script
+    /// removal API (only removeAllUserScripts), so rebuild is the only way.
+    static func builtinScripts() -> [WKUserScript] {
+        var scripts: [WKUserScript] = []
+        func add(_ name: String, at time: WKUserScriptInjectionTime, mainFrameOnly: Bool = false) {
+            let source = load(name)
+            guard !source.isEmpty else { return }
+            scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
+        }
+        add("console-intercept", at: .atDocumentStart)
+        add("dom-tools", at: .atDocumentStart)
+        add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
+        add("audio-state", at: .atDocumentEnd)
+        add("password-detect", at: .atDocumentEnd)
+        add("reader-content", at: .atDocumentEnd)
+        add("hover-link", at: .atDocumentEnd)
+        return scripts
+    }
+
     static func load(_ name: String) -> String {
         guard let url = Bundle.main.url(forResource: name, withExtension: "js") else {
             Log.userScripts.error("resource not found — UserScripts/\(name, privacy: .public).js")

@@ -68,22 +68,6 @@ class BrowsingActions: ObservableObject {
 
     // MARK: - Launch tabs
 
-    /// First window at launch: restore the saved session when startup
-    /// behavior asks for it, otherwise open one fresh tab. Only ever called
-    /// for the FIRST window — later windows always open fresh (the gate is
-    /// `AppState.hasRestoredSession`, checked by the caller).
-    func restoreSessionOrOpenFreshTab() {
-        if settings.startupBehavior == .restoreSession,
-           tabManager.restoreSession(
-               javaScriptEnabled: settings.isJavaScriptEnabled,
-               contentBlocker: contentBlocker,
-               videoAdBlocker: videoAdBlocker
-           ) {
-            return
-        }
-        openFreshTab()
-    }
-
     /// Opens a single fresh tab with the current settings.
     func openFreshTab() {
         tabManager.addTab(

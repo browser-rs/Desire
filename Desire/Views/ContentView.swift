@@ -6,6 +6,10 @@ import WebKit
 
 struct ContentView: View {
     let appState: AppState
+    /// Persistent per-window session identity — carried by the window via
+    /// the value-based WindowGroup and restored across launches. nil for a
+    /// brand-new ⌘N window until onAppear mints one.
+    @Binding var sessionID: UUID?
 
     @StateObject var tabManager = TabManager()
     @StateObject var suggestionModel = AddressSuggestionsModel()
@@ -27,8 +31,9 @@ struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.openWindow) var openWindow
 
-    init(appState: AppState) {
+    init(appState: AppState, sessionID: Binding<UUID?>) {
         self.appState = appState
+        _sessionID = sessionID
         let tm = TabManager()
         _tabManager = StateObject(wrappedValue: tm)
         tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
@@ -179,12 +184,35 @@ struct ContentView: View {
                 isAIConfigured = true
             }
             if tabManager.tabs.isEmpty {
-                if !appState.hasRestoredSession {
-                    // First window restores the saved session; later windows
-                    // get a fresh tab — the gate lives on AppState so
-                    // additional windows never clone the saved tabs.
+                // Bind this window to a persistent session identity (the
+                // binding write is what SwiftUI persists for the window).
+                if sessionID == nil { sessionID = UUID() }
+                guard let sid = sessionID else { return }
+                let sessionKey = TabSessionCoordinator.shared.sessionKey(for: sid)
+                tabManager.sessionKey = sessionKey
+
+                if tabManager.restoreSession(
+                    forKey: sessionKey,
+                    javaScriptEnabled: settings.isJavaScriptEnabled,
+                    contentBlocker: contentBlocker,
+                    videoAdBlocker: videoAdBlocker
+                ) {
+                    // This window's own tabs are back.
+                } else if !appState.hasRestoredSession {
+                    // First window with no own session: adopt the pre-
+                    // multiwindow merged session once (upgrade path).
                     appState.hasRestoredSession = true
-                    b.restoreSessionOrOpenFreshTab()
+                    TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
+                    if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
+                        tabManager.apply(
+                            session: legacy,
+                            javaScriptEnabled: settings.isJavaScriptEnabled,
+                            contentBlocker: contentBlocker,
+                            videoAdBlocker: videoAdBlocker
+                        )
+                    } else {
+                        b.openFreshTab()
+                    }
                 } else {
                     b.openFreshTab()
                 }

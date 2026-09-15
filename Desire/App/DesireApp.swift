@@ -1,8 +1,10 @@
+import AppKit
 import SwiftUI
 
 @main
 struct DesireApp: App {
     @StateObject private var appState = AppState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         // Production observability baseline: file MetricKit crash/hang
@@ -16,13 +18,13 @@ struct DesireApp: App {
     }
 
     private var mainWindow: some Scene {
-        // An id'd WindowGroup so new windows can be opened via
-        // `@Environment(\.openWindow)` with `openWindow(id: "main")`. Each
-        // window gets its own ContentView (hence its own TabManager — tabs
-        // are per-window), while sharing the app-level AppState (bookmarks,
-        // history, settings, downloads, AI are global).
-        WindowGroup(id: "main") {
-            ContentView(appState: appState)
+        // Value-based WindowGroup: every window carries a persistent session
+        // UUID that SwiftUI restores across launches, so each window reloads
+        // ITS OWN tabs (per-window session files — see
+        // TabSessionCoordinator). Windows opened via `openWindow(id: "main")`
+        // (⌘N) arrive with a nil value and mint a fresh UUID in onAppear.
+        WindowGroup(id: "main", for: UUID.self) { $sessionID in
+            ContentView(appState: appState, sessionID: $sessionID)
                 .frame(minWidth: 800, minHeight: 600)
                 .environmentObject(appState)
         }
@@ -190,3 +192,13 @@ enum BrowserCommand {
     case screenshot
 }
 
+
+/// Bridges NSApplication termination so per-window sessions are force-
+/// persisted while the windows are still open (willTerminate fires after
+/// windows begin closing — too late for a clean re-archive).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        TabSessionCoordinator.shared.prepareForTermination()
+        return .terminateNow
+    }
+}

@@ -128,6 +128,10 @@ class TabManager: ObservableObject {
     var onRequestWindowClose: (() -> Void)?
     private var recentlyClosedURLs: [String] = []
     private var suspendTimer: Timer?
+    /// Per-window session storage key (set by ContentView once the window's
+    /// value-based session UUID is known). Nil until then: persistence and
+    /// restore are no-ops for unkeyed windows.
+    var sessionKey: String?
 
     init() {
         // Session persistence is process-wide (one shared storage key): each
@@ -340,11 +344,11 @@ class TabManager: ObservableObject {
 
     // MARK: - Session persistence
 
-    /// Session persistence is delegated to `TabSessionCoordinator` (one
-    /// shared storage key for ALL windows). This thin wrapper keeps the
-    /// internal call sites and the scenePhase handler unchanged.
+    /// Persists THIS window's tabs under its own session key via
+    /// `TabSessionCoordinator`. No-op until the window is keyed.
     func persistSession(force: Bool = false) {
-        TabSessionCoordinator.shared.persistAll(force: force)
+        guard let sessionKey else { return }
+        TabSessionCoordinator.shared.persistWindow(self, key: sessionKey, force: force)
     }
 
     /// Appends this window's non-incognito tabs to the merged session blob.
@@ -405,24 +409,19 @@ class TabManager: ObservableObject {
         return try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
     }
 
+    /// Restores this window's tabs from its per-window session file.
+    /// Returns false when the file is absent/corrupt — callers fall back to
+    /// legacy adoption or a fresh tab.
     @discardableResult
-    func restoreSession(javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
-        // Migrated: load from DiskStore first.
-        var session = DiskStore.load(SavedSession.self, key: TabSessionCoordinator.storageKey)
-        if session == nil {
-            // One-time migration from legacy UserDefaults blob. If present,
-            // import it to DiskStore and remove the old key.
-            if let data = UserDefaults.standard.data(forKey: legacySessionKey),
-               let decoded = try? JSONDecoder().decode(SavedSession.self, from: data) {
-                session = decoded
-                DiskStore.save(decoded, key: TabSessionCoordinator.storageKey)
-                UserDefaults.standard.removeObject(forKey: legacySessionKey)
-            }
-        }
-        guard let session, !session.tabs.isEmpty else {
-            return false
-        }
+    func restoreSession(forKey key: String, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
+        guard let session = DiskStore.load(SavedSession.self, key: key) else { return false }
+        apply(session: session, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
+        return true
+    }
 
+    /// Rebuilds tabs from a decoded session (per-window restore and legacy
+    /// adoption share this path).
+    func apply(session: SavedSession, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) {
         tabs = []
 
         for saved in session.tabs {
@@ -454,11 +453,10 @@ class TabManager: ObservableObject {
         }
 
         selectedIndex = min(session.selectedIndex, max(0, tabs.count - 1))
-        return true
     }
 }
 
-private struct SavedTab: Codable {
+struct SavedTab: Codable {
     /// In-memory only: maps the ACTIVE window's selected tab to its position
     /// in the merged multi-window list. Deliberately excluded from Codable —
     /// the on-disk shape is unchanged (old session files still decode).
@@ -493,34 +491,39 @@ private struct SavedTab: Codable {
     }
 }
 
-private struct SavedSession: Codable {
+/// Internal: `ContentView` triggers legacy adoption which hands a decoded
+/// `SavedSession` back across files.
+struct SavedSession: Codable {
     let tabs: [SavedTab]
     let selectedIndex: Int
 }
 
 /// Process-wide owner of tab-session persistence.
 ///
-/// The session lives under ONE storage key for the whole app. Before this
-/// coordinator existed, every window's TabManager ran its own 15s timer and
-/// wrote that key independently — the last writer clobbered every other
-/// window's tabs, so restarting with two windows lost one window entirely.
-/// All managers register here; a single timer (and a single terminate
-/// observer) persists the UNION of all windows' tabs, and the recorded
-/// selection is the ACTIVE window's selected tab.
+/// Sessions are stored PER WINDOW under `session-<uuid>.json`, where the
+/// uuid rides the window itself via a value-based WindowGroup — so multiple
+/// windows no longer overwrite each other's tabs, and each window restores
+/// its own set after relaunch. A single coordinator owns the 15s timer and
+/// the termination hook; `applicationShouldTerminate` force-persists every
+/// live window and writes the session index, and the first window of the
+/// next launch prunes sessions whose windows were closed since.
 ///
-/// Restore still reopens everything in the first window — true per-window
-/// restore needs a value-based WindowGroup with persistent per-window ids
-/// (future work, needs SwiftUI window-restoration plumbing).
+/// One-time legacy adoption: the pre-multiwindow merged session ("session"
+/// key) is offered to the first window that has no own session file.
 @MainActor
 final class TabSessionCoordinator {
     static let shared = TabSessionCoordinator()
-    static let storageKey = "session"
+    static let legacyStorageKey = "session"
+    static let indexKey = "session-index"
+    static let archiveIndexKey = "session-archive-index"
 
     private struct WeakManager { weak var manager: TabManager? }
     private var managers: [WeakManager] = []
     private var activeManager: TabManager?
     private var timer: Timer?
-    private var terminateObserver: NSObjectProtocol?
+    private var isTerminating = false
+
+    func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
 
     func register(_ manager: TabManager) {
         managers.removeAll { $0.manager == nil }
@@ -535,48 +538,96 @@ final class TabSessionCoordinator {
         activeManager = manager
     }
 
-    func persistAll(force: Bool = false) {
-        managers.removeAll { $0.manager == nil }
+    /// Persists ONE window's tabs under its own key.
+    func persistWindow(_ manager: TabManager, key: String, force: Bool) {
         var savedTabs: [SavedTab] = []
-        for box in managers {
-            guard let manager = box.manager else { continue }
-            manager.appendSessionTabs(into: &savedTabs, force: force)
-        }
+        manager.appendSessionTabs(into: &savedTabs, force: force)
         guard !savedTabs.isEmpty else {
-            DiskStore.remove(key: Self.storageKey)
+            DiskStore.remove(key: key)
             return
         }
+        let session = SavedSession(tabs: savedTabs, selectedIndex: manager.selectedIndex)
+        DiskStore.save(session, key: key)
+    }
 
-        var selectedIndex = 0
-        let active = activeManager ?? managers.last?.manager
-        if let selectedID = active?.selectedTab?.id,
-           let index = savedTabs.firstIndex(where: { $0.tabID == selectedID }) {
-            selectedIndex = index
+    /// Persists every registered window (15s timer / willTerminate).
+    func persistAll(force: Bool) {
+        managers.removeAll { $0.manager == nil }
+        for box in managers {
+            guard let manager = box.manager, let key = manager.sessionKey else { continue }
+            persistWindow(manager, key: key, force: force)
         }
-        DiskStore.save(SavedSession(tabs: savedTabs, selectedIndex: selectedIndex),
-                       key: Self.storageKey)
+    }
+
+    /// Called from applicationShouldTerminate — windows are still open here.
+    /// Force-persists every window, records the live session index, and
+    /// flushes the DiskStore debounce queue synchronously.
+    func prepareForTermination() {
+        isTerminating = true
+        persistAll(force: true)
+        let keys = managers.compactMap { $0.manager?.sessionKey }
+        DiskStore.save(keys, key: Self.indexKey)
+        DiskStore.flushSync()
+    }
+
+    /// Moves session files whose windows were closed since the last
+    /// termination into an archive (newest 5 kept) instead of deleting them
+    /// — a wrongly-pruned session would be unrecoverable. No-op when the
+    /// index is missing (crash before quit — keep everything rather than
+    /// guess).
+    func pruneOrphanSessions(keeping keep: Set<String>) {
+        guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return }
+        var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
+        let fm = FileManager.default
+        for key in index where !keep.contains(key) {
+            let source = DiskStore.directory.appendingPathComponent("\(key).json")
+            guard fm.fileExists(atPath: source.path) else { continue }
+            try? fm.createDirectory(at: Self.archiveDirectory, withIntermediateDirectories: true)
+            let name = "archived-\(key)-\(Int(Date().timeIntervalSince1970)).json"
+            try? fm.moveItem(at: source, to: Self.archiveDirectory.appendingPathComponent(name))
+            archived.append(name)
+        }
+        while archived.count > 5 {
+            let oldest = archived.removeFirst()
+            try? fm.removeItem(at: Self.archiveDirectory.appendingPathComponent(oldest))
+        }
+        DiskStore.save(archived, key: Self.archiveIndexKey)
+        DiskStore.remove(key: Self.indexKey)
+    }
+
+    nonisolated static var archiveDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("Desire", isDirectory: true)
+            .appendingPathComponent("session-archives", isDirectory: true)
+    }
+
+    /// One-time adoption of the pre-multiwindow merged session; removes the
+    /// legacy key so it can't be adopted twice.
+    func takeLegacySession() -> SavedSession? {
+        guard let session = DiskStore.load(SavedSession.self, key: Self.legacyStorageKey) else { return nil }
+        DiskStore.remove(key: Self.legacyStorageKey)
+        return session
     }
 
     private func startTimerIfNeeded() {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.persistAll()
+                self?.persistAll(force: false)
             }
         }
-        // A hard quit inside DiskStore's 500ms debounce window would lose the
-        // last session write; force a full re-archive and flush on terminate.
-        terminateObserver = NotificationCenter.default.addObserver(
+        // Belt and suspenders: applicationShouldTerminate already prepared
+        // termination; willTerminate re-persists (idempotent) and flushes.
+        NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil,
             queue: .main
         ) { _ in
-            // queue: .main guarantees the main thread; assert it so the
-            // MainActor-isolated coordinator call is legally reachable.
             MainActor.assumeIsolated {
-                TabSessionCoordinator.shared.persistAll(force: true)
+                TabSessionCoordinator.shared.prepareForTermination()
             }
-            DiskStore.flushSync()
         }
     }
 }
+

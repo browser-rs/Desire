@@ -93,7 +93,7 @@ struct FoundationModelsProvider: ModelProvider {
                                 continuation.yield(.toolCall(call))
                             } else {
                                 continuation.yield(.text(
-                                    "\n(On-device model emitted an unparseable action — ignored. Rephrase or act manually.)"
+                                    "\n" + String(localized: "On-device model emitted an unparseable action — ignored.")
                                 ))
                             }
                         } else if !buffer.isEmpty {

@@ -282,6 +282,7 @@ struct AISettingsSection: View {
         }
     }
 
+    @ViewBuilder
     private var modelPickerRow: some View {
         SettingsRow("Model", subtitle: modelPickerSubtitle, systemImage: "cpu") {
             Menu {
@@ -320,6 +321,10 @@ struct AISettingsSection: View {
             }
             .menuStyle(.borderlessButton)
             .frame(maxWidth: 260, alignment: .leading)
+        }
+
+        SettingsRow("Or Type Model Name", subtitle: nil, systemImage: "pencil") {
+            SettingsTextField(placeholder: "e.g. my-fine-tuned-model", text: $store.model, width: 220)
         }
     }
 
@@ -438,8 +443,8 @@ struct AISettingsSection: View {
                         HStack(spacing: 6) {
                             presetChip("OpenAI", providerID: "openai", endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4o")
                             presetChip("DeepSeek", providerID: "deepseek", endpoint: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat")
-                            presetChip("Zhipu GLM", providerID: "zhipu", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", model: "glm-4-plus")
-                            presetChip("OpenCode Go", providerID: "opencode-go", endpoint: "https://api.opencode.ai/v1/chat/completions", model: "")
+                            presetChip("Zhipu GLM", providerID: "zhipu", endpoint: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions", model: "glm-4-plus")
+                            presetChip("OpenCode Go", providerID: "opencode-go", endpoint: "https://opencode.ai/zen/go/v1/chat/completions", model: "claude-sonnet-4-20250514")
                         }
                     }
                 }

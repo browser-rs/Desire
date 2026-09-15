@@ -660,20 +660,31 @@ struct AISettingsSection: View {
 
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
+            req.timeoutInterval = 15
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            if urlStr.contains("opencode") {
+                let sid = UserDefaults.standard.string(forKey: "aiOpencodeSessionID")
+                    ?? UUID().uuidString
+                UserDefaults.standard.set(sid, forKey: "aiOpencodeSessionID")
+                req.setValue(sid, forHTTPHeaderField: "x-opencode-session")
+            }
             req.httpBody = try? JSONSerialization.data(withJSONObject: [
                 "model": model,
                 "messages": [["role": "user", "content": "Respond with 'ok'"]],
                 "max_tokens": 10,
+                "stream": false,
             ])
 
             do {
-                let (_, response) = try await URLSession.shared.data(for: req)
+                let (data, response) = try await URLSession.shared.data(for: req)
+                let body = String(data: data, encoding: .utf8) ?? ""
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    testStatus = "Connected"
+                    testStatus = "Connected ✓"
                 } else if let http = response as? HTTPURLResponse {
-                    testStatus = "HTTP \(http.statusCode)"
+                    // Show the server's error message so the user knows WHY.
+                    let serverMsg = body.prefix(200)
+                    testStatus = "HTTP \(http.statusCode): \(serverMsg)"
                 }
             } catch {
                 testStatus = "Failed: \(error.localizedDescription)"

@@ -209,6 +209,18 @@ struct CloudOpenAIProvider: ModelProvider {
                 req.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                 req.setValue("chatcmpl-\(String(UUID().uuidString.prefix(8)))", forHTTPHeaderField: "X-Request-Id")
+
+                // OpenCode Go requires a session header for request routing.
+                // A stable UUID per launch is sufficient — the server uses it
+                // for sticky backend selection.
+                if urlStr.contains("opencode") {
+                    let sessionKey = "aiOpencodeSessionID"
+                    let sessionID = UserDefaults.standard.string(forKey: sessionKey)
+                        ?? UUID().uuidString
+                    UserDefaults.standard.set(sessionID, forKey: sessionKey)
+                    req.setValue(sessionID, forHTTPHeaderField: "x-opencode-session")
+                }
+
                 req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature)
 
                 #if DEBUG

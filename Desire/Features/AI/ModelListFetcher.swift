@@ -23,6 +23,13 @@ enum ModelListFetcher {
         if !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
+        // OpenCode Go session routing header.
+        if base.contains("opencode") {
+            let sid = UserDefaults.standard.string(forKey: "aiOpencodeSessionID")
+                ?? UUID().uuidString
+            UserDefaults.standard.set(sid, forKey: "aiOpencodeSessionID")
+            request.setValue(sid, forHTTPHeaderField: "x-opencode-session")
+        }
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)

@@ -13,6 +13,8 @@ struct AIInputBar: View {
     @FocusState.Binding var isFocused: Bool
     /// Voice input manager — nil hides the mic button.
     var voiceManager: VoiceInputManager? = nil
+    /// Error message from voice input, shown below the bar.
+    var voiceError: String? = nil
 
     @State private var isHoveringSend = false
 
@@ -22,6 +24,7 @@ struct AIInputBar: View {
                 contextStrip
             }
             inputCapsule
+            voiceStatusLine
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -97,6 +100,37 @@ struct AIInputBar: View {
                 .stroke(borderColor, lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
+    }
+
+    /// Shows listening indicator or voice input errors.
+    @ViewBuilder
+    private var voiceStatusLine: some View {
+        if let vm = voiceManager {
+            if let err = vm.errorMessage {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                    Text(err)
+                        .font(.system(size: 11))
+                        .lineLimit(2)
+                }
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+            } else if vm.isListening {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
+                    Text("正在聆听… 说话即可")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+            }
+        }
     }
 
     @ViewBuilder

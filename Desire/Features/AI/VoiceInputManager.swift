@@ -26,10 +26,7 @@ final class VoiceInputManager: ObservableObject {
     private var speechRecognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
-    /// Silence auto-stop timer — resets on every new speech, fires after
-    /// `silenceTimeout` seconds of no new recognition results.
     private var silenceTimer: Timer?
-
     private let silenceTimeout: TimeInterval = 2.0
 
     nonisolated static func requestPermissions() {
@@ -38,8 +35,11 @@ final class VoiceInputManager: ObservableObject {
     }
 
     init(locale: Locale = .current) {
+        // Prefer system locale, fall back to zh-CN, then device default.
         speechRecognizer = SFSpeechRecognizer(locale: locale)
-        if speechRecognizer == nil || speechRecognizer?.isAvailable != true {
+            ?? SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+            ?? SFSpeechRecognizer()
+        if speechRecognizer == nil {
             isAvailable = false
         }
     }
@@ -54,15 +54,18 @@ final class VoiceInputManager: ObservableObject {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
                 guard let self, status == .authorized else {
-                    self?.setError("Speech recognition not authorized")
+                    self?.setError("语音识别未授权 — 请在 系统设置 > 隐私与安全性 > 语音识别 中允许 Desire")
                     return
                 }
                 AVCaptureDevice.requestAccess(for: .audio) { granted in
                     Task { @MainActor in
                         guard granted else {
-                            self.setError("Microphone access denied — enable in System Settings > Privacy > Microphone")
+                            self.setError("麦克风访问被拒绝 — 请在 系统设置 > 隐私与安全性 > 麦克风 中允许 Desire")
                             return
                         }
+                        // Brief delay: the audio subsystem needs a moment
+                        // after permission grant before the engine can start.
+                        try? await Task.sleep(nanoseconds: 300_000_000)
                         self.beginRecognition()
                     }
                 }
@@ -80,7 +83,6 @@ final class VoiceInputManager: ObservableObject {
         request = nil
         task?.cancel()
         task = nil
-        // Deliver whatever we have as final.
         let final = partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !final.isEmpty {
             onFinalTranscript?(final)
@@ -96,45 +98,45 @@ final class VoiceInputManager: ObservableObject {
 
     private func beginRecognition() {
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
-            setError("Speech recognition unavailable")
+            setError("语音识别不可用 — 请检查网络连接")
             return
         }
 
-        request = SFSpeechAudioBufferRecognitionRequest()
-        request?.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            request?.requiresOnDeviceRecognition = false // server is fine, better accuracy
-        }
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        self.request = request
 
         let inputNode = audioEngine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
+        // Specify a concrete format to force the system to convert input —
+        // avoids the macOS pitfall where outputFormat returns 0 Hz / 0 ch
+        // when no input device is pre-selected.
+        let recordingFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 44100, channels: 1, interleaved: false
+        )!
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak request] buffer, _ in
+            request?.append(buffer)
         }
 
         audioEngine.prepare()
         do {
             try audioEngine.start()
         } catch {
-            setError("Audio engine failed: \(error.localizedDescription)")
+            setError("音频引擎启动失败: \(error.localizedDescription)")
             return
         }
 
         isListening = true
-        task = recognizer.recognitionTask(with: request!) { [weak self] result, error in
+        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor [weak self] in
                 guard let self, self.isListening else { return }
                 if let result {
                     let text = result.bestTranscription.formattedString
                     self.partialTranscript = text
                     self.resetSilenceTimer()
-                    if result.isFinal {
-                        self.stop()
-                    }
+                    if result.isFinal { self.stop() }
                 }
-                if error != nil {
-                    self.stop()
-                }
+                if error != nil { self.stop() }
             }
         }
     }
@@ -151,5 +153,6 @@ final class VoiceInputManager: ObservableObject {
     private func setError(_ message: String) {
         errorMessage = message
         Log.ai.error("voice input: \(message, privacy: .public)")
+        isListening = false
     }
 }

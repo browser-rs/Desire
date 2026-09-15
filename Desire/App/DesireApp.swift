@@ -165,6 +165,8 @@ struct DesireApp: App {
                 .keyboardShortcut("p", modifiers: .command)
             Button("Screenshot Region…") { postCommand(.screenshot) }
                 .keyboardShortcut("5", modifiers: [.command, .shift])
+            Divider()
+            Button("Restore Archived Session…") { postCommand(.restoreArchivedSession) }
         }
 
         // MARK: - Window
@@ -190,6 +192,7 @@ enum BrowserCommand {
     case zoomIn, zoomOut, actualSize
     case clearHistory, exportBookmarks, importBookmarksFrom(BookmarkImportService.ImportSource)
     case screenshot
+    case restoreArchivedSession
 }
 
 

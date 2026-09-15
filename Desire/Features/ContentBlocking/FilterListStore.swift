@@ -51,7 +51,9 @@ class FilterListStore: ObservableObject {
     /// What this store added to each controller, for selective removal.
     private var addedRuleLists: [ObjectIdentifier: [(id: String, list: WKContentRuleList)]] = [:]
 
-    private var updateTask: Task<Void, Never>?
+    /// One in-flight update task PER list — a single handle would let
+    /// refreshing one list cancel the other's download mid-flight.
+    private var updateTasks: [String: Task<Void, Never>] = [:]
     private let metaKey = "filterLists.meta"
     private nonisolated static let fetchSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -138,8 +140,8 @@ class FilterListStore: ObservableObject {
         let sourceURL = lists[i].sourceURL
         lists[i].isUpdating = true
         lists[i].errorText = nil
-        updateTask?.cancel()
-        updateTask = Task { [weak self] in
+        updateTasks[id]?.cancel()
+        updateTasks[id] = Task { [weak self] in
             await self?.updateList(id: id, sourceURL: sourceURL)
         }
     }

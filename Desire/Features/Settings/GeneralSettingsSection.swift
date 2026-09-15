@@ -539,9 +539,6 @@ private struct SystemSection: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(minHeight: 44)
         }
         .onAppear(perform: checkDefaultBrowser)
     }

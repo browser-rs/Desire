@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 /// Routes `BrowserCommand` values (broadcast on the `CommandBus` by the
@@ -218,6 +219,40 @@ struct CommandDispatcher {
 
         case .screenshot:
             actions.startScreenshot()
+        case .restoreArchivedSession:
+            restoreArchivedSession()
         }
+    }
+
+    /// Tools ▸ Restore Archived Session… — picks a session file from
+    /// `session-archives/` and replaces the ACTIVE window's tabs with it
+    /// (double confirmation: file picker + alert).
+    private func restoreArchivedSession() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Restore Archived Session")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = DiskStore.directory.appendingPathComponent("session-archives", isDirectory: true)
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let session = try? JSONDecoder().decode(SavedSession.self, from: Data(contentsOf: url)) else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Couldn't read this session file")
+            alert.runModal()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Restore this session?")
+        alert.informativeText = String(localized: "The current window's tabs will be replaced by the archived session.")
+        alert.addButton(withTitle: String(localized: "Restore"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        tabManager.apply(
+            session: session,
+            javaScriptEnabled: settings.isJavaScriptEnabled,
+            contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker
+        )
     }
 }

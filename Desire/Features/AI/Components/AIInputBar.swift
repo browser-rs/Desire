@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Bottom input area for the AI panel. A single rounded capsule that
@@ -66,6 +67,10 @@ struct AIInputBar: View {
 
     private var inputCapsule: some View {
         HStack(alignment: .bottom, spacing: 0) {
+            micButton
+                .padding(.leading, 6)
+                .padding(.bottom, 6)
+
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
@@ -86,7 +91,6 @@ struct AIInputBar: View {
                     .onSubmit(onSubmit)
             }
 
-            micButton
             sendButton
                 .padding(.trailing, 6)
                 .padding(.bottom, 6)
@@ -113,6 +117,15 @@ struct AIInputBar: View {
                     Text(err)
                         .font(.system(size: 11))
                         .lineLimit(2)
+                    Spacer()
+                    Button("去设置") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
                 }
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,9 +7,8 @@ import Speech
 /// Speech-to-text engine for voice commands. Wraps `SFSpeechRecognizer` +
 /// `AVAudioEngine` with live partial results and silence auto-stop.
 ///
-/// Requires Info.plist entries (add via Xcode target settings):
-/// - `NSMicrophoneUsageDescription`
-/// - `NSSpeechRecognitionUsageDescription`
+/// Permissions are checked in `init` and re-requested on `start()` if not
+/// yet granted. Recognition only begins after BOTH permissions are confirmed.
 @MainActor
 final class VoiceInputManager: ObservableObject {
     @Published private(set) var isListening = false
@@ -29,18 +28,27 @@ final class VoiceInputManager: ObservableObject {
     private var silenceTimer: Timer?
     private let silenceTimeout: TimeInterval = 2.0
 
+    private var hasMicPermission: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
+    private var hasSpeechPermission: Bool {
+        SFSpeechRecognizer.authorizationStatus() == .authorized
+    }
+
     nonisolated static func requestPermissions() {
         SFSpeechRecognizer.requestAuthorization { _ in }
         AVCaptureDevice.requestAccess(for: .audio) { _ in }
     }
 
     init(locale: Locale = .current) {
-        // Prefer system locale, fall back to zh-CN, then device default.
-        speechRecognizer = SFSpeechRecognizer(locale: locale)
-            ?? SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+        // Try zh-CN first (target market), then system locale, then default.
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+            ?? SFSpeechRecognizer(locale: locale)
             ?? SFSpeechRecognizer()
         if speechRecognizer == nil {
             isAvailable = false
+            Log.ai.error("voice: SFSpeechRecognizer init returned nil")
         }
     }
 
@@ -51,26 +59,32 @@ final class VoiceInputManager: ObservableObject {
         errorMessage = nil
         partialTranscript = ""
 
-        SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            Task { @MainActor in
-                guard let self, status == .authorized else {
-                    self?.setError("语音识别未授权 — 请在 系统设置 > 隐私与安全性 > 语音识别 中允许 Desire")
-                    return
-                }
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    Task { @MainActor in
-                        guard granted else {
-                            self.setError("麦克风访问被拒绝 — 请在 系统设置 > 隐私与安全性 > 麦克风 中允许 Desire")
-                            return
-                        }
-                        // Brief delay: the audio subsystem needs a moment
-                        // after permission grant before the engine can start.
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        self.beginRecognition()
+        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            errorMessage = "语音识别不可用"
+            return
+        }
+
+        // Request permissions if not yet granted — returns after triggering
+        // the system dialog. User taps mic again after granting.
+        if !hasMicPermission {
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            errorMessage = "请允许麦克风权限后重试"
+            return
+        }
+        if !hasSpeechPermission {
+            SFSpeechRecognizer.requestAuthorization { status in
+                Task { @MainActor in
+                    if status != .authorized {
+                        self.errorMessage = "语音识别未授权 — 请在系统设置中允许"
                     }
+                    // User will tap mic again after granting.
                 }
             }
+            errorMessage = "请在弹窗中允许语音识别后重试"
+            return
         }
+
+        beginRecognition(with: recognizer)
     }
 
     func stop() {
@@ -96,25 +110,20 @@ final class VoiceInputManager: ObservableObject {
 
     // MARK: - Recognition pipeline
 
-    private func beginRecognition() {
-        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
-            setError("语音识别不可用 — 请检查网络连接")
-            return
-        }
-
+    private func beginRecognition(with recognizer: SFSpeechRecognizer) {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         self.request = request
 
         let inputNode = audioEngine.inputNode
-        // Specify a concrete format to force the system to convert input —
-        // avoids the macOS pitfall where outputFormat returns 0 Hz / 0 ch
-        // when no input device is pre-selected.
-        let recordingFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 44100, channels: 1, interleaved: false
-        )!
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak request] buffer, _ in
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+        // Guard against invalid format (no input device selected).
+        guard inputFormat.sampleRate > 0 else {
+            errorMessage = "未检测到音频输入设备"
+            return
+        }
+
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak request] buffer, _ in
             request?.append(buffer)
         }
 
@@ -123,6 +132,7 @@ final class VoiceInputManager: ObservableObject {
             try audioEngine.start()
         } catch {
             setError("音频引擎启动失败: \(error.localizedDescription)")
+            inputNode.removeTap(onBus: 0)
             return
         }
 
@@ -136,7 +146,13 @@ final class VoiceInputManager: ObservableObject {
                     self.resetSilenceTimer()
                     if result.isFinal { self.stop() }
                 }
-                if error != nil { self.stop() }
+                if let error {
+                    let nsError = error as NSError
+                    if nsError.code != 216 { // 216 = user cancelled
+                        self.errorMessage = "识别错误: \(nsError.localizedDescription)"
+                        self.isListening = false
+                    }
+                }
             }
         }
     }

@@ -92,21 +92,25 @@ extension BrowsingActions {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let destination = URLResolution.resolve(text, settings: settings) else { return }
 
+        // Always target the ACTIVE window's selected tab — never a stale
+        // captured reference (fixes multi-tab navigation to the wrong tab).
+        let target = tabManager.selectedTab ?? tab
+
         let urlString: String
         switch destination {
         case .url(let resolved):
             urlString = resolved
         case .search(let query, let engine):
             guard let searchURL = URLResolution.searchURL(query: query, target: engine) else { return }
-            if !tab.isIncognito {
+            if !target.isIncognito {
                 searchHistoryStore.add(query: query, engine: engine.displayName)
             }
             urlString = searchURL.absoluteString
         }
         guard let url = URL(string: urlString) else { return }
-        tab.isOnNewTabPage = false
-        tab.urlString = urlString
-        tab.browser.webView.load(URLRequest(url: url))
+        target.isOnNewTabPage = false
+        target.urlString = urlString
+        target.browser.webView.load(URLRequest(url: url))
     }
 
     func loadHome(for tab: Tab) {

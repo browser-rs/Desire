@@ -61,22 +61,38 @@ class BrowserToolProvider {
         }
     }
 
+    /// Captures the viewport and returns a data-URI (`data:image/jpeg;base64,…`)
+    /// sized for vision-model consumption (max 1024px wide, JPEG q80 — a full
+    /// PNG would be 1–2 MB and blow the token budget; JPEG at this size is
+    /// ~100–200 KB, enough for layout understanding).
     func captureScreenshot(_ wv: WKWebView) async -> String {
         await withCheckedContinuation { continuation in
             wv.takeSnapshot(with: nil) { image, error in
-                if let error = error {
-                    continuation.resume(returning: "Error: \(error.localizedDescription)")
-                } else if let image = image,
-                          let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                    let bitmap = NSBitmapImageRep(cgImage: cgImage)
-                    if let png = bitmap.representation(using: .png, properties: [:]) {
-                        let b64 = png.base64EncodedString()
-                        continuation.resume(returning: b64)
-                    } else {
-                        continuation.resume(returning: "Error: PNG encoding failed")
-                    }
+                guard let image, error == nil else {
+                    continuation.resume(returning: "")
+                    return
+                }
+                // Resize off-main: draw into a constrained bitmap.
+                let maxDim: CGFloat = 1024
+                let px = image.size
+                let scale = min(1, maxDim / max(px.width, px.height))
+                let targetW = Int(px.width * scale)
+                let targetH = Int(px.height * scale)
+                let rep = NSBitmapImageRep(
+                    bitmapDataPlanes: nil, pixelsWide: targetW, pixelsHigh: targetH,
+                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                    isPlanar: false, colorSpaceName: .calibratedRGB,
+                    bytesPerRow: 0, bitsPerPixel: 0
+                )!
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+                image.draw(in: NSRect(x: 0, y: 0, width: targetW, height: targetH))
+                NSGraphicsContext.restoreGraphicsState()
+                let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.8])
+                if let jpegData = jpeg {
+                    continuation.resume(returning: "data:image/jpeg;base64," + jpegData.base64EncodedString())
                 } else {
-                    continuation.resume(returning: "Error: failed to capture screenshot")
+                    continuation.resume(returning: "")
                 }
             }
         }

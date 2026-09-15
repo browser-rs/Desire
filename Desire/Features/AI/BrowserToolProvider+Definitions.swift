@@ -27,7 +27,7 @@ extension BrowserToolProvider {
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "screenshot", description: "Take a screenshot of the current viewport, returns base64 PNG. Pairs with clickAt: coordinates are viewport CSS pixels (getPageSnapshot reports the viewport size).",
+                name: "screenshot", description: "Capture the viewport as an image and return it for visual analysis. Use before clickAt(x,y) to see what's on screen, or whenever you need to verify layout/appearance. The image is delivered to you as a vision input.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(

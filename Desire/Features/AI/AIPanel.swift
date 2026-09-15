@@ -13,6 +13,7 @@ struct AIPanel: View {
 
     @State private var inputText = ""
     @State private var showHistory = false
+    @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -112,8 +113,20 @@ struct AIPanel: View {
                     store.awaitingQuestion = false
                     store.cancel()
                 },
-                isFocused: $isInputFocused
+                isFocused: $isInputFocused,
+                voiceManager: voiceManager
             )
+            .onReceive(voiceManager.$partialTranscript) { text in
+                inputText = text
+            }
+            .onChange(of: voiceManager.isListening) { _, listening in
+                if !listening, !voiceManager.partialTranscript.isEmpty {
+                    // Voice stopped (silence or manual) — auto-send the transcript.
+                    let text = inputText
+                    inputText = ""
+                    store.sendMessage(text)
+                }
+            }
         }
         .onKeyPress { press in
             if press.key == .return && press.modifiers.contains(.command) { submit(); return .handled }

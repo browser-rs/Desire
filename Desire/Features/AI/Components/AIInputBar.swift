@@ -11,6 +11,8 @@ struct AIInputBar: View {
     var onSubmit: () -> Void
     var onCancelQuestion: () -> Void
     @FocusState.Binding var isFocused: Bool
+    /// Voice input manager — nil hides the mic button.
+    var voiceManager: VoiceInputManager? = nil
 
     @State private var isHoveringSend = false
 
@@ -81,6 +83,7 @@ struct AIInputBar: View {
                     .onSubmit(onSubmit)
             }
 
+            micButton
             sendButton
                 .padding(.trailing, 6)
                 .padding(.bottom, 6)
@@ -94,6 +97,30 @@ struct AIInputBar: View {
                 .stroke(borderColor, lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
+    }
+
+    @ViewBuilder
+    private var micButton: some View {
+        if let vm = voiceManager {
+            Button {
+                vm.toggle()
+            } label: {
+                ZStack {
+                    if vm.isListening {
+                        Circle()
+                            .fill(Color.red.opacity(0.15))
+                            .frame(width: 34, height: 34)
+                            .scaleEffect(vm.isListening ? 1.15 : 0.9)
+                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: vm.isListening)
+                    }
+                    Image(systemName: vm.isListening ? "mic.fill" : "mic")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(vm.isListening ? Color.red : Color.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .help(vm.isListening ? "Stop listening" : "Voice input")
+        }
     }
 
     private var sendButton: some View {

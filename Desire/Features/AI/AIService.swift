@@ -114,7 +114,17 @@ enum OpenAICompatSSE {
     /// from any isolation domain can use it without hopping actors.
     nonisolated static func encodeMessage(_ msg: AIMessage) -> [String: Any] {
         var m: [String: Any] = ["role": msg.role.rawValue]
-        if let content = msg.content { m["content"] = content }
+        // Vision: screenshot tool results carry a data-URI image — encode
+        // as multimodal content array so vision models can "see" the page.
+        if msg.role == .tool, msg.toolName == "screenshot",
+           let content = msg.content, content.hasPrefix("data:image/") {
+            m["content"] = [
+                ["type": "text", "text": "Screenshot of the current viewport"],
+                ["type": "image_url", "image_url": ["url": content]],
+            ]
+        } else if let content = msg.content {
+            m["content"] = content
+        }
         if let tcs = msg.toolCalls {
             m["tool_calls"] = tcs.map { tc in
                 [

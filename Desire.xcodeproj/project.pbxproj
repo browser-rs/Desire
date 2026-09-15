@@ -282,6 +282,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desire needs microphone access for voice commands.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Desire uses speech recognition to convert voice commands into browser actions.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -326,6 +328,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desire needs microphone access for voice commands.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Desire uses speech recognition to convert voice commands into browser actions.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

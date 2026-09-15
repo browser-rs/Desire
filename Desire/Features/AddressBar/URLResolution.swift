@@ -31,9 +31,12 @@ enum URLResolution {
         let text = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
 
-        // 1. Explicit scheme — trust it when it parses. A scheme plus a
-        //    space ("https://foo bar") is junk; search for it instead.
-        for scheme in ["http://", "https://", "about:", "desire://"] where text.hasPrefix(scheme) {
+        // 1. Explicit scheme — trust it when it parses. Covers standard
+        //    schemes (https://, about:, desire://) AND custom application
+        //    schemes (tg://, spotify://, vscode:// …) which the webview
+        //    hands to the OS. A scheme plus a space ("https://foo bar")
+        //    is junk; search for it instead.
+        if text.range(of: #"^[a-zA-Z][a-zA-Z0-9+.-]*://"#, options: .regularExpression) != nil {
             if URL(string: text) != nil {
                 return .url(text)
             }

@@ -512,6 +512,35 @@ struct WebView: NSViewRepresentable {
             parent.state.lastError = error
         }
 
+        /// Hands a custom-scheme URL (tg://, spotify://, zoommtg:// …) to
+        /// LaunchServices with a Safari-style confirmation naming the handler
+        /// app — a page must not be able to launch arbitrary applications
+        /// silently. Shows "no app found" when nothing is registered.
+        private func confirmAndOpenExternalURL(_ url: URL) {
+            let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+            let bundle = appURL.flatMap(Bundle.init(url:))
+            let appName = bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+                ?? bundle?.infoDictionary?["CFBundleName"] as? String
+                ?? url.scheme?.uppercased()
+                ?? String(localized: "the external application")
+
+            guard appURL != nil else {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "No application can open this link")
+                alert.informativeText = String(localized: "Desire couldn't find an app registered for:\n\(url.absoluteString)")
+                alert.runModal()
+                return
+            }
+
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Open \(appName)?")
+            alert.informativeText = String(localized: "This page wants to open:\n\(url.absoluteString)")
+            alert.addButton(withTitle: String(localized: "Open"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            NSWorkspace.shared.open(url)
+        }
+
         // 处理新窗口/弹窗（Google 登录 OAuth 需要）
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = navigationAction.request.url else {
@@ -519,9 +548,13 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
-            if let scheme = url.scheme?.lowercased(), Self.externalSchemes.contains(scheme) {
-                NSWorkspace.shared.open(url)
+            if let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {
+                // Custom application scheme (tg://, spotify://, zoommtg://,
+                // vscode:// …) — hand it to the OS so the registered desktop
+                // app opens. Anything LaunchServices can't handle surfaces
+                // in the confirmation dialog as "no app found".
                 decisionHandler(.cancel)
+                confirmAndOpenExternalURL(url)
                 return
             }
 
@@ -582,10 +615,11 @@ struct WebView: NSViewRepresentable {
             decisionHandler(.allow)
         }
 
-        private static let externalSchemes: Set<String> = [
-            "mailto", "tel", "facetime", "sms",
-            "maps", "itunes", "music", "podcasts",
-            "appstore", "macappstore"
+        /// Schemes the webview itself renders or owns. Every OTHER scheme
+        /// is treated as an external application scheme and handed to
+        /// LaunchServices (see confirmAndOpenExternalURL).
+        private static let internalSchemes: Set<String> = [
+            "http", "https", "about", "desire", "file", "blob", "data", "javascript", "ws", "wss",
         ]
 
         // 无法展示的 MIME 类型（.pkg/.dmg/.zip 等直接文件链接）转为下载，
@@ -635,6 +669,13 @@ struct WebView: NSViewRepresentable {
         // MARK: - WKUIDelegate - 新窗口
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url,
+               let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {
+                // window.open("tg://…") and friends: launch the app instead
+                // of leaving a blank new tab behind.
+                confirmAndOpenExternalURL(url)
+                return nil
+            }
             if let url = navigationAction.request.url {
                 // 在后台线程中创建新标签页，然后立即导航
                 Task { @MainActor in

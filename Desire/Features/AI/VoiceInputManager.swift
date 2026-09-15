@@ -113,6 +113,11 @@ final class VoiceInputManager: ObservableObject {
     private func beginRecognition(with recognizer: SFSpeechRecognizer) {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        // Prefer on-device when supported: works offline (important for
+        // China network) and avoids server round-trip latency.
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
         self.request = request
 
         let inputNode = audioEngine.inputNode
@@ -137,6 +142,10 @@ final class VoiceInputManager: ObservableObject {
         }
 
         isListening = true
+        // Max listening duration safety net (30s).
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.stop() }
+        }
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor [weak self] in
                 guard let self, self.isListening else { return }

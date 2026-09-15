@@ -67,10 +67,6 @@ struct AIInputBar: View {
 
     private var inputCapsule: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            micButton
-                .padding(.leading, 6)
-                .padding(.bottom, 6)
-
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
@@ -103,6 +99,11 @@ struct AIInputBar: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(borderColor, lineWidth: 0.8)
         )
+        .overlay(alignment: .bottomLeading) {
+            micButton
+                .padding(.leading, 4)
+                .padding(.bottom, 4)
+        }
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 

@@ -113,11 +113,9 @@ final class VoiceInputManager: ObservableObject {
     private func beginRecognition(with recognizer: SFSpeechRecognizer) {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        // Prefer on-device when supported: works offline (important for
-        // China network) and avoids server round-trip latency.
-        if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
+        // Do NOT set requiresOnDeviceRecognition — let the system choose
+        // between server and on-device. Forcing on-device fails silently
+        // when the language model isn't downloaded on this Mac.
         self.request = request
 
         let inputNode = audioEngine.inputNode

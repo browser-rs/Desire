@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Bottom input area for the AI panel. A single rounded capsule that
@@ -87,6 +86,8 @@ struct AIInputBar: View {
                     .onSubmit(onSubmit)
             }
 
+            micButton
+                .padding(.bottom, 6)
             sendButton
                 .padding(.trailing, 6)
                 .padding(.bottom, 6)
@@ -99,11 +100,6 @@ struct AIInputBar: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(borderColor, lineWidth: 0.8)
         )
-        .overlay(alignment: .bottomLeading) {
-            micButton
-                .padding(.leading, 4)
-                .padding(.bottom, 4)
-        }
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 
@@ -118,21 +114,12 @@ struct AIInputBar: View {
                     Text(err)
                         .font(.system(size: 11))
                         .lineLimit(2)
-                    Spacer()
-                    Button("去设置") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
                 }
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
                 .padding(.top, 2)
-            } else if vm.isListening {
+            } else if vm.isRecording {
                 HStack(spacing: 6) {
                     Circle()
                         .fill(Color.red)
@@ -153,21 +140,21 @@ struct AIInputBar: View {
             Button {
                 vm.toggle()
             } label: {
-                ZStack {
-                    if vm.isListening {
+                Circle()
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Image(systemName: vm.isRecording ? "mic.fill" : "mic")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(vm.isRecording ? Color.red : Color.secondary)
+                    )
+                    .overlay(
                         Circle()
-                            .fill(Color.red.opacity(0.15))
-                            .frame(width: 34, height: 34)
-                            .scaleEffect(vm.isListening ? 1.15 : 0.9)
-                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: vm.isListening)
-                    }
-                    Image(systemName: vm.isListening ? "mic.fill" : "mic")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(vm.isListening ? Color.red : Color.secondary)
-                }
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 0.8)
+                    )
             }
             .buttonStyle(.plain)
-            .help(vm.isListening ? "Stop listening" : "Voice input")
+            .help(vm.isRecording ? "Stop listening" : "Voice input")
         }
     }
 

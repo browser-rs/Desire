@@ -116,12 +116,12 @@ struct AIPanel: View {
                 isFocused: $isInputFocused,
                 voiceManager: voiceManager
             )
-            .onReceive(voiceManager.$partialTranscript) { text in
-                inputText = text
+            .onChange(of: voiceManager.transcribedText) { _, newText in
+                inputText = newText
             }
-            .onChange(of: voiceManager.isListening) { _, listening in
-                if !listening, !voiceManager.partialTranscript.isEmpty {
-                    // Voice stopped (silence or manual) — auto-send the transcript.
+            .onChange(of: voiceManager.isRecording) { _, recording in
+                // Voice recording stopped (silence detection) — auto-send.
+                if !recording, !inputText.trimmingCharacters(in: .whitespaces).isEmpty {
                     let text = inputText
                     inputText = ""
                     store.sendMessage(text)

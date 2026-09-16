@@ -198,6 +198,17 @@ struct AgentSettingsSection: View {
                             SettingsRowDivider()
                         }
                     }
+
+                    HStack {
+                        Button("Open Skills Folder") {
+                            NSWorkspace.shared.open(SkillStore.directory)
+                        }
+                        Spacer()
+                        Text("Skills are SKILL.md files; drop your own in to extend the agent.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 8)
                 }
             }
 

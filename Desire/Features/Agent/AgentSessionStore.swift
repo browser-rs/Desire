@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import WebKit
 
@@ -76,6 +77,9 @@ class AgentSessionStore: ObservableObject {
 
     /// Token-delivery progress during streaming. Reset on `sendMessage`.
     @Published var streamingTokenCount = 0
+    /// Wall-clock start of the current processing run (drives the elapsed
+    /// timer in the panel status line).
+    @Published var processingStartedAt: Date?
     @Published var streamingTokensPerSecond: Double = 0
 
     /// AI preferences (model, endpoint, API key, provider kind, ...). Owned
@@ -199,6 +203,7 @@ class AgentSessionStore: ObservableObject {
         refreshContextLabel()
         streamingTokenCount = 0
         streamingTokensPerSecond = 0
+        processingStartedAt = Date()
         loopTask = Task { await processLoop() }
     }
 
@@ -259,6 +264,7 @@ class AgentSessionStore: ObservableObject {
               lastUser < messages.count - 1 else { return }
         messages.removeSubrange((lastUser + 1)...)
         AgentPlanStore.shared.clear()
+        processingStartedAt = Date()
         isProcessing = true
         isCancelled = false
         refreshContextLabel()
@@ -454,6 +460,8 @@ class AgentSessionStore: ObservableObject {
         defer {
             isProcessing = false
             currentAction = nil
+            processingStartedAt = nil
+            if !isCancelled { NSSound(named: "Glass")?.play() }
         }
 
         // AgentRuntime v2: budget-based loop replaces the old hardcoded

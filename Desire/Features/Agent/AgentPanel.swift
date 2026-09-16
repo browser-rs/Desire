@@ -206,6 +206,9 @@ struct AgentPanel: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
             }
+            Button("Export as Markdown…") {
+                exportMarkdown()
+            }
         }
     }
 
@@ -272,6 +275,33 @@ struct AgentPanel: View {
         // Instant reposition: per-token animated scrolls fight the user and
         // can desync under LazyVStack.
         proxy.scrollTo("__bottom__", anchor: .bottom)
+    }
+
+    private func exportMarkdown() {
+        let lines = store.messages.map { message -> String in
+            switch message.role {
+            case .user: return "## 🧑 User\n\n\(message.content ?? "")"
+            case .assistant:
+                let calls = (message.toolCalls ?? []).map { "`\($0.function.name)`" }.joined(separator: ", ")
+                var body = "## 🤖 Agent\n\n"
+                if !calls.isEmpty { body += "_tools: \(calls)_\n\n" }
+                if let content = message.content, !content.isEmpty { body += content }
+                return body
+            case .tool:
+                return "> tool result: \((message.content ?? "").prefix(600))"
+            case .system:
+                return ""
+            }
+        }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n---\n\n")
+
+        let panel = NSSavePanel()
+        panel.title = "Export Conversation"
+        panel.nameFieldStringValue = "\(store.conversationTitle ?? "conversation").md"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? lines.write(to: url, atomically: true, encoding: .utf8)
     }
 
     // MARK: - Submit

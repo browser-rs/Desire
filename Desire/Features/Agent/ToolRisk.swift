@@ -55,7 +55,7 @@ enum ToolRisk: Int, Comparable {
         // Page reading
         "getPageSnapshot", "getPageText", "getPageHTML", "getPageTitle", "getSelectedText",
         "readTab",
-        "screenshot",
+        "screenshot", "screenshotElement",
         // Listing / inspection
         "listContainers", "listTabs", "listBookmarks", "getHistory", "listPlugins",
         "listBlockedElements", "listTabGroups", "listQuickDials", "listDownloads",
@@ -75,6 +75,8 @@ enum ToolRisk: Int, Comparable {
         "waitForText",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
+        // Workspace inspection (reads inside the sandboxed working directory)
+        "readFile", "listDirectory",
         // Plan checklist (pure UI state)
         "updatePlan",
         // Waits for the user's answer; changes nothing

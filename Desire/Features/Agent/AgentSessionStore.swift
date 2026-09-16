@@ -193,6 +193,9 @@ class AgentSessionStore: ObservableObject {
     func sendMessage(_ text: String, images: [String]? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
+        // A second concurrent loop would interleave appends into `messages`
+        // and corrupt tool-call/result pairing — refuse while one runs.
+        guard !isProcessing else { return }
         messages.append(AgentMessage(role: .user, content: trimmed, images: images))
         if conversationId == nil {
             conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -286,6 +289,8 @@ class AgentSessionStore: ObservableObject {
             ) }
         }
         memoryProcessedCount = 0
+        // The next conversation must be able to earn its own generated title.
+        titleGenerated = false
         AgentPlanStore.shared.clear()
         UserPromptCenter.shared.cancel()
         messages.removeAll()
@@ -323,6 +328,9 @@ class AgentSessionStore: ObservableObject {
         currentAction = nil
         isNewChatIntentional = false
         memoryProcessedCount = messages.count
+        // The stored title is final — either generated earlier or renamed by
+        // the user in the history list. Never let title generation clobber it.
+        titleGenerated = true
         streamingVersion += 1
     }
 

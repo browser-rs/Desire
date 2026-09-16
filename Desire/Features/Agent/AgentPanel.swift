@@ -180,6 +180,7 @@ struct AgentPanel: View {
                     pendingImages.remove(at: idx)
                 },
                 onSubmit: submit,
+                onCancel: { store.cancel() },
                 onCancelQuestion: {
                     store.awaitingQuestion = false
                     store.cancel()

@@ -13,12 +13,13 @@ struct AgentInputBar: View {
     var onAddAttachment: () -> Void = {}
     var onRemoveAttachment: (Int) -> Void = { _ in }
     var onSubmit: () -> Void
+    /// Stops a running agent turn. While processing, the send button turns
+    /// into a stop button and routes here.
+    var onCancel: () -> Void = {}
     var onCancelQuestion: () -> Void
     @FocusState.Binding var isFocused: Bool
     /// Voice input manager — nil hides the mic button.
     var voiceManager: VoiceInputManager? = nil
-    /// Error message from voice input, shown below the bar.
-    var voiceError: String? = nil
 
     @State private var isHoveringSend = false
 
@@ -238,8 +239,11 @@ struct AgentInputBar: View {
 
     private var sendButton: some View {
         Button {
-            if isProcessing { return }
-            onSubmit()
+            if isProcessing {
+                onCancel()
+            } else {
+                onSubmit()
+            }
         } label: {
             ZStack {
                 Circle()
@@ -251,8 +255,8 @@ struct AgentInputBar: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(isProcessing || !canSubmit)
-        .help(isProcessing ? "Stop" : "Send (⏎)")
+        .disabled(!isProcessing && !canSubmit)
+        .help(isProcessing ? "Stop (Esc)" : "Send (⏎)")
         .onHover { isHoveringSend = $0 }
         .animation(.hoverFast, value: isHoveringSend)
     }

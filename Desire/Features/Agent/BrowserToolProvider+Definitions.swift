@@ -76,13 +76,6 @@ extension BrowserToolProvider {
                 ], required: ["source"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "renderDiagram", description: "Render a diagram on the built-in canvas (opens in the current tab). Source is Mermaid syntax: mindmap, flowchart, sequenceDiagram, gantt, pie. Use to visualize mind maps, flows, structures, plans. Saved under workspace/canvas/.",
-                parameters: AgentJSONSchema(type: "object", properties: [
-                    "title": AgentJSONSchemaValue(type: "string", description: "Diagram title"),
-                    "source": AgentJSONSchemaValue(type: "string", description: "Mermaid source"),
-                ], required: ["source"])
-            )),
-            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "askUser", description: "Ask the user a clarifying question MID-TASK and wait for their answer (the loop pauses; the answer is returned to you). Use when choices are ambiguous: which account, which quality, publish now or schedule. Do NOT use for information already on the page.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "question": AgentJSONSchemaValue(type: "string", description: "Concrete question; offer options when possible"),

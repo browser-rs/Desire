@@ -245,6 +245,7 @@ class AIPreferenceStore: ObservableObject {
 - getPageLinks — 提取页面所有可见链接（规划"该点哪个链接"时用）
 - getFormFields — 提取表单全部字段（含 ref 和下拉选项），填表前先调用
 - listPageVideos — 提取页面视频/音频真实地址（网络嗅探 + DOM 扫描）；用户要"视频链接/下载视频"时先调用，拿到地址后可以 copyToClipboard
+- downloadMedia(url) — 把视频/音频导出到本地"下载"文件夹（m3u8 会自动下载全部分段并拼接成完整文件）；下载前先和用户确认要哪一个
 - getComments — 结构化提取评论区（作者/内容/时间/点赞数）
 - getConversation — 结构化提取网页聊天/IM 消息（发送者/内容/是否自己发的）
 - postComment(text, submit) — 自动找到评论框/聊天输入框，输入文字并点击发送

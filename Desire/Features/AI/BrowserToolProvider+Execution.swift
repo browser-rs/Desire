@@ -558,6 +558,35 @@ extension BrowserToolProvider {
             }
             return "\(lines.count) media resource(s):\n" + lines.joined(separator: "\n")
 
+        case "downloadMedia":
+            // Export a media resource to ~/Downloads. Direct files stream to
+            // disk; HLS playlists (m3u8) are parsed, their segments fetched
+            // (with the page URL as Referer + the webview's Safari UA against
+            // hotlink protection), decrypted when AES-128, and concatenated
+            // into one playable file. Blocks this tool call until finished —
+            // progress lands in the result.
+            guard let urlString = args["url"] as? String, let url = URL(string: urlString),
+                  url.scheme == "http" || url.scheme == "https" else {
+                return "Invalid url (http/https only)"
+            }
+            let hint = args["fileName"] as? String
+            do {
+                let result = try await MediaExporter.download(
+                    url: url,
+                    referer: webView.url,
+                    userAgent: webView.customUserAgent,
+                    fileNameHint: hint
+                ) { _, _ in
+                    // Per-segment progress hook (no UI sink yet — the tool
+                    // call itself surfaces as currentAction in the panel).
+                }
+                var report = "Saved to ~/Downloads/\(result.fileURL.lastPathComponent) — \(result.segmentCount) segment(s), \(result.displayBytes)"
+                result.warnings.forEach { report += "\n⚠️ \($0)" }
+                return report
+            } catch {
+                return "Download failed: \(error.localizedDescription)"
+            }
+
         case "copyToClipboard":
             guard let text = args["text"] as? String else { return "Missing text" }
             await MainActor.run {

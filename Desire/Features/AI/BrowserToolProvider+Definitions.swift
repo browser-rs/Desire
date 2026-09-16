@@ -65,6 +65,10 @@ extension BrowserToolProvider {
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "listPageVideos", description: "Extract video/audio/stream addresses from the current page. Merges network sniffing (real CDN URLs behind blob: players — m3u8/mp4 as they load) with a DOM/meta scan (<video>, links, og:video, JSON-LD). Use for \"提取这个页面的视频/视频地址\". If empty, play the video briefly and call again.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),

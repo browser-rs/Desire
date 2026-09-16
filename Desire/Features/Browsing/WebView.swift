@@ -32,6 +32,10 @@ class BrowserState: ObservableObject {
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
     @Published var isPickingElement = false
+    /// Media resources sniffed on this page (network + DOM scan). Cleared
+    /// when a navigation commits to a new page. Consumed by the AI
+    /// `listPageVideos` tool; capped, session-scoped, never persisted.
+    @Published var detectedMedia: [MediaResource] = []
     var onAIElementPicked: ((String, String) -> Void)?
     let videoAdBlocker: VideoAdBlocker?
 
@@ -103,6 +107,19 @@ class BrowserState: ObservableObject {
         // (See `applyDesktopSafariUA(to:)` for why this is on the view, not
         // the configuration.)
         Self.applyDesktopSafariUA(to: webView)
+    }
+
+    /// Records a sniffed media resource: dedupe by URL (refresh in place),
+    /// newest first, hard cap so pathological pages can't grow it forever.
+    func record(detectedMedia resource: MediaResource) {
+        if let idx = detectedMedia.firstIndex(where: { $0.url == resource.url }) {
+            detectedMedia[idx] = resource
+        } else {
+            detectedMedia.insert(resource, at: 0)
+            if detectedMedia.count > 100 {
+                detectedMedia.removeLast(detectedMedia.count - 100)
+            }
+        }
     }
 
     /// Applies the full desktop Safari User-Agent to a WKWebView instance.
@@ -262,6 +279,7 @@ struct WebView: NSViewRepresentable {
 
         func observe(_ webView: WKWebView) {
             webView.configuration.userContentController.add(self, name: "audioState")
+            webView.configuration.userContentController.add(self, name: "mediaFound")
             webView.configuration.userContentController.add(self, name: "passwordDetect")
             webView.configuration.userContentController.add(self, name: "passwordSave")
             webView.configuration.userContentController.add(self, name: "readerContent")
@@ -384,6 +402,17 @@ struct WebView: NSViewRepresentable {
                 } else {
                     parent.onElementPicked?(selector, xpath)
                 }
+            } else if message.name == "mediaFound", let dict = message.body as? [String: Any],
+                      let url = dict["url"] as? String, !url.isEmpty {
+                let resource = MediaResource(
+                    url: url,
+                    kind: MediaResource.Kind(rawValue: dict["kind"] as? String ?? "video") ?? .video,
+                    mime: dict["mime"] as? String ?? "",
+                    sizeBytes: dict["size"] as? Int ?? 0,
+                    source: dict["source"] as? String ?? "network",
+                    detectedAt: Date()
+                )
+                parent.state.record(detectedMedia: resource)
             } else if message.name == "videoAdBlocked", let dict = message.body as? [String: Any],
                       let count = dict["count"] as? Int, count > 0 {
                 // Forward to the optional closure so the host can show a toast.
@@ -445,6 +474,8 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // New page — the sniffed media list belongs to the old one.
+            parent.state.detectedMedia.removeAll()
             parent.state.isSecure = webView.url?.scheme == "https"
             pendingUpgrades.removeAll()
             if let host = webView.url?.host {

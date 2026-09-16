@@ -67,6 +67,8 @@ enum ToolRisk: Int, Comparable {
         "extract", "findElements", "getPageLinks",
         // Comment / chat structured extraction (read-only)
         "getComments", "getConversation", "getFormFields",
+        // Media address extraction (read-only: network sniffer + DOM scan)
+        "listPageVideos",
         // Waiting / timing (pure observation)
         "waitForText",
         // Visual-only (temporary outline class, auto-removed)

@@ -705,3 +705,54 @@ async function __desireGetFormFields() {
     }
     return JSON.stringify({ count: fields.length, fields: fields });
 }
+
+// --- Media (video/audio) extraction ---
+
+// On-demand DOM + metadata scan for media addresses. Complements the
+// always-on network sniffer (media-sniffer.js): this catches <video>/<source>
+// elements, media-file links, og:video / twitter:player:stream meta tags,
+// and JSON-LD VideoObject contentUrl. blob: sources are reported (flagged)
+// because the network sniffer is what holds the REAL addresses behind them.
+async function __desireScanMedia() {
+    var MEDIA_EXT = /\.(mp4|webm|mkv|mov|m4v|flv|avi|ts|m3u8|mpd|mp3|m4a|aac|flac|wav|ogg|opus)(\?|#|$)/i;
+    var out = [], seen = {};
+    function add(url, source, mime) {
+        if (!url || typeof url !== "string") return;
+        if (url.indexOf("data:") === 0) return;
+        if (seen[url]) return;
+        seen[url] = 1;
+        var kind = "video";
+        if (/\.m3u8|\.mpd/i.test(url) || /mpegurl|dash/i.test(mime || "")) kind = "stream";
+        else if (/^audio\//i.test(mime || "") || /\.(mp3|m4a|aac|flac|wav|ogg|opus)(\?|#|$)/i.test(url)) kind = "audio";
+        out.push({ url: url.substring(0, 2000), source: source, mime: (mime || "").substring(0, 100), kind: kind, isBlob: url.indexOf("blob:") === 0 });
+    }
+
+    var mediaEls = document.querySelectorAll("video, audio, source");
+    for (var i = 0; i < mediaEls.length; i++) {
+        var el = mediaEls[i];
+        add(el.currentSrc || el.src || "", "dom<" + el.tagName.toLowerCase() + ">", "");
+    }
+    var anchors = document.querySelectorAll("a[href]");
+    for (var a = 0; a < anchors.length; a++) {
+        var href = anchors[a].href || "";
+        if (MEDIA_EXT.test(href)) add(href, "link", "");
+    }
+    var metas = document.querySelectorAll("meta[property='og:video:secure_url'], meta[property='og:video:url'], meta[property='og:video'], meta[name='twitter:player:stream']");
+    for (var m = 0; m < metas.length; m++) {
+        add(metas[m].content || "", "meta", "");
+    }
+    var ldScripts = document.querySelectorAll("script[type='application/ld+json']");
+    for (var j = 0; j < ldScripts.length; j++) {
+        try {
+            var data = JSON.parse(ldScripts[j].textContent);
+            var nodes = Array.isArray(data) ? data : [data];
+            for (var n = 0; n < nodes.length; n++) {
+                var node = nodes[n] || {};
+                if (/VideoObject|Movie|Clip/i.test(node["@type"] || "") && node.contentUrl) {
+                    add(node.contentUrl, "jsonld", node.encodingFormat || "");
+                }
+            }
+        } catch (err) {}
+    }
+    return JSON.stringify({ count: out.length, items: out });
+}

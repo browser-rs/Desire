@@ -510,6 +510,54 @@ extension BrowserToolProvider {
             return await callAsync(webView, function: "__desireGetLinks",
                                    args: ["maxItems": maxItems])
 
+        case "listPageVideos":
+            // Merge two detection paths: the network sniffer (real CDN URLs
+            // behind blob: players, accumulated in the owning tab's
+            // BrowserState) and the on-demand DOM/meta scan.
+            let sniffed = surface.tabManager?.tabs
+                .first(where: { $0.browser.webView === webView })?
+                .browser.detectedMedia ?? []
+            let scan = await callAsync(webView, function: "__desireScanMedia", args: [:])
+            var scanned: [(url: String, kind: String, mime: String, source: String, isBlob: Bool)] = []
+            if let data = scan.data(using: .utf8),
+               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+               let items = obj["items"] as? [[String: Any]] {
+                for item in items {
+                    guard let url = item["url"] as? String else { continue }
+                    scanned.append((
+                        url,
+                        item["kind"] as? String ?? "video",
+                        item["mime"] as? String ?? "",
+                        item["source"] as? String ?? "dom",
+                        item["isBlob"] as? Bool ?? false
+                    ))
+                }
+            }
+
+            var lines: [String] = []
+            var seen = Set<String>()
+            for entry in sniffed where !seen.contains(entry.url) {
+                seen.insert(entry.url)
+                var line = "[\(entry.kind.rawValue)] \(entry.url)"
+                var meta: [String] = []
+                if !entry.mime.isEmpty { meta.append("type: \(entry.mime)") }
+                if let size = entry.displaySize { meta.append(size) }
+                if !meta.isEmpty { line += " (\(meta.joined(separator: ", ")))" }
+                lines.append(line)
+            }
+            for entry in scanned where !seen.contains(entry.url) {
+                seen.insert(entry.url)
+                var line = "[\(entry.kind)] \(entry.url)"
+                if entry.isBlob { line += " (blob: only usable inside the page — look for the stream/mp4 entries instead)" }
+                else { line += " (via \(entry.source))" }
+                lines.append(line)
+            }
+
+            if lines.isEmpty {
+                return "No video/audio resources detected on this page. Try playing the video first — the network sniffer records the stream as it loads."
+            }
+            return "\(lines.count) media resource(s):\n" + lines.joined(separator: "\n")
+
         case "copyToClipboard":
             guard let text = args["text"] as? String else { return "Missing text" }
             await MainActor.run {

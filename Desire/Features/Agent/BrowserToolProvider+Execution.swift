@@ -694,17 +694,59 @@ extension BrowserToolProvider {
             let title = args["title"] as? String ?? "Diagram"
             let safeSource = source.replacingOccurrences(of: "</script>", with: "<\\/script>")
             let safeTitle = title.replacingOccurrences(of: "<", with: "&lt;")
+            let safeFile = title.replacingOccurrences(of: "\"", with: "")
+                .replacingOccurrences(of: "/", with: "-")
             let page = """
             <!DOCTYPE html><html><head><meta charset="utf-8"><title>\(safeTitle)</title>
-            <style>body{font-family:-apple-system,sans-serif;margin:24px;background:#fff}
-            h1{font-size:18px}.error{color:#c00;font-family:monospace;white-space:pre-wrap}</style></head>
-            <body><h1>\(safeTitle)</h1><pre class="mermaid">\(safeSource)</pre>
+            <style>
+              body{font-family:-apple-system,sans-serif;margin:20px}
+              #bar{display:flex;gap:6px;margin-bottom:12px}
+              #bar button{font:12px -apple-system;padding:4px 10px;border-radius:6px;
+                border:1px solid #ccc;background:#fff;cursor:pointer}
+              .mermaid{transform-origin:top left;display:inline-block;min-width:100%}
+              .error{color:#c00;font-family:monospace;white-space:pre-wrap}
+            </style></head>
+            <body>
+            <div id="bar">
+              <button onclick="zoom(-0.1)">−</button>
+              <button onclick="zoom(0.1)">＋</button>
+              <button onclick="resetZoom()">1:1</button>
+              <button onclick="exportSVG()">导出 SVG</button>
+              <button onclick="exportPNG()">导出 PNG</button>
+            </div>
+            <h1>\(safeTitle)</h1>
+            <pre class="mermaid">\(safeSource)</pre>
             <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-            <script>mermaid.initialize({startOnLoad:true,theme:"default"});
-            mermaid.run({querySelector:".mermaid"}).catch(function(e){
-              document.body.insertAdjacentHTML("beforeend",
-                '<p class="error">渲染失败：'+e.message+'</p><pre class="error">'+document.querySelector(".mermaid").textContent+'</pre>');
-            });</script></body></html>
+            <script>
+            const dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+            if (dark) document.body.style.background = '#1e1e1e';
+            let scale = 1;
+            function applyScale(){ const el = document.querySelector('.mermaid');
+              el.style.transform = 'scale(' + scale + ')'; el.style.transformOrigin = 'top left'; }
+            function zoom(d){ scale = Math.min(4, Math.max(0.2, scale + d)); applyScale(); }
+            function resetZoom(){ scale = 1; applyScale(); }
+            function svgNode(){ return document.querySelector('.mermaid svg'); }
+            function exportSVG(){ const svg = svgNode(); if (!svg) return alert('尚未渲染完成');
+              const blob = new Blob([svg.outerHTML], {type:'image/svg+xml'});
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+              a.download = '\(safeFile).svg'; a.click(); }
+            function exportPNG(){ const svg = svgNode(); if (!svg) return alert('尚未渲染完成');
+              const xml = new XMLSerializer().serializeToString(svg);
+              const img = new Image();
+              img.onload = function(){ const w = svg.viewBox.baseVal.width || 1000;
+                const h = svg.viewBox.baseVal.height || 600;
+                const c = document.createElement('canvas'); c.width = w; c.height = h;
+                const ctx = c.getContext('2d'); ctx.fillStyle = '#fff';
+                ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+                const a = document.createElement('a'); a.href = c.toDataURL('image/png');
+                a.download = '\(safeFile).png'; a.click(); };
+              img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml); }
+            mermaid.initialize({ startOnLoad:true, theme: dark ? 'dark' : 'default' });
+            mermaid.run({ querySelector:'.mermaid' }).then(applyScale).catch(function(e){
+              document.body.insertAdjacentHTML('beforeend',
+                '<p class="error">渲染失败：'+e.message+'</p><pre class="error">'+
+                document.querySelector('.mermaid').textContent+'</pre>'); });
+            </script></body></html>
             """
             let dir = AgentWorkspace.shared.directory.appendingPathComponent("canvas", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -605,6 +605,27 @@ extension BrowserToolProvider {
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 
+        case "setUploadFile":
+            // Arms a local file so the NEXT page file-picker auto-submits
+            // it (the open panel is intercepted in the UI delegate). This
+            // is the upload primitive behind platform publishing skills.
+            if args["clear"] as? Bool == true {
+                UploadIntent.shared.arm([])
+                return "Upload intent cleared"
+            }
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else {
+                return "Missing path (or clear=true to disarm)"
+            }
+            let expanded = (rawPath as NSString).expandingTildeInPath
+            let fileURL = URL(fileURLWithPath: expanded)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                return "File not found: \(fileURL.path)"
+            }
+            UploadIntent.shared.arm([fileURL])
+            let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int64) ?? nil
+            let sizeText = size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
+            return "Armed '\(fileURL.lastPathComponent)'\(sizeText.isEmpty ? "" : " (\(sizeText))"). Clicking the page's upload button now auto-submits it (consumed once)."
+
         // --- Recording ---
         case "startRecording":
             // Records THIS window (the whole browser window, chat included —

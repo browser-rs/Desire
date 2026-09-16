@@ -78,6 +78,13 @@ extension BrowserToolProvider {
                 ], required: ["steps"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setUploadFile", description: "Arm a local file so the NEXT file-picker on any page auto-submits it (no panel). The upload primitive for publishing videos to platforms: arm → open the upload page → click the upload button. Consumed once; clear=true disarms.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Absolute file path, ~ supported"),
+                    "clear": AgentJSONSchemaValue(type: "boolean", description: "Disarm instead of arming"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

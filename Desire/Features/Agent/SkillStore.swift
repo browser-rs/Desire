@@ -85,16 +85,21 @@ final class SkillStore: ObservableObject {
 
     // MARK: - Seeded examples
 
+    /// Seeds any missing example skill. Per-FILE check: new built-in
+    /// examples reach existing installs automatically.
     private func seedExamplesIfNeeded() {
         let fm = FileManager.default
-        let existing = (try? fm.contentsOfDirectory(at: Self.directory, includingPropertiesForKeys: nil)) ?? []
-        if !existing.isEmpty { return }
+        var seeded = 0
         for (name, description, body) in Self.exampleSkills {
             let file = Self.directory.appendingPathComponent("\(name).md")
+            guard !fm.fileExists(atPath: file.path) else { continue }
             try? Self.exampleText(name: name, description: description, body: body)
                 .write(to: file, atomically: true, encoding: .utf8)
+            seeded += 1
         }
-        Self.log.info("seeded \(Self.exampleSkills.count, privacy: .public) example skills")
+        if seeded > 0 {
+            Self.log.info("seeded \(seeded, privacy: .public) example skills")
+        }
     }
 
     private static func exampleText(name: String, description: String, body: String) -> String {
@@ -108,6 +113,58 @@ final class SkillStore: ObservableObject {
     }
 
     private static let exampleSkills: [(String, String, String)] = [
+        ("publish-bilibili",
+         "把本地视频发布到哔哩哔哩（B站）：自动上传 + 填标题/简介/标签 + 投稿",
+         """
+        ## 前置
+        - 用户已登录 B 站（未登录时 navigate 到 passport.bilibili.com 提示扫码）。
+        - 视频文件路径已确认。
+
+        ## 流程
+        1. setUploadFile(path: "<视频绝对路径>")
+        2. navigate https://member.bilibili.com/platform/upload/video/frame
+        3. waitForText "上传" 后，click {text: "上传视频"} → 已锁定的文件自动提交上传。
+        4. 填写稿件信息：标题（默认是文件名，按用户要求修改）、简介（contenteditable，用 fill）、分区、标签（type 后按回车逐个添加）。
+        5. 按用户要求设置封面/定时发布，默认立即投稿。
+        6. waitForText "投稿成功" 或 "审核中" → 向用户报告稿件链接。
+
+        ## 注意
+        - 上传大文件耗时：用 waitForText 或 wait 轮询进度，别盲等。
+        - 二创/转载内容需按用户指示选择"转载"并填来源。
+        """),
+        ("publish-youtube",
+         "Publish a local video to YouTube (Studio upload flow, title/description/audience/publish)",
+         """
+        ## Prerequisites
+        - User is signed in (if a consent/sign-in page appears, ask the user to complete it manually).
+
+        ## Flow
+        1. setUploadFile(path: "<absolute video path>")
+        2. navigate https://studio.youtube.com/channel/upload
+        3. Wait for the upload dialog, then click "SELECT FILES" (or the upload arrow) → the armed file auto-submits.
+        4. While uploading, fill Title (the filename becomes the default — replace per user), Description (contenteditable → fill), playlist if asked.
+        5. Audience step: pick "No, it's not made for kids" (confirm with user if unclear) → Next ×3.
+        6. Visibility: Public (default per user) → Publish. waitForText "Video published" → report the video link.
+
+        ## Notes
+        - Processing continues after publishing; tell the user HD quality appears once processing completes.
+        """),
+        ("publish-douyin",
+         "把本地视频发布到抖音网页版（创作者平台上传 + 标题/封面 + 发布）",
+         """
+        ## 前置
+        - 用户已登录抖音创作者平台（未登录提示扫码，等待完成）。
+
+        ## 流程
+        1. setUploadFile(path: "<视频绝对路径>")
+        2. navigate https://creator.douyin.com/creator-micro/content/upload
+        3. 点击上传区域 → 文件自动提交。
+        4. 填写标题/简介（contenteditable → fill），按需设置封面、允许保存等开关。
+        5. click {text: "发布"} → waitForText "发布成功" 或跳转作品管理页 → 报告结果。
+
+        ## 注意
+        - 抖音对横竖屏和时长有限制，超限会报错——把页面错误读给用户。
+        """),
         ("mux-audio-video",
          "用 ffmpeg 把 downloadMedia 下载的 YouTube 双轨（video-only + audio-only）合成为一个带声音的完整文件",
          """

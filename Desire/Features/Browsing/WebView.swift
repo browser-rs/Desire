@@ -777,6 +777,13 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+            // Agent upload intent (setUploadFile): auto-submit the armed
+            // file instead of showing the panel — this is what lets the
+            // agent publish videos to upload pages.
+            if let urls = UploadIntent.shared.consume(allowMultiple: parameters.allowsMultipleSelection) {
+                completionHandler(urls)
+                return
+            }
             let panel = NSOpenPanel()
             panel.canChooseFiles = true
             panel.canChooseDirectories = parameters.allowsDirectories

@@ -71,6 +71,8 @@ enum ToolRisk: Int, Comparable {
         "listPageVideos",
         // Waiting / timing (pure observation)
         "waitForText",
+        // Skills (read-only instruction loading)
+        "useSkill", "listSkills",
         // Visual-only (temporary outline class, auto-removed)
         "highlight",
         // Waiting / timing
@@ -82,7 +84,7 @@ enum ToolRisk: Int, Comparable {
     /// Tools that execute arbitrary code or are otherwise unbounded in
     /// effect. Every call requires explicit confirmation.
     private static let dangerousTools: Set<String> = [
-        "executeJS",
+        "executeJS", "runCommand",
     ]
 
     /// A short, human-readable label for this tier, shown in the approval UI.

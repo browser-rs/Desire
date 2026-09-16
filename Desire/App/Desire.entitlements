@@ -2,25 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.network.client</key>
-	<true/>
-	<key>com.apple.security.network.server</key>
-	<true/>
-	<key>com.apple.security.files.downloads.read-write</key>
-	<true/>
-	<key>com.apple.security.files.pictures.read-write</key>
-	<true/>
-	<key>com.apple.security.files.user-selected.read-write</key>
-	<true/>
-	<key>com.apple.security.device.camera</key>
-	<true/>
-	<key>com.apple.security.device.audio-input</key>
-	<true/>
-	<key>com.apple.security.personal-information.location</key>
-	<true/>
-	<key>com.apple.security.clipboard</key>
-	<true/>
+	<!--
+	     App Sandbox intentionally REMOVED: Desire is an agent host — it
+	     spawns system tools (ffmpeg, brew, python3, …) via runCommand,
+	     which a sandboxed app cannot do. Hardened Runtime stays on;
+	     system-tool execution is gated by the CLI allowlist (Settings →
+	     AI → System Access) plus per-call approval (or FULL ACCESS).
+	     Sandbox-only file entitlements (downloads/pictures/user-selected)
+	     were removed with it — unsandboxed file access needs no grant.
+	-->
 </dict>
 </plist>

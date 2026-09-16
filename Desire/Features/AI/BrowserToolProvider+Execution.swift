@@ -587,6 +587,37 @@ extension BrowserToolProvider {
                 return "Download failed: \(error.localizedDescription)"
             }
 
+        // --- Agent host: system CLI + skills ---
+        case "runCommand":
+            // Allowlisted binary, argv-only (no shell). ToolRisk marks this
+            // DANGEROUS: every call prompts with the exact command line
+            // unless the user enabled FULL ACCESS.
+            guard let tool = args["tool"] as? String, !tool.isEmpty else {
+                return "Missing tool (allowlisted: \(SystemCommandStore.shared.allowedBinaries.sorted().joined(separator: ", ")))"
+            }
+            let commandArgs = args["args"] as? [String] ?? []
+            let timeout = args["timeoutSec"] as? Double ?? 120
+            let result = await SystemCommandStore.shared.run(
+                tool: tool, args: commandArgs, timeout: timeout
+            )
+            return "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
+
+        case "useSkill":
+            // Progressive disclosure: the name+description list rides in the
+            // prompt; this loads the FULL instructions into the conversation.
+            guard let name = args["name"] as? String, !name.isEmpty else {
+                return "Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))"
+            }
+            guard let body = SkillStore.shared.body(for: name) else {
+                return "Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))"
+            }
+            return "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
+
+        case "listSkills":
+            let skills = SkillStore.shared.skills
+            if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
+            return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
+
         case "copyToClipboard":
             guard let text = args["text"] as? String else { return "Missing text" }
             await MainActor.run {

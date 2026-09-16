@@ -42,6 +42,11 @@ struct AISettingsSection: View {
     /// Models fetched from the API's `/models` endpoint (nil = not fetched).
     @State private var fetchedModels: [String]? = nil
     @State private var isFetchingModels = false
+    @State private var newBinary = ""
+    private func addBinary() {
+        SystemCommandStore.shared.allow(newBinary)
+        newBinary = ""
+    }
 
     var body: some View {
         SettingsContainer {
@@ -133,6 +138,67 @@ struct AISettingsSection: View {
                             .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
                     )
                     .padding(12)
+            }
+
+            // MARK: - System access (CLI allowlist)
+
+            SettingsSection(
+                title: "System Access (CLI)",
+                subtitle: "Binaries the agent may run via runCommand. Argv-only, no shell; every call prompts unless FULL ACCESS is on.",
+                icon: "terminal"
+            ) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 6) {
+                        TextField("Add binary name…", text: $newBinary)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12, design: .monospaced))
+                            .onSubmit(addBinary)
+                        Button {
+                            addBinary()
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(newBinary.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor).opacity(0.7))
+                    )
+                    .padding(.horizontal, 10)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
+
+                    ForEach(Array(SystemCommandStore.shared.allowedBinaries.sorted().enumerated()), id: \.element) { index, binary in
+                        HStack(spacing: 10) {
+                            Image(systemName: "terminal")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                                .background(Circle().fill(Color.secondary.opacity(0.08)))
+                            Text(binary)
+                                .font(.system(size: 12, design: .monospaced))
+                            Spacer()
+                            Button {
+                                SystemCommandStore.shared.disallow(binary)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove from allowlist")
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        if index < SystemCommandStore.shared.allowedBinaries.count - 1 {
+                            SettingsRowDivider()
+                        }
+                    }
+                }
             }
 
             // MARK: - Agent context

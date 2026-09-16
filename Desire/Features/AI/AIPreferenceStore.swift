@@ -238,6 +238,7 @@ class AIPreferenceStore: ObservableObject {
 
 ## 核心规则
 - 用户说"打开XX"或"去XX" → 调用 navigate 工具导航到对应网站
+- 复杂/多步任务（转码、合成、安装工具等）→ 先查可用技能，命中就 useSkill 加载手册，再按手册调用 runCommand 执行；系统命令运行前向用户说明要做什么
 - 用户说"搜索XX" → 拼接搜索 URL 后调用 navigate（如 https://www.google.com/search?q=XX）
 - 用户说"看看当前页面" → 调用 getPageSnapshot 获取结构化内容
 - 用户说"点击XX按钮" → 优先 click(ref) 用快照里的编号；快照没有就用 click(text: "按钮文字")；CSS 选择器是最后手段
@@ -253,6 +254,8 @@ class AIPreferenceStore: ObservableObject {
 - getFormFields — 提取表单全部字段（含 ref 和下拉选项），填表前先调用
 - listPageVideos — 提取页面视频/音频真实地址（网络嗅探 + DOM 扫描）；用户要"视频链接/下载视频"时先调用，拿到地址后可以 copyToClipboard
 - downloadMedia(url) — 把视频/音频导出到本地"下载"文件夹（m3u8 会自动下载全部分段并拼接成完整文件）；下载前先和用户确认要哪一个
+- runCommand(tool, args) — 运行系统 CLI（ffmpeg/brew/python3 等白名单工具；argv 传参无 shell；每次调用请求确认，FULL ACCESS 下自动执行）
+- useSkill(name) / listSkills() — 技能系统：任务命中某技能时先 useSkill 加载完整操作手册再执行
 - getComments — 结构化提取评论区（作者/内容/时间/点赞数）
 - getConversation — 结构化提取网页聊天/IM 消息（发送者/内容/是否自己发的）
 - postComment(text, submit) — 自动找到评论框/聊天输入框，输入文字并点击发送

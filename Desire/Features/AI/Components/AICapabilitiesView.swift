@@ -224,7 +224,7 @@ struct AICapabilitiesView: View {
     }
 
     private static let categoryOrder = [
-        "页面读取", "页面操作", "导航与标签", "媒体提取", "收藏与剪贴板", "浏览器设置", "其他",
+        "页面读取", "页面操作", "导航与标签", "媒体提取", "收藏与剪贴板", "系统与技能", "浏览器设置", "其他",
     ]
 
     private static let categoryIcons = [
@@ -234,6 +234,7 @@ struct AICapabilitiesView: View {
         "媒体提取": "play.rectangle",
         "收藏与剪贴板": "doc.on.clipboard",
         "浏览器设置": "gearshape",
+        "系统与技能": "terminal",
         "其他": "wrench.and.screwdriver",
     ]
 
@@ -276,6 +277,9 @@ struct AICapabilitiesView: View {
             "setSearchEngine", "toggleAdBlocking", "toggleTrackingProtection",
             "toggleSidebar", "listPlugins", "togglePlugin",
         ],
+        "系统与技能": [
+            "runCommand", "useSkill", "listSkills",
+        ],
     ]
 
     private static let abilities: [(icon: String, title: String, subtitle: String)] = [
@@ -286,6 +290,8 @@ struct AICapabilitiesView: View {
         ("brain.head.profile", "长期记忆", "自动提取用户偏好与习惯，跨会话生效，可在记忆页查看和删除"),
         ("clock.arrow.circlepath", "会话记忆", "对话持久化保存，长对话自动生成摘要用于跨会话回忆"),
         ("puzzlepiece.extension", "MCP 扩展工具", "接入外部工具服务器，动态扩充上方工具表"),
+        ("terminal", "系统命令执行", "运行 ffmpeg / brew / python3 等本地 CLI（白名单 + 每次批准）"),
+        ("books.vertical", "技能系统", "SKILL.md 技能库按需加载完整操作手册"),
     ]
 }
 

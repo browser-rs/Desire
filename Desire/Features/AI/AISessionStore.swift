@@ -405,6 +405,14 @@ class AISessionStore: ObservableObject {
         if let pageContext = await fetchCompactPageContext() {
             request.append(AIMessage(role: .system, content: pageContext))
         }
+        let skills = SkillStore.shared.skills
+        if !skills.isEmpty {
+            let lines = skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
+            request.append(AIMessage(role: .system, content: """
+            [Installed skills — call useSkill(name) to load full instructions             before performing a matching task]
+            \(lines)
+            """))
+        }
         return request
     }
 

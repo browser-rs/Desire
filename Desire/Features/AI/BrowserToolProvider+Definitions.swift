@@ -69,6 +69,24 @@ extension BrowserToolProvider {
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "runCommand", description: "Run an allowlisted system CLI tool (ffmpeg, brew, python3, …) with arguments. NO shell — pass argv items. Requires approval on EVERY call showing the exact command (auto-runs in FULL ACCESS). Use useSkill first when a skill covers the task.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "tool": AIJSONSchemaValue(type: "string", description: "Binary name, e.g. \"ffmpeg\", \"brew\""),
+                    "args": AIJSONSchemaValue(type: "array", description: "Arguments as individual strings, e.g. [\"-y\", \"-i\", \"in.mp4\"]", items: JSONSchemaItemBox(value: AIJSONSchemaValue(type: "string"))),
+                    "timeoutSec": AIJSONSchemaValue(type: "number", description: "Kill after N seconds (default 120, max 600)"),
+                ], required: ["tool"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "name": AIJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),
+                ], required: ["name"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "listSkills", description: "List installed skills with descriptions.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "downloadMedia", description: "Download a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Pair with listPageVideos: extract, confirm with the user which one, then download. The tool call blocks until the export finishes.",
                 parameters: AIJSONSchema(type: "object", properties: [
                     "url": AIJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),

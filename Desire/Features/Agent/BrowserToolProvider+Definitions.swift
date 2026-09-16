@@ -78,6 +78,14 @@ extension BrowserToolProvider {
                 ], required: ["steps"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "stopRecording", description: "Stop the window recording and save the MP4 to ~/Downloads. Returns the file path and duration.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "runCommand", description: "Run an allowlisted system CLI tool (ffmpeg, brew, python3, …) with arguments. NO shell — pass argv items. Requires approval on EVERY call showing the exact command (auto-runs in FULL ACCESS). Use useSkill first when a skill covers the task.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "tool": AgentJSONSchemaValue(type: "string", description: "Binary name, e.g. \"ffmpeg\", \"brew\""),

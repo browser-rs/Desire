@@ -21,6 +21,7 @@ struct AgentPanel: View {
     @State private var pendingImages: [String] = []
     @State private var isDroppingImage = false
     @ObservedObject private var planStore = AgentPlanStore.shared
+    @ObservedObject private var recorder = WindowRecorder.shared
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
@@ -83,6 +84,22 @@ struct AgentPanel: View {
 
             // The page the agent will actually act on — always the real tool
             // target, so multi-window mismatches are visible at a glance.
+            // Recording indicator (started via the startRecording tool).
+            if recorder.isRecording {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 7, height: 7)
+                    Text("REC")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.red)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+                .background(Color.red.opacity(0.08))
+            }
+
             // Live task checklist from the updatePlan tool.
             if !planStore.steps.isEmpty {
                 AgentPlanView(steps: planStore.steps)

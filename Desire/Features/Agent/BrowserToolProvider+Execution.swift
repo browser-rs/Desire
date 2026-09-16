@@ -605,6 +605,32 @@ extension BrowserToolProvider {
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 
+        // --- Recording ---
+        case "startRecording":
+            // Records THIS window (the whole browser window, chat included —
+            // perfect for "watch me work" demos). First call triggers the
+            // macOS Screen Recording permission dialog.
+            guard let window = webView.window else { return "No window attached" }
+            do {
+                let url = try await WindowRecorder.shared.start(window: window)
+                return "Recording started → \(url.lastPathComponent). Perform the steps now; call stopRecording when finished."
+            } catch {
+                return "Could not start recording: \(error.localizedDescription)"
+            }
+
+        case "stopRecording":
+            guard WindowRecorder.shared.isRecording else { return "Not recording" }
+            guard let url = await WindowRecorder.shared.stop() else {
+                return "Recording stopped but the file could not be finalized"
+            }
+            let duration: String
+            if let started = WindowRecorder.shared.startedAt {
+                duration = String(format: "%.0f", Date().timeIntervalSince(started)) + "s"
+            } else {
+                duration = "?"
+            }
+            return "Recording saved: \(url.path) (\(duration))"
+
         // --- Agent host: system CLI + skills ---
         case "runCommand":
             // Allowlisted binary, argv-only (no shell). ToolRisk marks this

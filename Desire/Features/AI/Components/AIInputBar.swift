@@ -143,6 +143,7 @@ struct AIInputBar: View {
 
             attachButton
                 .padding(.leading, 6)
+                .padding(.trailing, 6)
                 .padding(.bottom, 6)
             micButton
                 .padding(.trailing, 6)

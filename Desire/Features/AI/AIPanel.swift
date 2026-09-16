@@ -18,6 +18,9 @@ struct AIPanel: View {
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
     @State private var isDroppingImage = false
+    /// True while the message list viewport sits at the bottom — gates the
+    /// streaming auto-follow so reading older messages isn't interrupted.
+    @State private var isPinnedToBottom = true
     @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
@@ -195,9 +198,33 @@ struct AIPanel: View {
                 }
                 .padding(.vertical, 12)
             }
+            // Start (and reopen) at the latest message, not the top.
+            .defaultScrollAnchor(.bottom)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                // "Pinned" = the viewport bottom sits within 80pt of the
+                // content bottom. While pinned, streaming output auto-
+                // scrolls; scrolling up to read pauses the following.
+                let distance = geometry.contentSize.height
+                    - (geometry.contentOffset.y + geometry.containerSize.height)
+                return distance < 80
+            } action: { _, pinned in
+                isPinnedToBottom = pinned
+            }
+            .onAppear {
+                // An immediate scrollTo is a no-op before the first layout
+                // pass — defer it one tick.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    proxy.scrollTo("__bottom__", anchor: .bottom)
+                }
+            }
             .onChange(of: store.messages.count) { _, _ in
-                scrollToBottom(proxy)
+                // Force-follow when the USER sent something; otherwise only
+                // while pinned (tool results streaming in shouldn't yank a
+                // reader who scrolled up).
+                let lastIsUser = store.messages.last?.role == .user
+                scrollToBottom(proxy, force: lastIsUser)
             }
             .onChange(of: store.streamingVersion) { _, _ in
                 scrollToBottom(proxy)
@@ -210,10 +237,11 @@ struct AIPanel: View {
         return store.messages.last?.id == msg.id
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            proxy.scrollTo("__bottom__", anchor: .bottom)
-        }
+    private func scrollToBottom(_ proxy: ScrollViewProxy, force: Bool = false) {
+        guard force || isPinnedToBottom else { return }
+        // Instant reposition: per-token animated scrolls fight the user and
+        // can desync under LazyVStack.
+        proxy.scrollTo("__bottom__", anchor: .bottom)
     }
 
     // MARK: - Submit

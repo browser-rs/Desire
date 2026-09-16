@@ -66,7 +66,9 @@ enum ToolRisk: Int, Comparable {
         // DOM inspection (read-only queries)
         "extract", "findElements", "getPageLinks",
         // Comment / chat structured extraction (read-only)
-        "getComments", "getConversation",
+        "getComments", "getConversation", "getFormFields",
+        // Waiting / timing (pure observation)
+        "waitForText",
         // Visual-only (temporary outline class, auto-removed)
         "highlight",
         // Waiting / timing

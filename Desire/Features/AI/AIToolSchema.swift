@@ -49,4 +49,24 @@ nonisolated struct AIJSONSchemaValue: Codable, Sendable {
     /// so the value type must recurse (arrays/dicts break the recursion).
     var properties: [String: AIJSONSchemaValue]?
     var required: [String]?
+    /// Element schema for `type: "array"` values (e.g. pressKey modifiers).
+    /// Boxed in a class: a value type cannot recursively contain itself.
+    var items: JSONSchemaItemBox?
+}
+
+/// Reference box that makes `AIJSONSchemaValue.items` legal while
+/// encoding/decoding transparently AS the inner schema (`items: {…}` —
+/// the standard JSON-Schema shape, not `items: {value: {…}}`).
+final class JSONSchemaItemBox: Codable, @unchecked Sendable {
+    let value: AIJSONSchemaValue
+
+    init(value: AIJSONSchemaValue) { self.value = value }
+
+    required init(from decoder: Decoder) throws {
+        value = try AIJSONSchemaValue(from: decoder)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try value.encode(to: encoder)
+    }
 }

@@ -63,4 +63,113 @@ enum SyntheticInput {
         ) else { return }
         NSApp.sendEvent(event)
     }
+
+    // MARK: - Keyboard (trusted)
+
+    /// Hardware key codes for the named keys the agent may press, plus the
+    /// characters WebKit expects on the keyDown for text-bearing keys.
+    private static let keyMap: [String: (keyCode: UInt16, characters: String)] = [
+        "enter": (36, "\r"), "return": (36, "\r"),
+        "escape": (53, "\u{1B}"), "esc": (53, "\u{1B}"),
+        "tab": (48, "\t"),
+        "backspace": (51, "\u{7F}"), "delete": (51, "\u{7F}"),
+        "forwarddelete": (117, ""),
+        "space": (49, " "),
+        "up": (126, ""), "down": (125, ""), "left": (123, ""), "right": (124, ""),
+        "pageup": (116, ""), "pagedown": (121, ""),
+        "home": (115, ""), "end": (119, ""),
+        "a": (0, "a"), "b": (11, "b"), "c": (8, "c"), "d": (2, "d"), "e": (14, "e"),
+        "f": (3, "f"), "g": (5, "g"), "h": (4, "h"), "i": (22, "i"), "j": (38, "j"),
+        "k": (40, "k"), "l": (37, "l"), "m": (46, "m"), "n": (45, "n"), "o": (23, "o"),
+        "p": (25, "p"), "q": (12, "q"), "r": (15, "r"), "s": (1, "s"), "t": (17, "t"),
+        "u": (20, "u"), "v": (9, "v"), "w": (13, "w"), "x": (7, "x"), "y": (16, "y"),
+        "z": (6, "z"),
+        "0": (29, "0"), "1": (18, "1"), "2": (19, "2"), "3": (20, "3"), "4": (21, "4"),
+        "5": (23, "5"), "6": (22, "6"), "7": (26, "7"), "8": (28, "8"), "9": (25, "9"),
+    ]
+
+    /// Human-readable list for error messages when a key isn't in the map.
+    static var supportedKeys: String {
+        keyMap.keys.sorted().joined(separator: ", ")
+    }
+
+    /// Posts a trusted key press (down+up, with modifier tap around it) to
+    /// the webview. The webview is made first responder for the duration —
+    /// keys go to the PAGE, not to whatever field in the AI panel happens
+    /// to hold focus — and the previous responder is restored afterwards.
+    static func key(_ name: String, modifiers: NSEvent.ModifierFlags = [], in webView: WKWebView) async -> String {
+        let normalized = name.lowercased().trimmingCharacters(in: .whitespaces)
+        guard let mapped = keyMap[normalized] else {
+            return "Unsupported key: \(name). Supported: \(supportedKeys)"
+        }
+        guard let window = webView.window else {
+            return "No window attached — keyboard input needs a visible webview"
+        }
+
+        let previousResponder = window.firstResponder
+        window.makeFirstResponder(webView)
+        defer { window.makeFirstResponder(previousResponder) }
+
+        let flags: NSEvent.ModifierFlags = modifiers.isEmpty
+            ? (normalized.count == 1 && normalized.first?.isUppercase == true ? .shift : [])
+            : modifiers
+
+        let characters = flags.contains(.shift) ? mapped.characters.uppercased() : mapped.characters
+        postKey(.keyDown, keyCode: mapped.keyCode, characters: characters,
+                modifiers: flags, windowNumber: window.windowNumber)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        postKey(.keyUp, keyCode: mapped.keyCode, characters: characters,
+                modifiers: flags, windowNumber: window.windowNumber)
+        return "Pressed \(normalized)"
+    }
+
+    /// Types `text` as a stream of trusted per-character key events into the
+    /// focused element. Unlike `fill` (prototype-setter + input events), this
+    /// triggers real keydown handling — autocomplete-as-you-type, search
+    /// suggestion panels, and keydown-driven widgets all respond.
+    static func type(_ text: String, in webView: WKWebView) async -> String {
+        guard let window = webView.window else {
+            return "No window attached — keyboard input needs a visible webview"
+        }
+        let previousResponder = window.firstResponder
+        window.makeFirstResponder(webView)
+        defer { window.makeFirstResponder(previousResponder) }
+
+        for ch in text {
+            guard let event = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                characters: String(ch),
+                charactersIgnoringModifiers: String(ch),
+                isARepeat: false,
+                keyCode: 0
+            ) else { continue }
+            NSApp.sendEvent(event)
+            try? await Task.sleep(nanoseconds: 12_000_000)
+        }
+        return "Typed \(text.count) characters"
+    }
+
+    private static func postKey(
+        _ type: NSEvent.EventType, keyCode: UInt16, characters: String,
+        modifiers: NSEvent.ModifierFlags, windowNumber: Int
+    ) {
+        guard let event = NSEvent.keyEvent(
+            with: type,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: windowNumber,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
+        ) else { return }
+        NSApp.sendEvent(event)
+    }
 }

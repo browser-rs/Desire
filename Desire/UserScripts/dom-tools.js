@@ -94,7 +94,14 @@ async function __desireResolveEl(selector, ref, text) {
     } else if (text) {
         el = __desireFindByText(text);
     } else if (selector) {
+        // Main document first, then same-origin iframes.
         el = document.querySelector(selector);
+        if (!el) {
+            var docs = __desireAllDocs();
+            for (var di = 1; di < docs.length && !el; di++) {
+                try { el = docs[di].querySelector(selector); } catch (err) {}
+            }
+        }
     }
     if (!el) return null;
     return __desireClickableAncestor(el);
@@ -110,7 +117,7 @@ async function __desireElementRect(selector, ref, text) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "";
     el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
-    var r = el.getBoundingClientRect();
+    var r = __desirePageRect(el);
     return JSON.stringify({ x: r.left, y: r.top, w: r.width, h: r.height });
 }
 
@@ -585,18 +592,116 @@ async function __desireHighlight(selector, ref, text) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "";
     el.scrollIntoView({ block: "center", behavior: "instant" });
+    // Inject into the ELEMENT's document — the element may live inside a
+    // same-origin iframe, whose stylesheet is separate from the main frame.
+    var doc = el.ownerDocument;
     var id = "desire-highlight-style";
-    if (!document.getElementById(id)) {
-        var s = document.createElement("style");
+    if (!doc.getElementById(id)) {
+        var s = doc.createElement("style");
         s.id = id;
         s.textContent = "@keyframes desireFlash{0%,100%{outline-color:rgba(255,149,0,0)}" +
             "20%,60%{outline-color:rgba(255,149,0,0.95)}40%,80%{outline-color:rgba(255,149,0,0.35)}}" +
             ".desire-flash{outline:3px solid rgba(255,149,0,0) !important;" +
             "outline-offset:2px !important;border-radius:4px !important;" +
             "animation:desireFlash 1.6s ease-in-out 2 !important;}";
-        document.head.appendChild(s);
+        (doc.head || doc.documentElement).appendChild(s);
     }
     el.classList.add("desire-flash");
     setTimeout(function () { el.classList.remove("desire-flash"); }, 3400);
     return "Highlighted";
+}
+
+// --- Same-origin iframe penetration ---
+// dom-tools.js is injected per-frame (forMainFrameOnly: false), but tools
+// are invoked in the MAIN frame. These helpers let main-frame resolution
+// reach elements living inside same-origin iframes (payment forms, embeds)
+// and compute page-space rects with the frame offset folded in.
+
+function __desireAllDocs() {
+    var docs = [document];
+    for (var i = 0; i < window.frames.length && docs.length < 6; i++) {
+        try {
+            var d = window.frames[i].document;
+            if (d) docs.push(d);
+        } catch (err) {}   // cross-origin frame — inaccessible by design
+    }
+    return docs;
+}
+
+// Bounding rect in PAGE coordinates: folds in same-origin frame offsets so
+// trusted mouse clicks land on the right spot even inside embeds.
+function __desirePageRect(el) {
+    var r = el.getBoundingClientRect();
+    var left = r.left, top = r.top;
+    var win = el.ownerDocument.defaultView;
+    while (win && win.frameElement) {
+        var fr = win.frameElement.getBoundingClientRect();
+        left += fr.left;
+        top += fr.top;
+        win = win.parent;
+    }
+    return { left: left, top: top, width: r.width, height: r.height };
+}
+
+async function __desireWaitForText(text, timeout) {
+    timeout = timeout || 8000;
+    var start = Date.now();
+    return await new Promise(function (resolve) {
+        function check() {
+            var body = document.body ? document.body.innerText : "";
+            if (body.indexOf(text) !== -1) return resolve("Found text");
+            if (Date.now() - start > timeout) return resolve("Timeout waiting for text");
+            setTimeout(check, 250);
+        }
+        check();
+    });
+}
+
+// Extract every visible form field with its identity (name/id/placeholder/
+// label) and — for <select> — the first options. Fields get data-desire-ref
+// ids so fill {ref} targets them directly. Use before fillForm-style work.
+async function __desireGetFormFields() {
+    var stale = document.querySelectorAll("[data-desire-ref]");
+    for (var s = 0; s < stale.length; s++) {
+        try { stale[s].removeAttribute("data-desire-ref"); } catch (err0) {}
+    }
+    var all = document.querySelectorAll("input:not([type=hidden]), textarea, select");
+    var fields = [];
+    for (var i = 0; i < all.length && fields.length < 40; i++) {
+        var el = all[i];
+        var rect = el.getBoundingClientRect();
+        if (rect.width < 4 || rect.height < 4) continue;
+        var style = window.getComputedStyle(el);
+        if (style.visibility === "hidden" || style.display === "none") continue;
+        var refId = "f" + (fields.length + 1);
+        try { el.setAttribute("data-desire-ref", refId); } catch (err) {}
+        var type = el.tagName.toLowerCase();
+        if (type === "input") type = "input[" + (el.type || "text") + "]";
+        var label = "";
+        if (el.labels && el.labels.length > 0) label = el.labels[0].innerText || "";
+        if (!label) {
+            var lbl = el.closest("label");
+            if (lbl) label = lbl.innerText || "";
+        }
+        if (!label) {
+            var ph = el.getAttribute("placeholder") || el.getAttribute("aria-label") || "";
+            label = ph;
+        }
+        var entry = {
+            ref: refId, tag: type,
+            name: el.name || "", id: el.id || "",
+            label: label.trim().replace(/\s+/g, " ").substring(0, 60),
+            value: String(el.value || "").substring(0, 80),
+            required: !!el.required
+        };
+        if (el.tagName === "SELECT") {
+            var opts = [];
+            for (var o = 0; o < el.options.length && o < 8; o++) {
+                opts.push(el.options[o].text.trim().substring(0, 40));
+            }
+            entry.options = opts;
+        }
+        fields.push(entry);
+    }
+    return JSON.stringify({ count: fields.length, fields: fields });
 }

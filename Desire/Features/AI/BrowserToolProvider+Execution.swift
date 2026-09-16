@@ -572,6 +572,54 @@ extension BrowserToolProvider {
             return await callAsync(webView, function: "__desireFocus",
                                    args: ["selector": sel ?? "", "ref": ref ?? ""])
 
+        case "pressKey":
+            // Trusted keyboard event through the AppKit pipeline (the page
+            // becomes first responder for the duration). Covers Enter-on-
+            // search, Escape-on-modal, arrow/tab navigation, ⌘A-style combos.
+            guard let key = args["key"] as? String, !key.isEmpty else {
+                return "Missing key. Supported: \(SyntheticInput.supportedKeys)"
+            }
+            var flags: NSEvent.ModifierFlags = []
+            if let mods = args["modifiers"] as? [String] {
+                for m in mods {
+                    switch m.lowercased() {
+                    case "cmd", "command", "⌘": flags.insert(.command)
+                    case "shift", "⇧": flags.insert(.shift)
+                    case "ctrl", "control", "⌃": flags.insert(.control)
+                    case "alt", "option", "opt", "⌥": flags.insert(.option)
+                    default: break
+                    }
+                }
+            }
+            return await SyntheticInput.key(key, modifiers: flags, in: webView)
+
+        case "type":
+            // Trusted per-character typing into the FOCUSED element. Unlike
+            // fill (prototype setter), real key events fire — autocomplete,
+            // search-as-you-type, and keydown-driven widgets respond.
+            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            // Optional focus target first; typing lands in the page either way.
+            if let sel = args["selector"] as? String, !sel.isEmpty {
+                _ = await callAsync(webView, function: "__desireFocus",
+                                    args: ["selector": sel, "ref": args["ref"] as? String ?? ""])
+            } else if let ref = args["ref"] as? String, !ref.isEmpty {
+                _ = await callAsync(webView, function: "__desireFocus",
+                                    args: ["selector": "", "ref": ref])
+            }
+            return await SyntheticInput.type(text, in: webView)
+
+        case "waitForText":
+            // Wait until visible text appears (e.g. search results render).
+            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            let timeout = args["timeout"] as? Int ?? 8000
+            return await callAsync(webView, function: "__desireWaitForText",
+                                   args: ["text": text, "timeout": timeout])
+
+        case "getFormFields":
+            // Structured form inventory (ref/type/name/label/value/options)
+            // with data-desire-ref ids assigned — fill {ref} targets them.
+            return await callAsync(webView, function: "__desireGetFormFields", args: [:])
+
         case "postComment":
             // One-shot "评论/回复/回消息": locates the page's comment or
             // chat input automatically (textarea or contenteditable editor),

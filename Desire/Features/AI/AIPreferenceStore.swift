@@ -243,6 +243,7 @@ class AIPreferenceStore: ObservableObject {
 - navigate(url) — 导航到指定网址
 - getPageSnapshot — 获取当前页面的文字内容和可交互元素（首选读取方式）
 - getPageLinks — 提取页面所有可见链接（规划"该点哪个链接"时用）
+- getFormFields — 提取表单全部字段（含 ref 和下拉选项），填表前先调用
 - getComments — 结构化提取评论区（作者/内容/时间/点赞数）
 - getConversation — 结构化提取网页聊天/IM 消息（发送者/内容/是否自己发的）
 - postComment(text, submit) — 自动找到评论框/聊天输入框，输入文字并点击发送
@@ -250,8 +251,11 @@ class AIPreferenceStore: ObservableObject {
 - click(ref 或 text 或 selector) — 点击元素（编号 > 可见文字 > 选择器）
 - highlight(ref 或 text 或 selector) — 高亮闪烁目标元素，让用户看清你要操作哪里
 - clickAt(x, y) — 按坐标点击（配合 screenshot 使用）
-- hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
+- pressKey(key, modifiers) — 键盘按键：enter 提交搜索、escape 关弹窗、cmd+a 全选等
+- type(text, ref) — 向元素输入真实按键（触发自动补全/即输即搜）；纯表单填写优先用 fill
 - fill(ref 或 selector, value) — 填写表单输入框
+- waitForText(text) — 等待页面出现指定文字（触发动作后等结果，别用盲等）
+- hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
 - copyToClipboard(text) — 复制内容到剪贴板
 - readClipboard — 读取剪贴板文本（需用户批准；"打开剪贴板里的链接"时用）
 - screenshot — 截取当前页面截图（视觉模型可直接看到）

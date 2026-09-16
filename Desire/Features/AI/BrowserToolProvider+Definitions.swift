@@ -39,6 +39,32 @@ extension BrowserToolProvider {
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "pressKey", description: "Press a keyboard key in the page (trusted key event): enter, escape, tab, backspace, arrows, pageup/pagedown, home/end, letters, digits. Optional modifiers. Use for Enter-to-search, Escape-to-close, ⌘A-style selection.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "key": AIJSONSchemaValue(type: "string", description: "Key name, e.g. \"enter\", \"escape\", \"tab\", \"a\", \"ArrowDown\"→\"down\""),
+                    "modifiers": AIJSONSchemaValue(type: "array", description: "Optional: [\"cmd\"], [\"shift\"], [\"ctrl\"], [\"alt\"]", items: JSONSchemaItemBox(value: AIJSONSchemaValue(type: "string"))),
+                ], required: ["key"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "type", description: "Type text as REAL keystrokes into the focused element (autocomplete and search-as-you-type respond). Optionally focus a target first via ref/selector. For plain form filling prefer fill.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "text": AIJSONSchemaValue(type: "string", description: "Text to type"),
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element to focus before typing"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector to focus before typing"),
+                ], required: ["text"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "waitForText", description: "Wait until visible text appears anywhere on the page (e.g. search results rendered). Use instead of blind wait after triggering an action.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "text": AIJSONSchemaValue(type: "string", description: "Text to wait for"),
+                    "timeout": AIJSONSchemaValue(type: "number", description: "Max milliseconds (default 8000)"),
+                ], required: ["text"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "getFormFields", description: "Inventory all visible form fields as structured JSON: {ref, tag, name, id, label, value, required, options}. Fields carry data-desire-ref ids, so fill {ref} targets them directly. Use before filling any form.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),

@@ -500,9 +500,6 @@
         }
       }
     },
-    "Access was denied. Re-enable it in System Settings → Privacy & Security." : {
-
-    },
     "Active model: %@" : {
       "localizations" : {
         "en" : {
@@ -954,9 +951,6 @@
         }
       }
     },
-    "Allow…" : {
-
-    },
     "Allowed" : {
       "comment" : "Permission allowed status",
       "extractionState" : "stale",
@@ -1024,9 +1018,6 @@
           }
         }
       }
-    },
-    "Apple grants this per-team for browsers. Until it's in the provisioning profile, WebKit cannot complete passkeys for arbitrary sites." : {
-
     },
     "Are you sure you want to close this tab?" : {
       "localizations" : {
@@ -1139,6 +1130,12 @@
         }
       }
     },
+    "Attach image ( vision models)" : {
+
+    },
+    "Attach Images" : {
+
+    },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
       "extractionState" : "stale",
@@ -1207,9 +1204,6 @@
           }
         }
       }
-    },
-    "Authorized" : {
-
     },
     "Autofill" : {
       "comment" : "Settings tab label",
@@ -3465,12 +3459,6 @@
         }
       }
     },
-    "Desire may issue passkey requests for any website." : {
-
-    },
-    "Desire may use your platform passkeys for website sign-in." : {
-
-    },
     "Details" : {
       "localizations" : {
         "en" : {
@@ -5112,9 +5100,6 @@
         }
       }
     },
-    "Granted" : {
-
-    },
     "Green" : {
       "comment" : "Screenshot palette color: green",
       "localizations" : {
@@ -5992,9 +5977,6 @@
           }
         }
       }
-    },
-    "macOS asks for consent before a browser can use your passkeys." : {
-
     },
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
       "localizations" : {
@@ -7196,12 +7178,6 @@
         }
       }
     },
-    "No passkeys" : {
-
-    },
-    "No passkeys found on this Mac yet — create one on any site's sign-in page, or enable iCloud Keychain." : {
-
-    },
     "No Plugins" : {
       "comment" : "Empty plugins state",
       "localizations" : {
@@ -7678,9 +7654,6 @@
         }
       }
     },
-    "Open Settings…" : {
-
-    },
     "Orange" : {
       "comment" : "Screenshot palette color: orange",
       "localizations" : {
@@ -7814,9 +7787,6 @@
           }
         }
       }
-    },
-    "Passkey access needs Apple's Web Browser Public Key Credential entitlement — request it from Apple, then rebuild with the updated provisioning profile." : {
-
     },
     "Passwords" : {
       "comment" : "Passwords panel title",
@@ -8411,9 +8381,6 @@
         }
       }
     },
-    "Ready" : {
-
-    },
     "Recent Searches" : {
       "localizations" : {
         "en" : {
@@ -8798,9 +8765,6 @@
           }
         }
       }
-    },
-    "Request from Apple…" : {
-
     },
     "Request timed out" : {
       "localizations" : {
@@ -11433,9 +11397,6 @@
           }
         }
       }
-    },
-    "This Mac has passkeys available. Sign-in prompts appear automatically on supported sites." : {
-
     },
     "This Month" : {
       "localizations" : {

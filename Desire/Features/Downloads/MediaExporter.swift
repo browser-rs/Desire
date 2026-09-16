@@ -34,6 +34,7 @@ enum MediaExporter {
 
     enum ExportError: LocalizedError {
         case notAPlaylist
+        case badStatus(Int)
         case unsupportedEncryption(String)
         case tooManySegmentFailures
         case timedOut
@@ -41,6 +42,7 @@ enum MediaExporter {
         var errorDescription: String? {
             switch self {
             case .notAPlaylist: "URL did not return an m3u8 playlist or a media file"
+            case .badStatus(let code): "Server returned HTTP \(code) (the signed URL may have expired — re-extract the address and retry)"
             case .unsupportedEncryption(let method): "Playlist uses unsupported encryption: \(method)"
             case .tooManySegmentFailures: "Too many segments failed to download"
             case .timedOut: "Export exceeded the 30-minute time limit"
@@ -271,7 +273,7 @@ enum MediaExporter {
         if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ExportError.notAPlaylist
+            throw ExportError.badStatus(http.statusCode)
         }
         return (data, response)
     }

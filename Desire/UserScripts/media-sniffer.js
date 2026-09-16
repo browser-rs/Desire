@@ -34,7 +34,7 @@
         reported[url] = true;
         try {
             window.webkit.messageHandlers.mediaFound.postMessage({
-                url: url.substring(0, 2000),
+                url: url.substring(0, 4000),
                 mime: (mime || "").substring(0, 100),
                 kind: k,
                 size: size || 0,

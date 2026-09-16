@@ -724,8 +724,36 @@ async function __desireScanMedia() {
         var kind = "video";
         if (/\.m3u8|\.mpd/i.test(url) || /mpegurl|dash/i.test(mime || "")) kind = "stream";
         else if (/^audio\//i.test(mime || "") || /\.(mp3|m4a|aac|flac|wav|ogg|opus)(\?|#|$)/i.test(url)) kind = "audio";
-        out.push({ url: url.substring(0, 2000), source: source, mime: (mime || "").substring(0, 100), kind: kind, isBlob: url.indexOf("blob:") === 0 });
+        out.push({ url: url.substring(0, 4000), source: source, mime: (mime || "").substring(0, 100), kind: kind, isBlob: url.indexOf("blob:") === 0 });
     }
+
+    // YouTube: ytInitialPlayerResponse carries signed stream URLs.
+    //  - formats:       PROGRESSIVE (video+audio in one file — directly
+    //                   downloadable & playable, usually 360p/720p)
+    //  - adaptiveFormats: DASH tracks (1080p+ video WITHOUT audio, or audio
+    //                   only) — exportable per-track, muxing needs an
+    //                   external tool.
+    try {
+        var sd = (window.ytInitialPlayerResponse || {}).streamingData;
+        if (sd) {
+            var formats = sd.formats || [];
+            for (var fi = 0; fi < formats.length; fi++) {
+                var f = formats[fi];
+                if (!f.url) continue;
+                var q = f.qualityLabel ? " " + f.qualityLabel : "";
+                out.push({ url: f.url.substring(0, 4000), source: "youtube-progressive" + q + " (video+audio)", mime: (f.mimeType || "").substring(0, 100), kind: "video", isBlob: false });
+            }
+            var adaptive = sd.adaptiveFormats || [];
+            for (var ai = 0; ai < adaptive.length && ai < 20; ai++) {
+                var af = adaptive[ai];
+                if (!af.url) continue;
+                var m = af.mimeType || "";
+                var isAudio = m.indexOf("audio") === 0;
+                var tag = isAudio ? "audio-only" : (af.qualityLabel ? af.qualityLabel + " video-only" : "video-only");
+                out.push({ url: af.url.substring(0, 4000), source: "youtube-adaptive (" + tag + "; separate track)", mime: m.substring(0, 100), kind: isAudio ? "audio" : "video", isBlob: false });
+            }
+        }
+    } catch (ytErr) {}
 
     var mediaEls = document.querySelectorAll("video, audio, source");
     for (var i = 0; i < mediaEls.length; i++) {

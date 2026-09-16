@@ -20,6 +20,7 @@ struct AgentPanel: View {
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
     @State private var isDroppingImage = false
+    @ObservedObject private var planStore = AgentPlanStore.shared
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
@@ -82,6 +83,11 @@ struct AgentPanel: View {
 
             // The page the agent will actually act on — always the real tool
             // target, so multi-window mismatches are visible at a glance.
+            // Live task checklist from the updatePlan tool.
+            if !planStore.steps.isEmpty {
+                AgentPlanView(steps: planStore.steps)
+            }
+
             if let context = store.contextLabel {
                 HStack(spacing: 4) {
                     Image(systemName: "scope")

@@ -587,6 +587,24 @@ extension BrowserToolProvider {
                 return "Download failed: \(error.localizedDescription)"
             }
 
+        case "updatePlan":
+            // Visible task checklist: the model maintains the step list and
+            // the panel renders it live (Claude-TodoWrite style).
+            guard let items = args["steps"] as? [[String: Any]] else {
+                return "Missing steps array"
+            }
+            var steps: [AgentPlanStep] = []
+            for item in items.prefix(12) {
+                guard let content = item["content"] as? String, !content.isEmpty else { continue }
+                var status = item["status"] as? String ?? "pending"
+                if !["pending", "in_progress", "done"].contains(status) { status = "pending" }
+                steps.append(AgentPlanStep(content: String(content.prefix(120)), status: status))
+            }
+            guard !steps.isEmpty else { return "No valid steps" }
+            AgentPlanStore.shared.set(steps)
+            let done = steps.filter { $0.status == "done" }.count
+            return "Plan updated: \(done)/\(steps.count) done"
+
         // --- Agent host: system CLI + skills ---
         case "runCommand":
             // Allowlisted binary, argv-only (no shell). ToolRisk marks this

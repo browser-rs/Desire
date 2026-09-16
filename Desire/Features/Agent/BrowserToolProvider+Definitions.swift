@@ -69,6 +69,15 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "updatePlan", description: "Maintain a VISIBLE task checklist for multi-step work. Send the FULL step list every time with per-step status (pending / in_progress / done); the user watches progress live. Required for any task with 3+ steps — update after each step completes.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "steps": AgentJSONSchemaValue(type: "array", description: "Full step list", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                        "content": AgentJSONSchemaValue(type: "string", description: "Step description"),
+                        "status": AgentJSONSchemaValue(type: "string", description: "pending | in_progress | done"),
+                    ], required: ["content"]))),
+                ], required: ["steps"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "runCommand", description: "Run an allowlisted system CLI tool (ffmpeg, brew, python3, …) with arguments. NO shell — pass argv items. Requires approval on EVERY call showing the exact command (auto-runs in FULL ACCESS). Use useSkill first when a skill covers the task.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "tool": AgentJSONSchemaValue(type: "string", description: "Binary name, e.g. \"ffmpeg\", \"brew\""),

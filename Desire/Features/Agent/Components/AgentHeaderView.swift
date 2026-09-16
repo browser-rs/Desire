@@ -12,6 +12,7 @@ struct AgentHeaderView: View {
     var onNewChat: (() -> Void)?
 
     @State private var isDotPulsing = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: 8) {
@@ -174,6 +175,11 @@ struct AgentHeaderView: View {
             }
             Section {
                 Toggle("Full Access (auto-approve all tools)", isOn: $store.fullAccess)
+                Button {
+                    openWindow(id: "settings")
+                } label: {
+                    Label("Agent Settings…", systemImage: "gearshape")
+                }
                 Text(contextUsageText)
             }
         } label: {

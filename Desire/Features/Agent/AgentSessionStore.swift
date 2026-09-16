@@ -112,6 +112,9 @@ class AgentSessionStore: ObservableObject {
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
     private var memoryProcessedCount = 0
+    /// Set once a model-generated conversation title exists (the fallback
+    /// title is just the truncated first message).
+    private var titleGenerated = false
 
     /// Builds the provider the agent loop will call for this iteration.
     /// Returns the provider and the initial "via ..." label to show in the UI
@@ -255,6 +258,7 @@ class AgentSessionStore: ObservableObject {
               let lastUser = messages.lastIndex(where: { $0.role == .user }),
               lastUser < messages.count - 1 else { return }
         messages.removeSubrange((lastUser + 1)...)
+        AgentPlanStore.shared.clear()
         isProcessing = true
         isCancelled = false
         refreshContextLabel()
@@ -276,6 +280,7 @@ class AgentSessionStore: ObservableObject {
             ) }
         }
         memoryProcessedCount = 0
+        AgentPlanStore.shared.clear()
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil
@@ -613,9 +618,24 @@ class AgentSessionStore: ObservableObject {
             saveCurrentConversation()
         }
 
+        await generateTitleIfNeeded()
+
         // Background memory housekeeping (L1 facts + L2 summary) — never
         // blocks or fails the turn.
         await runMemoryHousekeeping()
+    }
+
+    /// Replaces the truncated-first-message title with a proper generated
+    /// one, once per conversation.
+    private func generateTitleIfNeeded() async {
+        guard !titleGenerated, messages.count >= 2,
+              messages.contains(where: { $0.role == .user }) else { return }
+        titleGenerated = true
+        guard let title = await MemoryExtractor.generateTitle(
+            preference: preference, messages: Array(messages.prefix(6))
+        ) else { return }
+        conversationTitle = title
+        saveCurrentConversation()
     }
 
     /// Extracts durable facts and refreshes the conversation summary once
@@ -713,6 +733,19 @@ class AgentSessionStore: ObservableObject {
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               !dict.isEmpty else {
             return call.function.arguments.isEmpty ? "(no arguments)" : call.function.arguments
+        }
+        // A system command is safest judged as the exact command line.
+        if call.function.name == "runCommand", let tool = dict["tool"] as? String {
+            let argv = (dict["args"] as? [String]) ?? []
+            var line = ([tool] + argv).joined(separator: " ")
+            if let timeout = dict["timeoutSec"] { line += "  (timeout: \(timeout)s)" }
+            return line.count > 240 ? String(line.prefix(240)) + "…" : line
+        }
+        // Surface the primary intent field first for common tools.
+        for key in ["url", "text", "content", "value", "name"] {
+            if let value = dict[key] as? String {
+                return key + ": " + (value.count > 80 ? String(value.prefix(80)) + "…" : value)
+            }
         }
         // Show key=value pairs, truncating long values.
         return dict.map { key, value in

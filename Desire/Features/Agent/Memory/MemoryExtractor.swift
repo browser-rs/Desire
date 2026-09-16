@@ -95,6 +95,23 @@ enum MemoryExtractor {
         memory.upsertSummary(conversationId: conversationId, summary: String(text.prefix(600)))
     }
 
+    /// Generates a short conversation title in the user's language.
+    static func generateTitle(
+        preference: AgentPreferenceStore, messages: [AgentMessage]
+    ) async -> String? {
+        let transcript = transcript(of: messages, maxChars: 2000)
+        guard !transcript.isEmpty else { return nil }
+        let text = await collectText(
+            preference: preference,
+            system: "Generate a conversation title of at most 6 words in the user's language. Plain text only, no quotes, no period.",
+            user: transcript
+        )
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        guard !cleaned.isEmpty, cleaned.count <= 80 else { return nil }
+        return cleaned
+    }
+
     // MARK: - Plumbing
 
     private static func transcript(of messages: [AgentMessage], maxChars: Int) -> String {

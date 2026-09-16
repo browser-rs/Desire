@@ -73,6 +73,8 @@ enum ToolRisk: Int, Comparable {
         "waitForText",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
+        // Plan checklist (pure UI state)
+        "updatePlan",
         // Visual-only (temporary outline class, auto-removed)
         "highlight",
         // Waiting / timing

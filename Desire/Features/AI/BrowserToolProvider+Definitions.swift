@@ -35,6 +35,10 @@ extension BrowserToolProvider {
                 ], required: ["text"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "readClipboard", description: "Read text from the system clipboard. Use when the user references copied content (\"打开剪贴板里的链接\", \"总结我复制的东西\"). Requires approval.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),

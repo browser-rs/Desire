@@ -135,6 +135,21 @@ struct AISettingsSection: View {
                     .padding(12)
             }
 
+            // MARK: - Agent context
+
+            SettingsSection(
+                title: "Agent Context",
+                subtitle: "What the agent knows about the page you're on.",
+                icon: "scope"
+            ) {
+                SettingsToggleRow(
+                    "Auto Page Context",
+                    subtitle: "Attach a compact summary of the current page (title, URL, text excerpt) to every request. Off means the agent must call getPageSnapshot itself.",
+                    systemImage: "doc.text.magnifyingglass",
+                    isOn: $store.autoPageContext
+                )
+            }
+
             // MARK: - Allowed Tools
 
             if !store.allowedTools.isEmpty {

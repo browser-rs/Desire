@@ -329,6 +329,70 @@ class AISessionStore: ObservableObject {
         }
     }
 
+    /// Compact page summary for the ephemeral per-request injection: title,
+    /// URL, and the first ~1200 characters of visible text. Nil when there is
+    /// no real web page (new tab, blank) or the user turned the feature off.
+    private func fetchCompactPageContext() async -> String? {
+        guard preference.autoPageContext, let wv = activeWebView,
+              let url = wv.url, url.scheme == "http" || url.scheme == "https" else { return nil }
+        let js = """
+        (function(){
+            var text = (document.body && document.body.innerText || '').replace(/\\s+/g, ' ').trim();
+            return JSON.stringify({ title: document.title || '', text: text.substring(0, 1200) });
+        })()
+        """
+        let raw: String? = await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            wv.evaluateJavaScript(js) { result, _ in
+                continuation.resume(returning: result as? String)
+            }
+        }
+        guard let data = raw?.data(using: .utf8),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: String],
+              let text = obj["text"], !text.isEmpty else { return nil }
+        let title = obj["title"] ?? ""
+        return "[Current page] \(title) — \(url.absoluteString)\n\(text)"
+    }
+
+    /// The message array actually sent to the model: the stored conversation,
+    /// compacted to fit the context budget, plus the fresh page context.
+    /// Neither transformation is persisted — `messages` stays intact.
+    private func buildRequestMessages() async -> [AIMessage] {
+        var request = Self.compactForContext(messages)
+        if let pageContext = await fetchCompactPageContext() {
+            request.append(AIMessage(role: .system, content: pageContext))
+        }
+        return request
+    }
+
+    /// Drops the OLDEST user-started conversation blocks while the estimated
+    /// context size exceeds the budget. A block runs from a user message up
+    /// to the next user message, so assistant tool_calls and their tool
+    /// results always stay together — OpenAI's tool-call→tool-result pairing
+    /// is never broken. The final block is never dropped.
+    static func compactForContext(_ messages: [AIMessage], budget: Int = 160_000) -> [AIMessage] {
+        func size(_ m: AIMessage) -> Int {
+            (m.content?.count ?? 0)
+                + (m.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
+        }
+        let sizes = messages.map(size)
+        var total = sizes.reduce(0, +)
+        guard total > budget else { return messages }
+
+        let starts = messages.indices.filter { messages[$0].role == .user }
+        guard starts.count > 1 else { return messages }
+
+        var keepStart = 0
+        for (i, s) in starts.enumerated() {
+            if total <= budget { break }
+            if i == starts.count - 1 { break }   // never drop the final block
+            let end = i + 1 < starts.count ? starts[i + 1] : messages.count
+            total -= (s..<end).reduce(0) { $0 + sizes[$1] }
+            keepStart = end
+        }
+        guard keepStart > 0 else { return messages }
+        return Array(messages[keepStart...])
+    }
+
     private func processLoop() async {
         defer {
             isProcessing = false
@@ -364,8 +428,9 @@ class AISessionStore: ObservableObject {
             func runStream() async throws {
                 let active = makeActiveProvider()
                 lastProviderUsed = active.viaLabel
+                let request = await buildRequestMessages()
                 let stream = active.provider.stream(
-                    messages: messages,
+                    messages: request,
                     tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
                     prefs: preference
                 )

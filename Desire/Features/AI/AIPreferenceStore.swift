@@ -16,6 +16,13 @@ class AIPreferenceStore: ObservableObject {
     @Published var maxTokens: Int {
         didSet { UserDefaults.standard.set(maxTokens, forKey: "aiMaxTokens") }
     }
+    /// When on, every model request carries an EPHEMERAL compact summary of
+    /// the page the agent is working on (title + URL + text excerpt) — so
+    /// "这是什么页面" needs no tool roundtrip and every agent step sees the
+    /// freshest page state. Not persisted in the conversation.
+    @Published var autoPageContext: Bool {
+        didSet { UserDefaults.standard.set(autoPageContext, forKey: "aiAutoPageContext") }
+    }
     @Published var temperature: Double {
         didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
     }
@@ -123,6 +130,7 @@ class AIPreferenceStore: ObservableObject {
             systemPrompt = Self.defaultPrompt
         }
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
+        autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
@@ -245,6 +253,7 @@ class AIPreferenceStore: ObservableObject {
 - hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
 - fill(ref 或 selector, value) — 填写表单输入框
 - copyToClipboard(text) — 复制内容到剪贴板
+- readClipboard — 读取剪贴板文本（需用户批准；"打开剪贴板里的链接"时用）
 - screenshot — 截取当前页面截图（视觉模型可直接看到）
 - newTab(url) — 新标签页打开网址
 - listTabs — 列出所有打开的标签页

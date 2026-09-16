@@ -519,6 +519,16 @@ extension BrowserToolProvider {
             let preview = text.count > 40 ? String(text.prefix(40)) + "…" : text
             return "Copied to clipboard: \(preview)"
 
+        case "readClipboard":
+            // Side-effect tier on purpose: the clipboard may hold sensitive
+            // content, so ToolRisk.classify leaves this at .sideEffect and
+            // the user is asked (with an Always-Allow option) first.
+            let text = NSPasteboard.general.string(forType: .string) ?? ""
+            if text.isEmpty { return "Clipboard is empty (or holds non-text content)" }
+            return text.count > 2000
+                ? String(text.prefix(2000)) + "…[truncated]"
+                : text
+
         case "fill":
             guard let val = args["value"] as? String else { return "Missing value" }
             let sel = args["selector"] as? String

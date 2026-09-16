@@ -64,7 +64,11 @@ enum ToolRisk: Int, Comparable {
         // View toggles (reversible, local to current view)
         "toggleReaderMode", "zoomIn", "zoomOut", "resetZoom",
         // DOM inspection (read-only queries)
-        "extract", "findElements",
+        "extract", "findElements", "getPageLinks",
+        // Comment / chat structured extraction (read-only)
+        "getComments", "getConversation",
+        // Visual-only (temporary outline class, auto-removed)
+        "highlight",
         // Waiting / timing
         "wait", "waitForElement", "findInPage",
         // Media (PiP is a local view action, reversible)

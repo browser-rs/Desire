@@ -75,11 +75,23 @@ extension BrowserToolProvider {
                 ], required: ["question"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "writeFile", description: "Save text content to a local file (Downloads / Documents / Desktop). Use to export extracted data (comments, summaries, CSV).",
+                name: "writeFile", description: "Write text to a file. Relative paths resolve against the agent WORKING DIRECTORY; absolute paths must be inside the workspace / user folders (anywhere with FULL ACCESS). Use to export extracted data, reports, CSV.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "path": AgentJSONSchemaValue(type: "string", description: "Target file path (~ supported)"),
+                    "path": AgentJSONSchemaValue(type: "string", description: "Target file path (relative = working directory)"),
                     "content": AgentJSONSchemaValue(type: "string", description: "File content"),
                 ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readFile", description: "Read a text file (working directory / user folders). Binary files are reported, not dumped.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "File path (relative = working directory)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listDirectory", description: "List a directory's entries with sizes (defaults to the agent working directory).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Directory path (default: working directory)"),
+                ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "updatePlan", description: "Maintain a VISIBLE task checklist for multi-step work. Send the FULL step list every time with per-step status (pending / in_progress / done); the user watches progress live. Required for any task with 3+ steps — update after each step completes.",

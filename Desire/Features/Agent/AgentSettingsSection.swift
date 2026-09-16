@@ -43,6 +43,7 @@ struct AgentSettingsSection: View {
     @State private var fetchedModels: [String]? = nil
     @State private var isFetchingModels = false
     @State private var newBinary = ""
+    @State private var workspaceRefresh = 0
     private func addBinary() {
         SystemCommandStore.shared.allow(newBinary)
         newBinary = ""
@@ -148,6 +149,44 @@ struct AgentSettingsSection: View {
                 icon: "terminal"
             ) {
                 VStack(spacing: 0) {
+                    // Working directory
+                    HStack(spacing: 10) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(Color.secondary.opacity(0.08)))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Working Directory")
+                                .font(.system(size: 12, weight: .medium))
+                            Text(SystemCommandStore.shared.workingDirectoryText)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer()
+                        Button("Choose…") {
+                            let panel = NSOpenPanel()
+                            panel.canChooseFiles = false
+                            panel.canChooseDirectories = true
+                            panel.canCreateDirectories = true
+                            panel.directoryURL = SystemCommandStore.shared.workingDirectory
+                            if panel.runModal() == .OK, let url = panel.url {
+                                SystemCommandStore.shared.setWorkingDirectory(url)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        Button("Reset") {
+                            SystemCommandStore.shared.resetWorkingDirectory()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    SettingsRowDivider()
+
                     HStack(spacing: 6) {
                         TextField("Add binary name…", text: $newBinary)
                             .textFieldStyle(.plain)

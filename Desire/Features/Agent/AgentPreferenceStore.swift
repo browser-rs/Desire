@@ -280,6 +280,7 @@ class AgentPreferenceStore: ObservableObject {
 - hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
 - copyToClipboard(text) — 复制内容到剪贴板
 - readClipboard — 读取剪贴板文本（需用户批准；"打开剪贴板里的链接"时用）
+- writeFile / readFile / listDirectory — 在工作目录读写文件、查看目录内容（导出报告、检查下载的文件）
 - screenshot — 截取当前页面截图（视觉模型可直接看到）
 - newTab(url) — 新标签页打开网址
 - listTabs — 列出所有打开的标签页

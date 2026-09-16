@@ -282,6 +282,7 @@ struct AgentCapabilitiesView: View {
         ],
         "系统与技能": [
             "runCommand", "useSkill", "listSkills", "writeFile",
+            "readFile", "listDirectory",
         ],
     ]
 

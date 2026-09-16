@@ -680,25 +680,64 @@ extension BrowserToolProvider {
             // user's folders (Downloads/Documents/Desktop) + app support.
             guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return "Missing path" }
             let content = args["content"] as? String ?? ""
-            let expanded = (rawPath as NSString).expandingTildeInPath
-            let fileURL = URL(fileURLWithPath: expanded)
-            let allowedRoots = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)
-                + FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-                + FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)
-            let resolved = fileURL.standardizedFileURL.path
-            let isAllowed = allowedRoots.contains { resolved.hasPrefix($0.standardizedFileURL.path) }
-                || resolved.contains("/Application Support/Desire/")
-            guard isAllowed else {
-                return "Path not allowed — write inside Downloads / Documents / Desktop"
+            switch AgentWorkspace.shared.resolve(rawPath, write: true) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                try? FileManager.default.createDirectory(
+                    at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                do {
+                    try content.write(to: fileURL, atomically: true, encoding: .utf8)
+                    return "Wrote \(content.count) chars → \(fileURL.path)"
+                } catch {
+                    return "Write failed: \(error.localizedDescription)"
+                }
             }
-            try? FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            do {
-                try content.write(to: fileURL, atomically: true, encoding: .utf8)
-                return "Wrote \(content.count) chars → \(fileURL.path)"
-            } catch {
-                return "Write failed: \(error.localizedDescription)"
+
+        case "readFile":
+            // Text file read from the workspace / user folders. Binary
+            // files are reported instead of dumped.
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return "Missing path" }
+            switch AgentWorkspace.shared.resolve(rawPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return "File not found: \(fileURL.path)"
+                }
+                guard let data = FileManager.default.contents(atPath: fileURL.path) else {
+                    return "Could not read \(fileURL.path)"
+                }
+                if data.contains(0) {
+                    return "Binary file (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))) — not shown as text"
+                }
+                let text = String(data: data, encoding: .utf8) ?? ""
+                return text.count > 60_000 ? String(text.prefix(60_000)) + "…[truncated]" : text
             }
+
+        case "listDirectory":
+            let raw = args["path"] as? String ?? ""
+            let target: URL
+            switch AgentWorkspace.shared.resolve(raw, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let url):
+                target = raw.isEmpty ? AgentWorkspace.shared.directory : url
+            }
+            guard let entries = try? FileManager.default.contentsOfDirectory(
+                at: target, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]) else {
+                return "Could not list \(target.path)"
+            }
+            var lines: [String] = ["\(target.path)"]
+            for entry in entries.prefix(200) {
+                let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                let size = (try? entry.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                let kind = isDir ? "dir " : "file"
+                let sizeText = isDir ? "" : "  \(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))"
+                lines.append("- [\(kind)] \(entry.lastPathComponent)\(sizeText)")
+            }
+            return lines.joined(separator: "\n")
 
         // --- Recording ---
         case "startRecording":
@@ -737,7 +776,8 @@ extension BrowserToolProvider {
             let commandArgs = args["args"] as? [String] ?? []
             let timeout = args["timeoutSec"] as? Double ?? 120
             let result = await SystemCommandStore.shared.run(
-                tool: tool, args: commandArgs, timeout: timeout
+                tool: tool, args: commandArgs, timeout: timeout,
+                workDirectory: AgentWorkspace.shared.directory
             )
             return "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
 

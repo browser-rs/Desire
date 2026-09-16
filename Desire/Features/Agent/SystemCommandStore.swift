@@ -37,9 +37,33 @@ final class SystemCommandStore: ObservableObject {
         "/usr/bin", "/bin", "/usr/sbin", "/usr/local/sbin",
     ]
 
+    @Published private(set) var workingDirectory: URL
+
+    /// Short display path for the settings row.
+    var workingDirectoryText: String { workingDirectory.path }
+
+    func setWorkingDirectory(_ url: URL) {
+        workingDirectory = url
+        UserDefaults.standard.set(url.path, forKey: "agentWorkingDirectory")
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    func resetWorkingDirectory() {
+        UserDefaults.standard.removeObject(forKey: "agentWorkingDirectory")
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        setWorkingDirectory(documents.appendingPathComponent("DesireAgent", isDirectory: true))
+    }
+
     private init() {
         let stored = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
         allowedBinaries = stored.isEmpty ? Self.defaultBinaries : Set(stored)
+        if let storedPath = UserDefaults.standard.string(forKey: "agentWorkingDirectory") {
+            workingDirectory = URL(fileURLWithPath: storedPath)
+        } else {
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            workingDirectory = documents.appendingPathComponent("DesireAgent", isDirectory: true)
+        }
+        try? FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
     }
 
     private func save() {
@@ -98,7 +122,8 @@ final class SystemCommandStore: ObservableObject {
     func run(
         tool: String,
         args: [String],
-        timeout: TimeInterval = 120
+        timeout: TimeInterval = 120,
+        workDirectory: URL? = nil
     ) async -> CommandResult {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
         guard allowedBinaries.contains(name) else {
@@ -118,6 +143,7 @@ final class SystemCommandStore: ObservableObject {
         let stderr = Pipe()
         process.standardOutput = stdout
         process.standardError = stderr
+        process.currentDirectoryURL = workDirectory
 
         // Accumulate off the main thread: pipes deadlock when their 64 KB
         // buffer fills and nobody drains them.

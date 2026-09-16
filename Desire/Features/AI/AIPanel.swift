@@ -105,6 +105,23 @@ struct AIPanel: View {
                 }
             }
 
+            if canRegenerate {
+                HStack {
+                    Button {
+                        store.regenerate()
+                    } label: {
+                        Label("Regenerate", systemImage: "arrow.clockwise")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Re-run the last message")
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+            }
+
             if let approval = store.pendingApproval {
                 ToolApprovalBar(
                     approval: approval,
@@ -249,6 +266,11 @@ struct AIPanel: View {
     private var canSubmit: Bool {
         (!inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty)
             && !store.isProcessing
+    }
+
+    /// A finished assistant turn is on top — offer a re-run.
+    private var canRegenerate: Bool {
+        !store.isProcessing && !store.awaitingQuestion && store.messages.last?.role == .assistant
     }
 
     private func submit() {

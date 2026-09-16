@@ -25,7 +25,11 @@ struct AIHeaderView: View {
 
             Spacer(minLength: 4)
 
-            modelBadge
+            modelMenu
+
+            if store.fullAccess {
+                fullAccessBadge
+            }
 
             if store.isProcessing {
                 stopButton
@@ -118,26 +122,92 @@ struct AIHeaderView: View {
         }
     }
 
-    private var modelBadge: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "cpu")
-                .font(.system(size: 9, weight: .medium))
-            Text(displayModel)
-                .font(.system(size: 10, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.middle)
+    /// The model pill doubles as the switcher menu: provider kinds, saved
+    /// endpoints, full-access toggle, and a context-usage readout.
+    private var modelMenu: some View {
+        Menu {
+            Section("Provider") {
+                Button {
+                    store.preference.providerKind = .routing
+                } label: {
+                    Label("Auto (cloud + on-device)",
+                          systemImage: store.preference.providerKind == .routing ? "checkmark" : "arrow.triangle.branch")
+                }
+                Button {
+                    store.preference.providerKind = .foundationModels
+                } label: {
+                    Label("On-device (Foundation Models)",
+                          systemImage: store.preference.providerKind == .foundationModels ? "checkmark" : "iphone.gen3")
+                }
+                Button {
+                    store.preference.providerKind = .ollama
+                } label: {
+                    Label("Ollama (\(store.preference.ollamaModel))",
+                          systemImage: store.preference.providerKind == .ollama ? "checkmark" : "server.rack")
+                }
+            }
+            Section("Saved Endpoints") {
+                ForEach(store.preference.savedEndpoints) { ep in
+                    Button {
+                        store.preference.activeEndpointID = ep.id
+                        store.preference.providerKind = .cloud
+                        store.preference.cloudProviderID = Self.providerID(for: ep.url)
+                        store.preference.endpoint = ep.url
+                        store.preference.model = ep.model
+                    } label: {
+                        Label("\(ep.name) — \(ep.model)",
+                              systemImage: store.preference.activeEndpointID == ep.id && store.preference.providerKind == .cloud ? "checkmark" : "globe")
+                    }
+                }
+                if store.preference.savedEndpoints.isEmpty {
+                    Text("Add endpoints in Settings → AI")
+                }
+            }
+            Section {
+                Toggle("Full Access (auto-approve all tools)", isOn: $store.fullAccess)
+                Text(contextUsageText)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 9, weight: .medium))
+                Text(displayModel)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 7, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+            )
+            .overlay(
+                Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+            )
+            .frame(maxWidth: 130)
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 7)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Switch model / provider")
+    }
+
+    private var fullAccessBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "bolt.shield.fill")
+                .font(.system(size: 8, weight: .bold))
+            Text("FULL ACCESS")
+                .font(.system(size: 9, weight: .bold))
+        }
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(
-            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-        )
-        .overlay(
-            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
-        )
-        .frame(maxWidth: 110)
-        .help("Active model: \(store.preference.model)")
+        .background(Capsule().fill(Color.orange.opacity(0.15)))
+        .overlay(Capsule().stroke(Color.orange.opacity(0.5), lineWidth: 0.8))
+        .help("All tools run without approval — including code execution. Toggle in the model menu.")
     }
 
     private var stopButton: some View {
@@ -200,5 +270,30 @@ struct AIHeaderView: View {
     private var displayModel: String {
         let model = store.preference.model
         return model.isEmpty ? "No model" : model
+    }
+
+    /// Rough share of the agent context budget the stored conversation
+    /// occupies (same 160k-char estimate as AISessionStore.compactForContext).
+    private var contextUsageText: String {
+        let chars = store.messages.reduce(0) {
+            ($0 + ($1.content?.count ?? 0)
+                + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0))
+        }
+        return "Context used ~\(min(100, chars * 100 / 160_000))%"
+    }
+
+    /// Maps an endpoint URL to the per-provider Keychain account suffix
+    /// ("ai-key-<providerID>") so a switch loads the right key.
+    private static func providerID(for url: String) -> String {
+        let known: [(String, String)] = [
+            ("openrouter", "openrouter"), ("deepseek", "deepseek"),
+            ("bigmodel", "zhipu"), ("zhipu", "zhipu"),
+            ("opencode", "opencode-go"), ("openai", "openai"),
+        ]
+        let lower = url.lowercased()
+        for (fragment, id) in known where lower.contains(fragment) {
+            return id
+        }
+        return "openai"
     }
 }

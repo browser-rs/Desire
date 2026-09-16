@@ -55,6 +55,14 @@ class AISessionStore: ObservableObject {
     /// See `docs/ARCHITECTURE.md` (AgentRuntime v2, roadmap L3 stage 2).
     @Published var pendingApproval: PendingToolApproval?
 
+    /// FULL ACCESS mode: when on, EVERY tool — including dangerous-tier
+    /// `executeJS` — runs without approval prompts. The user has explicitly
+    /// delegated all tool decisions to the agent. Persisted; the panel
+    /// shows a prominent indicator while active.
+    @Published var fullAccess: Bool {
+        didSet { UserDefaults.standard.set(fullAccess, forKey: "aiFullAccess") }
+    }
+
     /// Human-readable label of the provider that handled the most recent
     /// stream call (e.g. "Cloud", "On-device", "Ollama"). Set by
     /// `RoutingProvider`'s onDecision callback when `providerKind == .routing`;
@@ -95,6 +103,7 @@ class AISessionStore: ObservableObject {
     init(preference: AIPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
         self.conversationStore = conversationStore
+        fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
     }
 
     /// Soft cap on agent loop iterations to prevent runaway execution.
@@ -234,6 +243,21 @@ class AISessionStore: ObservableObject {
             approval.resume(with: .denied)
             pendingApproval = nil
         }
+    }
+
+    /// Re-runs the LAST user message: drops every message after it (the
+    /// assistant reply and any tool traffic) and restarts the agent loop.
+    func regenerate() {
+        guard !isProcessing,
+              let lastUser = messages.lastIndex(where: { $0.role == .user }),
+              lastUser < messages.count - 1 else { return }
+        messages.removeSubrange((lastUser + 1)...)
+        isProcessing = true
+        isCancelled = false
+        refreshContextLabel()
+        streamingTokenCount = 0
+        streamingTokensPerSecond = 0
+        loopTask = Task { await processLoop() }
     }
 
     func clear() {
@@ -569,6 +593,10 @@ class AISessionStore: ObservableObject {
     /// returns. `.readonly` tools and whitelisted tools bypass the prompt.
     private func gate(toolCall: AIToolCall, risk: ToolRisk) async -> ApprovalOutcome {
         if isCancelled { return .denied }
+
+        // FULL ACCESS: the user explicitly delegated every tool decision —
+        // including dangerous-tier executeJS — so nothing pauses.
+        if fullAccess { return .allowedOnce }
 
         // Safe tools always run.
         if risk == .readonly { return .allowedOnce }

@@ -8,6 +8,10 @@ struct AIInputBar: View {
     let isProcessing: Bool
     let awaitingQuestion: Bool
     let canSubmit: Bool
+    /// User-attached image data URIs awaiting send (vision input).
+    var attachments: [String] = []
+    var onAddAttachment: () -> Void = {}
+    var onRemoveAttachment: (Int) -> Void = { _ in }
     var onSubmit: () -> Void
     var onCancelQuestion: () -> Void
     @FocusState.Binding var isFocused: Bool
@@ -22,6 +26,9 @@ struct AIInputBar: View {
         VStack(spacing: 6) {
             if awaitingQuestion {
                 contextStrip
+            }
+            if !attachments.isEmpty {
+                attachmentStrip
             }
             inputCapsule
             voiceStatusLine
@@ -62,6 +69,54 @@ struct AIInputBar: View {
         )
     }
 
+    // MARK: - Attachments
+
+    /// Thumbnails of pending image attachments with remove buttons.
+    private var attachmentStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(attachments.indices, id: \.self) { idx in
+                    attachmentThumb(uri: attachments[idx], index: idx)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    private func attachmentThumb(uri: String, index: Int) -> some View {
+        ZStack(alignment: .topTrailing) {
+            if let data = imageData(uri), let image = NSImage(data: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 46, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+                    )
+            }
+            Button {
+                onRemoveAttachment(index)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white, .black.opacity(0.65))
+            }
+            .buttonStyle(.plain)
+            .offset(x: 5, y: -5)
+            .help("Remove")
+        }
+        .padding(.trailing, 5)
+    }
+
+    private func imageData(_ uri: String) -> Data? {
+        guard uri.hasPrefix("data:image/"),
+              let comma = uri.firstIndex(of: ","),
+              let base64 = uri[uri.index(after: comma)...].removingPercentEncoding else { return nil }
+        return Data(base64Encoded: String(base64))
+    }
+
     // MARK: - Input capsule
 
     private var inputCapsule: some View {
@@ -86,6 +141,9 @@ struct AIInputBar: View {
                     .onSubmit(onSubmit)
             }
 
+            attachButton
+                .padding(.leading, 6)
+                .padding(.bottom, 6)
             micButton
                 .padding(.trailing, 6)
                 .padding(.bottom, 6)
@@ -133,6 +191,24 @@ struct AIInputBar: View {
                 .padding(.top, 2)
             }
         }
+    }
+
+    /// Opens the image picker (panel handled by the parent).
+    private var attachButton: some View {
+        Button(action: onAddAttachment) {
+            Image(systemName: "paperclip")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle().fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    Circle().stroke(Color.secondary.opacity(0.3), lineWidth: 0.8)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Attach image ( vision models)")
     }
 
     @ViewBuilder

@@ -467,8 +467,7 @@ async function __desireGetConversation(maxItems) {
 // comment box) are handled via execCommand('insertText'), which fires the
 // beforeinput/input events those frameworks listen for — naive value
 // writes are ignored by them.
-async function __desirePostComment(text, submit) {
-    var inputs = document.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""]');
+async function __desirePostComment(text, submit) {    var inputs = document.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""]');
     var re = /(评论|回复|说点什么|留言|吐槽|发条|写下|发言|聊天|说说|comment|reply|message|say something|type)/i;
     var best = null, bestScore = -Infinity;
     for (var i = 0; i < inputs.length; i++) {
@@ -546,4 +545,58 @@ async function __desirePostComment(text, submit) {
     best.dispatchEvent(new KeyboardEvent("keypress", enterOpts));
     best.dispatchEvent(new KeyboardEvent("keyup", enterOpts));
     return JSON.stringify({ status: "Typed (pressed Enter to send)", submitRect: null });
+}
+
+// --- Agent visibility & navigation planning ---
+
+// Extract up to `maxItems` visible links as {text, href} — lets the agent
+// plan navigation ("which link goes to the settings page?") without
+// dumping raw HTML.
+async function __desireGetLinks(maxItems) {
+    maxItems = maxItems || 50;
+    var all = document.querySelectorAll("a[href]");
+    var items = [];
+    var seen = {};
+    for (var i = 0; i < all.length && items.length < maxItems; i++) {
+        var a = all[i];
+        var rect = a.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2) continue;
+        var style = window.getComputedStyle(a);
+        if (style.visibility === "hidden" || style.display === "none") continue;
+        var href = a.href || "";
+        if (!href || href.indexOf("javascript:") === 0) continue;
+        // Same page anchors are noise for navigation planning.
+        if (href.split("#")[0] === location.href.split("#")[0] && href.indexOf("#") !== -1) continue;
+        var text = (a.innerText || a.getAttribute("aria-label") || a.getAttribute("title") || "")
+            .trim().replace(/\s+/g, " ").substring(0, 80);
+        if (!text) continue;
+        var key = text + "|" + href;
+        if (seen[key]) continue;
+        seen[key] = true;
+        items.push({ text: text, href: href.substring(0, 300) });
+    }
+    return JSON.stringify({ count: items.length, links: items });
+}
+
+// Scroll the target into view and flash a temporary outline so the USER can
+// see which element the agent is about to act on. Purely visual — returns
+// "" when nothing resolves (callers treat that as "not found").
+async function __desireHighlight(selector, ref, text) {
+    var el = await __desireResolveEl(selector, ref, text);
+    if (!el) return "";
+    el.scrollIntoView({ block: "center", behavior: "instant" });
+    var id = "desire-highlight-style";
+    if (!document.getElementById(id)) {
+        var s = document.createElement("style");
+        s.id = id;
+        s.textContent = "@keyframes desireFlash{0%,100%{outline-color:rgba(255,149,0,0)}" +
+            "20%,60%{outline-color:rgba(255,149,0,0.95)}40%,80%{outline-color:rgba(255,149,0,0.35)}}" +
+            ".desire-flash{outline:3px solid rgba(255,149,0,0) !important;" +
+            "outline-offset:2px !important;border-radius:4px !important;" +
+            "animation:desireFlash 1.6s ease-in-out 2 !important;}";
+        document.head.appendChild(s);
+    }
+    el.classList.add("desire-flash");
+    setTimeout(function () { el.classList.remove("desire-flash"); }, 3400);
+    return "Highlighted";
 }

@@ -234,17 +234,21 @@ class AIPreferenceStore: ObservableObject {
 ## 可用工具速查
 - navigate(url) — 导航到指定网址
 - getPageSnapshot — 获取当前页面的文字内容和可交互元素（首选读取方式）
+- getPageLinks — 提取页面所有可见链接（规划"该点哪个链接"时用）
 - getComments — 结构化提取评论区（作者/内容/时间/点赞数）
 - getConversation — 结构化提取网页聊天/IM 消息（发送者/内容/是否自己发的）
 - postComment(text, submit) — 自动找到评论框/聊天输入框，输入文字并点击发送
 - getPageText — 获取当前页面的纯文字
 - click(ref 或 text 或 selector) — 点击元素（编号 > 可见文字 > 选择器）
+- highlight(ref 或 text 或 selector) — 高亮闪烁目标元素，让用户看清你要操作哪里
 - clickAt(x, y) — 按坐标点击（配合 screenshot 使用）
 - hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
 - fill(ref 或 selector, value) — 填写表单输入框
+- copyToClipboard(text) — 复制内容到剪贴板
 - screenshot — 截取当前页面截图（视觉模型可直接看到）
 - newTab(url) — 新标签页打开网址
 - listTabs — 列出所有打开的标签页
+- closeOtherTabs / reopenLastClosedTab / duplicateTab — 关闭其他标签 / 恢复刚关闭的标签 / 复制当前标签
 
 ## 注意事项
 - 用户说"打开bilibili"就是导航到 bilibili.com，不要去读取页面源码

@@ -15,6 +15,26 @@ extension BrowserToolProvider {
                 ])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "getPageLinks", description: "Extract the page's visible links as [{text, href}] — use to plan navigation (\"which link leads to X?\") instead of guessing URLs.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "maxItems": AIJSONSchemaValue(type: "number", description: "Max links to return (default 50)"),
+                ])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "highlight", description: "Scroll to an element and flash an orange outline around it so the USER can see what you are acting on. Use before an important click/fill when narrating a task. Same targeting as click: ref, text, or selector.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "text": AIJSONSchemaValue(type: "string", description: "Visible text of the target"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector (fallback)"),
+                ], required: [])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "copyToClipboard", description: "Copy text to the system clipboard (e.g. a summary, a link, generated content).",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "text": AIJSONSchemaValue(type: "string", description: "Text to copy"),
+                ], required: ["text"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
             )),
@@ -97,6 +117,18 @@ extension BrowserToolProvider {
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "switchTab", description: "Switch to a tab by its index (0-based)",
                 parameters: AIJSONSchema(type: "object", properties: ["index": AIJSONSchemaValue(type: "number", description: "Tab index to switch to")], required: ["index"])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "closeOtherTabs", description: "Close all tabs EXCEPT the currently selected one, in this window. Destructive — confirm with the user first unless they asked explicitly.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "reopenLastClosedTab", description: "Reopen the most recently closed tab in this window.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "duplicateTab", description: "Duplicate the currently selected tab.",
+                parameters: AIJSONSchema(type: "object", properties: [:])
             )),
 
             // --- Bookmarks ---

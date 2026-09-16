@@ -12,7 +12,10 @@ struct AIMessageBubble: View {
     var body: some View {
         switch message.role {
         case .user:
-            UserBubble(text: message.content ?? "")
+            UserBubble(
+                text: message.content ?? "",
+                imageDataURIs: message.imageDataURIs ?? []
+            )
         case .assistant:
             AssistantBubble(
                 message: message,
@@ -30,33 +33,43 @@ struct AIMessageBubble: View {
 
 private struct UserBubble: View {
     let text: String
+    var imageDataURIs: [String] = []
     @State private var isHovering = false
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             Spacer(minLength: 40)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.accentColor,
-                                        Color.accentColor.opacity(0.85),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                if !imageDataURIs.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(imageDataURIs, id: \.self) { uri in
+                            attachmentPreview(uri)
+                        }
+                    }
+                }
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.accentColor,
+                                            Color.accentColor.opacity(0.85),
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                    )
-                    .shadow(color: Color.accentColor.opacity(0.18), radius: 4, y: 1)
+                        )
+                        .shadow(color: Color.accentColor.opacity(0.18), radius: 4, y: 1)
+                }
 
                 if isHovering {
                     CopyChip(text: text)
@@ -67,6 +80,25 @@ private struct UserBubble: View {
         .padding(.horizontal, 12)
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
+    }
+
+    /// Decodes a data URI back to a thumbnail. Old conversations persist
+    /// without image data, so a missing payload renders nothing.
+    @ViewBuilder
+    private func attachmentPreview(_ uri: String) -> some View {
+        if let comma = uri.firstIndex(of: ","),
+           let data = Data(base64Encoded: String(uri[uri.index(after: comma)...])),
+           let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 96, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                )
+        }
     }
 }
 

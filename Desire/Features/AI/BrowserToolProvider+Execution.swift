@@ -133,6 +133,33 @@ extension BrowserToolProvider {
             surface.tabManager?.selectTab(at: index)
             return "Switched to tab \(index)"
 
+        case "closeOtherTabs":
+            // Keep the selected tab, close the rest of THIS window.
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return "No tabs open" }
+            let keep = manager.selectedIndex
+            let before = manager.tabs.count
+            manager.closeOthers(keeping: keep)
+            return "Closed \(before - manager.tabs.count) other tabs"
+
+        case "reopenLastClosedTab":
+            guard let manager = surface.tabManager else { return "No window" }
+            let reopened = manager.reopenLastClosedTab(
+                javaScriptEnabled: surface.settings.isJavaScriptEnabled,
+                contentBlocker: surface.contentBlocker,
+                videoAdBlocker: surface.videoAdBlocker
+            )
+            return reopened ? "Reopened last closed tab" : "No recently closed tab"
+
+        case "duplicateTab":
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return "No tabs open" }
+            manager.duplicateTab(
+                at: manager.selectedIndex,
+                javaScriptEnabled: surface.settings.isJavaScriptEnabled,
+                contentBlocker: surface.contentBlocker,
+                videoAdBlocker: surface.videoAdBlocker
+            )
+            return "Duplicated current tab"
+
         // --- Bookmarks ---
         case "addBookmark":
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return "No page to bookmark" }
@@ -462,6 +489,35 @@ extension BrowserToolProvider {
             let point = windowPoint(fromViewportX: x, y: y, in: webView)
             await SyntheticInput.click(at: point, in: webView)
             return "Clicked at (\(Int(x)), \(Int(y)))"
+
+        case "highlight":
+            // Agent visibility: scroll to the element and flash an orange
+            // outline so the user can SEE what is about to be acted on.
+            // Pairs naturally before click/fill in narrated tasks.
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            let text = args["text"] as? String
+            guard sel != nil || ref != nil || text != nil else {
+                return "Provide one of: ref, text, or selector"
+            }
+            let result = await callAsync(webView, function: "__desireHighlight",
+                                         args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
+            return result.isEmpty ? "Element not found" : result
+
+        case "getPageLinks":
+            // Navigation planning: the page's visible links as {text, href}.
+            let maxItems = args["maxItems"] as? Int ?? 50
+            return await callAsync(webView, function: "__desireGetLinks",
+                                   args: ["maxItems": maxItems])
+
+        case "copyToClipboard":
+            guard let text = args["text"] as? String else { return "Missing text" }
+            await MainActor.run {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            let preview = text.count > 40 ? String(text.prefix(40)) + "…" : text
+            return "Copied to clipboard: \(preview)"
 
         case "fill":
             guard let val = args["value"] as? String else { return "Missing value" }

@@ -171,10 +171,10 @@ class AISessionStore: ObservableObject {
         toolProvider.attach(surface: surface)
     }
 
-    func sendMessage(_ text: String) {
+    func sendMessage(_ text: String, images: [String]? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        messages.append(AIMessage(role: .user, content: trimmed))
+        guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
+        messages.append(AIMessage(role: .user, content: trimmed, images: images))
         if conversationId == nil {
             conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -286,7 +286,15 @@ class AISessionStore: ObservableObject {
             title = "New Conversation"
         }
         conversationTitle = title
-        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: messages)
+        // Persist WITHOUT image payloads — a few screenshots would balloon
+        // the conversation JSON (and every launch's loadAll) to megabytes.
+        // The text survives; images are session-scoped.
+        let persistedMessages = messages.map { msg -> AIMessage in
+            var copy = msg
+            copy.imageDataURIs = nil
+            return copy
+        }
+        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: persistedMessages)
         conversationStore.save(conv)
     }
 
@@ -296,6 +304,28 @@ class AISessionStore: ObservableObject {
             wv.evaluateJavaScript("document.body.innerText.substring(0, 20000)") { result, _ in
                 continuation.resume(returning: (result as? String) ?? "")
             }
+        }
+    }
+
+    /// Transient provider failures worth one automatic retry: rate limits,
+    /// server errors, and dropped/timed-out connections.
+    private static func isTransientStreamError(_ error: Error) -> Bool {
+        switch error {
+        case AIServiceError.httpStatus(let code, _):
+            return [429, 500, 502, 503, 504].contains(code)
+        case AIServiceError.network(let underlying):
+            if let urlError = underlying as? URLError {
+                switch urlError.code {
+                case .timedOut, .networkConnectionLost, .notConnectedToInternet,
+                     .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+                    return true
+                default:
+                    return false
+                }
+            }
+            return false
+        default:
+            return false
         }
     }
 
@@ -324,19 +354,21 @@ class AISessionStore: ObservableObject {
             // provider can be swapped in without touching the agent loop.
             // When `providerKind == .routing`, each call may target a
             // different concrete provider and report it via lastProviderUsed.
-            let active = makeActiveProvider()
-            lastProviderUsed = active.viaLabel
-            let stream = active.provider.stream(
-                messages: messages,
-                tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
-                prefs: preference
-            )
-
             var assistantMsg: AIMessage?
             var hasContent = false
             var lastTokenTime = Date()
 
-            do {
+            // Consumes one model stream into the conversation. Nested func so
+            // the transient-error retry below can re-run it on a fresh stream
+            // without duplicating the event handling.
+            func runStream() async throws {
+                let active = makeActiveProvider()
+                lastProviderUsed = active.viaLabel
+                let stream = active.provider.stream(
+                    messages: messages,
+                    tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
+                    prefs: preference
+                )
                 for try await event in stream {
                     if isCancelled { return }
                     switch event {
@@ -371,7 +403,9 @@ class AISessionStore: ObservableObject {
                         hasContent = true
                     }
                 }
-            } catch {
+            }
+
+            func fail(_ error: Error) {
                 let errorText = "Error: \(error.localizedDescription)"
                 if let idx = assistantMsg.flatMap({ m in messages.firstIndex(where: { $0.id == m.id }) }) {
                     messages[idx].content = errorText
@@ -380,6 +414,25 @@ class AISessionStore: ObservableObject {
                     messages.append(AIMessage(role: .assistant, content: errorText))
                 }
                 streamingVersion += 1
+            }
+
+            do {
+                try await runStream()
+            } catch let error where assistantMsg == nil && Self.isTransientStreamError(error) {
+                // ONE automatic retry for transient failures (rate limit,
+                // 5xx, dropped/timed-out connection) — allowed only when
+                // nothing has streamed yet, so a retry can never duplicate
+                // partial output.
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if isCancelled { return }
+                do {
+                    try await runStream()
+                } catch {
+                    fail(error)
+                    return
+                }
+            } catch {
+                fail(error)
                 return
             }
 

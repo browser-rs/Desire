@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Composition root for the AI Assistant side panel. Renders the
 /// header, message list / empty state, quick-action strip, and input
@@ -13,6 +14,9 @@ struct AIPanel: View {
 
     @State private var inputText = ""
     @State private var showHistory = false
+    /// Image attachments (JPEG data URIs) awaiting the next send.
+    @State private var pendingImages: [String] = []
+    @State private var isDroppingImage = false
     @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
@@ -108,6 +112,12 @@ struct AIPanel: View {
                 isProcessing: store.isProcessing,
                 awaitingQuestion: store.awaitingQuestion,
                 canSubmit: canSubmit,
+                attachments: pendingImages,
+                onAddAttachment: pickImages,
+                onRemoveAttachment: { idx in
+                    guard pendingImages.indices.contains(idx) else { return }
+                    pendingImages.remove(at: idx)
+                },
                 onSubmit: submit,
                 onCancelQuestion: {
                     store.awaitingQuestion = false
@@ -125,6 +135,22 @@ struct AIPanel: View {
                     let text = inputText
                     inputText = ""
                     store.sendMessage(text)
+                }
+            }
+            .onDrop(of: ["public.image"], isTargeted: $isDroppingImage) { providers in
+                Task { await dropImages(providers) }
+                return true
+            }
+            .overlay {
+                if isDroppingImage {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12))
+                        .overlay(
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Color.accentColor)
+                        )
+                        .allowsHitTesting(false)
                 }
             }
         }
@@ -189,17 +215,42 @@ struct AIPanel: View {
     // MARK: - Submit
 
     private var canSubmit: Bool {
-        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        (!inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty)
+            && !store.isProcessing
     }
 
     private func submit() {
         let text = inputText
+        let images = pendingImages.isEmpty ? nil : pendingImages
         inputText = ""
+        pendingImages = []
         if store.awaitingQuestion {
             store.sendFollowUp(text)
         } else {
-            store.sendMessage(text)
+            store.sendMessage(text, images: images)
         }
+    }
+
+    // MARK: - Image attachments
+
+    private func pickImages() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Attach Images")
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image]
+        guard panel.runModal() == .OK else { return }
+        let uris = panel.urls.compactMap { url -> String? in
+            guard let image = NSImage(contentsOf: url) else { return nil }
+            return ImageAttachment.dataURI(from: image)
+        }
+        pendingImages.append(contentsOf: uris)
+    }
+
+    private func dropImages(_ providers: [NSItemProvider]) async {
+        let uris = await ImageAttachment.dataURIs(from: providers)
+        guard !uris.isEmpty else { return }
+        pendingImages.append(contentsOf: uris)
     }
 }
 

@@ -810,3 +810,87 @@ async function __desireScanMedia() {
     }
     return JSON.stringify({ count: out.length, items: out });
 }
+
+// --- Deep data extraction ---
+
+async function __desireGetTables(maxTables) {
+    maxTables = maxTables || 5;
+    var tables = document.querySelectorAll("table");
+    var out = [];
+    for (var t = 0; t < tables.length && out.length < maxTables; t++) {
+        var rows = tables[t].querySelectorAll("tr");
+        if (rows.length < 2) continue;
+        var data = [];
+        for (var r = 0; r < rows.length && r < 30; r++) {
+            var cells = rows[r].querySelectorAll("th, td");
+            var row = [];
+            for (var c = 0; c < cells.length && c < 12; c++) {
+                row.push((cells[c].innerText || "").trim().replace(/\s+/g, " ").substring(0, 120));
+            }
+            if (row.some(function (v) { return v.length > 0; })) data.push(row);
+        }
+        if (data.length >= 2) out.push({ rows: data.length, data: data });
+    }
+    return out.length ? JSON.stringify({ count: out.length, tables: out }) : "No data tables found";
+}
+
+async function __desireGetImages(maxItems) {
+    maxItems = maxItems || 40;
+    var imgs = document.querySelectorAll("img");
+    var out = [], seen = {};
+    for (var i = 0; i < imgs.length && out.length < maxItems; i++) {
+        var el = imgs[i];
+        var src = el.currentSrc || el.src || "";
+        if (!src || src.indexOf("data:") === 0) continue;
+        var rect = el.getBoundingClientRect();
+        if (rect.width < 32 || rect.height < 32) continue;
+        if (seen[src]) continue;
+        seen[src] = 1;
+        out.push({
+            src: src.substring(0, 400),
+            alt: (el.alt || "").substring(0, 80),
+            width: Math.round(rect.width), height: Math.round(rect.height)
+        });
+    }
+    return out.length ? JSON.stringify({ count: out.length, images: out }) : "No images found";
+}
+
+async function __desireGetElementHTML(selector, ref, text, maxLength) {
+    var el = await __desireResolveEl(selector, ref, text);
+    if (!el) return "Element not found";
+    var html = el.outerHTML || "";
+    return html.length > (maxLength || 6000) ? html.substring(0, maxLength || 6000) + "…[truncated]" : html;
+}
+
+async function __desireGetPageMeta() {
+    function meta(sel) {
+        var el = document.querySelector(sel);
+        return el ? (el.getAttribute("content") || "").substring(0, 300) : "";
+    }
+    var canonical = "";
+    var link = document.querySelector("link[rel=canonical]");
+    if (link) canonical = link.href || "";
+    return JSON.stringify({
+        title: document.title || "",
+        lang: document.documentElement.lang || "",
+        description: meta("meta[name='description']"),
+        ogTitle: meta("meta[property='og:title']"),
+        ogDescription: meta("meta[property='og:description']"),
+        ogImage: meta("meta[property='og:image']"),
+        canonical: canonical,
+        favicon: (document.querySelector("link[rel*='icon']") || {}).href || ""
+    });
+}
+
+async function __desireGetNetworkLog(filter, maxItems) {
+    maxItems = maxItems || 100;
+    var log = (window.__desireNetLog || []);
+    var out = [];
+    for (var i = log.length - 1; i >= 0 && out.length < maxItems; i--) {
+        var entry = log[i];
+        if (!filter || entry.url.toLowerCase().indexOf(String(filter).toLowerCase()) !== -1) {
+            out.push(entry);
+        }
+    }
+    return out.length ? JSON.stringify({ count: out.length, requests: out.reverse() }) : "No requests captured" + (filter ? " matching filter" : "");
+}

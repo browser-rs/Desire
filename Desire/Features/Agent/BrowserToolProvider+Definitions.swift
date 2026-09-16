@@ -187,6 +187,38 @@ extension BrowserToolProvider {
                 ], required: ["x", "y"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getTables", description: "Extract HTML tables as JSON rows — comparison shopping, stats pages, schedules. Far more reliable than reading rendered text.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "maxTables": AgentJSONSchemaValue(type: "number", description: "Max tables (default 5)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getImages", description: "List visible images with dimensions and alt text — use to pick covers, find assets, or describe a page's visual content.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "maxItems": AgentJSONSchemaValue(type: "number", description: "Max images (default 40)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getPageMeta", description: "Get page metadata: title, description, og: tags, canonical URL, favicon, language.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getElementHTML", description: "Get an element's outerHTML (ref/text/selector targeting) — for debugging pages or inspecting exact markup.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "ref": AgentJSONSchemaValue(type: "string"),
+                    "text": AgentJSONSchemaValue(type: "string"),
+                    "selector": AgentJSONSchemaValue(type: "string"),
+                    "maxLength": AgentJSONSchemaValue(type: "number", description: "Max characters (default 6000)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getNetworkLog", description: "List the page's fetch/XHR requests (most recent first, filterable). Powerful for discovering a site's internal APIs and JSON endpoints.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "filter": AgentJSONSchemaValue(type: "string", description: "Substring filter, e.g. \"api\" or \".json\""),
+                    "maxItems": AgentJSONSchemaValue(type: "number", description: "Max entries (default 100)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "getSelectedText", description: "Get the text currently selected by the user on the page",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

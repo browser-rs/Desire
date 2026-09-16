@@ -69,6 +69,8 @@ enum ToolRisk: Int, Comparable {
         "getComments", "getConversation", "getFormFields",
         // Media address extraction (read-only: network sniffer + DOM scan)
         "listPageVideos",
+        // Deep page data extraction (read-only)
+        "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Waiting / timing (pure observation)
         "waitForText",
         // Skills (read-only instruction loading)

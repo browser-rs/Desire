@@ -100,6 +100,27 @@ extension BrowserToolProvider {
                 return "Capture failed: \(error.localizedDescription)"
             }
 
+        case "getTables":
+            return await callAsync(webView, function: "__desireGetTables",
+                                   args: ["maxTables": args["maxTables"] as? Int ?? 5])
+        case "getImages":
+            return await callAsync(webView, function: "__desireGetImages",
+                                   args: ["maxItems": args["maxItems"] as? Int ?? 40])
+        case "getPageMeta":
+            return await callAsync(webView, function: "__desireGetPageMeta", args: [:])
+        case "getElementHTML":
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            let text = args["text"] as? String
+            guard sel != nil || ref != nil || text != nil else { return "Provide ref, text, or selector" }
+            return await callAsync(webView, function: "__desireGetElementHTML",
+                                   args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? "",
+                                          "maxLength": args["maxLength"] as? Int ?? 6000])
+        case "getNetworkLog":
+            let filter = args["filter"] as? String ?? ""
+            return await callAsync(webView, function: "__desireGetNetworkLog",
+                                   args: ["filter": filter, "maxItems": args["maxItems"] as? Int ?? 100])
+
         case "getSelectedText":
             return await eval(webView, "window.getSelection().toString()")
 

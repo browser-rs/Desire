@@ -22,6 +22,15 @@
     }
 
     var reported = {};
+    window.__desireNetLog = window.__desireNetLog || [];
+    function logRequest(url, source) {
+        if (!url || typeof url !== "string") return;
+        if (url.indexOf("data:") === 0) return;
+        try {
+            window.__desireNetLog.push({ url: url.substring(0, 500), via: source });
+            if (window.__desireNetLog.length > 200) window.__desireNetLog.shift();
+        } catch (e) {}
+    }
     function report(url, mime, size, source) {
         if (!url || typeof url !== "string") return;
         if (url.indexOf("data:") === 0 || url.indexOf("blob:") === 0) return;
@@ -52,6 +61,7 @@
                 url = (input && input.url) || String(input || "");
             } catch (e) {}
             var promise = origFetch.apply(this, arguments);
+            logRequest(url, "fetch");
             promise.then(function (resp) {
                 var mime = "", size = 0;
                 try { mime = resp.headers.get("content-type") || ""; } catch (e1) {}
@@ -65,7 +75,7 @@
     // --- XHR hook ---
     var origOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url) {
-        try { this.__desireUrl = String(url || ""); } catch (e) {}
+        try { this.__desireUrl = String(url || ""); logRequest(String(url || ""), "xhr"); } catch (e) {}
         return origOpen.apply(this, arguments);
     };
     var origSend = XMLHttpRequest.prototype.send;

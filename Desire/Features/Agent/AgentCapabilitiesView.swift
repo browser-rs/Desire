@@ -250,6 +250,8 @@ struct AgentCapabilitiesView: View {
             "getPageSnapshot", "getPageText", "getPageHTML", "getPageTitle",
             "getSelectedText", "readTab", "getComments", "getConversation",
             "getFormFields", "getPageLinks", "extract", "findElements",
+            "getTables", "getImages", "getPageMeta", "getElementHTML",
+            "getNetworkLog",
         ],
         "页面操作": [
             "askUser",

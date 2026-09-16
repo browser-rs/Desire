@@ -283,7 +283,8 @@ struct AICapabilitiesView: View {
         ("eye", "视觉理解", "截图看屏 + 拖拽图片提问，视觉模型直接读图"),
         ("doc.text.magnifyingglass", "自动页面上下文", "每轮请求自动携带当前页面摘要（设置中可关闭）"),
         ("arrow.triangle.branch", "智能模型路由", "云端 / 端侧 / 本地模型按任务复杂度自动选择"),
-        ("clock.arrow.circlepath", "会话记忆", "对话持久化保存，打开面板自动恢复最近会话"),
+        ("brain.head.profile", "长期记忆", "自动提取用户偏好与习惯，跨会话生效，可在记忆页查看和删除"),
+        ("clock.arrow.circlepath", "会话记忆", "对话持久化保存，长对话自动生成摘要用于跨会话回忆"),
         ("puzzlepiece.extension", "MCP 扩展工具", "接入外部工具服务器，动态扩充上方工具表"),
     ]
 }

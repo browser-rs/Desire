@@ -15,6 +15,8 @@ struct AIPanel: View {
     @State private var inputText = ""
     @State private var showHistory = false
     @State private var showCapabilities = false
+    @State private var showMemory = false
+    @ObservedObject private var memory = AgentMemoryStore.shared
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
     @State private var isDroppingImage = false
@@ -26,7 +28,11 @@ struct AIPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if showHistory {
+            if !memory.onboardingCompleted {
+                AIOnboardingView()
+            } else if showMemory {
+                AIMemoryView(onBack: { showMemory = false })
+            } else if showHistory {
                 AIHistoryListView(
                     conversationStore: conversationStore,
                     sessionStore: store,
@@ -55,6 +61,7 @@ struct AIPanel: View {
                 hasHistory: !conversationStore.conversations.isEmpty,
                 onShowHistory: { showHistory = true },
                 onShowCapabilities: { showCapabilities = true },
+                onShowMemory: { showMemory = true },
                 onNewChat: { store.clear() }
             )
 

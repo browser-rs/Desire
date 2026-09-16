@@ -8,6 +8,7 @@ struct AIHeaderView: View {
     let hasHistory: Bool
     var onShowHistory: () -> Void
     var onShowCapabilities: (() -> Void)?
+    var onShowMemory: (() -> Void)?
     var onNewChat: (() -> Void)?
 
     @State private var isDotPulsing = false
@@ -40,6 +41,14 @@ struct AIHeaderView: View {
                     systemName: "sparkles.rectangle.stack",
                     action: onShowCapabilities,
                     help: "AI capabilities & tools"
+                )
+            }
+
+            if let onShowMemory {
+                HoverIcon(
+                    systemName: "brain.head.profile",
+                    action: onShowMemory,
+                    help: "Memory"
                 )
             }
 

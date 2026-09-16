@@ -109,6 +109,9 @@ class AISessionStore: ObservableObject {
     /// Soft cap on agent loop iterations to prevent runaway execution.
     /// Replaces the old hardcoded `0..<20` limit. Configurable later.
     private let maxIterations = 50
+    /// Message count already digested by background memory extraction —
+    /// gates the next extraction until enough NEW turns accumulate.
+    private var memoryProcessedCount = 0
 
     /// Builds the provider the agent loop will call for this iteration.
     /// Returns the provider and the initial "via ..." label to show in the UI
@@ -261,6 +264,18 @@ class AISessionStore: ObservableObject {
     }
 
     func clear() {
+        // The conversation is about to disappear — capture its L2 summary
+        // first so "新对话" doesn't erase what happened.
+        if preference.memoryLearning, messages.count >= 8, let cid = conversationId {
+            let snapshot = messages
+            Task { await MemoryExtractor.summarize(
+                preference: preference,
+                memory: AgentMemoryStore.shared,
+                conversationId: cid,
+                messages: snapshot
+            ) }
+        }
+        memoryProcessedCount = 0
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil
@@ -295,6 +310,7 @@ class AISessionStore: ObservableObject {
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
+        memoryProcessedCount = messages.count
         streamingVersion += 1
     }
 
@@ -382,6 +398,10 @@ class AISessionStore: ObservableObject {
     /// Neither transformation is persisted — `messages` stays intact.
     private func buildRequestMessages() async -> [AIMessage] {
         var request = Self.compactForContext(messages)
+        // L0+L1+L2 memory goes first so compaction above can never drop it.
+        if let memoryBlock = AgentMemoryStore.shared.promptBlock(excluding: conversationId) {
+            request.insert(AIMessage(role: .system, content: memoryBlock), at: 0)
+        }
         if let pageContext = await fetchCompactPageContext() {
             request.append(AIMessage(role: .system, content: pageContext))
         }
@@ -584,6 +604,35 @@ class AISessionStore: ObservableObject {
             streamingVersion += 1
             saveCurrentConversation()
         }
+
+        // Background memory housekeeping (L1 facts + L2 summary) — never
+        // blocks or fails the turn.
+        await runMemoryHousekeeping()
+    }
+
+    /// Extracts durable facts and refreshes the conversation summary once
+    /// enough NEW turns accumulated since the last pass.
+    private func runMemoryHousekeeping() async {
+        guard preference.memoryLearning, !isCancelled,
+              messages.contains(where: { $0.role == .user }),
+              messages.contains(where: { $0.role == .assistant }) else { return }
+
+        if messages.count - memoryProcessedCount >= 4 {
+            await MemoryExtractor.extractFacts(
+                preference: preference,
+                memory: AgentMemoryStore.shared,
+                messages: Array(messages.suffix(14))
+            )
+        }
+        if messages.count >= 12, let conversationId = conversationId {
+            await MemoryExtractor.summarize(
+                preference: preference,
+                memory: AgentMemoryStore.shared,
+                conversationId: conversationId,
+                messages: Array(messages.suffix(40))
+            )
+        }
+        memoryProcessedCount = messages.count
     }
 
     // MARK: - Tool approval gating

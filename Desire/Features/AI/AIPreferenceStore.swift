@@ -16,6 +16,12 @@ class AIPreferenceStore: ObservableObject {
     @Published var maxTokens: Int {
         didSet { UserDefaults.standard.set(maxTokens, forKey: "aiMaxTokens") }
     }
+    /// Background memory learning: auto-extract durable user facts and
+    /// per-conversation summaries after agent turns. User-inspectable and
+    /// editable in the memory view either way.
+    @Published var memoryLearning: Bool {
+        didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
+    }
     /// When on, every model request carries an EPHEMERAL compact summary of
     /// the page the agent is working on (title + URL + text excerpt) — so
     /// "这是什么页面" needs no tool roundtrip and every agent step sees the
@@ -131,6 +137,7 @@ class AIPreferenceStore: ObservableObject {
         }
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
+        memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),

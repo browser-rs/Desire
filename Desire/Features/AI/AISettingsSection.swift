@@ -148,6 +148,13 @@ struct AISettingsSection: View {
                     systemImage: "doc.text.magnifyingglass",
                     isOn: $store.autoPageContext
                 )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Memory Learning",
+                    subtitle: "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view.",
+                    systemImage: "brain.head.profile",
+                    isOn: $store.memoryLearning
+                )
             }
 
             // MARK: - Allowed Tools

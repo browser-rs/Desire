@@ -206,12 +206,16 @@ class AIPreferenceStore: ObservableObject {
     }
 
     /// A previously persisted copy of a BUILT-IN default prompt (never
-    /// customized by the user). Fingerprinted by tool lines that no longer
-    /// exist — when matched, the stored value is discarded so the current
-    /// default (with the new tools) takes effect. User-written prompts are
-    /// never touched.
+    /// customized by the user). Fingerprinted by tool lines that only ever
+    /// existed in our defaults — when matched, the stored value is discarded
+    /// so the current default takes effect. User-written prompts are never
+    /// touched (they don't contain these exact lines).
     static func isOutdatedBuiltInPrompt(_ prompt: String) -> Bool {
-        prompt.contains("click(selector) — 点击元素（CSS 选择器）")
+        // v1: only documented the selector-based click tool.
+        if prompt.contains("click(selector) — 点击元素（CSS 选择器）") { return true }
+        // v2: comment/chat tools present, listed in a longer 速查 block.
+        if prompt.contains("getComments — 结构化提取评论区") { return true }
+        return false
     }
 
     static let defaultPrompt = """

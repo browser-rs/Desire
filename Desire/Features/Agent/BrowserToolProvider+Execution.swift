@@ -60,6 +60,46 @@ extension BrowserToolProvider {
             return await eval(webView, "document.title")
         case "screenshot":
             return await captureScreenshot(webView)
+        case "screenshotElement":
+            // Close-up vision capture of ONE element (charts, icon grids,
+            // embedded widgets) — sharper than a full-viewport screenshot.
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            let text = args["text"] as? String
+            guard sel != nil || ref != nil || text != nil else {
+                return "Provide one of: ref, text, or selector"
+            }
+            guard let rectData = await callAsync(webView, function: "__desireElementRect",
+                    args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""]).data(using: .utf8),
+                  let obj = (try? JSONSerialization.jsonObject(with: rectData)) as? [String: Double],
+                  let x = obj["x"], let y = obj["y"],
+                  let w = obj["w"], let h = obj["h"], w > 1, h > 1 else {
+                return "Element not found"
+            }
+            // getBoundingClientRect is viewport CSS px; the snapshot rect is
+            // view coordinates — pageZoom scales between them. Clamp to the
+            // visible viewport.
+            let zoom = CGFloat(webView.pageZoom)
+            let bounds = webView.bounds.size
+            let rect = CGRect(
+                x: max(0, CGFloat(x) * zoom),
+                y: max(0, CGFloat(y) * zoom),
+                width: min(CGFloat(w) * zoom, bounds.width),
+                height: min(CGFloat(h) * zoom, bounds.height)
+            )
+            let snapConfig = WKSnapshotConfiguration()
+            snapConfig.rect = rect
+            snapConfig.afterScreenUpdates = true
+            do {
+                let image = try await webView.takeSnapshot(configuration: snapConfig)
+                guard let uri = ImageAttachment.dataURI(from: image) else {
+                    return "Capture failed"
+                }
+                return uri
+            } catch {
+                return "Capture failed: \(error.localizedDescription)"
+            }
+
         case "getSelectedText":
             return await eval(webView, "window.getSelection().toString()")
 

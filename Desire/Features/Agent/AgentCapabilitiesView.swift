@@ -266,7 +266,7 @@ struct AgentCapabilitiesView: View {
             "removeTabFromGroup", "listContainers",
         ],
         "媒体提取": [
-            "listPageVideos", "downloadMedia", "screenshot",
+            "listPageVideos", "downloadMedia", "screenshot", "screenshotElement",
             "setUploadFile",
             "startRecording", "stopRecording",
         ],

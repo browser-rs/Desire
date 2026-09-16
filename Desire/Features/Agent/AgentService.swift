@@ -125,7 +125,7 @@ enum OpenAICompatSSE {
                 parts.append(["type": "image_url", "image_url": ["url": uri]])
             }
             m["content"] = parts
-        } else if msg.role == .tool, msg.toolName == "screenshot",
+        } else if msg.role == .tool, msg.toolName == "screenshot" || msg.toolName == "screenshotElement",
            let content = msg.content, content.hasPrefix("data:image/") {
             m["content"] = [
                 ["type": "text", "text": "Screenshot of the current viewport"],

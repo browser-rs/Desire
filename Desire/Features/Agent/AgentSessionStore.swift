@@ -462,7 +462,7 @@ class AgentSessionStore: ObservableObject {
             isProcessing = false
             currentAction = nil
             processingStartedAt = nil
-            if !isCancelled { NSSound(named: "Glass")?.play() }
+            if !isCancelled, preference.completionSound { NSSound(named: "Glass")?.play() }
         }
 
         // AgentRuntime v2: budget-based loop replaces the old hardcoded

@@ -227,6 +227,13 @@ struct AgentSettingsSection: View {
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(
+                    "Completion Sound",
+                    subtitle: "Play a soft chime when the agent finishes a turn.",
+                    systemImage: "speaker.wave.1",
+                    isOn: $store.completionSound
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
                     "Memory Learning",
                     subtitle: "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view.",
                     systemImage: "brain.head.profile",

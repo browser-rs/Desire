@@ -158,6 +158,15 @@ extension BrowserToolProvider {
                 name: "screenshot", description: "Capture the viewport as an image and return it for visual analysis. Use before clickAt(x,y) to see what's on screen, or whenever you need to verify layout/appearance. The image is delivered to you as a vision input.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
+
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "screenshotElement", description: "Capture a close-up screenshot of ONE element (chart, icon, widget) for visual analysis — sharper than the full-viewport screenshot. Same targeting as click: ref, text, or selector.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "ref": AgentJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "text": AgentJSONSchemaValue(type: "string", description: "Visible text of the target"),
+                    "selector": AgentJSONSchemaValue(type: "string", description: "CSS selector (fallback)"),
+                ], required: [])
+            )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). Use when DOM selectors fail (canvas apps, shadow DOM, virtual lists) or when a screenshot shows something you can't locate in the DOM.",
                 parameters: AgentJSONSchema(type: "object", properties: [

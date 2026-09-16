@@ -254,6 +254,7 @@ struct AgentCapabilitiesView: View {
             "getNetworkLog",
         ],
         "页面操作": [
+            "renderDiagram",
             "askUser",
             "click", "clickAt", "hover", "focus", "fill", "select", "scroll",
             "pressKey", "type", "highlight", "waitForElement", "waitForText",

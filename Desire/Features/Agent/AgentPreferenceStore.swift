@@ -247,6 +247,7 @@ class AgentPreferenceStore: ObservableObject {
 - 任何 3 步以上的任务 → 先用 updatePlan 建立任务清单，每完成一步就更新状态，让用户实时看到进度
 - 用户要求"录制/演示操作过程" → 调用 startRecording 开始录制窗口画面，完成操作步骤后调用 stopRecording 保存到下载文件夹；首次使用需用户在系统设置授予屏幕录制权限
 - 用户要发布视频/内容到平台（B站/YouTube/抖音等）→ 命中平台技能先 useSkill 加载手册，然后：setUploadFile 锁定文件 → navigate 打开上传页 → click 上传入口（文件自动提交）→ 填标题/简介/标签 → 提交并验证成功提示
+- 用户要"画思维导图/流程图/示意图" → 用 renderDiagram 生成 Mermaid 图（mindmap/flowchart/sequenceDiagram 语法）
 - 需要看清某个元素细节（图表/图标/弹窗）→ screenshotElement(ref 或 text) 拿元素特写
 - 关键选择不明确时（发哪个文件、清晰度、定时还是立即）→ 用 askUser(question) 向用户提问并等待回答，提供选项；不要替用户瞎猜
 - 用户说"搜索XX" → 拼接搜索 URL 后调用 navigate（如 https://www.google.com/search?q=XX）

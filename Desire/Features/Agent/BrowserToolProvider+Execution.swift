@@ -687,6 +687,36 @@ extension BrowserToolProvider {
             let sizeText = size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
             return "Armed '\(fileURL.lastPathComponent)'\(sizeText.isEmpty ? "" : " (\(sizeText))"). Clicking the page's upload button now auto-submits it (consumed once)."
 
+        case "renderDiagram":
+            // Built-in canvas: render Mermaid (mindmap/flowchart/sequence/…)
+            // on a canvas page served by the preview server.
+            guard let source = args["source"] as? String, !source.isEmpty else { return "Missing source (Mermaid syntax)" }
+            let title = args["title"] as? String ?? "Diagram"
+            let safeSource = source.replacingOccurrences(of: "</script>", with: "<\\/script>")
+            let safeTitle = title.replacingOccurrences(of: "<", with: "&lt;")
+            let page = """
+            <!DOCTYPE html><html><head><meta charset="utf-8"><title>\(safeTitle)</title>
+            <style>body{font-family:-apple-system,sans-serif;margin:24px;background:#fff}
+            h1{font-size:18px}.error{color:#c00;font-family:monospace;white-space:pre-wrap}</style></head>
+            <body><h1>\(safeTitle)</h1><pre class="mermaid">\(safeSource)</pre>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+            <script>mermaid.initialize({startOnLoad:true,theme:"default"});
+            mermaid.run({querySelector:".mermaid"}).catch(function(e){
+              document.body.insertAdjacentHTML("beforeend",
+                '<p class="error">渲染失败：'+e.message+'</p><pre class="error">'+document.querySelector(".mermaid").textContent+'</pre>');
+            });</script></body></html>
+            """
+            let dir = AgentWorkspace.shared.directory.appendingPathComponent("canvas", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let fileName = "canvas/diagram-\(Int(Date().timeIntervalSince1970)).html"
+            let fileURL = AgentWorkspace.shared.directory.appendingPathComponent(fileName)
+            try? page.write(to: fileURL, atomically: true, encoding: .utf8)
+            let base = PreviewServer.ensureRunning()
+            let encoded = fileName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileName
+            let url = base.appendingPathComponent(encoded)
+            webView.load(URLRequest(url: url))
+            return "Diagram rendered at \(url.absoluteString) (Mermaid syntax — edit the file at \(fileURL.path) to iterate)"
+
         case "askUser":
             // Mid-task clarification: pauses the loop until the user answers
             // in the panel. The question card IS the interaction (readonly).

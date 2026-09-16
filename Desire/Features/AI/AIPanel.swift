@@ -14,6 +14,7 @@ struct AIPanel: View {
 
     @State private var inputText = ""
     @State private var showHistory = false
+    @State private var showCapabilities = false
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
     @State private var isDroppingImage = false
@@ -32,6 +33,8 @@ struct AIPanel: View {
                     },
                     onBack: { showHistory = false }
                 )
+            } else if showCapabilities {
+                AICapabilitiesView(onBack: { showCapabilities = false })
             } else {
                 mainContent
             }
@@ -48,6 +51,7 @@ struct AIPanel: View {
                 store: store,
                 hasHistory: !conversationStore.conversations.isEmpty,
                 onShowHistory: { showHistory = true },
+                onShowCapabilities: { showCapabilities = true },
                 onNewChat: { store.clear() }
             )
 

@@ -76,6 +76,16 @@
     "#%@" : {
 
     },
+    "%@ · %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld"
+          }
+        }
+      }
+    },
     "%@ wants to access your %@" : {
       "comment" : "Media permission prompt with host and device",
       "localizations" : {
@@ -308,6 +318,9 @@
           }
         }
       }
+    },
+    "%lld 个工具" : {
+
     },
     "%lld." : {
 
@@ -793,6 +806,9 @@
           }
         }
       }
+    },
+    "AI 能力" : {
+
     },
     "All" : {
       "localizations" : {
@@ -12540,6 +12556,12 @@
         }
       }
     },
+    "常驻能力" : {
+
+    },
+    "搜索工具" : {
+
+    },
     "搜索或输入网址" : {
       "localizations" : {
         "en" : {
@@ -12585,6 +12607,12 @@
       }
     },
     "正在聆听… 说话即可" : {
+
+    },
+    "没有匹配的工具" : {
+
+    },
+    "浏览器工具" : {
 
     },
     "添加" : {

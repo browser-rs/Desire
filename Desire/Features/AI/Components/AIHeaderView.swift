@@ -7,6 +7,7 @@ struct AIHeaderView: View {
     @ObservedObject var store: AISessionStore
     let hasHistory: Bool
     var onShowHistory: () -> Void
+    var onShowCapabilities: (() -> Void)?
     var onNewChat: (() -> Void)?
 
     @State private var isDotPulsing = false
@@ -28,6 +29,14 @@ struct AIHeaderView: View {
 
             if store.isProcessing {
                 stopButton
+            }
+
+            if let onShowCapabilities {
+                HoverIcon(
+                    systemName: "sparkles.rectangle.stack",
+                    action: onShowCapabilities,
+                    help: "AI capabilities & tools"
+                )
             }
 
             HoverIcon(

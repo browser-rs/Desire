@@ -4,11 +4,12 @@ import SwiftUI
 /// compact stack of pill-shaped chips.
 struct ToolCallList: View {
     let toolCalls: [AgentToolCall]
+    var results: [String: String] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(toolCalls) { call in
-                ToolCallChip(toolCall: call)
+                ToolCallChip(toolCall: call, result: results[call.id])
             }
         }
         .padding(.top, 2)
@@ -17,6 +18,7 @@ struct ToolCallList: View {
 
 private struct ToolCallChip: View {
     let toolCall: AgentToolCall
+    var result: String?
     @State private var isExpanded = false
     @State private var isHovering = false
 
@@ -58,6 +60,11 @@ private struct ToolCallChip: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 4)
+                if result != nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.green.opacity(0.8))
+                }
                 if !toolCall.function.arguments.isEmpty
                     && toolCall.function.arguments != "{}" {
                     Image(systemName: "chevron.down")
@@ -76,19 +83,35 @@ private struct ToolCallChip: View {
                 withAnimation(.transitionNormal) { isExpanded.toggle() }
             }
 
-            if isExpanded, !toolCall.function.arguments.isEmpty,
-               toolCall.function.arguments != "{}" {
-                Text(formatJSON(toolCall.function.arguments))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        Color(nsColor: .textBackgroundColor).opacity(0.5)
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    if !toolCall.function.arguments.isEmpty,
+                       toolCall.function.arguments != "{}" {
+                        Text("ARGS")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                        Text(formatJSON(toolCall.function.arguments))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    if let result = result?.trimmingCharacters(in: .whitespacesAndNewlines), !result.isEmpty {
+                        Text("RESULT")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.green)
+                        let shown = result.hasPrefix("data:image/") ? "(image returned)" :
+                            (result.count > 1200 ? String(result.prefix(1200)) + "…" : result)
+                        Text(shown)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.primary.opacity(0.85))
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))

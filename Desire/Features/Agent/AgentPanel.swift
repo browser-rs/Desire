@@ -242,9 +242,16 @@ struct AgentPanel: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    let toolResults = Dictionary(
+                        store.messages.compactMap { m in
+                            m.toolCallId.map { ($0, m.content ?? "") }
+                        },
+                        uniquingKeysWith: { current, _ in current }
+                    )
                     ForEach(store.messages) { msg in
                         AgentMessageBubble(
                             message: msg,
+                            toolResults: toolResults,
                             isStreamingTail: isStreamingTail(msg)
                         )
                         .id(msg.id)

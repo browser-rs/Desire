@@ -5,6 +5,8 @@ import SwiftUI
 /// role-specific bubble (user / assistant / tool).
 struct AgentMessageBubble: View {
     let message: AgentMessage
+    /// toolCallId -> result content, for showing what a call returned.
+    var toolResults: [String: String] = [:]
     /// Whether this is the most recent assistant message that is still
     /// being streamed. Controls the trailing typing indicator.
     var isStreamingTail: Bool = false
@@ -19,7 +21,8 @@ struct AgentMessageBubble: View {
         case .assistant:
             AssistantBubble(
                 message: message,
-                isStreamingTail: isStreamingTail
+                isStreamingTail: isStreamingTail,
+                toolResults: toolResults
             )
         case .tool:
             ToolBubble(content: message.content ?? "", toolName: message.toolName)
@@ -107,6 +110,7 @@ private struct UserBubble: View {
 private struct AssistantBubble: View {
     let message: AgentMessage
     let isStreamingTail: Bool
+    var toolResults: [String: String] = [:]
     @State private var isHovering = false
 
     private var isError: Bool {
@@ -130,7 +134,7 @@ private struct AssistantBubble: View {
                 }
 
                 if let tcs = message.toolCalls, !tcs.isEmpty {
-                    ToolCallList(toolCalls: tcs)
+                    ToolCallList(toolCalls: tcs, results: toolResults)
                 }
 
                 if !hasVisibleContent {

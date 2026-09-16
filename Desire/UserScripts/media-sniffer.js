@@ -15,7 +15,7 @@
 
     function classify(url, mime) {
         mime = (mime || "").toLowerCase();
-        if (STREAM_MIME.test(mime) || /\.m3u8(\?|#|$)|\.mpd(\?|#|$)/i.test(url)) return "stream";
+        if (STREAM_MIME.test(mime) || /m3u8|\.mpd/i.test(url)) return "stream";
         if (/^video\//.test(mime) || /\.(mp4|webm|mkv|mov|m4v|flv|avi|ts)(\?|#|$)/i.test(url)) return "video";
         if (/^audio\//.test(mime) || /\.(mp3|m4a|aac|flac|wav|ogg|opus)(\?|#|$)/i.test(url)) return "audio";
         return null;
@@ -81,4 +81,44 @@
         });
         return origSend.apply(this, arguments);
     };
+
+    // --- Resource Timing: catches loads that never pass through page JS ---
+    // Native <video src="…m3u8"> playback is loaded by WebKit itself; the
+    // request never sees fetch/XHR hooks but DOES land in the resource
+    // timeline. buffered replays everything loaded before this script.
+    try {
+        var po = new PerformanceObserver(function (list) {
+            var entries = list.getEntries() || [];
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                report(e.name, "", Math.round(e.transferSize || 0), "rt:" + (e.initiatorType || "resource"));
+            }
+        });
+        po.observe({ entryTypes: ["resource"], buffered: true });
+    } catch (poErr) {}
+
+    // --- HTMLMediaElement src hooks: catch direct m3u8 assignments even if
+    // the player later replaces them with a blob: URL (Safari-detection
+    // pattern: try native HLS first, fall back to MSE). ---
+    try {
+        var mediaProto = HTMLMediaElement.prototype;
+        var srcDesc = Object.getOwnPropertyDescriptor(mediaProto, "src");
+        if (srcDesc && srcDesc.set) {
+            Object.defineProperty(mediaProto, "src", {
+                get: srcDesc.get,
+                set: function (v) {
+                    try { report(String(v || ""), "", 0, "src-attr"); } catch (e) {}
+                    srcDesc.set.call(this, v);
+                },
+                configurable: true
+            });
+        }
+        var origSetAttr = mediaProto.setAttribute;
+        mediaProto.setAttribute = function (name, value) {
+            try {
+                if (String(name).toLowerCase() === "src") report(String(value || ""), "", 0, "src-attr");
+            } catch (e) {}
+            return origSetAttr.call(this, name, value);
+        };
+    } catch (hookErr) {}
 })();

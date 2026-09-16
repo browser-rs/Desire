@@ -755,10 +755,33 @@ async function __desireScanMedia() {
         }
     } catch (ytErr) {}
 
-    var mediaEls = document.querySelectorAll("video, audio, source");
-    for (var i = 0; i < mediaEls.length; i++) {
-        var el = mediaEls[i];
-        add(el.currentSrc || el.src || "", "dom<" + el.tagName.toLowerCase() + ">", "");
+    // Media elements, including inside Shadow DOM (modern players mount in
+    // shadow roots that querySelectorAll cannot pierce) and same-origin
+    // iframe documents.
+    function scanMediaDoc(doc, label) {
+        var mediaEls = doc.querySelectorAll("video, audio, source");
+        for (var i = 0; i < mediaEls.length; i++) {
+            var el = mediaEls[i];
+            add(el.currentSrc || el.src || "", label + "<" + el.tagName.toLowerCase() + ">", "");
+        }
+    }
+    function scanShadow(root, depth) {
+        if (depth > 6) return;
+        try {
+            var els = root.querySelectorAll("video, audio, source");
+            for (var i = 0; i < els.length; i++) {
+                add(els[i].currentSrc || els[i].src || "", "dom<shadow>", "");
+            }
+            var hosts = root.querySelectorAll("*");
+            for (var h = 0; h < hosts.length && h < 3000; h++) {
+                if (hosts[h].shadowRoot) scanShadow(hosts[h].shadowRoot, depth + 1);
+            }
+        } catch (err) {}
+    }
+    var docs = __desireAllDocs();
+    for (var d = 0; d < docs.length; d++) {
+        scanMediaDoc(docs[d], d === 0 ? "dom" : "dom<iframe>");
+        try { scanShadow(docs[d], 0); } catch (err2) {}
     }
     var anchors = document.querySelectorAll("a[href]");
     for (var a = 0; a < anchors.length; a++) {

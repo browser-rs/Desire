@@ -626,6 +626,40 @@ extension BrowserToolProvider {
             let sizeText = size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
             return "Armed '\(fileURL.lastPathComponent)'\(sizeText.isEmpty ? "" : " (\(sizeText))"). Clicking the page's upload button now auto-submits it (consumed once)."
 
+        case "askUser":
+            // Mid-task clarification: pauses the loop until the user answers
+            // in the panel. The question card IS the interaction (readonly).
+            guard let question = args["question"] as? String, !question.isEmpty else {
+                return "Missing question"
+            }
+            let answer = await UserPromptCenter.shared.ask(question)
+            return answer
+
+        case "writeFile":
+            // Save agent-produced content to a local file. Restricted to the
+            // user's folders (Downloads/Documents/Desktop) + app support.
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return "Missing path" }
+            let content = args["content"] as? String ?? ""
+            let expanded = (rawPath as NSString).expandingTildeInPath
+            let fileURL = URL(fileURLWithPath: expanded)
+            let allowedRoots = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)
+                + FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+                + FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)
+            let resolved = fileURL.standardizedFileURL.path
+            let isAllowed = allowedRoots.contains { resolved.hasPrefix($0.standardizedFileURL.path) }
+                || resolved.contains("/Application Support/Desire/")
+            guard isAllowed else {
+                return "Path not allowed — write inside Downloads / Documents / Desktop"
+            }
+            try? FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            do {
+                try content.write(to: fileURL, atomically: true, encoding: .utf8)
+                return "Wrote \(content.count) chars → \(fileURL.path)"
+            } catch {
+                return "Write failed: \(error.localizedDescription)"
+            }
+
         // --- Recording ---
         case "startRecording":
             // Records THIS window (the whole browser window, chat included —

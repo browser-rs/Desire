@@ -22,6 +22,7 @@ struct AgentPanel: View {
     @State private var isDroppingImage = false
     @ObservedObject private var planStore = AgentPlanStore.shared
     @ObservedObject private var recorder = WindowRecorder.shared
+    @ObservedObject private var promptCenter = UserPromptCenter.shared
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
@@ -150,6 +151,12 @@ struct AgentPanel: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
+            }
+
+            if let question = promptCenter.pending {
+                AgentQuestionCard(question: question.question) { answer in
+                    promptCenter.answer(answer)
+                }
             }
 
             if let approval = store.pendingApproval {

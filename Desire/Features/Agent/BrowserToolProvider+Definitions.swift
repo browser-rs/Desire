@@ -69,6 +69,19 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "askUser", description: "Ask the user a clarifying question MID-TASK and wait for their answer (the loop pauses; the answer is returned to you). Use when choices are ambiguous: which account, which quality, publish now or schedule. Do NOT use for information already on the page.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "question": AgentJSONSchemaValue(type: "string", description: "Concrete question; offer options when possible"),
+                ], required: ["question"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "writeFile", description: "Save text content to a local file (Downloads / Documents / Desktop). Use to export extracted data (comments, summaries, CSV).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Target file path (~ supported)"),
+                    "content": AgentJSONSchemaValue(type: "string", description: "File content"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "updatePlan", description: "Maintain a VISIBLE task checklist for multi-step work. Send the FULL step list every time with per-step status (pending / in_progress / done); the user watches progress live. Required for any task with 3+ steps — update after each step completes.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "steps": AgentJSONSchemaValue(type: "array", description: "Full step list", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [

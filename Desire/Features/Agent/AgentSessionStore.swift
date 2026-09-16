@@ -287,6 +287,7 @@ class AgentSessionStore: ObservableObject {
         }
         memoryProcessedCount = 0
         AgentPlanStore.shared.clear()
+        UserPromptCenter.shared.cancel()
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil

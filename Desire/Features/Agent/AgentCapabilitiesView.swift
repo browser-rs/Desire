@@ -252,6 +252,7 @@ struct AgentCapabilitiesView: View {
             "getFormFields", "getPageLinks", "extract", "findElements",
         ],
         "页面操作": [
+            "askUser",
             "click", "clickAt", "hover", "focus", "fill", "select", "scroll",
             "pressKey", "type", "highlight", "waitForElement", "waitForText",
             "wait", "executeJS", "toggleReaderMode", "toggleDarkMode",
@@ -280,7 +281,7 @@ struct AgentCapabilitiesView: View {
             "toggleSidebar", "listPlugins", "togglePlugin",
         ],
         "系统与技能": [
-            "runCommand", "useSkill", "listSkills",
+            "runCommand", "useSkill", "listSkills", "writeFile",
         ],
     ]
 

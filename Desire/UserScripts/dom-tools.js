@@ -289,6 +289,9 @@ async function __desireSnapshot(maxChars, maxElements) {
         var tag = e.tagName.toLowerCase();
         if (tag === "input") tag = "input[" + (e.type || "text") + "]";
         var entry = { ref: refId, tag: tag, text: label };
+        var inView = rect.top >= 0 && rect.left >= 0 &&
+                     rect.bottom <= window.innerHeight && rect.right <= window.innerWidth;
+        entry.view = inView ? 1 : 0;   // 0 = below/above the fold
         var pressed = e.getAttribute("aria-pressed");
         if (pressed !== null) entry.pressed = pressed;
         elements.push(entry);

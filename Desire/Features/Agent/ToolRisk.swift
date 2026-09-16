@@ -75,6 +75,8 @@ enum ToolRisk: Int, Comparable {
         "useSkill", "listSkills",
         // Plan checklist (pure UI state)
         "updatePlan",
+        // Waits for the user's answer; changes nothing
+        "askUser",
         // Visual-only (temporary outline class, auto-removed)
         "highlight",
         // Waiting / timing

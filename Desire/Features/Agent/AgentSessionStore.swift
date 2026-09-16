@@ -405,34 +405,11 @@ class AgentSessionStore: ObservableObject {
         return "[Current page] \(title) — \(url.absoluteString)\n\(text)"
     }
 
-    /// The message array actually sent to the model: the stored conversation,
-    /// compacted to fit the context budget, plus the fresh page context.
-    /// Neither transformation is persisted — `messages` stays intact.
-    private func buildRequestMessages() async -> [AgentMessage] {
-        var request = Self.compactForContext(messages)
-        // L0+L1+L2 memory goes first so compaction above can never drop it.
-        if let memoryBlock = AgentMemoryStore.shared.promptBlock(excluding: conversationId) {
-            request.insert(AgentMessage(role: .system, content: memoryBlock), at: 0)
-        }
-        if let pageContext = await fetchCompactPageContext() {
-            request.append(AgentMessage(role: .system, content: pageContext))
-        }
-        let skills = SkillStore.shared.skills
-        if !skills.isEmpty {
-            let lines = skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
-            request.append(AgentMessage(role: .system, content: """
-            [Installed skills — call useSkill(name) to load full instructions             before performing a matching task]
-            \(lines)
-            """))
-        }
-        return request
-    }
-
     /// Drops the OLDEST user-started conversation blocks while the estimated
     /// context size exceeds the budget. A block runs from a user message up
     /// to the next user message, so assistant tool_calls and their tool
-    /// results always stay together — OpenAI's tool-call→tool-result pairing
-    /// is never broken. The final block is never dropped.
+    /// results always stay together — the provider's tool-call→tool-result
+    /// pairing is never broken. The final block is never dropped.
     static func compactForContext(_ messages: [AgentMessage], budget: Int = 160_000) -> [AgentMessage] {
         func size(_ m: AgentMessage) -> Int {
             (m.content?.count ?? 0)
@@ -455,6 +432,35 @@ class AgentSessionStore: ObservableObject {
         }
         guard keepStart > 0 else { return messages }
         return Array(messages[keepStart...])
+    }
+
+    /// The message array actually sent to the model: the stored conversation,
+    /// compacted to fit the context budget, plus the fresh page context.
+    /// Neither transformation is persisted — `messages` stays intact.
+    private func buildRequestMessages() async -> [AgentMessage] {
+        var request = Self.compactForContext(messages)
+
+        // One composed system prompt with ordered layers — identity (the
+        // user's editable prompt), L0-L2 memory, the skills list, the
+        // workspace path, and a FRESH per-iteration page summary. Injected
+        // at position 0 after compaction so it can never be dropped, and
+        // never persisted into the stored conversation.
+        let identity = {
+            let stored = preference.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            return stored.isEmpty ? AgentPreferenceStore.defaultPrompt : stored
+        }()
+        let memoryBlock = AgentMemoryStore.shared.promptBlock(excluding: conversationId)
+        let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
+        let pageContext = await fetchCompactPageContext()
+        let composed = AgentPromptBuilder.compose(.init(
+            identity: identity,
+            memoryBlock: memoryBlock,
+            skills: skills,
+            workspacePath: SystemCommandStore.shared.workingDirectory.path,
+            pageContext: pageContext
+        ))
+        request.insert(AgentMessage(role: .system, content: composed), at: 0)
+        return request
     }
 
     private func processLoop() async {

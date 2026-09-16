@@ -229,6 +229,17 @@ struct SelectedTabContent: View {
                     ResizableDivider(width: $aiPanelWidth, range: 260...560)
                     AIPanel(store: content.aiSession, conversationStore: content.conversationStore)
                         .frame(width: aiPanelWidth)
+                        // Opening the assistant resumes the most recent
+                        // conversation instead of a blank panel. Deferred
+                        // off the view-update pass: loading publishes
+                        // `messages`, and mutating an observed store
+                        // synchronously inside onAppear trips
+                        // "Publishing changes from within view updates".
+                        .onAppear {
+                            Task { @MainActor in
+                                content.aiSession.resumeLatestConversation()
+                            }
+                        }
                 }
 
                 if showDevToolsPanel {

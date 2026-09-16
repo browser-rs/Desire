@@ -5,12 +5,16 @@ enum AIQuickAction: CaseIterable {
     case summarize
     case askAboutPage
     case translate
+    case summarizeComments
+    case summarizeChat
 
     var title: String {
         switch self {
         case .summarize: String(localized: "Summarize")
         case .askAboutPage: String(localized: "Ask about Page")
         case .translate: String(localized: "Translate")
+        case .summarizeComments: String(localized: "Summarize Comments")
+        case .summarizeChat: String(localized: "Summarize Chat")
         }
     }
 
@@ -19,6 +23,8 @@ enum AIQuickAction: CaseIterable {
         case .summarize: "text.alignleft"
         case .askAboutPage: "text.bubble"
         case .translate: "translate"
+        case .summarizeComments: "bubble.left.and.text.bubble.right"
+        case .summarizeChat: "message.badge.filled.fill"
         }
     }
 
@@ -27,6 +33,10 @@ enum AIQuickAction: CaseIterable {
         case .summarize: String(localized: "Summarize the current page in detail")
         case .askAboutPage: String(localized: "I'm looking at this page and want to ask:")
         case .translate: String(localized: "Translate this page to Chinese")
+        case .summarizeComments:
+            String(localized: "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment.")
+        case .summarizeChat:
+            String(localized: "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send.")
         }
     }
 }
@@ -69,9 +79,18 @@ class AISessionStore: ObservableObject {
     /// at construction so save/load paths work without post-init wiring.
     let conversationStore: ConversationStore
     private let toolProvider = BrowserToolProvider()
+    /// Strong ref to the configured surface. `BrowserToolProvider.surface`
+    /// is weak, and a per-window `WindowToolSurface` has no other owner —
+    /// without this it deallocates as soon as `configure(with:)` returns
+    /// and every tool call fails with "Tool surface not configured".
+    private var toolSurface: (any BrowserToolSurface)?
     private weak var webView: WKWebView?
     private var isCancelled = false
     private var loopTask: Task<Void, Never>?
+    /// True after `clear()` until a conversation is loaded or a message is
+    /// sent — gates `resumeLatestConversation` so a deliberate new chat
+    /// stays blank when the panel is reopened.
+    private var isNewChatIntentional = false
 
     init(preference: AIPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
@@ -101,6 +120,14 @@ class AISessionStore: ObservableObject {
     }
 
     func setWebView(_ wv: WKWebView?) {
+        // `makeWebView` (a View-body helper) calls this on EVERY render of
+        // the tab content. Publishing must not happen during view updates —
+        // and @Published fires objectWillChange even for identical values —
+        // so no-op when the webview didn't actually change, which is the
+        // overwhelming majority of calls. Without this, having the AI panel
+        // open turned every progress tick / hover into an AIPanel
+        // re-render storm ("Publishing changes from within view updates").
+        guard webView !== wv else { return }
         webView = wv
         refreshContextLabel()
     }
@@ -115,17 +142,23 @@ class AISessionStore: ObservableObject {
     }
 
     private func refreshContextLabel() {
-        guard let wv = activeWebView else {
-            contextLabel = nil
-            return
+        let newLabel: String?
+        if let wv = activeWebView {
+            let host = wv.url?.host ?? ""
+            let title = (wv.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            switch (title.isEmpty, host.isEmpty) {
+            case (true, true): newLabel = nil
+            case (true, false): newLabel = host
+            case (false, true): newLabel = title
+            case (false, false): newLabel = "\(title) — \(host)"
+            }
+        } else {
+            newLabel = nil
         }
-        let host = wv.url?.host ?? ""
-        let title = (wv.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        switch (title.isEmpty, host.isEmpty) {
-        case (true, true): contextLabel = nil
-        case (true, false): contextLabel = host
-        case (false, true): contextLabel = title
-        case (false, false): contextLabel = "\(title) — \(host)"
+        // Assign only on an actual change — a bare assignment publishes
+        // objectWillChange even when the value is identical.
+        if contextLabel != newLabel {
+            contextLabel = newLabel
         }
     }
 
@@ -134,6 +167,7 @@ class AISessionStore: ObservableObject {
     /// manager is per-window, so the caller must also attach it to the
     /// surface (via `AppState.attach(tabManager:)`).
     func configure(with surface: BrowserToolSurface) {
+        toolSurface = surface
         toolProvider.attach(surface: surface)
     }
 
@@ -155,7 +189,9 @@ class AISessionStore: ObservableObject {
 
     func performQuickAction(_ action: AIQuickAction) {
         switch action {
-        case .summarize, .translate:
+        case .summarize, .translate, .summarizeComments, .summarizeChat:
+            // These prompts instruct the agent to pull content via the
+            // specialized tools (getComments / getConversation).
             sendMessage(action.prompt)
         case .askAboutPage:
             awaitingQuestion = true
@@ -208,10 +244,23 @@ class AISessionStore: ObservableObject {
         currentAction = nil
         isCancelled = false
         awaitingQuestion = false
+        // The user deliberately started a new chat — reopening the panel
+        // should NOT resurrect the previous conversation.
+        isNewChatIntentional = true
         // Reset the router's session-sticky lock so a new conversation
         // starts fresh (a prior tool chain shouldn't pin the new one to cloud).
         preference.routingLockedToCloud = false
         lastProviderUsed = nil
+    }
+
+    /// Called when a chat surface (sidebar or floating panel) becomes
+    /// visible: if the session is blank and the user didn't just start a
+    /// new chat, load the most recent conversation instead of showing an
+    /// empty panel. `conversations` is kept sorted by `updatedAt` desc.
+    func resumeLatestConversation() {
+        guard messages.isEmpty, !isProcessing, !isNewChatIntentional else { return }
+        guard let latest = conversationStore.conversations.first else { return }
+        loadConversation(latest.id)
     }
 
     func loadConversation(_ id: UUID) {
@@ -221,6 +270,7 @@ class AISessionStore: ObservableObject {
         conversationTitle = conv.title
         awaitingQuestion = false
         currentAction = nil
+        isNewChatIntentional = false
         streamingVersion += 1
     }
 

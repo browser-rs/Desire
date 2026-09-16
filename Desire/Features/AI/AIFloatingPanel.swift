@@ -20,6 +20,9 @@ class AIFloatingPanel {
     }
 
     func show() {
+        // Same resume-on-open behavior as the sidebar panel: a fresh
+        // session picks up the most recent conversation.
+        store.resumeLatestConversation()
         guard window == nil else {
             window?.makeKeyAndOrderFront(nil)
             return

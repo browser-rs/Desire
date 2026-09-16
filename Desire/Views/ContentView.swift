@@ -25,6 +25,11 @@ struct ContentView: View {
     /// Extracted business-logic coordinator. Replaces the ~25 action methods
     /// that previously lived on ContentView.
     @StateObject var b: BrowsingActions
+    /// Per-window AI agent session. Its tool surface is bound to THIS
+    /// window's TabManager (see `WindowToolSurface`), so the agent always
+    /// acts on the window the chat lives in — not on whichever window was
+    /// last key. Preferences and conversation history stay shared.
+    @StateObject var aiSession: AISessionStore
     @FocusState var isUrlFocused: Bool
     @FocusState var isFindFocused: Bool
     @State var showTranslateBar = false
@@ -42,6 +47,10 @@ struct ContentView: View {
         _translationService = StateObject(wrappedValue: TranslationService())
         _responsiveDesignStore = StateObject(wrappedValue: ResponsiveDesignStore())
         _thumbnailStore = StateObject(wrappedValue: TabThumbnailStore())
+        _aiSession = StateObject(wrappedValue: AISessionStore(
+            preference: appState.aiPreference,
+            conversationStore: appState.conversationStore
+        ))
         _b = StateObject(wrappedValue: BrowsingActions(
             tabManager: tm,
             settings: appState.settings,
@@ -58,7 +67,6 @@ struct ContentView: View {
 
     // Convenience accessors for shared stores
     var settings: Settings { appState.settings }
-    var aiSession: AISessionStore { appState.aiSession }
     var contentBlocker: ContentBlockerStore { appState.contentBlocker }
     var bookmarkStore: BookmarkStore { appState.bookmarkStore }
     var historyStore: HistoryStore { appState.historyStore }
@@ -167,8 +175,9 @@ struct ContentView: View {
         .tint(settings.accentColor.color)
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard {
-            // This window just became key — re-bind the per-window TabManager
-            // so AI tools and window-scoped state target the ACTIVE window.
+            // This window just became key — record it as the
+            // session-persistence target. (AI tools do NOT depend on this;
+            // each window's AI session is pinned to its own TabManager.)
             appState.attach(tabManager: tabManager)
         })
         .onAppear {
@@ -176,11 +185,14 @@ struct ContentView: View {
                 aiFloatingPanel = AIFloatingPanel(store: aiSession, conversationStore: conversationStore)
             }
             if !isAIConfigured {
-                // Attach this window's TabManager to the shared tool surface,
-                // then wire the AI agent to it. One `configure(with:)` call
-                // replaces the former 13-parameter `configureStores`.
+                // Record this window as the session-persistence target, then
+                // bind the AI agent to a surface pinned to THIS window's
+                // TabManager (fixed — not the last-key-window pointer, which
+                // is what made the floating AI panel act on the wrong
+                // window). One `configure(with:)` call replaces the former
+                // 13-parameter `configureStores`.
                 appState.attach(tabManager: tabManager)
-                aiSession.configure(with: appState)
+                aiSession.configure(with: WindowToolSurface(app: appState, tabManager: tabManager))
                 isAIConfigured = true
             }
             if tabManager.tabs.isEmpty {

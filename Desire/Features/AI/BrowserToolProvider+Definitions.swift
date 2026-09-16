@@ -8,7 +8,7 @@ extension BrowserToolProvider {
         [
             // --- Page reading ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "getPageSnapshot", description: "PREFERRED way to read the current page: returns JSON with the cleaned main-content text plus a list of visible interactive elements. Each element carries a data-desire-ref attribute — act on it with click/fill using the selector [data-desire-ref=\"e12\"].",
+                name: "getPageSnapshot", description: "PREFERRED way to read the current page: returns JSON with the cleaned main-content text plus a list of visible interactive elements, each with a ref (\"e1\", \"e2\", …). Act on elements with click/fill {ref: \"e12\"}. Controls missing from the list (icon buttons, custom widgets) can be targeted with click {text: \"<visible label>\"} or found via screenshot + clickAt(x,y).",
                 parameters: AIJSONSchema(type: "object", properties: [
                     "maxChars": AIJSONSchemaValue(type: "number", description: "Max characters of text content (default 12000)"),
                     "maxElements": AIJSONSchemaValue(type: "number", description: "Max interactive elements listed (default 60)"),
@@ -17,6 +17,18 @@ extension BrowserToolProvider {
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AIJSONSchema(type: "object", properties: [:])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "getComments", description: "Extract the page's comment section as structured JSON: [{author, text, time, likes}]. Best tool for \"总结评论 / summarize the comments\", gauging opinions, or gathering context before replying. Falls back to raw comment-area text when the site's markup is unknown.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "maxItems": AIJSONSchemaValue(type: "number", description: "Max comments to extract (default 50)"),
+                ])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "getConversation", description: "Extract the page's chat/IM messages as structured JSON: [{sender, text, mine}] — mine=true means the user sent it. Best tool for \"总结对话 / summarize this chat\" and drafting a reply on web-based chat or customer-service pages.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "maxItems": AIJSONSchemaValue(type: "number", description: "Max messages to extract (default 100)"),
+                ])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "getPageHTML", description: "Get the full HTML of the current page (very large — use only when getPageSnapshot is not enough).",
@@ -249,22 +261,28 @@ extension BrowserToolProvider {
 
             // --- DOM interaction ---
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "click", description: "Click an element identified by CSS selector",
-                parameters: AIJSONSchema(type: "object", properties: ["selector": AIJSONSchemaValue(type: "string", description: "CSS selector")], required: ["selector"])
+                name: "click", description: "Click a page element. Target it with ONE of: ref (e.g. \"e12\" from the latest getPageSnapshot — preferred), text (visible label/aria-label, best for buttons the snapshot missed, e.g. \"点赞\", \"Like\", \"Submit\"), or selector (CSS, last resort). The page is scrolled to the element and a real mouse click is dispatched on its nearest clickable ancestor, so icon buttons and framework-wrapped controls work.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot, e.g. \"e12\""),
+                    "text": AIJSONSchemaValue(type: "string", description: "Visible text of the target, e.g. \"点赞\" or \"Sign in\""),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector (fallback when ref/text unavailable)"),
+                ], required: [])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "fill", description: "Fill a form field with a value",
+                name: "fill", description: "Fill a form field with a value (fires proper input/change events, works with React/Vue forms)",
                 parameters: AIJSONSchema(type: "object", properties: [
-                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector of the input"),
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector of the input (fallback)"),
                     "value": AIJSONSchemaValue(type: "string", description: "Value to fill"),
-                ], required: ["selector", "value"])
+                ], required: ["value"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "select", description: "Select an option from a dropdown",
+                name: "select", description: "Select an option from a dropdown <select>",
                 parameters: AIJSONSchema(type: "object", properties: [
-                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector of the select element"),
-                    "value": AIJSONSchemaValue(type: "string", description: "Value to select"),
-                ], required: ["selector", "value"])
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector of the select element (fallback)"),
+                    "value": AIJSONSchemaValue(type: "string", description: "Option value or visible label"),
+                ], required: ["value"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "scroll", description: "Scroll the page to coordinates",
@@ -274,12 +292,26 @@ extension BrowserToolProvider {
                 ], required: ["x", "y"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
-                name: "hover", description: "Hover over an element",
-                parameters: AIJSONSchema(type: "object", properties: ["selector": AIJSONSchemaValue(type: "string")], required: ["selector"])
+                name: "hover", description: "Hover over an element (reveals hover-only controls). Target with ref, text, or selector — same as click.",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "text": AIJSONSchemaValue(type: "string", description: "Visible text of the target"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector (fallback)"),
+                ], required: [])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "focus", description: "Focus an element",
-                parameters: AIJSONSchema(type: "object", properties: ["selector": AIJSONSchemaValue(type: "string")], required: ["selector"])
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "ref": AIJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "selector": AIJSONSchemaValue(type: "string", description: "CSS selector (fallback)"),
+                ], required: [])
+            )),
+            AIToolDef(type: "function", function: AIToolFunctionDef(
+                name: "postComment", description: "Post a comment / reply / chat message: automatically finds the page's comment or chat input (textarea or rich-text editor), types the text with framework-compatible events, then submits — real mouse click on the 发送/发表/Send button when present, otherwise Enter. Use for \"帮我评论 / 回复 / 自动回消息\". Pass submit=false to type without sending (then click the send button yourself).",
+                parameters: AIJSONSchema(type: "object", properties: [
+                    "text": AIJSONSchemaValue(type: "string", description: "The comment/reply text to type"),
+                    "submit": AIJSONSchemaValue(type: "boolean", description: "Submit after typing (default true)"),
+                ], required: ["text"])
             )),
             AIToolDef(type: "function", function: AIToolFunctionDef(
                 name: "extract", description: "Extract text content from elements matching a CSS selector",

@@ -10867,6 +10867,12 @@
         }
       }
     },
+    "Summarize Chat" : {
+
+    },
+    "Summarize Comments" : {
+
+    },
     "Summarize the current page in detail" : {
       "localizations" : {
         "en" : {
@@ -12039,6 +12045,12 @@
           }
         }
       }
+    },
+    "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment." : {
+
+    },
+    "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send." : {
+
     },
     "Username: %@" : {
       "localizations" : {

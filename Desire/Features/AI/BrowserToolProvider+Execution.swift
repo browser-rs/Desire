@@ -40,6 +40,20 @@ extension BrowserToolProvider {
 
         case "getPageText":
             return await eval(webView, "document.body.innerText")
+        case "getComments":
+            // Structured comment-section extraction (author/text/time/likes)
+            // for "总结评论" and reply drafting. Site-agnostic heuristics.
+            let maxItems = args["maxItems"] as? Int ?? 50
+            let raw = await callAsync(webView, function: "__desireGetComments",
+                                      args: ["maxItems": maxItems])
+            return raw.isEmpty ? "No comment section detected on this page" : raw
+        case "getConversation":
+            // Web-chat (IM) message extraction for "总结对话" and reply
+            // drafting. Site-agnostic heuristics.
+            let maxItems = args["maxItems"] as? Int ?? 100
+            let raw = await callAsync(webView, function: "__desireGetConversation",
+                                      args: ["maxItems": maxItems])
+            return raw.isEmpty ? "No chat conversation detected on this page" : raw
         case "getPageHTML":
             return await eval(webView, "document.documentElement.outerHTML")
         case "getPageTitle":
@@ -52,6 +66,17 @@ extension BrowserToolProvider {
         // --- Navigation ---
         case "navigate":
             guard let url = args["url"] as? String, let u = URL(string: url) else { return "Invalid URL" }
+            // Mirror BrowsingActions.navigateToURL's state sync. `load` alone
+            // is invisible when the tab sits on an overlay: isOnNewTabPage
+            // is STORED state (the NewTabPage keeps covering the webview),
+            // and an unmounted webview has no navigation delegate to update
+            // urlString — so the DOM loads, snapshots read real content, and
+            // the user still sees the new-tab page.
+            if let tab = surface.tabManager?.tabs.first(where: { $0.browser.webView === webView }) {
+                tab.isOnNewTabPage = false
+                tab.isSuspended = false
+                tab.urlString = u.absoluteString
+            }
             webView.load(URLRequest(url: u))
             return "Navigated to \(url)"
         case "goBack":
@@ -401,19 +426,28 @@ extension BrowserToolProvider {
         // via callAsyncJavaScript, passing parameters as native values.
         // NO string interpolation: model-controlled selectors/values cannot
         // break out into code. See docs/ARCHITECTURE.md (L2 JS Bridge).
+        //
+        // Targeting modes, resolved in-page in this order: ref (snapshot
+        // id) > text (visible label) > CSS selector.
         case "click":
-            guard let sel = args["selector"] as? String else { return "Missing selector" }
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            let text = args["text"] as? String
+            guard sel != nil || ref != nil || text != nil else {
+                return "Provide one of: ref (from getPageSnapshot), text (visible label), or selector"
+            }
             // Prefer a real (isTrusted=true) mouse click through the AppKit
             // event pipeline — untrusted `element.click()` is a bot signal
             // for anti-automation systems (Turnstile) and can get the user's
             // session challenged. The JS fallback keeps the tool working
             // when the webview has no window (suspended/background tab) or
             // the element resolves to no on-screen geometry.
-            if let point = await clickablePoint(selector: sel, in: webView) {
+            if let point = await clickablePoint(selector: sel, ref: ref, text: text, in: webView) {
                 await SyntheticInput.click(at: point, in: webView)
                 return "Clicked (trusted mouse event)"
             }
-            return await callAsync(webView, function: "__desireClick", args: ["selector": sel])
+            return await callAsync(webView, function: "__desireClick",
+                                   args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
 
         case "clickAt":
             // Vision-loop primitive: pairs with the screenshot tool. x/y are
@@ -430,12 +464,20 @@ extension BrowserToolProvider {
             return "Clicked at (\(Int(x)), \(Int(y)))"
 
         case "fill":
-            guard let sel = args["selector"] as? String, let val = args["value"] as? String else { return "Missing selector or value" }
-            return await callAsync(webView, function: "__desireFill", args: ["selector": sel, "value": val])
+            guard let val = args["value"] as? String else { return "Missing value" }
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            return await callAsync(webView, function: "__desireFill",
+                                   args: ["selector": sel ?? "", "value": val, "ref": ref ?? ""])
 
         case "select":
-            guard let sel = args["selector"] as? String, let val = args["value"] as? String else { return "Missing selector or value" }
-            return await callAsync(webView, function: "__desireSelect", args: ["selector": sel, "value": val])
+            guard let val = args["value"] as? String else { return "Missing value" }
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            return await callAsync(webView, function: "__desireSelect",
+                                   args: ["selector": sel ?? "", "value": val, "ref": ref ?? ""])
 
         case "scroll":
             let x = args["x"] as? Double ?? 0
@@ -443,17 +485,51 @@ extension BrowserToolProvider {
             return await callAsync(webView, function: "__desireScroll", args: ["x": x, "y": y])
 
         case "hover":
-            guard let sel = args["selector"] as? String else { return "Missing selector" }
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            let text = args["text"] as? String
+            guard sel != nil || ref != nil || text != nil else {
+                return "Provide one of: ref, text, or selector"
+            }
             // Trusted mouse-moved stream, same rationale as `click`.
-            if let point = await clickablePoint(selector: sel, in: webView) {
+            if let point = await clickablePoint(selector: sel, ref: ref, text: text, in: webView) {
                 await SyntheticInput.hover(at: point, in: webView)
                 return "Hovered (trusted mouse events)"
             }
-            return await callAsync(webView, function: "__desireHover", args: ["selector": sel])
+            return await callAsync(webView, function: "__desireHover",
+                                   args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
 
         case "focus":
-            guard let sel = args["selector"] as? String else { return "Missing selector" }
-            return await callAsync(webView, function: "__desireFocus", args: ["selector": sel])
+            let sel = args["selector"] as? String
+            let ref = args["ref"] as? String
+            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            return await callAsync(webView, function: "__desireFocus",
+                                   args: ["selector": sel ?? "", "ref": ref ?? ""])
+
+        case "postComment":
+            // One-shot "评论/回复/回消息": locates the page's comment or
+            // chat input automatically (textarea or contenteditable editor),
+            // types through the framework-compatible editing path, then
+            // submits — trusted click on the 发送/发表/Send button when one
+            // exists (rect comes back from the page), otherwise Enter.
+            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            let submit = args["submit"] as? Bool ?? true
+            let raw = await callAsync(webView, function: "__desirePostComment",
+                                      args: ["text": text, "submit": submit])
+            guard let data = raw.data(using: .utf8),
+                  let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                return raw.isEmpty ? "No comment or chat input found on this page" : raw
+            }
+            let status = obj["status"] as? String ?? "Typed"
+            guard submit,
+                  let rect = obj["submitRect"] as? [String: Double],
+                  let x = rect["x"], let y = rect["y"],
+                  let w = rect["w"], let h = rect["h"], w > 0, h > 0 else {
+                return status
+            }
+            let point = windowPoint(fromViewportX: x + w / 2, y: y + h / 2, in: webView)
+            await SyntheticInput.click(at: point, in: webView)
+            return status + " — submitted"
 
         case "extract":
             guard let sel = args["selector"] as? String else { return "Missing selector" }
@@ -490,14 +566,16 @@ extension BrowserToolProvider {
         }
     }
 
-    /// Resolves `selector` to its center point in window-base coordinates
-    /// (what `NSEvent.mouseEvent(location:)` expects) after scrolling the
-    /// element into view. Returns nil when the webview has no window, the
-    /// element is missing, or it has no on-screen geometry — callers then
-    /// fall back to the in-page JS path.
-    private func clickablePoint(selector: String, in webView: WKWebView) async -> CGPoint? {
+    /// Resolves the target (selector / snapshot ref / visible text — the
+    /// same resolution the JS fallback uses) to its center point in
+    /// window-base coordinates (what `NSEvent.mouseEvent(location:)`
+    /// expects) after scrolling the element into view. Returns nil when the
+    /// webview has no window, the element is missing, or it has no
+    /// on-screen geometry — callers then fall back to the in-page JS path.
+    private func clickablePoint(selector: String?, ref: String?, text: String?, in webView: WKWebView) async -> CGPoint? {
         guard webView.window != nil else { return nil }
-        let raw = await callAsync(webView, function: "__desireElementRect", args: ["selector": selector])
+        let raw = await callAsync(webView, function: "__desireElementRect",
+                                  args: ["selector": selector ?? "", "ref": ref ?? "", "text": text ?? ""])
         guard let data = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
               let x = obj["x"], let y = obj["y"],

@@ -87,6 +87,7 @@ struct AIInputBar: View {
             }
 
             micButton
+                .padding(.trailing, 6)
                 .padding(.bottom, 6)
             sendButton
                 .padding(.trailing, 6)

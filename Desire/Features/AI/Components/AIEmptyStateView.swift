@@ -173,6 +173,8 @@ private extension AIQuickAction {
         case .summarize: return "TL;DR of the page"
         case .askAboutPage: return "Ask anything about it"
         case .translate: return "Translate to Chinese"
+        case .summarizeComments: return "What the comment section says"
+        case .summarizeChat: return "Recap + draft a reply"
         }
     }
 }

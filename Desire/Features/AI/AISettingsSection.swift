@@ -263,7 +263,6 @@ struct AISettingsSection: View {
         }
     }
 
-    @ViewBuilder
     /// Returns the preset model list for the ACTIVE cloud provider.
     /// Each provider has its own model lineup (Zhipu → GLM series, OpenAI
     /// → GPT series, etc.) so the picker reflects what's actually available.

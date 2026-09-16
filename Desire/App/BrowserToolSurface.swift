@@ -4,14 +4,16 @@ import Foundation
 ///
 /// Replaces the 13 individually-injected `weak var` stores on
 /// `BrowserToolProvider` (and the matching 13-parameter `configureStores`)
-/// with a single protocol boundary. `AppState` conforms; the agent's tool
-/// provider holds one `weak var surface` and resolves each tool's target via
-/// the protocol. Adding a new store that tools can address is now a one-line
-/// protocol addition + conformance, not a 3-file edit.
+/// with a single protocol boundary. The agent's tool provider holds one
+/// `weak var surface` and resolves each tool's target via the protocol.
+/// Adding a new store that tools can address is now a one-line protocol
+/// addition + conformance, not a 3-file edit.
 ///
-/// `tabManager` is optional because tabs are per-window; `AppState` cannot
-/// own one, so it's attached at runtime by each window's `ContentView`. All
-/// other surfaces are non-optional (always present once AppState exists).
+/// Conformed to by `WindowToolSurface` — one instance per browser window,
+/// pinning `tabManager` to that window's tab set so each AI session acts on
+/// the window its chat lives in. `tabManager` is optional because a
+/// window's TabManager can go away (window closed) while a floating AI
+/// panel still holds the session.
 @MainActor
 protocol BrowserToolSurface: AnyObject {
     var tabManager: TabManager? { get }

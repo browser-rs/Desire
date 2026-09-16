@@ -4,9 +4,10 @@ import WebKit
 
 @MainActor
 class BrowserToolProvider {
-    /// The app-state slice the tools operate over. Weak: owned by the app
-    /// (AppState conforms). Set once per window via `attach(surface:)`.
-    /// Replaces the former 13 individual `weak var ...Store?` injections.
+    /// The app-state slice the tools operate over. Weak: strongly retained
+    /// by the owning `AISessionStore` (`toolSurface`), which configures it
+    /// via `attach(surface:)`. Replaces the former 13 individual
+    /// `weak var ...Store?` injections.
     weak var surface: BrowserToolSurface?
 
     /// Attaches the tool surface. Called from `AISessionStore.configure`.

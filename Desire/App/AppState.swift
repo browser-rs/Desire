@@ -7,10 +7,15 @@ import SwiftUI
 /// Previously this held all ~22 stores flat (a god object / manual service
 /// locator). The stores now live on the scoped containers; the accessors
 /// below forward to them so existing call sites (`appState.bookmarkStore`,
-/// `appState.aiSession`, ...) keep working unchanged.
+/// ...) keep working unchanged.
 ///
 /// `hasRestoredSession` is the only non-store state here — a non-persistent
 /// flag set by the first window's `onAppear` to gate session restore.
+///
+/// Note: this type is intentionally NOT a `BrowserToolSurface`. Tool
+/// surfaces are per-window (`WindowToolSurface`) so each AI session acts on
+/// its own window's tabs; a shared surface here would target whichever
+/// window was last key.
 @MainActor
 class AppState: ObservableObject {
     let browsing: BrowsingState
@@ -45,7 +50,6 @@ class AppState: ObservableObject {
     var searchHistoryStore: SearchHistoryStore { browsing.searchHistoryStore }
 
     // AI
-    var aiSession: AISessionStore { ai.aiSession }
     var conversationStore: ConversationStore { ai.conversationStore }
     var aiPreference: AIPreferenceStore { ai.preference }
 
@@ -65,27 +69,13 @@ class AppState: ObservableObject {
     var pluginStore: PluginStore { system.pluginStore }
     var safariExtensionManager: SafariExtensionStore { system.safariExtensionManager }
 
-    // MARK: - BrowserToolSurface runtime wiring
+    // MARK: - Session persistence wiring
 
-    /// The current window's TabManager. Tabs are per-window (each window owns
-    /// its own TabManager), so AppState can't own one; each window's
-    /// `ContentView` attaches its TabManager here so AI tools can address the
-    /// active tab set. Weak to avoid retaining a per-window object globally.
-    private weak var _tabManager: TabManager?
-
-    /// Attaches the active window's TabManager so `BrowserToolSurface`
-    /// consumers (the AI tool provider) can reach it. Called on window
-    /// creation and again whenever the window becomes key
-    /// (WindowChromeGuard.onBecomeKey).
+    /// Records the active window's TabManager as the session-persistence
+    /// target. Called on window creation and again whenever the window
+    /// becomes key (WindowChromeGuard.onBecomeKey). AI tools no longer ride
+    /// this pointer — see `WindowToolSurface`.
     func attach(tabManager: TabManager) {
-        _tabManager = tabManager
-        // Session persistence records the selection of the ACTIVE window.
         TabSessionCoordinator.shared.setActive(tabManager)
     }
-}
-
-// MARK: - BrowserToolSurface
-
-extension AppState: BrowserToolSurface {
-    var tabManager: TabManager? { _tabManager }
 }

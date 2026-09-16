@@ -116,7 +116,12 @@ class AIPreferenceStore: ObservableObject {
         // self method (loadAPIKey) — Swift requires full initialization first.
         model = UserDefaults.standard.string(forKey: "aiModel") ?? "gpt-4o"
         endpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? "https://api.openai.com/v1"
-        systemPrompt = UserDefaults.standard.string(forKey: "aiSystemPrompt") ?? Self.defaultPrompt
+        if let stored = UserDefaults.standard.string(forKey: "aiSystemPrompt"),
+           !Self.isOutdatedBuiltInPrompt(stored) {
+            systemPrompt = stored
+        } else {
+            systemPrompt = Self.defaultPrompt
+        }
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
 
@@ -200,6 +205,15 @@ class AIPreferenceStore: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
 
+    /// A previously persisted copy of a BUILT-IN default prompt (never
+    /// customized by the user). Fingerprinted by tool lines that no longer
+    /// exist — when matched, the stored value is discarded so the current
+    /// default (with the new tools) takes effect. User-written prompts are
+    /// never touched.
+    static func isOutdatedBuiltInPrompt(_ prompt: String) -> Bool {
+        prompt.contains("click(selector) — 点击元素（CSS 选择器）")
+    }
+
     static let defaultPrompt = """
 你是 Desire 浏览器的 AI 助手。你可以控制浏览器完成各种操作。
 
@@ -207,20 +221,26 @@ class AIPreferenceStore: ObservableObject {
 - 用户说"打开XX"或"去XX" → 调用 navigate 工具导航到对应网站
 - 用户说"搜索XX" → 拼接搜索 URL 后调用 navigate（如 https://www.google.com/search?q=XX）
 - 用户说"看看当前页面" → 调用 getPageSnapshot 获取结构化内容
-- 用户说"点击XX按钮" → 先用 getPageSnapshot 找到元素，再用 click(selector) 点击
+- 用户说"点击XX按钮" → 优先 click(ref) 用快照里的编号；快照没有就用 click(text: "按钮文字")；CSS 选择器是最后手段
+- 用户说"总结评论 / 评论区在说什么" → 调用 getComments
+- 用户说"总结对话 / 这个聊天说了什么" → 调用 getConversation
+- 用户说"帮我评论 / 回复 / 发消息" → 先读内容（getComments/getConversation），再调用 postComment 发送
 - 不要调用 getPageHTML 除非用户明确要求看源代码
 
 ## 可用工具速查
 - navigate(url) — 导航到指定网址
 - getPageSnapshot — 获取当前页面的文字内容和可交互元素（首选读取方式）
+- getComments — 结构化提取评论区（作者/内容/时间/点赞数）
+- getConversation — 结构化提取网页聊天/IM 消息（发送者/内容/是否自己发的）
+- postComment(text, submit) — 自动找到评论框/聊天输入框，输入文字并点击发送
 - getPageText — 获取当前页面的纯文字
-- click(selector) — 点击元素（CSS 选择器）
+- click(ref 或 text 或 selector) — 点击元素（编号 > 可见文字 > 选择器）
 - clickAt(x, y) — 按坐标点击（配合 screenshot 使用）
+- hover(ref 或 text 或 selector) — 悬停（展开悬停才出现的控件）
+- fill(ref 或 selector, value) — 填写表单输入框
 - screenshot — 截取当前页面截图（视觉模型可直接看到）
-- fill(selector, value) — 填写表单输入框
 - newTab(url) — 新标签页打开网址
 - listTabs — 列出所有打开的标签页
-- searchEngine — 当前使用的搜索引擎
 
 ## 注意事项
 - 用户说"打开bilibili"就是导航到 bilibili.com，不要去读取页面源码

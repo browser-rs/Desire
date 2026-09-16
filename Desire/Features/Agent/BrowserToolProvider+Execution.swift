@@ -963,13 +963,14 @@ extension BrowserToolProvider {
 
         // --- Utilities ---
         case "wait":
-            let ms = args["ms"] as? Int ?? 1000
+            // Capped so a misbehaving plan can't stall the loop for minutes.
+            let ms = min(args["ms"] as? Int ?? 1000, 60_000)
             try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
             return "Waited \(ms)ms"
 
         case "waitForElement":
             let sel = args["selector"] as? String ?? ""
-            let timeout = args["timeout"] as? Int ?? 5000
+            let timeout = min(args["timeout"] as? Int ?? 5000, 60_000)
             return await callAsync(webView, function: "__desireWaitForElement", args: ["selector": sel, "timeout": timeout])
 
         case "executeJS":

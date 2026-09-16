@@ -644,6 +644,10 @@ extension BrowserToolProvider {
                 var report = "Saved to ~/Downloads/\(result.fileURL.lastPathComponent) — \(result.segmentCount) segment(s), \(result.displayBytes)"
                 result.warnings.forEach { report += "\n⚠️ \($0)" }
                 return report
+            } catch is CancellationError {
+                return "[Cancelled by user]"
+            } catch let error as URLError where error.code == .cancelled {
+                return "[Cancelled by user]"
             } catch {
                 return "Download failed: \(error.localizedDescription)"
             }
@@ -1038,6 +1042,7 @@ extension BrowserToolProvider {
             // Capped so a misbehaving plan can't stall the loop for minutes.
             let ms = min(args["ms"] as? Int ?? 1000, 60_000)
             try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
+            if Task.isCancelled { return "[Cancelled]" }
             return "Waited \(ms)ms"
 
         case "waitForElement":

@@ -174,13 +174,17 @@ final class SystemCommandStore: ObservableObject {
             return .failure("Failed to launch \(name): \(error.localizedDescription)")
         }
 
-        // Wait for exit or timeout.
-        while process.isRunning && Date().timeIntervalSince(started) < clampedTimeout {
+        // Wait for exit, timeout, or task cancellation (user hit Stop).
+        while process.isRunning,
+              Date().timeIntervalSince(started) < clampedTimeout,
+              !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
         var timedOut = false
+        var cancelledByUser = false
         if process.isRunning {
-            timedOut = true
+            timedOut = Date().timeIntervalSince(started) >= clampedTimeout
+            cancelledByUser = !timedOut
             process.terminate()
             for _ in 0..<10 where process.isRunning {
                 try? await Task.sleep(nanoseconds: 100_000_000)
@@ -188,11 +192,15 @@ final class SystemCommandStore: ObservableObject {
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         }
 
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
+        if cancelledByUser {
+            return .failure("[Cancelled by user — '\(name)' was terminated]")
+        }
+
         let exitCode = process.terminationStatus
         let duration = Date().timeIntervalSince(started)
 
-        stdout.fileHandleForReading.readabilityHandler = nil
-        stderr.fileHandleForReading.readabilityHandler = nil
         outAcc.append(stdout.fileHandleForReading.readDataToEndOfFile())
         errAcc.append(stderr.fileHandleForReading.readDataToEndOfFile())
 

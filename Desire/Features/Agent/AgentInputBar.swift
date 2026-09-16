@@ -237,9 +237,13 @@ struct AgentInputBar: View {
         }
     }
 
+    /// Stop is only the button's role when there is nothing to send — typed
+    /// text takes priority and goes to the queue instead.
+    private var showsStop: Bool { isProcessing && !canSubmit }
+
     private var sendButton: some View {
         Button {
-            if isProcessing {
+            if showsStop {
                 onCancel()
             } else {
                 onSubmit()
@@ -249,14 +253,14 @@ struct AgentInputBar: View {
                 Circle()
                     .fill(sendFill)
                     .frame(width: 28, height: 28)
-                Image(systemName: isProcessing ? "stop.fill" : "arrow.up")
+                Image(systemName: showsStop ? "stop.fill" : "arrow.up")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(sendForeground)
             }
         }
         .buttonStyle(.plain)
-        .disabled(!isProcessing && !canSubmit)
-        .help(isProcessing ? "Stop (Esc)" : "Send (⏎)")
+        .disabled(!showsStop && !canSubmit)
+        .help(showsStop ? "Stop (Esc)" : (isProcessing ? "Queue message" : "Send (⏎)"))
         .onHover { isHoveringSend = $0 }
         .animation(.hoverFast, value: isHoveringSend)
     }
@@ -290,14 +294,14 @@ struct AgentInputBar: View {
     }
 
     private var sendFill: Color {
-        if isProcessing { return Color.red.opacity(0.85) }
+        if showsStop { return Color.red.opacity(0.85) }
         if !canSubmit { return Color(nsColor: .controlBackgroundColor) }
         if isHoveringSend { return Color.accentColor.opacity(0.85) }
         return Color.accentColor
     }
 
     private var sendForeground: Color {
-        if isProcessing { return .white }
+        if showsStop { return .white }
         if !canSubmit { return Color.secondary.opacity(0.4) }
         return .white
     }

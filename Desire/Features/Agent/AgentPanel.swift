@@ -168,6 +168,42 @@ struct AgentPanel: View {
                 )
             }
 
+            // Input typed mid-turn, sent automatically when the running
+            // turn finishes.
+            if let first = store.queuedMessages.first {
+                HStack(spacing: 6) {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Text(first.text)
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if store.queuedMessages.count > 1 {
+                        Text("+\(store.queuedMessages.count - 1)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button {
+                        store.clearQueuedMessages()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear queued messages")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(Color.secondary.opacity(0.10))
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+            }
+
             AgentInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,
@@ -339,8 +375,7 @@ struct AgentPanel: View {
     // MARK: - Submit
 
     private var canSubmit: Bool {
-        (!inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty)
-            && !store.isProcessing
+        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty
     }
 
     /// A finished assistant turn is on top — offer a re-run.

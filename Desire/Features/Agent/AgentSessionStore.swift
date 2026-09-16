@@ -104,6 +104,21 @@ class AgentSessionStore: ObservableObject {
     /// stays blank when the panel is reopened.
     private var isNewChatIntentional = false
 
+    /// A message typed while a turn was already running. Delivered to the
+    /// model automatically when the running turn finishes.
+    struct QueuedMessage: Identifiable {
+        let id = UUID()
+        let text: String
+        let images: [String]?
+    }
+
+    /// Input typed mid-turn, flushed by `processLoop` when the turn ends
+    /// cleanly. The panel renders a queue strip from this.
+    @Published private(set) var queuedMessages: [QueuedMessage] = []
+    /// Set when a turn's model stream failed — gates queue flushing so a
+    /// broken provider can't rapid-fire the whole queue into errors.
+    private var turnFailed = false
+
     init(preference: AgentPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
         self.conversationStore = conversationStore
@@ -194,8 +209,11 @@ class AgentSessionStore: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
         // A second concurrent loop would interleave appends into `messages`
-        // and corrupt tool-call/result pairing — refuse while one runs.
-        guard !isProcessing else { return }
+        // and corrupt tool-call/result pairing — queue instead.
+        guard !isProcessing else {
+            queuedMessages.append(QueuedMessage(text: trimmed, images: images))
+            return
+        }
         messages.append(AgentMessage(role: .user, content: trimmed, images: images))
         if conversationId == nil {
             conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -208,6 +226,11 @@ class AgentSessionStore: ObservableObject {
         streamingTokensPerSecond = 0
         processingStartedAt = Date()
         loopTask = Task { await processLoop() }
+    }
+
+    /// Removes everything waiting in the send queue (queue strip ✕ button).
+    func clearQueuedMessages() {
+        queuedMessages.removeAll()
     }
 
     func performQuickAction(_ action: AgentQuickAction) {
@@ -247,6 +270,8 @@ class AgentSessionStore: ObservableObject {
         isProcessing = false
         currentAction = nil
         awaitingQuestion = false
+        // Stop means stop: drop anything still waiting to be sent.
+        queuedMessages.removeAll()
         // Cancel the streaming Task so the for-try-await loop stops
         // immediately instead of waiting for the next event/timeout.
         loopTask?.cancel()
@@ -257,6 +282,10 @@ class AgentSessionStore: ObservableObject {
             approval.resume(with: .denied)
             pendingApproval = nil
         }
+        // Same for an in-flight askUser: without this the cancelled loop
+        // task stays suspended on its continuation forever (leak + the UI
+        // question card never clears).
+        UserPromptCenter.shared.cancel()
     }
 
     /// Re-runs the LAST user message: drops every message after it (the
@@ -291,6 +320,7 @@ class AgentSessionStore: ObservableObject {
         memoryProcessedCount = 0
         // The next conversation must be able to earn its own generated title.
         titleGenerated = false
+        queuedMessages.removeAll()
         AgentPlanStore.shared.clear()
         UserPromptCenter.shared.cancel()
         messages.removeAll()
@@ -327,6 +357,8 @@ class AgentSessionStore: ObservableObject {
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
+        // Queued input belonged to the previous conversation's turn.
+        queuedMessages.removeAll()
         memoryProcessedCount = messages.count
         // The stored title is final — either generated earlier or renamed by
         // the user in the history list. Never let title generation clobber it.
@@ -479,6 +511,32 @@ class AgentSessionStore: ObservableObject {
             if !isCancelled, preference.completionSound { NSSound(named: "Glass")?.play() }
         }
 
+        // Drive turns back-to-back, flushing messages the user typed while
+        // a turn was running (queued by `sendMessage`).
+        while !isCancelled {
+            turnFailed = false
+            await runTurn()
+            // Flush the queue only after a clean turn: a broken provider
+            // would otherwise burn the whole queue in rapid error bursts.
+            guard !turnFailed, !isCancelled, let next = queuedMessages.first else { break }
+            queuedMessages.removeFirst()
+            messages.append(AgentMessage(role: .user, content: next.text, images: next.images))
+            saveCurrentConversation()
+            streamingTokenCount = 0
+            streamingTokensPerSecond = 0
+            processingStartedAt = Date()
+        }
+
+        await generateTitleIfNeeded()
+
+        // Background memory housekeeping (L1 facts + L2 summary) — never
+        // blocks or fails the turn.
+        await runMemoryHousekeeping()
+    }
+
+    /// One model→tools→model turn. Returns when the model stops calling
+    /// tools, errors out, or the iteration cap is hit.
+    private func runTurn() async {
         // AgentRuntime v2: budget-based loop replaces the old hardcoded
         // `0..<20` iteration cap. The soft limit (`maxIterations`) prevents
         // runaway execution while allowing genuinely long multi-step tasks.
@@ -551,6 +609,7 @@ class AgentSessionStore: ObservableObject {
             }
 
             func fail(_ error: Error) {
+                turnFailed = true
                 let errorText = "Error: \(error.localizedDescription)"
                 if let idx = assistantMsg.flatMap({ m in messages.firstIndex(where: { $0.id == m.id }) }) {
                     messages[idx].content = errorText
@@ -640,12 +699,6 @@ class AgentSessionStore: ObservableObject {
             streamingVersion += 1
             saveCurrentConversation()
         }
-
-        await generateTitleIfNeeded()
-
-        // Background memory housekeeping (L1 facts + L2 summary) — never
-        // blocks or fails the turn.
-        await runMemoryHousekeeping()
     }
 
     /// Replaces the truncated-first-message title with a proper generated

@@ -230,12 +230,21 @@ enum MediaExporter {
         var failures = 0
         for segment in segments {
             try deadlineCheck()
+            // Stop co-operates with tool execution: user-initiated task
+            // cancellation must abort the remaining segments (a cancelled
+            // URLSession surfaces as URLError.cancelled — rethrow, never
+            // count it as a segment failure).
+            try Task.checkCancellation()
             var data: Data?
             for attempt in 0..<2 {
                 do {
                     let (fetched, _) = try await fetch(url: segment.url, referer: referer, userAgent: userAgent)
                     data = fetched
                     break
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as URLError where error.code == .cancelled {
+                    throw CancellationError()
                 } catch {
                     if attempt == 1 { failures += 1 }
                     try? await Task.sleep(nanoseconds: 500_000_000)

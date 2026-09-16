@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct MarkdownRendererView: View {
@@ -63,6 +64,53 @@ struct MarkdownRendererView: View {
                     }
                 }
             }
+        case .table(let header, let rows):
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(header.indices, id: \.self) { col in
+                        Text(inlineContent(header[col]))
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(6)
+                    }
+                }
+                Divider()
+                ForEach(rows.indices, id: \.self) { row in
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(rows[row].indices, id: \.self) { col in
+                            Text(inlineContent(rows[row][col]))
+                                .font(.system(size: 12))
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(6)
+                        }
+                    }
+                    if row < rows.count - 1 {
+                        Divider().opacity(0.5)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .textColor).opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+            )
+        case .blockquote(let content):
+            HStack(alignment: .top, spacing: 8) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.accentColor.opacity(0.55))
+                    .frame(width: 2.5)
+                Text(inlineContent(content))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         case .thematicBreak:
             Divider()
         case .empty:
@@ -82,6 +130,36 @@ struct MarkdownRendererView: View {
     private func inlineContent(_ text: String) -> AttributedString {
         var attributed = AttributedString(text)
         attributed.font = Font.system(size: 13)
+
+        // Markdown links: [label](url) — rendered tappable.
+        let nsRangeLinks = NSRange(text.startIndex..., in: text)
+        for match in InlinePatterns.link.matches(in: text, range: nsRangeLinks).reversed() {
+            guard let labelRange = Range(match.range(at: 1), in: text),
+                  let urlRange = Range(match.range(at: 2), in: text),
+                  let url = URL(string: String(text[urlRange])) else { continue }
+            let fullRange = Range(match.range(at: 0), in: text)!
+            var linkAttr = AttributedString(String(text[labelRange]))
+            linkAttr.link = url
+            linkAttr.foregroundColor = .accentColor
+            linkAttr.underlineStyle = .single
+            if let aRange = Range(fullRange, in: attributed) {
+                attributed.replaceSubrange(aRange, with: linkAttr)
+            }
+        }
+
+        // Bare URLs: autolink anything not already inside markdown syntax.
+        let nsRangeBare = NSRange(text.startIndex..., in: text)
+        for match in InlinePatterns.bareURL.matches(in: text, range: nsRangeBare).reversed() {
+            guard let range = Range(match.range, in: text),
+                  let url = URL(string: String(text[range])) else { continue }
+            var linkAttr = AttributedString(String(text[range]))
+            linkAttr.link = url
+            linkAttr.foregroundColor = .accentColor
+            linkAttr.underlineStyle = .single
+            if let aRange = Range(range, in: attributed) {
+                attributed.replaceSubrange(aRange, with: linkAttr)
+            }
+        }
 
         // Inline code: `code`
         let nsRange = NSRange(text.startIndex..., in: text)
@@ -128,6 +206,7 @@ struct MarkdownRendererView: View {
 private struct CodeBlockView: View {
     let code: String
     let language: String?
+    @State private var isHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -155,6 +234,32 @@ private struct CodeBlockView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
+        .overlay(alignment: .topTrailing) {
+            if isHovering {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Copy code")
+                .padding(5)
+            }
+        }
+        .onHover { isHovering = $0 }
+        .animation(.hoverFast, value: isHovering)
     }
 }
 
@@ -164,6 +269,9 @@ private enum MarkdownBlock {
     case paragraph(String)
     case unorderedList([String])
     case orderedList([String])
+    /// Pipe table: header cells + body rows (ragged rows are padded).
+    case table(header: [String], rows: [[String]])
+    case blockquote(String)
     case thematicBreak
     case empty
 }
@@ -171,6 +279,8 @@ private enum MarkdownBlock {
 /// Compiled once and reused — `inlineContent` used to compile these three
 /// `NSRegularExpression`s on every call (multiple times per bubble per render).
 private enum InlinePatterns {
+    static let link = try! NSRegularExpression(pattern: "\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
+    static let bareURL = try! NSRegularExpression(pattern: "(?<![\\(\"'])https?://[^\\s<>\"')\\]]+")
     static let code = try! NSRegularExpression(pattern: "`([^`]+)`")
     static let bold = try! NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*")
     static let italic = try! NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
@@ -210,6 +320,32 @@ private enum MarkdownParser {
             if let heading = parseHeading(line) {
                 blocks.append(heading)
                 i += 1
+                continue
+            }
+
+            // Pipe table: a row line followed by a |---|---| separator line.
+            if Self.isTableRow(line), i + 1 < lines.count, Self.isTableSeparator(lines[i + 1]) {
+                let header = Self.tableCells(line)
+                i += 2
+                var rows: [[String]] = []
+                while i < lines.count, Self.isTableRow(lines[i]) {
+                    rows.append(Self.tableCells(lines[i]))
+                    i += 1
+                }
+                blocks.append(.table(header: header, rows: rows))
+                continue
+            }
+
+            // Blockquote: consecutive "> " lines collapse into one block.
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix(">") {
+                var quoteLines: [String] = []
+                while i < lines.count {
+                    let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+                    guard trimmed.hasPrefix(">") else { break }
+                    quoteLines.append(trimmed.dropFirst(trimmed.hasPrefix("> ") ? 2 : 1).trimmingCharacters(in: .whitespaces))
+                    i += 1
+                }
+                blocks.append(.blockquote(quoteLines.joined(separator: "\n")))
                 continue
             }
 
@@ -285,6 +421,32 @@ private enum MarkdownParser {
         guard !content.isEmpty else { return nil }
         return .heading(level: level, content: content)
     }
+
+    // MARK: - Table helpers
+
+    private static func isTableRow(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.contains("| ")
+    }
+
+    /// `| a | b |` / `|---|:--:|` → cells. The separator variant is
+    /// recognized by its dashes/colons before splitting.
+    private static func isTableSeparator(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|") else { return false }
+        let body = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "|"))
+        return !body.isEmpty && body.split(separator: "|").allSatisfy { cell in
+            let c = cell.trimmingCharacters(in: .whitespaces)
+            return !c.isEmpty && c.allSatisfy { $0 == "-" || $0 == ":" }
+        }
+    }
+
+    private static func tableCells(_ line: String) -> [String] {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "|"))
+        return trimmed.split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
 }
 
 #Preview {
@@ -292,7 +454,17 @@ private enum MarkdownParser {
         MarkdownRendererView(text: """
 # Hello World
 
-This is a **bold** and *italic* text with `inline code`.
+This is a **bold** and *italic* text with `inline code`, a link to [Example](https://example.com), and a bare URL https://github.com.
+
+## Table
+
+| 方案 | 价格 | 说明 |
+|------|------|------|
+| 基础版 | ¥0 | 每月 10 次 |
+| 专业版 | ¥99 | 无限使用 |
+| 旗舰版 | ¥299 | 含优先支持 |
+
+> Blockquoted note with **bold** text.
 
 ## Lists
 

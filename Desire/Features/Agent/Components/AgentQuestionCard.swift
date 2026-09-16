@@ -23,6 +23,34 @@ struct AgentQuestionCard: View {
                 .font(.system(size: 12))
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+
+            // Option detection: lines like "A) xxx" / "1、xxx" become
+            // one-tap answer chips.
+            let options = question.components(separatedBy: "\n").filter {
+                $0.range(of: "^\\s*([A-D1-4])[)\\.、:]\\s*\\S+", options: .regularExpression) != nil
+            }
+            if !options.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(options, id: \.self) { option in
+                        Button {
+                            onAnswer(option.trimmingCharacters(in: .whitespaces))
+                        } label: {
+                            Text(option.trimmingCharacters(in: .whitespaces))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(Color.accentColor.opacity(0.10))
+                                )
+                                .overlay(
+                                    Capsule().stroke(Color.accentColor.opacity(0.35), lineWidth: 0.6)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
             HStack(spacing: 8) {
                 TextField("输入你的回答…", text: $answer)
                     .textFieldStyle(.plain)

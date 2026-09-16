@@ -38,7 +38,7 @@ struct SettingsView: View {
         var title: LocalizedStringKey {
             switch self {
             case .general: "General"
-            case .ai: "AI"
+            case .ai: "Agent"
             case .privacy: "Privacy"
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
@@ -47,7 +47,7 @@ struct SettingsView: View {
     }
 
     @ObservedObject var settings: Settings
-    @ObservedObject var aiPreference: AIPreferenceStore
+    @ObservedObject var aiPreference: AgentPreferenceStore
     @ObservedObject var contentBlocker: ContentBlockerStore
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
@@ -79,7 +79,7 @@ struct SettingsView: View {
         case .general:
             GeneralSettingsSection(settings: settings, downloadStore: downloadStore)
         case .ai:
-            AISettingsSection(store: aiPreference)
+            AgentSettingsSection(store: aiPreference)
         case .privacy:
             PrivacySettingsStoreSection(
                 settings: settings,

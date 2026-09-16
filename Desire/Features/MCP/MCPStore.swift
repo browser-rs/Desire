@@ -3,7 +3,7 @@ import Foundation
 import os
 
 /// Registry + bridge for MCP servers: config persistence, connections,
-/// and the mapping MCP tools <-> Desire's `AIToolDef` tool schema.
+/// and the mapping MCP tools <-> Desire's `AgentToolDef` tool schema.
 ///
 /// Bridged tool names are `mcp_<server>_<tool>` (sanitized, lowercased) so
 /// they can ride the same OpenAI-style tool-calling path as built-ins and
@@ -14,7 +14,7 @@ class MCPStore: ObservableObject {
 
     @Published private(set) var servers: [MCPServer] = []
     /// Tool definitions offered to the agent (enabled + connected servers).
-    @Published private(set) var toolDefs: [AIToolDef] = []
+    @Published private(set) var toolDefs: [AgentToolDef] = []
     /// Human-readable per-server status for the settings UI.
     @Published private(set) var statuses: [UUID: String] = [:]
 
@@ -98,7 +98,7 @@ class MCPStore: ObservableObject {
     }
 
     private func rebuildTools() {
-        var defs: [AIToolDef] = []
+        var defs: [AgentToolDef] = []
         var routes: [String: (serverID: UUID, toolName: String)] = [:]
         for server in servers where server.isEnabled {
             guard connections[server.id] != nil else { continue }
@@ -106,9 +106,9 @@ class MCPStore: ObservableObject {
                 let defName = Self.bridgedToolName(server: server.name, tool: tool.name)
                 guard routes[defName] == nil else { continue }
                 routes[defName] = (server.id, tool.name)
-                defs.append(AIToolDef(
+                defs.append(AgentToolDef(
                     type: "function",
-                    function: AIToolFunctionDef(
+                    function: AgentToolFunctionDef(
                         name: defName,
                         description: Self.bridgedDescription(server: server, tool: tool),
                         parameters: Self.parametersSchema(for: tool)
@@ -139,12 +139,12 @@ class MCPStore: ObservableObject {
         return text
     }
 
-    private static func parametersSchema(for tool: MCPTool) -> AIJSONSchema {
+    private static func parametersSchema(for tool: MCPTool) -> AgentJSONSchema {
         if let data = tool.inputSchemaJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode(AIJSONSchema.self, from: data) {
+           let decoded = try? JSONDecoder().decode(AgentJSONSchema.self, from: data) {
             return decoded
         }
-        return AIJSONSchema(type: "object", properties: [:])
+        return AgentJSONSchema(type: "object", properties: [:])
     }
 
     /// Executes an agent tool call bridged to an MCP server.

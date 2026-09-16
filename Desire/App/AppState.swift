@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 
 /// Global app state container — now a composition root over four domain
-/// containers (`BrowsingState`, `AIState`, `PrivacyState`, `SystemState`).
+/// containers (`BrowsingState`, `AgentState`, `PrivacyState`, `SystemState`).
 ///
 /// Previously this held all ~22 stores flat (a god object / manual service
 /// locator). The stores now live on the scoped containers; the accessors
@@ -19,7 +19,7 @@ import SwiftUI
 @MainActor
 class AppState: ObservableObject {
     let browsing: BrowsingState
-    let ai: AIState
+    let ai: AgentState
     let privacy: PrivacyState
     let system: SystemState
 
@@ -31,7 +31,7 @@ class AppState: ObservableObject {
 
     init() {
         browsing = BrowsingState()
-        ai = AIState()
+        ai = AgentState()
         privacy = PrivacyState()
         system = SystemState()
     }
@@ -51,7 +51,7 @@ class AppState: ObservableObject {
 
     // AI
     var conversationStore: ConversationStore { ai.conversationStore }
-    var aiPreference: AIPreferenceStore { ai.preference }
+    var aiPreference: AgentPreferenceStore { ai.preference }
 
     // Privacy
     var contentBlocker: ContentBlockerStore { privacy.contentBlocker }

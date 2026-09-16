@@ -29,7 +29,7 @@ struct ContentView: View {
     /// window's TabManager (see `WindowToolSurface`), so the agent always
     /// acts on the window the chat lives in — not on whichever window was
     /// last key. Preferences and conversation history stay shared.
-    @StateObject var aiSession: AISessionStore
+    @StateObject var aiSession: AgentSessionStore
     @FocusState var isUrlFocused: Bool
     @FocusState var isFindFocused: Bool
     @State var showTranslateBar = false
@@ -47,7 +47,7 @@ struct ContentView: View {
         _translationService = StateObject(wrappedValue: TranslationService())
         _responsiveDesignStore = StateObject(wrappedValue: ResponsiveDesignStore())
         _thumbnailStore = StateObject(wrappedValue: TabThumbnailStore())
-        _aiSession = StateObject(wrappedValue: AISessionStore(
+        _aiSession = StateObject(wrappedValue: AgentSessionStore(
             preference: appState.aiPreference,
             conversationStore: appState.conversationStore
         ))
@@ -128,7 +128,7 @@ struct ContentView: View {
         )
     }
 
-    @State var isAIConfigured = false
+    @State var isAgentConfigured = false
     @State var isFindBarVisible = false
     @State var showHistory = false
     @State var showBookmarks = false
@@ -150,8 +150,8 @@ struct ContentView: View {
     @State var findMatchCount = 0
     @State var findCurrentIndex = 0
     @State var isFullScreen = false
-    @State var showAIPanel = false
-    @State var aiFloatingPanel: AIFloatingPanel?
+    @State var showAgentPanel = false
+    @State var aiFloatingPanel: AgentFloatingPanel?
     @State var showDevToolsPanel = false
 
     var body: some View {
@@ -161,12 +161,12 @@ struct ContentView: View {
                 SelectedTabContent(
                     tab: tab, content: self, actions: b,
                     showSidebar: showSidebar,
-                    showAIPanel: $showAIPanel,
+                    showAgentPanel: $showAgentPanel,
                     showDevToolsPanel: showDevToolsPanel,
                     isFindBarVisible: isFindBarVisible,
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)
-                        showAIPanel = true
+                        showAgentPanel = true
                     }
                 )
             }
@@ -182,9 +182,9 @@ struct ContentView: View {
         })
         .onAppear {
             if aiFloatingPanel == nil {
-                aiFloatingPanel = AIFloatingPanel(store: aiSession, conversationStore: conversationStore)
+                aiFloatingPanel = AgentFloatingPanel(store: aiSession, conversationStore: conversationStore)
             }
-            if !isAIConfigured {
+            if !isAgentConfigured {
                 // Record this window as the session-persistence target, then
                 // bind the AI agent to a surface pinned to THIS window's
                 // TabManager (fixed — not the last-key-window pointer, which
@@ -193,7 +193,7 @@ struct ContentView: View {
                 // 13-parameter `configureStores`.
                 appState.attach(tabManager: tabManager)
                 aiSession.configure(with: WindowToolSurface(app: appState, tabManager: tabManager))
-                isAIConfigured = true
+                isAgentConfigured = true
             }
             if tabManager.tabs.isEmpty {
                 // Bind this window to a persistent session identity (the

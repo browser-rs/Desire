@@ -25,8 +25,8 @@ struct Toolbar: View {
         let toggleResponsiveMode: () -> Void
         let toggleTranslate: () -> Void
         let toggleDarkMode: () -> Void
-        let toggleAIPanel: () -> Void
-        let toggleAIFloatingPanel: () -> Void
+        let toggleAgentPanel: () -> Void
+        let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
     }
 
@@ -311,14 +311,14 @@ struct Toolbar: View {
 
     private var trailingButtons: some View {
         HStack(spacing: 6) {
-            Button { actions.toggleAIFloatingPanel() } label: {
+            Button { actions.toggleAgentFloatingPanel() } label: {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 12))
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("AI Assistant (Floating Window)")
+            .help("Agent (Floating Window)")
 
             Button { actions.toggleDevTools() } label: {
                 Image(systemName: "ladybug")
@@ -388,7 +388,7 @@ struct Toolbar: View {
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
             moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
             Divider()
-            moreMenuItem("AI Assistant", "wand.and.stars") { actions.toggleAIPanel() }
+            moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
             moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
         }
         .padding(4)

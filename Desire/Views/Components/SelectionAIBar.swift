@@ -11,7 +11,7 @@ struct SelectionAIBar: View {
         HStack(spacing: 2) {
             barButton("解释", icon: "text.bubble", action: onExplain)
             barButton("翻译", icon: "character.bubble", action: onTranslate)
-            barButton("问 AI", icon: "wand.and.stars", action: onAsk)
+            barButton("问 Agent", icon: "wand.and.stars", action: onAsk)
         }
         .padding(3)
         .background(.bar)

@@ -31,14 +31,14 @@ struct SelectedTabContent: View {
     /// Panel-visibility flags passed explicitly (not read through `content`)
     /// so SwiftUI correctly re-renders this view when they change.
     let showSidebar: Bool
-    @Binding var showAIPanel: Bool
+    @Binding var showAgentPanel: Bool
     let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
     /// Sends an AI prompt (and opens the panel) from the selection bar.
     let onAskAI: (String) -> Void
     /// Draggable panel widths (persisted per-session, not across launches).
     @State private var devToolsWidth: CGFloat = 420
-    @State private var aiPanelWidth: CGFloat = 320
+    @State private var agentPanelWidth: CGFloat = 320
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,7 +135,7 @@ struct SelectedTabContent: View {
                                                 },
                                                 onAsk: {
                                                     content.aiSession.addSelectedTextContext(selection.text)
-                                                    showAIPanel = true
+                                                    showAgentPanel = true
                                                     tab.browser.selectionAI = nil
                                                 }
                                             )
@@ -225,10 +225,10 @@ struct SelectedTabContent: View {
                         .frame(width: 220)
                 }
 
-                if showAIPanel {
-                    ResizableDivider(width: $aiPanelWidth, range: 260...560)
-                    AIPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                        .frame(width: aiPanelWidth)
+                if showAgentPanel {
+                    ResizableDivider(width: $agentPanelWidth, range: 260...560)
+                    AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
+                        .frame(width: agentPanelWidth)
                         // Opening the assistant resumes the most recent
                         // conversation instead of a blank panel. Deferred
                         // off the view-update pass: loading publishes

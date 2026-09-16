@@ -99,8 +99,8 @@ extension ContentView {
                     }
                 },
                 toggleDarkMode: { b.toggleDarkMode(for: tab) },
-                toggleAIPanel: { showAIPanel.toggle() },
-                toggleAIFloatingPanel: { aiFloatingPanel?.toggle() },
+                toggleAgentPanel: { showAgentPanel.toggle() },
+                toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() }
             ),
             showHistory: $showHistory,

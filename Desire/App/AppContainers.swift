@@ -34,19 +34,19 @@ class BrowsingState: ObservableObject {
     }
 }
 
-/// AI stores. `AIPreferenceStore` is the single source of truth for AI
+/// AI stores. `AgentPreferenceStore` is the single source of truth for AI
 /// preferences (model, endpoint, API key, provider kind, ...); the
-/// per-window `AISessionStore`s (one per browser window, created by each
+/// per-window `AgentSessionStore`s (one per browser window, created by each
 /// `ContentView`) share this one instance so Settings edits reach every
 /// live agent. `ConversationStore` is likewise shared so any window can
 /// load a saved conversation.
 @MainActor
-class AIState: ObservableObject {
-    let preference: AIPreferenceStore
+class AgentState: ObservableObject {
+    let preference: AgentPreferenceStore
     let conversationStore: ConversationStore
 
     init() {
-        preference = AIPreferenceStore()
+        preference = AgentPreferenceStore()
         conversationStore = ConversationStore()
     }
 }

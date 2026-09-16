@@ -47,7 +47,7 @@ extension ContentView {
             .keyboardShortcut(.escape, modifiers: [])
             .hidden()
         }
-        Button("") { showAIPanel.toggle() }
+        Button("") { showAgentPanel.toggle() }
             .keyboardShortcut("'", modifiers: .command)
             .hidden()
     }

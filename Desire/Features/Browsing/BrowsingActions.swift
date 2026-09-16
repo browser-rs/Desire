@@ -406,7 +406,7 @@ extension BrowsingActions {
         videoAdBlocker: VideoAdBlocker,
         contentBlocker: ContentBlockerStore,
         settings: Settings,
-        aiSession: AISessionStore,
+        aiSession: AgentSessionStore,
         devToolsStore: DevToolsStore,
         elementBlockStore: ElementBlockStore,
         onElementPicked: @escaping (String, String?, Tab) -> Void

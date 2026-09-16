@@ -102,7 +102,7 @@ final class SystemCommandStore: ObservableObject {
     ) async -> CommandResult {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
         guard allowedBinaries.contains(name) else {
-            return .failure("Binary '\(tool)' is not allowlisted. The user can add it in Settings → AI → System Access. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))")
+            return .failure("Binary '\(tool)' is not allowlisted. The user can add it in Settings → Agent → System Access. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))")
         }
         guard let executable = resolve(name) else {
             return .failure("'\(tool)' is allowlisted but not installed (searched \(Self.searchPaths.joined(separator: ", "))). Try: brew install \(name == "brew" ? "" : name)")

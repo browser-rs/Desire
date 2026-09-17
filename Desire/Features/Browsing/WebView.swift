@@ -687,18 +687,25 @@ struct WebView: NSViewRepresentable {
         /// Main-frame load watchdog: a server that never responds used to
         /// leave an eternal blank page with zero feedback. 30s → timeout
         /// error page (driven by lastError, same as network failures).
+        /// Set by the watchdog before stopLoading() — the resulting
+        /// cancelled (-999) provisional failure must NOT overwrite the
+        /// meaningful timedOut error we just injected.
+        private var suppressNextFailError = false
+
         private func armLoadTimeout(for url: URL) {
             loadTimeoutTask?.cancel()
+            suppressNextFailError = false
             loadTimeoutTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
                 guard !Task.isCancelled, let self else { return }
                 guard self.parent.isLoading else { return }   // finished meanwhile
                 Log.agent.error("load timeout: \(url.absoluteString, privacy: .public)")
-                self.parent.state.webView.stopLoading()
+                self.suppressNextFailError = true
                 self.parent.state.lastError = URLError(
                     .timedOut,
                     userInfo: [NSURLErrorFailingURLErrorKey: url]
                 )
+                self.parent.state.webView.stopLoading()
                 self.parent.isLoading = false
             }
         }
@@ -723,6 +730,14 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             Log.agent.error("didFailProvisional: \(error.localizedDescription, privacy: .public)")
             disarmLoadTimeout()
+            // The watchdog's own stopLoading cancels the navigation (-999);
+            // keep the meaningful timedOut error it already injected.
+            if suppressNextFailError, (error as? URLError)?.code == .cancelled {
+                suppressNextFailError = false
+                parent.isLoading = false
+                return
+            }
+            suppressNextFailError = false
             parent.isLoading = false
             parent.state.lastError = error
             // Only fall back from HTTPS → HTTP when the *upgrade itself*

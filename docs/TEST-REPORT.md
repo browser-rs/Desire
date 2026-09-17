@@ -187,3 +187,20 @@ Signing & Capabilities 删除 App Sandbox capability 并让 Xcode 重新
 agent 的系统工具能力名存实亡；webview/下载/网络不受影响（有
 network client/server entitlement）。这解释了为何 agent host 设计
 要求移除沙盒——此修复优先级应视为高。
+
+## 第九轮：CLI 驱动回归（全绿）
+
+- 多标签：bilibili 标题同步 ✅、switch-tab ✅、reload ✅
+- 超时看门狗修复回归：10.255.255.1 挂起 33s → error 变为
+  NSURLError -1001 timed out（-999 覆盖已抑制）✅；并发现
+  takeSnapshot 拍不到 SwiftUI 错误页（快照仅含 webview 内容）——
+  错误页验证需走 error 字段而非截图
+- **Agent 自主工具回路端到端 ✅**：指令"打开 bilibili 并告诉我标题"
+  → 自主 navigate → getPageTitle → 汇报，全程无人工干预
+- /back /forward 边界：单条历史时正确报 cannot go back/forward ✅
+
+### 累计修复（本轮会话）
+P0×4、流式节流、并行子代理、定时任务、暂停恢复、用量统计、
+MCP 鉴权、快捷键多窗口隔离、webview 泄漏、会话恢复、缩放泄漏、
+无痕身份、加载超时看门狗、历史标题校正、快速操作条、模型菜单、
+输入栏两行布局、自动化 CLI 桥。

@@ -290,6 +290,7 @@ final class AutomationServer {
             "url": tab.browser.webView.url?.absoluteString ?? tab.urlString,
             "title": tab.browser.webView.title ?? tab.browser.pageTitle,
             "isLoading": tab.isLoading,
+            "error": tab.browser.lastError?.localizedDescription,
         ]
     }
 

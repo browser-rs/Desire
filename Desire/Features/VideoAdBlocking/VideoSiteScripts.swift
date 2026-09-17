@@ -413,8 +413,22 @@ extension VideoSite {
     var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
         '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
         '.ytp-ad-action-interstitial-skip-button,.ytp-ad-overlay-close-button';
+    // Multi-signal ad detection — class names alone break whenever
+    // YouTube renames them. The video_id trick is the reliable one: real
+    // videos always carry an id, ad creatives report an EMPTY one.
+    function adShowing() {
+        if (document.querySelector('.ad-showing,.ad-interrupting,.ytp-ad-player-overlay,.ytp-ad-module-active')) return true;
+        var p = document.querySelector('#movie_player');
+        if (p && p.getVideoData) {
+            try {
+                var vd = p.getVideoData();
+                if (vd && !vd.video_id && p.getPlayerState && p.getPlayerState() === 1) return true;
+            } catch(e) {}
+        }
+        return false;
+    }
     function fastTick() {
-        var ad = document.querySelector('.ad-showing,.ad-interrupting');
+        var ad = adShowing();
         var v = document.querySelector('video.html5-main-video') ||
                 document.querySelector('#movie_player video');
         if (ad) {
@@ -468,6 +482,12 @@ extension VideoSite {
             }
             speededByUs = false;
             seekPostedThisAd = false;
+            // Post-roll tail: kill the promo/companion overlays YouTube
+            // stacks onto the end screen.
+            document.querySelectorAll(
+                '.ytp-ad-player-overlay,.ytp-ad-image-overlay,.ytp-ad-text-overlay,' +
+                '.ytp-ad-action-interstitial,.ytp-companion-slot,.ytd-merch-shelf-renderer'
+            ).forEach(function(el) { el.style.display = 'none'; });
         }
     }
 

@@ -894,6 +894,55 @@ extension BrowserToolProvider {
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
+        case "scheduleTask":
+            // 定时任务: persist a recurring prompt. Runs fire only while
+            // the app is open; overdue tasks catch up once on launch.
+            guard let name = args["name"] as? String, !name.isEmpty,
+                  let prompt = args["prompt"] as? String, !prompt.isEmpty else {
+                return "Missing name or prompt"
+            }
+            let recurrence: AgentScheduler.ScheduledTask.Recurrence
+            if let dailyAt = args["dailyAt"] as? String {
+                let parts = dailyAt.split(separator: ":")
+                guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]),
+                      (0...23).contains(hour), (0...59).contains(minute) else {
+                    return "Invalid dailyAt — expected \"HH:MM\" (24h), got: \(dailyAt)"
+                }
+                recurrence = .daily(hour: hour, minute: minute)
+            } else if let rawMinutes = args["everyMinutes"] as? String, let minutes = Int(rawMinutes) {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else if let minutes = args["everyMinutes"] as? Int {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else {
+                return "Provide everyMinutes (>= 5) or dailyAt (\"HH:MM\")"
+            }
+            if let task = AgentScheduler.shared.add(name: name, prompt: prompt, recurrence: recurrence) {
+                return "Scheduled '\(task.name)' (\(task.recurrenceText)). It runs while the app is open; manage tasks in Settings → Agent → Scheduled Tasks."
+            }
+            return "Failed to schedule '\(name)' (empty fields?)"
+
+        case "listScheduledTasks":
+            let tasks = AgentScheduler.shared.tasks
+            if tasks.isEmpty { return "No scheduled tasks." }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MM-dd HH:mm"
+            return tasks.map { task -> String in
+                var line = "- \(task.name) [\(task.isEnabled ? "on" : "off")] (\(task.recurrenceText))"
+                if let last = task.lastFiredAt, task.lastFiredAt != task.createdAt {
+                    line += " last: \(formatter.string(from: last))"
+                }
+                if let result = task.lastResult {
+                    line += " — \(result)"
+                }
+                return line
+            }.joined(separator: "\n")
+
+        case "cancelScheduledTask":
+            guard let name = args["name"] as? String else { return "Missing name" }
+            return AgentScheduler.shared.remove(named: name)
+                ? "Cancelled '\(name)'"
+                : "No scheduled task named '\(name)'. Use listScheduledTasks."
+
         case "copyToClipboard":
             guard let text = args["text"] as? String else { return "Missing text" }
             await MainActor.run {

@@ -39,6 +39,10 @@ protocol ModelProvider {
 enum AgentStreamEvent {
     case text(String)
     case toolCall(AgentToolCall)
+    /// Provider-reported token usage for this call (best-effort — most
+    /// OpenAI-compatible backends send it in the final chunk; Foundation
+    /// Models reports nothing).
+    case usage(promptTokens: Int, completionTokens: Int)
 }
 
 /// Errors surfaced by `ModelProvider` implementations.

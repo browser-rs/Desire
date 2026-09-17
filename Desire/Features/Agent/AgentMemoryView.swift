@@ -10,6 +10,7 @@ struct AgentMemoryView: View {
     @State private var newFact = ""
     @State private var editingFactID: UUID?
     @State private var editingText = ""
+    @State private var showClearConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +45,28 @@ struct AgentMemoryView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            Button {
+                showClearConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("清空已学习的记忆（保留个人资料）")
+            .disabled(memory.archive.facts.isEmpty && memory.archive.summaries.isEmpty)
+            .confirmationDialog(
+                "清空已学习的记忆？",
+                isPresented: $showClearConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("清空全部事实与摘要", role: .destructive) {
+                    memory.clearLearnedMemory()
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("所有 L1 事实和 L2 会话摘要会被删除。个人资料（L0）保留。此操作不可撤销。")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

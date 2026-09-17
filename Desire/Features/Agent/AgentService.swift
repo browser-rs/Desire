@@ -64,8 +64,20 @@ enum OpenAICompatSSE {
                         guard line.hasPrefix("data: ") else { continue }
                         let data = String(line.dropFirst(6))
                         if data == "[DONE]" { break }
-                        guard let json = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any],
-                              let choices = json["choices"] as? [[String: Any]],
+                        guard let json = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any] else { continue }
+
+                        // Usage rides at the CHUNK level — OpenAI's final
+                        // usage chunk has an empty choices array, so this
+                        // check must precede the choices guard.
+                        if let usage = json["usage"] as? [String: Any] {
+                            let prompt = usage["prompt_tokens"] as? Int ?? 0
+                            let completion = usage["completion_tokens"] as? Int ?? 0
+                            if prompt > 0 || completion > 0 {
+                                continuation.yield(.usage(promptTokens: prompt, completionTokens: completion))
+                            }
+                        }
+
+                        guard let choices = json["choices"] as? [[String: Any]],
                               let choice = choices.first,
                               let delta = choice["delta"] as? [String: Any] else { continue }
 

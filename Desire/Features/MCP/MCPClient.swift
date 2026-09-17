@@ -27,6 +27,7 @@ enum MCPError: LocalizedError {
 /// as an SSE stream of `data:` lines). Tracks the `Mcp-Session-Id` header.
 struct MCPConnection {
     let endpoint: URL
+    let authToken: String?
     private(set) var sessionID: String?
     private var nextRequestID = 1
 
@@ -83,6 +84,9 @@ struct MCPConnection {
         request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         if let sessionID {
             request.setValue(sessionID, forHTTPHeaderField: "Mcp-Session-Id")
+        }
+        if let authToken, !authToken.isEmpty {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

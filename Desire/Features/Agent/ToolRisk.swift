@@ -75,6 +75,8 @@ enum ToolRisk: Int, Comparable {
         "waitForText",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
+        // Scheduled task inspection (creation/cancel stays side-effect)
+        "listScheduledTasks",
         // Workspace inspection (reads inside the sandboxed working directory)
         "readFile", "listDirectory",
         // Plan checklist (pure UI state)

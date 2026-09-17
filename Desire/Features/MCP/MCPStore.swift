@@ -66,6 +66,18 @@ class MCPStore: ObservableObject {
         }
     }
 
+    /// Raw tool names exposed by a connected server (settings disclosure).
+    func toolNames(for id: UUID) -> [String] {
+        (cachedTools[id] ?? []).map(\.name)
+    }
+
+    func updateAuthToken(_ token: String, for id: UUID) {
+        guard let idx = servers.firstIndex(where: { $0.id == id }) else { return }
+        servers[idx].authToken = token.isEmpty ? nil : token
+        save()
+        if servers[idx].isEnabled { Task { await connect(servers[idx]) } }
+    }
+
     func reconnect(_ id: UUID) {
         guard let server = servers.first(where: { $0.id == id }) else { return }
         Task { await connect(server) }
@@ -80,7 +92,7 @@ class MCPStore: ObservableObject {
     func connect(_ server: MCPServer) async {
         guard server.isEnabled, let endpoint = URL(string: server.url) else { return }
         statuses[server.id] = "connecting…"
-        var connection = MCPConnection(endpoint: endpoint)
+        var connection = MCPConnection(endpoint: endpoint, authToken: server.authToken)
         do {
             let tools = try await connection.connect()
             connections[server.id] = connection

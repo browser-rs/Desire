@@ -37,8 +37,10 @@ struct AgentSettingsSection: View {
 
     @State private var apiKey: String = ""
     @State private var showKey = false
-    @State private var testStatus: String?
-    @State private var isTesting = false
+    @State private var cloudTestStatus: String?
+    @State private var isTestingCloud = false
+    @State private var ollamaTestStatus: String?
+    @State private var isTestingOllama = false
     /// Models fetched from the API's `/models` endpoint (nil = not fetched).
     @State private var fetchedModels: [String]? = nil
     @State private var isFetchingModels = false
@@ -51,6 +53,7 @@ struct AgentSettingsSection: View {
 
     var body: some View {
         SettingsContainer {
+            ScheduledTasksSection()
             MCPServersSection()
             SettingsSection(
                 title: "Provider",
@@ -114,6 +117,17 @@ struct AgentSettingsSection: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 26, alignment: .trailing)
                         }
+                    }
+                    SettingsRowDivider()
+                    SettingsRow("Max Steps", subtitle: "Upper bound on agent tool-loop iterations per turn (5–200).", systemImage: "repeat") {
+                        SettingsTextField(
+                            placeholder: "50",
+                            text: Binding(
+                                get: { String(store.maxLoopIterations) },
+                                set: { newValue in store.maxLoopIterations = Int(newValue) ?? store.maxLoopIterations }
+                            ),
+                            width: 80
+                        )
                     }
                 }
             }
@@ -679,8 +693,8 @@ struct AgentSettingsSection: View {
                         testConnection()
                     } label: {
                         HStack(spacing: 4) {
-                            if isTesting { ProgressView().scaleEffect(0.5) }
-                            Text(isTesting ? "Testing…" : "Test Connection")
+                            if isTestingCloud { ProgressView().scaleEffect(0.5) }
+                            Text(isTestingCloud ? "Testing…" : "Test Connection")
                                 .font(.system(size: 12, weight: .medium))
                         }
                         .padding(.horizontal, 14)
@@ -691,12 +705,12 @@ struct AgentSettingsSection: View {
                         .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isTesting || apiKey.isEmpty)
+                    .disabled(isTestingCloud || apiKey.isEmpty)
 
-                    if let status = testStatus {
+                    if let status = cloudTestStatus {
                         StatusPill(
                             text: status,
-                            kind: status == "Connected" ? .success : .error
+                            kind: status == "Connected ✓" ? .success : .error
                         )
                     }
                 }
@@ -729,8 +743,8 @@ struct AgentSettingsSection: View {
                         testOllama()
                     } label: {
                         HStack(spacing: 4) {
-                            if isTesting { ProgressView().scaleEffect(0.5) }
-                            Text(isTesting ? "Testing…" : "Test")
+                            if isTestingOllama { ProgressView().scaleEffect(0.5) }
+                            Text(isTestingOllama ? "Testing…" : "Test")
                                 .font(.system(size: 12, weight: .medium))
                         }
                         .padding(.horizontal, 14)
@@ -739,9 +753,9 @@ struct AgentSettingsSection: View {
                         .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isTesting)
+                    .disabled(isTestingOllama)
 
-                    if let status = testStatus {
+                    if let status = ollamaTestStatus {
                         StatusPill(text: status, kind: status == "Connected" ? .success : .error)
                     }
                     Spacer()
@@ -755,14 +769,14 @@ struct AgentSettingsSection: View {
     // MARK: - Test connection
 
     private func testOllama() {
-        isTesting = true
-        testStatus = nil
+        isTestingOllama = true
+        ollamaTestStatus = nil
         Task {
-            defer { isTesting = false }
+            defer { isTestingOllama = false }
             let base = store.ollamaHost
             let urlStr = base.hasSuffix("/chat/completions") ? base : base + "/chat/completions"
             guard let url = URL(string: urlStr) else {
-                testStatus = "Invalid host"
+                ollamaTestStatus = "Invalid host"
                 return
             }
             var req = URLRequest(url: url)
@@ -777,28 +791,28 @@ struct AgentSettingsSection: View {
             do {
                 let (_, response) = try await URLSession.shared.data(for: req)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    testStatus = "Connected"
+                    ollamaTestStatus = "Connected"
                 } else if let http = response as? HTTPURLResponse {
-                    testStatus = "HTTP \(http.statusCode)"
+                    ollamaTestStatus = "HTTP \(http.statusCode)"
                 }
             } catch {
-                testStatus = "Failed: \(error.localizedDescription)"
+                ollamaTestStatus = "Failed: \(error.localizedDescription)"
             }
         }
     }
 
     private func testConnection() {
-        isTesting = true
-        testStatus = nil
+        isTestingCloud = true
+        cloudTestStatus = nil
         Task {
-            defer { isTesting = false }
+            defer { isTestingCloud = false }
             let key = apiKey
             let endpoint = store.endpoint
             let model = store.model
 
             let urlStr = endpoint.hasSuffix("/chat/completions") ? endpoint : endpoint + "/chat/completions"
             guard let url = URL(string: urlStr) else {
-                testStatus = "Invalid endpoint"
+                cloudTestStatus = "Invalid endpoint"
                 return
             }
 
@@ -824,14 +838,14 @@ struct AgentSettingsSection: View {
                 let (data, response) = try await URLSession.shared.data(for: req)
                 let body = String(data: data, encoding: .utf8) ?? ""
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    testStatus = "Connected ✓"
+                    cloudTestStatus = "Connected ✓"
                 } else if let http = response as? HTTPURLResponse {
                     // Show the server's error message so the user knows WHY.
                     let serverMsg = body.prefix(200)
-                    testStatus = "HTTP \(http.statusCode): \(serverMsg)"
+                    cloudTestStatus = "HTTP \(http.statusCode): \(serverMsg)"
                 }
             } catch {
-                testStatus = "Failed: \(error.localizedDescription)"
+                cloudTestStatus = "Failed: \(error.localizedDescription)"
             }
         }
     }
@@ -868,6 +882,11 @@ struct MCPServersSection: View {
     @ObservedObject var store = MCPStore.shared
     @State private var newName = ""
     @State private var newURL = ""
+    @State private var newToken = ""
+    /// Per-server auth-token editing state (server id → draft token).
+    @State private var tokenDrafts: [UUID: String] = [:]
+    /// Per-server expanded tool list disclosure.
+    @State private var expandedTools: Set<UUID> = []
 
     var body: some View {
         SettingsSection(
@@ -921,6 +940,66 @@ struct MCPServersSection: View {
                         .help("Remove")
                     }
                     .padding(.vertical, 4)
+
+                    // Tools exposed by this server — the model sees only the
+                    // bridged names, so users need the raw list to debug.
+                    if !store.toolNames(for: server.id).isEmpty {
+                        let names = store.toolNames(for: server.id)
+                        Button {
+                            if expandedTools.contains(server.id) {
+                                expandedTools.remove(server.id)
+                            } else {
+                                expandedTools.insert(server.id)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .rotationEffect(.degrees(expandedTools.contains(server.id) ? 180 : 0))
+                                Text("\(names.count) tools")
+                                    .font(.caption2)
+                                Text(names.prefix(4).joined(separator: ", "))
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        if expandedTools.contains(server.id) {
+                            Text(names.joined(separator: "\n"))
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 3)
+                        }
+                        SettingsRowDivider()
+                    }
+
+                    // Bearer token (many MCP servers sit behind an auth proxy).
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                        SecureField("Bearer token (optional)", text: Binding(
+                            get: { tokenDrafts[server.id] ?? server.authToken ?? "" },
+                            set: { tokenDrafts[server.id] = $0 }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+                        if tokenDrafts[server.id] != nil {
+                            Button("Save") {
+                                store.updateAuthToken(tokenDrafts[server.id] ?? "", for: server.id)
+                                tokenDrafts[server.id] = nil
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .padding(.bottom, 6)
+
                     SettingsRowDivider()
                 }
 
@@ -932,13 +1011,74 @@ struct MCPServersSection: View {
                         .textFieldStyle(.roundedBorder)
                     Button("Add") {
                         store.addServer(name: newName, url: newURL)
+                        if !newToken.trimmingCharacters(in: .whitespaces).isEmpty,
+                           let added = store.servers.last {
+                            store.updateAuthToken(newToken, for: added.id)
+                        }
                         newName = ""
                         newURL = ""
+                        newToken = ""
                     }
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
                               || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .padding(.top, 6)
+            }
+        }
+    }
+}
+
+/// Scheduled agent prompts (定时任务) — created by the agent itself via the
+/// scheduleTask tools; managed (enable/disable/delete) here.
+struct ScheduledTasksSection: View {
+    @ObservedObject private var store = AgentScheduler.shared
+
+    var body: some View {
+        SettingsSection(
+            title: "Scheduled Tasks",
+            subtitle: "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」.",
+            icon: "clock.badge.checkmark"
+        ) {
+            VStack(spacing: 0) {
+                if store.tasks.isEmpty {
+                    Text("No scheduled tasks yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
+                ForEach(store.tasks) { task in
+                    HStack(spacing: 10) {
+                        Toggle("", isOn: Binding(
+                            get: { task.isEnabled },
+                            set: { store.setEnabled($0, for: task.id) }
+                        ))
+                        .labelsHidden()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(task.name)
+                                .font(.system(size: 12, weight: .medium))
+                            Text(task.recurrenceText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let result = task.lastResult {
+                                Text(result)
+                                    .font(.caption2)
+                                    .foregroundStyle(result == "delivered" ? .green : .orange)
+                            }
+                        }
+                        Spacer()
+                        Button {
+                            store.remove(task.id)
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete task")
+                    }
+                    .padding(.vertical, 4)
+                    SettingsRowDivider()
+                }
             }
         }
     }

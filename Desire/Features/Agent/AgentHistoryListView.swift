@@ -201,8 +201,13 @@ struct AgentHistoryListView: View {
             guard !searchText.isEmpty else {
                 return conversationStore.conversations
             }
+            // Search the title AND message bodies — "那个 m3u8 的对话" must
+            // hit conversations whose title never mentions m3u8.
             return conversationStore.conversations.filter { conv in
-                conv.title.localizedCaseInsensitiveContains(searchText)
+                if conv.title.localizedCaseInsensitiveContains(searchText) { return true }
+                return conv.messages.contains { message in
+                    message.content?.localizedCaseInsensitiveContains(searchText) == true
+                }
             }
         }()
 

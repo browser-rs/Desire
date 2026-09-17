@@ -123,11 +123,29 @@ class AgentSessionStore: ObservableObject {
         self.preference = preference
         self.conversationStore = conversationStore
         fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
+        // Newest session wins scheduled-task delivery (multi-window).
+        AgentScheduler.shared.deliveryTarget = self
+    }
+
+    /// Entry point for `AgentScheduler` firings: starts (or queues) a turn
+    /// carrying the scheduled prompt, tagged so the conversation shows
+    /// where it came from.
+    func deliverScheduled(_ prompt: String, from taskName: String) {
+        sendMessage("[定时任务 · \(taskName)] \(prompt)")
     }
 
     /// Soft cap on agent loop iterations to prevent runaway execution.
-    /// Replaces the old hardcoded `0..<20` limit. Configurable later.
-    private let maxIterations = 50
+    /// User-configurable in Settings → Agent (default 50).
+    private var maxIterations: Int { preference.maxLoopIterations }
+
+    /// Pauses the running loop between model/tool steps — the user can
+    /// inspect mid-task state and resume without losing the plan.
+    @Published var isPaused = false
+
+    /// Token usage accumulated for the loaded conversation (provider-
+    /// reported where available; Foundation Models reports nothing).
+    @Published private(set) var usagePromptTokens = 0
+    @Published private(set) var usageCompletionTokens = 0
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
     private var memoryProcessedCount = 0
@@ -286,6 +304,24 @@ class AgentSessionStore: ObservableObject {
         // task stays suspended on its continuation forever (leak + the UI
         // question card never clears).
         UserPromptCenter.shared.cancel()
+        isPaused = false
+    }
+
+    /// Pauses the running turn at the next checkpoint (before the next
+    /// model call or tool execution). No-op when idle.
+    func pause() {
+        guard isProcessing else { return }
+        isPaused = true
+    }
+
+    func resume() {
+        isPaused = false
+    }
+
+    private func waitWhilePaused() async {
+        while isPaused && !isCancelled {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
     }
 
     /// Re-runs the LAST user message: drops every message after it (the
@@ -321,6 +357,9 @@ class AgentSessionStore: ObservableObject {
         // The next conversation must be able to earn its own generated title.
         titleGenerated = false
         queuedMessages.removeAll()
+        isPaused = false
+        usagePromptTokens = 0
+        usageCompletionTokens = 0
         AgentPlanStore.shared.clear()
         UserPromptCenter.shared.cancel()
         messages.removeAll()
@@ -359,6 +398,9 @@ class AgentSessionStore: ObservableObject {
         isNewChatIntentional = false
         // Queued input belonged to the previous conversation's turn.
         queuedMessages.removeAll()
+        isPaused = false
+        usagePromptTokens = 0
+        usageCompletionTokens = 0
         memoryProcessedCount = messages.count
         // The stored title is final — either generated earlier or renamed by
         // the user in the history list. Never let title generation clobber it.
@@ -545,6 +587,7 @@ class AgentSessionStore: ObservableObject {
 
         while !isCancelled && iterations < maxIterations {
             iterations += 1
+            await waitWhilePaused()
 
             // Tool definitions must be sent on EVERY call in a tool-use
             // conversation: the second call sends back tool results, and
@@ -604,6 +647,9 @@ class AgentSessionStore: ObservableObject {
                             streamingVersion += 1
                         }
                         hasContent = true
+                    case .usage(let prompt, let completion):
+                        usagePromptTokens += prompt
+                        usageCompletionTokens += completion
                     }
                 }
             }
@@ -654,6 +700,7 @@ class AgentSessionStore: ObservableObject {
             // pause the loop (via a continuation) until the user decides.
             for tc in tcs {
                 if isCancelled { return }
+                await waitWhilePaused()
                 let risk = ToolRisk.classify(tc.function.name)
 
                 let decision = await gate(toolCall: tc, risk: risk)

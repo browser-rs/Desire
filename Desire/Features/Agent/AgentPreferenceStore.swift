@@ -36,6 +36,15 @@ class AgentPreferenceStore: ObservableObject {
     @Published var temperature: Double {
         didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
     }
+    /// Soft cap on agent loop iterations per turn (runaway guard, not a
+    /// strict budget). Clamped 5...200.
+    @Published var maxLoopIterations: Int {
+        didSet {
+            let clamped = min(max(maxLoopIterations, 5), 200)
+            if clamped != maxLoopIterations { maxLoopIterations = clamped }
+            UserDefaults.standard.set(maxLoopIterations, forKey: "aiMaxLoopIterations")
+        }
+    }
     @Published var hasAPIKey: Bool = false
 
     /// Which model backend the agent loop talks to. Persisted so the user's
@@ -144,6 +153,7 @@ class AgentPreferenceStore: ObservableObject {
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
+        maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {

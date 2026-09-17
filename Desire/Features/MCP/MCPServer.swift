@@ -11,4 +11,7 @@ struct MCPServer: Identifiable, Codable, Equatable {
     /// Streamable HTTP endpoint, e.g. http://127.0.0.1:3000/mcp
     var url: String
     var isEnabled: Bool = true
+    /// Optional Bearer token sent as `Authorization: Bearer <token>`.
+    /// Optional so configs saved before this field decode as nil.
+    var authToken: String? = nil
 }

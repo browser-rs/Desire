@@ -34,6 +34,29 @@ struct AgentHeaderView: View {
             }
 
             if store.isProcessing {
+                if store.isPaused {
+                    Button {
+                        store.resume()
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.green)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Resume (paused between steps)")
+                } else {
+                    Button {
+                        store.pause()
+                    } label: {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.orange)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Pause (stops before the next step)")
+                }
                 stopButton
             }
 
@@ -129,7 +152,20 @@ struct AgentHeaderView: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            if store.usagePromptTokens > 0 || store.usageCompletionTokens > 0 {
+                Text(tokenUsageText)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .help("Token usage for this conversation (provider-reported)")
+            }
         }
+    }
+
+    /// Compact cumulative usage, e.g. "↑3.2k ↓8.9k".
+    private var tokenUsageText: String {
+        String(format: "↑%.1fk ↓%.1fk",
+               Double(store.usagePromptTokens) / 1000,
+               Double(store.usageCompletionTokens) / 1000)
     }
 
     /// The model pill doubles as the switcher menu: provider kinds, saved

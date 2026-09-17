@@ -104,6 +104,15 @@ final class AgentMemoryStore: ObservableObject {
         save()
     }
 
+    /// Clears ALL learned memory (L1 facts + L2 summaries) in one step.
+    /// The L0 profile survives — it's the user's self-description, not
+    /// something the agent inferred.
+    func clearLearnedMemory() {
+        archive.facts.removeAll()
+        archive.summaries.removeAll()
+        save()
+    }
+
     // MARK: - Prompt injection
 
     /// The system block injected into every agent request: profile, top

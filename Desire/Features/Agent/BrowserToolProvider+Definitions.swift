@@ -143,6 +143,25 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "scheduleTask", description: "Create a scheduled task (定时任务): the prompt re-runs automatically on a recurrence while the app is open. Use everyMinutes (>= 5) OR dailyAt (\"HH:MM\", 24h). Do NOT use for one-off requests.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Short unique task name"),
+                    "prompt": AgentJSONSchemaValue(type: "string", description: "Full prompt re-sent at each firing (must be self-contained)"),
+                    "everyMinutes": AgentJSONSchemaValue(type: "string", description: "Interval in minutes (>= 5), e.g. \"30\""),
+                    "dailyAt": AgentJSONSchemaValue(type: "string", description: "Daily time \"HH:MM\" 24h, e.g. \"09:00\""),
+                ], required: ["name", "prompt"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listScheduledTasks", description: "List scheduled tasks (定时任务) with their recurrences and last-run status.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "cancelScheduledTask", description: "Delete a scheduled task by its name.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Task name"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "downloadMedia", description: "Download a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Pair with listPageVideos: extract, confirm with the user which one, then download. The tool call blocks until the export finishes.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),

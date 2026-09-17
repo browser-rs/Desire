@@ -324,13 +324,25 @@ struct AgentPanel: View {
                         },
                         uniquingKeysWith: { current, _ in current }
                     )
+                    // Tool-call ids already rendered inside an assistant
+                    // bubble's chips — their standalone tool messages are
+                    // duplicates and get skipped.
+                    let chipToolIds = Set(store.messages.flatMap { m in
+                        m.role == .assistant ? (m.toolCalls?.map(\.id) ?? []) : []
+                    })
                     ForEach(store.messages) { msg in
-                        AgentMessageBubble(
-                            message: msg,
-                            toolResults: toolResults,
-                            isStreamingTail: isStreamingTail(msg)
-                        )
-                        .id(msg.id)
+                        if msg.role == .tool,
+                           let id = msg.toolCallId,
+                           chipToolIds.contains(id) {
+                            EmptyView()
+                        } else {
+                            AgentMessageBubble(
+                                message: msg,
+                                toolResults: toolResults,
+                                isStreamingTail: isStreamingTail(msg)
+                            )
+                            .id(msg.id)
+                        }
                     }
                     Color.clear
                         .frame(height: 1)

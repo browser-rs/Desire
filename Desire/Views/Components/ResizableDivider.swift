@@ -8,11 +8,18 @@ struct ResizableDivider: View {
     let range: ClosedRange<CGFloat>
 
     @State private var isHovering = false
+    /// Width captured on the first drag tick — subtracting the CUMULATIVE
+    /// translation from the ALREADY-UPDATED width compounded every frame
+    /// (drag 10px → panel jumped 20 → 40 …), which felt like "can't drag".
+    @State private var dragStartWidth: CGFloat?
 
     var body: some View {
         Rectangle()
-            .fill(isHovering ? Color.accentColor.opacity(0.4) : Color.secondary.opacity(0.15))
-            .frame(width: 4)
+            .fill(isHovering ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.22))
+            .frame(width: 5)
+            // 11pt hit target around the 5pt visible strip — a hairline is
+            // nearly impossible to grab.
+            .contentShape(Rectangle().inset(by: -3))
             .onHover { hovering in
                 isHovering = hovering
                 if hovering {
@@ -22,12 +29,13 @@ struct ResizableDivider: View {
                 }
             }
             .gesture(
-                DragGesture()
+                DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        let newWidth = (width - value.translation.width)
+                        if dragStartWidth == nil { dragStartWidth = width }
+                        width = (dragStartWidth! - value.translation.width)
                             .clamped(to: range)
-                        width = newWidth
                     }
+                    .onEnded { _ in dragStartWidth = nil }
             )
     }
 }

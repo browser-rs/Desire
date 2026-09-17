@@ -5142,6 +5142,16 @@
         }
       }
     },
+    "Full Access" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全访问"
+          }
+        }
+      }
+    },
     "Full Access (auto-approve all tools)" : {},
     "Full Page PDF…" : {
       "comment" : "More menu: capture full page as PDF",

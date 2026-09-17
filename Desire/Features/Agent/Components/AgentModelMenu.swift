@@ -1,11 +1,9 @@
-import AppKit
 import SwiftUI
 
-/// The model/provider switcher, rendered as a small capsule inside the
-/// input bar (next to attach/voice/send). Covers provider kinds, saved
-/// endpoints, the FULL ACCESS toggle, the working directory, and a
-/// context-usage readout — the agent's capability controls, one click from
-/// where the user types.
+/// The model/provider switcher, rendered as a small capsule in the input
+/// bar's right group, next to the send button (the familiar chat-input
+/// pattern: model dropdown beside send). Lists provider kinds and saved
+/// endpoints only — capability toggles are their own inline controls.
 struct AgentModelMenu: View {
     @ObservedObject var store: AgentSessionStore
     @Environment(\.openWindow) private var openWindow
@@ -49,31 +47,6 @@ struct AgentModelMenu: View {
                     Text("Add endpoints in Settings → Agent")
                 }
             }
-            Section {
-                Toggle("Full Access (auto-approve all tools)", isOn: $store.fullAccess)
-                Divider()
-                Text(workingDirectoryInfo)
-                Button {
-                    let panel = NSOpenPanel()
-                    panel.canChooseFiles = false
-                    panel.canChooseDirectories = true
-                    panel.allowsMultipleSelection = false
-                    panel.canCreateDirectories = true
-                    panel.message = String(localized: "Choose the agent's working directory for file tools and system commands")
-                    panel.directoryURL = SystemCommandStore.shared.workingDirectory
-                    if panel.runModal() == .OK, let url = panel.url {
-                        SystemCommandStore.shared.setWorkingDirectory(url)
-                    }
-                } label: {
-                    Label("Change Working Directory…", systemImage: "folder.badge.gearshape")
-                }
-                Button {
-                    openWindow(id: "settings")
-                } label: {
-                    Label("Agent Settings…", systemImage: "gearshape")
-                }
-                Text(contextUsageText)
-            }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "cpu")
@@ -108,21 +81,8 @@ struct AgentModelMenu: View {
     }
 
     /// Tilde-abbreviated working directory for the menu info row.
-    private var workingDirectoryInfo: String {
-        let raw = SystemCommandStore.shared.workingDirectory.path
-        return raw.replacingOccurrences(of: NSHomeDirectory(), with: "~")
-    }
-
     /// Rough share of the agent context budget the stored conversation
     /// occupies (same 160k-char estimate as AgentSessionStore.compactForContext).
-    private var contextUsageText: String {
-        let chars = store.messages.reduce(0) {
-            ($0 + ($1.content?.count ?? 0)
-                + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0))
-        }
-        return "Context used ~\(min(100, chars * 100 / 160_000))%"
-    }
-
     /// Maps an endpoint URL to the per-provider Keychain account suffix
     /// ("ai-key-<providerID>") so a switch loads the right key.
     private static func providerID(for url: String) -> String {

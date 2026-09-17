@@ -20,10 +20,10 @@ struct AgentInputBar: View {
     @FocusState.Binding var isFocused: Bool
     /// Voice input manager — nil hides the mic button.
     var voiceManager: VoiceInputManager? = nil
-    /// Model/provider switcher capsule, rendered between the text field and
-    /// the attachment button (the agent's capability controls live where
-    /// the user types, not hidden in the header).
+    /// Model/provider switcher capsule — right group, next to send.
     var modelMenu: AnyView = AnyView(EmptyView())
+    /// Inline FULL ACCESS toggle pill — left utility group.
+    var fullAccessPill: AnyView = AnyView(EmptyView())
 
     @State private var isHoveringSend = false
 
@@ -146,16 +146,20 @@ struct AgentInputBar: View {
                     .onSubmit(onSubmit)
             }
 
-            modelMenu
+            fullAccessPill
+                .padding(.leading, 6)
                 .padding(.bottom, 6)
             attachButton
-                .padding(.leading, 6)
-                .padding(.trailing, 6)
+                .padding(.leading, 4)
                 .padding(.bottom, 6)
             micButton
-                .padding(.trailing, 6)
+                .padding(.leading, 4)
+                .padding(.bottom, 6)
+            Spacer(minLength: 4)
+            modelMenu
                 .padding(.bottom, 6)
             sendButton
+                .padding(.leading, 6)
                 .padding(.trailing, 6)
                 .padding(.bottom, 6)
         }

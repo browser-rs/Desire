@@ -260,7 +260,8 @@ struct AgentPanel: View {
                 },
                 isFocused: $isInputFocused,
                 voiceManager: voiceManager,
-                modelMenu: AnyView(AgentModelMenu(store: store))
+                modelMenu: AnyView(AgentModelMenu(store: store)),
+                fullAccessPill: AnyView(AgentFullAccessPill(store: store))
             )
             .onChange(of: voiceManager.transcribedText) { _, newText in
                 inputText = newText

@@ -179,7 +179,7 @@ struct AgentHeaderView: View {
         .padding(.vertical, 3)
         .background(Capsule().fill(Color.orange.opacity(0.15)))
         .overlay(Capsule().stroke(Color.orange.opacity(0.5), lineWidth: 0.8))
-        .help("All tools run without approval — including code execution. Toggle in the model menu.")
+        .help("All tools run without approval — including code execution. Toggle in the input bar.")
     }
 
     private var stopButton: some View {

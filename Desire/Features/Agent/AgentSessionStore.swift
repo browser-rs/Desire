@@ -173,15 +173,16 @@ class AgentSessionStore: ObservableObject {
 
     func setWebView(_ wv: WKWebView?) {
         // `makeWebView` (a View-body helper) calls this on EVERY render of
-        // the tab content. Publishing must not happen during view updates —
-        // and @Published fires objectWillChange even for identical values —
-        // so no-op when the webview didn't actually change, which is the
-        // overwhelming majority of calls. Without this, having the AI panel
-        // open turned every progress tick / hover into an AgentPanel
-        // re-render storm ("Publishing changes from within view updates").
+        // the tab content. The same-webview no-op guard keeps identical
+        // renders from republishing; a REAL change (tab switch) must still
+        // not publish synchronously — that happens inside the view update
+        // and trips "Publishing changes from within view updates". Hop to
+        // the next main-actor tick, where publishing is legal.
         guard webView !== wv else { return }
         webView = wv
-        refreshContextLabel()
+        Task { @MainActor [weak self] in
+            self?.refreshContextLabel()
+        }
     }
 
     /// The webview the agent operates on, resolved AT CALL TIME: the active

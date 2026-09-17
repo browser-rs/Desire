@@ -288,3 +288,18 @@ executeJS 读回 `name=[Alice] result=[hello Alice]` → 汇报
 经验教训：测试服务器端口 8000 与本机常见开发端口冲突 → 套件改用
 8877；给 Agent 的指令应避免端口/地址歧义（它记得旧地址会自主绕路，
 恢复力很好但耗时）。
+
+## 第十四轮：多步真实任务基准 + executeJS 异常详情
+
+### 多步真实网页任务 ✅
+"百度搜索 Swift Concurrency → 打开第一个结果 → 汇报标题和概括"：
+百度搜索 → 结果一是 docs.swift.org 重定向页 → click e1/text 两次失败
+→ **自主改用 getPageSnapshot 重读新 URL** → updatePlan 全程 4/4 →
+准确汇报标题（Concurrency | Documentation）+ 一句话概括。弹性优秀。
+
+### 修复：executeJS 异常无详情
+- evaluateJavaScript 的 JS 异常错误对象不含具体异常文本（WebKit
+  限制，WKJSExceptionMessage 这个 key 不存在——正确的是
+  **WKJavaScriptExceptionMessage**，经临时 userInfo dump 实证）。
+- executeJS 失败时用 callAsyncJavaScript 重跑一次以捕获真实异常
+  （marker-42 实测返回）。Agent 调试 JS 时不再两眼一抹黑。

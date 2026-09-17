@@ -26,7 +26,15 @@ class BrowserToolProvider {
         await withCheckedContinuation { continuation in
             wv.evaluateJavaScript(js) { result, error in
                 if let error = error {
-                    continuation.resume(returning: "Error: \(error.localizedDescription)")
+                    // The localized description is a useless generic
+                    // ("A JavaScript exception occurred") — surface the
+                    // actual exception message so the agent can debug.
+                    let ns = error as NSError
+                    let detail = ns.userInfo["WKJSExceptionMessage"] as? String
+                        ?? ns.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+                        ?? ns.userInfo[NSDebugDescriptionErrorKey] as? String
+                        ?? error.localizedDescription
+                    continuation.resume(returning: "Error: \(detail)")
                 } else if let result = result as? String {
                     continuation.resume(returning: result)
                 } else if let result = result {

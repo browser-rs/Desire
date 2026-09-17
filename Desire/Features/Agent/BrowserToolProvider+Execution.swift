@@ -1102,6 +1102,21 @@ extension BrowserToolProvider {
         case "executeJS":
             guard let code = args["code"] as? String else { return "Missing code" }
             let result = await eval(webView, code)
+            if result.hasPrefix("Error: ") {
+                // evaluateJavaScript hides the real exception behind a
+                // generic message. Re-run via callAsyncJavaScript purely
+                // to capture WKJSExceptionMessage (the actual throw).
+                do {
+                    _ = try await webView.callAsyncJavaScript(
+                        code, arguments: [:], in: nil, contentWorld: .page
+                    )
+                } catch {
+                    let ns = error as NSError
+                    if let detail = ns.userInfo["WKJavaScriptExceptionMessage"] as? String {
+                        return "Error: JS exception — \(detail)"
+                    }
+                }
+            }
             return result.isEmpty ? "Executed (no return value)" : result
 
         default:

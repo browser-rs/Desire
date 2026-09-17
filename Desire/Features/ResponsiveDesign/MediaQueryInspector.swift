@@ -59,7 +59,6 @@ struct MediaQueryInspector: View {
                 }
             }
         }
-        .frame(width: 220)
         .background(.bar)
         .cornerRadius(6)
     }

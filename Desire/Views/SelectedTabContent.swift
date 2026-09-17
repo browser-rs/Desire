@@ -62,7 +62,7 @@ struct SelectedTabContent: View {
             // extraction).
             content.toolbarSection(for: tab)
 
-            HStack(spacing: 0) {
+            HSplitView {
                 if showSidebar {
                     SidebarView(
                         bookmarkStore: content.bookmarkStore,
@@ -70,7 +70,7 @@ struct SelectedTabContent: View {
                         readingListStore: content.readingListStore,
                         onNavigate: { url in actions.navigateToURL(url, for: tab) }
                     )
-                    Divider()
+                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 400)
                 }
 
                 VStack(spacing: 0) {
@@ -219,16 +219,13 @@ struct SelectedTabContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
-                    Divider()
-                        .frame(width: 1)
                     MediaQueryInspector(queries: content.mediaQueries)
-                        .frame(width: 220)
+                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 360)
                 }
 
                 if showAgentPanel {
-                    ResizableDivider(width: $agentPanelWidth, range: 260...560)
                     AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                        .frame(width: agentPanelWidth)
+                        .frame(minWidth: 260, idealWidth: agentPanelWidth, maxWidth: 560)
                         // Opening the assistant resumes the most recent
                         // conversation instead of a blank panel. Deferred
                         // off the view-update pass: loading publishes
@@ -243,12 +240,11 @@ struct SelectedTabContent: View {
                 }
 
                 if showDevToolsPanel {
-                    ResizableDivider(width: $devToolsWidth, range: 300...800)
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                     }, onClose: { content.toggleDevTools() })
-                    .frame(width: devToolsWidth)
+                    .frame(minWidth: 300, idealWidth: devToolsWidth, maxWidth: 800)
                 }
             }
 

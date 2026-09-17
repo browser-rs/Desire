@@ -45,7 +45,8 @@ struct SidebarView: View {
                 sidebarReadingList
             }
         }
-        .frame(width: 260)
+        // Width is owned by the hosting HSplitView (min 180 / ideal 220 /
+        // max 400) — an internal fixed frame would fight the splitter.
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

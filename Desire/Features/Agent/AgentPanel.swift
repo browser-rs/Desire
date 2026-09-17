@@ -259,7 +259,8 @@ struct AgentPanel: View {
                     store.cancel()
                 },
                 isFocused: $isInputFocused,
-                voiceManager: voiceManager
+                voiceManager: voiceManager,
+                modelMenu: AnyView(AgentModelMenu(store: store))
             )
             .onChange(of: voiceManager.transcribedText) { _, newText in
                 inputText = newText

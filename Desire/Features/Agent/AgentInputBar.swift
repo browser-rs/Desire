@@ -20,6 +20,10 @@ struct AgentInputBar: View {
     @FocusState.Binding var isFocused: Bool
     /// Voice input manager — nil hides the mic button.
     var voiceManager: VoiceInputManager? = nil
+    /// Model/provider switcher capsule, rendered between the text field and
+    /// the attachment button (the agent's capability controls live where
+    /// the user types, not hidden in the header).
+    var modelMenu: AnyView = AnyView(EmptyView())
 
     @State private var isHoveringSend = false
 
@@ -142,6 +146,8 @@ struct AgentInputBar: View {
                     .onSubmit(onSubmit)
             }
 
+            modelMenu
+                .padding(.bottom, 6)
             attachButton
                 .padding(.leading, 6)
                 .padding(.trailing, 6)

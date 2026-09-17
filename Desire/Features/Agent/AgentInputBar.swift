@@ -125,7 +125,7 @@ struct AgentInputBar: View {
     // MARK: - Input capsule
 
     private var inputCapsule: some View {
-        HStack(alignment: .bottom, spacing: 0) {
+        VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
@@ -146,22 +146,22 @@ struct AgentInputBar: View {
                     .onSubmit(onSubmit)
             }
 
-            fullAccessPill
-                .padding(.leading, 6)
-                .padding(.bottom, 6)
-            attachButton
-                .padding(.leading, 4)
-                .padding(.bottom, 6)
-            micButton
-                .padding(.leading, 4)
-                .padding(.bottom, 6)
-            Spacer(minLength: 4)
-            modelMenu
-                .padding(.bottom, 6)
-            sendButton
-                .padding(.leading, 6)
-                .padding(.trailing, 6)
-                .padding(.bottom, 6)
+            // Controls live in their OWN full-width row below the text —
+            // beside a greedy TextEditor they'd all bunch to the right.
+            HStack(spacing: 0) {
+                fullAccessPill
+                    .padding(.leading, 6)
+                attachButton
+                    .padding(.leading, 4)
+                micButton
+                    .padding(.leading, 4)
+                Spacer(minLength: 4)
+                modelMenu
+                sendButton
+                    .padding(.leading, 6)
+                    .padding(.trailing, 6)
+            }
+            .padding(.bottom, 6)
         }
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)

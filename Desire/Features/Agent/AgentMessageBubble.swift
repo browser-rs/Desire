@@ -74,10 +74,14 @@ private struct UserBubble: View {
                         .shadow(color: Color.accentColor.opacity(0.18), radius: 4, y: 1)
                 }
 
-                if isHovering {
-                    CopyChip(text: text)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            // Hover affordance must NOT participate in layout — a
+            // conditionally inserted chip reflows the bubble (jitter).
+            if isHovering {
+                CopyChip(text: text)
+                    .offset(x: 6, y: -6)
             }
         }
         .padding(.horizontal, 12)
@@ -154,10 +158,6 @@ private struct AssistantBubble: View {
                     .padding(.top, 2)
                 }
 
-                if isHovering, let text = message.content, !text.isEmpty, !isError {
-                    CopyChip(text: text)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -169,6 +169,12 @@ private struct AssistantBubble: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(borderColor, lineWidth: 0.5)
             )
+            .overlay(alignment: .topTrailing) {
+                if isHovering, let text = message.content, !text.isEmpty, !isError {
+                    CopyChip(text: text)
+                        .offset(x: 6, y: -6)
+                }
+            }
             .textSelection(.enabled)
 
             Spacer(minLength: 40)

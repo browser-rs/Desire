@@ -7,9 +7,34 @@ import SwiftUI
 struct AgentModelMenu: View {
     @ObservedObject var store: AgentSessionStore
     @Environment(\.openWindow) private var openWindow
+    @State private var isRefreshingModels = false
 
     var body: some View {
         Menu {
+            Section("Models") {
+                ForEach(store.preference.cachedModels.prefix(40), id: \.self) { model in
+                    Button {
+                        store.preference.model = model
+                        store.preference.providerKind = .cloud
+                    } label: {
+                        Label(
+                            model,
+                            systemImage: store.preference.providerKind == .cloud && store.preference.model == model
+                                ? "checkmark" : "cpu"
+                        )
+                    }
+                }
+                if store.preference.cachedModels.isEmpty {
+                    Text("No models cached — refresh to load them")
+                }
+                Button {
+                    refreshModels()
+                } label: {
+                    Label(isRefreshingModels ? "Refreshing…" : "Refresh Model List",
+                          systemImage: "arrow.clockwise")
+                }
+                .disabled(isRefreshingModels)
+            }
             Section("Provider") {
                 Button {
                     store.preference.providerKind = .routing
@@ -96,5 +121,21 @@ struct AgentModelMenu: View {
             return id
         }
         return "openai"
+    }
+
+    /// Pulls the live model list from the active endpoint's /models and
+    /// caches it for the dropdown (and across launches).
+    private func refreshModels() {
+        guard !isRefreshingModels else { return }
+        isRefreshingModels = true
+        Task {
+            defer { isRefreshingModels = false }
+            let endpoint = store.preference.endpoint
+            let key = store.preference.loadAPIKey() ?? ""
+            let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
+            if !models.isEmpty {
+                store.preference.cachedModels = models
+            }
+        }
     }
 }

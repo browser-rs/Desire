@@ -36,6 +36,12 @@ class AgentPreferenceStore: ObservableObject {
     @Published var temperature: Double {
         didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
     }
+    /// Model IDs fetched from the active endpoint's /models — feeds the
+    /// input-bar model dropdown. Persisted so the menu has content on
+    /// relaunch; refreshed from the dropdown.
+    @Published var cachedModels: [String] {
+        didSet { UserDefaults.standard.set(cachedModels, forKey: "aiCachedModels") }
+    }
     /// Soft cap on agent loop iterations per turn (runaway guard, not a
     /// strict budget). Clamped 5...200.
     @Published var maxLoopIterations: Int {
@@ -154,6 +160,7 @@ class AgentPreferenceStore: ObservableObject {
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
+        cachedModels = UserDefaults.standard.stringArray(forKey: "aiCachedModels") ?? []
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {

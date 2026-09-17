@@ -799,7 +799,6 @@
         }
       }
     },
-    "Agent Settings…" : {},
     "Agent capabilities & tools" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -880,7 +879,8 @@
         }
       }
     },
-    "All tools run without approval — including code execution. Toggle in the model menu." : {},
+    "All tools run without approval — including code execution" : {},
+    "All tools run without approval — including code execution. Toggle in the input bar." : {},
     "Allow" : {
       "comment" : "Permission allow button",
       "localizations" : {
@@ -1857,6 +1857,7 @@
       }
     },
     "Change Working Directory…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1948,6 +1949,7 @@
       }
     },
     "Choose the agent's working directory for file tools and system commands" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5152,7 +5154,6 @@
         }
       }
     },
-    "Full Access (auto-approve all tools)" : {},
     "Full Page PDF…" : {
       "comment" : "More menu: capture full page as PDF",
       "localizations" : {
@@ -6465,7 +6466,16 @@
         }
       }
     },
-    "Models" : {},
+    "Models" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
+          }
+        }
+      }
+    },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
       "localizations" : {
@@ -7490,6 +7500,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到媒體查詢"
+          }
+        }
+      }
+    },
+    "No models cached — refresh to load them" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无缓存模型 — 点击刷新加载"
           }
         }
       }
@@ -8905,6 +8925,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新整理"
+          }
+        }
+      }
+    },
+    "Refresh Model List" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新模型列表"
+          }
+        }
+      }
+    },
+    "Refreshing…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新中…"
           }
         }
       }

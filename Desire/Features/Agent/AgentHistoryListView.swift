@@ -134,11 +134,11 @@ struct AgentHistoryListView: View {
 
     private func confirmDelete(_ conv: Conversation) {
         let alert = NSAlert()
-        alert.messageText = "Delete Conversation"
+        alert.messageText = String(localized: "Delete Conversation")
         alert.informativeText = "Are you sure you want to delete \"\(conv.title)\"? This cannot be undone."
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Delete"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             conversationStore.delete(conv.id)
         }
@@ -235,10 +235,10 @@ struct AgentHistoryListView: View {
         }
 
         var groups: [HistoryGroup] = []
-        if !today.isEmpty { groups.append(.init(title: "Today", items: today)) }
-        if !yesterday.isEmpty { groups.append(.init(title: "Yesterday", items: yesterday)) }
-        if !thisWeek.isEmpty { groups.append(.init(title: "This Week", items: thisWeek)) }
-        if !older.isEmpty { groups.append(.init(title: "Older", items: older)) }
+        if !today.isEmpty { groups.append(.init(title: String(localized: "Today"), items: today)) }
+        if !yesterday.isEmpty { groups.append(.init(title: String(localized: "Yesterday"), items: yesterday)) }
+        if !thisWeek.isEmpty { groups.append(.init(title: String(localized: "This Week"), items: thisWeek)) }
+        if !older.isEmpty { groups.append(.init(title: String(localized: "Older"), items: older)) }
         return groups
     }
 }

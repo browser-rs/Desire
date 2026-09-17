@@ -1,91 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
-    ":" : {
-
-    },
-    ":%lld" : {
-
-    },
-    ":%lld:%lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : ":%1$lld:%2$lld"
-          }
-        }
-      }
-    },
-    "!important" : {
-
-    },
-    "·" : {
-
-    },
-    "(%lld)" : {
-
-    },
-    "（已快进）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已快进）"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已快进）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已快轉）"
-          }
-        }
-      }
-    },
-    "（已跳过）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已跳过）"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已跳过）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（已跳過）"
-          }
-        }
-      }
-    },
-    "#%@" : {
-
-    },
-    "%@ · %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$lld"
-          }
-        }
-      }
-    },
+    "" : {},
+    "!important" : {},
+    "#%@" : {},
     "%@ wants to access your %@" : {
       "comment" : "Media permission prompt with host and device",
       "localizations" : {
@@ -132,6 +50,16 @@
         }
       }
     },
+    "%@ · %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -142,25 +70,13 @@
         }
       }
     },
-    "%lld" : {
-
-    },
+    "%lld" : {},
     "%lld / %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld / %2$lld"
-          }
-        }
-      }
-    },
-    "%lld × %lld px" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld × %2$lld px"
           }
         }
       }
@@ -319,25 +235,19 @@
         }
       }
     },
-    "%lld 个工具" : {
-
-    },
-    "%lld." : {
-
-    },
-    "%lld%%" : {
-
-    },
-    "%lld×%lld" : {
+    "%lld × %lld px" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$lld×%2$lld"
+            "value" : "%1$lld × %2$lld px"
           }
         }
       }
     },
+    "%lld 个工具" : {},
+    "%lld%%" : {},
+    "%lld." : {},
     "%lldh %lldm" : {
       "localizations" : {
         "en" : {
@@ -358,46 +268,19 @@
         }
       }
     },
-    "%lldms" : {
-
-    },
-    "%llds" : {
-
-    },
-    "•" : {
-
-    },
-    "• %@" : {
-
-    },
-    "← Exit" : {
+    "%lldms" : {},
+    "%llds" : {},
+    "%lld×%lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "← Exit"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "← 退出"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "← 退出"
+            "state" : "new",
+            "value" : "%1$lld×%2$lld"
           }
         }
       }
     },
-    "×" : {
-
-    },
-    "=" : {
-
-    },
+    "(%lld)" : {},
     "1 Hour" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -417,52 +300,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 小時"
-          }
-        }
-      }
-    },
-    "2 Hours" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2 Hours"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2 小时"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2 小時"
-          }
-        }
-      }
-    },
-    "5 Minutes" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "5 Minutes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "5 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "5 分鐘"
           }
         }
       }
@@ -490,6 +327,29 @@
         }
       }
     },
+    "2 Hours" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 Hours"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 小时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 小時"
+          }
+        }
+      }
+    },
     "30 Minutes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -509,6 +369,153 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 分鐘"
+          }
+        }
+      }
+    },
+    "5 Minutes" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 Minutes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分鐘"
+          }
+        }
+      }
+    },
+    ":" : {},
+    ":%lld" : {},
+    ":%lld:%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : ":%1$lld:%2$lld"
+          }
+        }
+      }
+    },
+    "=" : {},
+    "AI" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        }
+      }
+    },
+    "AI Assistant" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Assistant"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 助手"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 助手"
+          }
+        }
+      }
+    },
+    "AI Assistant (Floating Window)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Assistant (Floating Window)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 助手（悬浮窗）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 助手（懸浮窗）"
+          }
+        }
+      }
+    },
+    "AI is typing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI is typing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 正在输入"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 正在輸入"
+          }
+        }
+      }
+    },
+    "AI 能力" : {},
+    "API Permissions:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Permissions:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 权限："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 權限："
           }
         }
       }
@@ -719,96 +726,15 @@
         }
       }
     },
-    "AI" : {
+    "Agent capabilities & tools" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI"
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI"
+            "value" : "Agent 能力与工具"
           }
         }
       }
-    },
-    "AI Assistant" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Assistant"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 助手"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 助手"
-          }
-        }
-      }
-    },
-    "AI Assistant (Floating Window)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Assistant (Floating Window)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 助手（悬浮窗）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 助手（懸浮窗）"
-          }
-        }
-      }
-    },
-    "AI is typing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI is typing"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 正在输入"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 正在輸入"
-          }
-        }
-      }
-    },
-    "AI 能力" : {
-
     },
     "All" : {
       "localizations" : {
@@ -1013,28 +939,6 @@
         }
       }
     },
-    "API Permissions:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API Permissions:"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 权限："
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 權限："
-          }
-        }
-      }
-    },
     "Are you sure you want to close this tab?" : {
       "localizations" : {
         "en" : {
@@ -1080,6 +984,16 @@
         }
       }
     },
+    "Ask Agent…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问问 Agent…"
+          }
+        }
+      }
+    },
     "Ask about Page" : {
       "localizations" : {
         "en" : {
@@ -1098,6 +1012,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "詢問本頁內容"
+          }
+        }
+      }
+    },
+    "Ask about this page…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就此页面提问…"
           }
         }
       }
@@ -1146,11 +1070,16 @@
         }
       }
     },
+    "Attach Images" : {},
     "Attach image ( vision models)" : {
-
-    },
-    "Attach Images" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加图片（视觉模型可用）"
+          }
+        }
+      }
     },
     "Attempt to upgrade HTTP connections to HTTPS automatically" : {
       "comment" : "HTTPS upgrade toggle help",
@@ -1588,28 +1517,76 @@
         }
       }
     },
-    "by %@" : {
+    "CSS" : {},
+    "CSS Code" : {
+      "comment" : "Plugin editor CSS code label",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "by %@"
+            "value" : "CSS Code"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "由 %@"
+            "value" : "CSS 代码"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "由 %@"
+            "value" : "CSS 程式碼"
           }
         }
       }
     },
+    "CSS Properties" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS Properties"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 属性"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 屬性"
+          }
+        }
+      }
+    },
+    "CSS Selector" : {
+      "comment" : "CSS selector field placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS Selector"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 选择器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 選擇器"
+          }
+        }
+      }
+    },
+    "CSS: %@" : {},
     "Cache" : {
       "comment" : "Clear cache option",
       "extractionState" : "stale",
@@ -1744,6 +1721,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入頁面"
+          }
+        }
+      }
+    },
+    "Changes state" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会更改状态"
           }
         }
       }
@@ -2132,6 +2119,26 @@
         }
       }
     },
+    "Clear conversation" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空对话"
+          }
+        }
+      }
+    },
+    "Clear queued messages" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除排队的消息"
+          }
+        }
+      }
+    },
     "Click on an element to inspect" : {
       "localizations" : {
         "en" : {
@@ -2154,28 +2161,6 @@
         }
       }
     },
-    "Click to customize" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Click to customize"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点击自定义"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點擊自訂"
-          }
-        }
-      }
-    },
     "Click to Record" : {
       "localizations" : {
         "en" : {
@@ -2194,6 +2179,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點擊錄製"
+          }
+        }
+      }
+    },
+    "Click to customize" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to customize"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击自定义"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點擊自訂"
           }
         }
       }
@@ -2402,28 +2409,6 @@
         }
       }
     },
-    "Connection lost" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connection lost"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "网络连接中断"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "網路連線中斷"
-          }
-        }
-      }
-    },
     "Connection Not Secure" : {
       "comment" : "Not secure connection status",
       "localizations" : {
@@ -2470,6 +2455,28 @@
         }
       }
     },
+    "Connection lost" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection lost"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络连接中断"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網路連線中斷"
+          }
+        }
+      }
+    },
     "Connection timed out" : {
       "localizations" : {
         "en" : {
@@ -2492,9 +2499,7 @@
         }
       }
     },
-    "Container tab" : {
-
-    },
+    "Container tab" : {},
     "Content Scripts" : {
       "localizations" : {
         "en" : {
@@ -2536,6 +2541,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續"
+          }
+        }
+      }
+    },
+    "Conversation history" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话历史"
           }
         }
       }
@@ -2745,28 +2760,6 @@
         }
       }
     },
-    "Copy message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy message"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷贝消息"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷貝訊息"
-          }
-        }
-      }
-    },
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -2808,6 +2801,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複製網址"
+          }
+        }
+      }
+    },
+    "Copy message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy message"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝消息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝訊息"
           }
         }
       }
@@ -2856,9 +2871,7 @@
         }
       }
     },
-    "Crash and performance reports collected via MetricKit." : {
-
-    },
+    "Crash and performance reports collected via MetricKit." : {},
     "Create" : {
       "comment" : "Create button",
       "localizations" : {
@@ -2925,80 +2938,6 @@
           }
         }
       }
-    },
-    "CSS" : {
-
-    },
-    "CSS Code" : {
-      "comment" : "Plugin editor CSS code label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS Code"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 代码"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 程式碼"
-          }
-        }
-      }
-    },
-    "CSS Properties" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS Properties"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 属性"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 屬性"
-          }
-        }
-      }
-    },
-    "CSS Selector" : {
-      "comment" : "CSS selector field placeholder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS Selector"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 选择器"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 選擇器"
-          }
-        }
-      }
-    },
-    "CSS: %@" : {
-
     },
     "Current: %@" : {
       "localizations" : {
@@ -3205,46 +3144,12 @@
         }
       }
     },
-    "Delete container" : {
+    "Delete Conversation" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete container"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除容器"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除容器"
-          }
-        }
-      }
-    },
-    "Delete conversation" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete conversation"
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除對話"
           }
         }
       }
@@ -3335,6 +3240,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除所選（%lld）"
+          }
+        }
+      }
+    },
+    "Delete container" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete container"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除容器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除容器"
+          }
+        }
+      }
+    },
+    "Delete conversation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除對話"
           }
         }
       }
@@ -3497,6 +3446,7 @@
         }
       }
     },
+    "DevTools Panel (Beta)" : {},
     "Developer Tools" : {
       "localizations" : {
         "en" : {
@@ -3519,35 +3469,7 @@
         }
       }
     },
-    "DevTools Panel (Beta)" : {
-
-    },
-    "Diagnostics" : {
-
-    },
-    "disabled" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "disabled"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已停用"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已停用"
-          }
-        }
-      }
-    },
+    "Diagnostics" : {},
     "Disabled" : {
       "comment" : "Plugin list section header for disabled plugins",
       "localizations" : {
@@ -3984,29 +3906,6 @@
         }
       }
     },
-    "Element blocked" : {
-      "comment" : "Undo toast: element blocked",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Element blocked"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已屏蔽元素"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已封鎖元素"
-          }
-        }
-      }
-    },
     "Element Blocker" : {
       "comment" : "Element blocker panel title",
       "localizations" : {
@@ -4048,6 +3947,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "元素資訊"
+          }
+        }
+      }
+    },
+    "Element blocked" : {
+      "comment" : "Undo toast: element blocked",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Element blocked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已屏蔽元素"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已封鎖元素"
           }
         }
       }
@@ -4423,6 +4345,16 @@
         }
       }
     },
+    "Export as Markdown…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出为 Markdown…"
+          }
+        }
+      }
+    },
     "Extend the AI with external tools over MCP (HTTP transport). Experimental." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4557,15 +4489,9 @@
         }
       }
     },
-    "Fetch" : {
-
-    },
-    "Fetched from API" : {
-
-    },
-    "Fetching…" : {
-
-    },
+    "Fetch" : {},
+    "Fetched from API" : {},
+    "Fetching…" : {},
     "File not found on the server (404)" : {
       "localizations" : {
         "en" : {
@@ -4633,6 +4559,28 @@
         }
       }
     },
+    "Filter URLs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter URLs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筛选 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選 URL"
+          }
+        }
+      }
+    },
     "Filter messages" : {
       "localizations" : {
         "en" : {
@@ -4673,98 +4621,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "篩選訊息…"
-          }
-        }
-      }
-    },
-    "Filter URLs" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filter URLs"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "筛选 URL"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "篩選 URL"
-          }
-        }
-      }
-    },
-    "Find in Page" : {
-      "comment" : "Keyboard shortcut",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find in Page"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在页面中查找"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在頁面中尋找"
-          }
-        }
-      }
-    },
-    "Find in page…" : {
-      "comment" : "Find in page placeholder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find in page…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在页面中查找…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在頁面中查找…"
-          }
-        }
-      }
-    },
-    "Find in Page…" : {
-      "comment" : "Edit menu",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find in Page…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在页面中查找…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在頁面中查找…"
           }
         }
       }
@@ -4813,6 +4669,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尋找上一個"
+          }
+        }
+      }
+    },
+    "Find in Page" : {
+      "comment" : "Keyboard shortcut",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find in Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面中查找"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面中尋找"
+          }
+        }
+      }
+    },
+    "Find in Page…" : {
+      "comment" : "Edit menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find in Page…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面中查找…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面中查找…"
+          }
+        }
+      }
+    },
+    "Find in page…" : {
+      "comment" : "Find in page placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find in page…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面中查找…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面中查找…"
           }
         }
       }
@@ -5139,28 +5065,6 @@
         }
       }
     },
-    "Group by" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Group by"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分组方式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分組方式"
-          }
-        }
-      }
-    },
     "Group Name" : {
       "localizations" : {
         "en" : {
@@ -5179,6 +5083,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "群組名稱"
+          }
+        }
+      }
+    },
+    "Group by" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group by"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分组方式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分組方式"
           }
         }
       }
@@ -5206,8 +5132,31 @@
         }
       }
     },
-    "H" : {
-
+    "H" : {},
+    "HTML" : {},
+    "HTTPS Upgrade" : {
+      "comment" : "Settings toggle",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS Upgrade"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS 升级"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS 升級"
+          }
+        }
+      }
     },
     "Hide" : {
       "localizations" : {
@@ -5391,39 +5340,7 @@
         }
       }
     },
-    "HTML" : {
-
-    },
-    "http://127.0.0.1:3000/mcp" : {
-
-    },
-    "HttpOnly" : {
-
-    },
-    "HTTPS Upgrade" : {
-      "comment" : "Settings toggle",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HTTPS Upgrade"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HTTPS 升级"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HTTPS 升級"
-          }
-        }
-      }
-    },
+    "HttpOnly" : {},
     "I'm looking at this page and want to ask:" : {
       "localizations" : {
         "en" : {
@@ -5787,6 +5704,29 @@
         }
       }
     },
+    "JS" : {},
+    "JS: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JS: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JS: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JS: %@"
+          }
+        }
+      }
+    },
     "JavaScript Code" : {
       "comment" : "Plugin editor JS code label",
       "localizations" : {
@@ -5806,31 +5746,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JavaScript 程式碼"
-          }
-        }
-      }
-    },
-    "JS" : {
-
-    },
-    "JS: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JS: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JS: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "JS: %@"
           }
         }
       }
@@ -5994,24 +5909,25 @@
         }
       }
     },
-    "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
+    "MCP Servers" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds."
+            "value" : "MCP Servers"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 无法完成 TLS 握手。常见原因：系统日期/时间不正确、根证书过期（请运行软件更新），或防火墙/VPN 篡改 TLS。请稍后重新加载。"
+            "value" : "MCP 服务器"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 無法完成 TLS 交握。常見原因：系統日期/時間不正確、根憑證過期（請執行軟體更新），或防火牆/VPN 竄改 TLS。請稍後重新載入。"
+            "value" : "MCP 伺服器"
           }
         }
       }
@@ -6106,29 +6022,6 @@
         }
       }
     },
-    "MCP Servers" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MCP Servers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MCP 服务器"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MCP 伺服器"
-          }
-        }
-      }
-    },
     "Media Device" : {
       "comment" : "Fallback media device name",
       "localizations" : {
@@ -6219,6 +6112,16 @@
         }
       }
     },
+    "Memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆"
+          }
+        }
+      }
+    },
     "Method" : {
       "localizations" : {
         "en" : {
@@ -6264,9 +6167,7 @@
         }
       }
     },
-    "Models" : {
-
-    },
+    "Models" : {},
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
       "localizations" : {
@@ -6359,28 +6260,6 @@
         }
       }
     },
-    "Navigate to ~/Library/Safari/ and select Bookmarks.plist" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Navigate to ~/Library/Safari/ and select Bookmarks.plist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前往 ~/Library/Safari/ 并选择 Bookmarks.plist"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前往 ~/Library/Safari/ 並選擇 Bookmarks.plist"
-          }
-        }
-      }
-    },
     "Navigate to Chrome's profile folder and select Bookmarks" : {
       "localizations" : {
         "en" : {
@@ -6399,6 +6278,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前往 Chrome 的設定檔資料夾並選擇 Bookmarks"
+          }
+        }
+      }
+    },
+    "Navigate to ~/Library/Safari/ and select Bookmarks.plist" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Navigate to ~/Library/Safari/ and select Bookmarks.plist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往 ~/Library/Safari/ 并选择 Bookmarks.plist"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往 ~/Library/Safari/ 並選擇 Bookmarks.plist"
           }
         }
       }
@@ -6422,29 +6323,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "永不"
-          }
-        }
-      }
-    },
-    "New container name" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New container name"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新容器名称"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新容器名稱"
           }
         }
       }
@@ -6631,6 +6509,39 @@
         }
       }
     },
+    "New chat" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新对话"
+          }
+        }
+      }
+    },
+    "New container name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New container name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新容器名称"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新容器名稱"
+          }
+        }
+      }
+    },
     "Next" : {
       "comment" : "Next match button",
       "localizations" : {
@@ -6673,28 +6584,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一個標籤頁"
-          }
-        }
-      }
-    },
-    "No application can open this link" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No application can open this link"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可以打开此链接的应用"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有可以打開此連結的應用程式"
           }
         }
       }
@@ -6768,95 +6657,6 @@
         }
       }
     },
-    "No containers" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No containers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无容器"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無容器"
-          }
-        }
-      }
-    },
-    "No containers — create one in Settings > Tabs" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No containers — create one in Settings > Tabs"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无容器——请在设置 > 标签页中创建"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無容器——請在設定 > 分頁中建立"
-          }
-        }
-      }
-    },
-    "No containers yet. Add one below to start isolating sessions." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No containers yet. Add one below to start isolating sessions."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有容器。在下方添加即可开始隔离会话。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有容器。在下方新增即可開始隔離工作階段。"
-          }
-        }
-      }
-    },
-    "No conversations yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No conversations yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無對話"
-          }
-        }
-      }
-    },
     "No Cookies" : {
       "localizations" : {
         "en" : {
@@ -6875,74 +6675,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫無 Cookie"
-          }
-        }
-      }
-    },
-    "No custom engines" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No custom engines"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无自定义引擎"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無自訂搜尋引擎"
-          }
-        }
-      }
-    },
-    "No custom search engines" : {
-      "comment" : "Empty custom engines state",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No custom search engines"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无自定义搜索引擎"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無自訂搜尋引擎"
-          }
-        }
-      }
-    },
-    "No custom search engines. Add one to use a private engine." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No custom search engines. Add one to use a private engine."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无自定义搜索引擎。添加一个即可使用私有引擎。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無自訂搜尋引擎。新增一個即可使用私人引擎。"
           }
         }
       }
@@ -7016,28 +6748,6 @@
         }
       }
     },
-    "No internet connection" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No internet connection"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无网络连接"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無網路連線"
-          }
-        }
-      }
-    },
     "No Internet Connection" : {
       "localizations" : {
         "en" : {
@@ -7056,6 +6766,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無網路連線"
+          }
+        }
+      }
+    },
+    "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未配置 MCP 服务器。添加一个 Streamable HTTP 端点（如本地 mcp-proxy）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未設定 MCP 伺服器。新增一個 Streamable HTTP 端點（如本地 mcp-proxy）。"
           }
         }
       }
@@ -7079,28 +6811,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到匹配書籤"
-          }
-        }
-      }
-    },
-    "No matching conversations" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No matching conversations"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有匹配的对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有符合的對話"
           }
         }
       }
@@ -7150,50 +6860,6 @@
         }
       }
     },
-    "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚未配置 MCP 服务器。添加一个 Streamable HTTP 端点（如本地 mcp-proxy）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚未設定 MCP 伺服器。新增一個 Streamable HTTP 端點（如本地 mcp-proxy）。"
-          }
-        }
-      }
-    },
-    "No media queries found" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No media queries found"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未找到媒体查询"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未找到媒體查詢"
-          }
-        }
-      }
-    },
     "No Plugins" : {
       "comment" : "Empty plugins state",
       "localizations" : {
@@ -7213,50 +6879,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫無外掛"
-          }
-        }
-      }
-    },
-    "No readable content found" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No readable content found"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未找到可读内容"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未找到可讀內容"
-          }
-        }
-      }
-    },
-    "No results for \"%@\"" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No results for \"%@\""
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有“%@”的结果"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有「%@」的結果"
           }
         }
       }
@@ -7306,6 +6928,317 @@
         }
       }
     },
+    "No Search History" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Search History"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无搜索历史"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無搜尋紀錄"
+          }
+        }
+      }
+    },
+    "No application can open this link" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No application can open this link"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可以打开此链接的应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可以打開此連結的應用程式"
+          }
+        }
+      }
+    },
+    "No containers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No containers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无容器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無容器"
+          }
+        }
+      }
+    },
+    "No containers yet. Add one below to start isolating sessions." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No containers yet. Add one below to start isolating sessions."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有容器。在下方添加即可开始隔离会话。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有容器。在下方新增即可開始隔離工作階段。"
+          }
+        }
+      }
+    },
+    "No containers — create one in Settings > Tabs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No containers — create one in Settings > Tabs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无容器——请在设置 > 标签页中创建"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無容器——請在設定 > 分頁中建立"
+          }
+        }
+      }
+    },
+    "No conversations yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No conversations yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無對話"
+          }
+        }
+      }
+    },
+    "No custom engines" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No custom engines"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无自定义引擎"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無自訂搜尋引擎"
+          }
+        }
+      }
+    },
+    "No custom search engines" : {
+      "comment" : "Empty custom engines state",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No custom search engines"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无自定义搜索引擎"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無自訂搜尋引擎"
+          }
+        }
+      }
+    },
+    "No custom search engines. Add one to use a private engine." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No custom search engines. Add one to use a private engine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无自定义搜索引擎。添加一个即可使用私有引擎。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無自訂搜尋引擎。新增一個即可使用私人引擎。"
+          }
+        }
+      }
+    },
+    "No internet connection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No internet connection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无网络连接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無網路連線"
+          }
+        }
+      }
+    },
+    "No matching conversations" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合的對話"
+          }
+        }
+      }
+    },
+    "No media queries found" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No media queries found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到媒体查询"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到媒體查詢"
+          }
+        }
+      }
+    },
+    "No readable content found" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readable content found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到可读内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到可讀內容"
+          }
+        }
+      }
+    },
+    "No results for \"%@\"" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No results for \"%@\""
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有“%@”的结果"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有「%@」的結果"
+          }
+        }
+      }
+    },
     "No saved permission settings" : {
       "comment" : "Empty permissions state",
       "localizations" : {
@@ -7325,28 +7258,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有儲存的權限設定"
-          }
-        }
-      }
-    },
-    "No Search History" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Search History"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无搜索历史"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無搜尋紀錄"
           }
         }
       }
@@ -7396,6 +7307,28 @@
         }
       }
     },
+    "Not Now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不"
+          }
+        }
+      }
+    },
     "Not found" : {
       "comment" : "Find in page no results",
       "localizations" : {
@@ -7415,28 +7348,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到"
-          }
-        }
-      }
-    },
-    "Not Now" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not Now"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂不"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫不"
           }
         }
       }
@@ -7483,6 +7394,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確定"
+          }
+        }
+      }
+    },
+    "Older" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更早"
           }
         }
       }
@@ -7576,54 +7497,6 @@
         }
       }
     },
-    "Open in Container" : {
-
-    },
-    "Open in New Tab" : {
-      "comment" : "Context menu: open in new tab",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open in New Tab"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在新标签页中打开"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在新標籤頁中開啟"
-          }
-        }
-      }
-    },
-    "Open in Safari" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open in Safari"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Safari 中打开"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Safari 中開啟"
-          }
-        }
-      }
-    },
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
       "localizations" : {
@@ -7666,6 +7539,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟設定…"
+          }
+        }
+      }
+    },
+    "Open in Container" : {},
+    "Open in New Tab" : {
+      "comment" : "Context menu: open in new tab",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in New Tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新标签页中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新標籤頁中開啟"
+          }
+        }
+      }
+    },
+    "Open in Safari" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Safari"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Safari 中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Safari 中開啟"
           }
         }
       }
@@ -7984,6 +7903,28 @@
         }
       }
     },
+    "Pick Element" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick Element"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选取元素"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取元素"
+          }
+        }
+      }
+    },
     "Pick color…" : {
       "comment" : "Screenshot toolbar: open system color picker",
       "localizations" : {
@@ -8003,28 +7944,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取顏色…"
-          }
-        }
-      }
-    },
-    "Pick Element" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick Element"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选取元素"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選取元素"
           }
         }
       }
@@ -8282,6 +8201,16 @@
         }
       }
     },
+    "Queue message" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排队发送"
+          }
+        }
+      }
+    },
     "Quick actions" : {
       "localizations" : {
         "en" : {
@@ -8300,6 +8229,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速操作"
+          }
+        }
+      }
+    },
+    "Re-run the last message" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新执行上一条消息"
           }
         }
       }
@@ -8555,6 +8494,16 @@
         }
       }
     },
+    "Regenerate" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成"
+          }
+        }
+      }
+    },
     "Reload" : {
       "comment" : "Reload button",
       "localizations" : {
@@ -8669,24 +8618,24 @@
         }
       }
     },
-    "Remove from always-allowed" : {
+    "Remove Key" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Remove from always-allowed"
+            "value" : "Remove Key"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从始终允许列表中移除"
+            "value" : "移除键"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從永遠允許清單中移除"
+            "value" : "移除按鍵"
           }
         }
       }
@@ -8737,24 +8686,24 @@
         }
       }
     },
-    "Remove Key" : {
+    "Remove from always-allowed" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Remove Key"
+            "value" : "Remove from always-allowed"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除键"
+            "value" : "从始终允许列表中移除"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除按鍵"
+            "value" : "從永遠允許清單中移除"
           }
         }
       }
@@ -8917,28 +8866,6 @@
         }
       }
     },
-    "Reset to default" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset to default"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢复默认"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回復預設"
-          }
-        }
-      }
-    },
     "Reset Zoom" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -8958,6 +8885,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置縮放"
+          }
+        }
+      }
+    },
+    "Reset to default" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset to default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回復預設"
           }
         }
       }
@@ -9029,9 +8978,7 @@
         }
       }
     },
-    "Restore Archived Session…" : {
-
-    },
+    "Restore Archived Session…" : {},
     "Restore this session?" : {
       "localizations" : {
         "en" : {
@@ -9210,6 +9157,16 @@
         }
       }
     },
+    "Runs code" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会执行代码"
+          }
+        }
+      }
+    },
     "Safari Extensions" : {
       "localizations" : {
         "en" : {
@@ -9232,8 +9189,16 @@
         }
       }
     },
-    "Safari Web Inspector" : {
-
+    "Safari Web Inspector" : {},
+    "Safe (read-only)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全（只读）"
+          }
+        }
+      }
     },
     "Save" : {
       "comment" : "Save button",
@@ -9254,28 +9219,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
-          }
-        }
-      }
-    },
-    "Save as PDF" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save as PDF"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存储为 PDF"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存為 PDF"
           }
         }
       }
@@ -9392,9 +9335,29 @@
         }
       }
     },
-    "Save this endpoint + model configuration" : {
-
+    "Save as PDF" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save as PDF"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储为 PDF"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存為 PDF"
+          }
+        }
+      }
     },
+    "Save this endpoint + model configuration" : {},
     "Saved to %@" : {
       "comment" : "Toast: screenshot saved to a file (filename substituted for %@)",
       "localizations" : {
@@ -9579,28 +9542,6 @@
         }
       }
     },
-    "Search “%@”" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search “%@”"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索“%@”"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋「%@」"
-          }
-        }
-      }
-    },
     "Search Again" : {
       "localizations" : {
         "en" : {
@@ -9642,50 +9583,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋書籤…"
-          }
-        }
-      }
-    },
-    "Search conversations" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search conversations"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋對話"
-          }
-        }
-      }
-    },
-    "Search cookies…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search cookies…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索 Cookie…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋 Cookie…"
           }
         }
       }
@@ -9802,119 +9699,6 @@
         }
       }
     },
-    "Search in %@ for '%@'" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Search in %1$@ for '%2$@'"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 %@ 中搜索“%@”"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 %@ 中搜尋「%@」"
-          }
-        }
-      }
-    },
-    "Search in %@ for %@" : {
-      "comment" : "Address suggestion search format: engine name, query",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search in %1 for '%2'"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在%1中搜索「%2」"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在%1中搜尋「%2」"
-          }
-        }
-      }
-    },
-    "Search in history..." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search in history..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索历史记录..."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋歷史紀錄..."
-          }
-        }
-      }
-    },
-    "Search or enter address" : {
-      "comment" : "URL bar placeholder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search or enter address"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索或输入网址"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋或輸入網址"
-          }
-        }
-      }
-    },
-    "Search shortcuts…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search shortcuts…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索快捷键…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋快速鍵…"
-          }
-        }
-      }
-    },
     "Search Tabs" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -10007,12 +9791,191 @@
         }
       }
     },
-    "Secure connection failed" : {
+    "Search conversations" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Secure connection failed"
+            "value" : "Search conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋對話"
+          }
+        }
+      }
+    },
+    "Search cookies…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search cookies…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 Cookie…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋 Cookie…"
+          }
+        }
+      }
+    },
+    "Search in %@ for %@" : {
+      "comment" : "Address suggestion search format: engine name, query",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search in %1 for '%2'"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在%1中搜索「%2」"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在%1中搜尋「%2」"
+          }
+        }
+      }
+    },
+    "Search in %@ for '%@'" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Search in %1$@ for '%2$@'"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 中搜索“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 中搜尋「%@」"
+          }
+        }
+      }
+    },
+    "Search in history..." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search in history..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索历史记录..."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋歷史紀錄..."
+          }
+        }
+      }
+    },
+    "Search or enter address" : {
+      "comment" : "URL bar placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search or enter address"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索或输入网址"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋或輸入網址"
+          }
+        }
+      }
+    },
+    "Search shortcuts…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search shortcuts…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索快捷键…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋快速鍵…"
+          }
+        }
+      }
+    },
+    "Search “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search “%@”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋「%@」"
+          }
+        }
+      }
+    },
+    "Secure Connection Failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Connection Failed"
           }
         },
         "zh-Hans" : {
@@ -10029,12 +9992,12 @@
         }
       }
     },
-    "Secure Connection Failed" : {
+    "Secure connection failed" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Secure Connection Failed"
+            "value" : "Secure connection failed"
           }
         },
         "zh-Hans" : {
@@ -10230,6 +10193,28 @@
         }
       }
     },
+    "Server Unreachable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server Unreachable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器无法访问"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伺服器無法連線"
+          }
+        }
+      }
+    },
     "Server error (%lld)" : {
       "localizations" : {
         "en" : {
@@ -10318,31 +10303,7 @@
         }
       }
     },
-    "Server Unreachable" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server Unreachable"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服务器无法访问"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "伺服器無法連線"
-          }
-        }
-      }
-    },
-    "Service Worker: %@" : {
-
-    },
+    "Service Worker: %@" : {},
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -10366,28 +10327,6 @@
         }
       }
     },
-    "Set as Default…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set as Default…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设为默认…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設為預設…"
-          }
-        }
-      }
-    },
     "Set Desire as your default browser to open http and https links." : {
       "localizations" : {
         "en" : {
@@ -10406,6 +10345,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將 Desire 設為預設瀏覽器以開啟 http 和 https 連結。"
+          }
+        }
+      }
+    },
+    "Set as Default…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set as Default…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为默认…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設為預設…"
           }
         }
       }
@@ -10546,29 +10507,6 @@
         }
       }
     },
-    "Show in Finder" : {
-      "comment" : "Reveal file in Finder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show in Finder"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Finder 中显示"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Finder 中顯示"
-          }
-        }
-      }
-    },
     "Show Original" : {
       "localizations" : {
         "en" : {
@@ -10634,6 +10572,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示搜尋建議"
+          }
+        }
+      }
+    },
+    "Show in Finder" : {
+      "comment" : "Reveal file in Finder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中顯示"
           }
         }
       }
@@ -10797,6 +10758,16 @@
         }
       }
     },
+    "Stop (Esc)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止 (Esc)"
+          }
+        }
+      }
+    },
     "Stop generation" : {
       "localizations" : {
         "en" : {
@@ -10820,26 +10791,11 @@
       }
     },
     "Stop listening" : {
-
-    },
-    "streaming" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "streaming"
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在流式输出"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在串流輸出"
+            "value" : "停止听写"
           }
         }
       }
@@ -10889,12 +10845,8 @@
         }
       }
     },
-    "Summarize Chat" : {
-
-    },
-    "Summarize Comments" : {
-
-    },
+    "Summarize Chat" : {},
+    "Summarize Comments" : {},
     "Summarize the current page in detail" : {
       "localizations" : {
         "en" : {
@@ -11234,28 +11186,6 @@
         }
       }
     },
-    "the external application" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the external application"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "外部应用"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "外部應用程式"
-          }
-        }
-      }
-    },
     "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test." : {
       "localizations" : {
         "en" : {
@@ -11368,6 +11298,51 @@
         }
       }
     },
+    "This Month" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Month"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月"
+          }
+        }
+      }
+    },
+    "This Week" : {
+      "comment" : "History section header",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Week"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本周"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本週"
+          }
+        }
+      }
+    },
     "This connection is encrypted with HTTPS" : {
       "comment" : "HTTPS encryption description",
       "localizations" : {
@@ -11410,28 +11385,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此連線未加密"
-          }
-        }
-      }
-    },
-    "This Month" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Month"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本月"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本月"
           }
         }
       }
@@ -11502,9 +11455,7 @@
         }
       }
     },
-    "This removes all cookies and site data of the container. Websites will log you out." : {
-
-    },
+    "This removes all cookies and site data of the container. Websites will log you out." : {},
     "This shortcut conflicts with: %@" : {
       "localizations" : {
         "en" : {
@@ -11523,29 +11474,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此快速鍵與以下衝突：%@"
-          }
-        }
-      }
-    },
-    "This Week" : {
-      "comment" : "History section header",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Week"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本周"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本週"
           }
         }
       }
@@ -11886,6 +11814,75 @@
         }
       }
     },
+    "URL" : {
+      "comment" : "Bookmark URL field label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地址"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網址"
+          }
+        }
+      }
+    },
+    "URL Match Patterns (one per line)" : {
+      "comment" : "Plugin editor URL patterns label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL Match Patterns (one per line)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 匹配模式（每行一个）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 匹配模式（每行一個）"
+          }
+        }
+      }
+    },
+    "URL Pattern (e.g. example.com, * for all)" : {
+      "comment" : "Add rule URL pattern placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL Pattern (e.g. example.com, * for all)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 模式（如 example.com, * 为全部）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 模式（如 example.com, * 為全部）"
+          }
+        }
+      }
+    },
     "Undo" : {
       "comment" : "Undo button",
       "localizations" : {
@@ -11999,81 +11996,8 @@
         }
       }
     },
-    "URL" : {
-      "comment" : "Bookmark URL field label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "地址"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "網址"
-          }
-        }
-      }
-    },
-    "URL Match Patterns (one per line)" : {
-      "comment" : "Plugin editor URL patterns label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL Match Patterns (one per line)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL 匹配模式（每行一个）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL 匹配模式（每行一個）"
-          }
-        }
-      }
-    },
-    "URL Pattern (e.g. example.com, * for all)" : {
-      "comment" : "Add rule URL pattern placeholder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL Pattern (e.g. example.com, * for all)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL 模式（如 example.com, * 为全部）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL 模式（如 example.com, * 為全部）"
-          }
-        }
-      }
-    },
-    "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment." : {
-
-    },
-    "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send." : {
-
-    },
+    "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment." : {},
+    "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send." : {},
     "Username: %@" : {
       "localizations" : {
         "en" : {
@@ -12096,9 +12020,6 @@
         }
       }
     },
-    "v%@" : {
-
-    },
     "Version" : {
       "comment" : "Plugin version field label",
       "localizations" : {
@@ -12118,28 +12039,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "版本"
-          }
-        }
-      }
-    },
-    "via %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "via %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "经 %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "透過 %@"
           }
         }
       }
@@ -12168,11 +12067,16 @@
       }
     },
     "Voice input" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语音输入"
+          }
+        }
+      }
     },
-    "W" : {
-
-    },
+    "W" : {},
     "Warn" : {
       "localizations" : {
         "en" : {
@@ -12265,21 +12169,11 @@
         }
       }
     },
-    "Wipe container data?" : {
-
-    },
-    "Wipe data" : {
-
-    },
-    "Wipe Data" : {
-
-    },
-    "X" : {
-
-    },
-    "XHR" : {
-
-    },
+    "Wipe Data" : {},
+    "Wipe container data?" : {},
+    "Wipe data" : {},
+    "X" : {},
+    "XHR" : {},
     "XPath (optional)" : {
       "comment" : "Add rule XPath placeholder",
       "localizations" : {
@@ -12303,9 +12197,7 @@
         }
       }
     },
-    "XPath:" : {
-
-    },
+    "XPath:" : {},
     "Yellow" : {
       "comment" : "Screenshot palette color: yellow",
       "localizations" : {
@@ -12443,6 +12335,167 @@
         }
       }
     },
+    "by %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "by %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 %@"
+          }
+        }
+      }
+    },
+    "disabled" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "disabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用"
+          }
+        }
+      }
+    },
+    "http://127.0.0.1:3000/mcp" : {},
+    "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 无法完成 TLS 握手。常见原因：系统日期/时间不正确、根证书过期（请运行软件更新），或防火墙/VPN 篡改 TLS。请稍后重新加载。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 無法完成 TLS 交握。常見原因：系統日期/時間不正確、根憑證過期（請執行軟體更新），或防火牆/VPN 竄改 TLS。請稍後重新載入。"
+          }
+        }
+      }
+    },
+    "streaming" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "streaming"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在流式输出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在串流輸出"
+          }
+        }
+      }
+    },
+    "the external application" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the external application"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部應用程式"
+          }
+        }
+      }
+    },
+    "v%@" : {},
+    "via %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "via %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "经 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 %@"
+          }
+        }
+      }
+    },
+    "·" : {},
+    "×" : {},
+    "•" : {},
+    "• %@" : {},
+    "← Exit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← Exit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← 退出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← 退出"
+          }
+        }
+      }
+    },
     "优酷" : {
       "localizations" : {
         "en" : {
@@ -12487,9 +12540,7 @@
         }
       }
     },
-    "列表由 EasyList 社区维护，每 7 天自动更新" : {
-
-    },
+    "列表由 EasyList 社区维护，每 7 天自动更新" : {},
     "删除" : {
       "localizations" : {
         "en" : {
@@ -12556,12 +12607,8 @@
         }
       }
     },
-    "常驻能力" : {
-
-    },
-    "搜索工具" : {
-
-    },
+    "常驻能力" : {},
+    "搜索工具" : {},
     "搜索或输入网址" : {
       "localizations" : {
         "en" : {
@@ -12606,15 +12653,9 @@
         }
       }
     },
-    "正在聆听… 说话即可" : {
-
-    },
-    "没有匹配的工具" : {
-
-    },
-    "浏览器工具" : {
-
-    },
+    "正在聆听… 说话即可" : {},
+    "没有匹配的工具" : {},
+    "浏览器工具" : {},
     "添加" : {
       "localizations" : {
         "en" : {
@@ -12659,31 +12700,7 @@
         }
       }
     },
-    "视频" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "视频"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "视频"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "影片"
-          }
-        }
-      }
-    },
-    "立即更新全部" : {
-
-    },
+    "立即更新全部" : {},
     "编辑" : {
       "localizations" : {
         "en" : {
@@ -12768,6 +12785,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "芒果TV"
+          }
+        }
+      }
+    },
+    "视频" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片"
+          }
+        }
+      }
+    },
+    "（已快进）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已快进）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已快进）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已快轉）"
+          }
+        }
+      }
+    },
+    "（已跳过）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已跳过）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已跳过）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已跳過）"
           }
         }
       }

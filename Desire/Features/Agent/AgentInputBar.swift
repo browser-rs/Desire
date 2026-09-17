@@ -284,7 +284,7 @@ struct AgentInputBar: View {
     // MARK: - Computed
 
     private var placeholder: String {
-        awaitingQuestion ? "Ask about this page…" : "Ask Agent…"
+        awaitingQuestion ? String(localized: "Ask about this page…") : String(localized: "Ask Agent…")
     }
 
     private var borderColor: Color {

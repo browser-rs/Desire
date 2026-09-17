@@ -296,6 +296,8 @@ class AgentPreferenceStore: ObservableObject {
 - newTab(url) — 新标签页打开网址
 - listTabs — 列出所有打开的标签页
 - closeOtherTabs / reopenLastClosedTab / duplicateTab — 关闭其他标签 / 恢复刚关闭的标签 / 复制当前标签
+- scheduleTask(name, prompt, everyMinutes 或 dailyAt) — 创建定时任务（定时任务到期自动执行）；listScheduledTasks 查看，cancelScheduledTask 取消
+- spawnSubagent(task) — 派发独立子代理执行自包含子任务（深度调研/多页提取），只返回总结报告，不占本对话上下文
 
 ## 注意事项
 - 用户说"打开bilibili"就是导航到 bilibili.com，不要去读取页面源码

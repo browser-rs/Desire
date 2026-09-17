@@ -719,7 +719,14 @@ class AgentSessionStore: ObservableObject {
                 }
 
                 currentAction = tc.function.name
-                let result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                let result: String
+                if tc.function.name == "spawnSubagent" {
+                    // Subagents run here, not in BrowserToolProvider — they
+                    // need the loop's approval gate and provider stack.
+                    result = await runSubagent(argumentsJSON: tc.function.arguments)
+                } else {
+                    result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                }
                 messages.append(AgentMessage(
                     role: .tool,
                     content: result,
@@ -747,6 +754,119 @@ class AgentSessionStore: ObservableObject {
             saveCurrentConversation()
         }
     }
+
+    // MARK: - Subagent
+
+    /// Runs a delegated sub-task in a fresh, ephemeral context: its own
+    /// message array and step cap, but the same tools, approval gate, and
+    /// provider stack. Only the final report returns to the parent — deep
+    /// research fills the subagent's context, not the main conversation's.
+    /// The subagent transcript is not persisted.
+    private func runSubagent(argumentsJSON: String) async -> String {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let task = (args["task"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !task.isEmpty else {
+            return "Missing task"
+        }
+        let requestedSteps = args["maxSteps"] as? Int ?? 10
+        let maxSubIterations = max(3, min(requestedSteps, 15))
+
+        let pageContext = await fetchCompactPageContext()
+        let composed = AgentPromptBuilder.compose(.init(
+            identity: Self.subagentIdentity,
+            memoryBlock: nil,
+            skills: SkillStore.shared.skills.map { ($0.name, $0.description) },
+            workspacePath: SystemCommandStore.shared.workingDirectory.path,
+            pageContext: pageContext
+        ))
+        var subMessages: [AgentMessage] = [
+            AgentMessage(role: .system, content: composed),
+            AgentMessage(role: .user, content: task),
+        ]
+
+        let outerAction = currentAction
+        defer { currentAction = outerAction }
+
+        for _ in 0..<maxSubIterations {
+            if isCancelled { return "[Cancelled]" }
+            await waitWhilePaused()
+
+            var assistant = AgentMessage(role: .assistant, content: "")
+            do {
+                let active = makeActiveProvider()
+                // No recursion: the subagent cannot spawn subagents.
+                let stream = active.provider.stream(
+                    messages: subMessages,
+                    tools: BrowserToolProvider.toolDefs.filter { $0.function.name != "spawnSubagent" }
+                        + MCPStore.shared.toolDefs,
+                    prefs: preference
+                )
+                for try await event in stream {
+                    if isCancelled { return "[Cancelled]" }
+                    switch event {
+                    case .text(let delta):
+                        assistant.content = (assistant.content ?? "") + delta
+                    case .toolCall(let call):
+                        assistant.toolCalls = (assistant.toolCalls ?? []) + [call]
+                    case .usage:
+                        break
+                    }
+                }
+            } catch {
+                return "Subagent stream failed: \(error.localizedDescription)"
+            }
+            subMessages.append(assistant)
+
+            guard let tcs = assistant.toolCalls, !tcs.isEmpty else {
+                let report = (assistant.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return report.isEmpty ? "Subagent finished without a report." : String(report.prefix(4000))
+            }
+
+            for tc in tcs {
+                if isCancelled { return "[Cancelled]" }
+                await waitWhilePaused()
+                let decision = await gate(toolCall: tc, risk: ToolRisk.classify(tc.function.name))
+                switch decision {
+                case .denied:
+                    subMessages.append(AgentMessage(
+                        role: .tool,
+                        content: "[User denied this action.]",
+                        toolCallId: tc.id,
+                        toolName: tc.function.name
+                    ))
+                    continue
+                case .allowedOnce, .allowedAlways:
+                    break
+                }
+                // Live status in the parent panel: the user sees which
+                // inner tool the subagent is on.
+                currentAction = "subagent · \(tc.function.name)"
+                let result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                subMessages.append(AgentMessage(
+                    role: .tool,
+                    content: String(result.prefix(8000)),
+                    toolCallId: tc.id,
+                    toolName: tc.function.name
+                ))
+            }
+            currentAction = outerAction
+        }
+
+        let partial = subMessages.last(where: { $0.role == .assistant })?.content ?? ""
+        return "Subagent hit its step cap (\(maxSubIterations)). Partial result: \(partial.prefix(600))"
+    }
+
+    private static let subagentIdentity = """
+    You are a focused SUB-AGENT executing one delegated task autonomously. \
+    You have the same browser/file/command tools as the main agent, but the \
+    user sees only your FINAL message — make it the complete report. Rules:
+    - Work only on the delegated task.
+    - You cannot ask the user questions; make reasonable assumptions and note them.
+    - When done, reply with the final report (facts found, actions taken, \
+    file paths written, anything the main agent must know). Do not call more \
+    tools once the report is ready.
+    """
 
     /// Replaces the truncated-first-message title with a proper generated
     /// one, once per conversation.

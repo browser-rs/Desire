@@ -162,6 +162,13 @@ extension BrowserToolProvider {
                 ], required: ["name"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "spawnSubagent", description: "Delegate a SELF-CONTAINED sub-task to a fresh sub-agent with its own context window (same tools, same approvals). Only its final report returns to you — use for deep research, multi-page extraction, or long verification work that would flood this conversation with tool output. The prompt must be complete (goal, pages to visit, what to report). The subagent cannot ask the user questions; it cannot call spawnSubagent itself.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "task": AgentJSONSchemaValue(type: "string", description: "Complete sub-task instructions, e.g. \"Open these 3 URLs, extract price and rating for each, return a comparison table\""),
+                    "maxSteps": AgentJSONSchemaValue(type: "number", description: "Max tool-loop steps for the subagent (default 10, cap 15)"),
+                ], required: ["task"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "downloadMedia", description: "Download a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Pair with listPageVideos: extract, confirm with the user which one, then download. The tool call blocks until the export finishes.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),

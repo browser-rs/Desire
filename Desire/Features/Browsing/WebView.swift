@@ -664,6 +664,8 @@ struct WebView: NSViewRepresentable {
             if parent.httpsUpgradeEnabled,
                url.scheme == "http",
                navigationAction.targetFrame?.isMainFrame == true,
+               // Loopback has no TLS server — upgrading hangs forever.
+               !["127.0.0.1", "localhost", "::1"].contains(url.host ?? ""),
                !fallbackInProgress.contains(url.absoluteString),
                navigationAction.navigationType == .other ||
                navigationAction.navigationType == .linkActivated ||

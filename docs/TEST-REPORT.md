@@ -257,3 +257,22 @@ MCP 鉴权、快捷键多窗口隔离、webview 泄漏、会话恢复、缩放�
 ### 桥新增
 - GET /mcp — 服务器状态 + 桥接工具清单
 - GET /downloads — 下载列表（需先加 DownloadStore.live 弱注册）
+
+## 第十三轮：回归套件落地 + loopback HTTPS 升级修复
+
+### 新增 tools/regression.py — 一条命令跑全套回归（13 用例）
+脚本自包含：写 MCP 配置、起本地 MCP/文件测试服务器、带 --automation
+重启应用、跑 13 个用例、PASS/FAIL 汇总。覆盖：基线状态、搜索解析、
+本地页加载、页面文本、MCP 就绪、Agent MCP 工具、审批浮现+自动批准、
+runCommand 结果、下载完成、无痕隔离、无痕标记、截图、后退导航。
+
+### 修复：HTTPS 升级误伤 loopback（真产品 bug）
+http://127.0.0.1/localhost 被强制升级 https 后打到无 TLS 的本地服务
+（开发服务器场景！）→ TLS 握手挂死 → 永久 isLoading + 白屏。现在
+loopback 主机永不被升级。本地开发场景恢复正常。
+
+### 诊断端点
+GET /settings — 应用视角的配置可见性（searchEngine 等），用于排查
+"设置丢失"类问题（本轮证实搜索解析失败是时序竞态而非配置丢失）。
+
+### 结果：13/13 PASS（含此前所有修复的回归）

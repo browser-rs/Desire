@@ -169,6 +169,12 @@ final class AutomationServer {
                 return try Self.json(Self.resolvePendingApproval(
                     Self.string(body, "decision") ?? ""
                 ))
+            case ("GET", "/settings"):
+                let st = Settings()
+                return try Self.json([
+                    "searchEngine": st.searchEngine.rawValue,
+                    "httpsUpgradeEnabled": st.httpsUpgradeEnabled,
+                ])
             case ("GET", "/mcp"):
                 let store = MCPStore.shared
                 let servers = store.servers.map { server -> [String: Any] in

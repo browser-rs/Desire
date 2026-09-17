@@ -146,10 +146,21 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .frame(width: responsiveW, height: responsiveH)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    // Overlays attach to the DEVICE-SIZED
+                                    // frame — attaching after the infinity
+                                    // frame left handles/rulers floating in
+                                    // the empty space while the viewport sat
+                                    // centered.
                                     .overlay {
                                         if tab.responsiveConfig.isEnabled {
                                             DeviceFrameOverlay(config: tab.responsiveConfig, viewportSize: effectiveSize)
+                                        }
+                                    }
+                                    .overlay {
+                                        if tab.responsiveConfig.isEnabled,
+                                           let error = tab.browser.lastError {
+                                            ErrorPageView(error: error, tab: tab)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                         }
                                     }
                                     .overlay {
@@ -165,6 +176,7 @@ struct SelectedTabContent: View {
                                             RulerOverlay(viewportSize: effectiveSize)
                                         }
                                     }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .onChange(of: tab.responsiveConfig.touchSimulationEnabled) { _, enabled in
                                         if enabled {
                                             TouchSimulation.apply(to: tab.browser.webView)

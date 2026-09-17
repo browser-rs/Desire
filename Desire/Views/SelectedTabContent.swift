@@ -172,6 +172,12 @@ struct SelectedTabContent: View {
                                             TouchSimulation.remove(from: tab.browser.webView)
                                         }
                                     }
+                                    .onChange(of: tab.responsiveConfig.isEnabled) { _, enabled in
+                                        // UA swap + reload: the single funnel so
+                                        // every enable/disable entry point behaves
+                                        // identically (menu, toolbar, agent tool).
+                                        ResponsiveModeApplier.apply(enabled, to: tab)
+                                    }
                                     .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
                                         if show {
                                             actions.refreshMediaQueries(for: tab) { content.mediaQueries = $0 }

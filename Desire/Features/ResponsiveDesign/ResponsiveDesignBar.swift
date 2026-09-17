@@ -5,8 +5,6 @@ struct ResponsiveDesignBar: View {
     let responsiveStore: ResponsiveDesignStore
     var onScreenshot: (() -> Void)?
     @State private var selectedCategory: DeviceCategory = .phone
-    @State private var customW = 375
-    @State private var customH = 667
 
     var body: some View {
         HStack(spacing: 8) {
@@ -47,8 +45,10 @@ struct ResponsiveDesignBar: View {
                     ForEach(presets) { preset in
                         Button {
                             config.selectedPresetID = preset.id
-                            customW = preset.width
-                            customH = preset.height
+                            // Keep the custom fields in step so the W/H
+                            // inputs always show the LIVE dimensions.
+                            config.customWidth = preset.width
+                            config.customHeight = preset.height
                         } label: {
                             Text(preset.name)
                                 .font(.system(size: 11))
@@ -79,25 +79,23 @@ struct ResponsiveDesignBar: View {
             Divider().frame(height: 16)
 
             HStack(spacing: 4) {
-                TextField("W", value: $customW, format: .number)
-                    .textFieldStyle(.plain)
-                    .frame(width: 40)
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 11))
+                TextField("W", value: Binding(
+                    get: { config.customWidth },
+                    set: { config.customWidth = max(200, $0); config.selectedPresetID = nil }
+                ), format: .number)
+                .textFieldStyle(.plain)
+                .frame(width: 40)
+                .multilineTextAlignment(.center)
+                .font(.system(size: 11))
                 Text("×").font(.caption).foregroundStyle(.tertiary)
-                TextField("H", value: $customH, format: .number)
-                    .textFieldStyle(.plain)
-                    .frame(width: 40)
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 11))
-            }
-            .onChange(of: customW) { _, v in
-                config.selectedPresetID = nil
-                config.customWidth = max(200, v)
-            }
-            .onChange(of: customH) { _, v in
-                config.selectedPresetID = nil
-                config.customHeight = max(200, v)
+                TextField("H", value: Binding(
+                    get: { config.customHeight },
+                    set: { config.customHeight = max(200, $0); config.selectedPresetID = nil }
+                ), format: .number)
+                .textFieldStyle(.plain)
+                .frame(width: 40)
+                .multilineTextAlignment(.center)
+                .font(.system(size: 11))
             }
 
             Text("\(Int(config.effectiveSize.width))×\(Int(config.effectiveSize.height))")
@@ -168,10 +166,5 @@ struct ResponsiveDesignBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
-        .onAppear {
-            let s = config.effectiveSize
-            customW = Int(s.width)
-            customH = Int(s.height)
-        }
     }
 }

@@ -320,3 +320,28 @@ protocol）。注意：需在 didFinish 后读取（导航刚提交时新 entry 
 本轮 example.com 白屏、baidu 间歇性 Could not connect 均为测试环境
 网络抖动，与浏览器无关（恢复后自动正常）。此类"假阳性"测试结论
 必须通过 CLI 复测两次以上才能定性。
+
+## 响应式模式改造 · 第一轮（核心可用性）
+
+体检结论（为何"几乎无法使用"）：
+1. 进入响应式模式只缩放了 webview 尺寸，**不换 UA、不重载** — 站点按
+   桌面 UA 继续 Layout，看到的只是"桌面版窄窗口"，不是移动版布局。
+2. 设备高度超过窗口时 min() 裁剪导致比例失真。
+3. TouchSimulation：identifier 用 Date.now() 会重复；退出时只设 flag
+   不移除监听与全局 CSS → 页面**永久无法选中文字**。
+4. 尺寸输入框与拖把手互不同步（各自 @State）。
+
+本轮修复：
+- **ResponsiveModeApplier**（新文件，统一入口）：启用时按视口宽度换
+  真 iOS Safari UA（<500 iPhone / <1200 iPad / 其余保持桌面）并重载；
+  退出恢复桌面 UA + 重载 + 清理触摸层。SelectedTabContent 的
+  onChange(isEnabled) 是唯一漏斗 — 菜单/工具栏/Agent 工具全部生效。
+- **TouchSimulation 重写**：自增 identifier；全部监听/样式挂到
+  __desireTouchSim 注册表，remove 时逐一摘除（含 style 标记）；补充
+  ripple 动画替换旧 CSS animation（旧动画样式永不清理）。
+- **尺寸输入直绑 config**（去掉本地 @State 双份状态），选预设时同步
+  custom 字段 — 输入框与拖把手不再互相覆盖。
+
+验证：构建零警告。实机验证项（用户）：开启 iPhone 14 Pro 预设访问
+baidu.com 应出现移动版布局；退出后恢复桌面版；开关触摸模拟后文字
+选择不受影响。

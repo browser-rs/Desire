@@ -164,7 +164,7 @@ class BrowserState: ObservableObject {
     ///   they sit on WAFs' known-browser lists; a WebKit browser claiming
     ///   Safari cannot. Desire's identity travels in other channels (bundle
     ///   ID, About panel), not in the UA.
-    private static let _desktopSafariUA: String =
+    static let _desktopSafariUA: String =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
         + "Version/26.5 Safari/605.1.15"

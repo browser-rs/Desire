@@ -782,6 +782,22 @@ class AgentSessionStore: ObservableObject {
         approvalSlotBusy = true
     }
 
+    /// Window-global tools a subagent must not touch: they would steal the
+    /// shared window's tab selection or flip app-wide toggles while other
+    /// agents (or the user) are working.
+    private static let subagentDisabledTools: Set<String> = [
+        "newTab", "switchTab", "closeTab", "closeOtherTabs", "reopenLastClosedTab",
+        "duplicateTab", "toggleSidebar", "setSearchEngine", "toggleAdBlocking",
+        "toggleTrackingProtection", "clearHistory", "startRecording",
+        "stopRecording", "printPage", "toggleResponsiveMode",
+    ]
+
+    private static var subagentAllowedToolDefs: [AgentToolDef] {
+        BrowserToolProvider.toolDefs.filter {
+            $0.function.name != "spawnSubagent" && !subagentDisabledTools.contains($0.function.name)
+        }
+    }
+
     /// Runs a delegated sub-task — or a fan-out of up to 3 in parallel — in
     /// a fresh, ephemeral context: own message array and step cap, but the
     /// same tools, approval gate, and provider stack. Only the final
@@ -910,8 +926,7 @@ class AgentSessionStore: ObservableObject {
                 // No recursion: the subagent cannot spawn subagents.
                 let stream = active.provider.stream(
                     messages: subMessages,
-                    tools: BrowserToolProvider.toolDefs.filter { $0.function.name != "spawnSubagent" }
-                        + MCPStore.shared.toolDefs,
+                    tools: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs,
                     prefs: preference
                 )
                 for try await event in stream {
@@ -980,6 +995,8 @@ class AgentSessionStore: ObservableObject {
     You have the same browser/file/command tools as the main agent, but the \
     user sees only your FINAL message — make it the complete report. Rules:
     - Work only on the delegated task.
+    - You run in your own dedicated tab; tab/window management, app-wide \
+    toggles, and recording tools are unavailable.
     - You cannot ask the user questions; make reasonable assumptions and note them.
     - When done, reply with the final report (facts found, actions taken, \
     file paths written, anything the main agent must know). Do not call more \

@@ -409,6 +409,16 @@
       }
     },
     "=" : {},
+    "A model pulled on the server (llama3.2, qwen2.5, …)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器上已拉取的模型（llama3.2、qwen2.5 等）。"
+          }
+        }
+      }
+    },
     "AI" : {
       "localizations" : {
         "en" : {
@@ -726,6 +736,26 @@
         }
       }
     },
+    "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 回合结束后，把持久用户偏好与会话摘要提炼进长期记忆。可在面板的记忆页查看和删除。"
+          }
+        }
+      }
+    },
+    "Agent Context" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 上下文"
+          }
+        }
+      }
+    },
     "Agent capabilities & tools" : {
       "localizations" : {
         "zh-Hans" : {
@@ -939,6 +969,26 @@
         }
       }
     },
+    "Always-Allowed Tools" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "始终允许的工具"
+          }
+        }
+      }
+    },
+    "Applies to all providers." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对所有提供方生效。"
+          }
+        }
+      }
+    },
     "Are you sure you want to close this tab?" : {
       "localizations" : {
         "en" : {
@@ -1071,6 +1121,16 @@
       }
     },
     "Attach Images" : {},
+    "Attach a compact summary of the current page (title, URL, text excerpt) to every request. Off means the agent must call getPageSnapshot itself." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每次请求中附加当前页面的简要摘要（标题、网址、正文节选）。关闭后 Agent 需自行调用 getPageSnapshot。"
+          }
+        }
+      }
+    },
     "Attach image ( vision models)" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1218,6 +1278,16 @@
         }
       }
     },
+    "Base URL of the running ollama daemon." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在运行的 ollama 服务地址。"
+          }
+        }
+      }
+    },
     "Bilibili" : {
       "localizations" : {
         "en" : {
@@ -1236,6 +1306,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bilibili"
+          }
+        }
+      }
+    },
+    "Binaries the agent may run via runCommand. Argv-only, no shell; every call prompts unless FULL ACCESS is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 可通过 runCommand 运行的程序。仅 argv 传参、无 shell；非完全访问时每次调用都会请求确认。"
           }
         }
       }
@@ -1805,6 +1885,16 @@
         }
       }
     },
+    "Choose…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择…"
+          }
+        }
+      }
+    },
     "Clear" : {
       "comment" : "Clear button",
       "localizations" : {
@@ -2139,6 +2229,16 @@
         }
       }
     },
+    "Clear the always-allowed list and prompt again next time." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空始终允许列表，下次重新询问。"
+          }
+        }
+      }
+    },
     "Click on an element to inspect" : {
       "localizations" : {
         "en" : {
@@ -2224,6 +2324,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點擊以重新載入 — %@"
+          }
+        }
+      }
+    },
+    "Click to switch." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击切换。"
           }
         }
       }
@@ -2316,6 +2426,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉右側標籤頁"
+          }
+        }
+      }
+    },
+    "Cloud API" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云端 API"
           }
         }
       }
@@ -4378,6 +4498,16 @@
         }
       }
     },
+    "Extend the Agent with external tools over MCP (HTTP transport). Experimental." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 MCP（HTTP 传输）为 Agent 扩展外部工具。实验性功能。"
+          }
+        }
+      }
+    },
     "Extension Information" : {
       "localizations" : {
         "en" : {
@@ -4490,6 +4620,16 @@
       }
     },
     "Fetch" : {},
+    "Fetch Models" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉取模型列表"
+          }
+        }
+      }
+    },
     "Fetched from API" : {},
     "Fetching…" : {},
     "File not found on the server (404)" : {
@@ -4971,6 +5111,16 @@
         }
       }
     },
+    "Full chat-completions URL." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整的 chat-completions 地址。"
+          }
+        }
+      }
+    },
     "General" : {
       "comment" : "Settings tab label",
       "localizations" : {
@@ -4990,6 +5140,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一般"
+          }
+        }
+      }
+    },
+    "Generation" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成参数"
           }
         }
       }
@@ -5221,6 +5381,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "高優先順序"
+          }
+        }
+      }
+    },
+    "Higher values produce more varied responses." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数值越高，回复越发散。"
           }
         }
       }
@@ -5887,6 +6057,16 @@
         }
       }
     },
+    "Local model server. Run ollama serve and pull a model first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地模型服务。请先运行 ollama serve 并拉取模型。"
+          }
+        }
+      }
+    },
     "Low Priority" : {
       "localizations" : {
         "en" : {
@@ -6018,6 +6198,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "符合：%@"
+          }
+        }
+      }
+    },
+    "Max Steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大步数"
+          }
+        }
+      }
+    },
+    "Max Tokens" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大 Token 数"
           }
         }
       }
@@ -6163,6 +6363,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "麥克風"
+          }
+        }
+      }
+    },
+    "Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
           }
         }
       }
@@ -7262,6 +7472,16 @@
         }
       }
     },
+    "No scheduled tasks yet." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有定时任务。"
+          }
+        }
+      }
+    },
     "No stored website data" : {
       "comment" : "Empty website data state",
       "localizations" : {
@@ -7408,6 +7628,16 @@
         }
       }
     },
+    "Ollama Host" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ollama 地址"
+          }
+        }
+      }
+    },
     "On-device model emitted an unparseable action — ignored." : {
       "localizations" : {
         "en" : {
@@ -7426,6 +7656,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "裝置端模型輸出的操作無法解析，已忽略。"
+          }
+        }
+      }
+    },
+    "On-device model. No credentials required." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端上模型，无需任何凭据。"
           }
         }
       }
@@ -7543,6 +7783,16 @@
         }
       }
     },
+    "Open Skills Folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开技能文件夹"
+          }
+        }
+      }
+    },
     "Open in Container" : {},
     "Open in New Tab" : {
       "comment" : "Context menu: open in new tab",
@@ -7585,6 +7835,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Safari 中開啟"
+          }
+        }
+      }
+    },
+    "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兼容 OpenAI / Anthropic / DeepSeek 的端点。"
+          }
+        }
+      }
+    },
+    "Or Type Model Name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "或直接输入模型名"
           }
         }
       }
@@ -8017,6 +8287,16 @@
         }
       }
     },
+    "Play a soft chime when the agent finishes a turn." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 完成一轮后播放提示音。"
+          }
+        }
+      }
+    },
     "Plugins" : {
       "comment" : "Plugins panel title",
       "localizations" : {
@@ -8201,6 +8481,36 @@
         }
       }
     },
+    "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用运行期间自动重复执行的提示词。可以让 Agent 创建，如「每天 9 点总结我的待办」。"
+          }
+        }
+      }
+    },
+    "Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提供方"
+          }
+        }
+      }
+    },
+    "Provider Presets" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提供方预设"
+          }
+        }
+      }
+    },
     "Queue message" : {
       "localizations" : {
         "zh-Hans" : {
@@ -8229,6 +8539,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速操作"
+          }
+        }
+      }
+    },
+    "Quick setup — click to fill endpoint + model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速配置 — 点击自动填入端点和模型。"
           }
         }
       }
@@ -9358,6 +9678,16 @@
       }
     },
     "Save this endpoint + model configuration" : {},
+    "Saved Configurations" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的配置"
+          }
+        }
+      }
+    },
     "Saved to %@" : {
       "comment" : "Toast: screenshot saved to a file (filename substituted for %@)",
       "localizations" : {
@@ -9377,6 +9707,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已儲存到%@"
+          }
+        }
+      }
+    },
+    "Scheduled Tasks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定时任务"
           }
         }
       }
@@ -10193,6 +10533,16 @@
         }
       }
     },
+    "Sent to the model on every request. Leave empty to use the default." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次请求都会发送给模型。留空使用默认提示词。"
+          }
+        }
+      }
+    },
     "Server Unreachable" : {
       "localizations" : {
         "en" : {
@@ -10668,6 +11018,16 @@
         }
       }
     },
+    "Skills are SKILL.md files; drop your own in to extend the agent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "技能即 SKILL.md 文件；放入你自己的文件即可扩展 Agent。"
+          }
+        }
+      }
+    },
     "Small" : {
       "comment" : "Screenshot font size: small",
       "localizations" : {
@@ -10796,6 +11156,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停止听写"
+          }
+        }
+      }
+    },
+    "Stored in the macOS Keychain." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存在 macOS 钥匙串中。"
           }
         }
       }
@@ -10939,6 +11309,26 @@
         }
       }
     },
+    "System Access (CLI)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统访问（CLI）"
+          }
+        }
+      }
+    },
+    "System Prompt" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统提示词"
+          }
+        }
+      }
+    },
     "Tab Containers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11026,6 +11416,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標籤頁"
+          }
+        }
+      }
+    },
+    "Temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度"
           }
         }
       }
@@ -11248,6 +11648,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "該網站的憑證不受 macOS 信任。這通常表示系統時間不正確，或企業/資安軟體正在攔截連線。請在系統設定中檢查日期與時間，然後重新載入。"
+          }
+        }
+      }
+    },
+    "These tools will run without asking for approval each time." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些工具不再逐次请求审批。"
           }
         }
       }
@@ -11996,6 +12406,26 @@
         }
       }
     },
+    "Upper bound on agent tool-loop iterations per turn (5–200)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 每轮工具循环的步数上限（5–200）。"
+          }
+        }
+      }
+    },
+    "Upper bound on completion length." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单次回复长度上限。"
+          }
+        }
+      }
+    },
     "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment." : {},
     "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send." : {},
     "Username: %@" : {
@@ -12147,6 +12577,26 @@
         }
       }
     },
+    "What the agent knows about the page you're on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 对当前页面的了解。"
+          }
+        }
+      }
+    },
+    "Whether the system model is available right now." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统模型当前是否可用。"
+          }
+        }
+      }
+    },
     "White" : {
       "localizations" : {
         "en" : {
@@ -12172,6 +12622,16 @@
     "Wipe Data" : {},
     "Wipe container data?" : {},
     "Wipe data" : {},
+    "Working Directory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作目录"
+          }
+        }
+      }
+    },
     "X" : {},
     "XHR" : {},
     "XPath (optional)" : {

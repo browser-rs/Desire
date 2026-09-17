@@ -56,7 +56,7 @@ struct AgentSettingsSection: View {
             ScheduledTasksSection()
             MCPServersSection()
             SettingsSection(
-                title: "Provider",
+                title: String(localized: "Provider"),
                 subtitle: store.providerKind.detail,
                 icon: "brain.head.profile"
             ) {
@@ -92,12 +92,12 @@ struct AgentSettingsSection: View {
             // MARK: - Generation params (shared)
 
             SettingsSection(
-                title: "Generation",
-                subtitle: "Applies to all providers.",
+                title: String(localized: "Generation"),
+                subtitle: String(localized: "Applies to all providers."),
                 icon: "slider.horizontal.3"
             ) {
                 VStack(spacing: 0) {
-                    SettingsRow("Max Tokens", subtitle: "Upper bound on completion length.", systemImage: "text.alignleft") {
+                    SettingsRow(String(localized: "Max Tokens"), subtitle: String(localized: "Upper bound on completion length."), systemImage: "text.alignleft") {
                         SettingsTextField(
                             placeholder: "1024",
                             text: Binding(
@@ -108,7 +108,7 @@ struct AgentSettingsSection: View {
                         )
                     }
                     SettingsRowDivider()
-                    SettingsRow("Temperature", subtitle: "Higher values produce more varied responses.", systemImage: "thermometer.medium") {
+                    SettingsRow(String(localized: "Temperature"), subtitle: String(localized: "Higher values produce more varied responses."), systemImage: "thermometer.medium") {
                         HStack(spacing: 8) {
                             Slider(value: $store.temperature, in: 0...2, step: 0.1)
                                 .frame(width: 140)
@@ -119,7 +119,7 @@ struct AgentSettingsSection: View {
                         }
                     }
                     SettingsRowDivider()
-                    SettingsRow("Max Steps", subtitle: "Upper bound on agent tool-loop iterations per turn (5–200).", systemImage: "repeat") {
+                    SettingsRow(String(localized: "Max Steps"), subtitle: String(localized: "Upper bound on agent tool-loop iterations per turn (5–200)."), systemImage: "repeat") {
                         SettingsTextField(
                             placeholder: "50",
                             text: Binding(
@@ -135,8 +135,8 @@ struct AgentSettingsSection: View {
             // MARK: - System Prompt
 
             SettingsSection(
-                title: "System Prompt",
-                subtitle: "Sent to the model on every request. Leave empty to use the default.",
+                title: String(localized: "System Prompt"),
+                subtitle: String(localized: "Sent to the model on every request. Leave empty to use the default."),
                 icon: "text.book.closed"
             ) {
                 TextEditor(text: $store.systemPrompt)
@@ -158,8 +158,8 @@ struct AgentSettingsSection: View {
             // MARK: - System access (CLI allowlist)
 
             SettingsSection(
-                title: "System Access (CLI)",
-                subtitle: "Binaries the agent may run via runCommand. Argv-only, no shell; every call prompts unless FULL ACCESS is on.",
+                title: String(localized: "System Access (CLI)"),
+                subtitle: String(localized: "Binaries the agent may run via runCommand. Argv-only, no shell; every call prompts unless FULL ACCESS is on."),
                 icon: "terminal"
             ) {
                 VStack(spacing: 0) {
@@ -171,7 +171,7 @@ struct AgentSettingsSection: View {
                             .frame(width: 22, height: 22)
                             .background(Circle().fill(Color.secondary.opacity(0.08)))
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Working Directory")
+                            Text(String(localized: "Working Directory"))
                                 .font(.system(size: 12, weight: .medium))
                             Text(SystemCommandStore.shared.workingDirectoryText)
                                 .font(.system(size: 10))
@@ -180,7 +180,7 @@ struct AgentSettingsSection: View {
                                 .truncationMode(.middle)
                         }
                         Spacer()
-                        Button("Choose…") {
+                        Button(String(localized: "Choose…")) {
                             let panel = NSOpenPanel()
                             panel.canChooseFiles = false
                             panel.canChooseDirectories = true
@@ -191,7 +191,7 @@ struct AgentSettingsSection: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        Button("Reset") {
+                        Button(String(localized: "Reset")) {
                             SystemCommandStore.shared.resetWorkingDirectory()
                         }
                         .buttonStyle(.plain)
@@ -253,11 +253,11 @@ struct AgentSettingsSection: View {
                     }
 
                     HStack {
-                        Button("Open Skills Folder") {
+                        Button(String(localized: "Open Skills Folder")) {
                             NSWorkspace.shared.open(SkillStore.directory)
                         }
                         Spacer()
-                        Text("Skills are SKILL.md files; drop your own in to extend the agent.")
+                        Text(String(localized: "Skills are SKILL.md files; drop your own in to extend the agent."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -268,27 +268,27 @@ struct AgentSettingsSection: View {
             // MARK: - Agent context
 
             SettingsSection(
-                title: "Agent Context",
-                subtitle: "What the agent knows about the page you're on.",
+                title: String(localized: "Agent Context"),
+                subtitle: String(localized: "What the agent knows about the page you're on."),
                 icon: "scope"
             ) {
                 SettingsToggleRow(
                     "Auto Page Context",
-                    subtitle: "Attach a compact summary of the current page (title, URL, text excerpt) to every request. Off means the agent must call getPageSnapshot itself.",
+                    subtitle: String(localized: "Attach a compact summary of the current page (title, URL, text excerpt) to every request. Off means the agent must call getPageSnapshot itself."),
                     systemImage: "doc.text.magnifyingglass",
                     isOn: $store.autoPageContext
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(
                     "Completion Sound",
-                    subtitle: "Play a soft chime when the agent finishes a turn.",
+                    subtitle: String(localized: "Play a soft chime when the agent finishes a turn."),
                     systemImage: "speaker.wave.1",
                     isOn: $store.completionSound
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(
                     "Memory Learning",
-                    subtitle: "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view.",
+                    subtitle: String(localized: "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view."),
                     systemImage: "brain.head.profile",
                     isOn: $store.memoryLearning
                 )
@@ -298,8 +298,8 @@ struct AgentSettingsSection: View {
 
             if !store.allowedTools.isEmpty {
                 SettingsSection(
-                    title: "Always-Allowed Tools",
-                    subtitle: "These tools will run without asking for approval each time.",
+                    title: String(localized: "Always-Allowed Tools"),
+                    subtitle: String(localized: "These tools will run without asking for approval each time."),
                     icon: "checkmark.shield"
                 ) {
                     VStack(spacing: 0) {
@@ -334,9 +334,9 @@ struct AgentSettingsSection: View {
                         SettingsRowDivider()
                         SettingsActionRow(
                             "Reset All",
-                            subtitle: "Clear the always-allowed list and prompt again next time.",
+                            subtitle: String(localized: "Clear the always-allowed list and prompt again next time."),
                             systemImage: "arrow.counterclockwise",
-                            buttonTitle: "Reset"
+                            buttonTitle: String(localized: "Reset")
                         ) {
                             store.allowedTools = []
                         }
@@ -442,7 +442,7 @@ struct AgentSettingsSection: View {
 
     @ViewBuilder
     private var modelPickerRow: some View {
-        SettingsRow("Model", subtitle: modelPickerSubtitle, systemImage: "cpu") {
+        SettingsRow(String(localized: "Model"), subtitle: modelPickerSubtitle, systemImage: "cpu") {
             Menu {
                 // Presets for the active provider
                 Section("Models") {
@@ -481,7 +481,7 @@ struct AgentSettingsSection: View {
             .frame(maxWidth: 260, alignment: .leading)
         }
 
-        SettingsRow("Or Type Model Name", subtitle: nil, systemImage: "pencil") {
+        SettingsRow(String(localized: "Or Type Model Name"), subtitle: nil, systemImage: "pencil") {
             SettingsTextField(placeholder: "e.g. my-fine-tuned-model", text: $store.model, width: 220)
         }
     }
@@ -513,11 +513,11 @@ struct AgentSettingsSection: View {
     private var foundationModelsSection: some View {
         SettingsSection(
             title: "Apple Intelligence",
-            subtitle: "On-device model. No credentials required.",
+            subtitle: String(localized: "On-device model. No credentials required."),
             icon: "apple.logo"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Status", subtitle: "Whether the system model is available right now.", systemImage: "dot.radiowaves.left.and.right") {
+                SettingsRow(String(localized: "Status"), subtitle: String(localized: "Whether the system model is available right now."), systemImage: "dot.radiowaves.left.and.right") {
                     statusView
                 }
             }
@@ -555,14 +555,14 @@ struct AgentSettingsSection: View {
     @ViewBuilder
     private var cloudSection: some View {
         SettingsSection(
-            title: "Cloud API",
-            subtitle: "OpenAI / Anthropic / DeepSeek compatible endpoints.",
+            title: String(localized: "Cloud API"),
+            subtitle: String(localized: "OpenAI / Anthropic / DeepSeek compatible endpoints."),
             icon: "cloud"
         ) {
             VStack(spacing: 0) {
                 SettingsRow(
                     "API Key",
-                    subtitle: "Stored in the macOS Keychain.",
+                    subtitle: String(localized: "Stored in the macOS Keychain."),
                     systemImage: "key"
                 ) {
                     HStack(spacing: 6) {
@@ -587,7 +587,7 @@ struct AgentSettingsSection: View {
 
                 SettingsRow(
                     "Endpoint URL",
-                    subtitle: "Full chat-completions URL.",
+                    subtitle: String(localized: "Full chat-completions URL."),
                     systemImage: "link"
                 ) {
                     SettingsTextField(placeholder: "https://api.openai.com/v1/chat/completions", text: $store.endpoint, width: 260)
@@ -596,7 +596,7 @@ struct AgentSettingsSection: View {
 
                 // Provider quick presets — switching sets cloudProviderID,
                 // endpoint, model, AND loads the per-provider API key.
-                SettingsRow("Provider Presets", subtitle: "Quick setup — click to fill endpoint + model.", systemImage: "bolt") {
+                SettingsRow(String(localized: "Provider Presets"), subtitle: String(localized: "Quick setup — click to fill endpoint + model."), systemImage: "bolt") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
                             presetChip("OpenAI", providerID: "openai", endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4o")
@@ -610,7 +610,7 @@ struct AgentSettingsSection: View {
 
                 // Saved endpoint profiles — switch between configurations.
                 if !store.savedEndpoints.isEmpty {
-                    SettingsRow("Saved Configurations", subtitle: "Click to switch.", systemImage: "square.stack") {
+                    SettingsRow(String(localized: "Saved Configurations"), subtitle: String(localized: "Click to switch."), systemImage: "square.stack") {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(store.savedEndpoints) { ep in
                                 savedEndpointRow(ep)
@@ -625,7 +625,7 @@ struct AgentSettingsSection: View {
                 SettingsRowDivider()
 
                 // Fetch models from the API
-                SettingsRow("Fetch Models", subtitle: fetchModelsSubtitle, systemImage: "arrow.down.circle") {
+                SettingsRow(String(localized: "Fetch Models"), subtitle: fetchModelsSubtitle, systemImage: "arrow.down.circle") {
                     Button {
                         fetchModels()
                     } label: {
@@ -649,7 +649,7 @@ struct AgentSettingsSection: View {
                     Button {
                         store.saveAPIKey(apiKey)
                     } label: {
-                        Text("Save Key")
+                        Text(String(localized: "Save Key"))
                             .font(.system(size: 12, weight: .medium))
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
@@ -666,7 +666,7 @@ struct AgentSettingsSection: View {
                             store.deleteAPIKey()
                             apiKey = ""
                         } label: {
-                            Text("Remove Key")
+                            Text(String(localized: "Remove Key"))
                                 .font(.system(size: 12, weight: .medium))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 6)
@@ -726,15 +726,15 @@ struct AgentSettingsSection: View {
     private var ollamaSection: some View {
         SettingsSection(
             title: "Ollama",
-            subtitle: "Local model server. Run ollama serve and pull a model first.",
+            subtitle: String(localized: "Local model server. Run ollama serve and pull a model first."),
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Ollama Host", subtitle: "Base URL of the running ollama daemon.", systemImage: "network") {
+                SettingsRow(String(localized: "Ollama Host"), subtitle: String(localized: "Base URL of the running ollama daemon."), systemImage: "network") {
                     SettingsTextField(placeholder: "http://127.0.0.1:11434", text: $store.ollamaHost, width: 220)
                 }
                 SettingsRowDivider()
-                SettingsRow("Model", subtitle: "A model pulled on the server (llama3.2, qwen2.5, …).", systemImage: "cpu") {
+                SettingsRow(String(localized: "Model"), subtitle: String(localized: "A model pulled on the server (llama3.2, qwen2.5, …)."), systemImage: "cpu") {
                     SettingsTextField(placeholder: "llama3.2", text: $store.ollamaModel, width: 200)
                 }
                 SettingsRowDivider()
@@ -890,13 +890,13 @@ struct MCPServersSection: View {
 
     var body: some View {
         SettingsSection(
-            title: "MCP Servers",
-            subtitle: "Extend the Agent with external tools over MCP (HTTP transport). Experimental.",
+            title: String(localized: "MCP Servers"),
+            subtitle: String(localized: "Extend the Agent with external tools over MCP (HTTP transport). Experimental."),
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
                 if store.servers.isEmpty {
-                    Text("No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy).")
+                    Text(String(localized: "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -989,7 +989,7 @@ struct MCPServersSection: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11))
                         if tokenDrafts[server.id] != nil {
-                            Button("Save") {
+                            Button(String(localized: "Save")) {
                                 store.updateAuthToken(tokenDrafts[server.id] ?? "", for: server.id)
                                 tokenDrafts[server.id] = nil
                             }
@@ -1009,7 +1009,7 @@ struct MCPServersSection: View {
                         .frame(width: 120)
                     TextField("http://127.0.0.1:3000/mcp", text: $newURL)
                         .textFieldStyle(.roundedBorder)
-                    Button("Add") {
+                    Button(String(localized: "Add")) {
                         store.addServer(name: newName, url: newURL)
                         if !newToken.trimmingCharacters(in: .whitespaces).isEmpty,
                            let added = store.servers.last {
@@ -1035,13 +1035,13 @@ struct ScheduledTasksSection: View {
 
     var body: some View {
         SettingsSection(
-            title: "Scheduled Tasks",
-            subtitle: "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」.",
+            title: String(localized: "Scheduled Tasks"),
+            subtitle: String(localized: "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」."),
             icon: "clock.badge.checkmark"
         ) {
             VStack(spacing: 0) {
                 if store.tasks.isEmpty {
-                    Text("No scheduled tasks yet.")
+                    Text(String(localized: "No scheduled tasks yet."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)

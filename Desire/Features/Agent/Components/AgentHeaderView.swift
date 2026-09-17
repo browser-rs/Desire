@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Header strip for the AI panel. Shows a brand mark, the active model as
@@ -211,6 +212,22 @@ struct AgentHeaderView: View {
             }
             Section {
                 Toggle("Full Access (auto-approve all tools)", isOn: $store.fullAccess)
+                Divider()
+                Text(workingDirectoryInfo)
+                Button {
+                    let panel = NSOpenPanel()
+                    panel.canChooseFiles = false
+                    panel.canChooseDirectories = true
+                    panel.allowsMultipleSelection = false
+                    panel.canCreateDirectories = true
+                    panel.message = String(localized: "Choose the agent's working directory for file tools and system commands")
+                    panel.directoryURL = SystemCommandStore.shared.workingDirectory
+                    if panel.runModal() == .OK, let url = panel.url {
+                        SystemCommandStore.shared.setWorkingDirectory(url)
+                    }
+                } label: {
+                    Label("Change Working Directory…", systemImage: "folder.badge.gearshape")
+                }
                 Button {
                     openWindow(id: "settings")
                 } label: {
@@ -325,6 +342,12 @@ struct AgentHeaderView: View {
 
     /// Rough share of the agent context budget the stored conversation
     /// occupies (same 160k-char estimate as AgentSessionStore.compactForContext).
+    /// Tilde-abbreviated working directory for the model menu info row.
+    private var workingDirectoryInfo: String {
+        let raw = SystemCommandStore.shared.workingDirectory.path
+        return raw.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+
     private var contextUsageText: String {
         let chars = store.messages.reduce(0) {
             ($0 + ($1.content?.count ?? 0)

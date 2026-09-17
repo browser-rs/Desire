@@ -60,6 +60,16 @@
         }
       }
     },
+    "%@ — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -235,6 +245,7 @@
         }
       }
     },
+    "%lld tools" : {},
     "%lld × %lld px" : {
       "localizations" : {
         "en" : {
@@ -246,8 +257,28 @@
       }
     },
     "%lld 个工具" : {},
+    "%lld 条 · %lld 份摘要" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 条 · %2$lld 份摘要"
+          }
+        }
+      }
+    },
     "%lld%%" : {},
     "%lld." : {},
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%lldh %lldm" : {
       "localizations" : {
         "en" : {
@@ -280,7 +311,10 @@
         }
       }
     },
+    "(%@)" : {},
     "(%lld)" : {},
+    "(undecodable image result)" : {},
+    "+%lld" : {},
     "1 Hour" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -420,6 +454,7 @@
       }
     },
     "AI" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -442,6 +477,7 @@
       }
     },
     "AI Assistant" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -464,6 +500,7 @@
       }
     },
     "AI Assistant (Floating Window)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -486,6 +523,7 @@
       }
     },
     "AI is typing" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -507,7 +545,6 @@
         }
       }
     },
-    "AI 能力" : {},
     "API Permissions:" : {
       "localizations" : {
         "en" : {
@@ -530,7 +567,9 @@
         }
       }
     },
+    "ARGS" : {},
     "Active model: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -690,6 +729,8 @@
         }
       }
     },
+    "Add binary name…" : {},
+    "Add endpoints in Settings → Agent" : {},
     "Add to Group" : {
       "comment" : "Context menu: add tab to group",
       "localizations" : {
@@ -746,6 +787,8 @@
         }
       }
     },
+    "Agent" : {},
+    "Agent (Floating Window)" : {},
     "Agent Context" : {
       "localizations" : {
         "zh-Hans" : {
@@ -756,7 +799,9 @@
         }
       }
     },
+    "Agent Settings…" : {},
     "Agent capabilities & tools" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -766,6 +811,9 @@
         }
       }
     },
+    "Agent is typing" : {},
+    "Agent 能力" : {},
+    "Agent 需要你的确认" : {},
     "All" : {
       "localizations" : {
         "en" : {
@@ -832,6 +880,7 @@
         }
       }
     },
+    "All tools run without approval — including code execution. Toggle in the model menu." : {},
     "Allow" : {
       "comment" : "Permission allow button",
       "localizations" : {
@@ -1210,6 +1259,7 @@
         }
       }
     },
+    "Auto (cloud + on-device)" : {},
     "Autofill" : {
       "comment" : "Settings tab label",
       "localizations" : {
@@ -1288,6 +1338,7 @@
         }
       }
     },
+    "Bearer token (optional)" : {},
     "Bilibili" : {
       "localizations" : {
         "en" : {
@@ -1805,7 +1856,18 @@
         }
       }
     },
+    "Change Working Directory…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改工作目录…"
+          }
+        }
+      }
+    },
     "Changes state" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1881,6 +1943,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇截圖儲存位置"
+          }
+        }
+      }
+    },
+    "Choose the agent's working directory for file tools and system commands" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 Agent 文件工具与系统命令的工作目录"
           }
         }
       }
@@ -2210,6 +2282,7 @@
       }
     },
     "Clear conversation" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2666,6 +2739,7 @@
       }
     },
     "Conversation history" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2925,6 +2999,7 @@
         }
       }
     },
+    "Copy code" : {},
     "Copy message" : {
       "localizations" : {
         "en" : {
@@ -3408,6 +3483,7 @@
         }
       }
     },
+    "Delete task" : {},
     "Denied" : {
       "comment" : "Permission denied status",
       "extractionState" : "stale",
@@ -4574,6 +4650,7 @@
         }
       }
     },
+    "FULL ACCESS" : {},
     "Failed" : {
       "localizations" : {
         "en" : {
@@ -5065,6 +5142,7 @@
         }
       }
     },
+    "Full Access (auto-approve all tools)" : {},
     "Full Page PDF…" : {
       "comment" : "More menu: capture full page as PDF",
       "localizations" : {
@@ -6090,7 +6168,6 @@
       }
     },
     "MCP Servers" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6313,6 +6390,7 @@
       }
     },
     "Memory" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -6720,6 +6798,7 @@
       }
     },
     "New chat" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -7628,6 +7707,7 @@
         }
       }
     },
+    "Ollama (%@)" : {},
     "Ollama Host" : {
       "localizations" : {
         "zh-Hans" : {
@@ -7638,6 +7718,7 @@
         }
       }
     },
+    "On-device (Foundation Models)" : {},
     "On-device model emitted an unparseable action — ignored." : {
       "localizations" : {
         "en" : {
@@ -8084,6 +8165,7 @@
         }
       }
     },
+    "Pause (stops before the next step)" : {},
     "Pause All" : {
       "localizations" : {
         "en" : {
@@ -8264,6 +8346,7 @@
         }
       }
     },
+    "Pin (always injected)" : {},
     "Pin Tab" : {
       "comment" : "Context menu: pin tab",
       "localizations" : {
@@ -8553,6 +8636,8 @@
         }
       }
     },
+    "REC" : {},
+    "RESULT" : {},
     "Re-run the last message" : {
       "localizations" : {
         "zh-Hans" : {
@@ -9006,6 +9091,7 @@
         }
       }
     },
+    "Remove from allowlist" : {},
     "Remove from always-allowed" : {
       "localizations" : {
         "en" : {
@@ -9365,6 +9451,7 @@
         }
       }
     },
+    "Resume (paused between steps)" : {},
     "Resume All" : {
       "localizations" : {
         "en" : {
@@ -9478,6 +9565,7 @@
       }
     },
     "Runs code" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9511,6 +9599,7 @@
     },
     "Safari Web Inspector" : {},
     "Safe (read-only)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9688,6 +9777,7 @@
         }
       }
     },
+    "Saved Endpoints" : {},
     "Saved to %@" : {
       "comment" : "Toast: screenshot saved to a file (filename substituted for %@)",
       "localizations" : {
@@ -11262,6 +11352,7 @@
         }
       }
     },
+    "Switch model / provider" : {},
     "Switch to Tab %lld" : {
       "comment" : "Tabs menu: switch to tab number",
       "localizations" : {
@@ -12067,6 +12158,7 @@
         }
       }
     },
+    "Token usage for this conversation (provider-reported)" : {},
     "Tools" : {
       "comment" : "Tools menu title",
       "localizations" : {
@@ -12817,6 +12909,16 @@
         }
       }
     },
+    "daily at %02d:%02d" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "daily at %1$02d:%2$02d"
+          }
+        }
+      }
+    },
     "disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -12840,6 +12942,7 @@
         }
       }
     },
+    "every %lld min" : {},
     "http://127.0.0.1:3000/mcp" : {},
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
       "localizations" : {
@@ -12863,6 +12966,7 @@
         }
       }
     },
+    "missed — no agent session was open" : {},
     "streaming" : {
       "localizations" : {
         "en" : {
@@ -12956,6 +13060,8 @@
         }
       }
     },
+    "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {},
+    "任务计划" : {},
     "优酷" : {
       "localizations" : {
         "en" : {
@@ -13000,6 +13106,7 @@
         }
       }
     },
+    "内容" : {},
     "列表由 EasyList 社区维护，每 7 天自动更新" : {},
     "删除" : {
       "localizations" : {
@@ -13045,6 +13152,7 @@
         }
       }
     },
+    "回答" : {},
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -13068,6 +13176,9 @@
       }
     },
     "常驻能力" : {},
+    "开始使用" : {},
+    "所有 L1 事实和 L2 会话摘要会被删除。个人资料（L0）保留。此操作不可撤销。" : {},
+    "手动添加一条记忆…" : {},
     "搜索工具" : {},
     "搜索或输入网址" : {
       "localizations" : {
@@ -13091,6 +13202,7 @@
         }
       }
     },
+    "未设置" : {},
     "标题" : {
       "localizations" : {
         "en" : {
@@ -13138,6 +13250,10 @@
         }
       }
     },
+    "清空全部事实与摘要" : {},
+    "清空已学习的记忆（保留个人资料）" : {},
+    "清空已学习的记忆？" : {},
+    "点击复制图片" : {},
     "爱奇艺" : {
       "localizations" : {
         "en" : {
@@ -13227,6 +13343,7 @@
         }
       }
     },
+    "自定义指令" : {},
     "芒果TV" : {
       "localizations" : {
         "en" : {
@@ -13249,6 +13366,7 @@
         }
       }
     },
+    "花 10 秒设置偏好，之后每次对话都会生效。全部可随时修改。" : {},
     "视频" : {
       "localizations" : {
         "en" : {
@@ -13271,6 +13389,12 @@
         }
       }
     },
+    "让我们认识一下" : {},
+    "记忆" : {},
+    "跳过" : {},
+    "输入你的回答…" : {},
+    "还没有学到任何长期记忆。正常使用几轮后，Agent 会自动记录你的偏好和习惯。" : {},
+    "长对话结束后会自动生成摘要，用于跨会话回忆。" : {},
     "（已快进）" : {
       "localizations" : {
         "en" : {

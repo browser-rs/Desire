@@ -137,6 +137,30 @@ final class AutomationServer {
                 return try await Self.json(Self.switchTab(index: Self.index(body) ?? 0))
             case ("GET", "/page/text"):
                 return try await Self.json(Self.pageText(index: Self.index(query)))
+            case ("GET", "/page/timing"):
+                guard let tab = Self.shared.resolveIndex(Self.index(query)) else {
+                    return Self.error("no such tab")
+                }
+                let timingJS = """
+(function(){
+    var n = performance.getEntriesByType('navigation')[0];
+    if (!n) return JSON.stringify({error: 'no timing entry'});
+    return JSON.stringify({
+        ttfb: Math.round(n.responseStart),
+        domContentLoaded: Math.round(n.domContentLoadedEventEnd),
+        load: Math.round(n.loadEventEnd),
+        transferBytes: n.transferSize,
+        protocol: n.nextHopProtocol
+    });
+})()
+"""
+                let raw: String = await withCheckedContinuation { continuation in
+                    tab.browser.webView.evaluateJavaScript(timingJS) { result, _ in
+                        continuation.resume(returning: (result as? String) ?? "{}")
+                    }
+                }
+                let parsed = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any]
+                return try Self.json(parsed ?? ["error": "parse failed"])
             case ("GET", "/page/url"):
                 return try await Self.json(Self.pageMeta(index: Self.index(query)))
             case ("GET", "/screenshot"):

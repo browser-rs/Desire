@@ -303,3 +303,20 @@ executeJS 读回 `name=[Alice] result=[hello Alice]` → 汇报
   **WKJavaScriptExceptionMessage**，经临时 userInfo dump 实证）。
 - executeJS 失败时用 callAsyncJavaScript 重跑一次以捕获真实异常
   （marker-42 实测返回）。Agent 调试 JS 时不再两眼一抹黑。
+
+## 第十五轮：性能计时端点 + lastError 残留修复
+
+### 新增 GET /page/timing
+返回 Navigation Timing（ttfb / domContentLoaded / load / transferBytes /
+protocol）。注意：需在 didFinish 后读取（导航刚提交时新 entry 尚未
+填充）；实测受网络波动影响大，作基线采集用。
+
+### 修复：lastError 残留（真 bug）
+新导航 didStartProvisional 时未清空上一次的 lastError → 前一次的
+失败错误页会错误地覆盖**加载成功的新页面**（本轮实测复现：baidu 连接
+失败错误页残留到了后续本地页导航上）。已在导航开始时清空。
+
+### 网络波动记录
+本轮 example.com 白屏、baidu 间歇性 Could not connect 均为测试环境
+网络抖动，与浏览器无关（恢复后自动正常）。此类"假阳性"测试结论
+必须通过 CLI 复测两次以上才能定性。

@@ -438,6 +438,10 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            // A new navigation invalidates the previous failure — without
+            // this, the error page kept covering the NEW page whenever the
+            // old error was set right before a successful reload.
+            parent.state.lastError = nil
             parent.isLoading = true
             parent.state.estimatedProgress = 0
             parent.state.lastError = nil

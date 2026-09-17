@@ -67,13 +67,27 @@
              display: flex; align-items: center; padding: 0 10px; }
 
   /* ═══ 舞台 ═══ */
-  .stage { position: relative; flex: 1; overflow: hidden; background: #202124; }
+  .stage { position: relative; flex: 1; overflow: hidden;
+           background: radial-gradient(900px 450px at 50% 30%, rgba(138,180,248,.05), transparent 70%), #202124; }
   #rulerTop { position: absolute; top: 0; left: 0; width: 100%; height: 20px; z-index: 5; }
   #rulerLeft { position: absolute; top: 0; left: 0; height: 100%; width: 20px; z-index: 5; }
 
   /* ═══ 设备（Chrome 风格：简洁 skin，无花哨）═══ */
   #dev { position: absolute; z-index: 2;
-         box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 16px rgba(0,0,0,.4); }
+         box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 16px rgba(0,0,0,.4);
+         transition: width .3s cubic-bezier(.4,0,.2,1), height .3s cubic-bezier(.4,0,.2,1),
+                     left .3s cubic-bezier(.4,0,.2,1), top .3s cubic-bezier(.4,0,.2,1); }
+  #dev.dragging { transition: none; }
+
+  /* 断点激活标签 */
+  .bp-chip { position: absolute; z-index: 25; top: -24px; height: 20px;
+             display: flex; align-items: center; gap: 5px; padding: 0 9px;
+             background: var(--accent); color: #202124;
+             font-size: 10.5px; font-weight: 700; border-radius: 5px 5px 0 0; }
+  /* DPR + 断点信息组 */
+  .meta { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 10px;
+          background: rgba(255,255,255,.04); border-radius: 5px;
+          font-size: 11px; color: var(--t2); font-variant-numeric: tabular-nums; }
   #screen { position: relative; width: 100%; height: 100%; background: #fff; overflow: hidden; }
   #notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%);
            width: 40%; height: 26px; background: #202124; border-radius: 0 0 14px 14px;
@@ -146,6 +160,12 @@
     </button>
 
     <div class="sep"></div>
+
+    <div class="meta" id="metaChip"><span id="bpName">base</span> · DPR 2 · mobile UA</div>
+
+    <button class="ctrl icon" id="shot" title="截取设备屏幕">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3M12 4v11m0 0l-4-4m4 4l4-4"/></svg>
+    </button>
 
     <button class="ctrl icon on" id="touch" title="触摸模拟">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11V5a2 2 0 1 1 4 0v6m0 0V9a2 2 0 1 1 4 0v3m0 0a2 2 0 1 1 4 0v3c0 3.5-2 7-7 7-4 0-6-2-9-6l-1.5-2A1.6 1.6 0 0 1 2.5 14L4 15.5"/></svg>
@@ -254,6 +274,7 @@ function drag(id, axes) {
   const el = document.getElementById(id);
   el.addEventListener('mousedown', e => {
     e.preventDefault();
+    dev.classList.add('dragging');
     const sx = e.clientX, sy = e.clientY, sw = cur.w, sh = cur.h;
     cur.name = 'Responsive';
     document.getElementById('dimLabel').textContent = `${cur.w} × ${cur.h}`;
@@ -275,6 +296,7 @@ function drag(id, axes) {
     window.addEventListener('mouseup', () => {
       badge.style.display = 'none';
       outline.style.display = 'none';
+      dev.classList.remove('dragging');
       window.removeEventListener('mousemove', mv);
       window.removeEventListener('mouseup', up);
     });
@@ -286,6 +308,12 @@ function drag(id, axes) {
 drag('hw', ['w']); drag('hh', ['h']);
 
 /* ── 媒体查询条 ── */
+function activeBpName() {
+  for (let i = BREAKPOINTS.length - 1; i >= 0; i--) {
+    if (cur.w >= BREAKPOINTS[i].min) return BREAKPOINTS[i].label || 'base';
+  }
+  return 'base';
+}
 function renderMqBar() {
   const bar = document.getElementById('mqBar');
   bar.innerHTML = '';
@@ -308,9 +336,6 @@ function renderMqBar() {
     });
     bar.appendChild(seg);
   }
-  const none = document.createElement('div');
-  none.className = 'mq-none';
-  none.textContent = `视口 ${cur.w}px${isActiveMq() ? ' · 命中断点' : ''}`;
   bar.appendChild(none);
 }
 function isActiveMq() { return false; }
@@ -396,6 +421,14 @@ function drawRulers() {
     }
   });
 }
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'r' || e.key === 'R') {
+    const t = cur.w; cur.w = cur.h; cur.h = t; layout();
+  }
+  if (e.key === 'ArrowLeft') { cur.w = Math.max(200, cur.w - 10); layout(); }
+  if (e.key === 'ArrowRight') { cur.w = Math.max(200, cur.w + 10); layout(); }
+});
 window.addEventListener('resize', () => { layout(); drawRulers(); });
 layout(); drawRulers();
 </script>

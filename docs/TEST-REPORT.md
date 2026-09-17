@@ -166,3 +166,24 @@ JSON HTTP 服务，`--automation` 启动参数门控（默认关闭）。curl �
     curl -s http://127.0.0.1:8799/state
     curl -s -X POST http://127.0.0.1:8799/navigate -d '{"url":"baidu.com"}'
     curl -s http://127.0.0.1:8799/screenshot
+
+## 第八轮：ISSUE-J 定案 — 沙盒由 provisioning profile 强制
+
+实验闭环：
+1. codesign 实测产物 → app-sandbox=true（entitlements 文件却是空的）
+2. touch 文件 + 增量重构建 → 仍沙盒（排除签名缓存）
+3. clean 全量构建 → 仍沙盒（排除增量 quirk）
+4. 在文件加 marker key 构建 → **直接失败**："Entitlement
+   com.desire.test-marker not found and could not be included in
+   profile" — 构建走 provisioning profile 合成，profile 的固定
+   entitlement 集合里含 app-sandbox，且拒绝未知 key。
+5. 手动 ad-hoc 重签（绕过 profile）→ 沙盒消失（验证文件内容本身无沙盒）。
+
+**结论**：只改 entitlements 文件无法移除沙盒。要移除需在 Xcode →
+Signing & Capabilities 删除 App Sandbox capability 并让 Xcode 重新
+生成 profile（需开发者账号交互，CLI 不可安全替代）。
+
+**影响面**：沙盒下 runCommand spawn /opt/homebrew 二进制会被拒，
+agent 的系统工具能力名存实亡；webview/下载/网络不受影响（有
+network client/server entitlement）。这解释了为何 agent host 设计
+要求移除沙盒——此修复优先级应视为高。

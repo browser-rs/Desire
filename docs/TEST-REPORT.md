@@ -237,3 +237,23 @@ MCP 鉴权、快捷键多窗口隔离、webview 泄漏、会话恢复、缩放�
 - BUG-K 记录：优雅退出曾出现挂起（SIGTERM 后进程卡 exit，SIGKILL
   亦无法立即终止，STAT=SX）——怀疑与挂起的网络会话/审批 continuation
   相关，低频复现，保留观察。
+
+## 第十二轮：MCP 端到端 + 下载 E2E（CLI 驱动全绿）
+
+### MCP 端到端 ✅（首次实测）
+- 自建最小 MCP 测试服务器（Streamable HTTP，tools: echo/add）+
+  注入 DiskStore 配置（mcp-servers.json）→ 应用启动自动连接
+  （"ready · 2 tools"）
+- Agent 端到端：指令"用 MCP 工具 echo 发送 hello from desire" →
+  自主调用桥接工具 mcp_desire_test_echo → 返回 "echo: hello from
+  desire" → Agent 原样汇报。配置加载/连接/工具桥接/审批/执行/汇报
+  全链路通。
+
+### 下载 E2E ✅
+- 本地 http.server 提供 test.zip → /navigate → canShowMIMEType=false
+  触发下载策略 → /downloads 显示 completed 195/195 → 文件落盘
+  ~/Downloads 且内容校验通过。
+
+### 桥新增
+- GET /mcp — 服务器状态 + 桥接工具清单
+- GET /downloads — 下载列表（需先加 DownloadStore.live 弱注册）

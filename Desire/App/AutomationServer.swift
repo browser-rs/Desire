@@ -169,6 +169,18 @@ final class AutomationServer {
                 return try Self.json(Self.resolvePendingApproval(
                     Self.string(body, "decision") ?? ""
                 ))
+            case ("GET", "/mcp"):
+                let store = MCPStore.shared
+                let servers = store.servers.map { server -> [String: Any] in
+                    [
+                        "name": server.name,
+                        "url": server.url,
+                        "enabled": server.isEnabled,
+                        "status": store.statuses[server.id] ?? "—",
+                        "tools": store.toolNames(for: server.id),
+                    ]
+                }
+                return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name)])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
             case ("GET", "/bookmarks"):

@@ -64,6 +64,10 @@ struct SelectedTabContent: View {
             content.toolbarSection(for: tab)
 
             HStack(spacing: 0) {
+                if showAgentPanel {
+                    WorkbenchGrid()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
                 if showSidebar {
                     SidebarView(
                         bookmarkStore: content.bookmarkStore,
@@ -153,11 +157,6 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .frame(width: responsiveW, height: responsiveH)
-                                    // 深色工作台上的设备投影：让设备视口有"实体感"
-                                    .shadow(color: .black.opacity(0.45), radius: 22)
-                                    .background {
-                                        WorkbenchGrid()
-                                    }
                                     // Overlays attach to the DEVICE-SIZED
                                     // frame — attaching after the infinity
                                     // frame left handles/rulers floating in

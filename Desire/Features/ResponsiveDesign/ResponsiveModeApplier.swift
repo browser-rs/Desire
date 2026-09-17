@@ -19,16 +19,18 @@ enum ResponsiveModeApplier {
 
     static func apply(_ enabled: Bool, to tab: Tab) {
         let webView = tab.browser.webView
+        // NO reload here: swapping the UA mid-session races the web
+        // process's layer-tree commit (observed RemoteLayerTree segfaults).
+        // The viewport resize alone already re-triggers the site's CSS
+        // breakpoints; the new UA applies from the NEXT navigation on.
         if enabled {
             webView.customUserAgent = userAgent(forViewport: tab.responsiveConfig.effectiveSize)
-            webView.reload()
             if tab.responsiveConfig.touchSimulationEnabled {
                 TouchSimulation.apply(to: webView)
             }
         } else {
             webView.customUserAgent = nil   // back to the desktop Safari UA
             TouchSimulation.remove(from: webView)
-            webView.reload()
         }
     }
 

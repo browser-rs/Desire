@@ -82,6 +82,16 @@
     "#%@" : {
 
     },
+    "%@  %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@  %2$@"
+          }
+        }
+      }
+    },
     "%@ — %@" : {
       "localizations" : {
         "en" : {
@@ -410,6 +420,19 @@
     "%lldms" : {
 
     },
+    "%lldpx+" : {
+
+    },
+    "%lldpx+ · %lldpx" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldpx+ · %2$lldpx"
+          }
+        }
+      }
+    },
     "%llds" : {
 
     },
@@ -420,6 +443,7 @@
 
     },
     "← Exit" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1473,6 +1497,9 @@
           }
         }
       }
+    },
+    "base · %lldpx" : {
+
     },
     "Base URL of the running ollama daemon." : {
       "localizations" : {
@@ -6600,6 +6627,7 @@
       }
     },
     "Media Q" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9859,6 +9887,7 @@
       }
     },
     "Rulers" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12550,6 +12579,7 @@
       }
     },
     "Toggle Orientation" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12598,6 +12628,7 @@
       }
     },
     "Touch" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13448,6 +13479,9 @@
     "回答" : {
 
     },
+    "完成" : {
+
+    },
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -13506,6 +13540,19 @@
           }
         }
       }
+    },
+    "断点 %@ · @%lldx · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "断点 %1$@ · @%2$lldx · %3$@"
+          }
+        }
+      }
+    },
+    "旋转方向" : {
+
     },
     "未设置" : {
 
@@ -13570,6 +13617,9 @@
 
     },
     "清空已学习的记忆（保留个人资料）" : {
+
+    },
+    "点击区段切换视口宽度" : {
 
     },
     "点击复制图片" : {
@@ -13688,7 +13738,16 @@
         }
       }
     },
+    "自定义" : {
+
+    },
+    "自定义尺寸" : {
+
+    },
     "自定义指令" : {
+
+    },
+    "自定义视口尺寸" : {
 
     },
     "芒果TV" : {
@@ -13729,6 +13788,9 @@
 
     },
     "还没有学到任何长期记忆。正常使用几轮后，Agent 会自动记录你的偏好和习惯。" : {
+
+    },
+    "退出响应式模式" : {
 
     },
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {

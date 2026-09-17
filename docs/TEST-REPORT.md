@@ -365,3 +365,23 @@ baidu.com 应出现移动版布局；退出后恢复桌面版；开关触摸模�
   HSplitView（180/220/360）— 与其他面板一致，分隔线可拖。
 - MediaQuery 实时性复核：刷新已挂钩 effectiveSize 变化（拖把手/
   旋转都会触发），页面静止时的 matchMedia 状态本就不变 — 无需改。
+
+## 响应式开启崩溃 · 平台 bug 定案
+
+崩溃签名（多次复现，主线程）：
+```
+swift_getObjectType → swift_task_isMainExecutorImpl
+→ swift_task_isCurrentExecutorWithFlagsImpl
+→ WebKit RemoteLayerTreePropertyApplier::applyHierarchyUpdates
+→ RemoteLayerTreeHost::updateLayerTree → commitLayerTree
+SIGNAL Segmentation fault: 11
+```
+
+外部佐证：github.com/manaflow-ai/cmux issue #9553 — macOS 26 (Tahoe)
+上嵌入 WKWebView 的应用出现同样的 "Corrupted SerialExecutorRef" 崩溃，
+跨版本持续，属 WebKit/OS 层缺陷。非应用代码可根治。
+
+结论：响应式模式开关时 WKWebView 的图层树提交与 Swift 主执行器
+断言竞态，属 macOS 26 平台 bug。已向 Apple Feedback 渠道建议报障
+（附本报告崩溃签名）。缓解思路（后续评估）：进入/退出响应式时对
+webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。

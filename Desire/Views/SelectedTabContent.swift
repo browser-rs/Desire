@@ -79,8 +79,14 @@ struct SelectedTabContent: View {
                         ResponsiveDesignBar(
                             config: Binding(get: { tab.responsiveConfig }, set: { tab.responsiveConfig = $0 }),
                             responsiveStore: content.responsiveDesignStore,
-                            onScreenshot: { actions.captureResponsiveScreenshot(for: tab) }
+                            onScreenshot: { actions.captureResponsiveScreenshot(for: tab) },
+                            mediaQueries: content.mediaQueries
                         )
+
+                        ResponsiveMQBar(viewportWidth: tab.responsiveConfig.effectiveSize.width) { newWidth in
+                            tab.responsiveConfig.selectedPresetID = nil
+                            tab.responsiveConfig.customWidth = Int(newWidth)
+                        }
                     }
 
                     if isFindBarVisible {
@@ -148,7 +154,10 @@ struct SelectedTabContent: View {
                                     }
                                     .frame(width: responsiveW, height: responsiveH)
                                     // 深色工作台上的设备投影：让设备视口有"实体感"
-                                    .shadow(color: .black.opacity(0.45), radius: 24)
+                                    .shadow(color: .black.opacity(0.45), radius: 22)
+                                    .background {
+                                        WorkbenchGrid()
+                                    }
                                     // Overlays attach to the DEVICE-SIZED
                                     // frame — attaching after the infinity
                                     // frame left handles/rulers floating in
@@ -325,3 +334,6 @@ private struct WorkbenchGrid: View {
         }
     }
 }
+
+
+/// 点阵工作台背景 — 响应式模式下设备框周围的"操作台"质感。

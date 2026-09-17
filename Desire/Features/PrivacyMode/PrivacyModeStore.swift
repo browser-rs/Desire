@@ -5,6 +5,11 @@ import WebKit
 
 @MainActor
 class PrivacyModeStore: ObservableObject {
+    /// Single canonical instance — BrowserState's webview builder applies
+    /// the policy at creation, Settings mutates it live; both must hit the
+    /// same object.
+    static let shared = PrivacyModeStore()
+
     @Published var state: PrivacyModeState {
         didSet {
             saveState()
@@ -52,6 +57,13 @@ class PrivacyModeStore: ObservableObject {
     /// Register a WKWebView configuration to apply privacy settings
     func register(_ configuration: WKWebViewConfiguration) {
         applyPrivacySettingsStore(to: configuration)
+    }
+
+    /// Registers an OPEN webview so a policy change (didSet →
+    /// applyCookiePolicy) reaches already-running pages, not just new tabs.
+    func registerWebView(_ webView: WKWebView) {
+        registeredWebViews.append(WeakWebViewBox(webView: webView))
+        webView.configuration.websiteDataStore.httpCookieStore.setCookiePolicy(cookiePolicyForWKWebView())
     }
 
     /// Apply privacy settings to a WKWebView configuration

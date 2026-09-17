@@ -62,7 +62,7 @@ class PrivacyState: ObservableObject {
     lazy var permissionStore = PermissionStore()
     lazy var elementBlockStore = ElementBlockStore()
     lazy var videoAdBlocker = VideoAdBlocker()
-    lazy var privacyModeStore = PrivacyModeStore()
+    lazy var privacyModeStore = PrivacyModeStore.shared
 
     init() {
         contentBlocker = ContentBlockerStore()

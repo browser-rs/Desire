@@ -68,6 +68,10 @@ class BrowserState: ObservableObject {
             // sessions, and site storage are isolated per container.
             config.websiteDataStore = containerDataStore
         }
+        // Privacy settings (cookie accept policy, WebRTC kill switch) ride
+        // EVERY new webview configuration — this wiring was missing, so the
+        // Settings pickers were dead controls.
+        PrivacyModeStore.shared.applyPrivacySettingsStore(to: config)
         // Use a full, real-Safari User-Agent (see `_desktopSafariUA` for the
         // exact requirements). The base macOS WKWebView UA is just
         //   Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15
@@ -101,6 +105,8 @@ class BrowserState: ObservableObject {
         }
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
+        // Cookie-policy changes must reach this OPEN page too.
+        PrivacyModeStore.shared.registerWebView(webView)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
         // Set the full Safari 26.5 UA on the WKWebView instance itself.

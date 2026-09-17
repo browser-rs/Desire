@@ -34,7 +34,22 @@ extension ContentView {
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
             onOpenLinkInNewTab: { url in
-                tabManager.addTab(url: url.absoluteString, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
+                // Inherit the source tab's identity — "open in new tab" from
+                // a private/container tab must not leak into the default store.
+                tabManager.addTab(url: url.absoluteString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID)
+            },
+            onSearchText: { text in
+                // Right-click "Search …": route through the shared resolver
+                // so URL-looking selection navigates instead of searching.
+                guard let destination = URLResolution.resolve(text, settings: settings) else { return }
+                let target: String
+                switch destination {
+                case .url(let urlString):
+                    target = urlString
+                case .search(let query, let engine):
+                    target = URLResolution.searchURL(query: query, target: engine)?.absoluteString ?? text
+                }
+                tabManager.addTab(url: target, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID)
             },
             onPageFinished: { url, title in
                 // Reset per-page counter so the toast reflects this navigation.

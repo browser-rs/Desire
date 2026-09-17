@@ -162,11 +162,15 @@ extension BrowserToolProvider {
                 ], required: ["name"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "spawnSubagent", description: "Delegate a SELF-CONTAINED sub-task to a fresh sub-agent with its own context window (same tools, same approvals). Only its final report returns to you — use for deep research, multi-page extraction, or long verification work that would flood this conversation with tool output. The prompt must be complete (goal, pages to visit, what to report). The subagent cannot ask the user questions; it cannot call spawnSubagent itself.",
+                name: "spawnSubagent", description: "Delegate SELF-CONTAINED sub-task(s) to fresh sub-agents with their own context windows (same tools, same approvals). Only the final report(s) return to you — use for deep research, multi-page extraction, or long verification work that would flood this conversation with tool output. Single task: pass task. PARALLEL fan-out: pass tasks (array of {task, maxSteps}, up to 3) — each runs in its own browser tab simultaneously (e.g. compare 3 sites at once). Each prompt must be complete (goal, pages, what to report). Subagents cannot ask the user questions or spawn subagents.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "task": AgentJSONSchemaValue(type: "string", description: "Complete sub-task instructions, e.g. \"Open these 3 URLs, extract price and rating for each, return a comparison table\""),
-                    "maxSteps": AgentJSONSchemaValue(type: "number", description: "Max tool-loop steps for the subagent (default 10, cap 15)"),
-                ], required: ["task"])
+                    "task": AgentJSONSchemaValue(type: "string", description: "Single-task mode: complete sub-task instructions"),
+                    "tasks": AgentJSONSchemaValue(type: "array", description: "Parallel mode: [{\"task\": ..., \"maxSteps\": 10}] — up to 3 run concurrently, each in its own tab", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                        "task": AgentJSONSchemaValue(type: "string", description: "Complete sub-task instructions"),
+                        "maxSteps": AgentJSONSchemaValue(type: "number", description: "Max steps for this subagent (default 10, cap 12)"),
+                    ]))),
+                    "maxSteps": AgentJSONSchemaValue(type: "number", description: "Single-task mode: max tool-loop steps (default 10, cap 15)"),
+                ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "downloadMedia", description: "Download a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Pair with listPageVideos: extract, confirm with the user which one, then download. The tool call blocks until the export finishes.",

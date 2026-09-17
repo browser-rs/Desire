@@ -757,21 +757,126 @@ class AgentSessionStore: ObservableObject {
 
     // MARK: - Subagent
 
-    /// Runs a delegated sub-task in a fresh, ephemeral context: its own
-    /// message array and step cap, but the same tools, approval gate, and
-    /// provider stack. Only the final report returns to the parent — deep
-    /// research fills the subagent's context, not the main conversation's.
-    /// The subagent transcript is not persisted.
+    /// Live progress of one delegated subagent (rendered in the panel strip).
+    struct SubagentProgress: Identifiable {
+        let id = UUID()
+        let label: String
+        var step: Int = 0
+        var maxSteps: Int
+        var currentTool: String?
+    }
+
+    /// Currently running subagents.
+    @Published private(set) var runningSubagents: [SubagentProgress] = []
+
+    /// Serializes approval prompts: parallel subagents can request
+    /// approvals simultaneously, but there is one approval UI. Check and
+    /// set happen with no await between — atomic on the main actor.
+    private var approvalSlotBusy = false
+
+    private func acquireApprovalSlot() async {
+        while approvalSlotBusy {
+            if isCancelled { return }
+            try? await Task.sleep(nanoseconds: 80_000_000)
+        }
+        approvalSlotBusy = true
+    }
+
+    /// Runs a delegated sub-task — or a fan-out of up to 3 in parallel — in
+    /// a fresh, ephemeral context: own message array and step cap, but the
+    /// same tools, approval gate, and provider stack. Only the final
+    /// report(s) return to the parent; transcripts are not persisted.
     private func runSubagent(argumentsJSON: String) async -> String {
         guard let data = argumentsJSON.data(using: .utf8),
-              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let task = (args["task"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "Missing task"
+        }
+
+        // Fan-out: "tasks": [{task, maxSteps}, …] — one tab + one loop each.
+        if let rawJobs = args["tasks"] as? [[String: Any]], rawJobs.count > 1 {
+            let jobs = rawJobs.prefix(3).compactMap { item -> (task: String, maxSteps: Int)? in
+                guard let t = (item["task"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !t.isEmpty else { return nil }
+                return (t, max(3, min(item["maxSteps"] as? Int ?? 10, 12)))
+            }
+            guard !jobs.isEmpty else { return "No valid tasks in the tasks array" }
+            return await runParallelSubagents(jobs: Array(jobs))
+        }
+
+        guard let task = (args["task"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !task.isEmpty else {
             return "Missing task"
         }
-        let requestedSteps = args["maxSteps"] as? Int ?? 10
-        let maxSubIterations = max(3, min(requestedSteps, 15))
+        let maxSteps = max(3, min(args["maxSteps"] as? Int ?? 10, 15))
+        let progress = SubagentProgress(label: Self.progressLabel(task), maxSteps: maxSteps)
+        runningSubagents.append(progress)
+        defer { runningSubagents.removeAll { $0.id == progress.id } }
+        return await runSubagentLoop(
+            task: task, maxSteps: maxSteps, webView: nil, progressID: progress.id
+        )
+    }
 
+    /// Parallel dispatch: a dedicated tab per job, reports joined in
+    /// dispatch order. Each child acts in its OWN tab's webview so they
+    /// never click each other's pages; tabs stay open for inspection.
+    private func runParallelSubagents(jobs: [(task: String, maxSteps: Int)]) async -> String {
+        guard let tabManager = toolProvider.surface?.tabManager else {
+            return "Tab manager unavailable — cannot open per-subagent tabs"
+        }
+        var webviews: [WKWebView?] = []
+        var progressIDs: [UUID] = []
+        for job in jobs {
+            tabManager.addTab(
+                url: nil,
+                javaScriptEnabled: toolProvider.surface?.settings.isJavaScriptEnabled ?? true,
+                contentBlocker: toolProvider.surface?.contentBlocker,
+                videoAdBlocker: toolProvider.surface?.videoAdBlocker
+            )
+            if let tab = tabManager.tabs.last {
+                // Background tab: keep its webview live and navigable.
+                tab.isOnNewTabPage = false
+                tab.isSuspended = false
+                webviews.append(tab.browser.webView)
+            } else {
+                webviews.append(nil)
+            }
+            let progress = SubagentProgress(label: Self.progressLabel(job.task), maxSteps: job.maxSteps)
+            runningSubagents.append(progress)
+            progressIDs.append(progress.id)
+        }
+        defer {
+            runningSubagents.removeAll { progressIDs.contains($0.id) }
+        }
+
+        let reports = await withTaskGroup(
+            of: (index: Int, report: String).self
+        ) { group in
+            for (i, job) in jobs.enumerated() {
+                let webView = webviews[i]
+                let progressID = progressIDs[i]
+                group.addTask { @MainActor in
+                    let report = await self.runSubagentLoop(
+                        task: job.task, maxSteps: job.maxSteps,
+                        webView: webView, progressID: progressID
+                    )
+                    return (index: i, report: report)
+                }
+            }
+            var out = [(index: Int, report: String)]()
+            for await piece in group { out.append(piece) }
+            return out.sorted { $0.index < $1.index }
+        }
+
+        return zip(jobs.indices, reports).map { i, piece in
+            "[Subagent \(i + 1): \(Self.progressLabel(jobs[i].task))]\n\(piece.report)"
+        }.joined(separator: "\n\n---\n\n")
+    }
+
+    /// One subagent's model→tools→model loop. Runs on the main actor; all
+    /// parallelism comes from interleaving at await points.
+    private func runSubagentLoop(
+        task: String, maxSteps: Int, webView: WKWebView?, progressID: UUID
+    ) async -> String {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: Self.subagentIdentity,
@@ -788,9 +893,16 @@ class AgentSessionStore: ObservableObject {
         let outerAction = currentAction
         defer { currentAction = outerAction }
 
-        for _ in 0..<maxSubIterations {
+        func reportProgress(step: Int, tool: String?) {
+            guard let idx = runningSubagents.firstIndex(where: { $0.id == progressID }) else { return }
+            runningSubagents[idx].step = step
+            runningSubagents[idx].currentTool = tool
+        }
+
+        for step in 1...maxSteps {
             if isCancelled { return "[Cancelled]" }
             await waitWhilePaused()
+            reportProgress(step: step, tool: nil)
 
             var assistant = AgentMessage(role: .assistant, content: "")
             do {
@@ -826,6 +938,7 @@ class AgentSessionStore: ObservableObject {
             for tc in tcs {
                 if isCancelled { return "[Cancelled]" }
                 await waitWhilePaused()
+                reportProgress(step: step, tool: tc.function.name)
                 let decision = await gate(toolCall: tc, risk: ToolRisk.classify(tc.function.name))
                 switch decision {
                 case .denied:
@@ -839,10 +952,9 @@ class AgentSessionStore: ObservableObject {
                 case .allowedOnce, .allowedAlways:
                     break
                 }
-                // Live status in the parent panel: the user sees which
-                // inner tool the subagent is on.
                 currentAction = "subagent · \(tc.function.name)"
-                let result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                let target = webView ?? activeWebView ?? WKWebView()
+                let result = await toolProvider.execute(tc, in: target)
                 subMessages.append(AgentMessage(
                     role: .tool,
                     content: String(result.prefix(8000)),
@@ -850,11 +962,17 @@ class AgentSessionStore: ObservableObject {
                     toolName: tc.function.name
                 ))
             }
+            reportProgress(step: step, tool: nil)
             currentAction = outerAction
         }
 
         let partial = subMessages.last(where: { $0.role == .assistant })?.content ?? ""
-        return "Subagent hit its step cap (\(maxSubIterations)). Partial result: \(partial.prefix(600))"
+        return "Subagent hit its step cap (\(maxSteps)). Partial result: \(partial.prefix(600))"
+    }
+
+    private static func progressLabel(_ task: String) -> String {
+        let flat = task.replacingOccurrences(of: "\n", with: " ")
+        return String(flat.prefix(36)) + (flat.count > 36 ? "…" : "")
     }
 
     private static let subagentIdentity = """
@@ -913,6 +1031,10 @@ class AgentSessionStore: ObservableObject {
     /// returns. `.readonly` tools and whitelisted tools bypass the prompt.
     private func gate(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
         if isCancelled { return .denied }
+
+        // One approval prompt at a time — parallel subagents queue here.
+        await acquireApprovalSlot()
+        defer { approvalSlotBusy = false }
 
         // FULL ACCESS: the user explicitly delegated every tool decision —
         // including dangerous-tier executeJS — so nothing pauses.

@@ -106,6 +106,43 @@ struct AgentPanel: View {
                 AgentPlanView(steps: planStore.steps)
             }
 
+            // Live progress of delegated subagents (spawnSubagent).
+            if !store.runningSubagents.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(store.runningSubagents) { run in
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.2")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                            Text(run.label)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            if let tool = run.currentTool {
+                                Text(tool)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                            }
+                            Spacer(minLength: 0)
+                            Text("\(run.step)/\(run.maxSteps)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.secondary.opacity(0.07))
+                        )
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+            }
+
             if let context = store.contextLabel {
                 HStack(spacing: 4) {
                     Image(systemName: "scope")

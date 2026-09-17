@@ -54,6 +54,21 @@
   .pop .it.on .ck { visibility: visible; }
   .pop .it .dim { margin-left: auto; color: var(--t2); font-size: 10.5px; }
   .pop .hr { height: 1px; background: #3c4043; margin: 4px 6px; }
+  .pop .search { display: flex; align-items: center; gap: 6px; margin: 4px 6px 6px;
+                 padding: 0 9px; background: rgba(255,255,255,.05);
+                 border: 1px solid #3c4043; border-radius: 7px; height: 30px; }
+  .pop .search input { flex: 1; background: none; border: none; outline: none;
+                       color: var(--t1); font-size: 12px; }
+  .pop .tile { width: 30px; height: 30px; border-radius: 7px; flex: none;
+               background: rgba(138,180,248,.13);
+               display: flex; align-items: center; justify-content: center; }
+  .pop .tile svg { width: 15px; height: 15px; color: var(--accent); }
+  .pop .it .col2 { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .pop .it .sub2 { font-size: 10px; color: var(--t3); }
+  .pop .foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+               margin-top: 4px; border-top: 1px solid #3c4043;
+               color: var(--accent); font-size: 12px; cursor: pointer; }
+  .pop .foot:hover { background: rgba(138,180,248,.08); }
 
   /* ═══ 媒体查询条（Chrome 签名元素）═══ */
   .mq-bar { flex: none; height: 22px; display: flex; margin: 0 8px;
@@ -133,19 +148,13 @@
         <span class="v" id="dimLabel">iPhone 14 Pro</span>
         <svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      <div class="pop" id="dimPop">
-        <div class="it on" data-preset="Responsive"><span class="ck">✓</span><span class="nm">Responsive</span></div>
-        <div class="hr"></div>
-        <div class="cat">Phone</div>
-        <div class="it" data-preset="iPhone SE"><span class="ck">✓</span><span class="nm">iPhone SE</span><span class="dim">375×667</span></div>
-        <div class="it" data-preset="iPhone 14 Pro"><span class="ck">✓</span><span class="nm">iPhone 14 Pro</span><span class="dim">390×844</span></div>
-        <div class="it" data-preset="iPhone 14 Pro Max"><span class="ck">✓</span><span class="nm">iPhone 14 Pro Max</span><span class="dim">430×932</span></div>
-        <div class="it" data-preset="Galaxy S24"><span class="ck">✓</span><span class="nm">Galaxy S24</span><span class="dim">360×780</span></div>
-        <div class="cat">Tablet</div>
-        <div class="it" data-preset="iPad 10"><span class="ck">✓</span><span class="nm">iPad 10</span><span class="dim">820×1180</span></div>
-        <div class="it" data-preset="iPad Pro 12.9"><span class="ck">✓</span><span class="nm">iPad Pro 12.9</span><span class="dim">1024×1366</span></div>
-        <div class="cat">Desktop</div>
-        <div class="it" data-preset="Desktop HD"><span class="ck">✓</span><span class="nm">Desktop HD</span><span class="dim">1366×768</span></div>
+<div class="pop" id="dimPop">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;color:var(--t2)"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <input id="devSearch" placeholder="搜索设备…">
+        </div>
+        <div id="devList"></div>
+        <div class="foot" id="addCustom">＋ 新建自定义设备</div>
       </div>
     </div>
 
@@ -353,20 +362,62 @@ dimBtn.addEventListener('click', e => { e.stopPropagation(); zoomPop.classList.r
 zoomBtn.addEventListener('click', e => { e.stopPropagation(); dimPop.classList.remove('open'); zoomPop.classList.toggle('open'); });
 document.addEventListener('click', () => document.querySelectorAll('.pop').forEach(p => p.classList.remove('open')));
 
-document.querySelectorAll('#dimPop .it').forEach(it => {
-  it.addEventListener('click', () => {
-    document.querySelectorAll('#dimPop .it').forEach(x => x.classList.remove('on'));
-    it.classList.add('on');
-    const name = it.dataset.preset;
-    cur.name = name;
-    const D = { 'iPhone SE': [375, 667], 'iPhone 14 Pro': [390, 844], 'iPhone 14 Pro Max': [430, 932],
-                'Galaxy S24': [360, 780], 'iPad 10': [820, 1180], 'iPad Pro 12.9': [1024, 1366],
-                'Desktop HD': [1366, 768] };
-    if (D[name]) { cur.w = D[name][0]; cur.h = D[name][1]; }
-    devLabel.textContent = `${name} · ${cur.w} × ${cur.h}`;
-    layout();
-  });
+const DEVICE_DB = [
+  { cat: '手机', icon: 'phone', name: 'iPhone SE', w: 375, h: 667, dpr: 2, os: 'iOS' },
+  { cat: '手机', icon: 'phone', name: 'iPhone 14 Pro', w: 390, h: 844, dpr: 3, os: 'iOS' },
+  { cat: '手机', icon: 'phone', name: 'iPhone 14 Pro Max', w: 430, h: 932, dpr: 3, os: 'iOS' },
+  { cat: '手机', icon: 'phone', name: 'Galaxy S24', w: 360, h: 780, dpr: 3, os: 'Android' },
+  { cat: '手机', icon: 'phone', name: 'Pixel 9', w: 412, h: 915, dpr: 2.6, os: 'Android' },
+  { cat: '平板', icon: 'tablet', name: 'iPad 10', w: 820, h: 1180, dpr: 2, os: 'iPadOS' },
+  { cat: '平板', icon: 'tablet', name: 'iPad Pro 12.9', w: 1024, h: 1366, dpr: 2, os: 'iPadOS' },
+  { cat: '桌面', icon: 'desktop', name: 'Desktop HD', w: 1366, h: 768, dpr: 1, os: 'Desktop' },
+];
+const DEV_ICONS = {
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg>',
+  tablet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M10 18h4"/></svg>',
+  desktop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+};
+let curPresetName = 'iPhone 14 Pro';
+
+function renderDevList(filter) {
+  const list = document.getElementById('devList');
+  list.innerHTML = '';
+  const f = (filter || '').trim().toLowerCase();
+  for (const cat of ['手机', '平板', '桌面']) {
+    const items = DEVICE_DB.filter(d => d.cat === cat &&
+        (!f || d.name.toLowerCase().includes(f)));
+    if (!items.length) continue;
+    const h = document.createElement('div'); h.className = 'cat'; h.textContent = cat;
+    list.appendChild(h);
+    for (const d of items) {
+      const it = document.createElement('div'); it.className = 'it';
+      if (d.name === curPresetName) it.classList.add('on');
+      it.innerHTML =
+        '<div class="tile">' + DEV_ICONS[d.icon] + '</div>' +
+        '<div class="col2"><span class="nm">' + d.name + '</span>' +
+        '<span class="sub2">' + d.w + '×' + d.h + ' · @' + d.dpr + 'x · ' + d.os + '</span></div>' +
+        '<span class="ck" style="margin-left:auto">' +
+        (d.name === curPresetName ? '✓' : '') + '</span>';
+      it.addEventListener('click', () => {
+        curPresetName = d.name;
+        cur.w = d.w; cur.h = d.h;
+        document.getElementById('dimLabel').textContent = d.name;
+        document.getElementById('w').value = d.w;
+        document.getElementById('h').value = d.h;
+        renderDevList(document.getElementById('devSearch').value);
+        layout();
+      });
+      list.appendChild(it);
+    }
+  }
+}
+document.getElementById('devSearch').addEventListener('input', e =>
+    renderDevList(e.target.value));
+renderDevList('');
+document.getElementById('addCustom').addEventListener('click', () => {
+  document.getElementById('dimPop').classList.remove('open');
 });
+
 document.querySelectorAll('#zoomPop .it').forEach(it => {
   it.addEventListener('click', () => {
     document.querySelectorAll('#zoomPop .it').forEach(x => x.classList.remove('on'));

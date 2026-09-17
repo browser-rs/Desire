@@ -1,92 +1,112 @@
 import SwiftUI
 
+/// Device-size drag handles rendered at the edges of the responsive
+/// viewport: corner (width+height), right edge (width), bottom edge
+/// (height). A live size badge appears while dragging.
 struct DragHandleOverlay: View {
     @Binding var config: ResponsiveConfig
     let viewportSize: CGSize
 
     @State private var dragStartW: Int = 0
     @State private var dragStartH: Int = 0
+    @State private var activeGrips: GripSet = []
 
-    private let cornerSize: CGFloat = 10
-    private let edgeLength: CGFloat = 24
-    private let edgeThickness: CGFloat = 4
+    struct GripSet: OptionSet {
+        let rawValue: Int
+        static let width = GripSet(rawValue: 1 << 0)
+        static let height = GripSet(rawValue: 1 << 1)
+    }
 
     var body: some View {
         let w = viewportSize.width
         let h = viewportSize.height
 
         ZStack {
-            ResizeCornerHandle()
-                .fill(Color.accentColor)
-                .frame(width: cornerSize + 4, height: cornerSize + 4)
+            // 右下角柄：宽高同时拖
+            HandleGlyph(grips: [.width, .height])
                 .position(x: w, y: h)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if dragStartW == 0 {
-                                dragStartW = config.customWidth
-                                dragStartH = config.customHeight
-                            }
-                            config.selectedPresetID = nil
-                            config.customWidth = max(200, dragStartW + Int(value.translation.width))
-                            config.customHeight = max(200, dragStartH + Int(value.translation.height))
-                        }
-                        .onEnded { _ in
-                            dragStartW = 0
-                            dragStartH = 0
-                        }
-                )
+                .gesture(resizeGesture([.width, .height]))
 
-            RoundedRectangle(cornerRadius: 1)
-                .fill(Color.accentColor.opacity(0.3))
-                .frame(width: edgeThickness, height: edgeLength)
+            // 右缘柄：只拖宽
+            HandleGlyph(grips: [.width])
                 .position(x: w, y: h / 2)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if dragStartW == 0 {
-                                dragStartW = config.customWidth
-                            }
-                            config.selectedPresetID = nil
-                            config.customWidth = max(200, dragStartW + Int(value.translation.width))
-                        }
-                        .onEnded { _ in
-                            dragStartW = 0
-                        }
-                )
+                .gesture(resizeGesture([.width]))
 
-            RoundedRectangle(cornerRadius: 1)
-                .fill(Color.accentColor.opacity(0.3))
-                .frame(width: edgeLength, height: edgeThickness)
+            // 底缘柄：只拖高
+            HandleGlyph(grips: [.height])
                 .position(x: w / 2, y: h)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if dragStartH == 0 {
-                                dragStartH = config.customHeight
-                            }
-                            config.selectedPresetID = nil
-                            config.customHeight = max(200, dragStartH + Int(value.translation.height))
-                        }
-                        .onEnded { _ in
-                            dragStartH = 0
-                        }
-                )
+                .gesture(resizeGesture([.height]))
+
+            // 拖动中的实时尺寸徽标（主流设备模式的 size overlay）
+            if activeGrips.isEmpty == false {
+                Text("\(config.customWidth) × \(config.customHeight)")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.92)))
+                    .position(x: w / 2, y: h + 26)
+                    .transition(.opacity)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.hoverFast, value: activeGrips)
+    }
+
+    private func resizeGesture(_ grips: GripSet) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                if dragStartW == 0 {
+                    dragStartW = config.customWidth
+                    dragStartH = config.customHeight
+                }
+                activeGrips = grips
+                config.selectedPresetID = nil
+                if grips.contains(.width) {
+                    config.customWidth = max(200, dragStartW + Int(value.translation.width))
+                }
+                if grips.contains(.height) {
+                    config.customHeight = max(200, dragStartH + Int(value.translation.height))
+                }
+            }
+            .onEnded { _ in
+                dragStartW = 0
+                dragStartH = 0
+                activeGrips = []
+            }
     }
 }
 
-private struct ResizeCornerHandle: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { p in
-            p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX - 4, y: rect.minY + 4))
-            p.addLine(to: CGPoint(x: rect.maxX - 4, y: rect.maxY - 4))
-            p.addLine(to: CGPoint(x: rect.minX + 4, y: rect.maxY - 4))
-            p.closeSubpath()
+/// 把手视觉：accent 实心圆 + 白描边 + 握纹方向随轴。
+private struct HandleGlyph: View {
+    var grips: DragHandleOverlay.GripSet
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.accentColor)
+                .overlay(Circle().stroke(Color.white.opacity(0.85), lineWidth: 1.5))
+            Group {
+                if grips.contains(.width) && grips.contains(.height) {
+                    VStack(spacing: 2) {
+                        Capsule().frame(width: 9, height: 1.5)
+                        Capsule().frame(width: 9, height: 1.5)
+                    }
+                } else if grips.contains(.width) {
+                    VStack(spacing: 2) {
+                        Capsule().frame(width: 1.5, height: 4)
+                        Capsule().frame(width: 1.5, height: 4)
+                    }
+                } else {
+                    HStack(spacing: 2) {
+                        Capsule().frame(width: 4, height: 1.5)
+                        Capsule().frame(width: 4, height: 1.5)
+                    }
+                }
+            }
+            .foregroundStyle(.white.opacity(0.92))
         }
+        .frame(width: 18, height: 18)
+        .contentShape(Circle().inset(by: -6))
+        .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
     }
 }

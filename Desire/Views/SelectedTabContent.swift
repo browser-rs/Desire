@@ -40,6 +40,7 @@ struct SelectedTabContent: View {
     @State private var devToolsWidth: CGFloat = 420
     @State private var agentPanelWidth: CGFloat = 320
 
+    @State private var inspectorWidth: CGFloat = 220
     var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geo in
@@ -62,7 +63,7 @@ struct SelectedTabContent: View {
             // extraction).
             content.toolbarSection(for: tab)
 
-            HSplitView {
+            HStack(spacing: 0) {
                 if showSidebar {
                     SidebarView(
                         bookmarkStore: content.bookmarkStore,
@@ -146,6 +147,8 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .frame(width: responsiveW, height: responsiveH)
+                                    // 深色工作台上的设备投影：让设备视口有"实体感"
+                                    .shadow(color: .black.opacity(0.45), radius: 24)
                                     // Overlays attach to the DEVICE-SIZED
                                     // frame — attaching after the infinity
                                     // frame left handles/rulers floating in
@@ -177,6 +180,11 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background {
+                                        if tab.responsiveConfig.isEnabled {
+                                            WorkbenchGrid()
+                                        }
+                                    }
                                     .onChange(of: tab.responsiveConfig.touchSimulationEnabled) { _, enabled in
                                         if enabled {
                                             TouchSimulation.apply(to: tab.browser.webView)
@@ -251,8 +259,9 @@ struct SelectedTabContent: View {
                 }
 
                 if showAgentPanel {
+                    ResizableDivider(width: $agentPanelWidth, range: 260...1200)
                     AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                        .frame(minWidth: 260, idealWidth: agentPanelWidth, maxWidth: 1200)
+                        .frame(width: agentPanelWidth)
                         // Opening the assistant resumes the most recent
                         // conversation instead of a blank panel. Deferred
                         // off the view-update pass: loading publishes
@@ -267,11 +276,12 @@ struct SelectedTabContent: View {
                 }
 
                 if showDevToolsPanel {
+                    ResizableDivider(width: $devToolsWidth, range: 300...1400)
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                     }, onClose: { content.toggleDevTools() })
-                    .frame(minWidth: 300, idealWidth: devToolsWidth, maxWidth: 1400)
+                    .frame(width: devToolsWidth)
                 }
             }
 
@@ -293,3 +303,25 @@ struct SelectedTabContent: View {
 }
 
 
+
+
+/// 点阵工作台背景 — 响应式模式下设备框周围的"操作台"质感。
+private struct WorkbenchGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            let spacing: CGFloat = 26
+            var x: CGFloat = 0
+            while x < size.width {
+                var y: CGFloat = 0
+                while y < size.height {
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: x, y: y, width: 1.5, height: 1.5)),
+                        with: .color(Color.white.opacity(0.06))
+                    )
+                    y += spacing
+                }
+                x += spacing
+            }
+        }
+    }
+}

@@ -187,6 +187,19 @@ final class AutomationServer {
                     }
                 }
                 return try Self.json(["spawn": out.trimmingCharacters(in: .whitespacesAndNewlines)])
+            case ("POST", "/responsive"):
+                guard let tab = try Self.shared.resolveIndex(Self.index(body)) else {
+                    return Self.error("no such tab")
+                }
+                let enabled = body["enabled"] as? Bool ?? true
+                if let presetName = Self.string(body, "preset"),
+                   let preset = devicePresets.first(where: { $0.name == presetName }) {
+                    tab.responsiveConfig.selectedPresetID = preset.id
+                    tab.responsiveConfig.customWidth = preset.width
+                    tab.responsiveConfig.customHeight = preset.height
+                }
+                tab.responsiveConfig.isEnabled = enabled   // onChange → Applier
+                return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize])
             case ("GET", "/approvals"):
                 return try Self.json(Self.pendingApproval())
             case ("POST", "/approvals/resolve"):

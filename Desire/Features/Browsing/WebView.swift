@@ -1,3 +1,4 @@
+import os
 import Combine
 import Security
 import SwiftUI
@@ -551,6 +552,7 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            Log.agent.error("didFail: \(error.localizedDescription, privacy: .public)")
             parent.isLoading = false
             // Store the underlying `Error` so ErrorPageView can map
             // `URLError.code` to category-specific copy (TLS, offline, …)
@@ -563,6 +565,7 @@ struct WebView: NSViewRepresentable {
         /// app — a page must not be able to launch arbitrary applications
         /// silently. Shows "no app found" when nothing is registered.
         private func confirmAndOpenExternalURL(_ url: URL) {
+            Log.agent.error("EXTERNAL HANDOFF entered for \(url.absoluteString, privacy: .public)")
             let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
             let bundle = appURL.flatMap(Bundle.init(url:))
             let appName = bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
@@ -594,6 +597,7 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            Log.agent.debug("decidePolicy: \(url.absoluteString, privacy: .public) scheme=\(url.scheme ?? "nil", privacy: .public) type=\(navigationAction.navigationType.rawValue) targetFrame=\(navigationAction.targetFrame != nil)")
             if let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {
                 // Custom application scheme (tg://, spotify://, zoommtg://,
                 // vscode:// …) — hand it to the OS so the registered desktop
@@ -679,6 +683,7 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            Log.agent.error("didFailProvisional: \(error.localizedDescription, privacy: .public)")
             parent.isLoading = false
             parent.state.lastError = error
             // Only fall back from HTTPS → HTTP when the *upgrade itself*

@@ -7,6 +7,10 @@ import SwiftUI
 
 @MainActor
 class DownloadStore: ObservableObject {
+    /// The app's primary store instance — the automation bridge reads this
+    /// (multiple instances may exist; in-flight state lives only here).
+    static private(set) weak var live: DownloadStore?
+
     @Published var downloads: [DownloadItem] = []
     @Published private(set) var downloadFolder: URL
     @Published var groupingMode: GroupingMode = .date
@@ -36,6 +40,7 @@ class DownloadStore: ObservableObject {
             }
         }
         loadHistory()
+        DownloadStore.live = self
     }
 
     private static func defaultDownloadsURL() -> URL {

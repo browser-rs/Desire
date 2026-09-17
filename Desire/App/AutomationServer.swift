@@ -140,6 +140,28 @@ final class AutomationServer {
                 return try await Self.json(Self.screenshot())
             case ("GET", "/history"):
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
+            case ("GET", "/spawn-test"):
+                // Direct spawn probe — proves the (removed) sandbox really
+                // lets the app run system binaries, no LLM involved.
+                let out = await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+                    Task.detached {
+                        let p = Process()
+                        p.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                        p.arguments = ["-c", "print('spawn-ok')"]
+                        let pipe = Pipe()
+                        p.standardOutput = pipe
+                        do {
+                            try p.run()
+                            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                            continuation.resume(returning: String(data: data, encoding: .utf8) ?? "")
+                        } catch {
+                            continuation.resume(returning: "SPAWN FAILED: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                return try Self.json(["spawn": out.trimmingCharacters(in: .whitespacesAndNewlines)])
+            case ("GET", "/downloads"):
+                return try Self.json(Self.downloads())
             case ("GET", "/bookmarks"):
                 return try Self.json(Self.bookmarks())
             case ("GET", "/agent/messages"):
@@ -324,6 +346,20 @@ final class AutomationServer {
     private static func bookmarks() throws -> [String: Any] {
         let entries = BookmarkStore().leafEntries.map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
+    }
+
+    private static func downloads() throws -> [String: Any] {
+        guard let store = DownloadStore.live else { return ["error": "store not ready"] }
+        let items = store.downloads.map { item -> [String: Any] in
+            [
+                "file": item.filename,
+                "state": item.state.rawValue,
+                "paused": item.isPaused,
+                "bytes": item.downloadedBytes,
+                "total": item.totalBytes,
+            ]
+        }
+        return ["downloads": Array(items)]
     }
 
     private static func agentMessages() throws -> [String: Any] {

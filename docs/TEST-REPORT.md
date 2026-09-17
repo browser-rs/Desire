@@ -204,3 +204,22 @@ P0×4、流式节流、并行子代理、定时任务、暂停恢复、用量统
 MCP 鉴权、快捷键多窗口隔离、webview 泄漏、会话恢复、缩放泄漏、
 无痕身份、加载超时看门狗、历史标题校正、快速操作条、模型菜单、
 输入栏两行布局、自动化 CLI 桥。
+
+## 第十轮：沙盒移除完成 + spawn 验证
+
+用户在 Xcode 删除 App Sandbox capability 后：
+- 重建签名 app-sandbox=0，仅剩 get-task-allow ✅
+- **/spawn-test 端点（新增）**：进程内直接 spawn /usr/bin/python3 →
+  "spawn-ok" ✅ — runCommand 的系统工具能力恢复
+- NSHomeDirectory 回到真实 /Users/mankong（截图路径验证）✅
+
+### 新增端点
+- GET /spawn-test — 无 LLM 依赖的 spawn 探针
+- GET /downloads — 下载列表（filename/state/paused/bytes；经
+  DownloadStore.live 弱注册读活实例）
+
+### 回归
+- T1 搜索解析："hello world" → 百度搜索 URL，标题同步 ✅
+- T2 localhost:8799 直达 ✅
+- Agent 回路 401：沙盒→非沙盒的 Keychain 域切换，旧 key 读取路径
+  失效 — 用户需在设置里重新保存一次 API key（预期行为，非缺陷）。

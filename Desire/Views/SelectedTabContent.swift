@@ -70,7 +70,7 @@ struct SelectedTabContent: View {
                         readingListStore: content.readingListStore,
                         onNavigate: { url in actions.navigateToURL(url, for: tab) }
                     )
-                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 400)
+                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 800)
                 }
 
                 VStack(spacing: 0) {
@@ -220,12 +220,12 @@ struct SelectedTabContent: View {
 
                 if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
                     MediaQueryInspector(queries: content.mediaQueries)
-                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 360)
+                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 560)
                 }
 
                 if showAgentPanel {
                     AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                        .frame(minWidth: 260, idealWidth: agentPanelWidth, maxWidth: 560)
+                        .frame(minWidth: 260, idealWidth: agentPanelWidth, maxWidth: 1200)
                         // Opening the assistant resumes the most recent
                         // conversation instead of a blank panel. Deferred
                         // off the view-update pass: loading publishes
@@ -244,7 +244,7 @@ struct SelectedTabContent: View {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                     }, onClose: { content.toggleDevTools() })
-                    .frame(minWidth: 300, idealWidth: devToolsWidth, maxWidth: 800)
+                    .frame(minWidth: 300, idealWidth: devToolsWidth, maxWidth: 1400)
                 }
             }
 

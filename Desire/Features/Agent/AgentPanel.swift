@@ -337,10 +337,39 @@ struct AgentPanel: View {
                         .id("__bottom__")
                 }
                 .padding(.vertical, 12)
+                // Readability cap: the floating panel can be resized wide;
+                // full-bleed text lines get hard to scan.
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
             }
             // Start (and reopen) at the latest message, not the top.
             .defaultScrollAnchor(.bottom)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                // Mainstream pattern: jump back to the live tail after
+                // scrolling up to read.
+                if !isPinnedToBottom, !store.messages.isEmpty {
+                    Button {
+                        scrollToBottom(proxy, force: true)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle().fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                            .overlay(
+                                Circle().stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Jump to latest")
+                    .padding(.bottom, 8)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 // "Pinned" = the viewport bottom sits within 80pt of the
                 // content bottom. While pinned, streaming output auto-
@@ -349,7 +378,7 @@ struct AgentPanel: View {
                     - (geometry.contentOffset.y + geometry.containerSize.height)
                 return distance < 80
             } action: { _, pinned in
-                isPinnedToBottom = pinned
+                withAnimation(.hoverFast) { isPinnedToBottom = pinned }
             }
             .onAppear {
                 // An immediate scrollTo is a no-op before the first layout

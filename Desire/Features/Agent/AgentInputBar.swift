@@ -131,8 +131,10 @@ struct AgentInputBar: View {
                     Text(placeholder)
                         .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 9)
+                        // Matches the TextEditor's padding + its native text
+                        // inset, so the caret never sits on the glyphs.
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
                         .allowsHitTesting(false)
                 }
 
@@ -140,10 +142,20 @@ struct AgentInputBar: View {
                     .font(.system(size: 13))
                     .scrollContentBackground(.hidden)
                     .focused($isFocused)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .frame(minHeight: 32, maxHeight: 120)
-                    .onSubmit(onSubmit)
+                    .onKeyPress(keys: [.return]) { press in
+                        // Mainstream chat semantics: Enter sends,
+                        // Shift+Enter inserts a newline, ⌘+Return is
+                        // handled upstream.
+                        if press.modifiers.contains(.shift)
+                            || press.modifiers.contains(.command) {
+                            return .ignored
+                        }
+                        onSubmit()
+                        return .handled
+                    }
             }
 
             // Controls live in their OWN full-width row below the text —

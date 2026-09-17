@@ -403,7 +403,12 @@ extension VideoSite {
     }
 
     // ── In-stream ad killer: cheap fast loop, pod-aware ──
+    // Primary weapon is 16× SPEED-THROUGH, not seeking: YouTube now fights
+    // seekTo (error screens / re-injected ads), but a fast-playing ad is
+    // still "playing" — a 30s spot passes in ~2s with no player error.
     var mutedByUs = false;
+    var speededByUs = false;
+    var origRate = 1;
     var seekPostedThisAd = false;
     var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
         '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
@@ -415,6 +420,12 @@ extension VideoSite {
         if (ad) {
             // Mute while ANY ad in the pod plays; restored when it clears.
             if (v && !v.muted) { v.muted = true; mutedByUs = true; }
+            // Speed through: remember the user's rate only once, only if
+            // sane (≤2×), and restore it when the pod clears.
+            if (v && v.playbackRate < 16) {
+                origRate = (v.playbackRate > 0 && v.playbackRate <= 2) ? v.playbackRate : 1;
+                try { v.playbackRate = 16; speededByUs = true; } catch(e) {}
+            }
             var skip = document.querySelector(SKIP_SELECTORS);
             if (skip) {
                 skip.click();
@@ -432,10 +443,11 @@ extension VideoSite {
                     }
                 }
             }
-            // Seek to the tail every tick — converges through the whole pod.
+            // Seek is now only a FALLBACK (player-API path may still work
+            // on some layouts; if YouTube fights it, 16× already won).
             var p = document.querySelector('#movie_player');
             var posted = false;
-            if (p && p.getDuration) {
+            if (p && p.getDuration && !speededByUs) {
                 try {
                     var d = p.getDuration();
                     if (d > 0 && p.getCurrentTime() < d - 0.4) {
@@ -443,16 +455,18 @@ extension VideoSite {
                         posted = true;
                     }
                 } catch(e) {}
-            } else if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
-                try { v.currentTime = v.duration - 0.3; posted = true; } catch(e) {}
             }
             if (posted && !seekPostedThisAd) {
                 POST({ site: 'youtube', count: 1, action: 'seek' });
                 seekPostedThisAd = true;
             }
         } else {
-            // Ad pod cleared — restore the user's volume, re-arm reporting.
+            // Ad pod cleared — restore volume and playback rate.
             if (mutedByUs && v) { v.muted = false; mutedByUs = false; }
+            if (speededByUs && v && v.playbackRate > 2) {
+                try { v.playbackRate = origRate; } catch(e) {}
+            }
+            speededByUs = false;
             seekPostedThisAd = false;
         }
     }

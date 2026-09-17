@@ -320,17 +320,12 @@ extension VideoSite {
         'ytm-shorts-ad-renderer','ytm-shorts-player-ad-renderer',
         'ytd-engagement-panel-section-list-holder[target-id="engagement-panel-ads"]'
     ];
-    // Keywords (lowercased) that mark a video card as a "paid promotion" /
-    // sponsor disclosure / ad badge. Matched as substring on text content
-    // AND against badge class names.
     var AD_KEYWORDS = [
         'ad','ads','sponsored','promoted','推广','广告','sponsorlu','sponsorludur',
         'includes paid promotion','包含付费推广','paid promotion','paid_promotion',
-        'ppp','reklam','patrocinado','publicidad','sponsorisé','gesponsert',
+        'reklam','patrocinado','publicidad','sponsorisé','gesponsert',
         'sponsored by','brought to you by','sponsored content'
     ];
-    // An anchor that links to YouTube's paid-promotion help page.
-    // Removing the anchor + its enclosing video card kills the badge.
     var PAID_BADGE_HREFS = [
         'youtube.com/?p=ppp',
         'youtube.com/?p=paid_promotion',
@@ -353,15 +348,13 @@ extension VideoSite {
     }
     function hasAdBadge(el) {
         if (!el) return false;
-        if (el.querySelector('.badge-style-type-ad,.ytd-badge-supported-renderer,.ytm-badge,ytd-badge-supported-renderer')) return true;
-        // text-based badge scan (e.g. inline "Ad" or "Sponsored" label)
+        if (el.querySelector('.badge-style-type-ad,.ytd-badge-supported-renderer,.ytm-badge')) return true;
         var badges = el.querySelectorAll('span,yt-formatted-string,badge-shape,yt-badge-shape-watcher');
         for (var i = 0; i < badges.length; i++) {
             var txt = (badges[i].textContent || '').trim().toLowerCase();
             if (txt === 'ad' || txt === 'ads' || txt === 'reklam' ||
-                txt.indexOf('ad •') === 0 || txt.indexOf('reklam •') === 0 ||
-                txt.indexOf('sponsored') === 0 || txt.indexOf('promoted') === 0 ||
-                txt === '广告' || txt === '推广') return true;
+                txt.indexOf('ad •') === 0 || txt.indexOf('sponsored') === 0 ||
+                txt.indexOf('promoted') === 0 || txt === '广告' || txt === '推广') return true;
         }
         return false;
     }
@@ -377,78 +370,93 @@ extension VideoSite {
         el.remove();
         return true;
     }
+    // Heavy cosmetic scan — debounced, never run per-mutation.
     function removeAds() {
         var count = 0;
-        // 1) Static ad slots
-        STATIC_SLOTS.forEach(function(s) {
-            document.querySelectorAll(s).forEach(function(el) {
+        STATIC_SLOTS.forEach(function(sel) {
+            document.querySelectorAll(sel).forEach(function(el) {
                 if (removeCard(el)) count++;
             });
         });
-        // 2) [is-ad] attribute on cards
         document.querySelectorAll('[is-ad]').forEach(function(el) {
             var c = el.closest(CARD);
             if (removeCard(c || el)) count++;
         });
-        // 3) badge-based removal
         document.querySelectorAll('.badge-style-type-ad,.ytd-badge-supported-renderer').forEach(function(el) {
-            var c = el.closest(CARD);
-            if (removeCard(c)) count++;
+            if (removeCard(el.closest(CARD))) count++;
         });
-        // 4) paid-promotion badge anchors (the icon top-right of thumbnails)
         document.querySelectorAll('a').forEach(function(a) {
-            if (!isPaidBadgeAnchor(a)) return;
-            var c = a.closest(CARD);
-            if (removeCard(c || a)) count++;
+            if (isPaidBadgeAnchor(a)) {
+                var c = a.closest(CARD);
+                if (removeCard(c || a)) count++;
+            }
         });
-        // 5) Cards containing any ad badge / ad text fallback
         document.querySelectorAll(CARD).forEach(function(card) {
             if (hasAdBadge(card) || isAdText(card.textContent)) {
                 if (removeCard(card)) count++;
             }
         });
-        // 6) Paid-content overlays during playback
-        document.querySelectorAll('.ytp-paid-content-overlay,.ytp-paid-content-overlay-link,[class*="paid-content-overlay"]').forEach(function(el) {
+        document.querySelectorAll('.ytp-paid-content-overlay,[class*="paid-content-overlay"]').forEach(function(el) {
             el.remove(); count++;
         });
         if (count > 0) POST({ site: 'youtube', count: count });
     }
-    function skipVideoAd() {
-        var skip = document.querySelector(
-            '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,' +
-            '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
-            'button.ytp-ad-skip-button-modern, .ytp-ad-overlay-close-button'
-        );
-        if (skip) { skip.click(); POST({ site: 'youtube', count: 1, action: 'skip' }); return; }
-        var btns = document.querySelectorAll('button, .ytp-button, [role="button"]');
-        for (var i = 0; i < btns.length; i++) {
-            var b = btns[i];
-            var t = (b.textContent || '').trim().toLowerCase();
-            var a = (b.getAttribute('aria-label') || '').toLowerCase();
-            if (t === 'skip' || t.indexOf('skip ad') === 0 || a.indexOf('skip') === 0 || a.indexOf('skip ad') === 0) {
-                b.click();
+
+    // ── In-stream ad killer: cheap fast loop, pod-aware ──
+    var mutedByUs = false;
+    var seekPostedThisAd = false;
+    var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
+        '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
+        '.ytp-ad-action-interstitial-skip-button,.ytp-ad-overlay-close-button';
+    function fastTick() {
+        var ad = document.querySelector('.ad-showing,.ad-interrupting');
+        var v = document.querySelector('video.html5-main-video') ||
+                document.querySelector('#movie_player video');
+        if (ad) {
+            // Mute while ANY ad in the pod plays; restored when it clears.
+            if (v && !v.muted) { v.muted = true; mutedByUs = true; }
+            var skip = document.querySelector(SKIP_SELECTORS);
+            if (skip) {
+                skip.click();
+                POST({ site: 'youtube', count: 1, action: 'skip' });
+            } else {
+                var btns = document.querySelectorAll('#movie_player button, #movie_player .ytp-button');
+                for (var i = 0; i < btns.length; i++) {
+                    var t = (btns[i].textContent || '').trim().toLowerCase();
+                    var a = (btns[i].getAttribute('aria-label') || '').toLowerCase();
+                    if (t === 'skip' || t.indexOf('skip ad') === 0 || t.indexOf('跳过广告') === 0 ||
+                        a.indexOf('skip') === 0 || a.indexOf('跳过') === 0) {
+                        btns[i].click();
+                        POST({ site: 'youtube', count: 1, action: 'skip' });
+                        break;
+                    }
+                }
             }
-        }
-        var v = document.querySelector('.ad-showing video, .ad-interrupting video, video.html5-main-video');
-        if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
-            try { v.currentTime = v.duration - 0.3; POST({ site: 'youtube', count: 1, action: 'seek' }); } catch(e) {}
-        }
-        var player = document.querySelector('#movie_player');
-        if (player && player.getPlayerState && player.getPlayerState() === 1) {
-            try {
-                var d = player.getDuration();
-                if (d > 0) { player.seekTo(d - 0.3, true); }
-            } catch(e) {}
+            // Seek to the tail every tick — converges through the whole pod.
+            var p = document.querySelector('#movie_player');
+            var posted = false;
+            if (p && p.getDuration) {
+                try {
+                    var d = p.getDuration();
+                    if (d > 0 && p.getCurrentTime() < d - 0.4) {
+                        p.seekTo(d - 0.3, true);
+                        posted = true;
+                    }
+                } catch(e) {}
+            } else if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
+                try { v.currentTime = v.duration - 0.3; posted = true; } catch(e) {}
+            }
+            if (posted && !seekPostedThisAd) {
+                POST({ site: 'youtube', count: 1, action: 'seek' });
+                seekPostedThisAd = true;
+            }
+        } else {
+            // Ad pod cleared — restore the user's volume, re-arm reporting.
+            if (mutedByUs && v) { v.muted = false; mutedByUs = false; }
+            seekPostedThisAd = false;
         }
     }
-    function closeOverlay() {
-        var c = document.querySelector('.ytp-ad-overlay-close-button');
-        if (c) c.click();
-        document.querySelectorAll('.ytp-ad-action-interstitial .ytp-ad-button-icon-modern').forEach(function(b) { b.click(); });
-        document.querySelectorAll('.ytp-ad-image-overlay, .ytp-ad-text-overlay, .ytp-ad-player-overlay, .ytp-ad-module, .ytp-ad-message-container').forEach(function(el) {
-            el.style.display = 'none';
-        });
-    }
+
     function dismissPromo() {
         document.querySelectorAll(
             'yt-mealbar-promo-renderer .dismiss-button,' +
@@ -458,26 +466,33 @@ extension VideoSite {
             '.ytd-consent-bump-v2-lightbox button'
         ).forEach(function(d) { d.click(); });
     }
-    function runAll() {
-        removeAds();
-        skipVideoAd();
-        closeOverlay();
-        dismissPromo();
+
+    // Debounced slow scan — the observer only schedules it.
+    var scanTimer = null;
+    function scheduleScan() {
+        if (scanTimer) return;
+        scanTimer = setTimeout(function() {
+            scanTimer = null;
+            removeAds();
+            dismissPromo();
+        }, 600);
     }
-    var obs = new MutationObserver(runAll);
+
+    var obs = new MutationObserver(scheduleScan);
     function attach() {
         if (document.body) {
             obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['is-ad','class','href'] });
         }
     }
     if (document.body) attach(); else document.addEventListener('DOMContentLoaded', attach);
-    // 12 staggered retries — covers SPA navigation + late hydration
-    [50,150,400,800,1500,2500,4000,6000,9000,14000,20000,30000].forEach(function(t) { setTimeout(runAll, t); });
+    [50,150,400,800,1500,2500,4000,6000,9000,14000,20000,30000].forEach(function(t) {
+        setTimeout(function() { removeAds(); dismissPromo(); }, t);
+    });
     var n = 0;
-    var poll = setInterval(function() { runAll(); if (++n > 40) clearInterval(poll); }, 2000);
-    // Reset on YouTube's own navigation events
-    window.addEventListener('yt-navigate-finish', function() { setTimeout(runAll, 300); });
-    window.addEventListener('yt-page-data-updated', function() { setTimeout(runAll, 300); });
+    var poll = setInterval(function() { scheduleScan(); if (++n > 40) clearInterval(poll); }, 2000);
+    setInterval(fastTick, 300);
+    window.addEventListener('yt-navigate-finish', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
+    window.addEventListener('yt-page-data-updated', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
 })();
 """
 

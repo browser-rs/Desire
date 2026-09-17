@@ -280,6 +280,13 @@ struct WebView: NSViewRepresentable {
             let progressObservation: NSKeyValueObservation
         }
 
+        private var loadTimeoutTask: Task<Void, Never>?
+
+        private func disarmLoadTimeout() {
+            loadTimeoutTask?.cancel()
+            loadTimeoutTask = nil
+        }
+
         init(_ parent: WebView) {
             self.parent = parent
         }
@@ -484,6 +491,8 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // Response headers arrived — the watchdog did its job.
+            disarmLoadTimeout()
             // New page — the sniffed media list belongs to the old one.
             parent.state.detectedMedia.removeAll()
             parent.state.isSecure = webView.url?.scheme == "https"
@@ -553,6 +562,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             Log.agent.error("didFail: \(error.localizedDescription, privacy: .public)")
+            disarmLoadTimeout()
             parent.isLoading = false
             // Store the underlying `Error` so ErrorPageView can map
             // `URLError.code` to category-specific copy (TLS, offline, …)
@@ -564,7 +574,7 @@ struct WebView: NSViewRepresentable {
         /// LaunchServices with a Safari-style confirmation naming the handler
         /// app — a page must not be able to launch arbitrary applications
         /// silently. Shows "no app found" when nothing is registered.
-        private func confirmAndOpenExternalURL(_ url: URL) {
+        private func confirmAndOpenExternalURL(_ url: URL, from webView: WKWebView) {
             Log.agent.error("EXTERNAL HANDOFF entered for \(url.absoluteString, privacy: .public)")
             let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
             let bundle = appURL.flatMap(Bundle.init(url:))
@@ -573,11 +583,15 @@ struct WebView: NSViewRepresentable {
                 ?? url.scheme?.uppercased()
                 ?? String(localized: "the external application")
 
+            // Sheet-modal, NOT runModal: a modal here blocks the main
+            // thread AND the navigation delegate mid-decision.
+            guard let window = webView.window else { return }
+
             guard appURL != nil else {
                 let alert = NSAlert()
                 alert.messageText = String(localized: "No application can open this link")
                 alert.informativeText = String(localized: "Desire couldn't find an app registered for:\n\(url.absoluteString)")
-                alert.runModal()
+                alert.beginSheetModal(for: window, completionHandler: nil)
                 return
             }
 
@@ -586,8 +600,10 @@ struct WebView: NSViewRepresentable {
             alert.informativeText = String(localized: "This page wants to open:\n\(url.absoluteString)")
             alert.addButton(withTitle: String(localized: "Open"))
             alert.addButton(withTitle: String(localized: "Cancel"))
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            NSWorkspace.shared.open(url)
+            alert.beginSheetModal(for: window) { response in
+                guard response == .alertFirstButtonReturn else { return }
+                NSWorkspace.shared.open(url)
+            }
         }
 
         // 处理新窗口/弹窗（Google 登录 OAuth 需要）
@@ -604,7 +620,7 @@ struct WebView: NSViewRepresentable {
                 // app opens. Anything LaunchServices can't handle surfaces
                 // in the confirmation dialog as "no app found".
                 decisionHandler(.cancel)
-                confirmAndOpenExternalURL(url)
+                confirmAndOpenExternalURL(url, from: webView)
                 return
             }
 
@@ -662,7 +678,29 @@ struct WebView: NSViewRepresentable {
                 }
             }
 
+            if navigationAction.targetFrame?.isMainFrame == true {
+                armLoadTimeout(for: url)
+            }
             decisionHandler(.allow)
+        }
+
+        /// Main-frame load watchdog: a server that never responds used to
+        /// leave an eternal blank page with zero feedback. 30s → timeout
+        /// error page (driven by lastError, same as network failures).
+        private func armLoadTimeout(for url: URL) {
+            loadTimeoutTask?.cancel()
+            loadTimeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                guard self.parent.isLoading else { return }   // finished meanwhile
+                Log.agent.error("load timeout: \(url.absoluteString, privacy: .public)")
+                self.parent.state.webView.stopLoading()
+                self.parent.state.lastError = URLError(
+                    .timedOut,
+                    userInfo: [NSURLErrorFailingURLErrorKey: url]
+                )
+                self.parent.isLoading = false
+            }
         }
 
         /// Schemes the webview itself renders or owns. Every OTHER scheme
@@ -684,6 +722,7 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             Log.agent.error("didFailProvisional: \(error.localizedDescription, privacy: .public)")
+            disarmLoadTimeout()
             parent.isLoading = false
             parent.state.lastError = error
             // Only fall back from HTTPS → HTTP when the *upgrade itself*
@@ -724,7 +763,7 @@ struct WebView: NSViewRepresentable {
                let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {
                 // window.open("tg://…") and friends: launch the app instead
                 // of leaving a blank new tab behind.
-                confirmAndOpenExternalURL(url)
+                confirmAndOpenExternalURL(url, from: webView)
                 return nil
             }
             if let url = navigationAction.request.url {

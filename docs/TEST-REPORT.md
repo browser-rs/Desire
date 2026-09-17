@@ -63,3 +63,22 @@
 ### 结论
 核心浏览链路（解析→导航→渲染→标题同步）实测通过。待修：ISSUE-E
 （加载超时反馈）、ISSUE-D（runModal 移出导航委托）、BUG-A 偶发观察。
+
+## 第三轮更新（同日）
+
+### ISSUE-E 已修复（代码完成，待人工验证）
+- 主文档导航 30s 看门狗：decidePolicy 放行主帧导航时启动计时，
+  didCommit/didFail/didFailProvisional 解除；超时注入
+  URLError(.timedOut) → lastError 驱动 ErrorPageView 显示，并停止加载。
+- 验证方法：重启应用 → ⌘L → 输入 example.com → 回车 → 等 30s，
+  应出现超时错误页（不再无限白屏）。
+
+### ISSUE-D 已修复
+- confirmAndOpenExternalURL 改为 beginSheetModal（挂在 webview 窗口上），
+  不再 runModal 阻塞主线程与导航委托；两处调用点传入发起 webview。
+
+### 自动化环境结论
+- 多全屏 Space 下 AppleScript 键盘注入 + 全屏截图不可靠（会切空间、
+  可能误注入前台其他应用）——停止自动注入，后续验证以用户手工为准。
+- 插桩日志保留（decidePolicy/外部移交/加载失败），BUG-A 再现时可用
+  `log show --last 5m --predicate 'process == "Desire"'` 取证。

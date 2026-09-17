@@ -5,12 +5,16 @@ struct WindowChromeGuard: NSViewRepresentable {
     /// Fired on the host window's every `didBecomeKey`. Used to re-bind
     /// per-window state (the AI tool surface's TabManager) so the agent and
     /// window-scoped tools always target the ACTIVE window.
+    /// Fired once the host window resolves — lets the view scope app-wide
+    /// command broadcasts to the KEY window only.
+    var onWindow: ((NSWindow) -> Void)? = nil
     var onBecomeKey: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
             guard let window = view.window else { return }
+            onWindow?(window)
             context.coordinator.protect(window: window, onBecomeKey: onBecomeKey)
         }
         return view

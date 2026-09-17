@@ -302,7 +302,9 @@ class DownloadStore: ObservableObject {
     }
 
     private func saveHistory() {
-        let finished = downloads.filter { $0.state != .inProgress }
+        // Paused downloads must survive quit too — the partial file is on
+        // disk and the user expects the row back on relaunch.
+        let finished = downloads.filter { $0.state != .inProgress || $0.isPaused }
         let items = finished.map { HistoryItem($0) }
         DiskStore.save(items, key: historyKey)
     }

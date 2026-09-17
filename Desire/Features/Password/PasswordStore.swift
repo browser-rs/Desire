@@ -79,6 +79,10 @@ class PasswordStore: ObservableObject {
     private func loadAll() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
+            // Scope to OUR service name — an unfiltered kSecMatchLimitAll
+            // query sweeps OTHER apps' internet passwords (and floods the
+            // user with keychain access prompts).
+            kSecAttrService as String: serviceName,
             kSecReturnAttributes as String: true,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,

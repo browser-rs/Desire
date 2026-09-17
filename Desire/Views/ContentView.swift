@@ -151,6 +151,7 @@ struct ContentView: View {
     @State var findCurrentIndex = 0
     @State var isFullScreen = false
     @State var showAgentPanel = false
+    @State private var hostingWindow: NSWindow?
     @State var aiFloatingPanel: AgentFloatingPanel?
     @State var showDevToolsPanel = false
 
@@ -174,7 +175,7 @@ struct ContentView: View {
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
         .tint(settings.accentColor.color)
         .ignoresSafeArea(.all, edges: .top)
-        .background(WindowChromeGuard {
+        .background(WindowChromeGuard(onWindow: { hostingWindow = $0 }) {
             // This window just became key — record it as the
             // session-persistence target. (AI tools do NOT depend on this;
             // each window's AI session is pinned to its own TabManager.)
@@ -245,6 +246,9 @@ struct ContentView: View {
             isFullScreen = false
         }
         .onReceive(CommandBus.shared.publisher) { command in
+            // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
+            // window, not in every open window at once.
+            guard hostingWindow === NSApp.keyWindow else { return }
             commandDispatcher.handle(command)
         }
         .onChange(of: b.undoRule?.id) { _, ruleID in

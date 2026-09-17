@@ -126,7 +126,28 @@ class TabManager: ObservableObject {
     /// Called when the user closes the last tab — the owning window should
     /// close itself rather than leaving an empty tab bar.
     var onRequestWindowClose: (() -> Void)?
-    private var recentlyClosedURLs: [String] = []
+    /// A closed tab's identity for reopen. URL alone loses incognito and
+    /// container context — a private tab resurrected as a normal one would
+    /// leak its navigation into the persistent cookie store and disk history.
+    struct RecentlyClosedTab {
+        let url: String
+        let isIncognito: Bool
+        let containerID: UUID?
+    }
+
+    private var recentlyClosed: [RecentlyClosedTab] = []
+
+    /// Records a tab for ⌘⇧T before teardown. webView.url is nil for
+    /// suspended tabs (the live page was blanked) — fall back to the tab's
+    /// stored URL so every close path records.
+    private func recordClosed(_ tab: Tab) {
+        let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+        guard !url.isEmpty else { return }
+        recentlyClosed.append(RecentlyClosedTab(
+            url: url, isIncognito: tab.isIncognito, containerID: tab.containerID
+        ))
+        if recentlyClosed.count > 20 { recentlyClosed.removeFirst() }
+    }
     private var suspendTimer: Timer?
     /// Per-window session storage key (set by ContentView once the window's
     /// value-based session UUID is known). Nil until then: persistence and
@@ -245,10 +266,7 @@ class TabManager: ObservableObject {
             return
         }
         let tab = tabs[index]
-        if let url = tab.browser.webView.url?.absoluteString {
-            recentlyClosedURLs.append(url)
-            if recentlyClosedURLs.count > 20 { recentlyClosedURLs.removeFirst() }
-        }
+        recordClosed(tab)
         tearDown(tab)
         tabs.remove(at: index)
         if selectedIndex >= tabs.count {
@@ -259,8 +277,8 @@ class TabManager: ObservableObject {
 
     @discardableResult
     func reopenLastClosedTab(javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) -> Bool {
-        guard let url = recentlyClosedURLs.popLast() else { return false }
-        addTab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy)
+        guard let record = recentlyClosed.popLast() else { return false }
+        addTab(url: record.url, incognito: record.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: record.containerID)
         return true
     }
 
@@ -268,6 +286,7 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let kept = tabs[index]
         for tab in tabs where tab.id != kept.id {
+            recordClosed(tab)
             tearDown(tab)
         }
         tabs = [kept]
@@ -279,6 +298,7 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let toRemove = Array(tabs[(index + 1)...])
         for tab in toRemove {
+            recordClosed(tab)
             tearDown(tab)
         }
         tabs = Array(tabs.prefix(index + 1))
@@ -429,6 +449,7 @@ class TabManager: ObservableObject {
             let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, containerID: saved.containerID)
             tab.isPinned = saved.isPinned
 
+            var restoredInteractionState = false
             if let data = saved.sessionState {
                 // 使用 NSSecureCoding 解码，允许 WebKit 框架的类
                 // interactionState 是 WebKit 内部对象，具体类型未知
@@ -439,6 +460,7 @@ class TabManager: ObservableObject {
                     let state = unarchiver.decodeObject(of: [NSObject.self], forKey: NSKeyedArchiveRootObjectKey)
                     if let state = state {
                         tab.browser.webView.interactionState = state
+                        restoredInteractionState = true
                     }
                 } catch {
                     // 解码失败，忽略状态恢复
@@ -446,7 +468,10 @@ class TabManager: ObservableObject {
             }
 
             tabs.append(tab)
-            if !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
+            // When interactionState restored, it already carries the page +
+            // history: a fresh load here would CANCEL the restoration and
+            // reduce the tab to a bare URL load (scroll/session state lost).
+            if !restoredInteractionState, !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
                 tab.suppressHistoryOnce = true
                 tab.browser.webView.load(URLRequest(url: parsed))
             }

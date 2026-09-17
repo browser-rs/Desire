@@ -309,6 +309,7 @@ struct WebView: NSViewRepresentable {
             observations.removeAll()
             let wv = parent.state.webView
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
+            wv.configuration.userContentController.removeScriptMessageHandler(forName: "mediaFound")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordSave")
             wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
@@ -340,8 +341,10 @@ struct WebView: NSViewRepresentable {
                        let host = parent.state.webView.url?.host {
                 let entries = parent.passwordStore.find(domain: host)
                 guard !entries.isEmpty else { return }
-                let username = entries[0].username.replacingOccurrences(of: "'", with: "\\'")
-                let password = entries[0].password.replacingOccurrences(of: "'", with: "\\'")
+                // Escape \ before ' — a raw backslash inside a secret would be
+                // re-interpreted by the JS string literal.
+                let username = entries[0].username.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                let password = entries[0].password.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
                 let js = """
                 (function() {
                     var f = document.querySelector('input[type=password]').closest('form');
@@ -479,11 +482,12 @@ struct WebView: NSViewRepresentable {
             parent.state.isSecure = webView.url?.scheme == "https"
             pendingUpgrades.removeAll()
             if let host = webView.url?.host {
+                // Always assign — pageZoom persists per webview, so
+                // without an explicit reset a previous site's zoom leaks
+                // into sites with no saved value.
                 let savedZoom = parent.siteSettingsStore.zoom(for: host)
-                if savedZoom != 1.0 {
-                    webView.pageZoom = savedZoom
-                    parent.state.pageZoom = savedZoom
-                }
+                webView.pageZoom = savedZoom
+                parent.state.pageZoom = savedZoom
             }
         }
 

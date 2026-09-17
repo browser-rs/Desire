@@ -615,19 +615,27 @@ class AgentSessionStore: ObservableObject {
                     tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
                     prefs: preference
                 )
+                // UI flush state: per-token array writes + view
+                // invalidations dominate long streams, so the tail message
+                // is published at ~25 fps instead of per token.
+                var tailIndex: Int?
+                var lastFlush = Date.distantPast
+                func flushTail() {
+                    if let idx = tailIndex, idx < messages.count, assistantMsg != nil {
+                        messages[idx] = assistantMsg!
+                    }
+                    streamingVersion += 1
+                }
                 for try await event in stream {
-                    if isCancelled { return }
+                    if isCancelled { flushTail(); return }
                     switch event {
                     case .text(let delta):
                         if assistantMsg == nil {
                             assistantMsg = AgentMessage(role: .assistant, content: "")
                             messages.append(assistantMsg!)
+                            tailIndex = messages.count - 1
                         }
                         assistantMsg!.content = (assistantMsg!.content ?? "") + delta
-                        if let idx = messages.lastIndex(where: { $0.id == assistantMsg!.id }) {
-                            messages[idx] = assistantMsg!
-                            streamingVersion += 1
-                        }
                         hasContent = true
                         streamingTokenCount += 1
                         let now = Date()
@@ -636,6 +644,10 @@ class AgentSessionStore: ObservableObject {
                             streamingTokensPerSecond = 1.0 / interval
                         }
                         lastTokenTime = now
+                        if now.timeIntervalSince(lastFlush) >= 0.04 {
+                            lastFlush = now
+                            flushTail()
+                        }
                     case .toolCall(let call):
                         if assistantMsg == nil {
                             assistantMsg = AgentMessage(role: .assistant, content: "")
@@ -652,6 +664,8 @@ class AgentSessionStore: ObservableObject {
                         usageCompletionTokens += completion
                     }
                 }
+                // Publish the tail the throttle may have held back.
+                flushTail()
             }
 
             func fail(_ error: Error) {

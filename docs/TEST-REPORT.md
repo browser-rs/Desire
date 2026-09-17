@@ -140,3 +140,29 @@
 - 可靠通道：菜单栏点击（部分）、⌘快捷键、窗口级截图。
 - 不可靠：坐标点击、popover 内交互、多 Space 键盘注入。
 - 后续功能覆盖（下载流程/多窗口/无痕隔离验证）建议以人工清单方式执行。
+
+## 第七轮：自动化 CLI 桥（应"开发成 cli 方便测试"需求落地）
+
+新增 `Desire/App/AutomationServer.swift`：仅绑定 127.0.0.1:8799 的
+JSON HTTP 服务，`--automation` 启动参数门控（默认关闭）。curl 全流程
+实测通过：
+
+- `/state` `/tabs` — 标签枚举（index/title/url/incognito/selected）✅
+- `/navigate {"url":"baidu.com"}` — 走统一 URLResolution 解析 ✅
+- `/page/text` `/page/url` — 内容与标题提取 ✅（百度文本完整）
+- `/new-tab {"incognito":true}` + 无痕隔离 ✅（无痕导航不进历史）
+- `/agent/send` + `/agent/messages` — Agent 完整回路 ✅（发"1+1等于几"
+  → 回复"2"，provider/流式/会话全链路通）
+- `/screenshot` — webview PNG 快照 ✅（写入容器目录，外部可读）
+
+### 附带发现
+- 应用实际运行在沙盒容器中（NSHomeDirectory → Containers/me.siwi.Desire）
+  — entitlements 文件注释声称沙盒已移除，与运行时不符，runCommand 类
+  功能的真实权限面需要单独核实（ISSUE-J）。
+- 30s 超时看门狗、无痕历史隔离两项此前修复在本轮回归验证通过。
+
+### 用法
+    open .../Desire.app --args --automation
+    curl -s http://127.0.0.1:8799/state
+    curl -s -X POST http://127.0.0.1:8799/navigate -d '{"url":"baidu.com"}'
+    curl -s http://127.0.0.1:8799/screenshot

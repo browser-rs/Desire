@@ -7,6 +7,9 @@ struct DesireApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        // Localhost-only test automation bridge — inert unless the app is
+        // launched with --automation (external drivers: curl / CI).
+        AutomationServer.shared.startIfRequested()
         // Production observability baseline: file MetricKit crash/hang
         // diagnostics on every launch (crashes arrive the launch AFTER).
         MetricsManager.shared.start()

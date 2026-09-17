@@ -563,6 +563,9 @@ final class TabSessionCoordinator {
         activeManager = manager
     }
 
+    /// The active window's TabManager — read by the automation server.
+    var activeTabManager: TabManager? { activeManager }
+
     /// Persists ONE window's tabs under its own key.
     func persistWindow(_ manager: TabManager, key: String, force: Bool) {
         var savedTabs: [SavedTab] = []

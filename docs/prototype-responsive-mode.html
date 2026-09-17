@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Desire · 响应式设计模式 v5（Chrome 范式）</title>
+<style>
+  :root {
+    --bar: #2b2c2f;
+    --bar-line: #1b1c1e;
+    --stage: #202124;
+    --ctrl: #3c4043;
+    --ctrl-line: #5f6368;
+    --t1: #e8eaed;
+    --t2: #9aa0a6;
+    --accent: #8ab4f8;
+    --mq1: #8ab4f8; --mq2: #fdd663; --mq3: #81c995;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--stage); color: var(--t1);
+         font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
+         -webkit-font-smoothing: antialiased; user-select: none; font-size: 12px; }
+
+  /* ═══ 设备工具栏（Chrome 单行范式）═══ */
+  .bar { flex: none; display: flex; align-items: center; gap: 8px; height: 44px;
+         padding: 0 12px; background: var(--bar); border-bottom: 1px solid var(--bar-line); }
+  .ctrl { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px;
+          background: none; border: none; border-radius: 4px; color: var(--t1);
+          font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .ctrl:hover { background: rgba(255,255,255,.08); }
+  .ctrl .v { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .ctrl .car { width: 10px; height: 10px; color: var(--t2); }
+  .ctrl .ic { width: 14px; height: 14px; color: var(--t2); }
+  .ctrl.icon { width: 28px; justify-content: center; padding: 0; }
+  .ctrl.icon.on { color: var(--accent); background: rgba(138,180,248,.12); }
+  .ctrl:disabled { opacity: .35; cursor: default; }
+  .sep { width: 1px; height: 20px; background: #3c4043; margin: 0 2px; }
+  .dims-edit { width: 34px; background: none; border: none; outline: none; color: var(--t1);
+               font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+  .dims-x { color: var(--t2); }
+  .grow { flex: 1; }
+
+  .pop { position: absolute; top: 32px; left: 0; z-index: 90; min-width: 240px;
+         background: #292a2d; border: 1px solid #3c4043; border-radius: 8px;
+         box-shadow: 0 12px 32px rgba(0,0,0,.55); padding: 4px; display: none; }
+  .pop.open { display: block; }
+  .popwrap { position: relative; }
+  .pop .cat { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--t2);
+              padding: 7px 10px 3px; text-transform: uppercase; }
+  .pop .it { display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+             border-radius: 5px; font-size: 12px; cursor: pointer; }
+  .pop .it:hover { background: rgba(255,255,255,.08); }
+  .pop .it .ck { width: 14px; color: var(--accent); visibility: hidden; font-weight: 700; }
+  .pop .it.on .ck { visibility: visible; }
+  .pop .it .dim { margin-left: auto; color: var(--t2); font-size: 10.5px; }
+  .pop .hr { height: 1px; background: #3c4043; margin: 4px 6px; }
+
+  /* ═══ 媒体查询条（Chrome 签名元素）═══ */
+  .mq-bar { flex: none; height: 22px; display: flex; margin: 0 8px;
+            border-radius: 0 0 4px 4px; overflow: hidden; }
+  .mq-seg { flex: none; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #0b0c0f; font-weight: 600; cursor: pointer;
+            opacity: .55; transition: opacity .15s, filter .15s; }
+  .mq-seg:hover { opacity: 1; }
+  .mq-seg.active { opacity: 1; outline: 1.5px solid #fff; outline-offset: -1.5px; }
+  .mq-none { flex: 1; background: #35383d; color: var(--t2); font-size: 10px;
+             display: flex; align-items: center; padding: 0 10px; }
+
+  /* ═══ 舞台 ═══ */
+  .stage { position: relative; flex: 1; overflow: hidden; background: #202124; }
+  #rulerTop { position: absolute; top: 0; left: 0; width: 100%; height: 20px; z-index: 5; }
+  #rulerLeft { position: absolute; top: 0; left: 0; height: 100%; width: 20px; z-index: 5; }
+
+  /* ═══ 设备（Chrome 风格：简洁 skin，无花哨）═══ */
+  #dev { position: absolute; z-index: 2;
+         box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 16px rgba(0,0,0,.4); }
+  #screen { position: relative; width: 100%; height: 100%; background: #fff; overflow: hidden; }
+  #notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+           width: 40%; height: 26px; background: #202124; border-radius: 0 0 14px 14px;
+           z-index: 6; display: none; }
+  #screen iframe { width: 100%; height: 100%; border: none; }
+
+  /* ═══ 手柄（Chrome 式：贴边细条，hover 高亮 + 光标）═══ */
+  .handle { position: absolute; z-index: 30; display: flex; align-items: center;
+            justify-content: center; opacity: 0; transition: opacity .12s, background .12s;
+            background: rgba(138,180,248,.0); }
+  .stage:hover .handle, .handle:hover { opacity: 1; }
+  .handle.h-w { top: 0; bottom: 0; width: 14px; cursor: ew-resize;
+                border-left: 1px solid rgba(138,180,248,.0); }
+  .handle.h-h { left: 0; right: 0; height: 14px; cursor: ns-resize; }
+  .handle.h-w:hover, .handle.h-h:hover { background: rgba(138,180,248,.18); }
+  .handle.h-w i, .handle.hh i { display: none; }
+  .handle.h-w::after { content: ""; width: 2px; height: 26px; border-radius: 2px;
+                       background: var(--accent); }
+  .handle.hh::after { content: ""; width: 26px; height: 2px; border-radius: 2px;
+                      background: var(--accent); }
+
+  /* 拖拽时的视口轮廓 + 尺寸徽标 */
+  #outline { position: absolute; z-index: 29; display: none; pointer-events: none;
+             outline: 2px solid var(--accent); }
+  .badge { position: absolute; z-index: 40; display: none; pointer-events: none;
+           background: var(--accent); color: #202124; font-size: 12px; font-weight: 700;
+           font-variant-numeric: tabular-nums; padding: 4px 10px; border-radius: 4px;
+           box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+  #devLabel { position: absolute; z-index: 4; font-size: 11px; color: var(--t2);
+              pointer-events: none; white-space: nowrap; }
+  #zoomLive { position: absolute; right: 10px; bottom: 8px; z-index: 4; font-size: 10.5px;
+              color: var(--t2); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+  <!-- ═══ Chrome 单行设备工具栏 ═══ -->
+  <div class="bar">
+    <span style="color:var(--t2)">Dimensions:</span>
+
+    <div class="popwrap">
+      <button class="ctrl" id="dimBtn">
+        <span class="v" id="dimLabel">iPhone 14 Pro</span>
+        <svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="pop" id="dimPop">
+        <div class="it on" data-preset="Responsive"><span class="ck">✓</span><span class="nm">Responsive</span></div>
+        <div class="hr"></div>
+        <div class="cat">Phone</div>
+        <div class="it" data-preset="iPhone SE"><span class="ck">✓</span><span class="nm">iPhone SE</span><span class="dim">375×667</span></div>
+        <div class="it" data-preset="iPhone 14 Pro"><span class="ck">✓</span><span class="nm">iPhone 14 Pro</span><span class="dim">390×844</span></div>
+        <div class="it" data-preset="iPhone 14 Pro Max"><span class="ck">✓</span><span class="nm">iPhone 14 Pro Max</span><span class="dim">430×932</span></div>
+        <div class="it" data-preset="Galaxy S24"><span class="ck">✓</span><span class="nm">Galaxy S24</span><span class="dim">360×780</span></div>
+        <div class="cat">Tablet</div>
+        <div class="it" data-preset="iPad 10"><span class="ck">✓</span><span class="nm">iPad 10</span><span class="dim">820×1180</span></div>
+        <div class="it" data-preset="iPad Pro 12.9"><span class="ck">✓</span><span class="nm">iPad Pro 12.9</span><span class="dim">1024×1366</span></div>
+        <div class="cat">Desktop</div>
+        <div class="it" data-preset="Desktop HD"><span class="ck">✓</span><span class="nm">Desktop HD</span><span class="dim">1366×768</span></div>
+      </div>
+    </div>
+
+    <div class="dims-x">
+      <input class="dims-edit" id="w" value="390">
+      <span class="dims-x">×</span>
+      <input class="dims-edit" id="h" value="844">
+    </div>
+
+    <button class="ctrl icon" id="rot" title="旋转">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 16a8 8 0 0 1 14-5.3M22 8a8 8 0 0 1-14 5.3"/><path d="M16 4h5v5M8 20H3v-5"/></svg>
+    </button>
+
+    <div class="sep"></div>
+
+    <button class="ctrl icon on" id="touch" title="触摸模拟">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11V5a2 2 0 1 1 4 0v6m0 0V9a2 2 0 1 1 4 0v3m0 0a2 2 0 1 1 4 0v3c0 3.5-2 7-7 7-4 0-6-2-9-6l-1.5-2A1.6 1.6 0 0 1 2.5 14L4 15.5"/></svg>
+    </button>
+
+    <div class="popwrap">
+      <button class="ctrl icon" id="mqBtn">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M5 5v14M12 5v14M19 5v14"/></svg>
+      </button>
+    </div>
+
+    <div class="grow"></div>
+
+    <span style="color:var(--t2)">Zoom:</span>
+    <div class="popwrap">
+      <button class="ctrl" id="zoomBtn">
+        <span class="v" id="zoomLabel">Fit</span>
+        <svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="pop" id="zoomPop" style="min-width:100px">
+        <div class="it on" data-zoom="fit"><span class="ck">✓</span><span class="nm">Fit</span></div>
+        <div class="it" data-zoom="50"><span class="ck">✓</span><span class="nm">50%</span></div>
+        <div class="it" data-zoom="75"><span class="ck">✓</span><span class="nm">75%</span></div>
+        <div class="it" data-zoom="100"><span class="ck">✓</span><span class="nm">100%</span></div>
+        <div class="it" data-zoom="150"><span class="ck">✓</span><span class="nm">150%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 媒体查询条（Chrome 签名元素）═══ -->
+  <div class="mq-bar" id="mqBar"></div>
+
+  <!-- ═══ 舞台 ═══ -->
+  <div class="stage" id="stage">
+    <canvas id="rulerTop" height="20" style="position:absolute;top:0;left:0;width:100%;z-index:5"></canvas>
+    <canvas id="rulerLeft" width="20" style="position:absolute;top:0;left:0;height:100%;z-index:5"></canvas>
+
+    <div id="dev">
+      <div id="screen">
+        <iframe id="frame" src="https://www.baidu.com"></iframe>
+      </div>
+      <div id="notch"></div>
+    </div>
+
+    <div class="handle h-w" id="hw" title="拖动调整宽度"></div>
+    <div class="handle h-h" id="hh" title="拖动调整高度"></div>
+    <div id="outline"></div>
+    <div class="badge" id="badge">390 × 844</div>
+
+    <div id="devLabel">iPhone 14 Pro · 390 × 844</div>
+    <div id="zoomLive">100%</div>
+  </div>
+
+<script>
+const stage = document.getElementById('stage');
+const dev = document.getElementById('dev');
+const badge = document.getElementById('badge');
+const outline = document.getElementById('outline');
+const devLabel = document.getElementById('devLabel');
+const zoomLive = document.getElementById('zoomLive');
+const rotBtn = document.getElementById('rot');
+const mqBtn = document.getElementById('mqBtn');
+
+/* 媒体查询断点（模拟从页面 CSS 提取；实际由 MediaQueryExtractor 注入） */
+const BREAKPOINTS = [
+  { min: 0,   label: '' },
+  { min: 576,  label: 'sm' },
+  { min: 768,  label: 'md' },
+  { min: 1024, label: 'lg' },
+  { min: 1400, label: 'xl' },
+];
+const MQ_COLORS = ['#8ab4f8', '#fdd663', '#81c995', '#f28b82'];
+
+let cur = { name: 'iPhone 14 Pro', w: 390, h: 844, landscape: false };
+let scale = 1, offX = 0, offY = 0;
+let zoomMode = 'fit';
+
+/* ── 布局 ── */
+function layout() {
+  const s = stage.getBoundingClientRect();
+  let fit = Math.min(1, (s.width - 60) / cur.w, (s.height - 60) / cur.h);
+  scale = zoomMode === 'fit' ? fit : parseInt(zoomMode) / 100;
+  const vw = Math.round(cur.w * scale), vh = Math.round(cur.h * scale);
+  offX = Math.round((s.width - vw) / 2);
+  offY = Math.round((s.height - vh) / 2) + 10;
+
+  dev.style.cssText = `left:${offX}px;top:${offY}px;width:${vw}px;height:${vh}px;`;
+  outline.style.cssText = `left:${offX}px;top:${offY}px;width:${vw}px;height:${vh}px;`;
+  place('hw', offX + vw, offY + vh / 2);
+  place('hh', offX + vw / 2, offY + vh);
+  devLabel.style.left = offX + 'px';
+  devLabel.style.top = (offY + vh + 8) + 'px';
+  zoomLive.textContent = zoomMode === 'fit' && scale < 1
+      ? Math.round(scale * 100) + '%' : zoomMode === 'fit' ? '100%' : zoomPct * 100 + '%';
+  drawRulers();
+  renderMqBar();
+}
+function place(id, x, y) {
+  const el = document.getElementById(id);
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.transform = 'translate(-50%,-50%)';
+}
+
+/* ── 拖拽（尺寸实时徽标）── */
+function drag(id, axes) {
+  const el = document.getElementById(id);
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, sw = cur.w, sh = cur.h;
+    cur.name = 'Responsive';
+    document.getElementById('dimLabel').textContent = `${cur.w} × ${cur.h}`;
+    outline.style.display = 'block';
+    badge.style.display = 'block';
+    function mv(ev) {
+      const dx = Math.round((ev.clientX - sx) / Math.max(scale, .05));
+      const dy = Math.round((ev.clientY - sy) / Math.max(scale, .05));
+      if (axes.includes('w')) cur.w = Math.max(200, sw + dx);
+      if (axes.includes('h')) cur.h = Math.max(200, sh + dy);
+      layout();
+      badge.textContent = `${cur.w} × ${cur.h}`;
+      badge.style.left = (offX + vw0() / 2) + 'px';
+      badge.style.top = (offY + vh0() / 2) + 'px';
+    }
+    function vw0() { return Math.round(cur.w * scale); }
+    function vh0() { return Math.round(cur.h * scale); }
+    window.addEventListener('mousemove', mv);
+    window.addEventListener('mouseup', () => {
+      badge.style.display = 'none';
+      outline.style.display = 'none';
+      window.removeEventListener('mousemove', mv);
+      window.removeEventListener('mouseup', up);
+    });
+    window.removeEventListener('mousemove', mv);
+    window.addEventListener('mousemove', mv);
+    window.addEventListener('mouseup', up);
+  });
+}
+drag('hw', ['w']); drag('hh', ['h']);
+
+/* ── 媒体查询条 ── */
+function renderMqBar() {
+  const bar = document.getElementById('mqBar');
+  bar.innerHTML = '';
+  const maxW = 1600;
+  const activeW = cur.w;
+  for (let i = 0; i < BREAKPOINTS.length; i++) {
+    const a = BREAKPOINTS[i], b = BREAKPOINTS[i + 1];
+    const segMin = a.min, segMax = b ? b.min : maxW;
+    const seg = document.createElement('div');
+    seg.className = 'mq-seg';
+    seg.style.width = ((segMax - segMin) / maxW * 100) + '%';
+    seg.style.background = MQ_COLORS[i % MQ_COLORS.length];
+    const isActive = activeW >= segMin && (!b || activeW < segMax);
+    if (isActive) seg.classList.add('active');
+    seg.textContent = segMin ? `${segMin}+` : 'base';
+    seg.title = `点击把视口宽度设为 ${segMax || 1600}px`;
+    seg.addEventListener('click', () => {
+      cur.w = segMax || 1600;
+      applyViewport();
+    });
+    bar.appendChild(seg);
+  }
+  const none = document.createElement('div');
+  none.className = 'mq-none';
+  none.textContent = `视口 ${cur.w}px${isActiveMq() ? ' · 命中断点' : ''}`;
+  bar.appendChild(none);
+}
+function isActiveMq() { return false; }
+
+function applyViewport() {
+  dev.style.width = Math.round(cur.w * scale) + 'px';
+  dev.style.height = Math.round(cur.h * scale) + 'px';
+  layout();
+}
+
+/* ── 设备菜单 ── */
+const dimBtn = document.getElementById('dimBtn'), dimPop = document.getElementById('dimPop');
+const zoomBtn = document.getElementById('zoomBtn'), zoomPop = document.getElementById('zoomPop');
+dimBtn.addEventListener('click', e => { e.stopPropagation(); zoomPop.classList.remove('open'); dimPop.classList.toggle('open'); });
+zoomBtn.addEventListener('click', e => { e.stopPropagation(); dimPop.classList.remove('open'); zoomPop.classList.toggle('open'); });
+document.addEventListener('click', () => document.querySelectorAll('.pop').forEach(p => p.classList.remove('open')));
+
+document.querySelectorAll('#dimPop .it').forEach(it => {
+  it.addEventListener('click', () => {
+    document.querySelectorAll('#dimPop .it').forEach(x => x.classList.remove('on'));
+    it.classList.add('on');
+    const name = it.dataset.preset;
+    cur.name = name;
+    const D = { 'iPhone SE': [375, 667], 'iPhone 14 Pro': [390, 844], 'iPhone 14 Pro Max': [430, 932],
+                'Galaxy S24': [360, 780], 'iPad 10': [820, 1180], 'iPad Pro 12.9': [1024, 1366],
+                'Desktop HD': [1366, 768] };
+    if (D[name]) { cur.w = D[name][0]; cur.h = D[name][1]; }
+    devLabel.textContent = `${name} · ${cur.w} × ${cur.h}`;
+    layout();
+  });
+});
+document.querySelectorAll('#zoomPop .it').forEach(it => {
+  it.addEventListener('click', () => {
+    document.querySelectorAll('#zoomPop .it').forEach(x => x.classList.remove('on'));
+    it.classList.add('on');
+    zoomMode = it.dataset.zoom;
+    document.getElementById('zoomLabel').textContent = zoomMode === 'fit' ? 'Fit' : zoomMode + '%';
+    layout();
+  });
+});
+document.getElementById('touch').addEventListener('click', function() { this.classList.toggle('on'); });
+mqBtn.addEventListener('click', () => {
+  const bar = document.getElementById('mqBar');
+  bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+});
+document.getElementById('rot').addEventListener('click', () => {
+  const t = cur.w; cur.w = cur.h; cur.h = t;
+  cur.landscape = !cur.landscape;
+  layout();
+});
+document.getElementById('w').addEventListener('change', e => {
+  cur.w = Math.max(200, parseInt(e.target.value) || 390); layout();
+});
+document.getElementById('h').addEventListener('change', e => {
+  cur.h = Math.max(200, parseInt(e.target.value) || 844); layout();
+});
+
+/* 标尺 */
+function drawRulers() {
+  const s = stage.getBoundingClientRect();
+  const top = document.getElementById('rulerTop');
+  const left = document.getElementById('rulerLeft');
+  top.width = s.width; left.height = s.height;
+  const step = 50 * scale < 16 ? 25 * scale : 50 * scale;
+  const maj = step * 2;
+  [[top, s.width, 20, false], [left, 20, s.height, true]].forEach(pair => {
+    const cv = pair[0], len = pair[1], thick = pair[2], vert = pair[3];
+    const x = cv.getContext('2d');
+    x.clearRect(0, 0, cv.width, cv.height);
+    x.strokeStyle = 'rgba(255,255,255,.25)'; x.fillStyle = 'rgba(255,255,255,.35)';
+    x.lineWidth = 1; x.font = '8.5px -apple-system';
+    for (let px = 0, i = 0; px < len; px += step, i++) {
+      const isMaj = px % maj < 1;
+      x.beginPath();
+      if (!vert) { x.moveTo(px + .5, thick); x.lineTo(px + .5, isMaj ? 6 : 12); }
+      else { x.moveTo(thick, px + .5); x.lineTo(isMaj ? 6 : 12, px + .5); }
+      x.stroke();
+      if (isMaj) {
+        const v = Math.round(px / scale);
+        if (!vert) x.fillText(v, px + 3, 10);
+        else { x.save(); x.translate(9, px + 3); x.rotate(-Math.PI / 2); x.fillText(v, 0, 0); x.restore(); }
+      }
+    }
+  });
+}
+window.addEventListener('resize', () => { layout(); drawRulers(); });
+layout(); drawRulers();
+</script>
+</body>
+</html>

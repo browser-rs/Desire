@@ -146,7 +146,9 @@
     <div class="popwrap">
       <button class="ctrl" id="dimBtn">
         <span class="v" id="dimLabel">iPhone 14 Pro</span>
-        <svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+   
+    <button class="exit" id="exitBtn">✓ 完成</button>
+    <div class="div"></div>     <svg class="car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </button>
 <div class="pop" id="dimPop">
         <div class="search">
@@ -481,6 +483,10 @@ window.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') { cur.w = Math.max(200, cur.w + 10); layout(); }
 });
 window.addEventListener('resize', () => { layout(); drawRulers(); });
+document.getElementById('exitBtn').addEventListener('click', () => {
+  // 真实实现：ResponsiveModeApplier.apply(false) — 恢复桌面 UA 并重载
+  document.getElementById('exitBtn').textContent = '已退出响应式模式（演示）';
+});
 layout(); drawRulers();
 </script>
 </body>

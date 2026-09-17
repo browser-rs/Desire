@@ -33,36 +33,34 @@ class VoiceInputManager: ObservableObject {
             ?? SFSpeechRecognizer()
         print("[VoiceInput] Using locale: \(self.speechRecognizer?.locale.identifier ?? "nil")")
 
+        // NOTE: no permission request here — prompting at panel creation
+        // fired TCC speech/mic requests on every AgentPanel appearance.
+        // Permissions are requested lazily on the first mic click.
         checkPermissions()
     }
 
     // MARK: - Permissions
 
     private func checkPermissions() {
-        switch SFSpeechRecognizer.authorizationStatus() {
-        case .authorized:
-            hasSpeechPermission = true
-        case .notDetermined:
+        hasSpeechPermission = SFSpeechRecognizer.authorizationStatus() == .authorized
+        hasMicrophonePermission = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
+    /// Fire the TCC prompts (mic click only — never at panel init).
+    private func requestPermissions() {
+        if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
             SFSpeechRecognizer.requestAuthorization { status in
                 Task { @MainActor in
                     self.hasSpeechPermission = status == .authorized
                 }
             }
-        default:
-            hasSpeechPermission = false
         }
-
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            hasMicrophonePermission = true
-        case .notDetermined:
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 Task { @MainActor in
                     self.hasMicrophonePermission = granted
                 }
             }
-        default:
-            hasMicrophonePermission = false
         }
     }
 
@@ -76,9 +74,9 @@ class VoiceInputManager: ObservableObject {
         guard !isRecording else { return }
         errorMessage = nil
 
+        requestPermissions()
         guard hasMicrophonePermission, hasSpeechPermission else {
-            errorMessage = "需要麦克风和语音识别权限"
-            checkPermissions()
+            errorMessage = "需要麦克风和语音识别权限 — 系统授权后再次点击"
             return
         }
 

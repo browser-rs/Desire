@@ -44,6 +44,9 @@ final class AutomationServer {
 
     private func start() {
         let params = NWParameters.tcp
+        // Fast relaunches (pkill → open) hit TIME_WAIT on the port;
+        // without reuse the listener silently fails and the bridge dies.
+        params.allowLocalEndpointReuse = true
         params.requiredLocalEndpoint = NWEndpoint.hostPort(
             host: "127.0.0.1",
             port: NWEndpoint.Port(rawValue: Self.port)!
@@ -160,6 +163,12 @@ final class AutomationServer {
                     }
                 }
                 return try Self.json(["spawn": out.trimmingCharacters(in: .whitespacesAndNewlines)])
+            case ("GET", "/approvals"):
+                return try Self.json(Self.pendingApproval())
+            case ("POST", "/approvals/resolve"):
+                return try Self.json(Self.resolvePendingApproval(
+                    Self.string(body, "decision") ?? ""
+                ))
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
             case ("GET", "/bookmarks"):
@@ -360,6 +369,39 @@ final class AutomationServer {
             ]
         }
         return ["downloads": Array(items)]
+    }
+
+    private static func pendingApproval() throws -> [String: Any] {
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            return ["error": "no live agent session"]
+        }
+        guard let approval = session.pendingApproval else {
+            return ["pending": false]
+        }
+        return [
+            "pending": true,
+            "tool": approval.toolCall.function.name,
+            "arguments": approval.argumentsSummary,
+            "risk": approval.risk.displayName,
+        ]
+    }
+
+    /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.
+    /// Lets external test drivers exercise the dangerous-tool path end to
+    /// end without a human click.
+    private static func resolvePendingApproval(_ decision: String) throws -> [String: Any] {
+        guard let session = AgentScheduler.shared.deliveryTarget, session.pendingApproval != nil else {
+            return ["error": "no pending approval"]
+        }
+        let outcome: ApprovalDecision
+        switch decision {
+        case "allow_once": outcome = .allowOnce
+        case "always_allow": outcome = .alwaysAllow
+        case "deny": outcome = .deny
+        default: return ["error": "decision must be allow_once | always_allow | deny"]
+        }
+        session.resolveApproval(outcome)
+        return ["ok": true, "resolved": decision]
     }
 
     private static func agentMessages() throws -> [String: Any] {

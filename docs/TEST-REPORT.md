@@ -223,3 +223,17 @@ MCP 鉴权、快捷键多窗口隔离、webview 泄漏、会话恢复、缩放�
 - T2 localhost:8799 直达 ✅
 - Agent 回路 401：沙盒→非沙盒的 Keychain 域切换，旧 key 读取路径
   失效 — 用户需在设置里重新保存一次 API key（预期行为，非缺陷）。
+
+## 第十一轮：审批自动化 + 语音权限懒请求
+
+- 崩溃定案与修复：VoiceInputManager 在面板 init 时就发起语音/麦克风
+  TCC 授权（非标准启动方式下 bundle 解析失败被 TCC 击杀）。
+  改为权限状态仅查询、首次点麦克风才请求。
+- 桥新增审批自动化：GET /approvals（挂起审批详情）+
+  POST /approvals/resolve {"decision": "allow_once|always_allow|deny"}。
+- 实测全自动危险工具回路：agent 发 runCommand → /approvals 读到
+  挂起审批（python3 -c print(11*11)，risk: Runs code）→ CLI
+  allow_once → 命令执行 stdout 121 → agent 汇报。零人工干预 ✅
+- BUG-K 记录：优雅退出曾出现挂起（SIGTERM 后进程卡 exit，SIGKILL
+  亦无法立即终止，STAT=SX）——怀疑与挂起的网络会话/审批 continuation
+  相关，低频复现，保留观察。

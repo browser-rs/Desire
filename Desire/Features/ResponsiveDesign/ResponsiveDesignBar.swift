@@ -7,7 +7,8 @@ struct ResponsiveDesignBar: View {
     @State private var selectedCategory: DeviceCategory = .phone
 
     var body: some View {
-        HStack(spacing: 8) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
             Button("← Exit") {
                 config.isEnabled = false
             }
@@ -139,32 +140,10 @@ struct ResponsiveDesignBar: View {
             .buttonStyle(.plain)
             .foregroundStyle(config.showMediaQueryInspector ? Color.accentColor : .secondary)
 
-            Button {
-                let all: [ThrottlePreset] = [.none, .slow3G, .fast3G, .offline]
-                let idx = all.firstIndex(of: config.networkThrottle) ?? 0
-                config.networkThrottle = all[(idx + 1) % all.count]
-            } label: {
-                HStack(spacing: 3) {
-                    Circle()
-                        .fill(config.networkThrottle == .none ? Color.gray.opacity(0.3)
-                              : config.networkThrottle == .offline ? Color.red : Color.orange)
-                        .frame(width: 6, height: 6)
-                    Text(config.networkThrottle.label)
-                        .font(.system(size: 10))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(config.networkThrottle == .none ? Color.clear
-                              : config.networkThrottle == .offline ? Color.red.opacity(0.1) : Color.orange.opacity(0.1))
-                )
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
         .background(.bar)
     }
 }

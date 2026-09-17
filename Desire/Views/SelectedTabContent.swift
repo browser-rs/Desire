@@ -178,6 +178,15 @@ struct SelectedTabContent: View {
                                         // identically (menu, toolbar, agent tool).
                                         ResponsiveModeApplier.apply(enabled, to: tab)
                                     }
+                                    .onChange(of: tab.responsiveConfig.effectiveSize) { _, size in
+                                        // Rotate / resize: keep the UA class in
+                                        // step without reloading (affects future
+                                        // requests only).
+                                        if tab.responsiveConfig.isEnabled {
+                                            tab.browser.webView.customUserAgent =
+                                                ResponsiveModeApplier.userAgent(forViewport: size)
+                                        }
+                                    }
                                     .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
                                         if show {
                                             actions.refreshMediaQueries(for: tab) { content.mediaQueries = $0 }

@@ -345,3 +345,13 @@ protocol）。注意：需在 didFinish 后读取（导航刚提交时新 entry 
 验证：构建零警告。实机验证项（用户）：开启 iPhone 14 Pro 预设访问
 baidu.com 应出现移动版布局；退出后恢复桌面版；开关触摸模拟后文字
 选择不受影响。
+
+## 响应式模式改造 · 第二轮（Bar 溢出 / 假节流 / 旋转 UA）
+
+- **假节流移除**：节流按钮循环 None/Slow 3G/Fast 3G/Offline，但
+  WebKit 没有节流 API，从未实现 — 纯摆设误导用户。按钮移除
+  （config 字段保留兼容旧存储）。真节流需 Network Interception
+  （未来评估）。
+- **Bar 溢出**：整行控件包横向 ScrollView，窄窗口下可滚动不再截断。
+- **旋转 UA 误切修复**：UA 分类改用设备**短边**（手机横屏仍是手机）；
+  新增 onChange(effectiveSize) 实时更新 UA（不 reload，影响后续请求）。

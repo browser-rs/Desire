@@ -20,7 +20,7 @@ enum ResponsiveModeApplier {
     static func apply(_ enabled: Bool, to tab: Tab) {
         let webView = tab.browser.webView
         if enabled {
-            webView.customUserAgent = userAgent(forViewportWidth: tab.responsiveConfig.effectiveSize.width)
+            webView.customUserAgent = userAgent(forViewport: tab.responsiveConfig.effectiveSize)
             webView.reload()
             if tab.responsiveConfig.touchSimulationEnabled {
                 TouchSimulation.apply(to: webView)
@@ -34,9 +34,12 @@ enum ResponsiveModeApplier {
 
     /// Device-class UA for the current viewport width. Keeps the desktop UA
     /// for desktop-class widths (no point pretending to be a phone).
-    static func userAgent(forViewportWidth width: CGFloat) -> String {
-        if width < 500 { return iphoneUA }
-        if width < 1200 { return ipadUA }
+    /// Classified by the SHORT edge — a phone in landscape is still a
+    /// phone (rotating must not silently switch the UA class).
+    static func userAgent(forViewport size: CGSize) -> String {
+        let short = min(size.width, size.height)
+        if short < 500 { return iphoneUA }
+        if short < 800 { return ipadUA }
         return BrowserState._desktopSafariUA
     }
 }

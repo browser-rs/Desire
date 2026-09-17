@@ -213,3 +213,75 @@ Features/Bookmarks/
 3. 如有复用 UI，提取到 `Views/Components/`
 4. 在 `Views/ContentView.swift` 中组合
 5. Build 验证
+
+
+---
+
+# Agent 协作规范（AI 助手沉淀 · 必读）
+
+## 测试与自动化：只用 CLI 桥，禁用 UI 自动化
+
+- 应用以 `--automation` 启动后，`127.0.0.1:8799` 提供完整 JSON 接口
+  （见 `Desire/App/AutomationServer.swift` 头注释）。
+- **禁止** System Events 键盘注入 / 坐标点击：多全屏 Space 环境下会
+  切空间、误注入前台其他应用，且 SwiftUI 窗口内 Menu 无法按名点击。
+- **禁止**把"打开某页面"做成 UI 操作 — 一律
+  `curl -X POST .../navigate -d '{"url":"…"}'`。
+- 截图两条路：`/screenshot` 只拍 **webview 内容**（SwiftUI 覆盖层如
+  错误页/手柄/标尺不在其中）；要拍整窗用
+  `screencapture -o -x -l <winid>`（winid 用 CGWindowList 取）。
+- 启动流程（顺序敏感）：
+  `pkill -9 -x Desire; sleep 2; open <app> --args --automation; sleep 6`
+  然后必须 `curl /state` 验证桥活着再继续。
+- **网络抖动会造成假阳性**（example.com 白屏、baidu 间歇失败均发生过）。
+  任何"加载失败"结论必须复测两次以上才能定性。
+
+## 已知半成品 / 未支持完整的功能
+
+修功能前先查此清单，避免重复踩坑或误判"这是新 bug"：
+
+- **响应式模式**：核心可用（UA 切换+重载、拖把手、触摸模拟）。
+  遗留：pixelRatio 模拟、真网络节流（WebKit 无 API，需
+  Network Interception，勿再做假 UI）。
+- **BUG-K 优雅退出挂起**：SIGTERM 后偶发卡在 exit（STAT=SX，SIGKILL
+  亦不立即死）。怀疑挂起网络会话/审批 continuation。低频未定位。
+- **快捷键设置页是摆设**：KeyboardShortcutStore 无消费方，实际快捷键
+  硬编码在 DesireApp + ContentView+Overlays。
+- **下载**：暂停→秒恢复竞态（resumeData 未就绪时 resume 成僵尸）；
+  无痕下载仍写入共享下载历史。
+- **中键**（关标签/开链接）、beforeunload 表单保护、多窗口 Agent
+  联动：未实现。
+- **passkey**：需要 Apple 签发 private-key-credential entitlement，
+  已申请流程见 docs/。
+- **Keychain 域**：沙盒移除后 API key 需在设置里重新保存一次
+  （容器 keychain → login keychain 的域切换，预期行为）。
+
+## 架构决策（勿回退、勿重复踩坑）
+
+- **分栏拖拽**：用 `HStack + ResizableDivider`（基线宽度 + 1:1 跟随 +
+  11pt 命中区）。**禁用 HSplitView** 包含 WKWebView 平台视图的组合 —
+  SwiftUI HoverEventDispatcher 会在主线程断言处崩溃（启动即崩，实测
+  两次复现）。面板宽度所有权归容器，**禁止**面板内部固定
+  `.frame(width:)`（会顶住拖拽）。
+- **TCC/隐私授权必须懒请求**：只在用户点击对应功能时发起
+  （见 VoiceInputManager）。面板 init 时发起会在非标准启动方式下
+  （nohup 直跑二进制，bundle 上下文残缺）被 TCC 直接杀进程。
+- **启动方式**：测试一律 `open <app> --args --automation`；
+  nohup 直跑二进制会破坏 bundle 上下文（TCC 崩溃的诱因之一）。
+- **本地测试服务端口用 8877**（8000 常被用户自己的开发服务占用）。
+- **executeJS 错误详情**：evaluateJavaScript 的错误对象不含真实异常
+  文本；正确 key 是 `WKJavaScriptExceptionMessage`，经
+  callAsyncJavaScript 重跑捕获（见 BrowserToolProvider+Execution）。
+- **历史标题**：WebKit 的 title KVO 晚于 didFinish — 历史入库 800ms
+  后有延迟校正（HistoryStore.updateEntryTitle），勿删。
+- **桌面 UA 是反爬基线**：`BrowserState._desktopSafariUA` 刻意不带
+  Desire 产品 token（Cloudflare 按 UA 判非 Genuine Safari 会拦站）。
+  修改 UA 逻辑前先读 WebView.swift 内注释。
+
+## 端点扩展模式
+
+新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，
+数据源用 `TabSessionCoordinator.shared.activeTabManager`（活动窗口）
+或 `AgentScheduler.shared.deliveryTarget`（活 Agent 会话）/ 各 Store
+的 `.live` 弱注册（如 DownloadStore.live）。读写分离：查询用新实例
+读盘即可，写操作必须走 UI 持有的同一实例。

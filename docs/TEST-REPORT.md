@@ -276,3 +276,15 @@ GET /settings — 应用视角的配置可见性（searchEngine 等），用于�
 "设置丢失"类问题（本轮证实搜索解析失败是时序竞态而非配置丢失）。
 
 ### 结果：13/13 PASS（含此前所有修复的回归）
+
+## 第十三轮补充：Agent DOM 交互端到端 ✅
+
+本地测试页（输入框+按钮+JS 结果区）→ 指令"填入 Alice 并点击提交"。
+Agent 全自主完成：页面快照 → 发现 8000 端口页面 404 → 自主导航修复 →
+getPageSnapshot/findElements/executeJS/clickAt/click 多工具组合 →
+executeJS 读回 `name=[Alice] result=[hello Alice]` → 汇报
+"result 区域显示：hello Alice"。
+
+经验教训：测试服务器端口 8000 与本机常见开发端口冲突 → 套件改用
+8877；给 Agent 的指令应避免端口/地址歧义（它记得旧地址会自主绕路，
+恢复力很好但耗时）。

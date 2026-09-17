@@ -26,7 +26,7 @@ APP = os.path.expanduser(
     "~/Library/Developer/Xcode/DerivedData/Desire-cypvzjloyvrfvbcnlbdebkkbubhe"
     "/Build/Products/Debug/Desire.app"
 )
-MCP_PORT, FILE_PORT = 8901, 8000
+MCP_PORT, FILE_PORT = 8901, 8877  # 8000 is commonly squatted by dev servers
 results = []
 
 
@@ -140,7 +140,12 @@ def main():
     os.makedirs(tmpdir, exist_ok=True)
     open(os.path.join(tmpdir, "page.html"), "w").write(
         "<html><head><title>Desire Regression Page</title></head>"
-        "<body><h1>regression-ok</h1><a href='page.html'>self</a></body></html>")
+        "<body><h1>regression-ok</h1>"
+        "<input id='name' placeholder='your name'>"
+        "<button id='go' onclick=\"document.getElementById('result').textContent="
+        "'hello ' + document.getElementById('name').value\">submit</button>"
+        "<div id='result'></div>"
+        "<a href='page.html'>self</a></body></html>")
     open(os.path.join(tmpdir, "test.zip"), "wb").write(
         b"PK\x05\x06" + b"\x00" * 18 + b"regression")
 
@@ -230,6 +235,16 @@ def main():
         check("incognito tab flagged", incog_index is not None)
         if incog_index is not None:
             api("POST", "/close-tab", {"index": incog_index})
+
+        # 9.5 Agent DOM interaction: fill input, click button, read result
+        api("POST", "/navigate", {"url": f"http://127.0.0.1:{FILE_PORT}/page.html"})
+        wait_loaded(0)
+        api("POST", "/agent/send", {"text":
+            "在当前页面的输入框（id=name）填入 Alice，然后点击提交按钮（id=go），"
+            "等页面更新后告诉我 result 区域显示的文字"})
+        state = wait_agent_done(timeout=120)
+        blob = json.dumps(state)
+        check("agent fill+click+read", "hello Alice" in blob)
 
         # 10. Screenshot
         shot = api("GET", "/screenshot")

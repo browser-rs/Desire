@@ -23,6 +23,19 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    /// Corrects the title of the most recent entry for `url`. WebKit's
+    /// title KVO lands AFTER didFinish, so entries were being recorded with
+    /// the stale placeholder title ("Desire") for fast-titling pages.
+    func updateEntryTitle(url: String, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let idx = entries.firstIndex(where: { $0.url == url }) else { return }
+        entries[idx] = HistoryEntry(
+            id: entries[idx].id, url: entries[idx].url,
+            title: trimmed, timestamp: entries[idx].timestamp
+        )
+        save()
+    }
+
     func removeEntry(id: UUID) {
         entries.removeAll { $0.id == id }
         save()

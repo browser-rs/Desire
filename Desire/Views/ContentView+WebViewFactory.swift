@@ -58,6 +58,16 @@ extension ContentView {
                     tab.suppressHistoryOnce = false
                 } else if !tab.isIncognito {
                     historyStore.addEntry(url: url.absoluteString, title: title)
+                    // WebKit's title update races didFinish — correct the
+                    // entry once the real page title lands (stale entries
+                    // showed the app placeholder "Desire").
+                    let targetURL = url.absoluteString
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 800_000_000)
+                        guard tab.browser.webView.url?.absoluteString == targetURL,
+                              let fresh = tab.browser.webView.title, fresh != title else { return }
+                        historyStore.updateEntryTitle(url: targetURL, title: fresh)
+                    }
                 }
                 pluginStore.inject(into: tab.browser.webView, for: url)
             },

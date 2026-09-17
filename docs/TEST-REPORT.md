@@ -82,3 +82,26 @@
   可能误注入前台其他应用）——停止自动注入，后续验证以用户手工为准。
 - 插桩日志保留（decidePolicy/外部移交/加载失败），BUG-A 再现时可用
   `log show --last 5m --predicate 'process == "Desire"'` 取证。
+
+## 第四轮更新（同日，窗口级截图 + 前台门控后自动化恢复可靠）
+
+### 通过项
+- example.com 完整渲染（上轮白屏确认为瞬时网络抖动；30s 看门狗保留
+  作为真挂起兜底）
+- ⌘T 新标签：双标签并列正常，标签标题独立正确
+- desire://newtab：成功回到新标签页（ISSUE-F 通过）
+- 页面内文案/链接渲染正常
+
+### 新发现 BUG-G（中）→ 已修复
+- 历史条目标题记录为应用占位符"Desire"而非真实页面标题：WebKit 的
+  标题 KVO 晚于 didFinish 到达。修复：HistoryStore.updateEntryTitle
+  （按 URL 定位最新条目替换标题）+ onPageFinished 后 800ms 延迟校正。
+
+### 环境备忘
+- 窗口级截图（screencapture -l <winid>）+ Swift CGWindowList 取 ID
+  可以稳定捕获 Desire 窗口，不受全屏 Space 切换影响。
+- 坐标点击（System Events click at）落点有偏差，链接点击类用例暂缓。
+
+### 未覆盖（后续轮次）
+- Agent 面板实测（模型菜单/审批卡/排队/暂停）、下载流程、
+  书签/历史面板、多窗口。

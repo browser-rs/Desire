@@ -225,6 +225,8 @@ struct WebView: NSViewRepresentable {
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     var httpsUpgradeEnabled: Bool = true
+    /// YouTube 赞助商片段跳过开关（didFinish 注入 sponsorblock.js）。
+    var sponsorBlockEnabled: Bool = false
     var extensionManager: SafariExtensionStore?
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
@@ -338,7 +340,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole",
+            "elementPicker", "videoAdBlocked", "devConsole", "fullscreenRequest",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -361,6 +363,27 @@ struct WebView: NSViewRepresentable {
                     if let title = wv.title, !title.isEmpty {
                         DispatchQueue.main.async { [weak self] in
                             self?.parent.state.pageTitle = title
+                        }
+                    }
+                },
+                // Element fullscreen (YouTube etc.): WebKit fullscreens the
+                // WEBVIEW itself in its own Space/window while the host
+                // window stays put — users see "two windows". Follow the
+                // native-app convention instead: when the element enters
+                // fullscreen, put OUR window into native fullscreen too so
+                // the fullscreened element fills the user's actual window;
+                // reverse on exit.
+                webView.observe(\.fullscreenState, options: [.initial, .new]) { [weak self] wv, _ in
+                    DispatchQueue.main.async { [weak self] in
+                        guard let window = wv.window else { return }
+                        let inElementFullscreen = wv.fullscreenState == .inFullscreen
+                            || wv.fullscreenState == .enteringFullscreen
+                        let windowIsFullscreen = window.styleMask.contains(.fullScreen)
+                        if inElementFullscreen, !windowIsFullscreen {
+                            window.toggleFullScreen(nil)
+                        } else if !inElementFullscreen, wv.fullscreenState == .exitingFullscreen,
+                                  windowIsFullscreen {
+                            window.toggleFullScreen(nil)
                         }
                     }
                 },
@@ -436,6 +459,21 @@ struct WebView: NSViewRepresentable {
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
+            } else if message.name == "fullscreenRequest", let dict = message.body as? [String: Any],
+                      let enter = dict["enter"] as? Bool {
+                // fullscreen-shim.js: the page asked for element fullscreen —
+                // fullscreen OUR window instead (native-app convention) so
+                // users never see WebKit's second fullscreen window.
+                let webView = parent.state.webView
+                DispatchQueue.main.async {
+                    guard let window = webView.window else { return }
+                    let windowIsFullscreen = window.styleMask.contains(.fullScreen)
+                    if enter, !windowIsFullscreen {
+                        window.toggleFullScreen(nil)
+                    } else if !enter, windowIsFullscreen {
+                        window.toggleFullScreen(nil)
+                    }
+                }
             } else if message.name == "middleClickLink", let raw = message.body as? String {
                 // Middle-click (auxiliary button) on a link — the injected
                 // middle-click.js already resolved it against the page URL.
@@ -584,6 +622,12 @@ struct WebView: NSViewRepresentable {
             }
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
                 webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)
+            }
+            // YouTube 赞助商片段跳过（SponsorBlock 数据，确定性脚本）。
+            if parent.sponsorBlockEnabled,
+               let host = webView.url?.host,
+               host.hasSuffix("youtube.com") {
+                webView.evaluateJavaScript(UserScriptLoader.load("sponsorblock"), completionHandler: nil)
             }
             if let host = webView.url?.host, let js = parent.state.videoAdBlocker?.pageScript(for: host) {
                 webView.evaluateJavaScript(js, completionHandler: nil)

@@ -34,6 +34,7 @@ enum UserScriptLoader {
             scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
         }
         add("console-intercept", at: .atDocumentStart)
+        add("fullscreen-shim", at: .atDocumentStart)
         add("media-sniffer", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)

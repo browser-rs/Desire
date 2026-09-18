@@ -113,6 +113,13 @@ struct GeneralSettingsSection: View {
                     options: AutoPlayPolicy.allCases,
                     label: autoPlayLabel
                 )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Skip YouTube Sponsor Segments",
+                    subtitle: "Auto-skip in-video sponsor/promo segments on YouTube (SponsorBlock community data). Applies to the next page load.",
+                    systemImage: "forward.endpoints",
+                    isOn: $settings.sponsorBlockSkip
+                )
             }
 
             // MARK: - Search

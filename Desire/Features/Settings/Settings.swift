@@ -40,6 +40,11 @@ class Settings: ObservableObject {
     @Published var confirmCloseMultipleTabs: Bool {
         didSet { UserDefaults.standard.set(confirmCloseMultipleTabs, forKey: "confirmCloseMultipleTabs") }
     }
+    /// YouTube 赞助商片段跳过（SponsorBlock 社区数据）。注入发生在页面
+    /// didFinish 时，切换对下一个页面加载生效。
+    @Published var sponsorBlockSkip: Bool {
+        didSet { UserDefaults.standard.set(sponsorBlockSkip, forKey: "sponsorBlockSkip") }
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -71,6 +76,7 @@ class Settings: ObservableObject {
         accentColor = AccentColor(rawValue: UserDefaults.standard.string(forKey: "accentColor") ?? "") ?? .blue
         newTabPosition = NewTabPosition(rawValue: UserDefaults.standard.string(forKey: "newTabPosition") ?? "") ?? .end
         confirmCloseMultipleTabs = UserDefaults.standard.object(forKey: "confirmCloseMultipleTabs") as? Bool ?? true
+        sponsorBlockSkip = UserDefaults.standard.object(forKey: "sponsorBlockSkip") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

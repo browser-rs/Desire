@@ -125,6 +125,16 @@ extension ContentView {
         }
     }
 
+    /// 常驻书签栏（可隐藏）。数据与书签面板/星标同源。
+    @ViewBuilder
+    func bookmarksBarSection(for tab: Tab) -> some View {
+        if settings.showBookmarksBar {
+            BookmarksBarView(store: bookmarkStore) { url in
+                b.navigateToURL(url, for: tab)
+            }
+        }
+    }
+
     /// Non-blocking notice bars stacked under the toolbar: password save
     /// prompt and beforeunload leave-confirmation (same component family —
     /// replacing these sheets was 0.1.2: sheets steal focus mid-Agent-task).

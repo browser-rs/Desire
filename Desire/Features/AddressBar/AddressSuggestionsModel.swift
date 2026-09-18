@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -7,6 +8,19 @@ class AddressSuggestionsModel: ObservableObject {
     @Published var selectedIndex = 0
 
     private var searchTask: Task<Void, Never>?
+
+    /// Returns the pasteboard string as a URL when it looks like one.
+    private static func clipboardURL() -> String? {
+        guard let text = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty, text.contains("."),
+              text.range(of: #"^[a-zA-Z][a-zA-Z0-9+.-]*://"#, options: .regularExpression) != nil
+              || text.range(of: #"^www\."#, options: .regularExpression) != nil
+              || text.range(of: #"^\d{1,3}\.\d{1,3}\."#, options: .regularExpression) != nil else {
+            return nil
+        }
+        return text
+    }
     private let maxResults = 8
     /// Query the currently published suggestion set was built for. Network
     /// suggestions compare against this on completion — if the user kept
@@ -110,6 +124,16 @@ class AddressSuggestionsModel: ObservableObject {
 
         suggestions = results
         selectedIndex = 0
+
+        // Clipboard URL: if the pasteboard holds a URL, offer it first.
+        if !isURL, let clipboardURL = Self.clipboardURL(), clipboardURL != trimmed {
+            results.insert(AddressSuggestion(
+                kind: .navigate,
+                title: String(localized: "Open clipboard link"),
+                url: clipboardURL,
+                domain: FaviconStore.domainKey(from: clipboardURL)
+            ), at: 1)
+        }
 
         // Network suggestions only for search-shaped queries, only when the
         // user hasn't disabled suggestions, and only when the active engine

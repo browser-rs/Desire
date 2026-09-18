@@ -140,93 +140,56 @@
 > 以下为 0.2.1 → 0.2.16 的逐版规划，按依赖排序：分发闭环 → 两大功能
 > 山头（Profiles、Passkey）→ Agent/工程深化 → UX 批次。
 
-### 0.2.1 — 反馈与分发闭环
-- UpdateChecker v2：应用内横幅（新版本提示 + 查看发布页 + 跳过此版本），
-  设置页手动"检查更新"按钮。
-- CI 增加两道工程健康门：静态分析器零发现门禁；"死设置"扫描门禁
-  （Settings 的 @Published 必须有设置页之外的引用——防键盘快捷键式
-  摆设复发）。
-- Developer ID 签名/公证可选路径落文档（secrets 就绪即启用）。
+### 0.2.1 — UX 快赢批次（本版）
+- **书签栏**：工具栏下方常驻，叶子直达/文件夹下拉/与面板同源。
+- **剪贴板 URL 直达**：地址栏聚焦且剪贴板为 URL 时首行建议。
+- **错误页文案复核**：DNS/TLS/断网分类映射全查。
 
 ### 0.2.2 — 稳定性专项
-- MetricKit 载荷趋势本地看板（崩溃/卡顿/磁盘写入按周聚合）。
-- 长会话 soak：桥驱动 50 标签 × 8 小时（含休眠/恢复/下载并发），
-  输出内存曲线与泄漏基线。
-- 内存水位休眠 v1：超过阈值按 LRU 挂起非活跃标签（音频/下载/固定豁免
-  矩阵补全）。
+- MetricKit 载荷趋势本地看板；50 标签 × 8h soak；内存水位休眠 v1。
 
-### 0.2.3 — Profiles v1（人物级隔离）
-- Profile 模型：Default + 自定义人物（工作/个人…），每个 Profile 拥有
-  独立 WKWebsiteDataStore（容器是按标签的，Profile 是按窗口的）。
-- 窗口绑定 Profile：新建窗口选择人物；切换器 UI（设置 + 标签页右键）。
-- Agent 按 Profile 取上下文（WindowToolSurface 携带 Profile）。
+### 0.2.3 — 反馈闭环 v2
+- 更新横幅（查看/跳过此版本）+ 设置页手动检查按钮。
 
-### 0.2.4 — Profiles v2
-- 书签/历史/密码/快拨按 Profile 作用域（存储分桶 + 切换过滤）。
-- Profile 导入导出（JSON 打包，不含密钥；密码走 Keychain 迁移）。
-- 验收：双 Profile 同站登录态互不可见；桥 /profiles 全量可驱动。
+### 0.2.4 — MCP 会话与窗口绑定
+- Mcp-Session-Id → 窗口绑定（工具带 window 参数覆盖）。
+- tools/listChanged 通知；--mcp-token 鉴权文档化进 README。
 
-### 0.2.5 — Passkey（entitlement 门控）
-- Apple private-key-credential entitlement 走完（docs/ 已有申请记录）。
-- WebAuthn 平台凭据创建/认证 UI（ASAuthorizationPlatformPublicKeyCredential）。
-- Agent 代登录打通：凭据选择对话框免密通过（用户一次性授权）。
+### 0.2.5 — MCP resources 与 prompts
+- page://<tab>/text|html|screenshot 作为 MCP resource；常用任务 prompt 模板。
+- 长任务进度经 SSE progress 通知。
 
-### 0.2.6 — 密码中心
-- 密码生成器（长度/符号可调，注册表单自动建议）。
-- CSV 导入导出（对齐 Chrome/Safari 列格式，便于迁移）。
-- 保存提示条升级：按站点"永不"已支持，补"修改密码检测"。
+### 0.2.6 — 审批策略引擎
+- 按工具/按域放行规则（持久化 + 面板管理）；审批历史日志，桥可查。
 
-### 0.2.7 — MCP 会话与窗口绑定
-- Mcp-Session-Id → 窗口绑定：每个连接固定操作某个窗口（工具带
-  window 参数覆盖）。
-- tools/listChanged 通知（新增工具时推送）。
-- 鉴权文档化进 README（--mcp-token 已实现，补环境变量注入示例）。
+### 0.2.7 — 记忆 v2
+- 记忆搜索 + 导入导出 + Agent 可编程读写（MCP 工具）。
+- 低命中老旧事实自动降权（pinned 豁免）；右键"记住此站"。
 
-### 0.2.8 — MCP resources 与 prompts
-- 页面即资源：page://<tabIndex>/text|html|screenshot 作为 MCP resource
-  暴露，支持 resources/read。
-- 提示模板：常用任务（比价/总结/监控报告）作为 prompts 暴露。
-- 长任务进度：tools/call 过程经 SSE progress 通知（下载百分比/步骤数）。
+### 0.2.8 — 媒体流水线 v2
+- HLS 多码率画质选择；批量队列 UI；音频抽取预设。
 
-### 0.2.9 — 审批策略引擎
-- 按工具/按域的放行规则（"readClipboard 永久放行"、"*.bilibili.com 的
-  click 免审批"），规则持久化 + 面板管理。
-- 审批历史日志（谁在何时放行了什么），桥可查。
+### 0.2.9 — Profiles v1（人物级隔离）
+- Profile 模型 + 独立 WKWebsiteDataStore + 窗口绑定 + 切换器。
+- Agent 按 Profile 取上下文。
 
-### 0.2.10 — 记忆 v2
-- 记忆搜索 + 导入导出（JSON），Agent 可编程读写（桥已通，补 MCP 工具）。
-- 记忆衰减：低命中且老旧的事实自动降权（保留 pinned）。
-- 作用域 UI 化：当前页面右键"记住关于此站的事"。
+### 0.2.10 — Profiles v2
+- 书签/历史/密码/快拨按 Profile 作用域；导入导出（密码走 Keychain）。
 
-### 0.2.11 — 媒体流水线 v2
-- HLS 多码率：列出可用画质，按用户/Agent 选择下载。
-- 批量队列 UI：多视频排队 + 队列管理（暂停/重排/清空）。
-- 音频抽取预设按钮（mp3/flac 一键），下载完成通知直达文件。
+### 0.2.11 — 密码中心
+- 生成器 + CSV 导入导出 + 修改密码检测。
 
-### 0.2.12 — UX 批次一：书签栏与直达
-- 书签栏（工具栏下方常驻）：文件夹下拉、拖拽排序、与面板同源。
-- 剪贴板 URL 直达：地址栏聚焦且剪贴板为 URL 时建议首行"打开剪贴板链接"。
-- 错误页文案复核（DNS/TLS/断网分类映射全查一遍）。
+### 0.2.12 — Passkey（entitlement 门控）
+- WebAuthn 平台凭据创建/认证 UI；Agent 代登录打通。
 
-### 0.2.13 — UX 批次二：标签与布局
-- 标签拖出成独立窗口 / 回拖合并（NSWindow delegate + 快照衔接）。
-- 分屏浏览：同窗口双标签并排（ResizableDivider 已有地基）。
-- 全页截图 PNG 版（滚动拼接），补 MCP fullPageScreenshotPNG。
+### 0.2.13 — WebExtension API v1
+- storage.local / tabs 事件 / notifications 子集；兼容性测试站。
 
-### 0.2.14 — 历史与站点权限
-- 历史归并视图：同 URL 聚合 + 访问次数 + 站内搜索。
-- per-domain JavaScript 开关 / 自动播放策略覆盖（SiteSettings 扩展，
-  面板 + 桥端点）。
+### 0.2.14 — 性能与加固
+- 长会话（50+ 标签）回归；下载高危类型落地确认；混合内容警示。
 
-### 0.2.15 — WebExtension API v1
-- 现有 registry/matcher 之上开放 storage.local / tabs 事件 /
-  notifications 子集；兼容性测试站 + 已支持 API 清单。
-- 权限模型：安装时声明式授权（bridge 可查）。
-
-### 0.2.16 — 安全与加固
-- 下载类型策略：可选拦截高危类型（脚本/可执行）落地前确认。
-- 混合内容与不安全表单的可视警示（地址栏徽章）。
-- 长会话回归（50+ 标签）达标 + 启动预算复测。
+### 0.2.15 — 分屏浏览
+- 同窗口双标签并排（ResizableDivider 已有地基）。
 
 ---
 

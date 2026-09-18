@@ -65,6 +65,10 @@ class Settings: ObservableObject {
         if sponsorSkipFiller { categories += ["filler"] }
         return categories
     }
+    /// 常驻书签栏可见性（View 菜单 / 设置切换）。
+    @Published var showBookmarksBar: Bool {
+        didSet { UserDefaults.standard.set(showBookmarksBar, forKey: "showBookmarksBar") }
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -100,6 +104,7 @@ class Settings: ObservableObject {
         sponsorSkipMain = UserDefaults.standard.object(forKey: "sponsorSkipMain") as? Bool ?? true
         sponsorSkipChapters = UserDefaults.standard.object(forKey: "sponsorSkipChapters") as? Bool ?? false
         sponsorSkipFiller = UserDefaults.standard.object(forKey: "sponsorSkipFiller") as? Bool ?? false
+        showBookmarksBar = UserDefaults.standard.object(forKey: "showBookmarksBar") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

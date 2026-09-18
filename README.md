@@ -21,6 +21,21 @@ A native macOS web browser built with SwiftUI and WKWebView.
 - **Per-Site Zoom** — Persistent zoom levels per domain
 - **Keyboard Shortcuts** — Full keyboard navigation with customizable shortcuts
 
+## AI / Automation
+
+Desire is AI-native: it ships a localhost automation bridge, an MCP server, and an event stream so agents (or you) can drive it programmatically.
+
+```bash
+open Desire.app --args --automation --mcp-server
+```
+
+- **Bridge** `http://127.0.0.1:8799` — 68 endpoints (JSON), self-describing via `GET /`
+- **MCP server** `http://127.0.0.1:8798/mcp` — 30 tools (Streamable HTTP JSON-RPC)
+- **Events** `GET /events` (SSE) — pageReady, download lifecycle, approvals, tab churn
+- **Docs**: [docs/BRIDGE.md](docs/BRIDGE.md) · driver examples in [examples/](examples/)
+
+Optional tokens: `--automation-token <t>` / `--mcp-token <t>`.
+
 ## Requirements
 
 - macOS 26.5+

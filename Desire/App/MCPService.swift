@@ -17,6 +17,29 @@ final class MCPService {
     /// One session per server lifetime is enough for v1 — the id is handed
     /// out at initialize and echoed back by compliant clients.
     private var sessionID = UUID().uuidString
+    /// Optional bearer auth: `--mcp-token <token>` gates every request
+    /// (initialize included) exactly like the automation bridge's
+    /// `--automation-token`. Default: open on localhost.
+    private static let requiredToken: String? = {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--mcp-token"), i + 1 < args.count {
+            return args[i + 1]
+        }
+        if let i = args.firstIndex(where: { $0.hasPrefix("--mcp-token=") }) {
+            return String(args[i].dropFirst("--mcp-token=".count))
+        }
+        return nil
+    }()
+
+    private static func isAuthorized(_ request: String) -> Bool {
+        guard let requiredToken else { return true }
+        guard let header = request
+            .split(separator: "\r\n", omittingEmptySubsequences: false)
+            .first(where: { $0.lowercased().hasPrefix("authorization:") }) else {
+            return false
+        }
+        return header.lowercased().contains("bearer \(requiredToken.lowercased())")
+    }
 
     func startIfRequested() {
         guard CommandLine.arguments.contains("--mcp-server"), listener == nil else { return }
@@ -72,7 +95,11 @@ final class MCPService {
                 let bodyCount = buffer.count - headerEnd.upperBound
                 if bodyCount >= declared {
                     Task { @MainActor in
-                        self.handleComplete(connection, buffer)
+                        if Self.isAuthorized(String(data: buffer, encoding: .utf8) ?? "") {
+                            self.handleComplete(connection, buffer)
+                        } else {
+                            self.respond(connection, status: "401 Unauthorized", body: #"{"error":"unauthorized — missing or wrong bearer token"}"#)
+                        }
                     }
                     return
                 }

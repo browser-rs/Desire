@@ -5,9 +5,33 @@
 
 ## [Unreleased]
 
+### 计划中（见 [ROADMAP](docs/ROADMAP.md) 0.2 弧线）
+
+- 0.2.1 Passkey、0.2.2 Profiles、0.2.3 WebExtension 开放、0.2.4 自动更新…
+
 ### 计划中（见 [ROADMAP](ROADMAP.md)）
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
+
+## [v0.2.0] - 2026-09-19
+
+> 0.2 弧线首版：**外部 AI 完全体**。
+
+### Added
+
+- **MCP Server 鉴权**：`--mcp-token <token>`（Bearer，initialize 在内的
+  全部请求 401 门禁；默认 localhost 裸奔不变）。五场景实测全过。
+- **桥 /events 心跳**：15 秒 keep-alive 注释帧——死连接以发送错误浮出
+  并自动清理，不再滞留 sinks。
+- **官方驱动示例**：`examples/desire-driver.py`（纯 stdlib，事件驱动
+  全流程，实测跑通）、`examples/desire-mcp-driver.ts`（零依赖 MCP
+  客户端：initialize → tools/list → tools/call）。
+- README 新增 AI/Automation 章节；路线图标记 0.1.x 全部完成。
+
+### Fixed
+
+- MCPService 鉴权门禁首轮未接线（补丁静默未命中第四次）——E2E 直接
+  抓出并修复；脚本化编辑全面改用 assert。
 
 ## [v0.1.16] - 2026-09-18
 

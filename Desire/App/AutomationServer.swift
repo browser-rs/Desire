@@ -156,6 +156,7 @@ final class AutomationServer {
     // MARK: - Event stream (SSE)
 
     private var eventStreamConnections: [UUID: NWConnection] = [:]
+    private var eventStreamHeartbeats: [UUID: Task<Void, Never>] = [:]
 
     /// `GET /events` — upgrade the connection to an SSE stream fed by
     /// BridgeEventBus. Kept open until the client goes away; every inbound
@@ -172,6 +173,19 @@ final class AutomationServer {
         }
         eventStreamConnections[id] = connection
 
+        // 15 s keep-alive comment: dead sockets surface as send errors and
+        // get cleaned up instead of lingering in the sinks dict.
+        let heartbeat = Task { [weak connection] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { break }
+                connection?.send(content: Data(": keep-alive\n\n".utf8), completion: .contentProcessed { error in
+                    if error != nil { connection?.cancel() }
+                })
+            }
+        }
+        eventStreamHeartbeats[id] = heartbeat
+
         func drain() {
             connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
                 if error == nil {
@@ -180,6 +194,7 @@ final class AutomationServer {
                     Task { @MainActor in
                         BridgeEventBus.shared.unsubscribe(id)
                         self.eventStreamConnections.removeValue(forKey: id)
+                        self.eventStreamHeartbeats.removeValue(forKey: id)?.cancel()
                         connection.cancel()
                     }
                 }

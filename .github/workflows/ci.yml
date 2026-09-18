@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (Release)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build (Release, unsigned)
+        run: |
+          xcodebuild \
+            -project Desire.xcodeproj \
+            -scheme Desire \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+
+      - name: Locate app bundle
+        id: app
+        run: |
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
+          echo "path=$APP" >> "$GITHUB_OUTPUT"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desire-${{ github.sha }}
+          path: ${{ steps.app.outputs.path }}
+          retention-days: 7
+          if-no-files-found: error

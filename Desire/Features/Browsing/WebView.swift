@@ -125,6 +125,9 @@ class BrowserState: ObservableObject {
         config.preferences.isElementFullscreenEnabled = true
         config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15"
         contentBlocker?.apply(to: config)
+        // Network interception rules (0.1.13): block/redirect applied to
+        // every new webview; late rules distribute to registered views.
+        InterceptStore.shared.apply(to: config.userContentController)
         // Community filter lists (EasyList) — process-wide singleton.
         FilterListStore.shared.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {

@@ -590,6 +590,18 @@ final class AutomationServer {
                     name: Self.string(body, "name") ?? "",
                     index: body["index"] as? Int
                 ))
+            case ("GET", "/intercept"):
+                return try Self.json(Self.interceptRules())
+            case ("POST", "/intercept/add"):
+                return try Self.json(Self.addInterceptRule(
+                    urlFilter: Self.string(body, "urlFilter") ?? "",
+                    kind: Self.string(body, "kind") ?? "block",
+                    payload: Self.string(body, "payload")
+                ))
+            case ("POST", "/intercept/remove"):
+                return try Self.json(Self.removeInterceptRule(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/intercept/clear"):
+                return try Self.json(Self.clearInterceptRules())
             case ("POST", "/extract"):
                 return try await Self.json(Self.extract(
                     kind: Self.string(body, "kind") ?? "table",

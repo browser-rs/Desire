@@ -7,6 +7,36 @@ import WebKit
 /// so the route table and its helpers live together.
 extension AutomationServer {
 
+    // MARK: Network interception (0.1.13)
+
+    static func interceptRules() -> [String: Any] {
+        ["rules": InterceptStore.shared.rules.map { r -> [String: Any] in
+            ["id": r.id.uuidString, "urlFilter": r.urlFilter, "kind": r.kind.rawValue,
+             "payload": r.payload ?? "", "enabled": r.isEnabled]
+        }]
+    }
+
+    static func addInterceptRule(urlFilter: String, kind: String, payload: String?) -> [String: Any] {
+        guard let ruleKind = InterceptRule.Kind(rawValue: kind) else {
+            return ["error": "kind must be block | redirect"]
+        }
+        guard let rule = InterceptStore.shared.add(urlFilter: urlFilter, kind: ruleKind, payload: payload) else {
+            return ["error": ruleKind == .redirect ? "redirect needs payload url" : "invalid urlFilter"]
+        }
+        return ["ok": true, "id": rule.id.uuidString]
+    }
+
+    static func removeInterceptRule(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        InterceptStore.shared.remove(id: uuid)
+        return ["ok": true]
+    }
+
+    static func clearInterceptRules() -> [String: Any] {
+        InterceptStore.shared.clear()
+        return ["ok": true]
+    }
+
     static func extract(kind: String, selector: String?, format: String, index: Int?) async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         let js: String

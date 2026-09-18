@@ -9,6 +9,24 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.13] - 2026-09-18
+
+### Added
+
+- **网络拦截 v1**：`InterceptStore`——block/redirect 规则经
+  WKContentRuleList 编译并分发到全部 webview（立即生效、持久化）。
+  设计边界诚实声明：WebKit 声明式规则无法返回 canned body，
+  mock 响应留待 Service Worker 方案。
+- 桥 `/intercept`（list/add/remove/clear）；**MCP 工具 27 → 30**：
+  addInterceptRule / listInterceptRules / clearInterceptRules——
+  Agent 测试台核心原语（阻断 tracker/mock 依赖/重定向端点）。
+
+### Verified
+
+- E2E：测试页引用 /tracker.js → 无规则时命中 1 次 → 添加 block 规则
+  → 重载后命中 0 次（WebKit 拦截真实生效）；MCP 三工具闭环、
+  clear 全清。
+
 ## [v0.1.12] - 2026-09-18
 
 ### Added

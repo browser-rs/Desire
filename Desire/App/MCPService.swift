@@ -526,6 +526,33 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/media/download", "body": ["url": "url", "referer": "referer", "filename": "filename"]],
         ],
+        // 0.1.13 — network interception
+        [
+            "name": "addInterceptRule",
+            "description": "Add a network interception rule: block or redirect requests matching a URL filter (WebKit url-filter syntax, substring + * wildcards). Applies to every webview immediately. Use for blocking trackers/CDNs in tests, redirecting endpoints to mirrors.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "urlFilter": ["type": "string", "description": "URL filter, e.g. '*analytics*' or '||tracker.example/'"],
+                    "kind": ["type": "string", "description": "block | redirect"],
+                    "payload": ["type": "string", "description": "Redirect target URL (redirect kind only)"],
+                ],
+                "required": ["urlFilter", "kind"],
+            ],
+            "_bridge": ["method": "POST", "path": "/intercept/add", "body": ["urlFilter": "urlFilter", "kind": "kind", "payload": "payload"]],
+        ],
+        [
+            "name": "listInterceptRules",
+            "description": "List interception rules (id/urlFilter/kind/payload/enabled).",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/intercept"],
+        ],
+        [
+            "name": "clearInterceptRules",
+            "description": "Remove ALL interception rules.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "POST", "path": "/intercept/clear", "body": []],
+        ],
         // 0.1.11 — structured extraction
         [
             "name": "extractTables",

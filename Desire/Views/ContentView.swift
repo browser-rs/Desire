@@ -220,6 +220,7 @@ struct ContentView: View {
                 appState.attach(tabManager: tabManager)
                 aiSession.configure(with: WindowToolSurface(app: appState, tabManager: tabManager))
                 isAgentConfigured = true
+                StartupMetric.markFirstWindowInteractive()
             }
             if tabManager.tabs.isEmpty {
                 // Bind this window to a persistent session identity (the

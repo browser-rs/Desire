@@ -7,8 +7,27 @@
 
 ### 计划中（见 [ROADMAP](ROADMAP.md)）
 
-- 0.1.3 质量门：CI 启动冒烟、启动性能基线、MetricKit 诊断导出、x86_64 检查
 - 0.1.4 桥事件流（SSE）…
+- 0.1.5 桥自描述 + 安全…
+
+## [v0.1.3] - 2026-09-18
+
+### Added
+
+- **CI 启动冒烟**：Release 产物以 `--automation` 启动，桥 `/state` 必须在
+  30 秒内应答，否则该次构建失败——"能编译不能启动"从此挡在合并前。
+- **CI x86_64 编译检查**：非阻塞 job 交叉编译 Intel 切片，跟踪健康度
+  （发布仍为 arm64）。
+- **冷启动打点**：`StartupMetric`（os_signpost interval + fault/info 日志）
+  测量 app init → 首窗可交互，预算 400ms，超预算告警。本地实测 232ms。
+- **诊断数据导出**：设置 → System → Diagnostics 新增「导出…」，
+  将 MetricKit 落盘的 crash/hang/metrics 打包为 zip 到下载文件夹并在
+  访达中显示。
+
+### Fixed
+
+- 启动打点初版报告 0ms：Swift 静态属性懒初始化导致 `launchedAt` 在首次
+  读取时才创建；改为 app init 首行显式锚定。
 
 ## [v0.1.2] - 2026-09-18
 

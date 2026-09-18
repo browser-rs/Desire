@@ -34,6 +34,34 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         NSWorkspace.shared.activateFileViewerSelecting([DiagnosticsStore.directory])
     }
 
+    /// Zips the diagnostics folder into `~/Downloads/desire-diagnostics-<stamp>.zip`
+    /// and returns the archive URL (nil when the folder is empty/missing or
+    /// ditto failed). The app runs unsandboxed, so spawning `/usr/bin/ditto`
+    /// is permitted.
+    @MainActor
+    func exportDiagnosticsArchive() -> URL? {
+        let fm = FileManager.default
+        let directory = DiagnosticsStore.directory
+        guard let entries = try? fm.contentsOfDirectory(atPath: directory.path),
+              !entries.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        formatter.timeZone = .current
+        let destination = (fm.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? fm.temporaryDirectory)
+            .appendingPathComponent("desire-diagnostics-\(formatter.string(from: Date())).zip")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", "--keepParent", directory.path, destination.path]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        return process.terminationStatus == 0 ? destination : nil
+    }
+
     /// Daily/weekly performance metrics: launch times, hang rate, memory,
     /// disk writes. Delivered at most once a day.
     nonisolated func didReceive(_ payloads: [MXMetricPayload]) {

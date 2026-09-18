@@ -528,6 +528,21 @@ private struct SystemSection: View {
                 }
                 Spacer()
                 Button {
+                    if let archive = MetricsManager.shared.exportDiagnosticsArchive() {
+                        NSWorkspace.shared.activateFileViewerSelecting([archive])
+                    } else {
+                        MetricsManager.shared.revealDiagnosticsFolder()
+                    }
+                } label: {
+                    Text("Export…")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.secondary.opacity(0.18)))
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                Button {
                     MetricsManager.shared.revealDiagnosticsFolder()
                 } label: {
                     Text("Show in Finder")

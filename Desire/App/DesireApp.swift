@@ -2,12 +2,46 @@ import AppKit
 import os
 import SwiftUI
 
+/// Cold-start instrumentation. `launchedAt` is captured at first type touch
+/// (the earliest deterministic app-code moment); `markFirstWindowInteractive`
+/// closes the os_signpost interval and logs elapsed wall time against the
+/// 400 ms budget (warning when over).
+enum StartupMetric {
+    static let launchedAt = Date()
+    private static var marked = false
+    private static let signposter = OSSignposter(subsystem: "me.siwi.Desire", category: "app")
+    private static var interval: OSSignpostIntervalState?
+
+    /// Call as the FIRST thing in app init — anchors t0. Swift statics are
+    /// lazily initialized, so `launchedAt` without this anchor would only be
+    /// created at the first `mark` call, reporting a meaningless 0ms.
+    static func anchorLaunch() {
+        _ = launchedAt // force initialization NOW — laziness would zero the measurement
+        interval = signposter.beginInterval("coldStart")
+    }
+
+    static func markFirstWindowInteractive() {
+        guard !marked else { return }
+        marked = true
+        if let interval {
+            signposter.endInterval("coldStart", interval)
+        }
+        let ms = Int(Date().timeIntervalSince(launchedAt) * 1000)
+        if ms > 400 {
+            Log.app.warning("startup: first window interactive in \(ms, privacy: .public)ms — OVER the 400ms budget")
+        } else {
+            Log.app.info("startup: first window interactive in \(ms, privacy: .public)ms (budget 400ms)")
+        }
+    }
+}
+
 @main
 struct DesireApp: App {
     @StateObject private var appState = AppState()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        StartupMetric.anchorLaunch()
         // Localhost-only test automation bridge — inert unless the app is
         // launched with --automation (external drivers: curl / CI).
         AutomationServer.shared.startIfRequested()

@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build (Release)
+    name: Build (Release, arm64)
     runs-on: macos-latest
 
     steps:
@@ -42,6 +42,24 @@ jobs:
           APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
           echo "path=$APP" >> "$GITHUB_OUTPUT"
 
+      - name: Launch smoke test
+        run: |
+          APP="${{ steps.app.outputs.path }}"
+          open "$APP" --args --automation
+          OK=no
+          for i in $(seq 1 30); do
+            # The automation bridge is up when /state answers with the tab list.
+            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
+              OK=yes
+              break
+            fi
+            sleep 1
+          done
+          STARTUP=$(log show --last 2m --predicate 'subsystem == "me.siwi.Desire"' --style compact 2>/dev/null | grep -c "startup: first window interactive" || true)
+          echo "smoke: $OK (startup log lines: $STARTUP)"
+          pkill -x Desire || true
+          [ "$OK" = yes ] || { echo "::error::launch smoke test failed — /state never answered"; exit 1; }
+
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
@@ -49,3 +67,31 @@ jobs:
           path: ${{ steps.app.outputs.path }}
           retention-days: 7
           if-no-files-found: error
+
+  build-x86_64:
+    name: Build check (x86_64)
+    runs-on: macos-latest
+    # Informational for now: the release ships arm64; Intel compile health
+    # is tracked without blocking CI.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build (Release, x86_64 cross-compile, unsigned)
+        run: |
+          xcodebuild \
+            -project Desire.xcodeproj \
+            -scheme Desire \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build

@@ -112,8 +112,9 @@ class AddressSuggestionsModel: ObservableObject {
         selectedIndex = 0
 
         // Network suggestions only for search-shaped queries, only when the
-        // active engine actually has a suggestion endpoint.
-        guard !isURL, !results.isEmpty,
+        // user hasn't disabled suggestions, and only when the active engine
+        // actually has a suggestion endpoint.
+        guard !isURL, !results.isEmpty, settings.showSearchSuggestions,
               let suggestTemplate = settings.effectiveSuggestionURL else { return }
 
         let snapshotQuery = trimmed

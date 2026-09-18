@@ -112,6 +112,9 @@
         }
       }
     },
+    "%@ is out — click to view the release notes." : {
+
+    },
     "%@ wants to access your %@" : {
       "comment" : "Media permission prompt with host and device",
       "localizations" : {
@@ -7231,6 +7234,9 @@
           }
         }
       }
+    },
+    "New version available" : {
+
     },
     "New Window" : {
       "localizations" : {

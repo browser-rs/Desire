@@ -82,6 +82,10 @@ curl -s "$B/panel/snapshot?name=downloads"        # 进程内渲染 PNG → ~/de
 ## 注意事项
 
 - 窗口级命令（`/command`）遵循 key-window 语义：app 必须处于激活状态。
+- `/command closeTab` 在多标签时会弹确认框（用户设置）并阻塞桥直至
+  有人点击——自动化请改用专用的 `POST /close-tab`（无确认框）。
+- `/command restoreArchivedSession` 会弹文件选择框，同样仅限有人在场的
+  场景使用。
 - 服务器默认只绑 127.0.0.1；对外暴露务必加 `--automation-token`。
 - DiskStore 落盘为 500ms 防抖异步写；断言前留出时间，结束进程用
   `osascript -e 'quit app "Desire"'` 而非 `kill -9`。

@@ -414,6 +414,7 @@ struct WebView: NSViewRepresentable {
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
+            wv.onOpenInContainer = nil
             wv.onSearchText = nil
             wv.stopLoading()
         }

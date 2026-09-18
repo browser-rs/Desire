@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+### 0.2.3 — 反馈闭环 v2（进行中）
+
+### Added
+
+- **应用内更新横幅**：有新版本时顶部显示（版本号 + 查看发布页 + 关闭）。
+- **设置 ▸ System ▸ "Check for Updates"**：手动检查按钮，实时反馈
+  （最新 tag / 已是最新 / 失败原因）。
+- UpdateChecker 升级为 ObservableObject（@Published latestTag /
+  lastCheckResult / bannerDismissed），横幅与设置页共享同一实例。
+
+## [v0.2.2] - 2026-09-19
+
 ### 0.2.1 — UX 快赢批次（进行中）
 
 ### Added
@@ -25,6 +37,18 @@
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
 ## [Unreleased]
+
+### 0.2.3 — 反馈闭环 v2（进行中）
+
+### Added
+
+- **应用内更新横幅**：有新版本时顶部显示（版本号 + 查看发布页 + 关闭）。
+- **设置 ▸ System ▸ "Check for Updates"**：手动检查按钮，实时反馈
+  （最新 tag / 已是最新 / 失败原因）。
+- UpdateChecker 升级为 ObservableObject（@Published latestTag /
+  lastCheckResult / bannerDismissed），横幅与设置页共享同一实例。
+
+## [v0.2.2] - 2026-09-19
 
 ### 0.2.1 — UX 快赢批次（进行中）
 

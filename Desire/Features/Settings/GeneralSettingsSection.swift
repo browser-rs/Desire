@@ -546,6 +546,7 @@ private struct SystemSection: View {
                     .buttonStyle(.plain)
                 }
             }
+            CheckUpdatesRow(checker: UpdateChecker.shared)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Diagnostics")

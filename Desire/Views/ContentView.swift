@@ -164,6 +164,8 @@ struct ContentView: View {
     @State var showCommandPalette = false
     /// 标签拖出监视计时器（拖出窗口边界 → 撕出为新窗口）。
     @State var tearOutTimer: Timer?
+    /// 更新检查器（更新横幅/手动检查共用）。
+    @ObservedObject var updateChecker = UpdateChecker.shared
 
     /// Payload for the auto-dismissing action toast (icon + localized text).
     struct StatusBarToast: Equatable {

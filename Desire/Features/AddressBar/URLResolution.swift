@@ -51,8 +51,10 @@ enum URLResolution {
 
         // 3. Scheme-less URL heuristics (localhost, IP literals, host.TLD).
         if looksLikeURL(text) {
-            // localhost has no certificate; everything else upgrades.
-            let scheme = text.hasPrefix("localhost") ? "http://" : "https://"
+            // localhost and IP literals have no certificates to serve —
+            // upgrading them guarantees a TLS error page (router admin
+            // pages, local dev servers). Everything else upgrades.
+            let scheme: String = prefersPlainHTTP(text) ? "http://" : "https://"
             let candidate = scheme + text
             if URL(string: candidate) != nil {
                 return .url(candidate)
@@ -111,6 +113,19 @@ enum URLResolution {
         return labels.allSatisfy { label in
             label.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
         }
+    }
+
+    /// Hosts that must keep plain http when typed without a scheme:
+    /// localhost variants and dotted IPv4 literals (127.0.0.1:8877,
+    /// 192.168.1.1 …).
+    private static func prefersPlainHTTP(_ text: String) -> Bool {
+        if text == "localhost" || text.hasPrefix("localhost:") || text.hasPrefix("localhost/") {
+            return true
+        }
+        let hostPart = text.split(separator: "/", maxSplits: 1).first.map(String.init) ?? text
+        let host = hostPart.split(separator: ":").first.map(String.init) ?? hostPart
+        let labels = host.split(separator: ".")
+        return labels.count == 4 && labels.allSatisfy { $0.allSatisfy(\.isNumber) && (Int($0) ?? 256) <= 255 }
     }
 
     /// The engine currently in effect (custom wins over built-in).

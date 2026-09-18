@@ -753,6 +753,19 @@ final class AutomationServer {
                     name: Self.string(query, "name"),
                     count: Int(query["count"] ?? "20") ?? 20
                 ))
+            case ("GET", "/approvals/policy"):
+                return try Self.json(Self.approvalPolicies())
+            case ("POST", "/approvals/policy/add"):
+                return try Self.json(Self.addApprovalPolicy(
+                    toolName: Self.string(body, "tool") ?? "",
+                    decision: Self.string(body, "decision") ?? ""
+                ))
+            case ("POST", "/approvals/policy/remove"):
+                return try Self.json(Self.removeApprovalPolicy(
+                    toolName: Self.string(body, "tool") ?? ""
+                ))
+            case ("GET", "/approvals/history"):
+                return try Self.json(Self.approvalHistory(count: Int(query["count"] ?? "20") ?? 20))
             case ("POST", "/approvals/simulate"):
                 return try Self.json(Self.simulateApproval())
             default:
@@ -1489,6 +1502,9 @@ final class AutomationServer {
         case "deny": outcome = .deny
         default: return ["error": "decision must be allow_once | always_allow | deny"]
         }
+        ApprovalPolicyStore.shared.recordHistory(
+            toolName: session.pendingApproval?.toolCall.function.name ?? "unknown",
+            decision: decision, source: "bridge")
         session.resolveApproval(outcome)
         return ["ok": true, "resolved": decision]
     }
@@ -1752,6 +1768,37 @@ final class AutomationServer {
             ]
         }
         return ["runs": Array(rows)]
+    }
+
+    private static func approvalPolicies() throws -> [String: Any] {
+        ["rules": ApprovalPolicyStore.shared.rules.map { r -> [String: Any] in
+            ["tool": r.toolName, "decision": r.decision.rawValue]
+        }]
+    }
+
+    private static func addApprovalPolicy(toolName: String, decision: String) throws -> [String: Any] {
+        guard let d = ApprovalPolicy.Decision(rawValue: decision) else {
+            return ["error": "decision must be allow | deny"]
+        }
+        ApprovalPolicyStore.shared.addRule(toolName: toolName, decision: d)
+        return ["ok": true, "tool": toolName, "decision": decision]
+    }
+
+    private static func removeApprovalPolicy(toolName: String) throws -> [String: Any] {
+        guard let rule = ApprovalPolicyStore.shared.rules.first(where: { $0.toolName == toolName }) else {
+            return ["error": "no such rule"]
+        }
+        ApprovalPolicyStore.shared.removeRule(id: rule.id)
+        return ["ok": true]
+    }
+
+    private static func approvalHistory(count: Int) throws -> [String: Any] {
+        let formatter = ISO8601DateFormatter()
+        let rows = ApprovalPolicyStore.shared.history.prefix(count).map { h -> [String: Any] in
+            ["tool": h.toolName, "decision": h.decision, "source": h.source,
+             "at": formatter.string(from: h.createdAt)]
+        }
+        return ["history": Array(rows)]
     }
 
     /// Arms a real pending approval on the live session (plumbing E2E

@@ -1112,7 +1112,24 @@ class AgentSessionStore: ObservableObject {
         // Whitelisted side-effect tools run without prompting. Dangerous
         // tools are exempt from the whitelist and always prompt.
         if risk != .dangerous && preference.allowedTools.contains(toolCall.function.name) {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name, decision: "allowed (whitelist)", source: "whitelist")
             return .allowedOnce
+        }
+
+        // 审批策略引擎（0.2.6）：持久化规则优先于内置白名单。deny 规则
+        // 对 dangerous 工具也生效（显式拒绝优先于一切）。
+        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name) {
+            switch policy {
+            case .deny:
+                ApprovalPolicyStore.shared.recordHistory(
+                    toolName: toolCall.function.name, decision: "denied (policy)", source: "policy")
+                return .denied
+            case .allow:
+                ApprovalPolicyStore.shared.recordHistory(
+                    toolName: toolCall.function.name, decision: "allowed (policy)", source: "policy")
+                return .allowedOnce
+            }
         }
 
         // Everything else pauses for the user.
@@ -1140,6 +1157,10 @@ class AgentSessionStore: ObservableObject {
     func resolveApproval(_ decision: ApprovalDecision) {
         guard let approval = pendingApproval else { return }
         pendingApproval = nil
+        ApprovalPolicyStore.shared.recordHistory(
+            toolName: approval.toolCall.function.name,
+            decision: decision == .deny ? "denied" : "allowed",
+            source: "ui")
 
         let outcome: ApprovalOutcome
         switch decision {
@@ -1174,13 +1195,11 @@ class AgentSessionStore: ObservableObject {
         )
         Task { [weak self] in
             guard let self else { return }
-            let outcome = await self.requestApprovalForTesting(toolCall: toolCall, risk: .dangerous)
+            Log.agent.info("simulate: gate entered, isCancelled=\(self.isCancelled)")
+            let outcome = await self.gate(toolCall: toolCall, risk: .dangerous)
+            Log.agent.info("simulate: gate returned \(String(describing: outcome), privacy: .public)")
             Log.agent.info("simulated approval resolved with \(String(describing: outcome), privacy: .public)")
         }
-    }
-
-    private func requestApprovalForTesting(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
-        await requestApproval(toolCall: toolCall, risk: risk)
     }
 
     /// Produces a short human-readable summary of a tool call's arguments

@@ -7,8 +7,37 @@
 
 ### 计划中（见 [ROADMAP](ROADMAP.md)）
 
-- 0.1.4 桥事件流（SSE）…
-- 0.1.5 桥自描述 + 安全…
+- 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
+
+## [v0.1.5] - 2026-09-18
+
+### Added
+
+- **桥自描述 `GET /`**：机器可读端点目录（68 个端点的方法/参数/示例）+
+  8 类 SSE 事件清单 + 鉴权说明——任何 AI 或脚本无需外部文档即可学会驱动。
+- **可选 token 鉴权**：`--automation-token <token>` 启动后，所有请求
+  （含 `/events`）必须携带 `Authorization: Bearer <token>`，否则 401。
+  默认（无该参数）行为不变：localhost 裸奔。
+- **docs/BRIDGE.md**：场景化 curl 速查（浏览/标签/下载/事件/Agent/
+  表单保护/数据存储/UI 验证）。
+
+## [v0.1.4] - 2026-09-18
+
+### Added
+
+- **桥事件流 `GET /events`（SSE）**：`text/event-stream` 长连接，外部驱动
+  从轮询升级为事件响应。事件：`pageReady`（url/title）、
+  `downloadStarted` / `downloadCompleted` / `downloadFailed`、
+  `approvalPending`（工具/风险级）、`tabOpened` / `tabClosed`、
+  `beforeunloadPending`。
+- `BridgeEventBus`：主线程发布/订阅总线，多客户端扇出；无订阅者时
+  publish 为 no-op（埋点零成本）。
+- 客户端断开自动清理（receive 错误/连接状态双路径）。
+
+### Verified
+
+- 验收流程端到端：`navigate → pageReady → download → downloadStarted →
+  downloadCompleted`（curl SSE 客户端实测，含完整 4MB 下载生命周期）。
 
 ## [v0.1.3] - 2026-09-18
 

@@ -590,6 +590,24 @@ final class AutomationServer {
                     name: Self.string(body, "name") ?? "",
                     index: body["index"] as? Int
                 ))
+            case ("GET", "/watches"):
+                return try Self.json(Self.listWatches())
+            case ("POST", "/watches/add"):
+                return try Self.json(Self.addWatch(
+                    name: Self.string(body, "name") ?? "",
+                    url: Self.string(body, "url") ?? "",
+                    selector: Self.string(body, "selector"),
+                    minutes: body["minutes"] as? Int ?? 5
+                ))
+            case ("POST", "/watches/remove"):
+                return try Self.json(Self.removeWatch(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/watches/enable"):
+                return try Self.json(Self.setWatchEnabled(
+                    name: Self.string(body, "name") ?? "",
+                    enabled: body["enabled"] as? Bool
+                ))
+            case ("POST", "/watches/check"):
+                return try await Self.json(Self.checkWatch(name: Self.string(body, "name") ?? ""))
             case ("GET", "/agent/windows"):
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
@@ -1423,6 +1441,44 @@ final class AutomationServer {
             return ["error": "no such task"]
         }
         return ["ok": true]
+    }
+
+    // MARK: Page watches
+
+    private static func listWatches() throws -> [String: Any] {
+        let store = PageWatchStore.shared
+        return ["watches": store.watches.map { w -> [String: Any] in
+            ["name": w.name, "url": w.url, "selector": w.selector ?? "",
+             "minutes": w.intervalMinutes, "enabled": w.isEnabled,
+             "changeCount": w.changeCount, "lastError": w.lastError ?? ""]
+        }]
+    }
+
+    private static func addWatch(name: String, url: String, selector: String?, minutes: Int) throws -> [String: Any] {
+        guard PageWatchStore.shared.add(name: name, url: url, selector: selector, minutes: minutes) != nil else {
+            return ["error": "invalid name/url"]
+        }
+        return ["ok": true, "name": name]
+    }
+
+    private static func removeWatch(name: String) throws -> [String: Any] {
+        guard PageWatchStore.shared.remove(named: name) else { return ["error": "no such watch"] }
+        return ["ok": true]
+    }
+
+    private static func setWatchEnabled(name: String, enabled: Bool?) throws -> [String: Any] {
+        guard let watch = PageWatchStore.shared.find(named: name) else { return ["error": "no such watch"] }
+        PageWatchStore.shared.setEnabled(enabled ?? !watch.isEnabled, for: name)
+        return ["ok": true, "enabled": enabled ?? !watch.isEnabled]
+    }
+
+    /// Forces a watch check now (async — loads the page offscreen).
+    private static func checkWatch(name: String) async throws -> [String: Any] {
+        guard PageWatchStore.shared.find(named: name) != nil else {
+            return ["error": "no such watch"]
+        }
+        let changed = await PageWatchStore.shared.check(named: name)
+        return ["ok": true, "name": name, "changed": changed]
     }
 
     private static func setAgentTaskEnabled(name: String, enabled: Bool?) throws -> [String: Any] {

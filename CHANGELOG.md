@@ -9,6 +9,25 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.10] - 2026-09-18
+
+### Added
+
+- **页面监控（确定性 watcher，不烧模型）**：PageWatch/PageWatchStore——
+  隐藏 webview 定期加载 URL、提取正文或指定 CSS 选择器的文本、空白归一化
+  后与上次快照 diff；变更 → 系统通知 + `pageWatchChanged` SSE 事件 +
+  changeCount 累加。首次检查建立基线。监控配置持久化。
+- 桥 `/watches`（list/add/remove/enable/check）：check 强制立即检查并
+  返回 changed 布尔。
+- **MCP 工具 17 → 21**：watchPage / listWatches / checkWatch / removeWatch
+  ——外部 AI 一句话即可布置页面变化监控（价格/库存/公告）。
+
+### Verified
+
+- E2E：基线检查 changed=false → 内容变化后 changed=true →
+  pageWatchChanged 事件载荷完整（name/url/changeCount/diff）；
+  MCP checkWatch/removeWatch 闭环。
+
 ## [v0.1.9] - 2026-09-18
 
 ### Added

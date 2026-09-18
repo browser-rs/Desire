@@ -433,6 +433,48 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/bookmarks/add", "body": ["title": "title", "url": "url"]],
         ],
+        // 0.1.10 — page watches
+        [
+            "name": "watchPage",
+            "description": "Watch a page for changes: re-checks it every N minutes (min 5) offscreen and reports diffs via pageWatchChanged events. First check establishes the baseline.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "name": ["type": "string"],
+                    "url": ["type": "string"],
+                    "selector": ["type": "string", "description": "Optional CSS selector to watch instead of the whole page"],
+                    "minutes": ["type": "integer"],
+                ],
+                "required": ["name", "url"],
+            ],
+            "_bridge": ["method": "POST", "path": "/watches/add", "body": ["name": "name", "url": "url", "selector": "selector", "minutes": "minutes"]],
+        ],
+        [
+            "name": "listWatches",
+            "description": "List page watches (name/url/minutes/changeCount/enabled).",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/watches"],
+        ],
+        [
+            "name": "checkWatch",
+            "description": "Force a watch check now. Returns whether the content changed.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["name": ["type": "string"]],
+                "required": ["name"],
+            ],
+            "_bridge": ["method": "POST", "path": "/watches/check", "body": ["name": "name"]],
+        ],
+        [
+            "name": "removeWatch",
+            "description": "Remove a page watch.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["name": ["type": "string"]],
+                "required": ["name"],
+            ],
+            "_bridge": ["method": "POST", "path": "/watches/remove", "body": ["name": "name"]],
+        ],
         [
             "name": "resolveBeforeUnload",
             "description": "Resolve a beforeunload guard that blocks navigation away from a form page (check /page/url or the beforeunloadPending event). leave=true discards and navigates; leave=false stays.",

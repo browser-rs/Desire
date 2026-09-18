@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 import os
-import UserNotifications
+@preconcurrency import UserNotifications
 import WebKit
 
 /// Store + engine for page watches (0.1.10). A 20 s clock fires due

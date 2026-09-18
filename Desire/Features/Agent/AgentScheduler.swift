@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 import os
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// Scheduled agent prompts (定时任务). A task re-sends a stored prompt to
 /// the agent on a recurrence ("every N minutes" or "daily at HH:MM") while

@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import SwiftUI
 import WebKit
 
@@ -52,7 +53,7 @@ class Tab: ObservableObject {
             do {
                 let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
                 unarchiver.requiresSecureCoding = true
-                let state = unarchiver.decodeObject(of: [NSObject.self], forKey: NSKeyedArchiveRootObjectKey)
+                let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
                 if let state {
                     browser.webView.interactionState = state
                     suspendedURL = nil
@@ -453,14 +454,14 @@ class TabManager: ObservableObject {
 
             var restoredInteractionState = false
             if let data = saved.sessionState {
-                // 使用 NSSecureCoding 解码，允许 WebKit 框架的类
-                // interactionState 是 WebKit 内部对象，具体类型未知
-                // 使用 NSObject.self 是合理的，因为这是恢复应用自己的状态
+                // NSSecureCoding 解码：根对象实证为 NSData（WebKit 把
+                // interactionState 归档为数据块），允许列表据此收窄。
                 do {
                     let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
                     unarchiver.requiresSecureCoding = true
-                    let state = unarchiver.decodeObject(of: [NSObject.self], forKey: NSKeyedArchiveRootObjectKey)
+                    let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
                     if let state = state {
+                        Log.storage.info("interactionState decoded type: \(String(describing: type(of: state)), privacy: .public)")
                         tab.browser.webView.interactionState = state
                         restoredInteractionState = true
                     }

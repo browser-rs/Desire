@@ -78,40 +78,38 @@ final class MCPService {
     /// and body as SEPARATE TCP segments — a single receive returns headers
     /// only and produced "400 bad json" for every real MCP client.
     private func accumulate(_ connection: NWConnection, _ buffer: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 1024) { [weak self] chunk, _, isComplete, error in
-            guard let self else { return }
-            var buffer = buffer
-            if let chunk { buffer.append(chunk) }
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 1024) { chunk, _, isComplete, error in
+            Task { @MainActor in
+                let accumulated = buffer + (chunk ?? Data())
 
-            // Complete when headers are parsed and body bytes match
-            // Content-Length (or the peer half-closed with data buffered).
-            if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
-                let headerText = String(data: buffer[..<headerEnd.lowerBound], encoding: .utf8) ?? ""
-                let declared = headerText
-                    .split(separator: "\r\n")
-                    .first { $0.lowercased().hasPrefix("content-length:") }?
-                    .split(separator: ":").last
-                    .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 0
-                let bodyCount = buffer.count - headerEnd.upperBound
-                if bodyCount >= declared {
-                    Task { @MainActor in
-                        if Self.isAuthorized(String(data: buffer, encoding: .utf8) ?? "") {
-                            self.handleComplete(connection, buffer)
+                // Complete when headers are parsed and body bytes match
+                // Content-Length (or the peer half-closed with data buffered).
+                if let headerEnd = accumulated.range(of: Data("\r\n\r\n".utf8)) {
+                    let headerText = String(data: accumulated[..<headerEnd.lowerBound], encoding: .utf8) ?? ""
+                    let declared = headerText
+                        .split(separator: "\r\n")
+                        .first { $0.lowercased().hasPrefix("content-length:") }?
+                        .split(separator: ":").last
+                        .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 0
+                    let bodyCount = accumulated.count - headerEnd.upperBound
+                    if bodyCount >= declared {
+                        if Self.isAuthorized(String(data: accumulated, encoding: .utf8) ?? "") {
+                            self.handleComplete(connection, accumulated)
                         } else {
                             self.respond(connection, status: "401 Unauthorized", body: #"{"error":"unauthorized — missing or wrong bearer token"}"#)
                         }
+                        return
                     }
+                } else if error != nil || isComplete {
+                    connection.cancel()
                     return
                 }
-            } else if error != nil || isComplete {
-                connection.cancel()
-                return
+                if error != nil || isComplete {
+                    connection.cancel()
+                    return
+                }
+                self.accumulate(connection, accumulated)
             }
-            if error != nil || isComplete {
-                connection.cancel()
-                return
-            }
-            accumulate(connection, buffer)
         }
     }
 
@@ -189,25 +187,27 @@ final class MCPService {
         }
         eventPushHeartbeats[busID] = heartbeat
 
-        func drain() {
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
-                if error == nil {
-                    drain()
-                } else {
-                    Task { @MainActor in
-                        BridgeEventBus.shared.unsubscribe(busID)
-                        self.eventPushConnections.removeValue(forKey: busID)
-                        self.eventPushHeartbeats.removeValue(forKey: busID)?.cancel()
-                        connection.cancel()
-                    }
-                }
-            }
-        }
-        drain()
+        drainPush(connection, busID: busID)
         Log.agent.info("mcp server: event push opened")
     }
 
     private var eventPushHeartbeats: [UUID: Task<Void, Never>] = [:]
+
+    /// Continues draining an event-push SSE connection (main actor).
+    private func drainPush(_ connection: NWConnection, busID: UUID) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
+            Task { @MainActor in
+                if error == nil {
+                    self.drainPush(connection, busID: busID)
+                } else {
+                    BridgeEventBus.shared.unsubscribe(busID)
+                    self.eventPushConnections.removeValue(forKey: busID)
+                    self.eventPushHeartbeats.removeValue(forKey: busID)?.cancel()
+                    connection.cancel()
+                }
+            }
+        }
+    }
 
     // MARK: - JSON-RPC dispatch
 

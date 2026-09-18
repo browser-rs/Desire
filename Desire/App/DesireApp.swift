@@ -162,7 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 enum ShutdownDiagnostics {
     static func capture(reason: String) {
+        // Snapshot main-actor state FIRST — the getAllTasks completion is
+        // nonisolated and cannot touch MainActor properties.
         let session = AgentScheduler.shared.deliveryTarget
+        let agentBusy = session?.isProcessing ?? false
+        let loopCancelled = session?.isLoopCancelled ?? true
         let downloads = AppState.live?.downloadStore
         let activeDownloads = downloads?.downloads.filter { $0.state == .inProgress }.count ?? 0
         let pausedDownloads = downloads?.pausedCount ?? 0
@@ -172,7 +176,7 @@ enum ShutdownDiagnostics {
                 .map { "\($0.key): \($0.value.count)" }
                 .sorted()
                 .joined(separator: ", ")
-            Log.app.fault("shutdown[\(reason, privacy: .public)] agentBusy=\(session?.isProcessing ?? false) loopCancelled=\(session?.isLoopCancelled ?? true) activeDownloads=\(activeDownloads) pausedDownloads=\(pausedDownloads) urlSessionTasks=[\(summary, privacy: .public)]")
+            Log.app.fault("shutdown[\(reason, privacy: .public)] agentBusy=\(agentBusy) loopCancelled=\(loopCancelled) activeDownloads=\(activeDownloads) pausedDownloads=\(pausedDownloads) urlSessionTasks=[\(summary, privacy: .public)]")
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 1.5)

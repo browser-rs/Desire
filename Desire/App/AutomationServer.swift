@@ -158,6 +158,22 @@ final class AutomationServer {
     private var eventStreamConnections: [UUID: NWConnection] = [:]
     private var eventStreamHeartbeats: [UUID: Task<Void, Never>] = [:]
 
+    /// Continues draining an SSE connection (called on the main actor).
+    private func drainEvents(_ connection: NWConnection, id: UUID) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
+            Task { @MainActor in
+                if error == nil {
+                    self.drainEvents(connection, id: id)
+                } else {
+                    BridgeEventBus.shared.unsubscribe(id)
+                    self.eventStreamConnections.removeValue(forKey: id)
+                    self.eventStreamHeartbeats.removeValue(forKey: id)?.cancel()
+                    connection.cancel()
+                }
+            }
+        }
+    }
+
     /// `GET /events` — upgrade the connection to an SSE stream fed by
     /// BridgeEventBus. Kept open until the client goes away; every inbound
     /// byte from the client is drained so we notice disconnects.
@@ -188,10 +204,10 @@ final class AutomationServer {
 
         func drain() {
             connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
-                if error == nil {
-                    drain() // client keep-alives land here; events keep flowing
-                } else {
-                    Task { @MainActor in
+                Task { @MainActor in
+                    if error == nil {
+                        self.drainEvents(connection, id: id) // keep-alives land here; events keep flowing
+                    } else {
                         BridgeEventBus.shared.unsubscribe(id)
                         self.eventStreamConnections.removeValue(forKey: id)
                         self.eventStreamHeartbeats.removeValue(forKey: id)?.cancel()

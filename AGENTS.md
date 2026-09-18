@@ -311,6 +311,11 @@ Features/Bookmarks/
   （nohup 直跑二进制，bundle 上下文残缺）被 TCC 直接杀进程。
 - **启动方式**：测试一律 `open <app> --args --automation`；
   nohup 直跑二进制会破坏 bundle 上下文（TCC 崩溃的诱因之一）。
+- **DiskStore 是 500ms 防抖异步写**：测试里改完数据要 `sleep 1` 再断言
+  落盘；结束进程必须优雅退出（`osascript -e 'quit app "Desire"'`），
+  `pkill -9` 会丢防抖窗口内的所有写入（已两次误判为"bug"）。
+  改 UserDefaults 也必须非沙箱执行（沙箱 shell 的 defaults write
+  写不进真实偏好域）。
 - **本地测试服务端口用 8877**（8000 常被用户自己的开发服务占用）。
 - **executeJS 错误详情**：evaluateJavaScript 的错误对象不含真实异常
   文本；正确 key 是 `WKJavaScriptExceptionMessage`，经

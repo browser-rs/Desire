@@ -45,7 +45,10 @@ class BookmarkStore: ObservableObject {
         } else {
             bookmarks.append(bookmark)
         }
-        leafURLs.insert(url)
+        // Rebuild (not just leafURLs.insert): leafEntries feeds address-bar
+        // suggestion matching — without this, a freshly added bookmark only
+        // started suggesting after a relaunch.
+        rebuildURLIndex()
         save()
     }
 

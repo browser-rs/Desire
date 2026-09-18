@@ -256,6 +256,15 @@ final class AutomationServer {
                 ))
             case ("POST", "/quickdial/delete"):
                 return try Self.json(Self.deleteQuickDial(url: Self.string(body, "url") ?? ""))
+            case ("GET", "/suggest"):
+                return try Self.json(Self.suggest(query: Self.string(query, "q") ?? ""))
+            case ("POST", "/bookmarks/add"):
+                return try Self.json(Self.addBookmark(
+                    title: Self.string(body, "title") ?? "",
+                    url: Self.string(body, "url") ?? ""
+                ))
+            case ("POST", "/bookmarks/remove"):
+                return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
             case ("GET", "/elements"):
                 return try Self.json(Self.elementRules())
             case ("POST", "/elements/add"):
@@ -836,6 +845,37 @@ final class AutomationServer {
             $0.urlPattern == pattern && $0.cssSelector == selector
         }) else { return ["error": "no such rule"] }
         app.elementBlockStore.remove(id: rule.id)
+        return ["ok": true]
+    }
+
+    /// Address-bar suggestions for a query (local rows: navigate/search +
+    /// bookmark/history matches, deduped). Network suggestions are
+    /// deliberately NOT awaited — they arrive async and hit the network.
+    private static func suggest(query: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let model = AddressSuggestionsModel()
+        model.build(query: query, settings: app.settings,
+                    bookmarks: app.bookmarkStore, history: app.historyStore)
+        return ["suggestions": model.suggestions.map { s -> [String: Any] in
+            ["kind": s.kind.rawValue, "title": s.title, "url": s.url]
+        }]
+    }
+
+    /// Adds a bookmark (test seed for suggestion ranking). Write goes through
+    /// the live AppState store.
+    private static func addBookmark(title: String, url: String) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        app.bookmarkStore.add(title: title.isEmpty ? url : title, url: url)
+        return ["ok": true, "count": app.bookmarkStore.leafEntries.count]
+    }
+
+    /// Removes a bookmark by URL (test cleanup). Live store — write-safe.
+    private static func removeBookmark(url: String) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        guard let bookmark = app.bookmarkStore.find(url: url) else {
+            return ["error": "no such bookmark"]
+        }
+        app.bookmarkStore.remove(bookmark)
         return ["ok": true]
     }
 

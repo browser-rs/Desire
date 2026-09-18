@@ -9,6 +9,28 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.6] - 2026-09-18
+
+### Added
+
+- **Desire 作为 MCP Server**（`--mcp-server` 启动参数，`http://127.0.0.1:8798/mcp`，
+  Streamable HTTP / JSON-RPC）——外部 AI 客户端（Claude Desktop、任何 MCP 客户端）
+  可直连驱动浏览器。路线图 0.2 主题提前落地。
+- **v1 工具集 9 个**：navigate / getPageText / getPageInfo / listTabs / newTab /
+  closeTab / switchTab / findInPage / executeJs（描述为 LLM 编写，schema 完整）。
+- 工具实现经由 `callEndpoint` 复用自动化桥管线——MCP 与桥双界面同源不漂移。
+- 桥新增 `/mcp/add`、`/mcp/reconnect`（客户端配置自动化）。
+- 每连接按 Content-Length 累积读取：URLSession 将 headers 与 body 分段发送，
+  单次 receive 导致所有真实 MCP 客户端 400（curl 单包写入掩盖了该缺陷）。
+
+### Verified
+
+- **自举**：Desire 自家 MCPClient 反向连接自家 MCPServer——
+  `self | ready · 9 tools`（握手/initialize/通知/tools/list 全链路）。
+- curl 模拟客户端：initialize（含 Mcp-Session-Id 下发）→ notifications/initialized
+  （202）→ tools/list → 4 类 tools/call（navigate/getPageInfo/getPageText/
+  findInPage）+ 未知工具 -32602。
+
 ## [v0.1.5] - 2026-09-18
 
 ### Added

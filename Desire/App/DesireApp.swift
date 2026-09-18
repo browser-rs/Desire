@@ -45,6 +45,9 @@ struct DesireApp: App {
         // Localhost-only test automation bridge — inert unless the app is
         // launched with --automation (external drivers: curl / CI).
         AutomationServer.shared.startIfRequested()
+        // Desire as an MCP server (external AI clients drive the browser) —
+        // gated behind --mcp-server like the bridge's --automation.
+        MCPService.shared.startIfRequested()
         // Production observability baseline: file MetricKit crash/hang
         // diagnostics on every launch (crashes arrive the launch AFTER).
         MetricsManager.shared.start()

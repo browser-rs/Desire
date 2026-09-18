@@ -301,6 +301,20 @@ final class AutomationServer {
 
     // MARK: - Routing
 
+    /// Single-entry API for in-app consumers of the bridge pipeline (the
+    /// MCP server's tools route through here, so both surfaces stay in
+    /// sync). Returns the endpoint's JSON body string.
+    func callEndpoint(method: String, path: String, json: [String: Any]? = nil) async -> String {
+        var request = "\(method) \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        var bodyText = ""
+        if let json, let data = try? JSONSerialization.data(withJSONObject: json) {
+            bodyText = String(data: data, encoding: .utf8) ?? ""
+            request += "Content-Type: application/json\r\nContent-Length: \(bodyText.count)\r\n"
+        }
+        request += "\r\n" + bodyText
+        return await route(request)
+    }
+
     private func route(_ request: String) async -> String {
         let lines = request.split(separator: "\r\n", omittingEmptySubsequences: false)
         guard let requestLine = lines.first else { return Self.error("empty request") }
@@ -532,6 +546,13 @@ final class AutomationServer {
                     "searchEngine": st.searchEngine.rawValue,
                     "httpsUpgradeEnabled": st.httpsUpgradeEnabled,
                 ])
+            case ("POST", "/mcp/add"):
+                return try Self.json(Self.addMCPServer(
+                    name: Self.string(body, "name") ?? "",
+                    url: Self.string(body, "url") ?? ""
+                ))
+            case ("POST", "/mcp/reconnect"):
+                return try Self.json(Self.reconnectMCPServer(name: Self.string(body, "name") ?? ""))
             case ("GET", "/mcp"):
                 let store = MCPStore.shared
                 let servers = store.servers.map { server -> [String: Any] in
@@ -1228,6 +1249,20 @@ final class AutomationServer {
     /// end to end without touching the Settings UI. Also introspects the real
     /// NSMenu items, so a test can assert that a re-recording actually
     /// re-bound the menu accelerator (what physical keypresses match against).
+    private static func addMCPServer(name: String, url: String) throws -> [String: Any] {
+        guard !name.isEmpty, !url.isEmpty else { return ["error": "missing name or url"] }
+        MCPStore.shared.addServer(name: name, url: url)
+        return ["ok": true]
+    }
+
+    private static func reconnectMCPServer(name: String) throws -> [String: Any] {
+        guard let server = MCPStore.shared.servers.first(where: { $0.name == name }) else {
+            return ["error": "no such server"]
+        }
+        MCPStore.shared.reconnect(server.id)
+        return ["ok": true]
+    }
+
     private static func shortcuts() throws -> [String: Any] {        guard let store = AppState.live?.system.keyboardShortcutStore else {
             return ["error": "store not ready"]
         }

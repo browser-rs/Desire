@@ -43,6 +43,9 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("closeTab", "w", .command))
             Button("Reopen Closed Tab") { postCommand(.reopenClosedTab) }
                 .keyboardShortcut(binding("reopenClosedTab", "t", [.command, .shift]))
+            Divider()
+            Button("Save Page…") { postCommand(.savePage) }
+                .keyboardShortcut(binding("savePage", "s", .command))
         }
 
         // MARK: - Edit (add Find after pasteboard)

@@ -414,30 +414,18 @@ struct WebView: NSViewRepresentable {
                        let host = parent.state.webView.url?.host {
                 let existing = parent.passwordStore.find(domain: host)
                 if existing.contains(where: { $0.username == username }) { return }
-                // Non-modal SHEET, never runModal: a blocking modal here froze
-                // the whole main thread (and the automation bridge with it)
-                // on every login submit. Supersede a stale pending prompt.
-                guard let window = parent.state.webView.window else { return }
+                if parent.passwordStore.isSuppressed(domain: host) { return }
+                // Non-blocking: the ContentView notice bar renders the prompt
+                // (a sheet here stole focus mid-Agent-task; an earlier
+                // runModal froze the whole app on every login submit).
                 parent.passwordStore.pendingSave?.respond(false)
-                let pending = PendingPasswordSave(domain: host, username: username) { [weak store = parent.passwordStore] save in
+                parent.passwordStore.pendingSave = PendingPasswordSave(
+                    domain: host, username: username
+                ) { [weak store = parent.passwordStore] save in
                     if save {
                         store?.save(domain: host, username: username, password: password)
                     }
                     store?.pendingSave = nil
-                }
-                parent.passwordStore.pendingSave = pending
-                let alert = NSAlert()
-                alert.messageText = String(localized: "Save Password for \(host)?")
-                alert.informativeText = String(localized: "Username: \(username)")
-                alert.addButton(withTitle: String(localized: "Save"))
-                alert.addButton(withTitle: String(localized: "Not Now"))
-                pending.programmaticDismiss = { [weak alert, weak window] in
-                    if let sheetWindow = alert?.window, sheetWindow.isVisible, let window {
-                        window.endSheet(sheetWindow)
-                    }
-                }
-                alert.beginSheetModal(for: window) { response in
-                    pending.respond(response == .alertFirstButtonReturn)
                 }
             } else if message.name == "readerContent", let dict = message.body as? [String: String] {
                 parent.state.readerTitle = dict["title"] ?? ""
@@ -927,37 +915,18 @@ struct WebView: NSViewRepresentable {
 
         @MainActor
         private func confirmLeave(webView: WKWebView, pageMessage: String, completion: @escaping (Bool) -> Void) {
-            guard let window = webView.window else {
-                completion(true)
-                return
-            }
             // A prompt is already up (rapid double navigation): the first
             // decision stays authoritative; later navigations just proceed.
             guard parent.state.pendingBeforeUnload == nil else {
                 completion(true)
                 return
             }
+            // The ContentView notice bar renders the prompt (non-blocking).
             let pending = PendingBeforeUnload(message: pageMessage) { [weak state = parent.state] decision in
                 state?.pendingBeforeUnload = nil
                 completion(decision)
             }
             parent.state.pendingBeforeUnload = pending
-
-            let alert = NSAlert()
-            alert.messageText = String(localized: "Leave This Page?")
-            alert.informativeText = pageMessage.isEmpty
-                ? String(localized: "Changes you made may not be saved.")
-                : String(localized: "Changes you made may not be saved.\n\(pageMessage)")
-            alert.addButton(withTitle: String(localized: "Leave"))
-            alert.addButton(withTitle: String(localized: "Stay"))
-            pending.programmaticDismiss = { [weak alert, weak window] in
-                if let sheetWindow = alert?.window, sheetWindow.isVisible, let window {
-                    window.endSheet(sheetWindow)
-                }
-            }
-            alert.beginSheetModal(for: window) { response in
-                pending.respond(leave: response == .alertFirstButtonReturn)
-            }
         }
 
         // MARK: - WKUIDelegate - 权限请求

@@ -44,6 +44,7 @@ struct ContentView: View {
         _sessionID = sessionID
         _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
         _bookmarkStore = ObservedObject(wrappedValue: appState.bookmarkStore)
+        _passwordStore = ObservedObject(wrappedValue: appState.passwordStore)
         let tm = TabManager()
         _tabManager = StateObject(wrappedValue: tm)
         tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
@@ -73,13 +74,14 @@ struct ContentView: View {
     // Convenience accessors for shared stores
     var settings: Settings { appState.settings }
     var contentBlocker: ContentBlockerStore { appState.contentBlocker }
+    /// OBSERVED so the password-save notice bar reacts to pendingSave.
+    @ObservedObject var passwordStore: PasswordStore
     /// OBSERVED (unlike the accessors below): the toolbar's bookmark-star
     /// state is derived from this store's contents in `body` — without
     /// observing it, adding/removing a bookmark never re-rendered the
     /// toolbar and the star icon never moved.
     @ObservedObject var bookmarkStore: BookmarkStore
     var historyStore: HistoryStore { appState.historyStore }
-    var passwordStore: PasswordStore { appState.passwordStore }
     var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
     var downloadStore: DownloadStore { appState.downloadStore }
     var permissionStore: PermissionStore { appState.permissionStore }
@@ -135,6 +137,7 @@ struct ContentView: View {
                 showFindBar: { showFindBar() },
                 hideFindBar: { hideFindBar() },
                 printPage: { printPage() },
+                savePage: { savePage() },
                 startScreenshot: { startScreenshot() },
                 clearUrlFocus: { isUrlFocused = false }
             )
@@ -154,9 +157,15 @@ struct ContentView: View {
     @State var showSearchHistory = false
     @State var showUndoToast = false
     @State var mediaQueries: [MediaQueryItem] = []
-    /// Brief "Bookmark Added/Removed" confirmation shown over the content
-    /// area — the star icon alone was too subtle to register as feedback.
-    @State var bookmarkToast: String?
+    /// Brief action confirmation (bookmark added/removed, page saved, …)
+    /// shown over the content area — silent actions read as broken ones.
+    @State var actionToast: StatusBarToast?
+
+    /// Payload for the auto-dismissing action toast (icon + localized text).
+    struct StatusBarToast: Equatable {
+        let icon: String
+        let text: String
+    }
     @State var videoAdBlockerToast: String?
     @State var lastBlockedRuleId: UUID?
     @State var lastBlockedSelector = ""
@@ -332,7 +341,7 @@ struct ContentView: View {
         ))
         .overlay(alignment: .center) { shortcutOverlayButtons }
         .overlay(alignment: .bottom) { undoToastOverlay }
-        .overlay(alignment: .bottom) { bookmarkToastOverlay }
+        .overlay(alignment: .bottom) { actionToastOverlay }
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
         .overlay(alignment: .bottom) { translateBarOverlay }
@@ -346,9 +355,55 @@ struct ContentView: View {
 
     func toggleBookmark() {
         guard let added = b.toggleBookmark() else { return }
-        bookmarkToast = added
-            ? String(localized: "Bookmark Added")
-            : String(localized: "Bookmark Removed")
+        actionToast = StatusBarToast(
+            icon: "bookmark.fill",
+            text: added ? String(localized: "Bookmark Added") : String(localized: "Bookmark Removed")
+        )
+    }
+
+    /// ⌘S / File ▸ Save Page: captures the current page as a webarchive into
+    /// the download folder, recorded as a completed download row.
+    func savePage() {
+        guard let tab = tabManager.selectedTab,
+              let url = tab.browser.webView.url,
+              !tab.isOnNewTabPage else { return }
+        tab.browser.webView.createWebArchiveData { result in
+            switch result {
+            case .success(let data):
+                let rawTitle = tab.browser.webView.title ?? tab.browser.pageTitle
+                let sanitized = rawTitle
+                    .components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>"))
+                    .joined(separator: "-")
+                    .trimmingCharacters(in: .whitespaces)
+                let destination = self.downloadStore.uniqueURL(
+                    for: (sanitized.isEmpty ? "page" : sanitized) + ".webarchive"
+                )
+                do {
+                    try data.write(to: destination)
+                    let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int64)
+                        ?? Int64(data.count)
+                    self.downloadStore.add(item: DownloadItem(
+                        id: UUID(), filename: destination.lastPathComponent, fileURL: destination,
+                        totalBytes: size, downloadedBytes: size, state: .completed,
+                        error: nil, cancel: nil, sourceURL: url
+                    ))
+                    self.actionToast = StatusBarToast(
+                        icon: "arrow.down.doc.fill",
+                        text: String(localized: "Page Saved")
+                    )
+                } catch {
+                    self.actionToast = StatusBarToast(
+                        icon: "exclamationmark.triangle.fill",
+                        text: error.localizedDescription
+                    )
+                }
+            case .failure(let error):
+                self.actionToast = StatusBarToast(
+                    icon: "exclamationmark.triangle.fill",
+                    text: error.localizedDescription
+                )
+            }
+        }
     }
     func inspectElement() { b.inspectElement() }
 

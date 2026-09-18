@@ -36,6 +36,25 @@ class PasswordStore: ObservableObject {
     @Published var pendingSave: PendingPasswordSave?
 
     private let serviceName = "me.siwi.Desire"
+    private static let suppressedKey = "passwordSaveSuppressedDomains"
+
+    /// Resolves the pending save-password prompt (bar button or bridge).
+    func resolvePendingSave(_ save: Bool) {
+        pendingSave?.respond(save)
+    }
+
+    /// Domains the user chose "Never for This Site" on.
+    func isSuppressed(domain: String) -> Bool {
+        (UserDefaults.standard.stringArray(forKey: Self.suppressedKey) ?? []).contains(domain)
+    }
+
+    func suppress(domain: String) {
+        var list = UserDefaults.standard.stringArray(forKey: Self.suppressedKey) ?? []
+        if !list.contains(domain) {
+            list.append(domain)
+            UserDefaults.standard.set(list, forKey: Self.suppressedKey)
+        }
+    }
 
     init() {
         loadAll()

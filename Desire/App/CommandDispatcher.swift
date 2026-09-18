@@ -53,6 +53,7 @@ struct CommandDispatcher {
         var showFindBar: () -> Void
         var hideFindBar: () -> Void
         var printPage: () -> Void
+        var savePage: () -> Void
         var startScreenshot: () -> Void
         /// Resign address-bar focus. Backed by a `@FocusState`, which exposes
         /// a `FocusState<Bool>.Binding` that isn't convertible to
@@ -184,6 +185,8 @@ struct CommandDispatcher {
 
         case .printPage:
             actions.printPage()
+        case .savePage:
+            actions.savePage()
 
         case .zoomIn:
             guard let tab = tabManager.selectedTab else { return }

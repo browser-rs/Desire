@@ -90,16 +90,17 @@ extension ContentView {
         }
     }
 
-    /// Brief bookmark confirmation ("Bookmark Added/Removed"). Auto-dismisses
-    /// after ~1.8 s; re-toggling replaces the text and restarts the timer.
-    var bookmarkToastOverlay: some View {
+    /// Brief action confirmation ("Bookmark Added", "Page Saved", …).
+    /// Auto-dismisses after ~1.8 s; re-triggering replaces the payload and
+    /// restarts the timer.
+    var actionToastOverlay: some View {
         Group {
-            if let toast = bookmarkToast {
+            if let toast = actionToast {
                 HStack(spacing: 6) {
-                    Image(systemName: "bookmark.fill")
+                    Image(systemName: toast.icon)
                         .font(.caption)
                         .foregroundStyle(Color.accentColor)
-                    Text(toast).font(.caption)
+                    Text(toast.text).font(.caption)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -111,11 +112,20 @@ extension ContentView {
                     try? await Task.sleep(for: .milliseconds(1800))
                     guard !Task.isCancelled else { return }
                     withAnimation(.transitionNormal) {
-                        if bookmarkToast == toast { bookmarkToast = nil }
+                        if actionToast == toast { actionToast = nil }
                     }
                 }
             }
         }
+    }
+
+    /// Non-blocking notice bars stacked under the toolbar: password save
+    /// prompt and beforeunload leave-confirmation (same component family —
+    /// replacing these sheets was 0.1.2: sheets steal focus mid-Agent-task).
+    @ViewBuilder
+    func noticeBars(for tab: Tab) -> some View {
+        PasswordSaveBar(store: passwordStore)
+        BeforeUnloadBar(browser: tab.browser)
     }
 
     /// Screenshot completion toast (message published by `BrowsingActions`).
@@ -168,5 +178,104 @@ extension ContentView {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+    }
+}
+
+
+// MARK: - Notice bars
+
+private struct PasswordSaveBar: View {
+    @ObservedObject var store: PasswordStore
+
+    var body: some View {
+        if let pending = store.pendingSave {
+            NoticeBar(
+                icon: "key.horizontal.fill",
+                tint: .accentColor,
+                title: String(localized: "Save Password for \(pending.domain)?"),
+                subtitle: String(localized: "Username: \(pending.username)"),
+                primaryTitle: String(localized: "Save"),
+                secondaryTitle: String(localized: "Not Now"),
+                tertiaryTitle: String(localized: "Never for This Site"),
+                onPrimary: { store.resolvePendingSave(true) },
+                onSecondary: { store.resolvePendingSave(false) },
+                onTertiary: {
+                    store.suppress(domain: pending.domain)
+                    store.resolvePendingSave(false)
+                }
+            )
+        }
+    }
+}
+
+private struct BeforeUnloadBar: View {
+    @ObservedObject var browser: BrowserState
+
+    var body: some View {
+        if let pending = browser.pendingBeforeUnload {
+            NoticeBar(
+                icon: "exclamationmark.triangle.fill",
+                tint: .orange,
+                title: String(localized: "Leave This Page?"),
+                subtitle: pending.message.isEmpty
+                    ? String(localized: "Changes you made may not be saved.")
+                    : pending.message,
+                primaryTitle: String(localized: "Leave"),
+                secondaryTitle: String(localized: "Stay"),
+                onPrimary: { pending.respond(leave: true) },
+                onSecondary: { pending.respond(leave: false) }
+            )
+        }
+    }
+}
+
+/// Shared full-width notice bar under the toolbar: icon + title + subtitle
+/// on the left, up to three actions on the right.
+private struct NoticeBar: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let subtitle: String
+    let primaryTitle: String
+    var secondaryTitle: String? = nil
+    var tertiaryTitle: String? = nil
+    let onPrimary: () -> Void
+    var onSecondary: (() -> Void)? = nil
+    var onTertiary: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 12)
+            HStack(spacing: 12) {
+                Button(primaryTitle, action: onPrimary)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                if let secondaryTitle, let onSecondary {
+                    Button(secondaryTitle, action: onSecondary)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                if let tertiaryTitle, let onTertiary {
+                    Button(tertiaryTitle, action: onTertiary)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .bottom) { Divider() }
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

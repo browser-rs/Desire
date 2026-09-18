@@ -122,6 +122,7 @@ class DownloadStore: ObservableObject {
     func add(item: DownloadItem) -> UUID {
         let id = item.id
         downloads.insert(item, at: 0)
+        syncDockBadge()
         return id
     }
 
@@ -343,7 +344,8 @@ class DownloadStore: ObservableObject {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
         saveHistory()
-        notifyDownload(filename: downloads[i].filename)
+        syncDockBadge()
+        queueCompletionNotification(filename: downloads[i].filename)
     }
 
     func fail(id: UUID, message: String) {
@@ -374,6 +376,7 @@ class DownloadStore: ObservableObject {
         let finished = downloads.filter { !$0.isPrivate && ($0.state != .inProgress || $0.isPaused) }
         let items = finished.map { HistoryItem($0) }
         DiskStore.save(items, key: historyKey)
+        syncDockBadge()
     }
 
     private func loadHistory() {
@@ -541,6 +544,48 @@ class DownloadStore: ObservableObject {
             let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
             center.add(request)
         }
+    }
+
+    // MARK: - Completion notification throttle & Dock badge
+
+    /// Completions inside this window collapse into ONE notification —
+    /// a 10-file batch must not ring the bell ten times.
+    private var completedBuffer = 0
+    private var notificationTask: Task<Void, Never>?
+
+    private func queueCompletionNotification(filename: String) {
+        completedBuffer += 1
+        notificationTask?.cancel()
+        notificationTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self, self.completedBuffer > 0 else { return }
+            let count = self.completedBuffer
+            self.completedBuffer = 0
+            self.notifyCompleted(count: count, lastFilename: filename)
+        }
+    }
+
+    private func notifyCompleted(count: Int, lastFilename: String) {
+        NSApp.requestUserAttention(.informationalRequest)
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            if count == 1 {
+                content.title = String(localized: "Download Complete")
+                content.body = lastFilename
+            } else {
+                content.title = String(localized: "Downloads Complete")
+                content.body = String(localized: "\(count) files finished downloading")
+            }
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            center.add(request)
+        }
+    }
+
+    /// Mirror the active-download count on the Dock icon; clear when idle.
+    private func syncDockBadge() {
+        NSApp.dockTile.badgeLabel = hasActive ? "\(activeCount)" : nil
     }
 }
 

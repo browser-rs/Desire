@@ -72,7 +72,7 @@ enum BrowserCommand {
     case showPlugins, showExtensions, showElementBlock
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader
-    case reload, forceReload, inspectElement, printPage
+    case reload, forceReload, inspectElement, printPage, savePage
     case zoomIn, zoomOut, actualSize
     case clearHistory, exportBookmarks, importBookmarksFrom(BookmarkImportService.ImportSource)
     case screenshot

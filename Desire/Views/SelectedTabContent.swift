@@ -62,6 +62,7 @@ struct SelectedTabContent: View {
             // original ContentView.body layout before SelectedTabContent
             // extraction).
             content.toolbarSection(for: tab)
+            content.noticeBars(for: tab)
 
             HStack(spacing: 0) {
                 if showAgentPanel {

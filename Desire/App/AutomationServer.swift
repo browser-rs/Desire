@@ -627,6 +627,7 @@ final class AutomationServer {
         case "forceReload": command = .forceReload
         case "inspectElement": command = .inspectElement
         case "printPage": command = .printPage
+        case "savePage": command = .savePage
         case "zoomIn": command = .zoomIn
         case "zoomOut": command = .zoomOut
         case "actualSize": command = .actualSize

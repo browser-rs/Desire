@@ -153,6 +153,16 @@
         }
       }
     },
+    "%lld files finished downloading" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下载完成 %lld 个文件"
+          }
+        }
+      }
+    },
     "%lld messages" : {
       "localizations" : {
         "en" : {
@@ -3946,6 +3956,16 @@
         }
       }
     },
+    "Download Complete" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载完成"
+          }
+        }
+      }
+    },
     "Download Failed" : {
       "comment" : "Download error fallback",
       "localizations" : {
@@ -4035,6 +4055,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載"
+          }
+        }
+      }
+    },
+    "Downloads Complete" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载完成"
           }
         }
       }
@@ -6830,6 +6860,16 @@
         }
       }
     },
+    "Never for This Site" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永不为此站点保存"
+          }
+        }
+      }
+    },
     "New Container Tab" : {
       "localizations" : {
         "en" : {
@@ -8267,6 +8307,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "覆寫"
+          }
+        }
+      }
+    },
+    "Page Saved" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存页面"
           }
         }
       }
@@ -9984,6 +10034,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存按鍵"
+          }
+        }
+      }
+    },
+    "Save Page…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储页面…"
           }
         }
       }

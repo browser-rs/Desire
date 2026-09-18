@@ -9,6 +9,22 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.15] - 2026-09-18
+
+### Added
+
+- **记忆作用域**：MemoryFact 新增 scope（global / 域名）——按域事实仅在
+  Agent 当前页面匹配该域时注入提示词（带 [scope] 标签），全局事实照常。
+  addFact 支持 scope 参数（旧记录默认 global，自动兼容）。
+- **记忆管理上桥**：GET /memory（profile/facts/summaries 快照，不含密码类
+  数据）、facts add/update/delete——外部 AI 可审阅并修正自己的记忆。
+- **技能管理上桥**：GET /skills、/skills/reload、/skills/delete、
+  /skills/import（从 raw markdown URL 导入，name 可选覆盖）。
+
+### Verified
+
+- E2E：全局 + 按域事实入库、技能从 URL 导入（出现在列表）→ 删除（消失）。
+
 ## [v0.1.14] - 2026-09-18
 
 ### Added

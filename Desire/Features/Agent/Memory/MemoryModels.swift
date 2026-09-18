@@ -22,14 +22,18 @@ struct MemoryFact: Codable, Identifiable, Equatable {
     var createdAt: Date
     var updatedAt: Date
     var pinned: Bool
+    /// "global" or a host ("github.com") — domain-scoped facts only inject
+    /// when the agent's current page matches that host.
+    var scope: String = "global"
 
-    init(content: String, category: String, pinned: Bool = false) {
+    init(content: String, category: String, pinned: Bool = false, scope: String = "global") {
         self.id = UUID()
         self.content = content
         self.category = category
         self.createdAt = Date()
         self.updatedAt = Date()
         self.pinned = pinned
+        self.scope = scope
     }
 }
 

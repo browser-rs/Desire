@@ -660,6 +660,32 @@ final class AutomationServer {
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
             case ("POST", "/agent/tasks/fire"):
                 return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("GET", "/memory"):
+                return try Self.json(Self.memorySnapshot())
+            case ("POST", "/memory/facts/add"):
+                return try Self.json(Self.addMemoryFact(
+                    content: Self.string(body, "content") ?? "",
+                    category: Self.string(body, "category") ?? "fact",
+                    scope: Self.string(body, "scope") ?? "global"
+                ))
+            case ("POST", "/memory/facts/update"):
+                return try Self.json(Self.updateMemoryFact(
+                    id: Self.string(body, "id") ?? "",
+                    content: Self.string(body, "content") ?? ""
+                ))
+            case ("POST", "/memory/facts/delete"):
+                return try Self.json(Self.deleteMemoryFact(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/skills"):
+                return try Self.json(Self.listSkills())
+            case ("POST", "/skills/reload"):
+                return try Self.json(Self.reloadSkills())
+            case ("POST", "/skills/delete"):
+                return try Self.json(Self.deleteSkill(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/skills/import"):
+                return try await Self.json(Self.importSkill(
+                    name: Self.string(body, "name") ?? "",
+                    url: Self.string(body, "url") ?? ""
+                ))
             case ("POST", "/agent/tasks/enable"):
                 return try Self.json(Self.setAgentTaskEnabled(
                     name: Self.string(body, "name") ?? "",
@@ -1544,6 +1570,82 @@ final class AutomationServer {
         }
         let changed = await PageWatchStore.shared.check(named: name)
         return ["ok": true, "name": name, "changed": changed]
+    }
+
+    // MARK: Memory + skills management (0.1.15)
+
+    private static func memorySnapshot() -> [String: Any] {
+        let store = AgentMemoryStore.shared
+        let formatter = ISO8601DateFormatter()
+        return [
+            "profile": [
+                "name": store.profileSnapshot.name, "language": store.profileSnapshot.language,
+                "style": store.profileSnapshot.style, "customInstructions": store.profileSnapshot.customInstructions,
+            ],
+            "facts": store.factsSnapshot.map { f -> [String: Any] in
+                ["id": f.id.uuidString, "content": f.content, "category": f.category,
+                 "pinned": f.pinned, "scope": f.scope, "updatedAt": formatter.string(from: f.updatedAt)]
+            },
+            "summaries": store.summariesCount,
+        ]
+    }
+
+    private static func addMemoryFact(content: String, category: String, scope: String) throws -> [String: Any] {
+        guard !content.isEmpty else { return ["error": "missing content"] }
+        AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
+        return ["ok": true]
+    }
+
+    private static func updateMemoryFact(id: String, content: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id), !content.isEmpty else { return ["error": "bad id or content"] }
+        AgentMemoryStore.shared.updateFactContent(uuid, content: content)
+        return ["ok": true]
+    }
+
+    private static func deleteMemoryFact(id: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        AgentMemoryStore.shared.removeFact(uuid)
+        return ["ok": true]
+    }
+
+    private static func listSkills() throws -> [String: Any] {
+        let skills = SkillStore.shared.skills.map { s -> [String: Any] in
+            ["name": s.name, "description": s.description]
+        }
+        return ["skills": skills]
+    }
+
+    private static func reloadSkills() throws -> [String: Any] {
+        SkillStore.shared.reload()
+        return ["ok": true, "count": SkillStore.shared.skills.count]
+    }
+
+    private static func deleteSkill(name: String) throws -> [String: Any] {
+        guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }) else {
+            return ["error": "no such skill"]
+        }
+        try? FileManager.default.removeItem(at: skill.url)
+        SkillStore.shared.reload()
+        return ["ok": true]
+    }
+
+    /// Imports a skill from an HTTP(S) raw markdown URL. Blocks briefly
+    /// (single fetch) so the caller can assert the result.
+    private static func importSkill(name: String, url: String) async throws -> [String: Any] {
+        guard let url = URL(string: url), url.scheme == "http" || url.scheme == "https" else {
+            return ["error": "missing or invalid url"]
+        }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let text = String(data: data, encoding: .utf8), !text.isEmpty else {
+            return ["error": "fetch failed"]
+        }
+        let parsed = SkillStore.parse(text, url: SkillStore.directory.appendingPathComponent("imported.md"))
+        let finalName = name.isEmpty ? parsed.name : name
+        let file = SkillStore.directory.appendingPathComponent("\(finalName).md")
+        try text.write(to: file, atomically: true, encoding: .utf8)
+        SkillStore.shared.reload()
+        return ["ok": true, "name": finalName]
     }
 
     private static func setAgentTaskEnabled(name: String, enabled: Bool?) throws -> [String: Any] {

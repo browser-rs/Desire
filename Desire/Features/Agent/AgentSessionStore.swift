@@ -552,7 +552,13 @@ class AgentSessionStore: ObservableObject {
             let stored = preference.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
             return stored.isEmpty ? AgentPreferenceStore.defaultPrompt : stored
         }()
-        let memoryBlock = AgentMemoryStore.shared.promptBlock(excluding: conversationId)
+        let currentHost = await MainActor.run { () -> String? in
+            toolSurface?.tabManager?.selectedTab?.browser.webView.url?.host
+        }
+        let memoryBlock = AgentMemoryStore.shared.promptBlock(
+            excluding: conversationId,
+            currentHost: currentHost
+        )
         let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(

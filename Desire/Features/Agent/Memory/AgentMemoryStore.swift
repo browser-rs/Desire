@@ -46,12 +46,12 @@ final class AgentMemoryStore: ObservableObject {
 
     /// Adds a fact, skipping near-duplicates of what's already known.
     /// Newest first, hard cap keeps the archive (and prompt block) bounded.
-    func addFact(content: String, category: String) {
+    func addFact(content: String, category: String, scope: String = "global") {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 4 else { return }
         let normalized = trimmed.lowercased()
         if archive.facts.contains(where: { $0.content.lowercased() == normalized }) { return }
-        archive.facts.insert(MemoryFact(content: trimmed, category: category), at: 0)
+        archive.facts.insert(MemoryFact(content: trimmed, category: category, scope: scope), at: 0)
         archive.factsTotalLearned += 1
         if archive.facts.count > 200 {
             // Drop unpinned oldest first.
@@ -63,6 +63,11 @@ final class AgentMemoryStore: ObservableObject {
         }
         save()
     }
+
+    /// Read accessors for the automation bridge (memory management surface).
+    var profileSnapshot: UserProfile { archive.profile }
+    var factsSnapshot: [MemoryFact] { archive.facts }
+    var summariesCount: Int { archive.summaries.count }
 
     func updateFactContent(_ id: UUID, content: String) {
         guard let idx = archive.facts.firstIndex(where: { $0.id == id }) else { return }
@@ -118,7 +123,7 @@ final class AgentMemoryStore: ObservableObject {
     /// The system block injected into every agent request: profile, top
     /// facts (pinned first), and the most recent other-conversation
     /// summaries. Nil when there's nothing to say.
-    func promptBlock(excluding currentConversation: UUID?) -> String? {
+    func promptBlock(excluding currentConversation: UUID?, currentHost: String? = nil) -> String? {
         var lines: [String] = []
 
         let profile = archive.profile
@@ -131,14 +136,23 @@ final class AgentMemoryStore: ObservableObject {
             lines.append("Profile: " + parts.joined(separator: "; "))
         }
 
+        // Domain-scoped facts only inject when the current page matches.
+        let loweredHost = (currentHost ?? "").lowercased()
         let facts = archive.facts
+            .filter { fact in
+                let scope = fact.scope.lowercased()
+                return scope.isEmpty || scope == "global"
+                    || loweredHost.contains(scope)
+                    || scope.hasSuffix("." + loweredHost)
+            }
             .sorted { a, b in
                 if a.pinned != b.pinned { return a.pinned }
                 return a.updatedAt > b.updatedAt
             }
             .prefix(20)
         for fact in facts where !fact.content.isEmpty {
-            lines.append("- (\(fact.category)) \(fact.content)")
+            let scopeTag = (fact.scope.isEmpty || fact.scope.lowercased() == "global") ? "" : " [\(fact.scope)]"
+            lines.append("- (\(fact.category))\(scopeTag) \(fact.content)")
         }
 
         for summary in archive.summaries

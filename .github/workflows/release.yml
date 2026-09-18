@@ -49,24 +49,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
-            --generate-notes \
-            "Desire-${{ github.ref_name }}-macos-arm64.zip" \
-            SHASUMS256.txt
-          # Append the unsigned-build install note to the generated notes.
-          gh release view "${{ github.ref_name }}" --json body -q .body > body.md
-          cat >> body.md <<'EOF'
+          TAG="${{ github.ref_name }}"
+          cat > install-note.md <<'EOF'
 
-          ## Install
+          ---
 
-          Unsigned build (no Developer ID certificate on CI). After unzipping,
-          remove the quarantine flag once:
+          ## 安装
+
+          未签名构建（CI 无 Developer ID 证书）。解压后移除一次隔离标记：
 
           ```
           xattr -cr Desire.app
           ```
 
-          Then open normally. Apple Silicon only.
+          之后正常打开。仅支持 Apple Silicon。
           EOF
-          gh release edit "${{ github.ref_name }}" --notes-file body.md
+          # Body: the tag's section from CHANGELOG.md + install note; fall
+          # back to generated notes when the changelog lacks the section.
+          if grep -q "^## \[$TAG\]" CHANGELOG.md; then
+            awk -v tag="[$TAG]" '
+              index($0, "## " tag) == 1 { flag = 1; next }
+              flag && index($0, "## [") == 1 { exit }
+              flag { print }
+            ' CHANGELOG.md > body.md
+            cat install-note.md >> body.md
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file body.md \
+              "Desire-$TAG-macos-arm64.zip" \
+              SHASUMS256.txt
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              "Desire-$TAG-macos-arm64.zip" \
+              SHASUMS256.txt
+            gh release view "$TAG" --json body -q .body > body.md
+            cat install-note.md >> body.md
+            gh release edit "$TAG" --notes-file body.md
+          fi

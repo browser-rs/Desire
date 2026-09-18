@@ -137,6 +137,27 @@ final class AutomationServer {
                     })
                     return
                 }
+                // X-Desire-Window: the caller (e.g. the MCP server with a
+                // window-bound session) targets a specific window — switch
+                // the active TabManager for this request, restore after.
+                let windowHeader = request
+                    .split(separator: "\r\n", omittingEmptySubsequences: false)
+                    .first { $0.lowercased().hasPrefix("x-desire-window:") }
+                    .map { $0.split(separator: ":", maxSplits: 1).last?.trimmingCharacters(in: .whitespaces) ?? "" }
+                    .flatMap { UUID(uuidString: String($0)) }
+                if let windowHeader,
+                   let target = TabSessionCoordinator.shared.manager(forSession: windowHeader),
+                   let previous = TabSessionCoordinator.shared.activeTabManager {
+                    TabSessionCoordinator.shared.setActive(target)
+                    defer { TabSessionCoordinator.shared.setActive(previous) }
+                    let response = await self.route(request)
+                    let body = response.data(using: .utf8) ?? Data()
+                    let head = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+                    connection.send(content: head.data(using: .utf8)! + body, completion: .contentProcessed { _ in
+                        connection.cancel()
+                    })
+                    return
+                }
                 // SSE stream: long-lived, not routed through the one-shot
                 // request/response path.
                 if request.hasPrefix("GET /events") {
@@ -335,8 +356,11 @@ final class AutomationServer {
     /// Single-entry API for in-app consumers of the bridge pipeline (the
     /// MCP server's tools route through here, so both surfaces stay in
     /// sync). Returns the endpoint's JSON body string.
-    func callEndpoint(method: String, path: String, json: [String: Any]? = nil) async -> String {
+    func callEndpoint(method: String, path: String, json: [String: Any]? = nil, window: String? = nil) async -> String {
         var request = "\(method) \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        if let window {
+            request += "X-Desire-Window: \(window)\r\n"
+        }
         var bodyText = ""
         if let json, let data = try? JSONSerialization.data(withJSONObject: json) {
             bodyText = String(data: data, encoding: .utf8) ?? ""

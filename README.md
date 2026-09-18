@@ -34,7 +34,14 @@ open Desire.app --args --automation --mcp-server
 - **Events** `GET /events` (SSE) — pageReady, download lifecycle, approvals, tab churn
 - **Docs**: [docs/BRIDGE.md](docs/BRIDGE.md) · driver examples in [examples/](examples/)
 
-Optional tokens: `--automation-token <t>` / `--mcp-token <t>`.
+Optional tokens: `--automation-token <t>` / `--mcp-token <t>` (all
+requests then require `Authorization: Bearer <t>`; unauthenticated
+requests get 401).
+
+**Window binding**: MCP clients can declare a target window at
+initialize time via `params._meta.desireWindow = "<session UUID>"` —
+subsequent tool calls act on that window (per-call `window` argument
+overrides). Window UUIDs are available via `GET /agent/windows`.
 
 ## Requirements
 

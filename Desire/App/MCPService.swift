@@ -17,6 +17,8 @@ final class MCPService {
     /// One session per server lifetime is enough for v1 — the id is handed
     /// out at initialize and echoed back by compliant clients.
     private var sessionID = UUID().uuidString
+    /// 本连接绑定的 Desire 窗口（initialize 时声明；nil = newest 语义）。
+    private var sessionWindowID: String?
     /// Optional bearer auth: `--mcp-token <token>` gates every request
     /// (initialize included) exactly like the automation bridge's
     /// `--automation-token`. Default: open on localhost.
@@ -217,6 +219,15 @@ final class MCPService {
         let isNotification = (id == nil)
         let params = rpc["params"] as? [String: Any] ?? [:]
 
+        // 会话绑定窗口：客户端 initialize 时声明 _meta.desireWindow（窗口
+        // 会话 UUID），后续该连接的工具调用默认作用于那个窗口；工具参数
+        // 里的 window 字段可覆盖（per-call 优先）。
+        if method == "initialize",
+           let meta = params["_meta"] as? [String: Any],
+           let windowID = meta["desireWindow"] as? String {
+            sessionWindowID = windowID
+        }
+
         // Notifications get 202 Accepted, no body.
         if isNotification {
             return ("202 Accepted", "", true)
@@ -242,7 +253,11 @@ final class MCPService {
 
         case "tools/call":
             let name = params["name"] as? String ?? ""
-            let args = params["arguments"] as? [String: Any] ?? [:]
+            var args = params["arguments"] as? [String: Any] ?? [:]
+            // 窗口绑定：per-call window 参数 > 会话绑定 windowID。
+            if sessionWindowID != nil, args["window"] == nil {
+                args["window"] = sessionWindowID
+            }
             guard let tool = Self.toolCatalog.first(where: { $0["name"] as? String == name }),
                   let mapping = tool["_bridge"] as? [String: Any] else {
                 return ("200 OK", Self.rpcError(id: id, code: -32602, message: "unknown tool \(name)"), false)
@@ -261,7 +276,8 @@ final class MCPService {
                 }
             }
             let bridgeResponse = await AutomationServer.shared.callEndpoint(
-                method: httpMethod, path: path, json: payload.isEmpty ? nil : payload
+                method: httpMethod, path: path, json: payload.isEmpty ? nil : payload,
+                window: sessionWindowID
             )
             // Bridge marks failures with a non-null string "error" field;
             // "error": null is normal payload (e.g. pageMeta).

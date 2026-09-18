@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+### 0.2.4 — MCP 会话与窗口绑定（进行中）
+
+### Added
+
+- **MCP 窗口绑定**：客户端 initialize 时声明 `params._meta.desireWindow`
+  （窗口会话 UUID），该连接后续工具调用默认作用于那个窗口；
+  per-call `window` 参数可覆盖。桥 `X-Desire-Window` 头透传。
+- 桥 `callEndpoint` 支持 window 参数（MCP 工具全部透传）。
+- README 补充 MCP 鉴权与窗口绑定文档。
+
+### Verified
+
+- 双窗口 E2E：initialize 绑定 W1 → MCP navigate → W1 的 tab 被导航到
+  target1（当前 key 窗口的 activeTabManager 正确切到目标窗口再还原）。
+
+## [v0.2.2] - 2026-09-19
+
 ### 0.2.3 — 反馈闭环 v2（进行中）
 
 ### Added
@@ -37,6 +54,23 @@
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
 ## [Unreleased]
+
+### 0.2.4 — MCP 会话与窗口绑定（进行中）
+
+### Added
+
+- **MCP 窗口绑定**：客户端 initialize 时声明 `params._meta.desireWindow`
+  （窗口会话 UUID），该连接后续工具调用默认作用于那个窗口；
+  per-call `window` 参数可覆盖。桥 `X-Desire-Window` 头透传。
+- 桥 `callEndpoint` 支持 window 参数（MCP 工具全部透传）。
+- README 补充 MCP 鉴权与窗口绑定文档。
+
+### Verified
+
+- 双窗口 E2E：initialize 绑定 W1 → MCP navigate → W1 的 tab 被导航到
+  target1（当前 key 窗口的 activeTabManager 正确切到目标窗口再还原）。
+
+## [v0.2.2] - 2026-09-19
 
 ### 0.2.3 — 反馈闭环 v2（进行中）
 

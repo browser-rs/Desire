@@ -227,6 +227,23 @@ final class SkillStore: ObservableObject {
         ## 注意
         - 抖音对横竖屏和时长有限制，超限会报错——把页面错误读给用户。
         """),
+        ("media-pipeline",
+         "媒体流水线一句话编排：提取页面视频/音频 → 下载 → 转码/抽音轨/合成",
+         """
+        ## 流程
+        1. listPageVideos 提取当前页面的媒体（blob 播放器会嗅探出真实 CDN 地址）。
+        2. 多个候选时 askUser 让用户选定（说明清晰度/格式/大小）。
+        3. downloadMedia 下载到 Downloads（直接文件与 m3u8 都支持）。
+        4. 按用户要求后处理（video-convert / mux-audio-video 技能）：
+           转码、压缩、抽音轨、合成双轨。
+        5. 报告输出路径与大小。
+
+        ## 失败自愈
+        - 下载失败/超时：换 listPageVideos 列表里的下一个源（通常有降清晰度
+          备选）；m3u8 失败可试 ffmpeg 直连（runCommand ffmpeg -y -i <url> …）。
+        - ffmpeg 未安装：告诉用户 runCommand brew install ffmpeg。
+        - 平台限速/风控：提示用户登录后重试。
+        """),
         ("mux-audio-video",
          "用 ffmpeg 把 downloadMedia 下载的 YouTube 双轨（video-only + audio-only）合成为一个带声音的完整文件",
          """

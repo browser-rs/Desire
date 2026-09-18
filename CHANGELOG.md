@@ -9,6 +9,26 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.12] - 2026-09-18
+
+### Added
+
+- **媒体流水线技能包**：内置 `media-pipeline` 伞形技能（提取 → 确认 →
+  下载 → 转码/合成 → 报告，含失败自愈：换源/ffmpeg 直连/提示安装），
+  按文件幂等 seed，老安装自动获得。
+- **Agent 工具 `downloadFile`**：URL 直下到 Downloads（DownloadStore 托管，
+  可暂停/恢复，触发桥事件）——补齐数据管道的通用下载原语
+  （media 专用的 downloadMedia/HLS 已有）。
+- **媒体能力上 MCP（24 → 27 工具）**：listPageVideos（GET /media，嗅探+
+  DOM 扫描结果）、downloadFile、downloadMedia（POST /media/download，
+  后台执行不阻塞调用方，完成入 Downloads）。
+
+### Verified
+
+- E2E：MCP downloadFile 真实下载 300KB 文件入下载列表；downloadMedia
+  后台启动返回 ok；listPageVideos 空页 shape 正确；自举客户端可见全部
+  27 工具；media-pipeline 技能 seed 成功。
+
 ## [v0.1.11] - 2026-09-18
 
 ### Added

@@ -597,6 +597,14 @@ final class AutomationServer {
                     format: Self.string(body, "format") ?? "json",
                     index: Self.index(body)
                 ))
+            case ("GET", "/media"):
+                return try Self.json(Self.detectedMedia(index: Self.index(query)))
+            case ("POST", "/media/download"):
+                return try Self.json(Self.downloadMedia(
+                    url: Self.string(body, "url") ?? "",
+                    referer: Self.string(body, "referer"),
+                    fileNameHint: Self.string(body, "filename")
+                ))
             case ("GET", "/watches"):
                 return try Self.json(Self.listWatches())
             case ("POST", "/watches/add"):
@@ -1448,6 +1456,39 @@ final class AutomationServer {
             return ["error": "no such task"]
         }
         return ["ok": true]
+    }
+
+    // MARK: Media
+
+    /// Sniffed/on-page media resources of a tab (listPageVideos' data).
+    private static func detectedMedia(index: Int?) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        return ["media": tab.browser.detectedMedia.map { m -> [String: Any] in
+            ["url": m.url, "kind": m.kind, "mime": m.mime, "source": m.source]
+        }]
+    }
+
+    /// Kicks off a MediaExporter download WITHOUT blocking the caller —
+    /// results land in ~/Downloads and the downloads flow. MCP clients must
+    /// not hang for 30-minute HLS exports.
+    private static func downloadMedia(url: String, referer: String?, fileNameHint: String?) throws -> [String: Any] {
+        guard !url.isEmpty, let sourceURL = URL(string: url) else {
+            return ["error": "missing or invalid url"]
+        }
+        let refererURL = referer.flatMap { URL(string: $0) }
+        Task { @MainActor in
+            do {
+                let result = try await MediaExporter.download(
+                    url: sourceURL, referer: refererURL, userAgent: nil,
+                    fileNameHint: fileNameHint,
+                    progress: { _, _ in }
+                )
+                Log.agent.info("media download finished: \(url, privacy: .public) → \(String(describing: result), privacy: .public)")
+            } catch {
+                Log.agent.error("media download failed: \(url, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return ["ok": true, "started": url]
     }
 
     // MARK: Page watches

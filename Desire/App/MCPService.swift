@@ -489,6 +489,43 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/beforeunload/resolve", "body": ["leave": "leave"]],
         ],
+        // 0.1.12 — media pipeline
+        [
+            "name": "listPageVideos",
+            "description": "List media resources detected on a tab (network-sniffed CDN URLs behind blob: players + DOM/meta scan): video/audio/stream kinds with URLs.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["index": ["type": "integer", "description": "Tab index; defaults to active"]],
+            ],
+            "_bridge": ["method": "GET", "path": "/media"],
+        ],
+        [
+            "name": "downloadFile",
+            "description": "Download a file from a direct URL into the Downloads folder (store-owned, pause/resume-capable). Fire-and-forget; poll listDownloads.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "url": ["type": "string"],
+                    "filename": ["type": "string"],
+                ],
+                "required": ["url"],
+            ],
+            "_bridge": ["method": "POST", "path": "/downloads/start", "body": ["url": "url", "filename": "filename"]],
+        ],
+        [
+            "name": "downloadMedia",
+            "description": "Download a media resource (direct file OR HLS m3u8 with AES-128 decryption, using the page referer) into Downloads. Starts in the background; the file lands when finished. Pair with listPageVideos.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "url": ["type": "string", "description": "Media or m3u8 URL"],
+                    "referer": ["type": "string", "description": "Page URL the media lives on (helps HLS authorization)"],
+                    "filename": ["type": "string", "description": "Output name hint"],
+                ],
+                "required": ["url"],
+            ],
+            "_bridge": ["method": "POST", "path": "/media/download", "body": ["url": "url", "referer": "referer", "filename": "filename"]],
+        ],
         // 0.1.11 — structured extraction
         [
             "name": "extractTables",

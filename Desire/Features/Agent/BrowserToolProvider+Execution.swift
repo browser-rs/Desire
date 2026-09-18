@@ -894,6 +894,19 @@ extension BrowserToolProvider {
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
+        case "downloadFile":
+            // Store-owned download: lands in the downloads panel with
+            // pause/resume; fires downloadStarted/Completed bridge events.
+            guard let urlText = args["url"] as? String, !urlText.isEmpty,
+                  let url = URL(string: urlText), url.scheme != nil else {
+                return "Missing or invalid url"
+            }
+            let filename = (args["filename"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? url.lastPathComponent
+            guard let store = DownloadStore.live else { return "Downloads store unavailable" }
+            store.startURLSessionDownload(sourceURL: url, filename: filename)
+            return "Download started: \(filename) — tracked in the downloads panel."
+
         case "scheduleTask":
             // 定时任务: persist a recurring prompt. Runs fire only while
             // the app is open; overdue tasks catch up once on launch.

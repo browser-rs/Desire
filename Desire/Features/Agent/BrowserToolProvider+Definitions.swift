@@ -143,6 +143,13 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                                name: "downloadFile", description: "Download a file from a URL into the Downloads folder (store-owned transfer: pause/resume in the downloads panel). Use for reports, CSV exports, media files — anything with a direct URL. Returns immediately; check listDownloads for progress.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Direct download URL"),
+                    "filename": AgentJSONSchemaValue(type: "string", description: "Optional file name (derived from the URL when omitted)"),
+                ], required: ["url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "scheduleTask", description: "Create a scheduled task (定时任务): the prompt re-runs automatically on a recurrence while the app is open. Use everyMinutes (>= 5) OR dailyAt (\"HH:MM\", 24h). Do NOT use for one-off requests.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Short unique task name"),

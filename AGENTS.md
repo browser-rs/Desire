@@ -322,6 +322,9 @@ Features/Bookmarks/
   改 UserDefaults 也必须非沙箱执行（沙箱 shell 的 defaults write
   写不进真实偏好域）。
 - **本地测试服务端口用 8877**（8000 常被用户自己的开发服务占用）。
+  **每轮测试开始前必须 curl http://127.0.0.1:8877/ 确认服务器活着**——
+  服务器静默死亡会造成"导航失败/无事件/页面空白"的假象（已两次误判为
+  app bug）
 - **executeJS 错误详情**：evaluateJavaScript 的错误对象不含真实异常
   文本；正确 key 是 `WKJavaScriptExceptionMessage`，经
   callAsyncJavaScript 重跑捕获（见 BrowserToolProvider+Execution）。

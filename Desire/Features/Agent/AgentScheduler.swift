@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import os
+import UserNotifications
 
 /// Scheduled agent prompts (定时任务). A task re-sends a stored prompt to
 /// the agent on a recurrence ("every N minutes" or "daily at HH:MM") while
@@ -95,6 +96,7 @@ final class AgentScheduler: ObservableObject {
 
     private init() {
         tasks = DiskStore.load([ScheduledTask].self, key: Self.storageKey) ?? []
+        loadRuns()
         startClock()
     }
 
@@ -167,19 +169,148 @@ final class AgentScheduler: ObservableObject {
         }
         let task = tasks[idx]
         tasks[idx].lastFiredAt = Date()
-        if let target = deliveryTarget {
-            target.deliverScheduled(task.prompt, from: task.name)
-            tasks[idx].lastResult = "delivered (manual fire)"
-            Self.log.info("Scheduled task '\(task.name, privacy: .public)' fired manually")
-        } else {
-            tasks[idx].lastResult = String(localized: "missed — no agent session was open")
-            Self.log.info("Scheduled task '\(task.name, privacy: .public)' manual fire had no delivery target")
-        }
+        deliver(task: task)
         save()
         return true
     }
 
+    // MARK: - Run history (无人值守作业)
+
+    /// One firing of a task: delivery outcome, turn result, retries.
+    /// Persisted (newest 100) — the unattended-jobs audit trail.
+    struct RunRecord: Codable, Identifiable {
+        let id: UUID
+        var taskName: String
+        var firedAt: Date
+        var finishedAt: Date?
+        var status: String // delivered | queued | missed | success | failed
+        var success: Bool?
+        var error: String?
+        var attempts: Int = 1
+    }
+
+    @Published private(set) var runs: [RunRecord] = []
+    private static let runsKey = "agent-task-runs"
+    private static let maxRuns = 100
+
+    private func recordRun(_ record: RunRecord) {
+        runs.insert(record, at: 0)
+        if runs.count > Self.maxRuns {
+            runs = Array(runs.prefix(Self.maxRuns))
+        }
+        saveRuns()
+    }
+
+    private func saveRuns() {
+        DiskStore.save(runs, key: Self.runsKey)
+    }
+
+    /// System notification on failed unattended runs (the user isn't
+    /// watching; the failure must surface).
+    private func notifyRunFailure(_ record: RunRecord) {
+        let center = UserNotifications.UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UserNotifications.UNMutableNotificationContent()
+            content.title = String(localized: "Scheduled task failed")
+            content.body = "\(record.taskName): \(record.error ?? "unknown error")"
+            center.add(UserNotifications.UNNotificationRequest(
+                identifier: UUID().uuidString, content: content, trigger: nil))
+        }
+        BridgeEventBus.shared.publish("scheduledTaskFailed", [
+            "task": record.taskName,
+            "error": record.error ?? "",
+            "attempts": record.attempts,
+        ])
+    }
+
+    /// Retry policy: one automatic retry ~30 s after a failed turn. The task
+    /// may be removed/disabled while waiting — then the failure stands.
+    private func scheduleRetry(_ record: RunRecord) {
+        let taskName = record.taskName
+        let runID = record.id
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            guard let self, !Task.isCancelled else { return }
+            guard let task = self.tasks.first(where: { $0.name == taskName }),
+                  task.isEnabled else { return }
+            Log.agent.info("retrying scheduled task '\(taskName, privacy: .public)'")
+            self.deliver(task: task, runID: runID, attempts: record.attempts + 1)
+        }
+    }
+
+    private func updateRun(id: UUID, mutate: (inout RunRecord) -> Void) {
+        guard let idx = runs.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&runs[idx])
+        saveRuns()
+    }
+
+    private func finishRun(id: UUID, outcome: AgentSessionStore.TurnOutcome) {
+        updateRun(id: id) {
+            $0.finishedAt = Date()
+            $0.success = outcome.success
+            $0.status = outcome.success ? "success" : "failed"
+            $0.error = outcome.error
+        }
+        guard let record = runs.first(where: { $0.id == id }) else { return }
+        if outcome.success {
+            BridgeEventBus.shared.publish("scheduledTaskSucceeded", ["task": record.taskName])
+        } else {
+            notifyRunFailure(record)
+            if record.attempts < 2 {
+                scheduleRetry(record)
+            }
+        }
+    }
+
+    private func loadRuns() {
+        runs = DiskStore.load([RunRecord].self, key: Self.runsKey) ?? []
+    }
+
     // MARK: - Firing
+
+    /// Delivers a task's prompt and records the run. The turn-finish handler
+    /// attached BEFORE delivery updates the record when the agent turn ends
+    /// (success, or failure with error → notification + one retry). A retry
+    /// passes the SAME runID so the record accumulates attempts.
+    private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1) {
+        let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
+        guard let target = deliveryTarget else {
+            if let i = taskIndex { tasks[i].lastResult = String(localized: "missed — no agent session was open") }
+            if runs.firstIndex(where: { $0.id == runID }) != nil {
+                updateRun(id: runID) {
+                    $0.status = "missed"
+                    $0.finishedAt = Date()
+                    $0.error = "no agent session was open"
+                }
+            } else {
+                recordRun(RunRecord(
+                    id: runID, taskName: task.name, firedAt: Date(), finishedAt: Date(),
+                    status: "missed", success: nil, error: "no agent session was open", attempts: attempts
+                ))
+            }
+            Self.log.info("Scheduled task '\(task.name, privacy: .public)' had no delivery target")
+            return
+        }
+        if runs.firstIndex(where: { $0.id == runID }) != nil {
+            updateRun(id: runID) {
+                $0.attempts = attempts
+                $0.status = "delivered (retry)"
+                $0.finishedAt = nil
+            }
+        } else {
+            recordRun(RunRecord(
+                id: runID, taskName: task.name, firedAt: Date(),
+                finishedAt: nil, status: "delivered", success: nil, error: nil, attempts: attempts
+            ))
+        }
+        target.addTurnFinishHandler { [weak self] outcome in
+            self?.finishRun(id: runID, outcome: outcome)
+        }
+        target.deliverScheduled(task.prompt, from: task.name)
+        if let i = taskIndex { tasks[i].lastResult = "delivered" }
+        Self.log.info("Scheduled task '\(task.name, privacy: .public)' delivered")
+    }
 
     /// Fires every due, enabled task. Runs on a 20s wall clock.
     func evaluate(now: Date = Date()) {
@@ -187,14 +318,7 @@ final class AgentScheduler: ObservableObject {
             guard isDue(tasks[idx], now: now) else { continue }
             let task = tasks[idx]
             tasks[idx].lastFiredAt = now
-            if let target = deliveryTarget {
-                target.deliverScheduled(task.prompt, from: task.name)
-                tasks[idx].lastResult = "delivered"
-                Self.log.info("Scheduled task '\(task.name, privacy: .public)' delivered")
-            } else {
-                tasks[idx].lastResult = String(localized: "missed — no agent session was open")
-                Self.log.info("Scheduled task '\(task.name, privacy: .public)' had no delivery target")
-            }
+            deliver(task: task)
         }
         save()
     }

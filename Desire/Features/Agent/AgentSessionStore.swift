@@ -121,6 +121,18 @@ class AgentSessionStore: ObservableObject {
     /// Set when a turn's model stream failed — gates queue flushing so a
     /// broken provider can't rapid-fire the whole queue into errors.
     private var turnFailed = false
+    /// Error text of the most recent failed turn (scheduler run records).
+    private var lastTurnErrorText: String?
+    /// Result of a finished turn, delivered to registered handlers (the
+    /// scheduler's run records subscribe to learn how scheduled prompts ended).
+    struct TurnOutcome {
+        let success: Bool
+        let error: String?
+    }
+    private var turnFinishHandlers: [(TurnOutcome) -> Void] = []
+    func addTurnFinishHandler(_ handler: @escaping (TurnOutcome) -> Void) {
+        turnFinishHandlers.append(handler)
+    }
 
     /// Registry id (multi-window addressing via the automation bridge).
     let registrationID = UUID()
@@ -566,7 +578,14 @@ class AgentSessionStore: ObservableObject {
         // a turn was running (queued by `sendMessage`).
         while !isCancelled {
             turnFailed = false
+            lastTurnErrorText = nil
             await runTurn()
+            // Turn finished — hand the outcome to registered handlers
+            // (scheduler run records for scheduled prompts).
+            let outcome = TurnOutcome(success: !turnFailed, error: lastTurnErrorText)
+            let handlers = turnFinishHandlers
+            turnFinishHandlers.removeAll()
+            handlers.forEach { $0(outcome) }
             // Flush the queue only after a clean turn: a broken provider
             // would otherwise burn the whole queue in rapid error bursts.
             guard !turnFailed, !isCancelled, let next = queuedMessages.first else { break }
@@ -679,6 +698,7 @@ class AgentSessionStore: ObservableObject {
 
             func fail(_ error: Error) {
                 turnFailed = true
+                lastTurnErrorText = error.localizedDescription
                 let errorText = "Error: \(error.localizedDescription)"
                 if let idx = assistantMsg.flatMap({ m in messages.firstIndex(where: { $0.id == m.id }) }) {
                     messages[idx].content = errorText

@@ -9,6 +9,25 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.9] - 2026-09-18
+
+### Added
+
+- **定时任务运行历史**：每次触发记录 RunRecord（firedAt/finishedAt/status/
+  success/error/attempts），持久化最近 100 条；桥 `GET /agent/runs?name=` 查询。
+- **turn 结果回传**：AgentSessionStore 结束每个 turn 时把结果（成功/失败+
+  错误文本）交给注册的 handler——调度器的运行记录从 delivered 实时更新为
+  success/failed。
+- **失败处理**：turn 失败 → 系统通知 + `scheduledTaskFailed` SSE 事件 +
+  30 秒后自动重试一次（同一条 RunRecord 累积 attempts）；成功发
+  `scheduledTaskSucceeded`。
+- 桥 `POST /agent/tasks/enable`：暂停/恢复任务（缺省为切换）。
+
+### Verified
+
+- E2E：fire → delivered → （真实模型完成 turn）→ success 记录 + SSE
+  scheduledTaskSucceeded；两次触发产生两条独立记录。
+
 ## [v0.1.8] - 2026-09-18
 
 ### Added

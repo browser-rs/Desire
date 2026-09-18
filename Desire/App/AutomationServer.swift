@@ -610,6 +610,16 @@ final class AutomationServer {
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
             case ("POST", "/agent/tasks/fire"):
                 return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/agent/tasks/enable"):
+                return try Self.json(Self.setAgentTaskEnabled(
+                    name: Self.string(body, "name") ?? "",
+                    enabled: body["enabled"] as? Bool
+                ))
+            case ("GET", "/agent/runs"):
+                return try Self.json(Self.agentRuns(
+                    name: Self.string(query, "name"),
+                    count: Int(query["count"] ?? "20") ?? 20
+                ))
             case ("POST", "/approvals/simulate"):
                 return try Self.json(Self.simulateApproval())
             default:
@@ -1413,6 +1423,35 @@ final class AutomationServer {
             return ["error": "no such task"]
         }
         return ["ok": true]
+    }
+
+    private static func setAgentTaskEnabled(name: String, enabled: Bool?) throws -> [String: Any] {
+        guard let task = AgentScheduler.shared.tasks.first(where: { $0.name.lowercased() == name.lowercased() }) else {
+            return ["error": "no such task"]
+        }
+        AgentScheduler.shared.setEnabled(enabled ?? !task.isEnabled, for: task.id)
+        return ["ok": true, "name": name, "enabled": enabled ?? !task.isEnabled]
+    }
+
+    private static func agentRuns(name: String?, count: Int) throws -> [String: Any] {
+        var runs = AgentScheduler.shared.runs
+        if let name, !name.isEmpty {
+            runs = runs.filter { $0.taskName.lowercased() == name.lowercased() }
+        }
+        let formatter = ISO8601DateFormatter()
+        let rows = runs.prefix(count).map { r -> [String: Any] in
+            [
+                "id": r.id.uuidString,
+                "task": r.taskName,
+                "firedAt": formatter.string(from: r.firedAt),
+                "finishedAt": r.finishedAt.map(formatter.string(from:)) ?? "",
+                "status": r.status,
+                "success": r.success ?? NSNull(),
+                "error": r.error ?? "",
+                "attempts": r.attempts,
+            ]
+        }
+        return ["runs": Array(rows)]
     }
 
     /// Arms a real pending approval on the live session (plumbing E2E

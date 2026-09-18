@@ -11,6 +11,13 @@ import WebKit
 /// actor against the ACTIVE window's TabManager
 /// (TabSessionCoordinator.shared).
 ///
+/// Self-describing: `GET /` returns the full endpoint catalog (with params
+/// and examples) plus the SSE event list — machines learn the driver there.
+///
+/// Auth (optional): launch with `--automation-token <token>`; every request
+/// must then carry `Authorization: Bearer <token>`. Default stays open on
+/// localhost.
+///
 /// Endpoints (JSON in / JSON out):
 ///   GET  /state              → {tabs:[{index,title,url,incognito}], selected, agentBusy}
 ///   POST /navigate           {"url":"https://…","index":0?}   → {ok}
@@ -89,6 +96,30 @@ final class AutomationServer {
 
     // MARK: - Connection handling
 
+    /// When the app was launched with `--automation-token <token>`, every
+    /// request (including /events) must carry `Authorization: Bearer <token>`.
+    /// Default: no token → localhost open, behavior unchanged.
+    private static let requiredToken: String? = {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--automation-token"), i + 1 < args.count {
+            return args[i + 1]
+        }
+        if let i = args.firstIndex(where: { $0.hasPrefix("--automation-token=") }) {
+            return String(args[i].dropFirst("--automation-token=".count))
+        }
+        return nil
+    }()
+
+    private static func isAuthorized(_ request: String) -> Bool {
+        guard let requiredToken else { return true }
+        guard let header = request
+            .split(separator: "\r\n", omittingEmptySubsequences: false)
+            .first(where: { $0.lowercased().hasPrefix("authorization:") }) else {
+            return false
+        }
+        return header.lowercased().contains("bearer \(requiredToken.lowercased())")
+    }
+
     private func handle(_ connection: NWConnection) {
         connection.start(queue: .main)
         connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, _, error in
@@ -98,6 +129,14 @@ final class AutomationServer {
                 return
             }
             Task { @MainActor in
+                guard Self.isAuthorized(request) else {
+                    let body = Self.error("unauthorized — missing or wrong bearer token")
+                    let head = "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+                    connection.send(content: head.data(using: .utf8)! + body.data(using: .utf8)!, completion: .contentProcessed { _ in
+                        connection.cancel()
+                    })
+                    return
+                }
                 // SSE stream: long-lived, not routed through the one-shot
                 // request/response path.
                 if request.hasPrefix("GET /events") {
@@ -150,6 +189,116 @@ final class AutomationServer {
         Log.agent.info("bridge events: stream opened (\(self.eventStreamConnections.count, privacy: .public) live)")
     }
 
+    // MARK: - Self description
+
+    /// Self-describing endpoint catalog served at `GET /`. Lets any AI or
+    /// script learn the driver without external docs. KEEP IN SYNC with the
+    /// switch below — new endpoints get an entry here.
+    private static let endpointCatalog: [[String: Any]] = { () -> [[String: Any]] in
+        var eps: [[String: Any]] = []
+        func ep(_ method: String, _ path: String, _ description: String, params: [String] = [], example: String) {
+            eps.append(["method": method, "path": path, "description": description,
+                        "params": params,
+                        "example": "curl -s \(method == "GET" ? "" : "-X \(method) ")http://127.0.0.1:8799\(path) → \(example)"])
+        }
+        // Browsing
+        ep("GET", "/state", "All tabs (index/title/url/incognito/selected) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
+        ep("POST", "/navigate", "Navigate a tab", params: ["url:string (required)", "index?:int"], example: #"-d '{"url":"https://example.com"}'"#)
+        ep("POST", "/back", "Go back", params: ["index?:int"], example: "-d '{}'")
+        ep("POST", "/forward", "Go forward", params: ["index?:int"], example: "-d '{}'")
+        ep("POST", "/reload", "Reload", params: ["index?:int"], example: "-d '{}'")
+        ep("POST", "/new-tab", "Open a tab (optionally incognito / in a named container)", params: ["url?:string", "incognito?:bool", "container?:string"], example: #"-d '{"url":"https://example.com","incognito":true}'"#)
+        ep("POST", "/close-tab", "Close tab (last tab closes its window)", params: ["index?:int"], example: "-d '{\"index\":1}'")
+        ep("POST", "/switch-tab", "Select tab", params: ["index:int"], example: "-d '{\"index\":0}'")
+        ep("GET", "/page/text", "Visible page text (≤20k chars)", params: ["index?:int"], example: "…/page/text?index=0")
+        ep("GET", "/page/url", "url/title/isLoading/zoom/error", params: ["index?:int"], example: "…/page/url")
+        ep("GET", "/page/timing", "Navigation timing (ttfb/load/protocol)", params: ["index?:int"], example: "…/page/timing")
+        ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
+        ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
+        ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
+        ep("GET", "/screenshot", "PNG of selected tab → ~/desire_automation.png", example: "…/screenshot")
+        // Panels & chrome
+        ep("POST", "/panel", "Open/close an app panel (downloads)", params: ["name:string", "show?:bool"], example: #"-d '{"name":"downloads","show":true}'"#)
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string"], example: "…/panel/snapshot?name=downloads")
+        ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
+        // Downloads
+        ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
+        ep("POST", "/downloads/pause", "Pause", params: ["id?:uuid"], example: "-d '{}'")
+        ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
+        // Data stores
+        ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
+        ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
+        ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
+        ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
+        ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
+        ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
+        ep("POST", "/search-history/clear", "Clear search history", example: "-d '{}'")
+        ep("GET", "/quickdial", "New-tab quick dial", example: "…/quickdial")
+        ep("POST", "/quickdial/add", "Add dial", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
+        ep("POST", "/quickdial/delete", "Delete by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/site-settings", "Per-host zoom/darkMode/blockedSelectors", params: ["host:string"], example: "…/site-settings?host=example.com")
+        ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
+        ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
+        ep("GET", "/elements", "Element-blocker rules", example: "…/elements")
+        ep("POST", "/elements/add", "Hide matching CSS on matching hosts", params: ["selector:string", "pattern:string"], example: #"-d '{"selector":"nav","pattern":"example.com"}'"#)
+        ep("POST", "/elements/remove", "Remove rule", params: ["selector:string", "pattern:string"], example: "-d '{…}'")
+        ep("POST", "/tabs/pin", "Pin/unpin", params: ["index?:int", "pinned?:bool"], example: #"-d '{"index":0,"pinned":true}'"#)
+        ep("GET", "/tabgroups", "Tab groups", example: "…/tabgroups")
+        ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
+        ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
+        ep("POST", "/tabgroups/delete", "Delete group (tabs survive)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
+        ep("POST", "/containers/remove", "Remove container by name", params: ["name:string"], example: "-d '{\"name\":\"Shop\"}'")
+        ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
+        ep("POST", "/passwords/resolve", "Resolve save-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
+        ep("POST", "/passwords/delete", "Delete credentials for domain", params: ["domain:string"], example: "-d '{\"domain\":\"example.com\"}'")
+        ep("GET", "/shortcuts", "Shortcut mappings + live NSMenu accelerators", example: "…/shortcuts")
+        ep("POST", "/shortcuts/update", "Re-record binding (next launch)", params: ["id:string", "key:string", "modifierFlags:uint"], example: #"-d '{"id":"newTab","key":"k","modifierFlags":1048576}'"#)
+        // Agent
+        ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
+        ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
+        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt:string", "minutes?:int | hour+minute"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
+        ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
+        ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
+        ep("GET", "/approvals", "Pending tool approval", example: "…/approvals")
+        ep("POST", "/approvals/resolve", "Resolve approval", params: ["decision:string"], example: #"-d '{"decision":"allow_once"}'"#)
+        ep("POST", "/approvals/simulate", "Arm a REAL pending approval (no model turn)", example: "-d '{}'")
+        ep("GET", "/beforeunload", "beforeunload guard state", params: ["index?:int"], example: "…/beforeunload")
+        ep("POST", "/beforeunload/resolve", "Resolve guard (leave=true navigates)", params: ["leave:bool", "index?:int"], example: "-d '{\"leave\":false}'")
+        ep("GET", "/reader", "Reader-mode extraction state", params: ["index?:int"], example: "…/reader")
+        ep("GET", "/console", "Console messages", params: ["count?:int"], example: "…/console?count=20")
+        // Misc
+        ep("GET", "/settings", "A couple of global settings", example: "…/settings")
+        ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
+        ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
+        ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
+        return eps
+    }()
+
+    /// Machine-readable driver documentation: endpoint catalog + SSE events.
+    private static func index() throws -> [String: Any] {
+        let events: [[String: Any]] = [
+            ["event": "pageReady", "payload": ["url", "title"], "when": "a tab finished loading"],
+            ["event": "downloadStarted", "payload": ["id", "file", "source"]],
+            ["event": "downloadCompleted", "payload": ["id", "file", "bytes", "private"]],
+            ["event": "downloadFailed", "payload": ["id", "file", "error"]],
+            ["event": "approvalPending", "payload": ["tool", "risk"], "resolve": "POST /approvals/resolve"],
+            ["event": "tabOpened", "payload": ["index", "count"]],
+            ["event": "tabClosed", "payload": ["closedId", "count"]],
+            ["event": "beforeunloadPending", "payload": ["url", "message"], "resolve": "POST /beforeunload/resolve"],
+        ]
+        return [
+            "service": "Desire Automation Bridge",
+            "baseUrl": "http://127.0.0.1:8799",
+            "auth": "optional — launch with `--automation-token <token>`, send `Authorization: Bearer <token>`",
+            "events": ["transport": "SSE", "path": "/events", "kinds": events],
+            "endpoints": endpointCatalog,
+        ]
+    }
+
     // MARK: - Routing
 
     private func route(_ request: String) async -> String {
@@ -180,6 +329,8 @@ final class AutomationServer {
 
         do {
             switch (method, path) {
+            case ("GET", "/"):
+                return try Self.json(Self.index())
             case ("GET", "/state"):
                 return try Self.json(Self.appState())
             case ("POST", "/navigate"):

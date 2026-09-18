@@ -35,6 +35,15 @@ extension ContentView {
                 thumbnailStore.clearThumbnail(for: tabId)
                 tabManager.closeTab(at: index)
             },
+            onCloseTabID: { id in
+                // Middle-click close: resolve the index live (the monitor's
+                // registered closure must not hold stale snapshots). Mirrors
+                // the X button's semantics — the last tab stays.
+                guard tabManager.tabs.count > 1,
+                      let index = tabManager.tabs.firstIndex(where: { $0.id == id }) else { return }
+                thumbnailStore.clearThumbnail(for: id)
+                tabManager.closeTab(at: index)
+            },
             onAddTab: {
                 tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
                 showTabSwitcher = false

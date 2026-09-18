@@ -80,7 +80,9 @@ struct Toolbar: View {
         let onSelectCustom: (UUID) -> Void
     }
 
-    @State private var showDownloads = false
+    /// Downloads-popover visibility. Owned by `AppState` (not local state)
+    /// so the automation bridge can open the panel for screenshots.
+    @Binding var showDownloads: Bool
     @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false

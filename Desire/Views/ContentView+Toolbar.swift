@@ -113,6 +113,10 @@ extension ContentView {
             onTextChange: { [bm = bookmarkStore, hist = historyStore, st = settings] newValue in
                 suggestionModel.build(query: newValue, settings: st, bookmarks: bm, history: hist)
             },
+            showDownloads: Binding(
+                get: { appState.showDownloadsPanel },
+                set: { appState.showDownloadsPanel = $0 }
+            ),
             isBookmarked: isBookmarked
         )
     }

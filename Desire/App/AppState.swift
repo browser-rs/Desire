@@ -18,10 +18,19 @@ import SwiftUI
 /// window was last key.
 @MainActor
 class AppState: ObservableObject {
+    /// Process-wide instance (weak, same pattern as `DownloadStore.live`) —
+    /// the automation bridge reaches app-shell UI state through it.
+    static private(set) weak var live: AppState?
+
     let browsing: BrowsingState
     let ai: AgentState
     let privacy: PrivacyState
     let system: SystemState
+
+    /// Whether the downloads popover is open. Lives here (not in Toolbar
+    /// local state) so the automation bridge can open the panel to
+    /// screenshot SwiftUI chrome that the webview-only /screenshot misses.
+    @Published var showDownloadsPanel = false
 
     /// Tracks whether the launch session has been restored. Set to true by
     /// the first window's `onAppear`; subsequent user-opened windows skip
@@ -34,6 +43,7 @@ class AppState: ObservableObject {
         ai = AgentState()
         privacy = PrivacyState()
         system = SystemState()
+        Self.live = self
     }
 
     // MARK: - Forwarding accessors

@@ -10,6 +10,11 @@ struct TabBar: View {
     let showSwitcher: Bool
     let onSelectTab: (Int) -> Void
     let onCloseTab: (Int) -> Void
+    /// Closes by tab identity, resolving the index live at call time. Used
+    /// by middle-click close, whose registered closure would otherwise hold
+    /// a stale index/tab-count snapshot (pill frames don't change when other
+    /// tabs are added/removed, so no re-registration fires).
+    let onCloseTabID: (UUID) -> Void
     let onAddTab: () -> Void
     /// Registered containers — shown in the "+" button's right-click menu.
     var containers: [TabContainer] = []
@@ -113,6 +118,7 @@ struct TabBar: View {
                                     createGroup: onCreateGroup,
                                     duplicateTab: onDuplicateTab
                                 ),
+                                onCloseTabID: onCloseTabID,
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
                                 containerColor: containerFor(tab.containerID)?.color,
@@ -169,6 +175,7 @@ struct TabBar: View {
                                     createGroup: onCreateGroup,
                                     duplicateTab: onDuplicateTab
                                 ),
+                                onCloseTabID: onCloseTabID,
                                 tabs: tabs,
                                 groupColor: tabGroupColor(tab.id),
                                 containerColor: containerFor(tab.containerID)?.color,
@@ -287,6 +294,8 @@ private struct TabPillView: View {
     let index: Int
     let selectedIndex: Int
     let actions: TabBar.TabPillActions
+    /// Live close-by-identity channel for the middle-click monitor.
+    let onCloseTabID: (UUID) -> Void
     let tabs: [Tab]
     /// Derived from TabGroupStore: the color for this tab's group, if any.
     let groupColor: Color?
@@ -308,6 +317,19 @@ private struct TabPillView: View {
     @State private var isHovering = false
     @State private var hoverTimer: Timer?
     @State private var pillFrame: CGRect = .zero
+
+    /// Publishes this pill's frame + close action to the middle-click
+    /// monitor. The closure captures ONLY the tab id — the index and tab
+    /// list are resolved live by the receiver, so a frame registered before
+    /// other tabs were added/removed still closes the right tab.
+    private func registerMiddleClickFrame() {
+        let tabID = tab.id
+        TabMiddleClickMonitor.shared.register(
+            frame: pillFrame,
+            for: tabID,
+            close: { onCloseTabID(tabID) }
+        )
+    }
 
     var body: some View {
         let showClose = !tab.isPinned && isHovering
@@ -385,12 +407,19 @@ private struct TabPillView: View {
         .background(
             GeometryReader { geo in
                 Color.clear
-                    .onAppear { pillFrame = geo.frame(in: .global) }
+                    .onAppear {
+                        pillFrame = geo.frame(in: .global)
+                        registerMiddleClickFrame()
+                    }
                     .onChange(of: geo.frame(in: .global)) { _, new in
                         pillFrame = new
+                        registerMiddleClickFrame()
                     }
             }
         )
+        .onDisappear {
+            TabMiddleClickMonitor.shared.unregister(id: tab.id)
+        }
         .onHover { hovering in
             isHovering = hovering
             if hovering && !tab.isOnNewTabPage {

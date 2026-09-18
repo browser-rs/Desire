@@ -19,10 +19,17 @@ struct DownloadItem: Identifiable {
     var startTime: Date = Date()
     var lastUpdateTime: Date = Date()
     var speed: Int64 = 0 // bytes per second
+    /// Download originated in an incognito tab — never persisted to the
+    /// shared download history (in-memory only, like resumeData).
+    var isPrivate: Bool = false
 
     /// Partial-transfer data for pause/retry. In-memory only — resume data
     /// is meaningless after a relaunch, so `HistoryItem` never persists it.
     var resumeData: Data? = nil
+    /// WebKit reported this transfer cannot produce usable resume data
+    /// (e.g. the server ignores Range requests) — resume restarts from the
+    /// source URL instead of checkpointing. In-memory only.
+    var resumeUnavailable: Bool = false
     /// Pauses the underlying transfer: `suspend()` for URLSession tasks,
     /// `cancel(byProducingResumeData:)` for webview downloads (whose pause
     /// is a resume-data checkpoint — WKDownload cannot be suspended).

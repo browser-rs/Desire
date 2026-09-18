@@ -235,6 +235,20 @@ Features/Bookmarks/
   然后必须 `curl /state` 验证桥活着再继续。
 - **网络抖动会造成假阳性**（example.com 白屏、baidu 间歇失败均发生过）。
   任何"加载失败"结论必须复测两次以上才能定性。
+- **中键/鼠标事件的合成测试**（2026-09 摸索）：webview 内事件用
+  `/execute` 注入 `new MouseEvent("auxclick",{button:1})` 即可；
+  标签栏等 SwiftUI 层事件用 CGEvent.postToPid（只投递给目标进程，
+  不碰其他应用、不切空间）。注意：postToPid 事件坐标不可信（会被
+  替换成系统光标位置，且 y 轴按窗口底部原点翻转），须先
+  CGWarpMouseCursorPosition 到目标点、投递 y 取 `屏高-y`、再还原光标；
+  胶囊实际矩形可从 `log stream --predicate
+  'subsystem == "me.siwi.Desire" AND category == "tabs"' --level info`
+  的 middle-click 日志里读到。`/downloads/pause|resume` 端点可直接
+  驱动下载暂停/恢复复现竞态。SwiftUI 面板（下载 popover 等）用
+  `POST /panel {"name":"downloads","show":true}` 打开后
+  `GET /panel/snapshot?name=downloads` 在进程内渲染成 PNG——
+  不需要屏幕录制权限，锁定屏幕/捕获遮罩下也能用（screencapture -l
+  在这些情况下只会报 could not create image）。
 
 ## 已知半成品 / 未支持完整的功能
 
@@ -247,10 +261,27 @@ Features/Bookmarks/
   亦不立即死）。怀疑挂起网络会话/审批 continuation。低频未定位。
 - **快捷键设置页是摆设**：KeyboardShortcutStore 无消费方，实际快捷键
   硬编码在 DesireApp + ContentView+Overlays。
-- **下载**：暂停→秒恢复竞态（resumeData 未就绪时 resume 成僵尸）；
-  无痕下载仍写入共享下载历史。
-- **中键**（关标签/开链接）、beforeunload 表单保护、多窗口 Agent
-  联动：未实现。
+- **下载**：暂停→秒恢复竞态已修复（2026-09：resume 先挂起意图，
+  checkpoint 数据落地后由 storeResumeData 触发；数据为空
+  （服务器不支持 Range）则删残件、复用原文件名重启，见
+  DownloadStore.pendingResumeIDs）。无痕下载已隔离：DownloadItem.isPrivate
+  行内可见但不写入共享历史（BrowserState.isIncognito 来源）。
+  暂停行已能跨重启存活：HistoryItem.isPaused 持久化（2026-09 之前
+  暂停行重启会变成假活行）；恢复无活动传输的行会自动从源 URL 重启。
+- **中键**（关标签/开链接）已实现（2026-09）：关标签走
+  TabMiddleClickMonitor（本地 NSEvent 监视器 + 胶囊帧注册表，闭包只捕获
+  tab.id、关闭时实时查 index——勿改回捕获 index 快照，会在增删标签后
+  失效）；开链接走注入的 middle-click.js（auxclick button==1）→
+  middleClickLink 消息 → onOpenLinkInNewTab。
+- **beforeunload 表单保护**已实现（2026-09）：本版 WebKit 对无用户手势
+  的卸载**完全不派发** beforeunload（实测 sendBeacon 在 handler 内都不
+  触发，原生 `runJavaScriptBeforeUnloadConfirmPanelWithMessage` 永远
+  不会被调用），因此保护做在 decidePolicyFor 主框架导航决策点：
+  合成派发页面的 beforeunload 监听器（WebView.beforeUnloadProbeJS），
+  页面拒绝离开时弹 sheet（PendingBeforeUnload，可经桥
+  `GET /beforeunload` / `POST /beforeunload/resolve` 程序化决策）。
+  back/forward/reload 沿用"不拦截"既定策略不在此保护内。
+- **多窗口 Agent 联动**：未实现。
 - **passkey**：需要 Apple 签发 private-key-credential entitlement，
   已申请流程见 docs/。
 - **Keychain 域**：沙盒移除后 API key 需在设置里重新保存一次

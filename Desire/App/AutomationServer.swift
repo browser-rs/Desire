@@ -22,9 +22,21 @@ import WebKit
 ///   POST /switch-tab         {"index":0}                      → {ok}
 ///   GET  /page/text?index=0  → {text} (visible text, ≤20k chars)
 ///   GET  /page/url?index=0   → {url,title}
+///   GET  /page/timing?index=0 → {ttfb,domContentLoaded,load,transferBytes,protocol}
 ///   GET  /screenshot         → {path} PNG of the selected tab (≤1280w)
 ///   GET  /history?count=10   → {entries:[{title,url}]}
 ///   GET  /bookmarks          → {entries:[{title,url}]}
+///   GET  /downloads          → {downloads:[{id,file,state,paused,bytes,total,private}]}
+///   POST /downloads/pause    {"id"?:uuid}  (first in-progress if omitted) → {ok,id}
+///   POST /downloads/resume   {"id"?:uuid}  (first paused if omitted)      → {ok,id}
+///   GET  /beforeunload?index=0 → {pending,message?}   (form-protection prompt)
+///   POST /beforeunload/resolve {"leave":true,"index":0?} → {ok}
+///   POST /execute            {"js":"…","index":0?} → {result} (page JS, for
+///                              synthetic-event tests like middle click)
+///   POST /panel              {"name":"downloads","show":true?} → {ok,visible}
+///                              (show omitted → toggle)
+///   GET  /panel/snapshot?name=downloads → {path} PNG rendered in-process
+///                              (works even when the display is shielded)
 ///   GET  /agent/messages     → {messages:[{role,content…}],busy}
 ///   POST /agent/send         {"text":"…"}                     → {ok}
 @MainActor
@@ -202,6 +214,13 @@ final class AutomationServer {
                 return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize])
             case ("GET", "/approvals"):
                 return try Self.json(Self.pendingApproval())
+            case ("GET", "/beforeunload"):
+                return try Self.json(Self.beforeUnloadState(index: Self.index(query)))
+            case ("POST", "/beforeunload/resolve"):
+                return try Self.json(Self.resolveBeforeUnload(
+                    index: Self.index(body),
+                    leave: body["leave"] as? Bool ?? true
+                ))
             case ("POST", "/approvals/resolve"):
                 return try Self.json(Self.resolvePendingApproval(
                     Self.string(body, "decision") ?? ""
@@ -226,6 +245,19 @@ final class AutomationServer {
                 return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name)])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
+            case ("POST", "/downloads/pause"):
+                return try Self.json(Self.pauseDownload(Self.string(body, "id")))
+            case ("POST", "/downloads/resume"):
+                return try Self.json(Self.resumeDownload(Self.string(body, "id")))
+            case ("POST", "/execute"):
+                return try await Self.json(Self.execute(Self.string(body, "js") ?? "", index: Self.index(body)))
+            case ("POST", "/panel"):
+                return try Self.json(Self.panel(
+                    name: Self.string(body, "name") ?? "",
+                    show: body["show"] as? Bool
+                ))
+            case ("GET", "/panel/snapshot"):
+                return try Self.json(Self.panelSnapshot(name: query["name"] ?? "downloads"))
             case ("GET", "/bookmarks"):
                 return try Self.json(Self.bookmarks())
             case ("GET", "/agent/messages"):
@@ -416,14 +448,90 @@ final class AutomationServer {
         guard let store = DownloadStore.live else { return ["error": "store not ready"] }
         let items = store.downloads.map { item -> [String: Any] in
             [
+                "id": item.id.uuidString,
                 "file": item.filename,
                 "state": item.state.rawValue,
                 "paused": item.isPaused,
                 "bytes": item.downloadedBytes,
                 "total": item.totalBytes,
+                "private": item.isPrivate,
             ]
         }
         return ["downloads": Array(items)]
+    }
+
+    /// Drives the pause→resume path so external tests can reproduce the
+    /// instant-resume race (resume pressed before the checkpoint data lands).
+    private static func pauseDownload(_ id: String?) throws -> [String: Any] {
+        guard let store = DownloadStore.live else { return ["error": "store not ready"] }
+        guard let uuid = id.flatMap(UUID.init(uuidString:)) ?? store.downloads.first(where: { $0.state == .inProgress })?.id else {
+            return ["error": "no such download"]
+        }
+        store.pause(id: uuid)
+        return ["ok": true, "id": uuid.uuidString, "paused": true]
+    }
+
+    private static func resumeDownload(_ id: String?) throws -> [String: Any] {
+        guard let store = DownloadStore.live else { return ["error": "store not ready"] }
+        guard let uuid = id.flatMap(UUID.init(uuidString:)) ?? store.downloads.first(where: { $0.isPaused })?.id else {
+            return ["error": "no paused download"]
+        }
+        store.resume(id: uuid)
+        return ["ok": true, "id": uuid.uuidString, "paused": false]
+    }
+
+    /// Runs JS in the page and returns the result. Synthetic-event driven
+    /// tests (middle click, keyboard) go through here.
+    private static func execute(_ js: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        let result: Any? = await withCheckedContinuation { continuation in
+            tab.browser.webView.evaluateJavaScript(js) { result, _ in
+                continuation.resume(returning: result)
+            }
+        }
+        return ["result": result as Any ?? NSNull()]
+    }
+
+    /// Opens/closes app-shell panels so external drivers can screenshot
+    /// SwiftUI chrome that /screenshot (webview-only) cannot see.
+    private static func panel(name: String, show: Bool?) throws -> [String: Any] {
+        guard name == "downloads" else { return ["error": "unknown panel"] }
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let visible = show ?? !app.showDownloadsPanel
+        app.showDownloadsPanel = visible
+        return ["ok": true, "visible": visible]
+    }
+
+    /// Renders an open panel's content view to PNG **in-process** via
+    /// `dataWithPDF` — unlike `screencapture -l` this works while the
+    /// display is occluded, on another Space, or capture-shielded.
+    private static func panelSnapshot(name: String) throws -> [String: Any] {
+        guard name == "downloads" else { return ["error": "unknown panel"] }
+        // SwiftUI presents .popover content in an NSPopover-backed window.
+        let popoverWindow = NSApp.windows.first { window in
+            let kind = String(describing: type(of: window))
+            if kind.contains("Popover") { return true }
+            // Fallback: any small visible window (the main window is
+            // screen-sized, chrome strips are tiny-height).
+            return window.isVisible
+                && window.frame.width > 200 && window.frame.width < 600
+                && window.frame.height > 200
+        }
+        guard let window = popoverWindow, let view = window.contentView else {
+            return ["error": "downloads popover not open"]
+        }
+        // NSHostingView is layer-backed and draws black via dataWithPDF;
+        // cacheDisplay goes through the view's own drawing path.
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = NSHomeDirectory() + "/desire_panel.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
     }
 
     private static func pendingApproval() throws -> [String: Any] {
@@ -439,6 +547,21 @@ final class AutomationServer {
             "arguments": approval.argumentsSummary,
             "risk": approval.risk.displayName,
         ]
+    }
+
+    /// beforeunload 表单保护的程序化决策入口：GET /beforeunload 查询挂起
+    /// 状态，POST /beforeunload/resolve {"leave":true|false} 替用户点击。
+    private static func beforeUnloadState(index: Int?) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let pending = tab.browser.pendingBeforeUnload else { return ["pending": false] }
+        return ["pending": true, "message": pending.message]
+    }
+
+    private static func resolveBeforeUnload(index: Int?, leave: Bool) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let pending = tab.browser.pendingBeforeUnload else { return ["error": "no pending before-unload"] }
+        pending.respond(leave: leave)
+        return ["ok": true, "leave": leave]
     }
 
     /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.

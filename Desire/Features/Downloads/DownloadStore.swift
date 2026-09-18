@@ -22,6 +22,17 @@ class DownloadStore: ObservableObject {
     /// Active URLSession download tasks keyed by DownloadItem.id, so
     /// pause/resume can actually suspend/resume the network transfer.
     private var activeTasks: [UUID: URLSessionDownloadTask] = [:]
+    /// Store-owned session: the completion-handler download API only
+    /// reports at the END of a transfer (restarted downloads sat frozen at
+    /// 0 bytes), so progress flows through the delegate instead.
+    private lazy var storeSession: URLSession = {
+        URLSession(configuration: .default, delegate: StoreDownloadDelegate(store: self), delegateQueue: nil)
+    }()
+    /// Resume requests parked because the webview's checkpoint data had not
+    /// arrived yet: pausing a webview download cancels it and the resume
+    /// data is delivered asynchronously — resuming with a nil checkpoint
+    /// strands the row (unpaused, nothing transferring).
+    private var pendingResumeIDs: Set<UUID> = []
 
     enum GroupingMode: String, CaseIterable {
         case date, fileType, status
@@ -146,9 +157,34 @@ class DownloadStore: ObservableObject {
         } else {
             activeTasks[id]?.suspend()
         }
+        // Persist immediately — a quit/crash right after pausing must not
+        // resurrect the row as fake-active on next launch.
+        saveHistory()
     }
 
     func resume(id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isPaused else { return }
+        // Webview pause is a resume-data checkpoint that lands asynchronously.
+        // If it hasn't arrived yet, park the request — storeResumeData fires
+        // it the moment the checkpoint is in.
+        if downloads[i].resumeAction != nil, downloads[i].resumeData == nil {
+            if downloads[i].resumeUnavailable {
+                restartFromSource(id: id)
+            } else {
+                pendingResumeIDs.insert(id)
+            }
+            return
+        }
+        // Rows restored from disk have no live transfer behind them —
+        // resume means restarting from the source URL.
+        if downloads[i].resumeAction == nil, activeTasks[id] == nil {
+            restartFromSource(id: id)
+            return
+        }
+        performResume(id: id)
+    }
+
+    private func performResume(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isPaused else { return }
         downloads[i].isPaused = false
         downloads[i].lastUpdateTime = Date()
@@ -157,6 +193,30 @@ class DownloadStore: ObservableObject {
         } else {
             activeTasks[id]?.resume()
         }
+        saveHistory()
+    }
+
+    /// Checkpoint resume is impossible (no usable resume data, e.g. a server
+    /// that ignores Range requests): restart the transfer from scratch on the
+    /// same row identity the user sees. Falls back to failing the row when
+    /// the source URL is unknown.
+    private func restartFromSource(id: UUID) {
+        pendingResumeIDs.remove(id)
+        guard let item = downloads.first(where: { $0.id == id }), let sourceURL = item.sourceURL else {
+            fail(id: id, message: String(localized: "This download cannot be resumed"))
+            return
+        }
+        let filename = item.filename
+        let wasPrivate = item.isPrivate
+        // The partial file cannot be continued — delete it so the fresh
+        // transfer reclaims the original destination name instead of leaving
+        // an orphan partial and landing on "name 2.zip".
+        if let partial = item.fileURL, item.state != .completed,
+           FileManager.default.fileExists(atPath: partial.path) {
+            try? FileManager.default.removeItem(at: partial)
+        }
+        remove(id: id)
+        startURLSessionDownload(sourceURL: sourceURL, filename: filename, isPrivate: wasPrivate)
     }
 
     func setPriority(id: UUID, priority: DownloadItem.Priority) {
@@ -294,6 +354,7 @@ class DownloadStore: ObservableObject {
     }
 
     func remove(id: UUID) {
+        pendingResumeIDs.remove(id)
         if let item = downloads.first(where: { $0.id == id }), item.state == .inProgress {
             item.cancel?()
         }
@@ -308,8 +369,9 @@ class DownloadStore: ObservableObject {
 
     private func saveHistory() {
         // Paused downloads must survive quit too — the partial file is on
-        // disk and the user expects the row back on relaunch.
-        let finished = downloads.filter { $0.state != .inProgress || $0.isPaused }
+        // disk and the user expects the row back on relaunch. Incognito
+        // downloads are excluded: they must leave no trace on disk.
+        let finished = downloads.filter { !$0.isPrivate && ($0.state != .inProgress || $0.isPaused) }
         let items = finished.map { HistoryItem($0) }
         DiskStore.save(items, key: historyKey)
     }
@@ -353,27 +415,25 @@ class DownloadStore: ObservableObject {
             return
         }
         guard let sourceURL = item.sourceURL else { return }
+        let wasPrivate = item.isPrivate
         remove(id: item.id)
-        startURLSessionDownload(sourceURL: sourceURL, filename: item.filename)
+        startURLSessionDownload(sourceURL: sourceURL, filename: item.filename, isPrivate: wasPrivate)
     }
 
     /// Store-owned transfer for retries ("下载链接" style): validates the HTTP
     /// status (URLSession hands us the ERROR PAGE for a 404 and would happily
     /// save it as the file), classifies failures, and captures resume data
-    /// when the server allows ranges.
-    private func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil) {
+    /// when the server allows ranges. Progress arrives via StoreDownloadDelegate.
+    private func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil, isPrivate: Bool = false) {
         let itemId = UUID()
-        let completion: @Sendable (URL?, URLResponse?, Error?) -> Void = { [weak self] tempURL, response, error in
-            Task { @MainActor [weak self] in
-                self?.finishURLSessionDownload(id: itemId, tempURL: tempURL, response: response, error: error)
-            }
-        }
         let task: URLSessionDownloadTask
         if let resumeData {
-            task = URLSession.shared.downloadTask(withResumeData: resumeData, completionHandler: completion)
+            task = storeSession.downloadTask(withResumeData: resumeData)
         } else {
-            task = URLSession.shared.downloadTask(with: sourceURL, completionHandler: completion)
+            task = storeSession.downloadTask(with: sourceURL)
         }
+        // The delegate routes progress/completion back by id.
+        task.taskDescription = itemId.uuidString
         activeTasks[itemId] = task
         var item = DownloadItem(
             id: itemId, filename: filename, fileURL: nil,
@@ -384,13 +444,16 @@ class DownloadStore: ObservableObject {
             },
             sourceURL: sourceURL
         )
+        item.isPrivate = isPrivate
         item.pauseAction = { [weak task] in task?.suspend() }
         item.resumeAction = { [weak task] (_: Data?) in task?.resume() }
         _ = add(item: item)
         task.resume()
     }
 
-    private func finishURLSessionDownload(id: UUID, tempURL: URL?, response: URLResponse?, error: Error?) {
+    /// Delegate-only: called by `StoreDownloadDelegate` (same file) with the
+    /// moved temp file or a transfer error.
+    fileprivate func finishURLSessionDownload(id: UUID, tempURL: URL?, response: URLResponse?, error: Error?) {
         activeTasks[id] = nil
         if let error {
             let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
@@ -416,10 +479,23 @@ class DownloadStore: ObservableObject {
     }
 
     /// Stashes resume data on the item (in-memory) so pause/retry can
-    /// continue the partial transfer.
+    /// continue the partial transfer, and fires any resume request that was
+    /// parked while the checkpoint was in flight.
     func storeResumeData(_ data: Data?, for id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].resumeData = data
+        if let data, !data.isEmpty {
+            if pendingResumeIDs.remove(id) != nil {
+                performResume(id: id)
+            }
+        } else {
+            // WebKit cannot checkpoint this transfer — a parked resume (or a
+            // later one) must restart from the source instead.
+            downloads[i].resumeUnavailable = true
+            if pendingResumeIDs.remove(id) != nil {
+                restartFromSource(id: id)
+            }
+        }
     }
 
     /// Maps transfer failures to short, actionable localized messages.
@@ -468,6 +544,48 @@ class DownloadStore: ObservableObject {
     }
 }
 
+/// Bridges `URLSessionDownloadDelegate` callbacks into the (MainActor)
+/// `DownloadStore`. The task's `taskDescription` carries the item id.
+private final class StoreDownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    weak var store: DownloadStore?
+
+    init(store: DownloadStore) {
+        self.store = store
+        super.init()
+    }
+
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
+        Task { @MainActor [weak store] in
+            store?.updateProgress(id: id, totalBytes: totalBytesExpectedToWrite, downloadedBytes: totalBytesWritten)
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // The file at `location` is deleted as soon as this method returns —
+        // move it somewhere stable before hopping to the main actor.
+        let stable = FileManager.default.temporaryDirectory
+            .appendingPathComponent("desire-dl-\(UUID().uuidString)")
+        try? FileManager.default.moveItem(at: location, to: stable)
+        guard let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
+        let response = downloadTask.response
+        Task { @MainActor [weak store] in
+            store?.finishURLSessionDownload(id: id, tempURL: stable, response: response, error: nil)
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error,
+              let downloadTask = task as? URLSessionDownloadTask,
+              let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
+        // Success already went through didFinishDownloadingTo.
+        let response = downloadTask.response
+        Task { @MainActor [weak store] in
+            store?.finishURLSessionDownload(id: id, tempURL: nil, response: response, error: error)
+        }
+    }
+}
+
 private struct HistoryItem: Codable {
     let id: UUID
     var filename: String
@@ -479,6 +597,9 @@ private struct HistoryItem: Codable {
     var sourceURL: URL?
     var priority: Int
     var startTime: Date
+    /// Restored rows must come back PAUSED (with no live transfer behind
+    /// them); without this they loaded as fake-active zombie rows.
+    var isPaused: Bool = false
 
     init(_ item: DownloadItem) {
         id = item.id
@@ -491,10 +612,27 @@ private struct HistoryItem: Codable {
         sourceURL = item.sourceURL
         priority = item.priority.rawValue
         startTime = item.startTime
+        isPaused = item.isPaused
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        filename = try container.decode(String.self, forKey: .filename)
+        fileURL = try container.decodeIfPresent(URL.self, forKey: .fileURL)
+        totalBytes = try container.decode(Int64.self, forKey: .totalBytes)
+        downloadedBytes = try container.decode(Int64.self, forKey: .downloadedBytes)
+        state = try container.decode(String.self, forKey: .state)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        sourceURL = try container.decodeIfPresent(URL.self, forKey: .sourceURL)
+        priority = try container.decode(Int.self, forKey: .priority)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        // Pre-2026-09 blobs have no isPaused key.
+        isPaused = try container.decodeIfPresent(Bool.self, forKey: .isPaused) ?? false
     }
 
     func toDownloadItem() -> DownloadItem {
-        DownloadItem(
+        var item = DownloadItem(
             id: id, filename: filename, fileURL: fileURL,
             totalBytes: totalBytes, downloadedBytes: downloadedBytes,
             state: DownloadItem.State(rawValue: state) ?? .failed,
@@ -502,12 +640,15 @@ private struct HistoryItem: Codable {
             priority: DownloadItem.Priority(rawValue: priority) ?? .normal,
             startTime: startTime
         )
+        item.isPaused = isPaused && state == DownloadItem.State.inProgress.rawValue
+        return item
     }
 }
 
 func formatBytes(_ bytes: Int64) -> String {
     let formatter = ByteCountFormatter()
-    formatter.allowedUnits = [.useKB, .useMB, .useGB]
+    // .useBytes matters: without it a 32-byte file rounds to "0 KB".
+    formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
     formatter.countStyle = .file
     return formatter.string(fromByteCount: bytes)
 }

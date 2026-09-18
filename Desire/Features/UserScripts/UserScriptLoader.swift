@@ -41,6 +41,7 @@ enum UserScriptLoader {
         add("password-detect", at: .atDocumentEnd)
         add("reader-content", at: .atDocumentEnd)
         add("hover-link", at: .atDocumentEnd)
+        add("middle-click", at: .atDocumentEnd)
         return scripts
     }
 

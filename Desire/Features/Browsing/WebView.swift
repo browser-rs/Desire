@@ -13,9 +13,40 @@ struct SelectionAIInfo: Equatable {
     let viewportY: CGFloat
 }
 
+/// A pending `beforeunload` confirmation: the page has registered a
+/// beforeunload handler and is navigating away, and the user (or the
+/// automation bridge) must choose to leave (discard form data) or stay.
+/// `respond` is single-fire — the sheet button and the bridge may race.
+@MainActor
+final class PendingBeforeUnload {
+    let message: String
+    /// Dismisses the on-screen sheet programmatically (set by the
+    /// coordinator that presented it); a no-op when the user already clicked.
+    var programmaticDismiss: (() -> Void)?
+
+    private let completion: (Bool) -> Void
+    private var resolved = false
+
+    init(message: String, completion: @escaping (Bool) -> Void) {
+        self.message = message
+        self.completion = completion
+    }
+
+    func respond(leave: Bool) {
+        guard !resolved else { return }
+        resolved = true
+        programmaticDismiss?()
+        completion(leave)
+    }
+}
+
 @MainActor
 class BrowserState: ObservableObject {
     let webView: BrowserWKWebView
+    /// This page runs in an incognito tab (non-persistent data store).
+    /// Downloads created here are tagged private so they never reach the
+    /// shared download history on disk.
+    let isIncognito: Bool
     /// Current user text selection (nil when collapsed/empty) — drives the
     /// selection AI bar in `SelectedTabContent`.
     @Published var selectionAI: SelectionAIInfo?
@@ -33,6 +64,9 @@ class BrowserState: ObservableObject {
     @Published var readerContent = ""
     @Published var hoveredLinkURL: String?
     @Published var isPickingElement = false
+    /// A beforeunload confirmation awaiting a decision (also resolvable via
+    /// the automation bridge). nil when nothing is pending.
+    @Published var pendingBeforeUnload: PendingBeforeUnload?
     /// Media resources sniffed on this page (network + DOM scan). Cleared
     /// when a navigation commits to a new page. Consumed by the AI
     /// `listPageVideos` tool; capped, session-scoped, never persisted.
@@ -41,6 +75,7 @@ class BrowserState: ObservableObject {
     let videoAdBlocker: VideoAdBlocker?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
+        self.isIncognito = incognito
         self.videoAdBlocker = videoAdBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -291,17 +326,25 @@ struct WebView: NSViewRepresentable {
             self.parent = parent
         }
 
+        /// Message handler names registered in `observe()` and removed in
+        /// `stopObserving()`. Single source of truth: `addScriptMessageHandler`
+        /// throws NSException on a duplicate name (crashing at layout time),
+        /// so the two lists must never drift apart.
+        private static let scriptMessageHandlers = [
+            "audioState", "mediaFound", "passwordDetect", "passwordSave",
+            "readerContent", "hoverLink", "middleClickLink", "selectionAI",
+            "elementPicker", "videoAdBlocked", "devConsole",
+        ]
+
         func observe(_ webView: WKWebView) {
-            webView.configuration.userContentController.add(self, name: "audioState")
-            webView.configuration.userContentController.add(self, name: "mediaFound")
-            webView.configuration.userContentController.add(self, name: "passwordDetect")
-            webView.configuration.userContentController.add(self, name: "passwordSave")
-            webView.configuration.userContentController.add(self, name: "readerContent")
-            webView.configuration.userContentController.add(self, name: "hoverLink")
-            webView.configuration.userContentController.add(self, name: "selectionAI")
-            webView.configuration.userContentController.add(self, name: "elementPicker")
-            webView.configuration.userContentController.add(self, name: "videoAdBlocked")
-            webView.configuration.userContentController.add(self, name: "devConsole")
+            let contentController = webView.configuration.userContentController
+            for name in Self.scriptMessageHandlers {
+                // Remove-before-add makes re-hosting the same WKWebView
+                // (fast tab switches recreate the representable) idempotent
+                // instead of throwing on the duplicate name.
+                contentController.removeScriptMessageHandler(forName: name)
+                contentController.add(self, name: name)
+            }
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -322,16 +365,9 @@ struct WebView: NSViewRepresentable {
         func stopObserving() {
             observations.removeAll()
             let wv = parent.state.webView
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "audioState")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "mediaFound")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordDetect")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "passwordSave")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "readerContent")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "hoverLink")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "selectionAI")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "elementPicker")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "videoAdBlocked")
-            wv.configuration.userContentController.removeScriptMessageHandler(forName: "devConsole")
+            for name in Self.scriptMessageHandlers {
+                wv.configuration.userContentController.removeScriptMessageHandler(forName: name)
+            }
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -393,6 +429,12 @@ struct WebView: NSViewRepresentable {
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
+            } else if message.name == "middleClickLink", let raw = message.body as? String {
+                // Middle-click (auxiliary button) on a link — the injected
+                // middle-click.js already resolved it against the page URL.
+                if let url = URL(string: raw) {
+                    parent.onOpenLinkInNewTab?(url)
+                }
             } else if message.name == "selectionAI", let dict = message.body as? [String: Any] {
                 let text = dict["text"] as? String ?? ""
                 if text.isEmpty {
@@ -658,6 +700,21 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            // beforeunload 表单保护：主框架导航离开当前文档前，先执行页面
+            // 自己注册的 beforeunload 监听器；页面拒绝离开时弹 sheet 询问。
+            // 覆盖 .linkActivated/.formSubmitted/.other（含地址栏与 JS 跳转）。
+            // back/forward 与 reload 沿用上面"不拦截"的既定策略——地址栏
+            // 输入(.other)才是表单数据的主要丢失场景。
+            if navigationAction.targetFrame?.isMainFrame == true,
+               navigationAction.navigationType == .linkActivated ||
+               navigationAction.navigationType == .formSubmitted ||
+               navigationAction.navigationType == .other {
+                runBeforeUnloadGuard(webView: webView) { allowed in
+                    decisionHandler(allowed ? .allow : .cancel)
+                }
+                return
+            }
+
             // HTTPS 升级
             // Only upgrade when the user navigated to the URL by clicking a
             // link / typing into the address bar (`.linkActivated`,
@@ -797,6 +854,96 @@ struct WebView: NSViewRepresentable {
             return nil
         }
 
+        // MARK: - WKUIDelegate - beforeunload 表单保护
+
+        /// Synthetic beforeunload dispatch. This WebKit build never fires
+        /// the unload event for gesture-less unloads (verified empirically:
+        /// the native `runJavaScriptBeforeUnloadConfirmPanelWithMessage`
+        /// hook is never consulted, and a `sendBeacon` inside a registered
+        /// handler never fires — neither for `load()` nor in-page JS
+        /// navigations), so the navigation DECISION point dispatches the
+        /// page's own listeners manually. `allowed` is false only when the
+        /// page objects AND the user (or the automation bridge) chose to
+        /// stay.
+        private func runBeforeUnloadGuard(webView: WKWebView, completion: @escaping (Bool) -> Void) {
+            webView.evaluateJavaScript(Self.beforeUnloadProbeJS) { [weak self] result, _ in
+                let payload = (result as? String).flatMap {
+                    try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
+                }
+                guard payload?["blocked"] as? Bool == true else {
+                    // Page doesn't object (or no handlers) — allow.
+                    completion(true)
+                    return
+                }
+                let message = payload?["message"] as? String ?? ""
+                Task { @MainActor [weak self] in
+                    self?.confirmLeave(webView: webView, pageMessage: message, completion: completion)
+                }
+            }
+        }
+
+        /// Probe JS: runs the page's beforeunload listeners synchronously
+        /// (property handler + addEventListener via dispatchEvent) and
+        /// reports whether the page objects, plus any legacy return-string
+        /// message. The property handler is invoked by hand — it would
+        /// otherwise run twice (once here, once inside dispatchEvent).
+        static let beforeUnloadProbeJS = """
+        (function(){
+          var e = new Event('beforeunload', {cancelable: true});
+          var blocked = false;
+          var message = '';
+          var prop = window.onbeforeunload;
+          if (typeof prop === 'function') {
+            window.onbeforeunload = null;
+            try {
+              var legacy = prop(e);
+              if (!(legacy === null || legacy === undefined || legacy === '')) {
+                blocked = true;
+                message = String(legacy);
+              }
+            } catch (err) {}
+          }
+          try { window.dispatchEvent(e); } catch (err) { blocked = true; }
+          window.onbeforeunload = prop;
+          return JSON.stringify({blocked: !!(blocked || e.defaultPrevented), message: message});
+        })()
+        """
+
+        @MainActor
+        private func confirmLeave(webView: WKWebView, pageMessage: String, completion: @escaping (Bool) -> Void) {
+            guard let window = webView.window else {
+                completion(true)
+                return
+            }
+            // A prompt is already up (rapid double navigation): the first
+            // decision stays authoritative; later navigations just proceed.
+            guard parent.state.pendingBeforeUnload == nil else {
+                completion(true)
+                return
+            }
+            let pending = PendingBeforeUnload(message: pageMessage) { [weak state = parent.state] decision in
+                state?.pendingBeforeUnload = nil
+                completion(decision)
+            }
+            parent.state.pendingBeforeUnload = pending
+
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Leave This Page?")
+            alert.informativeText = pageMessage.isEmpty
+                ? String(localized: "Changes you made may not be saved.")
+                : String(localized: "Changes you made may not be saved.\n\(pageMessage)")
+            alert.addButton(withTitle: String(localized: "Leave"))
+            alert.addButton(withTitle: String(localized: "Stay"))
+            pending.programmaticDismiss = { [weak alert, weak window] in
+                if let sheetWindow = alert?.window, sheetWindow.isVisible, let window {
+                    window.endSheet(sheetWindow)
+                }
+            }
+            alert.beginSheetModal(for: window) { response in
+                pending.respond(leave: response == .alertFirstButtonReturn)
+            }
+        }
+
         // MARK: - WKUIDelegate - 权限请求
 
         func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
@@ -920,6 +1067,9 @@ struct WebView: NSViewRepresentable {
                 },
                 sourceURL: sourceURL
             )
+            // Incognito tab → the row must never reach the shared download
+            // history on disk.
+            item.isPrivate = parent.state.isIncognito
             // REAL pause for webview downloads: WKDownload cannot be
             // suspended, so pausing cancels it while producing resume data;
             // resuming restarts from the partial file (see resumeDownload).
@@ -974,10 +1124,13 @@ struct WebView: NSViewRepresentable {
 
         func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
             guard let info = activeDownloads.removeValue(forKey: ObjectIdentifier(download)) else { return }
-            parent.downloadStore.storeResumeData(resumeData, for: info.id)
             // Pausing a webview download surfaces here as a cancel — keep the
-            // item paused with its resume data instead of failing it.
-            if parent.downloadStore.downloads.first(where: { $0.id == info.id })?.isPaused == true { return }
+            // item paused with its resume data instead of failing it. Capture
+            // the flag BEFORE storeResumeData: a parked resume request fires
+            // inside it and clears isPaused.
+            let wasPaused = parent.downloadStore.downloads.first(where: { $0.id == info.id })?.isPaused == true
+            parent.downloadStore.storeResumeData(resumeData, for: info.id)
+            if wasPaused { return }
             parent.downloadStore.fail(id: info.id, message: DownloadStore.DownloadFailure.describe(error))
         }
 

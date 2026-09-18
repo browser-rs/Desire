@@ -90,6 +90,34 @@ extension ContentView {
         }
     }
 
+    /// Brief bookmark confirmation ("Bookmark Added/Removed"). Auto-dismisses
+    /// after ~1.8 s; re-toggling replaces the text and restarts the timer.
+    var bookmarkToastOverlay: some View {
+        Group {
+            if let toast = bookmarkToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                    Text(toast).font(.caption)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(.bottom, 12)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: toast) {
+                    try? await Task.sleep(for: .milliseconds(1800))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.transitionNormal) {
+                        if bookmarkToast == toast { bookmarkToast = nil }
+                    }
+                }
+            }
+        }
+    }
+
     /// Screenshot completion toast (message published by `BrowsingActions`).
     var screenshotToastOverlay: some View {
         Group {

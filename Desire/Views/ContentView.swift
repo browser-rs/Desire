@@ -43,6 +43,7 @@ struct ContentView: View {
         self.appState = appState
         _sessionID = sessionID
         _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
+        _bookmarkStore = ObservedObject(wrappedValue: appState.bookmarkStore)
         let tm = TabManager()
         _tabManager = StateObject(wrappedValue: tm)
         tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
@@ -72,7 +73,11 @@ struct ContentView: View {
     // Convenience accessors for shared stores
     var settings: Settings { appState.settings }
     var contentBlocker: ContentBlockerStore { appState.contentBlocker }
-    var bookmarkStore: BookmarkStore { appState.bookmarkStore }
+    /// OBSERVED (unlike the accessors below): the toolbar's bookmark-star
+    /// state is derived from this store's contents in `body` — without
+    /// observing it, adding/removing a bookmark never re-rendered the
+    /// toolbar and the star icon never moved.
+    @ObservedObject var bookmarkStore: BookmarkStore
     var historyStore: HistoryStore { appState.historyStore }
     var passwordStore: PasswordStore { appState.passwordStore }
     var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
@@ -149,6 +154,9 @@ struct ContentView: View {
     @State var showSearchHistory = false
     @State var showUndoToast = false
     @State var mediaQueries: [MediaQueryItem] = []
+    /// Brief "Bookmark Added/Removed" confirmation shown over the content
+    /// area — the star icon alone was too subtle to register as feedback.
+    @State var bookmarkToast: String?
     @State var videoAdBlockerToast: String?
     @State var lastBlockedRuleId: UUID?
     @State var lastBlockedSelector = ""
@@ -324,6 +332,7 @@ struct ContentView: View {
         ))
         .overlay(alignment: .center) { shortcutOverlayButtons }
         .overlay(alignment: .bottom) { undoToastOverlay }
+        .overlay(alignment: .bottom) { bookmarkToastOverlay }
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
         .overlay(alignment: .bottom) { translateBarOverlay }
@@ -335,7 +344,12 @@ struct ContentView: View {
         NSApp.mainWindow?.toggleFullScreen(nil)
     }
 
-    func toggleBookmark() { b.toggleBookmark() }
+    func toggleBookmark() {
+        guard let added = b.toggleBookmark() else { return }
+        bookmarkToast = added
+            ? String(localized: "Bookmark Added")
+            : String(localized: "Bookmark Removed")
+    }
     func inspectElement() { b.inspectElement() }
 
     func toggleDevTools() {

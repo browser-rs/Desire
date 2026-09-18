@@ -120,15 +120,21 @@ extension BrowsingActions {
         tab.browser.webView.load(URLRequest(url: url))
     }
 
-    func toggleBookmark() {
+    /// Adds or removes the current page's bookmark. Returns whether the
+    /// bookmark was added (`true`) or removed (`false`); nil when there was
+    /// nothing to toggle (new-tab page, no URL).
+    @discardableResult
+    func toggleBookmark() -> Bool? {
         guard let tab = tabManager.selectedTab,
               let url = tab.browser.webView.url,
-              !tab.isOnNewTabPage else { return }
+              !tab.isOnNewTabPage else { return nil }
         let urlString = url.absoluteString
         if let existing = bookmarkStore.find(url: urlString) {
             bookmarkStore.remove(existing)
+            return false
         } else {
             bookmarkStore.add(title: tab.browser.pageTitle, url: urlString)
+            return true
         }
     }
 }

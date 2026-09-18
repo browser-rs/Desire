@@ -41,11 +41,17 @@ struct TabBar: View {
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
     let onAddToGroup: (UUID, UUID) -> Void
+    /// 本窗口会话 ID（拖拽 provider 的来源标识）。
+    let windowSessionID: String
     /// Derived from TabThumbnailStore: thumbnail image for a tab.
     let tabThumbnail: (UUID) -> NSImage?
     let onCaptureThumbnail: (Tab) -> Void
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
+    /// 拖动开始（用于拖出监视：拖出窗口边界 → 撕出为新窗口）。
+    let onDragStarted: (Tab) -> Void
+    /// 跨窗口拖入：把别的窗口拖来的标签并入本条。（条级落点/条上落点）
+    let onTransferIn: (UUID, UUID, Int?) -> Void
     
     // Preview state - preview shown via separate NSPanel
     @State private var previewTabId: UUID?
@@ -105,6 +111,9 @@ struct TabBar: View {
                                 tab: tab,
                                 index: realIndex,
                                 selectedIndex: selectedIndex,
+                                windowSessionID: windowSessionID,
+                                onDragStarted: onDragStarted,
+                                onTransferIn: onTransferIn,
                                 actions: TabBar.TabPillActions(
                                     selectTab: onSelectTab,
                                     closeTab: onCloseTab,
@@ -162,6 +171,9 @@ struct TabBar: View {
                                 tab: tab,
                                 index: realIndex,
                                 selectedIndex: selectedIndex,
+                                windowSessionID: windowSessionID,
+                                onDragStarted: onDragStarted,
+                                onTransferIn: onTransferIn,
                                 actions: TabBar.TabPillActions(
                                     selectTab: onSelectTab,
                                     closeTab: onCloseTab,
@@ -293,6 +305,10 @@ private struct TabPillView: View {
     @ObservedObject var tab: Tab
     let index: Int
     let selectedIndex: Int
+    let windowSessionID: String
+    let onDragStarted: (Tab) -> Void
+    /// 跨窗口拖入的落点回调（透传给条级落点代理）。
+    let onTransferIn: ((UUID, UUID, Int?) -> Void)?
     let actions: TabBar.TabPillActions
     /// Live close-by-identity channel for the middle-click monitor.
     let onCloseTabID: (UUID) -> Void
@@ -446,10 +462,15 @@ private struct TabPillView: View {
         .onDrag {
             hoverTimer?.invalidate()
             onHidePreview()
-            let provider = NSItemProvider(object: NSString(string: "\(index)"))
-            return provider
+            onDragStarted(tab)
+            return NSItemProvider(object: NSString(string: "\(windowSessionID)|\(tab.id.uuidString)|\(index)"))
         }
-        .onDrop(of: [.text], delegate: TabDropDelegate(targetIndex: index, onMoveTab: onMoveTab))
+        .onDrop(of: [.text], delegate: TabDropDelegate(
+            targetIndex: index,
+            ownSessionID: windowSessionID,
+            onMoveTab: onMoveTab,
+            onTransferIn: onTransferIn
+        ))
         .contextMenu { tabContextMenu }
     }
 
@@ -608,14 +629,32 @@ private struct TabPopoverView: View {
 
 private struct TabDropDelegate: DropDelegate {
     let targetIndex: Int
+    let ownSessionID: String
     let onMoveTab: (Int, Int) -> Void
+    /// 跨窗口拖入：(来源窗口会话, 标签 UUID, 落点 index)。
+    let onTransferIn: ((UUID, UUID, Int?) -> Void)?
 
     func performDrop(info: DropInfo) -> Bool {
         guard let provider = info.itemProviders(for: [.text]).first else { return false }
         provider.loadObject(ofClass: NSString.self) { reading, _ in
-            guard let str = reading as? String, let source = Int(str) else { return }
+            guard let str = reading as? String else { return }
             Task { @MainActor in
-                onMoveTab(source, targetIndex)
+                // 新格式 "originSession|tabID|index"；旧格式纯数字 = 本窗排序。
+                let parts = str.split(separator: "|").map(String.init)
+                if parts.count == 3,
+                   let origin = UUID(uuidString: parts[0]),
+                   let tabID = UUID(uuidString: parts[1]),
+                   let sourceIndex = Int(parts[2]) {
+                    if parts[0].lowercased() == ownSessionID.lowercased() {
+                        onMoveTab(sourceIndex, targetIndex)
+                    } else {
+                        onTransferIn?(origin, tabID, targetIndex)
+                    }
+                    return
+                }
+                if let source = Int(str) {
+                    onMoveTab(source, targetIndex)
+                }
             }
         }
         return true

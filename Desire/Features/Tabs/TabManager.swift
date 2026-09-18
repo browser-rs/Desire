@@ -259,6 +259,34 @@ class TabManager: ObservableObject {
         persistSession()
     }
 
+    // MARK: - 跨窗口迁移（拖出/拖回）
+
+    /// Removes a tab WITHOUT tearing it down — the Tab (and its live
+    /// BrowserState/webview) is transferred to another window's manager.
+    /// Not recorded in recentlyClosed (it isn't a close).
+    func moveOut(_ tab: Tab) {
+        guard let idx = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
+        tabs.remove(at: idx)
+        if selectedIndex >= tabs.count {
+            selectedIndex = max(0, tabs.count - 1)
+        }
+        persistSession()
+    }
+
+    /// Adopts a tab transferred from another window (appended + selected).
+    func absorb(_ tab: Tab) {
+        tabs.append(tab)
+        selectedIndex = tabs.count - 1
+        persistSession()
+    }
+
+    /// Adopts a transferred tab at a specific index.
+    func insert(_ tab: Tab, at index: Int) {
+        let idx = min(max(0, index), tabs.count)
+        tabs.insert(tab, at: idx)
+        persistSession()
+    }
+
     func closeTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
         // Closing the last tab closes the window instead of leaving an
@@ -552,6 +580,13 @@ final class TabSessionCoordinator {
     private var isTerminating = false
 
     func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
+
+    /// 按窗口会话 UUID 查找 TabManager（跨窗口标签迁移用）。
+    func manager(forSession sessionID: UUID) -> TabManager? {
+        let key = sessionKey(for: sessionID)
+        managers.removeAll { $0.manager == nil }
+        return managers.first(where: { $0.manager?.sessionKey == key })?.manager
+    }
 
     func register(_ manager: TabManager) {
         managers.removeAll { $0.manager == nil }

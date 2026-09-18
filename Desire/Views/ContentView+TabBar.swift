@@ -98,6 +98,7 @@ extension ContentView {
             tabGroups: tabGroupStore.groups,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },
+            windowSessionID: sessionID?.uuidString ?? "pending-session",
             // Derived from TabThumbnailStore — TabBar no longer holds the store.
             tabThumbnail: { thumbnailStore.thumbnail(for: $0) },
             onCaptureThumbnail: { thumbnailStore.captureThumbnail(for: $0) },
@@ -120,6 +121,10 @@ extension ContentView {
             },
             onDuplicateTab: { index in
                 tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
+            },
+            onDragStarted: { tab in beginTearOutWatch(for: tab) },
+            onTransferIn: { sourceSession, tabID, index in
+                transferIn(fromSession: sourceSession, tabID: tabID, index: index)
             }
         )
     }

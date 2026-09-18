@@ -162,6 +162,8 @@ struct ContentView: View {
     @State var actionToast: StatusBarToast?
     /// ⌘K command palette visibility (0.1.16).
     @State var showCommandPalette = false
+    /// 标签拖出监视计时器（拖出窗口边界 → 撕出为新窗口）。
+    @State var tearOutTimer: Timer?
 
     /// Payload for the auto-dismissing action toast (icon + localized text).
     struct StatusBarToast: Equatable {
@@ -231,6 +233,13 @@ struct ContentView: View {
                 guard let sid = sessionID else { return }
                 let sessionKey = TabSessionCoordinator.shared.sessionKey(for: sid)
                 tabManager.sessionKey = sessionKey
+
+                // 拖出接纳：本窗口由"标签拖出"创建，暂存区的标签直接吸收，
+                // 不走会话恢复/新建流程。
+                if let staged = TabTransfer.take(for: sid) {
+                    tabManager.absorb(staged)
+                    return
+                }
 
                 if tabManager.restoreSession(
                     forKey: sessionKey,
@@ -376,6 +385,57 @@ struct ContentView: View {
             icon: "bookmark.fill",
             text: added ? String(localized: "Bookmark Added") : String(localized: "Bookmark Removed")
         )
+    }
+
+    // MARK: - 标签拖出/拖回（0.2.13 提前）
+
+    /// 标签拖动开始：监视鼠标位置，拖出自窗口边界即撕出为新窗口。
+    func beginTearOutWatch(for tab: Tab) {
+        guard let window = hostingWindow else { return }
+        let sourceFrame = window.frame.insetBy(dx: -16, dy: -16)
+        let startLocation = NSEvent.mouseLocation
+        tearOutTimer?.invalidate()
+        // Timer 在主线程调度（Timer.scheduledTimer 默认当前 run loop），
+        // 闭包直接同步执行即可，无需跨线程捕获。
+        tearOutTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { timer in
+            let mouse = NSEvent.mouseLocation
+            // 已松手 → 放弃（落点没出窗口，保持原状）
+            guard NSEvent.pressedMouseButtons & 1 == 1 else { timer.invalidate(); return }
+            // 需要明显拖出（>60pt 位移且离开窗口），防误触
+            guard hypot(mouse.x - startLocation.x, mouse.y - startLocation.y) > 60 else { return }
+            guard !sourceFrame.contains(mouse) else { return }
+            timer.invalidate()
+            tearOut(tab: tab)
+        }
+    }
+
+    /// 撕出：暂存标签 → 从本窗移除 → 开新窗口接纳。
+    func tearOut(tab: Tab) {
+        let newSessionID = UUID()
+        guard let window = hostingWindow else { return }
+        tabGroupStore.removeTabFromAll(tab.id)
+        TabTransfer.stage(tab, for: newSessionID)
+        tabManager.moveOut(tab)
+        if tabManager.tabs.isEmpty {
+            window.close()
+        }
+        openWindow(id: "main", value: newSessionID)
+    }
+
+    /// 拖回：把其他窗口的标签并入本窗口指定位置。
+    func transferIn(fromSession sourceSession: UUID, tabID: UUID, index: Int?) {
+        guard sourceSession != sessionID,
+              let source = TabSessionCoordinator.shared.manager(forSession: sourceSession),
+              let tab = source.tabs.first(where: { $0.id == tabID }) else { return }
+        tabGroupStore.removeTabFromAll(tabID)
+        source.moveOut(tab)
+        if let index {
+            tabManager.insert(tab, at: index)
+            tabManager.selectTab(at: index)
+        } else {
+            tabManager.absorb(tab)
+            tabManager.selectTab(at: tabManager.tabs.count - 1)
+        }
     }
 
     /// ⌘S / File ▸ Save Page: captures the current page as a webarchive into

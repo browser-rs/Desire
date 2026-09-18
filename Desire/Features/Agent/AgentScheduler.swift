@@ -118,6 +118,28 @@ final class AgentScheduler: ObservableObject {
 
     var activeCount: Int { tasks.filter(\.isEnabled).count }
 
+    /// Delivers a task's prompt immediately, ignoring the recurrence clock.
+    /// The automation bridge's fire endpoint — deterministic E2E for the
+    /// scheduled-task pipeline without waiting out an interval.
+    @discardableResult
+    func fireNow(named name: String) -> Bool {
+        guard let idx = tasks.firstIndex(where: { $0.name.lowercased() == name.lowercased() }) else {
+            return false
+        }
+        let task = tasks[idx]
+        tasks[idx].lastFiredAt = Date()
+        if let target = deliveryTarget {
+            target.deliverScheduled(task.prompt, from: task.name)
+            tasks[idx].lastResult = "delivered (manual fire)"
+            Self.log.info("Scheduled task '\(task.name, privacy: .public)' fired manually")
+        } else {
+            tasks[idx].lastResult = String(localized: "missed — no agent session was open")
+            Self.log.info("Scheduled task '\(task.name, privacy: .public)' manual fire had no delivery target")
+        }
+        save()
+        return true
+    }
+
     // MARK: - Firing
 
     /// Fires every due, enabled task. Runs on a 20s wall clock.

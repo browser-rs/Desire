@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import WebKit
 
 enum AgentQuickAction: CaseIterable {
@@ -99,6 +100,8 @@ class AgentSessionStore: ObservableObject {
     private weak var webView: WKWebView?
     private var isCancelled = false
     private var loopTask: Task<Void, Never>?
+    /// Shutdown-diagnostics peek: whether the loop task has been cancelled.
+    var isLoopCancelled: Bool { loopTask?.isCancelled ?? true }
     /// True after `clear()` until a conversation is loaded or a message is
     /// sent — gates `resumeLatestConversation` so a deliberate new chat
     /// stays blank when the panel is reopened.
@@ -1120,6 +1123,29 @@ class AgentSessionStore: ObservableObject {
             outcome = .denied
         }
         approval.resume(with: outcome)
+    }
+
+    /// Automation-bridge hook: arms a REAL pending approval (a live
+    /// continuation that `resolveApproval` resumes) without running a model
+    /// turn. Only reachable via the automation server, which exists solely
+    /// under `--automation`. Lets external drivers exercise the approve/deny
+    /// plumbing — sheet state, decision routing, continuation resumption —
+    /// deterministically.
+    func simulateApprovalForTesting() {
+        let toolCall = AgentToolCall(
+            id: "simulate-\(UUID().uuidString.prefix(8))",
+            type: "function",
+            function: AgentToolFunction(name: "readClipboard", arguments: "{}")
+        )
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.requestApprovalForTesting(toolCall: toolCall, risk: .dangerous)
+            Log.agent.info("simulated approval resolved with \(String(describing: outcome), privacy: .public)")
+        }
+    }
+
+    private func requestApprovalForTesting(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
+        await requestApproval(toolCall: toolCall, risk: risk)
     }
 
     /// Produces a short human-readable summary of a tool call's arguments

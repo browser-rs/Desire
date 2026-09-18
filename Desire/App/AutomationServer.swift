@@ -43,6 +43,12 @@ import WebKit
 ///                              (works even when the display is shielded)
 ///   GET  /agent/messages     → {messages:[{role,content…}],busy}
 ///   POST /agent/send         {"text":"…"}                     → {ok}
+///   GET  /agent/tasks        → {tasks:[{name,prompt,enabled,recurrence,lastResult}]}
+///   POST /agent/tasks/create {"name","prompt",minutes | hour+minute} → {ok}
+///   POST /agent/tasks/remove {"name"} → {ok}
+///   POST /agent/tasks/fire   {"name"} — deliver immediately (E2E) → {ok}
+///   POST /approvals/simulate — arm a REAL pending approval (no model turn;
+///                              resolve via /approvals/resolve) → {ok}
 @MainActor
 final class AutomationServer {
     static let shared = AutomationServer()
@@ -371,6 +377,22 @@ final class AutomationServer {
                 return try Self.json(Self.agentMessages())
             case ("POST", "/agent/send"):
                 return try Self.json(Self.agentSend(Self.string(body, "text")))
+            case ("GET", "/agent/tasks"):
+                return try Self.json(Self.agentTasks())
+            case ("POST", "/agent/tasks/create"):
+                return try Self.json(Self.createAgentTask(
+                    name: Self.string(body, "name") ?? "",
+                    prompt: Self.string(body, "prompt") ?? "",
+                    minutes: body["minutes"] as? Int,
+                    hour: body["hour"] as? Int,
+                    minute: body["minute"] as? Int
+                ))
+            case ("POST", "/agent/tasks/remove"):
+                return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/agent/tasks/fire"):
+                return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/approvals/simulate"):
+                return try Self.json(Self.simulateApproval())
             default:
                 return Self.error("unknown route \(method) \(path)")
             }
@@ -1082,6 +1104,55 @@ final class AutomationServer {
             return ["error": "no live agent session"]
         }
         session.sendMessage(text)
+        return ["ok": true]
+    }
+
+    // MARK: Scheduled agent tasks
+
+    private static func agentTasks() throws -> [String: Any] {
+        let tasks = AgentScheduler.shared.tasks.map { t -> [String: Any] in
+            ["name": t.name, "prompt": t.prompt, "enabled": t.isEnabled,
+             "recurrence": t.recurrenceText, "lastResult": t.lastResult ?? ""]
+        }
+        return ["tasks": tasks]
+    }
+
+    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?) throws -> [String: Any] {
+        let recurrence: AgentScheduler.ScheduledTask.Recurrence
+        if let minutes {
+            recurrence = .everyMinutes(minutes)
+        } else if let hour, let minute {
+            recurrence = .daily(hour: hour, minute: minute)
+        } else {
+            return ["error": "need minutes, or hour+minute"]
+        }
+        guard AgentScheduler.shared.add(name: name, prompt: prompt, recurrence: recurrence) != nil else {
+            return ["error": "invalid name or prompt"]
+        }
+        return ["ok": true, "name": name]
+    }
+
+    private static func removeAgentTask(name: String) throws -> [String: Any] {
+        guard AgentScheduler.shared.remove(named: name) else {
+            return ["error": "no such task"]
+        }
+        return ["ok": true]
+    }
+
+    private static func fireAgentTask(name: String) throws -> [String: Any] {
+        guard AgentScheduler.shared.fireNow(named: name) else {
+            return ["error": "no such task"]
+        }
+        return ["ok": true]
+    }
+
+    /// Arms a real pending approval on the live session (plumbing E2E
+    /// without a model turn); resolve it via POST /approvals/resolve.
+    private static func simulateApproval() throws -> [String: Any] {
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            return ["error": "no live agent session"]
+        }
+        session.simulateApprovalForTesting()
         return ["ok": true]
     }
 }

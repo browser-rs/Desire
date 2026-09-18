@@ -264,8 +264,13 @@ Features/Bookmarks/
   SwiftUI Commands body 会随 Store 变化重算（已用日志实证），但
   keyEquivalent 变化和 .id() 结构重建都不会推给已安装的 NSMenu 条目。
   映射里 savePage 尚无对应命令（未接线）；⌘1-9 切标签和 Esc 保持硬编码。
-- **BUG-K 优雅退出挂起**：SIGTERM 后偶发卡在 exit（STAT=SX，SIGKILL
-  亦不立即死）。怀疑挂起网络会话/审批 continuation。低频未定位。
+- **BUG-K 优雅退出挂起**：已缓解（2026-09，0.1.1）：SIGTERM/SIGINT 现在
+  由 AppDelegate 安装的 DispatchSource 接管并转 NSApp.terminate(nil)——
+  走 applicationShouldTerminate → 会话 flush → 干净退出，与 Cmd+Q 同
+  路径（旧默认处置是硬终止，WebKit 分线程拆除时竞态卡 exit）。
+  applicationShouldTerminate 里加了 ShutdownDiagnostics（存活 URLSession
+  任务/下载/Agent 循环状态的 fault 日志）；SIGTERM 压测 100 轮通过
+  （结果见 0.1.1 提交）。若复发，对照 fault 日志排查。
 - **会话恢复**已修复（2026-09）：SwiftUI 在 macOS 上不写 Saved
   Application State，带 UUID 的窗口永远不会被还原，"按窗口 UUID 恢复"
   的设计在还原侧断链（保存侧正常，退出时写 session-index + 各

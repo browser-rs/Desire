@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 @main
@@ -83,8 +84,60 @@ enum BrowserCommand {
 /// persisted while the windows are still open (willTerminate fires after
 /// windows begin closing — too late for a clean re-archive).
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var signalSources: [DispatchSourceSignal] = []
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        installSignalHandlers()
+    }
+
+    /// SIGTERM/SIGINT → ordinary `terminate()` on the main queue. The
+    /// default disposition hard-kills the process mid-teardown, which is
+    /// the BUG-K hang (WebKit's threads race the exit). Routed through the
+    /// same path as Cmd+Q: applicationShouldTerminate → session flush →
+    /// clean exit.
+    private func installSignalHandlers() {
+        for sig in [SIGTERM, SIGINT] {
+            signal(sig, SIG_IGN) // the dispatch source owns delivery
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler {
+                Log.app.info("signal \(sig, privacy: .public) → graceful terminate")
+                NSApp.terminate(nil)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // BUG-K diagnostics: the process occasionally hangs inside exit()
+        // after termination is approved. Log everything still alive at the
+        // moment we hand control back to AppKit, so a stuck run can be
+        // matched against this inventory. Synchronous with a bounded wait —
+        // a fire-and-forget Task loses the race against process exit.
+        ShutdownDiagnostics.capture(reason: "applicationShouldTerminate")
         TabSessionCoordinator.shared.prepareForTermination()
+        ShutdownDiagnostics.capture(reason: "after session flush")
         return .terminateNow
+    }
+}
+
+/// Point-in-time inventory of work still in flight (BUG-K investigation).
+@MainActor
+enum ShutdownDiagnostics {
+    static func capture(reason: String) {
+        let session = AgentScheduler.shared.deliveryTarget
+        let downloads = AppState.live?.downloadStore
+        let activeDownloads = downloads?.downloads.filter { $0.state == .inProgress }.count ?? 0
+        let pausedDownloads = downloads?.pausedCount ?? 0
+        let semaphore = DispatchSemaphore(value: 0)
+        URLSession.shared.getAllTasks { tasks in
+            let summary = Dictionary(grouping: tasks, by: { String(describing: type(of: $0)) })
+                .map { "\($0.key): \($0.value.count)" }
+                .sorted()
+                .joined(separator: ", ")
+            Log.app.fault("shutdown[\(reason, privacy: .public)] agentBusy=\(session?.isProcessing ?? false) loopCancelled=\(session?.isLoopCancelled ?? true) activeDownloads=\(activeDownloads) pausedDownloads=\(pausedDownloads) urlSessionTasks=[\(summary, privacy: .public)]")
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 1.5)
     }
 }

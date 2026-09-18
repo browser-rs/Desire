@@ -54,6 +54,7 @@ struct SettingsView: View {
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var historyStore: HistoryStore
     @ObservedObject var privacyModeStore: PrivacyModeStore
+    var shortcutStore: KeyboardShortcutStore
 
     @State private var selectedSection: Section = .general
 
@@ -91,13 +92,16 @@ struct SettingsView: View {
         case .autofill:
             FormAutofillSettingsView(store: formAutofillStore)
         case .keyboardShortcuts:
-            KeyboardShortcutsEditorView()
+            KeyboardShortcutsEditorView(store: shortcutStore)
         }
     }
 }
 
 private struct KeyboardShortcutsEditorView: View {
-    @StateObject private var store = KeyboardShortcutStore()
+    /// The SHARED instance (SystemState) — the same object the menu commands
+    /// and hidden shortcut buttons observe. The old private @StateObject here
+    /// saved customizations to disk where nothing ever read them.
+    @ObservedObject var store: KeyboardShortcutStore
     @State private var editing: ShortcutMapping?
     @State private var showRecorder = false
     @State private var showConflict = false
@@ -111,7 +115,7 @@ private struct KeyboardShortcutsEditorView: View {
                 title: "Keyboard Shortcuts",
                 subtitle: store.filteredShortcuts.count != store.shortcuts.count
                     ? "\(store.filteredShortcuts.count) of \(store.shortcuts.count) shown."
-                    : "Customize any binding. Click the current shortcut to record a new one.",
+                    : "Customize any binding. Click the current shortcut to record a new one. Re-recorded bindings apply on the next launch.",
                 icon: "keyboard"
             ) {
                 VStack(spacing: 10) {

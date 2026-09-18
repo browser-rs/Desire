@@ -22,6 +22,9 @@ struct ContentView: View {
     @StateObject var thumbnailStore = TabThumbnailStore()
     /// Singleton observed so the TabBar's container menu stays current.
     @ObservedObject var containerStore = ContainerStore.shared
+    /// Observed so the hidden shortcut buttons re-bind the moment a key is
+    /// re-recorded in Settings (shared instance — see `SystemState`).
+    @ObservedObject var shortcutStore: KeyboardShortcutStore
     /// Extracted business-logic coordinator. Replaces the ~25 action methods
     /// that previously lived on ContentView.
     @StateObject var b: BrowsingActions
@@ -39,6 +42,7 @@ struct ContentView: View {
     init(appState: AppState, sessionID: Binding<UUID?>) {
         self.appState = appState
         _sessionID = sessionID
+        _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
         let tm = TabManager()
         _tabManager = StateObject(wrappedValue: tm)
         tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
@@ -105,7 +109,11 @@ struct ContentView: View {
                 showElementBlock: $showElementBlock,
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
-                isFindBarVisible: $isFindBarVisible
+                isFindBarVisible: $isFindBarVisible,
+                showDownloads: Binding(
+                    get: { appState.showDownloadsPanel },
+                    set: { appState.showDownloadsPanel = $0 }
+                )
             ),
             actions: .init(
                 newWindow: {

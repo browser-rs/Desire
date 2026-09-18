@@ -31,6 +31,10 @@ import WebKit
 ///   POST /downloads/resume   {"id"?:uuid}  (first paused if omitted)      → {ok,id}
 ///   GET  /beforeunload?index=0 → {pending,message?}   (form-protection prompt)
 ///   POST /beforeunload/resolve {"leave":true,"index":0?} → {ok}
+///   GET  /shortcuts         → {shortcuts:[{id,key,modifierFlags,customized}],menu}
+///   POST /shortcuts/update  {"id":"newTab","key":"k","modifierFlags":cmd} →
+///                             {ok} | {error:"conflict",conflicts:[ids]}
+///                             (menu picks it up on next launch)
 ///   POST /execute            {"js":"…","index":0?} → {result} (page JS, for
 ///                              synthetic-event tests like middle click)
 ///   POST /panel              {"name":"downloads","show":true?} → {ok,visible}
@@ -216,7 +220,16 @@ final class AutomationServer {
                 return try Self.json(Self.pendingApproval())
             case ("GET", "/beforeunload"):
                 return try Self.json(Self.beforeUnloadState(index: Self.index(query)))
-            case ("POST", "/beforeunload/resolve"):
+            case ("GET", "/reader"):
+                return try Self.json(Self.readerState(index: Self.index(query)))
+            case ("GET", "/shortcuts"):
+                return try Self.json(Self.shortcuts())
+            case ("POST", "/shortcuts/update"):
+                return try Self.json(Self.updateShortcut(
+                    id: Self.string(body, "id") ?? "",
+                    key: Self.string(body, "key") ?? "",
+                    modifierFlags: body["modifierFlags"] as? UInt ?? NSEvent.ModifierFlags.command.rawValue
+                ))            case ("POST", "/beforeunload/resolve"):
                 return try Self.json(Self.resolveBeforeUnload(
                     index: Self.index(body),
                     leave: body["leave"] as? Bool ?? true
@@ -434,7 +447,8 @@ final class AutomationServer {
 
     private static func history(count: Int) throws -> [String: Any] {
         // Fresh instance = read-only view of the persisted state; no shared
-        // mutable state with the UI's own store instance.
+        // mutable state with the UI's own store instance. Entries are stored
+        // newest-first (addEntry inserts at 0) — prefix is the most recent.
         let entries = HistoryStore().entries.prefix(count).map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
     }
@@ -562,6 +576,57 @@ final class AutomationServer {
         guard let pending = tab.browser.pendingBeforeUnload else { return ["error": "no pending before-unload"] }
         pending.respond(leave: leave)
         return ["ok": true, "leave": leave]
+    }
+
+    /// Reader-mode extraction state for the selected tab (populated after
+    /// window._desireReader() runs in the page).
+    private static func readerState(index: Int?) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        let state = tab.browser
+        return [
+            "isReadingMode": state.isReadingMode,
+            "loading": state.isReaderLoading,
+            "title": state.readerTitle,
+            "contentChars": state.readerContent.count,
+        ]
+    }
+
+    /// Keyboard-shortcut bindings: drives the customize → live-menu pipeline
+    /// end to end without touching the Settings UI. Also introspects the real
+    /// NSMenu items, so a test can assert that a re-recording actually
+    /// re-bound the menu accelerator (what physical keypresses match against).
+    private static func shortcuts() throws -> [String: Any] {
+        guard let store = AppState.live?.system.keyboardShortcutStore else {
+            return ["error": "store not ready"]
+        }
+        let rows = store.shortcuts.map { m -> [String: Any] in
+            ["id": m.id, "key": m.keyEquivalent, "modifierFlags": m.modifierFlags,
+             "customized": m.isCustomized, "command": m.commandName]
+        }
+        var menu: [String: Any] = [:]
+        for item in NSApp.mainMenu?.items ?? [] {
+            for child in item.submenu?.items ?? [] where !child.keyEquivalent.isEmpty {
+                menu[child.title] = ["key": child.keyEquivalent,
+                                     "modifiers": child.keyEquivalentModifierMask.rawValue]
+            }
+        }
+        return ["shortcuts": rows, "menu": menu]
+    }
+
+    private static func updateShortcut(id: String, key: String, modifierFlags: UInt) throws -> [String: Any] {
+        guard let store = AppState.live?.system.keyboardShortcutStore else {
+            return ["error": "store not ready"]
+        }
+        guard var mapping = store.shortcuts.first(where: { $0.id == id }) else {
+            return ["error": "unknown shortcut id"]
+        }
+        mapping.keyEquivalent = key
+        mapping.modifierFlags = modifierFlags
+        if store.findConflicts(mapping: mapping).isEmpty {
+            store.update(mapping)
+            return ["ok": true, "id": id, "key": key, "modifierFlags": modifierFlags]
+        }
+        return ["error": "conflict", "conflicts": store.findConflicts(mapping: mapping).map(\.id)]
     }
 
     /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.

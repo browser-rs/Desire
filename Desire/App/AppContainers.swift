@@ -79,6 +79,11 @@ class SystemState: ObservableObject {
     lazy var devToolsStore = DevToolsStore()
     lazy var pluginStore = PluginStore()
     lazy var safariExtensionManager = SafariExtensionStore()
+    /// Single shared instance: menu commands, the window's hidden shortcut
+    /// buttons, and the Settings editor must all observe the SAME object or
+    /// customizations would not reach the menus (the settings editor used to
+    /// own a private instance — customizations saved to disk and died there).
+    lazy var keyboardShortcutStore = KeyboardShortcutStore()
 
     init() {
         settings = Settings()

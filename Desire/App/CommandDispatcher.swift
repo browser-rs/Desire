@@ -43,6 +43,7 @@ struct CommandDispatcher {
         var showTabSwitcher: Binding<Bool>
         var showSidebar: Binding<Bool>
         var isFindBarVisible: Binding<Bool>
+        var showDownloads: Binding<Bool>
     }
 
     struct Actions {
@@ -169,6 +170,12 @@ struct CommandDispatcher {
 
         case .reload:
             if let tab = tabManager.selectedTab { tab.browser.webView.reload() }
+
+        case .forceReload:
+            if let tab = tabManager.selectedTab { tab.browser.webView.reloadFromOrigin() }
+
+        case .showDownloads:
+            bindings.showDownloads.wrappedValue = true
 
         case .inspectElement:
             if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {

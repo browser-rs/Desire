@@ -11,6 +11,9 @@ import WebKit
 extension ContentView {
     /// Hidden buttons that own the app-wide keyboard shortcuts (⌘L focus+
     /// select-all, ⌘[ / ⌘] navigation, ⌘G find-next, Esc, ⌘' AI panel).
+    /// Every binding reads the shared `KeyboardShortcutStore`, so re-recording
+    /// one in Settings re-binds it here too. Esc handlers stay hardcoded
+    /// (dismissal is contextual, not a customizable command).
     @ViewBuilder
     var shortcutOverlayButtons: some View {
         Button("") {
@@ -22,19 +25,24 @@ extension ContentView {
                 NotificationCenter.default.post(name: URLBarField.selectAllNotification, object: nil)
             }
         }
-            .keyboardShortcut("l", modifiers: .command)
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "focusAddressBar")
+                              ?? KeyboardShortcut("l", modifiers: .command))
             .hidden()
         Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goBack() } }
-            .keyboardShortcut("[", modifiers: .command)
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "goBack")
+                              ?? KeyboardShortcut("[", modifiers: .command))
             .hidden()
         Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goForward() } }
-            .keyboardShortcut("]", modifiers: .command)
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "goForward")
+                              ?? KeyboardShortcut("]", modifiers: .command))
             .hidden()
         Button("") { performFindNext() }
-            .keyboardShortcut("g", modifiers: .command)
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "findNext")
+                              ?? KeyboardShortcut("g", modifiers: .command))
             .hidden()
         Button("") { performFindPrevious() }
-            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "findPrevious")
+                              ?? KeyboardShortcut("g", modifiers: [.command, .shift]))
             .hidden()
         Button("") { hideFindBar() }
             .keyboardShortcut(.escape, modifiers: [])
@@ -48,7 +56,8 @@ extension ContentView {
             .hidden()
         }
         Button("") { showAgentPanel.toggle() }
-            .keyboardShortcut("'", modifiers: .command)
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "toggleAgentPanel")
+                              ?? KeyboardShortcut("'", modifiers: .command))
             .hidden()
     }
 

@@ -257,10 +257,15 @@ Features/Bookmarks/
 - **响应式模式**：核心可用（UA 切换+重载、拖把手、触摸模拟）。
   遗留：pixelRatio 模拟、真网络节流（WebKit 无 API，需
   Network Interception，勿再做假 UI）。
+- **快捷键设置页**已接线（2026-09）：单一共享实例挂在
+  SystemState.keyboardShortcutStore；菜单命令（App/AppCommands.swift）
+  与 ContentView 隐藏快捷键按钮全部从 Store 构造 .keyboardShortcut，
+  设置页改键持久化、**下次启动生效**。勿尝试实时重绑：macOS 26 的
+  SwiftUI Commands body 会随 Store 变化重算（已用日志实证），但
+  keyEquivalent 变化和 .id() 结构重建都不会推给已安装的 NSMenu 条目。
+  映射里 savePage 尚无对应命令（未接线）；⌘1-9 切标签和 Esc 保持硬编码。
 - **BUG-K 优雅退出挂起**：SIGTERM 后偶发卡在 exit（STAT=SX，SIGKILL
   亦不立即死）。怀疑挂起网络会话/审批 continuation。低频未定位。
-- **快捷键设置页是摆设**：KeyboardShortcutStore 无消费方，实际快捷键
-  硬编码在 DesireApp + ContentView+Overlays。
 - **下载**：暂停→秒恢复竞态已修复（2026-09：resume 先挂起意图，
   checkpoint 数据落地后由 storeResumeData 触发；数据为空
   （服务器不支持 Range）则删残件、复用原文件名重启，见

@@ -1,12 +1,13 @@
 import AppKit
 import Combine
-import Foundation
+import SwiftUI
 
 @MainActor
 class KeyboardShortcutStore: ObservableObject {
     @Published var shortcuts: [ShortcutMapping] = []
     @Published var searchText: String = ""
     @Published var selectedCategory: ShortcutMapping.Category? = nil
+
 
     private let saveKey = "desire.keyboardShortcuts"
 
@@ -105,25 +106,23 @@ class KeyboardShortcutStore: ObservableObject {
         DiskStore.save(shortcuts, key: saveKey)
     }
 
-    func registerLocalMonitor() {
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
-            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
-            let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+    // MARK: - SwiftUI bridge
 
-            for shortcut in self.shortcuts where shortcut.isCustomized {
-                let shortcutFlags = NSEvent.ModifierFlags(rawValue: shortcut.modifierFlags)
-                    .intersection([.command, .shift, .option, .control])
-                if key == shortcut.keyEquivalent.lowercased() && flags == shortcutFlags {
-                    NotificationCenter.default.post(name: .shortcutCommand, object: shortcut.id)
-                    return nil
-                }
-            }
-            return event
-        }
+    /// The SwiftUI keyboard shortcut for a mapping id, or nil when the id is
+    /// unknown / the key can't be represented. Menu commands and the window's
+    /// hidden shortcut buttons build their `.keyboardShortcut` from this —
+    /// they observe the store, so a re-recording in Settings updates them live.
+    func keyboardShortcut(for id: String) -> KeyboardShortcut? {
+        guard let mapping = shortcuts.first(where: { $0.id == id }),
+              mapping.keyEquivalent.count == 1,
+              let character = mapping.keyEquivalent.first else { return nil }
+        let key = KeyEquivalent(character)
+        var modifiers = EventModifiers()
+        let flags = NSEvent.ModifierFlags(rawValue: mapping.modifierFlags)
+        if flags.contains(.command) { modifiers.insert(.command) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.control) { modifiers.insert(.control) }
+        return KeyboardShortcut(key, modifiers: modifiers)
     }
-}
-
-extension Notification.Name {
-    static let shortcutCommand = Notification.Name("shortcutCommand")
 }

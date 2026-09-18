@@ -37,8 +37,10 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
         let cmd = NSEvent.ModifierFlags.command.rawValue
         let shift = NSEvent.ModifierFlags.shift.rawValue
         let opt = NSEvent.ModifierFlags.option.rawValue
+        let ctrl = NSEvent.ModifierFlags.control.rawValue
         return [
             // Tabs
+            ShortcutMapping(id: "newWindow", commandName: "New Window", keyEquivalent: "n", modifierFlags: cmd, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "newTab", commandName: "New Tab", keyEquivalent: "t", modifierFlags: cmd, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "newIncognitoTab", commandName: "New Incognito Tab", keyEquivalent: "n", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "closeTab", commandName: "Close Tab", keyEquivalent: "w", modifierFlags: cmd, isCustomized: false, category: .tabs),
@@ -59,11 +61,13 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "zoomOut", commandName: "Zoom Out", keyEquivalent: "-", modifierFlags: cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "resetZoom", commandName: "Reset Zoom", keyEquivalent: "0", modifierFlags: cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "toggleSidebar", commandName: "Toggle Sidebar", keyEquivalent: "b", modifierFlags: cmd | shift, isCustomized: false, category: .view),
-            ShortcutMapping(id: "toggleFullScreen", commandName: "Toggle Full Screen", keyEquivalent: "f", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            ShortcutMapping(id: "toggleFullScreen", commandName: "Toggle Full Screen", keyEquivalent: "f", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "responsiveMode", commandName: "Responsive Design Mode", keyEquivalent: "m", modifierFlags: cmd | shift, isCustomized: false, category: .view),
 
             // Tools
             ShortcutMapping(id: "findInPage", commandName: "Find in Page", keyEquivalent: "f", modifierFlags: cmd, isCustomized: false, category: .tools),
+            ShortcutMapping(id: "findNext", commandName: "Find Next", keyEquivalent: "g", modifierFlags: cmd, isCustomized: false, category: .tools),
+            ShortcutMapping(id: "findPrevious", commandName: "Find Previous", keyEquivalent: "g", modifierFlags: cmd | shift, isCustomized: false, category: .tools),
             ShortcutMapping(id: "inspectElement", commandName: "Inspect Element", keyEquivalent: "i", modifierFlags: cmd | shift, isCustomized: false, category: .tools),
             ShortcutMapping(id: "screenshot", commandName: "Screenshot Region", keyEquivalent: "5", modifierFlags: cmd | shift, isCustomized: false, category: .tools),
             ShortcutMapping(id: "print", commandName: "Print", keyEquivalent: "p", modifierFlags: cmd, isCustomized: false, category: .tools),
@@ -73,6 +77,8 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "showHistory", commandName: "Show History", keyEquivalent: "y", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showDownloads", commandName: "Show Downloads", keyEquivalent: "j", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showBookmarks", commandName: "Show Bookmarks", keyEquivalent: "b", modifierFlags: cmd, isCustomized: false, category: .panels),
+            ShortcutMapping(id: "toggleAgentPanel", commandName: "Toggle AI Panel", keyEquivalent: "'", modifierFlags: cmd, isCustomized: false, category: .panels),
+            ShortcutMapping(id: "bookmarkPage", commandName: "Add Bookmark", keyEquivalent: "d", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "settings", commandName: "Settings", keyEquivalent: ",", modifierFlags: cmd, isCustomized: false, category: .panels),
         ]
     }()

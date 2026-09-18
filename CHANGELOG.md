@@ -9,6 +9,16 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.16] - 2026-09-18
+
+### Added
+
+- **⌘K 命令面板**：30 个浏览器命令的模糊搜索统一入口（前缀优先排序、
+  ↑↓/回车/Esc 键盘导航、hover 选中）——BrowserCommand 枚举即清单，
+  CommandBus 即执行层。`commandPalette` 映射进快捷键设置（默认 ⌘K）。
+- **全页截图上 MCP**：`fullPageScreenshot` 工具——整页滚动内容
+  PDF → ~/desire_fullpage.pdf（无保存面板的驱动路径）。
+
 ## [v0.1.15] - 2026-09-18
 
 ### Added

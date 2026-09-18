@@ -395,6 +395,8 @@ final class AutomationServer {
                 return try Self.json(parsed ?? ["error": "parse failed"])
             case ("GET", "/page/url"):
                 return try await Self.json(Self.pageMeta(index: Self.index(query)))
+            case ("POST", "/screenshot/fullpage"):
+                return try await Self.json(Self.fullPageScreenshot(index: Self.index(body)))
             case ("GET", "/screenshot"):
                 return try await Self.json(Self.screenshot())
             case ("GET", "/history"):
@@ -861,6 +863,26 @@ final class AutomationServer {
             "zoom": tab.browser.pageZoom,
             "error": tab.browser.lastError?.localizedDescription ?? NSNull(),
         ]
+    }
+
+    /// Full-page PDF of a tab → ~/desire_fullpage.pdf (no save panel; the
+    /// MCP/drive path). createPDF captures the whole scrollable content.
+    private static func fullPageScreenshot(index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index), !tab.isOnNewTabPage else {
+            return ["error": "no such tab"]
+        }
+        let pdf: Data = await withCheckedContinuation { continuation in
+            tab.browser.webView.createPDF(configuration: WKPDFConfiguration()) { result in
+                switch result {
+                case .success(let data): continuation.resume(returning: data)
+                case .failure: continuation.resume(returning: Data())
+                }
+            }
+        }
+        guard !pdf.isEmpty else { return ["error": "pdf capture failed"] }
+        let path = NSHomeDirectory() + "/desire_fullpage.pdf"
+        try pdf.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "bytes": pdf.count]
     }
 
     /// PNG snapshot of the selected tab's webview, written next to the

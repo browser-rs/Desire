@@ -160,6 +160,8 @@ struct ContentView: View {
     /// Brief action confirmation (bookmark added/removed, page saved, …)
     /// shown over the content area — silent actions read as broken ones.
     @State var actionToast: StatusBarToast?
+    /// ⌘K command palette visibility (0.1.16).
+    @State var showCommandPalette = false
 
     /// Payload for the auto-dismissing action toast (icon + localized text).
     struct StatusBarToast: Equatable {
@@ -343,6 +345,20 @@ struct ContentView: View {
         .overlay(alignment: .center) { shortcutOverlayButtons }
         .overlay(alignment: .bottom) { undoToastOverlay }
         .overlay(alignment: .bottom) { actionToastOverlay }
+        .overlay {
+            if showCommandPalette {
+                // Dimmed backdrop click = dismiss.
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showCommandPalette = false }
+                CommandPalette { command in
+                    commandDispatcher.handle(command)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 80)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
         .overlay(alignment: .bottom) { translateBarOverlay }

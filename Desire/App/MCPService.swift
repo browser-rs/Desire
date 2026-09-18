@@ -567,6 +567,16 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/intercept/record", "body": ["pattern": "pattern"]],
         ],
+        // 0.1.14 — vision
+        [
+            "name": "fullPageScreenshot",
+            "description": "Capture the ENTIRE scrollable page as a PDF (not just the viewport) → ~/desire_fullpage.pdf. Use for archiving/reading long pages; combine with downloadFile-style flows.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["index": ["type": "integer"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/screenshot/fullpage", "body": ["index": "index"]],
+        ],
         // 0.1.11 — structured extraction
         [
             "name": "extractTables",

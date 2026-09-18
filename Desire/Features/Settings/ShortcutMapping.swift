@@ -80,6 +80,7 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "toggleAgentPanel", commandName: "Toggle AI Panel", keyEquivalent: "'", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "bookmarkPage", commandName: "Add Bookmark", keyEquivalent: "d", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "settings", commandName: "Settings", keyEquivalent: ",", modifierFlags: cmd, isCustomized: false, category: .panels),
+            ShortcutMapping(id: "commandPalette", commandName: "Command Palette", keyEquivalent: "k", modifierFlags: cmd, isCustomized: false, category: .panels),
         ]
     }()
 

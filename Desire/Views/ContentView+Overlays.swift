@@ -59,6 +59,12 @@ extension ContentView {
             .keyboardShortcut(shortcutStore.keyboardShortcut(for: "toggleAgentPanel")
                               ?? KeyboardShortcut("'", modifiers: .command))
             .hidden()
+        Button("") {
+            withAnimation(.transitionNormal) { showCommandPalette = true }
+        }
+            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "commandPalette")
+                              ?? KeyboardShortcut("k", modifiers: .command))
+            .hidden()
     }
 
     /// "Element blocked" toast with an undo button (element blocker).

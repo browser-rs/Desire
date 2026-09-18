@@ -234,6 +234,7 @@ class TabManager: ObservableObject {
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil) {
         let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID)
+        defer { BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count]) }
         switch newTabPosition {
         case .end:
             tabs.append(tab)
@@ -269,6 +270,7 @@ class TabManager: ObservableObject {
         recordClosed(tab)
         tearDown(tab)
         tabs.remove(at: index)
+        defer { BridgeEventBus.shared.publish("tabClosed", ["closedId": tab.id.uuidString, "count": tabs.count]) }
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
         }

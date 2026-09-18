@@ -1098,6 +1098,10 @@ class AgentSessionStore: ObservableObject {
                 argumentsSummary: summarizeArguments(toolCall),
                 continuation: continuation
             )
+            BridgeEventBus.shared.publish("approvalPending", [
+                "tool": toolCall.function.name,
+                "risk": risk.displayName,
+            ])
         }
     }
 

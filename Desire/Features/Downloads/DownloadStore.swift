@@ -123,6 +123,10 @@ class DownloadStore: ObservableObject {
         let id = item.id
         downloads.insert(item, at: 0)
         syncDockBadge()
+        // Single funnel for every new row (webview + URLSession paths).
+        BridgeEventBus.shared.publish("downloadStarted", [
+            "id": id.uuidString, "file": item.filename, "source": item.sourceURL?.absoluteString ?? "",
+        ])
         return id
     }
 
@@ -345,6 +349,10 @@ class DownloadStore: ObservableObject {
         }
         saveHistory()
         syncDockBadge()
+        BridgeEventBus.shared.publish("downloadCompleted", [
+            "id": id.uuidString, "file": downloads[i].filename,
+            "bytes": downloads[i].downloadedBytes, "private": downloads[i].isPrivate,
+        ])
         queueCompletionNotification(filename: downloads[i].filename)
     }
 
@@ -353,6 +361,9 @@ class DownloadStore: ObservableObject {
         downloads[i].state = .failed
         downloads[i].error = message
         saveHistory()
+        BridgeEventBus.shared.publish("downloadFailed", [
+            "id": id.uuidString, "file": downloads[i].filename, "error": message,
+        ])
     }
 
     func remove(id: UUID) {

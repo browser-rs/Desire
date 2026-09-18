@@ -568,6 +568,11 @@ struct WebView: NSViewRepresentable {
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
                 parent.onPageFinished?(url, parent.state.pageTitle)
+                BridgeEventBus.shared.publish("pageReady", [
+                    "url": url.absoluteString,
+                    // pageTitle KVO lands later — prefer the live title.
+                    "title": webView.title ?? parent.state.pageTitle,
+                ])
 
                 // Inject content scripts from Safari extensions
                 if let extensionManager = parent.extensionManager {
@@ -927,6 +932,10 @@ struct WebView: NSViewRepresentable {
                 completion(decision)
             }
             parent.state.pendingBeforeUnload = pending
+            BridgeEventBus.shared.publish("beforeunloadPending", [
+                "url": webView.url?.absoluteString ?? "",
+                "message": pageMessage,
+            ])
         }
 
         // MARK: - WKUIDelegate - 权限请求

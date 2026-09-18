@@ -98,6 +98,12 @@ final class AutomationServer {
                 return
             }
             Task { @MainActor in
+                // SSE stream: long-lived, not routed through the one-shot
+                // request/response path.
+                if request.hasPrefix("GET /events") {
+                    self.startEventStream(connection)
+                    return
+                }
                 let response = await self.route(request)
                 let body = response.data(using: .utf8) ?? Data()
                 let head = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
@@ -106,6 +112,42 @@ final class AutomationServer {
                 })
             }
         }
+    }
+
+    // MARK: - Event stream (SSE)
+
+    private var eventStreamConnections: [UUID: NWConnection] = [:]
+
+    /// `GET /events` — upgrade the connection to an SSE stream fed by
+    /// BridgeEventBus. Kept open until the client goes away; every inbound
+    /// byte from the client is drained so we notice disconnects.
+    private func startEventStream(_ connection: NWConnection) {
+        let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+        connection.send(content: head.data(using: .utf8)!, completion: .contentProcessed { _ in })
+        let id = BridgeEventBus.shared.subscribe { [weak connection] frame in
+            connection?.send(content: frame.data(using: .utf8)!, completion: .contentProcessed { error in
+                if let error {
+                    Log.agent.error("bridge events: SSE send failed: \(error.localizedDescription, privacy: .public)")
+                }
+            })
+        }
+        eventStreamConnections[id] = connection
+
+        func drain() {
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
+                if error == nil {
+                    drain() // client keep-alives land here; events keep flowing
+                } else {
+                    Task { @MainActor in
+                        BridgeEventBus.shared.unsubscribe(id)
+                        self.eventStreamConnections.removeValue(forKey: id)
+                        connection.cancel()
+                    }
+                }
+            }
+        }
+        drain()
+        Log.agent.info("bridge events: stream opened (\(self.eventStreamConnections.count, privacy: .public) live)")
     }
 
     // MARK: - Routing

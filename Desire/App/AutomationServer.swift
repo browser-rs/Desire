@@ -265,6 +265,40 @@ final class AutomationServer {
                 ))
             case ("POST", "/bookmarks/remove"):
                 return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
+            case ("POST", "/tabs/pin"):
+                return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
+            case ("GET", "/reading-list"):
+                return try Self.json(Self.readingList())
+            case ("POST", "/reading-list/add"):
+                return try Self.json(Self.addReadingItem(
+                    title: Self.string(body, "title") ?? "",
+                    url: Self.string(body, "url") ?? ""
+                ))
+            case ("POST", "/reading-list/remove"):
+                return try Self.json(Self.removeReadingItem(url: Self.string(body, "url") ?? ""))
+            case ("GET", "/search-history"):
+                return try Self.json(Self.searchHistory(count: Int(query["count"] ?? "10") ?? 10))
+            case ("POST", "/search-history/add"):
+                return try Self.json(Self.addSearchHistory(
+                    query: Self.string(body, "query") ?? "",
+                    engine: Self.string(body, "engine") ?? "google"
+                ))
+            case ("POST", "/search-history/clear"):
+                return try Self.json(Self.clearSearchHistory())
+            case ("GET", "/tabgroups"):
+                return try Self.json(Self.tabGroups())
+            case ("POST", "/tabgroups/create"):
+                return try Self.json(Self.createTabGroup(
+                    name: Self.string(body, "name") ?? "",
+                    tabIndex: Self.index(body)
+                ))
+            case ("POST", "/tabgroups/collapse"):
+                return try Self.json(Self.collapseTabGroup(
+                    name: Self.string(body, "name") ?? "",
+                    collapsed: body["collapsed"] as? Bool ?? true
+                ))
+            case ("POST", "/tabgroups/delete"):
+                return try Self.json(Self.deleteTabGroup(name: Self.string(body, "name") ?? ""))
             case ("GET", "/elements"):
                 return try Self.json(Self.elementRules())
             case ("POST", "/elements/add"):
@@ -876,6 +910,91 @@ final class AutomationServer {
             return ["error": "no such bookmark"]
         }
         app.bookmarkStore.remove(bookmark)
+        return ["ok": true]
+    }
+
+    // MARK: Pins / reading list / search history
+
+    private static func setPin(index: Int?, pinned: Bool?) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        tab.isPinned = pinned ?? !tab.isPinned
+        return ["ok": true, "index": index ?? -1, "pinned": tab.isPinned]
+    }
+
+    private static func readingList() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["items": app.readingListStore.items.map { i -> [String: Any] in
+            ["title": i.title, "url": i.url, "read": i.isRead]
+        }]
+    }
+
+    private static func addReadingItem(title: String, url: String) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        app.readingListStore.add(title: title.isEmpty ? url : title, url: url)
+        return ["ok": true, "count": app.readingListStore.items.count]
+    }
+
+    private static func removeReadingItem(url: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let item = app.readingListStore.items.first(where: { $0.url == url }) else {
+            return ["error": "no such item"]
+        }
+        app.readingListStore.remove(item.id)
+        return ["ok": true]
+    }
+
+    private static func searchHistory(count: Int) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["queries": app.searchHistoryStore.recentQueries(count: count)]
+    }
+
+    private static func addSearchHistory(query: String, engine: String) throws -> [String: Any] {
+        guard let app = AppState.live, !query.isEmpty else { return ["error": "missing query"] }
+        app.searchHistoryStore.add(query: query, engine: engine)
+        return ["ok": true]
+    }
+
+    private static func clearSearchHistory() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.searchHistoryStore.clearAll()
+        return ["ok": true]
+    }
+
+    // MARK: Tab groups
+
+    private static func tabGroups() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["groups": app.tabGroupStore.groups.map { g -> [String: Any] in
+            ["name": g.name, "tabs": g.tabIds.count, "collapsed": g.isCollapsed]
+        }]
+    }
+
+    private static func createTabGroup(name: String, tabIndex: Int?) throws -> [String: Any] {
+        guard let app = AppState.live, let tm = try shared.tabManager, !name.isEmpty else {
+            return ["error": "missing name or no tab manager"]
+        }
+        let group = app.tabGroupStore.create(name: name)
+        if let index = tabIndex, tm.tabs.indices.contains(index) {
+            app.tabGroupStore.addTab(tm.tabs[index].id, to: group.id)
+        }
+        return ["ok": true, "name": group.name]
+    }
+
+    private static func collapseTabGroup(name: String, collapsed: Bool) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let group = app.tabGroupStore.groups.first(where: { $0.name == name }) else {
+            return ["error": "no such group"]
+        }
+        app.tabGroupStore.setCollapsed(group.id, collapsed)
+        return ["ok": true, "collapsed": collapsed]
+    }
+
+    private static func deleteTabGroup(name: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let group = app.tabGroupStore.groups.first(where: { $0.name == name }) else {
+            return ["error": "no such group"]
+        }
+        app.tabGroupStore.delete(group.id)
         return ["ok": true]
     }
 

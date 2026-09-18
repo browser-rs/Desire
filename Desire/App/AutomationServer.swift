@@ -207,7 +207,7 @@ final class AutomationServer {
                 }
                 return try Self.json(["spawn": out.trimmingCharacters(in: .whitespacesAndNewlines)])
             case ("POST", "/responsive"):
-                guard let tab = try Self.shared.resolveIndex(Self.index(body)) else {
+                guard let tab = Self.shared.resolveIndex(Self.index(body)) else {
                     return Self.error("no such tab")
                 }
                 let enabled = body["enabled"] as? Bool ?? true
@@ -235,6 +235,39 @@ final class AutomationServer {
                 return try Self.json(Self.deletePasswords(domain: Self.string(body, "domain") ?? ""))
             case ("POST", "/containers/remove"):
                 return try Self.json(Self.removeContainer(Self.string(body, "name") ?? ""))
+            case ("GET", "/site-settings"):
+                return try Self.json(Self.siteSettings(host: Self.string(query, "host") ?? ""))
+            case ("POST", "/site-settings/darkmode"):
+                return try Self.json(Self.setSiteDarkMode(
+                    host: Self.string(body, "host") ?? "",
+                    enabled: body["enabled"] as? Bool ?? false
+                ))
+            case ("POST", "/site-settings/zoom"):
+                return try Self.json(Self.setSiteZoom(
+                    host: Self.string(body, "host") ?? "",
+                    zoom: body["zoom"] as? Double ?? 1.0
+                ))
+            case ("GET", "/quickdial"):
+                return try Self.json(Self.quickDial())
+            case ("POST", "/quickdial/add"):
+                return try Self.json(Self.addQuickDial(
+                    title: Self.string(body, "title") ?? "",
+                    url: Self.string(body, "url") ?? ""
+                ))
+            case ("POST", "/quickdial/delete"):
+                return try Self.json(Self.deleteQuickDial(url: Self.string(body, "url") ?? ""))
+            case ("GET", "/elements"):
+                return try Self.json(Self.elementRules())
+            case ("POST", "/elements/add"):
+                return try Self.json(Self.addElementRule(
+                    selector: Self.string(body, "selector") ?? "",
+                    pattern: Self.string(body, "pattern") ?? ""
+                ))
+            case ("POST", "/elements/remove"):
+                return try Self.json(Self.removeElementRule(
+                    pattern: Self.string(body, "pattern") ?? "",
+                    selector: Self.string(body, "selector") ?? ""
+                ))
             case ("GET", "/shortcuts"):
                 return try Self.json(Self.shortcuts())
             case ("POST", "/shortcuts/update"):
@@ -456,7 +489,7 @@ final class AutomationServer {
             "title": tab.browser.webView.title ?? tab.browser.pageTitle,
             "isLoading": tab.isLoading,
             "zoom": tab.browser.pageZoom,
-            "error": tab.browser.lastError?.localizedDescription,
+            "error": tab.browser.lastError?.localizedDescription ?? NSNull(),
         ]
     }
 
@@ -586,7 +619,7 @@ final class AutomationServer {
                 continuation.resume(returning: result)
             }
         }
-        return ["result": result as Any ?? NSNull()]
+        return ["result": result ?? NSNull()]
     }
 
     /// Opens/closes app-shell panels so external drivers can screenshot
@@ -736,6 +769,74 @@ final class AutomationServer {
             app.passwordStore.delete(entry)
         }
         return ["ok": true, "deleted": victims.count]
+    }
+
+    // MARK: Site settings / QuickDial / Element blocker
+
+    private static func siteSettings(host: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.siteSettingsStore
+        guard !host.isEmpty else { return ["error": "missing host"] }
+        return ["host": host,
+                "zoom": store.zoom(for: host),
+                "darkMode": store.darkModeEnabled(for: host),
+                "blockedSelectors": store.blockedSelectors(for: host)]
+    }
+
+    private static func setSiteDarkMode(host: String, enabled: Bool) throws -> [String: Any] {
+        guard let app = AppState.live, !host.isEmpty else { return ["error": "missing host"] }
+        app.siteSettingsStore.setDarkMode(enabled, for: host)
+        return ["ok": true, "darkMode": app.siteSettingsStore.darkModeEnabled(for: host)]
+    }
+
+    private static func setSiteZoom(host: String, zoom: Double) throws -> [String: Any] {
+        guard let app = AppState.live, !host.isEmpty else { return ["error": "missing host"] }
+        app.siteSettingsStore.setZoom(zoom, for: host)
+        return ["ok": true, "zoom": app.siteSettingsStore.zoom(for: host)]
+    }
+
+    private static func quickDial() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["dials": app.quickDialStore.dials.map { ["title": $0.title, "url": $0.url] }]
+    }
+
+    private static func addQuickDial(title: String, url: String) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        app.quickDialStore.add(title: title.isEmpty ? url : title, url: url)
+        return ["ok": true, "count": app.quickDialStore.dials.count]
+    }
+
+    private static func deleteQuickDial(url: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let dial = app.quickDialStore.dials.first(where: { $0.url == url }) else {
+            return ["error": "no such dial"]
+        }
+        app.quickDialStore.delete(id: dial.id)
+        return ["ok": true]
+    }
+
+    private static func elementRules() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["rules": app.elementBlockStore.rules.map { r -> [String: Any] in
+            ["selector": r.cssSelector, "urlPattern": r.urlPattern]
+        }]
+    }
+
+    private static func addElementRule(selector: String, pattern: String) throws -> [String: Any] {
+        guard let app = AppState.live, !selector.isEmpty, !pattern.isEmpty else {
+            return ["error": "missing selector or pattern"]
+        }
+        app.elementBlockStore.add(cssSelector: selector, urlPattern: pattern)
+        return ["ok": true, "count": app.elementBlockStore.rules.count]
+    }
+
+    private static func removeElementRule(pattern: String, selector: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let rule = app.elementBlockStore.rules.first(where: {
+            $0.urlPattern == pattern && $0.cssSelector == selector
+        }) else { return ["error": "no such rule"] }
+        app.elementBlockStore.remove(id: rule.id)
+        return ["ok": true]
     }
 
     /// Removes a container by name (test cleanup). Write goes through

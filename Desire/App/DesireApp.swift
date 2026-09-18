@@ -51,6 +51,9 @@ struct DesireApp: App {
         // Production observability baseline: file MetricKit crash/hang
         // diagnostics on every launch (crashes arrive the launch AFTER).
         MetricsManager.shared.start()
+        // GitHub Releases update check (silent when current; notification
+        // click opens the release page).
+        UpdateChecker.shared.checkIfNeeded()
     }
 
     var body: some Scene {

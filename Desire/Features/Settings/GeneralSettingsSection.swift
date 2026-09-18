@@ -120,6 +120,27 @@ struct GeneralSettingsSection: View {
                     systemImage: "forward.endpoints",
                     isOn: $settings.sponsorBlockSkip
                 )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Sponsors & Self-promos",
+                    subtitle: "Paid promotions and creator self-promotion readouts.",
+                    systemImage: "dollarsign.circle",
+                    isOn: $settings.sponsorSkipMain
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Intros, Outros & Previews",
+                    subtitle: "Skippable opening/ending cards and recap previews.",
+                    systemImage: "forward.frame",
+                    isOn: $settings.sponsorSkipChapters
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Filler Tangents",
+                    subtitle: "Off-topic filler content that adds nothing.",
+                    systemImage: "water.waves",
+                    isOn: $settings.sponsorSkipFiller
+                )
             }
 
             // MARK: - Search

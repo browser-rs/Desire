@@ -12,8 +12,8 @@
     if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
 
     var API = 'https://sponsor.ajay.app/api/skipSegments?videoID=';
-    // sponsor=ad readout, selfpromo=own promotion, interaction=like/subscribe reminders
-    var CATEGORIES = ['sponsor', 'selfpromo', 'interaction'];
+    // Categories injected by the host from Settings (three toggle groups).
+    var CATEGORIES = window.__desireSBCategories || ['sponsor', 'selfpromo', 'interaction'];
     var segments = [];
     var currentVideoID = null;
 

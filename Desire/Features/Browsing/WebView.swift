@@ -227,6 +227,8 @@ struct WebView: NSViewRepresentable {
     var httpsUpgradeEnabled: Bool = true
     /// YouTube 赞助商片段跳过开关（didFinish 注入 sponsorblock.js）。
     var sponsorBlockEnabled: Bool = false
+    /// 启用的 SponsorBlock 类别（随开关注入页面）。
+    var sponsorBlockCategories: [String] = []
     var extensionManager: SafariExtensionStore?
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
@@ -625,7 +627,12 @@ struct WebView: NSViewRepresentable {
             if parent.sponsorBlockEnabled,
                let host = webView.url?.host,
                host.hasSuffix("youtube.com") {
-                webView.evaluateJavaScript(UserScriptLoader.load("sponsorblock"), completionHandler: nil)
+                let categories = parent.sponsorBlockCategories
+                let categoriesJSON = (try? JSONSerialization.data(withJSONObject: categories))
+                    .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+                let script = "window.__desireSBCategories = \(categoriesJSON);\n"
+                    + UserScriptLoader.load("sponsorblock")
+                webView.evaluateJavaScript(script, completionHandler: nil)
             }
             if let host = webView.url?.host, let js = parent.state.videoAdBlocker?.pageScript(for: host) {
                 webView.evaluateJavaScript(js, completionHandler: nil)

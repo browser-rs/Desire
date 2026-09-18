@@ -45,6 +45,26 @@ class Settings: ObservableObject {
     @Published var sponsorBlockSkip: Bool {
         didSet { UserDefaults.standard.set(sponsorBlockSkip, forKey: "sponsorBlockSkip") }
     }
+    /// 类别组：赞助商+自我推广（SponsorBlock 默认跳过项）。
+    @Published var sponsorSkipMain: Bool {
+        didSet { UserDefaults.standard.set(sponsorSkipMain, forKey: "sponsorSkipMain") }
+    }
+    /// 类别组：片头/片尾/预览回顾。
+    @Published var sponsorSkipChapters: Bool {
+        didSet { UserDefaults.standard.set(sponsorSkipChapters, forKey: "sponsorSkipChapters") }
+    }
+    /// 类别组：灌水/无关内容。
+    @Published var sponsorSkipFiller: Bool {
+        didSet { UserDefaults.standard.set(sponsorSkipFiller, forKey: "sponsorSkipFiller") }
+    }
+    /// 当前启用的 SponsorBlock 类别（注入脚本消费）。
+    var sponsorCategories: [String] {
+        var categories: [String] = []
+        if sponsorSkipMain { categories += ["sponsor", "selfpromo", "interaction"] }
+        if sponsorSkipChapters { categories += ["intro", "outro", "preview"] }
+        if sponsorSkipFiller { categories += ["filler"] }
+        return categories
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -77,6 +97,9 @@ class Settings: ObservableObject {
         newTabPosition = NewTabPosition(rawValue: UserDefaults.standard.string(forKey: "newTabPosition") ?? "") ?? .end
         confirmCloseMultipleTabs = UserDefaults.standard.object(forKey: "confirmCloseMultipleTabs") as? Bool ?? true
         sponsorBlockSkip = UserDefaults.standard.object(forKey: "sponsorBlockSkip") as? Bool ?? true
+        sponsorSkipMain = UserDefaults.standard.object(forKey: "sponsorSkipMain") as? Bool ?? true
+        sponsorSkipChapters = UserDefaults.standard.object(forKey: "sponsorSkipChapters") as? Bool ?? false
+        sponsorSkipFiller = UserDefaults.standard.object(forKey: "sponsorSkipFiller") as? Bool ?? false
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

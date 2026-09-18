@@ -34,6 +34,7 @@ extension ContentView {
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
             sponsorBlockEnabled: settings.sponsorBlockSkip,
+            sponsorBlockCategories: settings.sponsorCategories,
             onOpenLinkInNewTab: { url in
                 // Inherit the source tab's identity — "open in new tab" from
                 // a private/container tab must not leak into the default store.

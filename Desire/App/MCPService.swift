@@ -553,6 +553,20 @@ final class MCPService {
             "inputSchema": ["type": "object", "properties": [:]],
             "_bridge": ["method": "POST", "path": "/intercept/clear", "body": []],
         ],
+        // 0.1.14 — rule recording
+        [
+            "name": "recordInterceptRules",
+            "description": "Turn OBSERVED network requests into block rules (from the DevTools network log). pattern filters URLs (case-insensitive substring); localhost infrastructure is excluded. Great for cutting third-party dependencies after first load.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "pattern": ["type": "string", "description": "URL substring to match, e.g. 'analytics' or 'cdn.example'"],
+                    "limit": ["type": "integer", "description": "Max rules to add (default 20)"],
+                ],
+                "required": ["pattern"],
+            ],
+            "_bridge": ["method": "POST", "path": "/intercept/record", "body": ["pattern": "pattern"]],
+        ],
         // 0.1.11 — structured extraction
         [
             "name": "extractTables",

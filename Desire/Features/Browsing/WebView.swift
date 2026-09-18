@@ -795,6 +795,37 @@ struct WebView: NSViewRepresentable {
         // 无法展示的 MIME 类型（.pkg/.dmg/.zip 等直接文件链接）转为下载，
         // 否则 WebKit 会尝试渲染并失败（code 102 "frame load interrupted"）
         func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            // Real network capture (0.1.14): main-frame responses land in
+            // the DevTools network panel. WebKit exposes no per-subresource
+            // request API, so this is v1's honest coverage — the panel used
+            // to contain ONLY preview placeholders.
+            if let url = navigationResponse.response.url {
+                let http = navigationResponse.response as? HTTPURLResponse
+                let statusCode = http?.statusCode ?? 0
+                let mime = navigationResponse.response.mimeType
+                var headers: [String: String]?
+                if let allHeaders = http?.allHeaderFields as? [String: Any] {
+                    var plain: [String: String] = [:]
+                    for (key, value) in allHeaders {
+                        plain["\(key)"] = "\(value)"
+                    }
+                    headers = plain
+                }
+                let resourceType: NetworkRequest.ResourceType = navigationResponse.isForMainFrame ? .document : .other
+                let requestID = parent.devToolsStore.startNetworkRequest(
+                    url: url.absoluteString,
+                    method: "GET",
+                    resourceType: resourceType
+                )
+                parent.devToolsStore.completeNetworkRequest(
+                    id: requestID,
+                    statusCode: statusCode,
+                    statusText: nil,
+                    mimeType: mime,
+                    responseHeaders: headers,
+                    responseBody: nil
+                )
+            }
             if !navigationResponse.canShowMIMEType {
                 decisionHandler(.download)
             } else {

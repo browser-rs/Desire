@@ -600,6 +600,11 @@ final class AutomationServer {
                 ))
             case ("POST", "/intercept/remove"):
                 return try Self.json(Self.removeInterceptRule(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/intercept/record"):
+                return try Self.json(Self.recordInterceptRules(
+                    patternSubstring: Self.string(body, "pattern") ?? "",
+                    limit: Int(query["limit"] ?? "20") ?? 20
+                ))
             case ("POST", "/intercept/clear"):
                 return try Self.json(Self.clearInterceptRules())
             case ("POST", "/extract"):

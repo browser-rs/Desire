@@ -37,6 +37,33 @@ extension AutomationServer {
         return ["ok": true]
     }
 
+    /// 0.1.14 — rule recording: turn observed network requests into block
+    /// rules. `patternSubstring` filters URLs; count caps the result.
+    static func recordInterceptRules(patternSubstring: String, limit: Int) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let requests = app.devToolsStore.networkRequests
+        let matched = requests
+            .compactMap { $0.url.isEmpty ? nil : URL(string: $0.url) }
+            .filter { url in
+                guard !url.absoluteString.contains("127.0.0.1:8877"),
+                      !url.absoluteString.contains("127.0.0.1:8799") else { return false }
+                return url.absoluteString.lowercased().contains(patternSubstring.lowercased())
+            }
+        var added = 0
+        var skipped = 0
+        for url in matched.prefix(max(1, limit)) {
+            let filter = "*\(url.host ?? url.absoluteString)*"
+            if InterceptStore.shared.rules.contains(where: { $0.urlFilter == filter }) {
+                skipped += 1
+                continue
+            }
+            InterceptStore.shared.add(urlFilter: filter, kind: .block, payload: nil)
+            added += 1
+        }
+        return ["ok": true, "observed": requests.count, "matched": matched.count,
+                "added": added, "skippedDuplicates": skipped]
+    }
+
     static func extract(kind: String, selector: String?, format: String, index: Int?) async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         let js: String

@@ -150,6 +150,9 @@ class TabManager: ObservableObject {
         if recentlyClosed.count > 20 { recentlyClosed.removeFirst() }
     }
     private var suspendTimer: Timer?
+    /// Set by a DispatchSourceMemoryPressure event; consumed by the next
+    /// suspendIdleTabs sweep to suspend additional LRU background tabs.
+    var memoryPressureActive = false
     /// Per-window session storage key (set by ContentView once the window's
     /// value-based session UUID is known). Nil until then: persistence and
     /// restore are no-ops for unkeyed windows.
@@ -162,6 +165,24 @@ class TabManager: ObservableObject {
         // the shared key and destroy every other window's tabs.
         TabSessionCoordinator.shared.register(self)
         startSuspendTimer()
+        startMemoryPressureMonitor()
+    }
+
+    /// System memory pressure events set `memoryPressureActive` so the next
+    /// suspend sweep suspends LRU background tabs beyond the time threshold.
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
+
+    private func startMemoryPressureMonitor() {
+        let source = DispatchSource.makeMemoryPressureSource(
+            eventMask: .warning, queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                self?.memoryPressureActive = true
+                Log.tabs.info("memory pressure event received")
+            }
+        }
+        source.resume()
+        memoryPressureSource = source
     }
 
     deinit {
@@ -187,30 +208,39 @@ class TabManager: ObservableObject {
     /// When a tab is suspended, its WKWebView content is unloaded but
     /// the view is kept so it can be restored quickly.
     private func suspendIdleTabs() {
-        // The threshold lives in Settings ("suspendAfterMinutes", written to
-        // this same key). Negative = "Never"; unset/0 keeps the 30-min default.
         let configured = UserDefaults.standard.double(forKey: "suspendAfterMinutes")
         guard configured >= 0 else { return }
         let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
         for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
-                // Only suspend if not already suspended
                 if !tab.isSuspended {
-                    // Snapshot BEFORE blanking, otherwise `loadHTMLString("")`
-                    // destroys the live page (clears url/DOM/JS/scroll state)
-                    // and the wake path has nothing to restore from.
                     tab.captureSuspendedState()
                     tab.isSuspended = true
-                    // Stop loading and clear content to save memory/battery
                     tab.browser.webView.stopLoading()
                     tab.browser.webView.loadHTMLString("", baseURL: nil)
                 }
             }
         }
+
+        // Memory watermark: suspend LRU background tabs when the system
+        // reports memory pressure. Exemptions: selected, pinned, incognito,
+        // playing audio.
+        if memoryPressureActive {
+            let candidates = tabs
+                .filter { $0.id != selectedTab?.id && !$0.isPinned && !$0.isOnNewTabPage
+                    && !$0.isIncognito && !$0.isSuspended && !$0.isPlayingAudio }
+                .sorted { $0.lastAccessed < $1.lastAccessed }
+            for tab in candidates {
+                tab.captureSuspendedState()
+                tab.isSuspended = true
+                tab.browser.webView.stopLoading()
+                tab.browser.webView.loadHTMLString("", baseURL: nil)
+                Log.tabs.info("memory watermark: suspended '\(tab.displayTitle, privacy: .public)'")
+            }
+        }
     }
 
-    /// Immediately suspend all tabs except the selected one (for memory pressure)
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito {
             if !tab.isSuspended {

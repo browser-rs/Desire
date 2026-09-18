@@ -242,7 +242,9 @@ struct WebView: NSViewRepresentable {
     static var exitPickerJS: String { UserScriptLoader.load("element-picker-exit") }
 
     /// JS that counts total matches of `query` in the page's text nodes.
-    /// Used by the find-in-page UI.
+    /// Used by the find-in-page UI. NOTE: TreeWalker.nextNode() only returns
+    /// a boolean — the text lives on `walk.currentNode.nodeValue` (using
+    /// `walk.nodeValue` throws, which used to zero the match count).
     static func findCountJS(query: String) -> String {
         let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
@@ -252,7 +254,7 @@ struct WebView: NSViewRepresentable {
             if (!t) return 0;
             var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
             var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-            while (walk.nextNode()) { c += (walk.nodeValue.match(r) || []).length; }
+            while (walk.nextNode()) { c += (walk.currentNode.nodeValue.match(r) || []).length; }
             return c;
         })()
         """

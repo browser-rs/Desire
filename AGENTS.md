@@ -266,6 +266,13 @@ Features/Bookmarks/
   映射里 savePage 尚无对应命令（未接线）；⌘1-9 切标签和 Esc 保持硬编码。
 - **BUG-K 优雅退出挂起**：SIGTERM 后偶发卡在 exit（STAT=SX，SIGKILL
   亦不立即死）。怀疑挂起网络会话/审批 continuation。低频未定位。
+- **会话恢复**已修复（2026-09）：SwiftUI 在 macOS 上不写 Saved
+  Application State，带 UUID 的窗口永远不会被还原，"按窗口 UUID 恢复"
+  的设计在还原侧断链（保存侧正常，退出时写 session-index + 各
+  session-<uuid>.json）。现首窗口 UUID 全新时采纳 index 中最近的会话
+  （ContentView 采用路径，Window 重新绑到该 identity）。
+  已知边界：强杀进程（-9）后 index 是上次干净退出的，可能还原较旧的
+  会话；正常 Cmd+Q 路径已实测还原。
 - **下载**：暂停→秒恢复竞态已修复（2026-09：resume 先挂起意图，
   checkpoint 数据落地后由 storeResumeData 触发；数据为空
   （服务器不支持 Range）则删残件、复用原文件名重启，见

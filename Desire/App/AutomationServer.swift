@@ -153,6 +153,8 @@ final class AutomationServer {
                 return try await Self.json(Self.switchTab(index: Self.index(body) ?? 0))
             case ("GET", "/page/text"):
                 return try await Self.json(Self.pageText(index: Self.index(query)))
+            case ("GET", "/find"):
+                return try await Self.json(Self.find(query: query["q"] ?? "", index: Self.index(query)))
             case ("GET", "/page/timing"):
                 guard let tab = Self.shared.resolveIndex(Self.index(query)) else {
                     return Self.error("no such tab")
@@ -273,6 +275,11 @@ final class AutomationServer {
                 return try Self.json(Self.panelSnapshot(name: query["name"] ?? "downloads"))
             case ("GET", "/bookmarks"):
                 return try Self.json(Self.bookmarks())
+            case ("POST", "/command"):
+                return try Self.json(Self.sendCommand(
+                    name: Self.string(body, "name") ?? "",
+                    index: body["index"] as? Int
+                ))
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages())
             case ("POST", "/agent/send"):
@@ -337,6 +344,8 @@ final class AutomationServer {
             "tabs": tabs,
             "selected": tm?.selectedIndex ?? -1,
             "agentBusy": AgentScheduler.shared.deliveryTarget?.isProcessing ?? false,
+            "isActive": NSApp.isActive,
+            "hasKeyWindow": NSApp.keyWindow != nil,
         ]
     }
 
@@ -421,6 +430,7 @@ final class AutomationServer {
             "url": tab.browser.webView.url?.absoluteString ?? tab.urlString,
             "title": tab.browser.webView.title ?? tab.browser.pageTitle,
             "isLoading": tab.isLoading,
+            "zoom": tab.browser.pageZoom,
             "error": tab.browser.lastError?.localizedDescription,
         ]
     }
@@ -456,6 +466,54 @@ final class AutomationServer {
     private static func bookmarks() throws -> [String: Any] {
         let entries = BookmarkStore().leafEntries.map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
+    }
+
+    /// Drives any parameterless `BrowserCommand` (the same values the menu
+    /// items post), so bookmarking, zooming, tab cycling, panel toggles and
+    /// friends are testable without UI interaction. NOTE: delivery follows
+    /// the key-window rule — the app must be active, or commands are dropped
+    /// by design (multi-window correctness).
+    private static func sendCommand(name: String, index: Int?) throws -> [String: Any] {
+        let command: BrowserCommand
+        switch name {
+        case "newWindow": command = .newWindow
+        case "newTab": command = .newTab
+        case "newIncognitoTab": command = .newIncognitoTab
+        case "closeTab": command = .closeTab
+        case "reopenClosedTab": command = .reopenClosedTab
+        case "selectTab":
+            guard let index else { return ["error": "selectTab requires index"] }
+            command = .selectTab(index)
+        case "previousTab": command = .previousTab
+        case "nextTab": command = .nextTab
+        case "showHistory": command = .showHistory
+        case "showBookmarks": command = .showBookmarks
+        case "showDownloads": command = .showDownloads
+        case "showSettings": command = .showSettings
+        case "showPlugins": command = .showPlugins
+        case "showExtensions": command = .showExtensions
+        case "showElementBlock": command = .showElementBlock
+        case "bookmarkPage": command = .bookmarkPage
+        case "toggleFullScreen": command = .toggleFullScreen
+        case "toggleFind": command = .toggleFind
+        case "tabSearch": command = .tabSearch
+        case "toggleSidebar": command = .toggleSidebar
+        case "toggleResponsiveMode": command = .toggleResponsiveMode
+        case "toggleReader": command = .toggleReader
+        case "reload": command = .reload
+        case "forceReload": command = .forceReload
+        case "inspectElement": command = .inspectElement
+        case "printPage": command = .printPage
+        case "zoomIn": command = .zoomIn
+        case "zoomOut": command = .zoomOut
+        case "actualSize": command = .actualSize
+        case "screenshot": command = .screenshot
+        case "restoreArchivedSession": command = .restoreArchivedSession
+        default:
+            return ["error": "unknown command \(name)"]
+        }
+        CommandBus.shared.send(command)
+        return ["ok": true, "command": name]
     }
 
     private static func downloads() throws -> [String: Any] {
@@ -578,10 +636,30 @@ final class AutomationServer {
         return ["ok": true, "leave": leave]
     }
 
+    /// Native find-in-page: returns whether the query matches and the
+    /// total occurrence count (same count JS the FindBar uses).
+    private static func find(query: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index), !query.isEmpty else {
+            return ["error": "no such tab or empty query"]
+        }
+        let config = WKFindConfiguration()
+        config.wraps = false
+        let found: Bool = await withCheckedContinuation { continuation in
+            tab.browser.webView.find(query, configuration: config) { result in
+                continuation.resume(returning: result.matchFound)
+            }
+        }
+        let count: Int = await withCheckedContinuation { continuation in
+            tab.browser.webView.evaluateJavaScript(WebView.findCountJS(query: query)) { value, _ in
+                continuation.resume(returning: (value as? Int) ?? 0)
+            }
+        }
+        return ["matchFound": found, "count": count]
+    }
+
     /// Reader-mode extraction state for the selected tab (populated after
     /// window._desireReader() runs in the page).
-    private static func readerState(index: Int?) throws -> [String: Any] {
-        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+    private static func readerState(index: Int?) throws -> [String: Any] {        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         let state = tab.browser
         return [
             "isReadingMode": state.isReadingMode,

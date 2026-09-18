@@ -638,6 +638,20 @@ final class TabSessionCoordinator {
         return session
     }
 
+    /// The most recent session key from the last clean termination's index —
+    /// the "continue where you left off" candidate for a freshly launched
+    /// first window (whose own window-value restoration never happens on
+    /// macOS 26; see ContentView's adoption path).
+    func mostRecentSessionKey() -> String? {
+        guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return nil }
+        return index.last
+    }
+
+    /// Loads a stored session without consuming it.
+    func session(forKey key: String) -> SavedSession? {
+        DiskStore.load(SavedSession.self, key: key)
+    }
+
     private func startTimerIfNeeded() {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in

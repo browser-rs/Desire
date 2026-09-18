@@ -220,19 +220,45 @@ struct ContentView: View {
                 ) {
                     // This window's own tabs are back.
                 } else if !appState.hasRestoredSession {
-                    // First window with no own session: adopt the pre-
-                    // multiwindow merged session once (upgrade path).
+                    // First window with no own session. macOS 26 never
+                    // persists SwiftUI window VALUES (no Saved Application
+                    // State is written for SwiftUI scenes), so this window
+                    // always arrives with a fresh UUID and its "own" session
+                    // can never exist — without adoption, every launch
+                    // opened blank despite a perfectly good saved session.
+                    // Adopt the most recent session from the termination
+                    // index (continue where you left off).
                     appState.hasRestoredSession = true
-                    TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
-                    if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
+                    if settings.startupBehavior == .restoreSession,
+                       let lastKey = TabSessionCoordinator.shared.mostRecentSessionKey(),
+                       lastKey != sessionKey,
+                       let session = TabSessionCoordinator.shared.session(forKey: lastKey),
+                       !session.tabs.isEmpty {
+                        // Re-bind the window to the adopted identity so all
+                        // future persists land on the same session file.
+                        tabManager.sessionKey = lastKey
                         tabManager.apply(
-                            session: legacy,
+                            session: session,
                             javaScriptEnabled: settings.isJavaScriptEnabled,
                             contentBlocker: contentBlocker,
                             videoAdBlocker: videoAdBlocker
                         )
+                        // Deliberately NOT pruning here: consuming the index
+                        // would leave the next launch with nothing to adopt.
+                        // This window now persists under `lastKey`, and the
+                        // next clean quit rewrites the index with it.
                     } else {
-                        b.openFreshTab()
+                        TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
+                        if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
+                            tabManager.apply(
+                                session: legacy,
+                                javaScriptEnabled: settings.isJavaScriptEnabled,
+                                contentBlocker: contentBlocker,
+                                videoAdBlocker: videoAdBlocker
+                            )
+                        } else {
+                            b.openFreshTab()
+                        }
                     }
                 } else {
                     b.openFreshTab()

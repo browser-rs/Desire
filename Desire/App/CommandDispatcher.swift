@@ -211,9 +211,17 @@ struct CommandDispatcher {
                 tab.browser.isReadingMode = false
                 tab.browser.isReaderLoading = false
             } else {
+                // Extract FIRST, swap the view in on completion. Setting
+                // isReadingMode before evaluating removed the WKWebView from
+                // the hierarchy — WebKit then suspends the page, the
+                // extraction JS never runs and the spinner stuck forever.
                 tab.browser.isReaderLoading = true
-                tab.browser.isReadingMode = true
-                tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+                tab.browser.webView.evaluateJavaScript("window._desireReader()") { [weak tab] _, _ in
+                    Task { @MainActor [weak tab] in
+                        guard let tab else { return }
+                        tab.browser.isReadingMode = true
+                    }
+                }
             }
 
         case .exportBookmarks:

@@ -414,16 +414,30 @@ struct WebView: NSViewRepresentable {
                        let host = parent.state.webView.url?.host {
                 let existing = parent.passwordStore.find(domain: host)
                 if existing.contains(where: { $0.username == username }) { return }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    let alert = NSAlert()
-                    alert.messageText = String(localized: "Save Password for \(host)?")
-                    alert.informativeText = String(localized: "Username: \(username)")
-                    alert.addButton(withTitle: String(localized: "Save"))
-                    alert.addButton(withTitle: String(localized: "Not Now"))
-                    if alert.runModal() == .alertFirstButtonReturn {
-                        self.parent.passwordStore.save(domain: host, username: username, password: password)
+                // Non-modal SHEET, never runModal: a blocking modal here froze
+                // the whole main thread (and the automation bridge with it)
+                // on every login submit. Supersede a stale pending prompt.
+                guard let window = parent.state.webView.window else { return }
+                parent.passwordStore.pendingSave?.respond(false)
+                let pending = PendingPasswordSave(domain: host, username: username) { [weak store = parent.passwordStore] save in
+                    if save {
+                        store?.save(domain: host, username: username, password: password)
                     }
+                    store?.pendingSave = nil
+                }
+                parent.passwordStore.pendingSave = pending
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Save Password for \(host)?")
+                alert.informativeText = String(localized: "Username: \(username)")
+                alert.addButton(withTitle: String(localized: "Save"))
+                alert.addButton(withTitle: String(localized: "Not Now"))
+                pending.programmaticDismiss = { [weak alert, weak window] in
+                    if let sheetWindow = alert?.window, sheetWindow.isVisible, let window {
+                        window.endSheet(sheetWindow)
+                    }
+                }
+                alert.beginSheetModal(for: window) { response in
+                    pending.respond(response == .alertFirstButtonReturn)
                 }
             } else if message.name == "readerContent", let dict = message.body as? [String: String] {
                 parent.state.readerTitle = dict["title"] ?? ""

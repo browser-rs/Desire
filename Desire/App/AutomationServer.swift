@@ -145,7 +145,8 @@ final class AutomationServer {
             case ("POST", "/new-tab"):
                 return try await Self.json(Self.newTab(
                     url: Self.string(body, "url"),
-                    incognito: body["incognito"] as? Bool ?? false
+                    incognito: body["incognito"] as? Bool ?? false,
+                    container: Self.string(body, "container")
                 ))
             case ("POST", "/close-tab"):
                 return try await Self.json(Self.closeTab(index: Self.index(body)))
@@ -224,6 +225,16 @@ final class AutomationServer {
                 return try Self.json(Self.beforeUnloadState(index: Self.index(query)))
             case ("GET", "/reader"):
                 return try Self.json(Self.readerState(index: Self.index(query)))
+            case ("GET", "/console"):
+                return try Self.json(Self.console(count: Int(query["count"] ?? "20") ?? 20))
+            case ("GET", "/passwords"):
+                return try Self.json(Self.passwords())
+            case ("POST", "/passwords/resolve"):
+                return try Self.json(Self.resolvePasswordSave(body["save"] as? Bool ?? true))
+            case ("POST", "/passwords/delete"):
+                return try Self.json(Self.deletePasswords(domain: Self.string(body, "domain") ?? ""))
+            case ("POST", "/containers/remove"):
+                return try Self.json(Self.removeContainer(Self.string(body, "name") ?? ""))
             case ("GET", "/shortcuts"):
                 return try Self.json(Self.shortcuts())
             case ("POST", "/shortcuts/update"):
@@ -388,12 +399,26 @@ final class AutomationServer {
         return ["ok": true]
     }
 
-    private static func newTab(url: String?, incognito: Bool) async throws -> [String: Any] {
+    private static func newTab(url: String?, incognito: Bool, container: String?) async throws -> [String: Any] {
         let tm = try shared.tabManager
         guard let tm else { return ["error": "no tab manager"] }
+        var containerID: UUID?
+        var containerCreated = false
+        if let container {
+            // ContainerStore.shared is the UI's live instance — creating on
+            // demand is write-safe; unknown names are created, not guessed.
+            let store = ContainerStore.shared
+            if let existing = store.containers.first(where: { $0.name == container }) {
+                containerID = existing.id
+            } else {
+                containerID = store.addContainer(name: container).id
+                containerCreated = true
+            }
+        }
         let before = tm.tabs.count
-        tm.addTab(url: url, incognito: incognito)
-        return ["ok": true, "index": before, "count": tm.tabs.count]
+        tm.addTab(url: url, incognito: incognito, containerID: containerID)
+        return ["ok": true, "index": before, "count": tm.tabs.count,
+                "containerCreated": containerCreated]
     }
 
     private static func closeTab(index: Int?) async throws -> [String: Any] {
@@ -669,12 +694,65 @@ final class AutomationServer {
         ]
     }
 
+    /// Console messages captured by console-intercept.js (all tabs funnel
+    /// into the shared DevToolsStore).
+    private static func console(count: Int) throws -> [String: Any] {
+        let store = AppState.live?.system.devToolsStore
+        let rows = (store?.consoleMessages ?? []).suffix(count).map { m -> [String: Any] in
+            ["level": m.level.rawValue, "message": m.message]
+        }
+        return ["messages": Array(rows)]
+    }
+
+    /// Saved-password metadata + pending save-prompt state (never the
+    /// secrets themselves).
+    private static func passwords() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let rows = app.passwordStore.entries.map { p -> [String: Any] in
+            ["domain": p.domain, "username": p.username]
+        }
+        var result: [String: Any] = ["entries": rows]
+        if let pending = app.passwordStore.pendingSave {
+            result["pendingSave"] = ["domain": pending.domain, "username": pending.username]
+        }
+        return result
+    }
+
+    /// Resolves the pending save-password prompt (the sheet's Save / Not Now).
+    private static func resolvePasswordSave(_ save: Bool) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let pending = app.passwordStore.pendingSave else {
+            return ["error": "no pending password save"]
+        }
+        pending.respond(save)
+        return ["ok": true, "save": save]
+    }
+
+    /// Deletes every saved credential for a domain (test cleanup).
+    private static func deletePasswords(domain: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let victims = app.passwordStore.find(domain: domain)
+        for entry in victims {
+            app.passwordStore.delete(entry)
+        }
+        return ["ok": true, "deleted": victims.count]
+    }
+
+    /// Removes a container by name (test cleanup). Write goes through
+    /// ContainerStore.shared — the UI's live instance.
+    private static func removeContainer(_ name: String) throws -> [String: Any] {
+        guard let container = ContainerStore.shared.containers.first(where: { $0.name == name }) else {
+            return ["error": "no such container"]
+        }
+        ContainerStore.shared.removeContainer(container.id)
+        return ["ok": true]
+    }
+
     /// Keyboard-shortcut bindings: drives the customize → live-menu pipeline
     /// end to end without touching the Settings UI. Also introspects the real
     /// NSMenu items, so a test can assert that a re-recording actually
     /// re-bound the menu accelerator (what physical keypresses match against).
-    private static func shortcuts() throws -> [String: Any] {
-        guard let store = AppState.live?.system.keyboardShortcutStore else {
+    private static func shortcuts() throws -> [String: Any] {        guard let store = AppState.live?.system.keyboardShortcutStore else {
             return ["error": "store not ready"]
         }
         let rows = store.shortcuts.map { m -> [String: Any] in

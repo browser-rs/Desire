@@ -2,9 +2,38 @@ import Combine
 import Foundation
 import Security
 
+/// A save-password prompt awaiting a decision. The prompt presents as a
+/// non-modal sheet (a blocking runModal here froze the whole app — and the
+/// automation bridge — on every login submit); `respond` is single-fire.
+@MainActor
+final class PendingPasswordSave {
+    let domain: String
+    let username: String
+    var programmaticDismiss: (() -> Void)?
+
+    private let completion: (Bool) -> Void
+    private var resolved = false
+
+    init(domain: String, username: String, completion: @escaping (Bool) -> Void) {
+        self.domain = domain
+        self.username = username
+        self.completion = completion
+    }
+
+    func respond(_ save: Bool) {
+        guard !resolved else { return }
+        resolved = true
+        programmaticDismiss?()
+        completion(save)
+    }
+}
+
 @MainActor
 class PasswordStore: ObservableObject {
     @Published var entries: [PasswordEntry] = []
+    /// A save-password sheet awaiting the user's (or the automation bridge's)
+    /// decision. nil when nothing is pending.
+    @Published var pendingSave: PendingPasswordSave?
 
     private let serviceName = "me.siwi.Desire"
 

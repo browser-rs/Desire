@@ -66,7 +66,8 @@ jobs:
           EOF
           # Body: the tag's section from CHANGELOG.md + install note; fall
           # back to generated notes when the changelog lacks the section.
-          if grep -q "^## \[$TAG\]" CHANGELOG.md; then
+          # -F is required: [v0.1.5] would otherwise be a regex char class.
+          if grep -qF "## [$TAG]" CHANGELOG.md; then
             awk -v tag="[$TAG]" '
               index($0, "## " tag) == 1 { flag = 1; next }
               flag && index($0, "## [") == 1 { exit }

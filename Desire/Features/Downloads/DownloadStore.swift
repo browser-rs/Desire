@@ -438,7 +438,7 @@ class DownloadStore: ObservableObject {
     /// status (URLSession hands us the ERROR PAGE for a 404 and would happily
     /// save it as the file), classifies failures, and captures resume data
     /// when the server allows ranges. Progress arrives via StoreDownloadDelegate.
-    private func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil, isPrivate: Bool = false) {
+    func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil, isPrivate: Bool = false) {
         let itemId = UUID()
         let task: URLSessionDownloadTask
         if let resumeData {

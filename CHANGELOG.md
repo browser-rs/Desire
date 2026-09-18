@@ -9,6 +9,25 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.7] - 2026-09-18
+
+### Added
+
+- **MCP 工具集 9 → 17**：startDownload / listDownloads / pauseDownload /
+  resumeDownload（存储级下载，支持断点语义）、listHistory / listBookmarks /
+  addBookmark（检索与收藏）、resolveBeforeUnload（表单保护卡住导航时
+  MCP 驱动可自行解除）。
+- **GET /mcp 事件推送（SSE）**：BridgeEventBus 的 7 类事件以
+  `desire/event` JSON-RPC 通知推送给订阅的客户端，15 秒 keep-alive——
+  MCP 驱动者无需轮询即可感知页面就绪/下载完成/审批挂起。
+- DELETE /mcp 会话清理语义。
+- 桥 `POST /downloads/start`：URL 直下（MCP/桥共用）。
+
+### Fixed
+
+- MCPService GET 分支此前仍指向 v1 的 405 占位（补丁静默未命中），
+  事件推送实际上线不了——本轮 E2E 发现并修复。
+
 ## [v0.1.6] - 2026-09-18
 
 ### Added

@@ -567,6 +567,8 @@ final class AutomationServer {
                 return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name)])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
+            case ("POST", "/downloads/start"):
+                return try Self.json(Self.startDownload(Self.string(body, "url") ?? ""))
             case ("POST", "/downloads/pause"):
                 return try Self.json(Self.pauseDownload(Self.string(body, "id")))
             case ("POST", "/downloads/resume"):
@@ -942,6 +944,17 @@ final class AutomationServer {
         let path = NSHomeDirectory() + "/desire_panel.png"
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// Starts a store-owned download from a raw URL (MCP/bridge driven).
+    private static func startDownload(_ url: String) throws -> [String: Any] {
+        guard let store = DownloadStore.live else { return ["error": "store not ready"] }
+        guard !url.isEmpty, let sourceURL = URL(string: url), sourceURL.scheme != nil else {
+            return ["error": "missing or invalid url"]
+        }
+        let filename = sourceURL.lastPathComponent.isEmpty ? "download" : sourceURL.lastPathComponent
+        store.startURLSessionDownload(sourceURL: sourceURL, filename: filename)
+        return ["ok": true, "file": filename]
     }
 
     private static func pendingApproval() throws -> [String: Any] {

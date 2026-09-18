@@ -94,8 +94,13 @@ final class MCPService {
             return
         }
         if raw.hasPrefix("GET ") {
-            // Server→client streaming is not supported in v1.
-            respond(connection, status: "405 Method Not Allowed", body: #"{"error":"GET not supported"}"#)
+            // Server→client push: BridgeEventBus events relayed as
+            // JSON-RPC notifications on an SSE stream.
+            startEventPush(connection)
+            return
+        }
+        if raw.hasPrefix("DELETE ") {
+            respond(connection, status: "200 OK", body: "{}")
             return
         }
         guard let bodyStart = raw.range(of: "\r\n\r\n").map({ raw[$0.upperBound...] }),
@@ -120,6 +125,62 @@ final class MCPService {
             connection.cancel()
         })
     }
+
+    // MARK: - Server→client event push
+
+    private var eventPushConnections: [UUID: NWConnection] = [:]
+
+    /// GET /mcp — SSE stream relaying BridgeEventBus events as JSON-RPC
+    /// notifications (`desire/event`), plus a 15 s keep-alive comment.
+    private func startEventPush(_ connection: NWConnection) {
+        let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+        connection.send(content: head.data(using: .utf8)!, completion: .contentProcessed { _ in })
+        let busID = BridgeEventBus.shared.subscribe { [weak connection] frame in
+            // Rewrite SSE frames (event:/data:) into a JSON-RPC notification.
+            guard let eventRange = frame.range(of: "event: "),
+                  let dataRange = frame.range(of: "data: ") else { return }
+            let kind = String(frame[eventRange.upperBound...].prefix(while: { !$0.isNewline }))
+            let json = String(frame[dataRange.upperBound...].prefix(while: { !$0.isNewline }))
+            var payload = (try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]) ?? [:]
+            payload["kind"] = kind
+            let notification: [String: Any] = [
+                "jsonrpc": "2.0",
+                "method": "desire/event",
+                "params": payload,
+            ]
+            let data = (try? JSONSerialization.data(withJSONObject: notification)) ?? Data()
+            connection?.send(content: Data("event: message\ndata: ".utf8) + data + Data("\n\n".utf8), completion: .contentProcessed { _ in })
+        }
+        eventPushConnections[busID] = connection
+
+        let heartbeat = Task { [weak connection] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { break }
+                connection?.send(content: Data(": keep-alive\n\n".utf8), completion: .contentProcessed { _ in })
+            }
+        }
+        eventPushHeartbeats[busID] = heartbeat
+
+        func drain() {
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, error in
+                if error == nil {
+                    drain()
+                } else {
+                    Task { @MainActor in
+                        BridgeEventBus.shared.unsubscribe(busID)
+                        self.eventPushConnections.removeValue(forKey: busID)
+                        self.eventPushHeartbeats.removeValue(forKey: busID)?.cancel()
+                        connection.cancel()
+                    }
+                }
+            }
+        }
+        drain()
+        Log.agent.info("mcp server: event push opened")
+    }
+
+    private var eventPushHeartbeats: [UUID: Task<Void, Never>] = [:]
 
     // MARK: - JSON-RPC dispatch
 
@@ -311,6 +372,76 @@ final class MCPService {
                 "required": ["js"],
             ],
             "_bridge": ["method": "POST", "path": "/execute", "body": ["js": "js"]],
+        ],
+        // v2 — downloads, retrieval, guards
+        [
+            "name": "startDownload",
+            "description": "Start downloading a file from a URL (store-owned transfer with pause/resume support). Progress arrives via downloadStarted/downloadCompleted events.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["url": ["type": "string"]],
+                "required": ["url"],
+            ],
+            "_bridge": ["method": "POST", "path": "/downloads/start", "body": ["url": "url"]],
+        ],
+        [
+            "name": "listDownloads",
+            "description": "List download rows (id/file/state/paused/bytes/total).",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/downloads"],
+        ],
+        [
+            "name": "pauseDownload",
+            "description": "Pause a download (defaults to the first in-progress one).",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["id": ["type": "string", "description": "Download id (from listDownloads)"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/downloads/pause", "body": ["id": "id"]],
+        ],
+        [
+            "name": "resumeDownload",
+            "description": "Resume a paused download (defaults to the first paused one).",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["id": ["type": "string"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/downloads/resume", "body": ["id": "id"]],
+        ],
+        [
+            "name": "listHistory",
+            "description": "Recent browsing history, newest first.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["count": ["type": "integer", "description": "Default 10"]],
+            ],
+            "_bridge": ["method": "GET", "path": "/history?count={count}"],
+        ],
+        [
+            "name": "listBookmarks",
+            "description": "List saved bookmarks.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/bookmarks"],
+        ],
+        [
+            "name": "addBookmark",
+            "description": "Save a bookmark.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["title": ["type": "string"], "url": ["type": "string"]],
+                "required": ["url"],
+            ],
+            "_bridge": ["method": "POST", "path": "/bookmarks/add", "body": ["title": "title", "url": "url"]],
+        ],
+        [
+            "name": "resolveBeforeUnload",
+            "description": "Resolve a beforeunload guard that blocks navigation away from a form page (check /page/url or the beforeunloadPending event). leave=true discards and navigates; leave=false stays.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["leave": ["type": "boolean"]],
+                "required": ["leave"],
+            ],
+            "_bridge": ["method": "POST", "path": "/beforeunload/resolve", "body": ["leave": "leave"]],
         ],
     ]
 }

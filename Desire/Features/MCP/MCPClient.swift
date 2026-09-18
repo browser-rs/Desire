@@ -31,6 +31,14 @@ struct MCPConnection {
     private(set) var sessionID: String?
     private var nextRequestID = 1
 
+    /// Explicit init: the synthesized memberwise one is private on older
+    /// Swift compilers (any `private` stored property taints it), which
+    /// broke the CI build while local Xcode compiled fine.
+    init(endpoint: URL, authToken: String?) {
+        self.endpoint = endpoint
+        self.authToken = authToken
+    }
+
     /// Handshake: initialize → notifications/initialized → tools/list.
     mutating func connect() async throws -> [MCPTool] {
         _ = try await post(

@@ -433,7 +433,7 @@ final class AutomationServer {
                 tab.responsiveConfig.isEnabled = enabled   // onChange → Applier
                 return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize])
             case ("GET", "/approvals"):
-                return try Self.json(Self.pendingApproval())
+                return try Self.json(Self.pendingApproval(window: Self.string(query, "window")))
             case ("GET", "/beforeunload"):
                 return try Self.json(Self.beforeUnloadState(index: Self.index(query)))
             case ("GET", "/reader"):
@@ -538,7 +538,8 @@ final class AutomationServer {
                 ))
             case ("POST", "/approvals/resolve"):
                 return try Self.json(Self.resolvePendingApproval(
-                    Self.string(body, "decision") ?? ""
+                    Self.string(body, "decision") ?? "",
+                    window: Self.string(body, "window")
                 ))
             case ("GET", "/settings"):
                 let st = Settings()
@@ -589,10 +590,12 @@ final class AutomationServer {
                     name: Self.string(body, "name") ?? "",
                     index: body["index"] as? Int
                 ))
+            case ("GET", "/agent/windows"):
+                return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
-                return try Self.json(Self.agentMessages())
+                return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
             case ("POST", "/agent/send"):
-                return try Self.json(Self.agentSend(Self.string(body, "text")))
+                return try Self.json(Self.agentSend(Self.string(body, "text"), window: Self.string(body, "window")))
             case ("GET", "/agent/tasks"):
                 return try Self.json(Self.agentTasks())
             case ("POST", "/agent/tasks/create"):
@@ -957,8 +960,8 @@ final class AutomationServer {
         return ["ok": true, "file": filename]
     }
 
-    private static func pendingApproval() throws -> [String: Any] {
-        guard let session = AgentScheduler.shared.deliveryTarget else {
+    private static func pendingApproval(window: String? = nil) throws -> [String: Any] {
+        guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
         guard let approval = session.pendingApproval else {
@@ -1312,8 +1315,8 @@ final class AutomationServer {
     /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.
     /// Lets external test drivers exercise the dangerous-tool path end to
     /// end without a human click.
-    private static func resolvePendingApproval(_ decision: String) throws -> [String: Any] {
-        guard let session = AgentScheduler.shared.deliveryTarget, session.pendingApproval != nil else {
+    private static func resolvePendingApproval(_ decision: String, window: String? = nil) throws -> [String: Any] {
+        guard let session = resolveSession(window), session.pendingApproval != nil else {
             return ["error": "no pending approval"]
         }
         let outcome: ApprovalDecision
@@ -1327,8 +1330,8 @@ final class AutomationServer {
         return ["ok": true, "resolved": decision]
     }
 
-    private static func agentMessages() throws -> [String: Any] {
-        guard let session = AgentScheduler.shared.deliveryTarget else {
+    private static func agentMessages(window: String? = nil) throws -> [String: Any] {
+        guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
         let messages = session.messages.suffix(12).map { message -> [String: Any] in
@@ -1340,13 +1343,37 @@ final class AutomationServer {
         return ["messages": Array(messages), "busy": session.isProcessing]
     }
 
-    private static func agentSend(_ text: String?) throws -> [String: Any] {
+    /// Resolves the target session: explicit `window` UUID wins, else the
+    /// newest registered session (scheduler delivery target).
+    private static func resolveSession(_ window: String?) -> AgentSessionStore? {
+        if let window, let id = UUID(uuidString: window) {
+            return AgentScheduler.shared.session(withID: id)
+        }
+        return AgentScheduler.shared.deliveryTarget
+    }
+
+    private static func agentWindows() throws -> [String: Any] {
+        let windows = AgentScheduler.shared.liveSessions().map { entry -> [String: Any] in
+            guard let session = entry.store else { return ["id": entry.id.uuidString] }
+            return [
+                "id": entry.id.uuidString,
+                "label": entry.displayLabel,
+                "busy": session.isProcessing,
+                "pendingApproval": session.pendingApproval != nil,
+                "messages": session.messages.count,
+                "isNewest": AgentScheduler.shared.deliveryTarget === session,
+            ]
+        }
+        return ["windows": windows]
+    }
+
+    private static func agentSend(_ text: String?, window: String?) throws -> [String: Any] {
         guard let text, !text.isEmpty else { return ["error": "missing text"] }
-        guard let session = AgentScheduler.shared.deliveryTarget else {
+        guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
         session.sendMessage(text)
-        return ["ok": true]
+        return ["ok": true, "window": window ?? "newest"]
     }
 
     // MARK: Scheduled agent tasks

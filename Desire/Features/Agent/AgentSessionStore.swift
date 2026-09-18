@@ -122,12 +122,17 @@ class AgentSessionStore: ObservableObject {
     /// broken provider can't rapid-fire the whole queue into errors.
     private var turnFailed = false
 
+    /// Registry id (multi-window addressing via the automation bridge).
+    let registrationID = UUID()
+
     init(preference: AgentPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
         self.conversationStore = conversationStore
         fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
         // Newest session wins scheduled-task delivery (multi-window).
         AgentScheduler.shared.deliveryTarget = self
+        // Registry for per-window addressing (0.1.8).
+        AgentScheduler.shared.registerSession(self)
     }
 
     /// Entry point for `AgentScheduler` firings: starts (or queues) a turn

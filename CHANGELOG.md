@@ -9,6 +9,21 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.8] - 2026-09-18
+
+### Added
+
+- **多窗口 Agent 联动**（挂账转正）：AgentScheduler 新增会话注册表
+  （弱引用、窗口关闭自动剪枝）；桥 `GET /agent/windows` 列出全部窗口
+  会话（id/标签/busy/审批挂起/消息数/是否 newest）。
+- **按窗路由**：`/agent/send`、`/agent/messages`、`/approvals(/resolve)`
+  均接受 `window` 参数（UUID），缺省沿用 newest 语义。
+
+### Verified
+
+- 双窗口：按窗投递互不串台（W1/W2 各自收到自己的标记、零泄漏）；
+  无参投递落到 newest 窗口；并行 busy 状态按窗可见。
+
 ## [v0.1.7] - 2026-09-18
 
 ### Added

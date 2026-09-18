@@ -50,6 +50,45 @@ final class AgentScheduler: ObservableObject {
     /// firing prompts (a second window takes over delivery naturally).
     weak var deliveryTarget: AgentSessionStore?
 
+    // MARK: - Multi-window session registry
+
+    /// Every live agent session (one per main window), addressable by id so
+    /// external drivers can route prompts to a SPECIFIC window instead of
+    /// the newest one. Weak — entries prune themselves when windows close.
+    struct RegisteredSession: Identifiable {
+        let id: UUID
+        weak var store: AgentSessionStore?
+        let registeredAt: Date
+        let index: Int
+
+        var displayLabel: String { "Window \(index + 1)" }
+    }
+
+    private final class WeakBox {
+        weak var store: AgentSessionStore?
+        init(_ store: AgentSessionStore) { self.store = store }
+    }
+
+    private var registered: [(id: UUID, box: WeakBox, at: Date)] = []
+
+    @discardableResult
+    func registerSession(_ store: AgentSessionStore) -> UUID {
+        let id = UUID()
+        registered.append((id, WeakBox(store), Date()))
+        return id
+    }
+
+    func session(withID id: UUID) -> AgentSessionStore? {
+        liveSessions().first(where: { $0.id == id })?.store
+    }
+
+    func liveSessions() -> [RegisteredSession] {
+        registered.removeAll { $0.box.store == nil }
+        return registered.enumerated().map { index, entry in
+            RegisteredSession(id: entry.id, store: entry.box.store, registeredAt: entry.at, index: index)
+        }
+    }
+
     private static let storageKey = "agent-scheduled-tasks"
     private static let log = Log.agent
     private var clock: Timer?

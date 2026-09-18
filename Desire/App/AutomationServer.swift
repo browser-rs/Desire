@@ -590,6 +590,13 @@ final class AutomationServer {
                     name: Self.string(body, "name") ?? "",
                     index: body["index"] as? Int
                 ))
+            case ("POST", "/extract"):
+                return try await Self.json(Self.extract(
+                    kind: Self.string(body, "kind") ?? "table",
+                    selector: Self.string(body, "selector"),
+                    format: Self.string(body, "format") ?? "json",
+                    index: Self.index(body)
+                ))
             case ("GET", "/watches"):
                 return try Self.json(Self.listWatches())
             case ("POST", "/watches/add"):
@@ -667,7 +674,7 @@ final class AutomationServer {
         get throws { TabSessionCoordinator.shared.activeTabManager }
     }
 
-    private func resolveIndex(_ index: Int?) -> Tab? {
+    func resolveIndex(_ index: Int?) -> Tab? {
         guard let tm = try? tabManager else { return nil }
         if let index {
             return tm.tabs.indices.contains(index) ? tm.tabs[index] : nil

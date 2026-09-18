@@ -222,8 +222,12 @@ final class MCPService {
             }
             let httpMethod = mapping["method"] as? String ?? "GET"
             let path = Self.resolvePath(mapping["path"] as? String ?? "", args)
-            // Body fields map as {"<bridge field>": "<args field>"}.
+            // Body fields map as {"<bridge field>": "<args field>"}; the
+            // "const" map injects fixed values (e.g. kind: "table").
             var payload: [String: Any] = [:]
+            for (field, value) in (mapping["const"] as? [String: Any]) ?? [:] {
+                payload[field] = value
+            }
             for (bridgeField, argsField) in (mapping["body"] as? [String: String]) ?? [String: String]() {
                 if let value = args[argsField] {
                     payload[bridgeField] = value
@@ -484,6 +488,43 @@ final class MCPService {
                 "required": ["leave"],
             ],
             "_bridge": ["method": "POST", "path": "/beforeunload/resolve", "body": ["leave": "leave"]],
+        ],
+        // 0.1.11 — structured extraction
+        [
+            "name": "extractTables",
+            "description": "Extract all HTML tables on the page as structured {headers, rows} JSON. A selector narrows to one table. Rows capped at 1000/table.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "selector": ["type": "string", "description": "Optional selector of a specific <table>"],
+                    "index": ["type": "integer", "description": "Tab index; defaults to active"],
+                ],
+            ],
+            "_bridge": ["method": "POST", "path": "/extract", "const": ["kind": "table"], "body": ["selector": "selector", "index": "index"]],
+        ],
+        [
+            "name": "extractTablesCSV",
+            "description": "Same as extractTables but returns CSV text (headers + rows).",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "selector": ["type": "string"],
+                    "index": ["type": "integer"],
+                ],
+            ],
+            "_bridge": ["method": "POST", "path": "/extract", "const": ["kind": "table", "format": "csv"], "body": ["selector": "selector", "index": "index"]],
+        ],
+        [
+            "name": "extractList",
+            "description": "Extract list items as {text, href} JSON — selector picks the item elements; default is all ul/ol li.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "selector": ["type": "string", "description": "Selector of item elements"],
+                    "index": ["type": "integer"],
+                ],
+            ],
+            "_bridge": ["method": "POST", "path": "/extract", "const": ["kind": "list"], "body": ["selector": "selector", "index": "index"]],
         ],
     ]
 }

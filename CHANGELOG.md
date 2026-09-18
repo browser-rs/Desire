@@ -9,6 +9,23 @@
 
 - 0.1.6+ Desire as MCP Server、多窗口 Agent 联动、无人值守作业…
 
+## [v0.1.11] - 2026-09-18
+
+### Added
+
+- **结构化提取 `POST /extract`**：页面表格 → `{headers, rows}` JSON 或 CSV
+  （引号/逗号/换行正确转义）；列表 → `{text, href}`。选择器模式可锁定
+  单张表格或指定条目元素；行数上限 1000/表（truncated 标记）、20 表。
+- **MCP 工具 21 → 24**：extractTables / extractTablesCSV / extractList
+  ——外部 AI 一句话抽数据；工具映射新增 `const` 支持（固定参数注入）。
+- 与 0.1.9 作业/0.1.10 监控组合即采集流水线（watch 变更 → 定时抽取 →
+  write 文件）。
+
+### Verified
+
+- E2E：真实 HTML 表格（含含逗号单元格 CSV 转义）、指定列表选择器、
+  越界选择器安全返回、MCP extractTablesCSV 全链路。
+
 ## [v0.1.10] - 2026-09-18
 
 ### Added

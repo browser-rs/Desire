@@ -120,6 +120,10 @@ enum BrowserCommand {
     // 菜单补全（0.2.13）：新功能的统一入口。
     case toggleBookmarksBar, toggleCommandPalette, toggleAgentPanel
     case toggleDevTools, toggleSplitView, showReadingList, fullPageScreenshot
+    // 菜单补全二批（0.2.14）：文件/查找/导航/阅读列表/Agent。
+    case openLocation, openFile, closeWindow
+    case findNext, findPrevious, addToReadingList, askAgentAboutPage
+    case goBack, goForward
 }
 
 

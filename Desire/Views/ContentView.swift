@@ -144,6 +144,13 @@ struct ContentView: View {
                 startScreenshot: { startScreenshot() },
                 toggleDevTools: { toggleDevTools() },
                 captureFullPage: { captureFullPage() },
+                focusUrlBar: { focusUrlBar() },
+                openFile: { openFileInNewTab() },
+                closeWindow: { hostingWindow?.close() },
+                findNext: { performFindNext() },
+                findPrevious: { performFindPrevious() },
+                addToReadingList: { addToReadingList() },
+                askAgentAboutPage: { askAgentAboutPage() },
                 clearUrlFocus: { isUrlFocused = false }
             )
         )
@@ -384,6 +391,57 @@ struct ContentView: View {
 
     func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)
+    }
+
+    /// File ▸ Open Location (⌘L)：聚焦地址栏并全选。
+    func focusUrlBar() {
+        isUrlFocused = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            NotificationCenter.default.post(name: URLBarField.selectAllNotification, object: nil)
+        }
+    }
+
+    /// File ▸ Open File… (⌘O)：本地文件在新标签打开（沙盒下 NSOpenPanel
+    /// 授予的 URL 可读）。
+    func openFileInNewTab() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Open File")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        tabManager.addTab(
+            url: url.absoluteString,
+            javaScriptEnabled: settings.isJavaScriptEnabled,
+            contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker,
+            autoPlayPolicy: settings.autoPlayPolicy,
+            newTabPosition: settings.newTabPosition
+        )
+    }
+
+    /// Bookmarks ▸ Add to Reading List：当前页入阅读列表（去重）。
+    func addToReadingList() {
+        guard let tab = tabManager.selectedTab,
+              let url = tab.browser.webView.url?.absoluteString ?? (tab.urlString.isEmpty ? nil : tab.urlString),
+              !tab.isOnNewTabPage else { return }
+        let title = tab.browser.pageTitle.isEmpty ? url : tab.browser.pageTitle
+        if !readingListStore.items.contains(where: { $0.url == url }) {
+            readingListStore.add(title: title, url: url)
+        }
+        actionToast = StatusBarToast(
+            icon: "book.read",
+            text: String(localized: "Added to Reading List")
+        )
+    }
+
+    /// Agent ▸ Ask About This Page (⌘⇧A)：让活动会话的 Agent 阅读并
+    /// 总结当前页面。
+    func askAgentAboutPage() {
+        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
+        let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+        aiSession.sendMessage("请阅读当前页面（\(url)）并总结要点。")
+        showAgentPanel = true
     }
 
     func toggleBookmark() {

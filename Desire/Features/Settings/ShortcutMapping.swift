@@ -48,6 +48,8 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "nextTab", commandName: "Next Tab", keyEquivalent: "]", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "previousTab", commandName: "Previous Tab", keyEquivalent: "[", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "tabSearch", commandName: "Search Tabs", keyEquivalent: "\\", modifierFlags: cmd, isCustomized: false, category: .tabs),
+            ShortcutMapping(id: "openFile", commandName: "Open File", keyEquivalent: "o", modifierFlags: cmd, isCustomized: false, category: .tabs),
+            ShortcutMapping(id: "closeWindow", commandName: "Close Window", keyEquivalent: "w", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
 
             // Navigation
             ShortcutMapping(id: "goBack", commandName: "Go Back", keyEquivalent: "[", modifierFlags: cmd, isCustomized: false, category: .navigation),
@@ -82,6 +84,7 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "showDownloads", commandName: "Show Downloads", keyEquivalent: "j", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showBookmarks", commandName: "Show Bookmarks", keyEquivalent: "b", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showReadingList", commandName: "Show Reading List", keyEquivalent: "r", modifierFlags: ctrl | cmd, isCustomized: false, category: .panels),
+            ShortcutMapping(id: "askAgentAboutPage", commandName: "Ask Agent About This Page", keyEquivalent: "a", modifierFlags: cmd | shift, isCustomized: false, category: .panels),
             ShortcutMapping(id: "toggleAgentPanel", commandName: "Toggle AI Panel", keyEquivalent: "'", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "bookmarkPage", commandName: "Add Bookmark", keyEquivalent: "d", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "settings", commandName: "Settings", keyEquivalent: ",", modifierFlags: cmd, isCustomized: false, category: .panels),

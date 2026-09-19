@@ -16,34 +16,9 @@ extension ContentView {
     /// (dismissal is contextual, not a customizable command).
     @ViewBuilder
     var shortcutOverlayButtons: some View {
-        Button("") {
-            isUrlFocused = true
-            // Let the field win focus first, then ask it (by notification,
-            // targeting the URL field itself rather than whatever NSTextField
-            // is first responder) to select all its text.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                NotificationCenter.default.post(name: URLBarField.selectAllNotification, object: nil)
-            }
-        }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "focusAddressBar")
-                              ?? KeyboardShortcut("l", modifiers: .command))
-            .hidden()
-        Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goBack() } }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "goBack")
-                              ?? KeyboardShortcut("[", modifiers: .command))
-            .hidden()
-        Button("") { if let tab = tabManager.selectedTab { tab.browser.webView.goForward() } }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "goForward")
-                              ?? KeyboardShortcut("]", modifiers: .command))
-            .hidden()
-        Button("") { performFindNext() }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "findNext")
-                              ?? KeyboardShortcut("g", modifiers: .command))
-            .hidden()
-        Button("") { performFindPrevious() }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "findPrevious")
-                              ?? KeyboardShortcut("g", modifiers: [.command, .shift]))
-            .hidden()
+        // ⌘L / ⌘[ / ⌘] / ⌘G / ⇧⌘G / ⌘K / ⌘' 已全部收编进菜单
+        // （File ▸ Open Location、History ▸ Back/Forward、Edit ▸ Find、
+        // Agent 菜单）——隐藏按钮只保留没有菜单项的 Escape 语义。
         Button("") { hideFindBar() }
             .keyboardShortcut(.escape, modifiers: [])
             .hidden()
@@ -55,8 +30,6 @@ extension ContentView {
             .keyboardShortcut(.escape, modifiers: [])
             .hidden()
         }
-        // ⌘K 命令面板与 ⌘' Agent 面板已进 View 菜单（AppCommands）——
-        // 这里的隐藏按钮已移除，避免同一快捷键双触发。
     }
 
     /// "Element blocked" toast with an undo button (element blocker).

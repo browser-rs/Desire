@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The app's menu commands. Observes the shared `KeyboardShortcutStore`, so
@@ -43,6 +44,13 @@ struct AppCommands: Commands {
             Button("New Incognito Tab") { postCommand(.newIncognitoTab) }
                 .keyboardShortcut(binding("newIncognitoTab", "n", [.command, .shift]))
             Divider()
+            Button("Open Location…") { postCommand(.openLocation) }
+                .keyboardShortcut(binding("focusAddressBar", "l", .command))
+            Button("Open File…") { postCommand(.openFile) }
+                .keyboardShortcut(binding("openFile", "o", .command))
+            Divider()
+            Button("Close Window") { postCommand(.closeWindow) }
+                .keyboardShortcut(binding("closeWindow", "w", [.command, .shift]))
             Button("Close Tab") { postCommand(.closeTab) }
                 .keyboardShortcut(binding("closeTab", "w", .command))
             Button("Reopen Closed Tab") { postCommand(.reopenClosedTab) }
@@ -52,12 +60,19 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("savePage", "s", .command))
         }
 
-        // MARK: - Edit (add Find after pasteboard)
+        // MARK: - Edit (Find submenu after pasteboard)
 
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button("Find in Page…") { postCommand(.toggleFind) }
-                .keyboardShortcut(binding("findInPage", "f", .command))
+            Menu("Find") {
+                Button("Find in Page…") { postCommand(.toggleFind) }
+                    .keyboardShortcut(binding("findInPage", "f", .command))
+                Divider()
+                Button("Find Next") { postCommand(.findNext) }
+                    .keyboardShortcut(binding("findNext", "g", .command))
+                Button("Find Previous") { postCommand(.findPrevious) }
+                    .keyboardShortcut(binding("findPrevious", "g", [.command, .shift]))
+            }
         }
 
         // MARK: - View
@@ -103,9 +118,26 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("showDownloads", "j", .command))
         }
 
+        // MARK: - Agent
+
+        CommandMenu("Agent") {
+            Button("Show Agent Panel") { postCommand(.toggleAgentPanel) }
+                .keyboardShortcut(binding("toggleAgentPanel", "'", .command))
+            Button("Ask Agent About This Page") { postCommand(.askAgentAboutPage) }
+                .keyboardShortcut(binding("askAgentAboutPage", "a", [.command, .shift]))
+            Divider()
+            Button("Command Palette…") { postCommand(.toggleCommandPalette) }
+                .keyboardShortcut(binding("commandPalette", "k", .command))
+        }
+
         // MARK: - History
 
         CommandMenu("History") {
+            Button("Back") { postCommand(.goBack) }
+                .keyboardShortcut(binding("goBack", "[", .command))
+            Button("Forward") { postCommand(.goForward) }
+                .keyboardShortcut(binding("goForward", "]", .command))
+            Divider()
             Button("Show History") { postCommand(.showHistory) }
                 .keyboardShortcut(binding("showHistory", "y", .command))
             Divider()
@@ -117,9 +149,17 @@ struct AppCommands: Commands {
         CommandMenu("Bookmarks") {
             Button("Bookmarks Panel") { postCommand(.showBookmarks) }
                 .keyboardShortcut(binding("showBookmarks", "b", .command))
-            Divider()
             Button("Add Bookmark") { postCommand(.bookmarkPage) }
                 .keyboardShortcut(binding("bookmarkPage", "d", .command))
+            Button("Add to Reading List") { postCommand(.addToReadingList) }
+            Divider()
+            Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
+            Menu("Import Bookmarks") {
+                Button("From Safari…") { postCommand(.importBookmarksFrom(.safari)) }
+                Button("From Chrome…") { postCommand(.importBookmarksFrom(.chrome)) }
+                Button("From Firefox…") { postCommand(.importBookmarksFrom(.firefox)) }
+                Button("From HTML File…") { postCommand(.importBookmarksFrom(.html)) }
+            }
         }
 
         // MARK: - Tabs
@@ -150,14 +190,6 @@ struct AppCommands: Commands {
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Divider()
-            Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
-            Menu("Import Bookmarks") {
-                Button("From Safari…") { postCommand(.importBookmarksFrom(.safari)) }
-                Button("From Chrome…") { postCommand(.importBookmarksFrom(.chrome)) }
-                Button("From Firefox…") { postCommand(.importBookmarksFrom(.firefox)) }
-                Button("From HTML File…") { postCommand(.importBookmarksFrom(.html)) }
-            }
-            Divider()
             Button("Print…") { postCommand(.printPage) }
                 .keyboardShortcut(binding("print", "p", .command))
             Button("Screenshot Region…") { postCommand(.screenshot) }
@@ -165,6 +197,20 @@ struct AppCommands: Commands {
             Button("Full-Page Screenshot") { postCommand(.fullPageScreenshot) }
             Divider()
             Button("Restore Archived Session…") { postCommand(.restoreArchivedSession) }
+        }
+
+        // MARK: - Help
+
+        CommandGroup(replacing: .help) {
+            Button("Desire on GitHub") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire")!)
+            }
+            Button("Release Notes") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire/releases")!)
+            }
+            Button("Automation Bridge Docs") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire/blob/main/docs/BRIDGE.md")!)
+            }
         }
 
         // MARK: - Window

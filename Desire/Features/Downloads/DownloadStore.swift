@@ -577,6 +577,11 @@ class DownloadStore: ObservableObject {
     }
 
     private func notifyCompleted(count: Int, lastFilename: String) {
+        // 设置 ▸ General ▸ Downloads ▸ 通知开关。直读 UserDefaults（与
+        // suspendAfterMinutes 同款模式）——改设置即时生效，无需重启。
+        guard UserDefaults.standard.object(forKey: "downloadNotifications") as? Bool ?? true else {
+            return
+        }
         NSApp.requestUserAttention(.informationalRequest)
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert]) { granted, _ in
@@ -596,6 +601,10 @@ class DownloadStore: ObservableObject {
 
     /// Mirror the active-download count on the Dock icon; clear when idle.
     private func syncDockBadge() {
+        guard UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true else {
+            NSApp.dockTile.badgeLabel = nil
+            return
+        }
         NSApp.dockTile.badgeLabel = hasActive ? "\(activeCount)" : nil
     }
 }

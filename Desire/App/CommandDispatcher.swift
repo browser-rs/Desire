@@ -60,6 +60,13 @@ struct CommandDispatcher {
         var startScreenshot: () -> Void
         var toggleDevTools: () -> Void
         var captureFullPage: () -> Void
+        var focusUrlBar: () -> Void
+        var openFile: () -> Void
+        var closeWindow: () -> Void
+        var findNext: () -> Void
+        var findPrevious: () -> Void
+        var addToReadingList: () -> Void
+        var askAgentAboutPage: () -> Void
         /// Resign address-bar focus. Backed by a `@FocusState`, which exposes
         /// a `FocusState<Bool>.Binding` that isn't convertible to
         /// `Binding<Bool>`, so it rides along as a closure.
@@ -278,6 +285,33 @@ struct CommandDispatcher {
 
         case .fullPageScreenshot:
             actions.captureFullPage()
+
+        case .openLocation:
+            actions.focusUrlBar()
+
+        case .openFile:
+            actions.openFile()
+
+        case .closeWindow:
+            actions.closeWindow()
+
+        case .findNext:
+            actions.findNext()
+
+        case .findPrevious:
+            actions.findPrevious()
+
+        case .addToReadingList:
+            actions.addToReadingList()
+
+        case .askAgentAboutPage:
+            actions.askAgentAboutPage()
+
+        case .goBack:
+            if let tab = tabManager.selectedTab { tab.browser.webView.goBack() }
+
+        case .goForward:
+            if let tab = tabManager.selectedTab { tab.browser.webView.goForward() }
         }
     }
 

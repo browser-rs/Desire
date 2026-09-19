@@ -69,6 +69,15 @@ class Settings: ObservableObject {
     @Published var showBookmarksBar: Bool {
         didSet { UserDefaults.standard.set(showBookmarksBar, forKey: "showBookmarksBar") }
     }
+    /// 下载完成系统通知（批量聚合为一条）。DownloadStore 直读 UserDefaults，
+    /// 与 suspendAfterMinutes 同款模式——改设置即时生效。
+    @Published var downloadNotifications: Bool {
+        didSet { UserDefaults.standard.set(downloadNotifications, forKey: "downloadNotifications") }
+    }
+    /// 下载进行中在 Dock 图标上显示数量角标。
+    @Published var downloadDockBadge: Bool {
+        didSet { UserDefaults.standard.set(downloadDockBadge, forKey: "downloadDockBadge") }
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -105,6 +114,8 @@ class Settings: ObservableObject {
         sponsorSkipChapters = UserDefaults.standard.object(forKey: "sponsorSkipChapters") as? Bool ?? false
         sponsorSkipFiller = UserDefaults.standard.object(forKey: "sponsorSkipFiller") as? Bool ?? false
         showBookmarksBar = UserDefaults.standard.object(forKey: "showBookmarksBar") as? Bool ?? true
+        downloadNotifications = UserDefaults.standard.object(forKey: "downloadNotifications") as? Bool ?? true
+        downloadDockBadge = UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

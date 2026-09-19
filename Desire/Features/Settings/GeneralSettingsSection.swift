@@ -25,6 +25,20 @@ struct GeneralSettingsSection: View {
                     )
                     SettingsRowDivider()
                     AccentColorRow(settings: settings)
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Show Bookmarks Bar",
+                        subtitle: "The always-visible bar under the toolbar. Also in the View menu (⇧⌘B).",
+                        systemImage: "list.star",
+                        isOn: $settings.showBookmarksBar
+                    )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Show Link Preview",
+                        subtitle: "Display the target URL at the window bottom when hovering a link.",
+                        systemImage: "link",
+                        isOn: $settings.showLinkPreview
+                    )
                 }
             }
 
@@ -190,8 +204,26 @@ struct GeneralSettingsSection: View {
                         secondaryButtonTitle: "Reset",
                         secondaryAction: { settings.resetScreenshotFolder() }
                     )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Download Complete Notifications",
+                        subtitle: "One aggregated system notification for batch completions.",
+                        systemImage: "bell.badge",
+                        isOn: $settings.downloadNotifications
+                    )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Dock Badge",
+                        subtitle: "Show the number of active downloads on the Dock icon.",
+                        systemImage: "app.badge",
+                        isOn: $settings.downloadDockBadge
+                    )
                 }
             }
+
+            // MARK: - Profiles
+
+            ProfilesSection()
 
             // MARK: - System
 
@@ -428,6 +460,183 @@ private struct ContainerSection: View {
         guard !trimmed.isEmpty else { return }
         store.addContainer(name: trimmed)
         newName = ""
+    }
+}
+
+// MARK: - Profiles (0.2.9/0.2.10)
+
+/// 管理 Profile（人物级隔离）。切换是窗口级操作（窗口标题栏/桥），这里
+/// 只做名录管理：增删。
+private struct ProfilesSection: View {
+    @ObservedObject var store = ProfileStore.shared
+    @State private var newName = ""
+
+    var body: some View {
+        SettingsSection(
+            title: "Profiles",
+            subtitle: "Each profile owns an isolated cookie/session store (work vs personal). Switch a window's profile from its toolbar; new tabs in that window use the profile's data.",
+            icon: "person.2.crop.square.stack"
+        ) {
+            VStack(spacing: 0) {
+                if store.profiles.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text("No profiles yet. Add one to get an isolated cookie/session store.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                } else {
+                    ForEach(Array(store.profiles.enumerated()), id: \.element.id) { index, profile in
+                        profileRow(profile)
+                        if index < store.profiles.count - 1 {
+                            SettingsRowDivider()
+                        }
+                    }
+                }
+                SettingsRowDivider()
+                HStack(spacing: 8) {
+                    SettingsTextField(
+                        placeholder: "New profile name",
+                        text: $newName
+                    )
+                    .frame(maxWidth: .infinity)
+                    Button {
+                        addProfile()
+                    } label: {
+                        Text("Add")
+                            .font(.system(size: 12, weight: .medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(Color.accentColor.opacity(0.18))
+                            )
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private func profileRow(_ profile: DesireProfile) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(swiftUIColor(for: profile.colorName))
+                .frame(width: 12, height: 12)
+            Text(profile.name)
+                .font(.system(size: 12, weight: .medium))
+            if store.activeProfileID == profile.id {
+                StatusPill(text: "Active in a window", kind: .info)
+            }
+            Spacer()
+            Button {
+                store.removeProfile(id: profile.id)
+            } label: {
+                Image(systemName: "minus.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .help("Delete profile")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 44)
+    }
+
+    private func addProfile() {
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        store.addProfile(name: trimmed)
+        newName = ""
+    }
+}
+
+// MARK: - Developer (automation bridge / MCP)
+
+/// AI 原生浏览器的开发者信息区：自动化桥与 MCP server 的启动状态。
+/// 只读——两者都由启动参数控制（--automation / --mcp-server）。
+private struct DeveloperSection: View {
+    private let launchedWithAutomation = ProcessInfo.processInfo.arguments.contains("--automation")
+    private let launchedWithMCP = ProcessInfo.processInfo.arguments.contains("--mcp-server")
+
+    var body: some View {
+        SettingsSection(
+            title: "Developer",
+            subtitle: "Desire is an AI-native browser: agents drive it through a localhost automation bridge and an MCP server.",
+            icon: "chevron.left.forwardslash.chevron.right"
+        ) {
+            VStack(spacing: 0) {
+                bridgeRow(
+                    title: "Automation Bridge",
+                    detail: launchedWithAutomation
+                        ? "Running on 127.0.0.1:8799 (launch with --automation)."
+                        : "Inactive. Relaunch with --automation to enable.",
+                    active: launchedWithAutomation
+                )
+                SettingsRowDivider()
+                bridgeRow(
+                    title: "MCP Server",
+                    detail: launchedWithMCP
+                        ? "Running on 127.0.0.1:8798 (launch with --mcp-server)."
+                        : "Inactive. Relaunch with --mcp-server to enable.",
+                    active: launchedWithMCP
+                )
+                SettingsRowDivider()
+                HStack {
+                    Spacer()
+                    Button {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire/blob/main/docs/BRIDGE.md")!)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "book")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("Bridge Docs")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private func bridgeRow(title: String, detail: String, active: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: active ? "dot.radiowaves.left.and.right" : "minus.circle")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(active ? .green : .secondary)
+                .frame(width: 22, height: 22)
+                .background(
+                    Circle().fill((active ? Color.green : .secondary).opacity(0.10))
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            StatusPill(text: active ? "Running" : "Off", kind: active ? .success : .info)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(minHeight: 44)
     }
 }
 

@@ -9,7 +9,13 @@ extension ContentView {
         tab.browser.onAIElementPicked = { selector, html in
             aiSession.addContext(html: html, selector: selector)
         }
-        aiSession.setWebView(tab.browser.webView)
+        // 只绑定选中标签的 webview（0.3.9）：分屏打开时本工厂每帧被调
+        // 两次（主栏 + partner 栏），partner 的调用曾把会话 webview 每帧
+        // 覆盖回去——setWebView 主/partner 震荡 = 每帧发布 + Agent 上下
+        // 文标签翻转（也是拖动卡顿源之一）。
+        if tabManager.selectedTab?.id == tab.id {
+            aiSession.setWebView(tab.browser.webView)
+        }
         tab.browser.webView.onOpenInContainer = { url, container in
             tabManager.addTab(
                 url: url.absoluteString,

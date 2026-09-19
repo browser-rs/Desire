@@ -113,6 +113,24 @@ extension ContentView {
             onTextChange: { [bm = bookmarkStore, hist = historyStore, st = settings] newValue in
                 suggestionModel.build(query: newValue, settings: st, bookmarks: bm, history: hist)
             },
+            pluginStore: pluginStore,
+            onRunPlugin: { plugin in
+                // 固定图标点击：在当前页运行一次（隔离世界，绕过 URL 匹配）。
+                let target = tab.browser.webView
+                guard !tab.isOnNewTabPage else {
+                    actionToast = StatusBarToast(
+                        icon: plugin.toolbarIcon,
+                        text: String(localized: "Open a page first")
+                    )
+                    return
+                }
+                if pluginStore.runOnce(plugin, in: target) {
+                    actionToast = StatusBarToast(
+                        icon: plugin.toolbarIcon,
+                        text: String(localized: "Plugin \"\(plugin.name)\" ran")
+                    )
+                }
+            },
             showDownloads: Binding(
                 get: { appState.showDownloadsPanel },
                 set: { appState.showDownloadsPanel = $0 }

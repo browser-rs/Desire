@@ -13,8 +13,13 @@ struct Plugin: Identifiable, Codable {
     var cssCode: String
     var isEnabled: Bool
     var createdAt: Date
+    /// 工具栏固定（0.2.17 Chrome 式扩展面板）。Optional = 旧持久化数据
+    /// 解码安全（缺键为 nil）。
+    var pinned: Bool?
+    /// 工具栏/面板图标（SF Symbol 名）。
+    var icon: String?
 
-    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -27,7 +32,12 @@ struct Plugin: Identifiable, Codable {
         self.cssCode = cssCode
         self.isEnabled = isEnabled
         self.createdAt = createdAt
+        self.pinned = pinned
+        self.icon = icon
     }
+
+    var isPinned: Bool { pinned ?? false }
+    var toolbarIcon: String { icon ?? "puzzlepiece" }
 }
 
 enum RunAt: String, Codable, CaseIterable {

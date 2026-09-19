@@ -25,6 +25,37 @@ class PluginStore: ObservableObject {
         save()
     }
 
+    /// 工具栏固定切换（0.2.17 Chrome 式扩展面板）。
+    func togglePin(_ id: UUID) {
+        guard let i = plugins.firstIndex(where: { $0.id == id }) else { return }
+        plugins[i].pinned = !(plugins[i].isPinned)
+        save()
+    }
+
+    /// 显式设定固定状态（桥用）。
+    func setPinned(_ id: UUID, _ pinned: Bool) {
+        guard let i = plugins.firstIndex(where: { $0.id == id }) else { return }
+        plugins[i].pinned = pinned
+        save()
+    }
+
+    /// 启用/停用（面板与桥共用；停用后不再自动注入，固定图标同步隐藏）。
+    func setEnabled(_ id: UUID, _ enabled: Bool) {
+        guard let i = plugins.firstIndex(where: { $0.id == id }) else { return }
+        plugins[i].isEnabled = enabled
+        save()
+    }
+
+    /// 手动运行一次（工具栏固定图标点击）：绕过 URL 匹配直接在当前页
+    /// 注入（隔离世界）。返回是否确有代码执行。
+    @discardableResult
+    func runOnce(_ plugin: Plugin, in webView: WKWebView) -> Bool {
+        guard plugin.isEnabled, !plugin.jsCode.isEmpty else { return false }
+        webView.evaluateJavaScript(
+            plugin.jsCode, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+        return true
+    }
+
     func matchingPlugins(for url: URL) -> [Plugin] {
         plugins.filter { p in
             guard p.isEnabled else { return false }

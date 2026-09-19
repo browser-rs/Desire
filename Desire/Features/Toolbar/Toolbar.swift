@@ -65,6 +65,9 @@ struct Toolbar: View {
     /// the stores that `suggestionModel.build` needs (`bookmarkStore`,
     /// `historyStore`, `settings`) so Toolbar doesn't hold them.
     let onTextChange: (String) -> Void
+    /// 扩展面板（0.2.17）：插件列表/固定管理 + 固定图标点击运行。
+    @ObservedObject var pluginStore: PluginStore
+    var onRunPlugin: ((Plugin) -> Void)? = nil
 
     /// Derived search-engine state passed in by the parent so Toolbar doesn't
     /// hold `Settings` directly (AGENTS.md: Composites take Props-in/
@@ -86,6 +89,7 @@ struct Toolbar: View {
     @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
+    @State private var showExtensionsPanel = false
     /// Cached bookmark-state for the current page, passed from the parent.
     let isBookmarked: Bool
     /// Local editing buffer for the address field. Binding the field directly
@@ -118,6 +122,9 @@ struct Toolbar: View {
             navGroup
             urlBarGroup
             zoomButton
+            // Chrome 式扩展：固定的插件图标在拼图按钮左侧（缩放与 Agent 之间）。
+            pinnedPluginsRow
+            extensionsButton
             trailingButtons
         }
         .padding(.leading, 12)
@@ -321,6 +328,128 @@ struct Toolbar: View {
     }
 
     // MARK: - Trailing Buttons
+
+    /// 固定到工具栏的插件图标（Chrome 式）。点击 = 在当前页运行一次。
+    @ViewBuilder
+    private var pinnedPluginsRow: some View {
+        let pinned = pluginStore.plugins.filter { $0.isEnabled && $0.isPinned }
+        if !pinned.isEmpty {
+            HStack(spacing: 2) {
+                ForEach(pinned) { plugin in
+                    Button {
+                        onRunPlugin?(plugin)
+                    } label: {
+                        Image(systemName: plugin.toolbarIcon)
+                            .font(.system(size: 12))
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Run \"\(plugin.name)\" on this page")
+                }
+            }
+        }
+    }
+
+    /// 拼图按钮 + 扩展面板：全部插件列表（启用开关 + 固定开关）。
+    private var extensionsButton: some View {
+        Button {
+            showExtensionsPanel = true
+        } label: {
+            Image(systemName: "puzzlepiece")
+                .font(.system(size: 12))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Extensions")
+        .popover(isPresented: $showExtensionsPanel) {
+            extensionsPanel
+        }
+    }
+
+    private var extensionsPanel: some View {
+        VStack(spacing: 0) {
+            if pluginStore.plugins.isEmpty {
+                Text("No plugins installed")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else {
+                ForEach(Array(pluginStore.plugins.enumerated()), id: \.element.id) { index, plugin in
+                    HStack(spacing: 10) {
+                        Image(systemName: plugin.toolbarIcon)
+                            .font(.system(size: 12))
+                            .foregroundStyle(plugin.isEnabled ? Color.accentColor : .secondary)
+                            .frame(width: 22, height: 22)
+                            .background(
+                                Circle().fill(Color.accentColor.opacity(plugin.isEnabled ? 0.12 : 0.05))
+                            )
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(plugin.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(plugin.isEnabled ? .primary : .secondary)
+                            if !plugin.description.isEmpty {
+                                Text(plugin.description)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        // 固定：钉住后图标常驻工具栏。
+                        Button {
+                            pluginStore.togglePin(plugin.id)
+                        } label: {
+                            Image(systemName: plugin.isPinned ? "pin.fill" : "pin")
+                                .font(.system(size: 11))
+                                .foregroundStyle(plugin.isPinned ? Color.accentColor : .secondary)
+                                .frame(width: 22, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help(plugin.isPinned ? "Unpin from toolbar" : "Pin to toolbar")
+                        // 启用开关。
+                        Toggle("", isOn: Binding(
+                            get: { plugin.isEnabled },
+                            set: { pluginStore.setEnabled(plugin.id, $0) }
+                        ))
+                        .labelsHidden()
+                        .controlSize(.mini)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 40)
+                    if index < pluginStore.plugins.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button {
+                    showExtensionsPanel = false
+                    showPlugins = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Manage Plugins")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.18)))
+                    .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+        .frame(width: 300)
+    }
 
     private var trailingButtons: some View {
         HStack(spacing: 6) {

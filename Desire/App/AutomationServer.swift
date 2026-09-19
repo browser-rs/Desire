@@ -309,7 +309,8 @@ final class AutomationServer {
         ep("GET", "/webext/debug", "ExtensionEventHub listener count + tab listener flags", example: "…/webext/debug")
         ep("POST", "/webext/fire", "Manually fire an extension tab event (diagnostics)", params: ["event:string"], example: "-d '{\"event\":\"tabs.onActivated\"}'")
         ep("POST", "/webext/eval", "Run JS in the ISOLATED extension world of the selected tab (sees browser.*; /execute cannot)", params: ["js:string"], example: "-d '{\"js\":\"typeof browser\"}'")
-        ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
+        ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
+        ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
         ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
@@ -538,7 +539,7 @@ final class AutomationServer {
                 let result: String = await withCheckedContinuation { cont in
                     tab.browser.webView.evaluateJavaScript(js, in: nil, in: WebView.extensionWorld) { value in
                         switch value {
-                        case .success(let v): cont.resume(returning: String(describing: v ?? "null"))
+                        case .success(let v): cont.resume(returning: String(describing: v))
                         case .failure(let error): cont.resume(returning: "ERROR: \(error.localizedDescription)")
                         }
                     }
@@ -550,8 +551,25 @@ final class AutomationServer {
                     js: Self.string(body, "js") ?? "",
                     patterns: body["patterns"] as? [String] ?? ["*"],
                     runAt: Self.string(body, "runAt") ?? "document_end",
-                    css: Self.string(body, "css") ?? ""
+                    css: Self.string(body, "css") ?? "",
+                    pinned: body["pinned"] as? Bool ?? false,
+                    icon: Self.string(body, "icon")
                 ))
+            case ("POST", "/plugins/pin"):
+                let app = AppState.live
+                guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "invalid id"])
+                }
+                guard app?.pluginStore.plugins.contains(where: { $0.id == uuid }) == true else {
+                    return try Self.json(["error": "no such plugin"])
+                }
+                // 显式 pinned=true/false 设定；缺省为切换。
+                if let pinned = body["pinned"] as? Bool {
+                    app?.pluginStore.setPinned(uuid, pinned)
+                } else {
+                    app?.pluginStore.togglePin(uuid)
+                }
+                return try Self.json(["ok": true])
             case ("POST", "/plugins/remove"):
                 return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):
@@ -1381,6 +1399,8 @@ final class AutomationServer {
                 "id": p.id.uuidString,
                 "name": p.name,
                 "enabled": p.isEnabled,
+                "pinned": p.isPinned,
+                "icon": p.toolbarIcon,
                 "patterns": p.urlPatterns,
                 "runAt": p.runAt.rawValue,
             ]
@@ -1389,7 +1409,7 @@ final class AutomationServer {
 
     /// Creates a userscript plugin (E2E / Agent primitive). The code runs
     /// in the isolated extension world with the browser.* API available.
-    private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String) throws -> [String: Any] {
+    private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String, pinned: Bool, icon: String?) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty, !js.isEmpty else {
             return ["error": "missing name/js"]
@@ -1399,7 +1419,9 @@ final class AutomationServer {
             urlPatterns: patterns.isEmpty ? ["*"] : patterns,
             runAt: RunAt(rawValue: runAt) ?? .documentEnd,
             jsCode: js,
-            cssCode: css
+            cssCode: css,
+            pinned: pinned,
+            icon: icon
         )
         app.pluginStore.add(plugin)
         return ["ok": true, "id": plugin.id.uuidString]

@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+## [v0.2.17] - 2026-09-19
+
+### Added
+
+- **Chrome 式扩展面板与工具栏固定**（WebExtension UX 补全）：
+  - 工具栏 Agent 与缩放按钮之间新增拼图按钮，弹出扩展面板——全部
+    插件列表（图标/名称/描述）+ 启用开关 + 固定开关，底部 Manage
+    Plugins 进插件管理面板。
+  - 固定的插件以图标常驻拼图按钮左侧；点击 = 在当前页运行一次
+    （隔离世界直注，toast 反馈）。
+  - Plugin 模型新增 `pinned`/`icon`（SF Symbol 自定义图标；optional
+    字段保证旧数据解码安全）；PluginStore 新增 togglePin/setPinned/
+    setEnabled/runOnce。
+  - 桥 `/plugins/add` 接受 pinned/icon；新增 `/plugins/pin`（显式
+    设定或切换）——Agent 可编程固定插件到工具栏。
+
+### Verified
+
+- E2E：pinned+icon 创建 → 列表回读 → 显式 unpin/pin 往返 → 清理；
+  字段经 DiskStore 持久化（optional 解码对旧数据兼容）。面板/固定
+  图标交互属 UI 层，待用户验收。
+
 ## [v0.2.16] - 2026-09-19
 
 > 交付路线图 0.2.13 的内容（WebExtension API v1）——最后一个大项。

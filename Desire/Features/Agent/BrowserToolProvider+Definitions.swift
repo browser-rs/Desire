@@ -560,6 +560,15 @@ extension BrowserToolProvider {
                 ], required: ["selector"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "waitFor", description: "PREFERRED over wait/sleep: block until a condition is met — text appears on the page, a selector exists, or the network goes idle (XHR/fetch settled). Use after navigate/click on slow or SPA pages before reading content.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "text": AgentJSONSchemaValue(type: "string", description: "Wait until this text appears on the page"),
+                    "selector": AgentJSONSchemaValue(type: "string", description: "Wait until this CSS selector exists"),
+                    "networkIdle": AgentJSONSchemaValue(type: "boolean", description: "Wait until network is idle (no in-flight XHR/fetch for ~500ms)"),
+                    "timeout": AgentJSONSchemaValue(type: "number", description: "Max milliseconds (default 8000, cap 60000)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "executeJS", description: "Execute arbitrary JavaScript code in the page context and return the result",
                 parameters: AgentJSONSchema(type: "object", properties: ["code": AgentJSONSchemaValue(type: "string", description: "JavaScript code")], required: ["code"])
             )),

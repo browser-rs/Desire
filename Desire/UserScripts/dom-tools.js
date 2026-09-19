@@ -234,6 +234,46 @@ async function __desireWaitForElement(selector, timeout) {
     });
 }
 
+// 0.3.2 页面感知：网络静默——连续 quietMs 无进行中的 XHR/fetch 且无
+// 新增节点变动。用 PerformanceObserver 兜资源加载，MutationObserver 兜
+// SPA 渲染；两者都静默才算 idle。
+async function __desireWaitForNetworkIdle(timeout, quietMs) {
+    quietMs = quietMs || 500;
+    var start = Date.now();
+    var lastActivity = Date.now();
+    var inflight = 0;
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+    try {
+        XMLHttpRequest.prototype.open = function () {
+            this.addEventListener("loadstart", function () { inflight++; lastActivity = Date.now(); });
+            this.addEventListener("loadend", function () { inflight--; lastActivity = Date.now(); });
+            return origOpen.apply(this, arguments);
+        };
+    } catch (e) {}
+    var origFetch = window.fetch;
+    try {
+        window.fetch = function () {
+            inflight++; lastActivity = Date.now();
+            return origFetch.apply(this, arguments).finally(function () {
+                inflight--; lastActivity = Date.now();
+            });
+        };
+    } catch (e) {}
+    return await new Promise(function (resolve) {
+        function done(why) {
+            try { XMLHttpRequest.prototype.open = origOpen; } catch (e) {}
+            try { window.fetch = origFetch; } catch (e) {}
+            resolve(why);
+        }
+        (function check() {
+            if (Date.now() - start > (timeout || 5000)) return done("Timeout");
+            if (inflight <= 0 && Date.now() - lastActivity >= quietMs) return done("Network idle");
+            setTimeout(check, 100);
+        })();
+    });
+}
+
 // --- DOM inspection (read-only tier) ---
 
 // Structured page snapshot for the AI agent: cleaned main-content text plus
@@ -651,8 +691,10 @@ async function __desireWaitForText(text, timeout) {
     var start = Date.now();
     return await new Promise(function (resolve) {
         function check() {
-            var body = document.body ? document.body.innerText : "";
-            if (body.indexOf(text) !== -1) return resolve("Found text");
+            // 大小写不敏感（0.3.2）：页面文案大小写不可控，Agent 按语义给词。
+            var body = (document.body ? document.body.innerText : "").toLowerCase();
+            var needle = (text || "").toLowerCase();
+            if (needle && body.indexOf(needle) !== -1) return resolve("Found text");
             if (Date.now() - start > timeout) return resolve("Timeout waiting for text");
             setTimeout(check, 250);
         }

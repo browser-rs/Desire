@@ -7,6 +7,16 @@ import WebKit
 /// + small helpers. The `surface` is guarded at the top of `execute`.
 extension BrowserToolProvider {
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
+        let result = await executeBody(call, in: webView)
+        // 页面感知回证（0.3.2）：动作类工具执行后自动截视口快照，
+        // 面板工具条目内联展示"点完之后"的画面。
+        if AgentEvidenceStore.evidenceTools.contains(call.function.name) {
+            AgentEvidenceStore.shared.captureEvidence(for: call.id, in: webView)
+        }
+        return result
+    }
+
+    private func executeBody(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         let args = (try? JSONSerialization.jsonObject(with: call.function.arguments.data(using: .utf8) ?? Data()) as? [String: Any]) ?? [:]
         // Tools resolve their store targets through the surface. If it isn't
         // attached yet, only the pure-webview tools (which don't touch a
@@ -1130,6 +1140,21 @@ extension BrowserToolProvider {
             let sel = args["selector"] as? String ?? ""
             let timeout = min(args["timeout"] as? Int ?? 5000, 60_000)
             return await callAsync(webView, function: "__desireWaitForElement", args: ["selector": sel, "timeout": timeout])
+
+        // 0.3.2 页面感知：统一等待原语——替代盲 sleep。
+        case "waitFor":
+            let timeout = min(args["timeout"] as? Int ?? 8000, 60_000)
+            if let text = args["text"] as? String, !text.isEmpty {
+                return await callAsync(webView, function: "__desireWaitForText",
+                                       args: ["text": text, "timeout": timeout])
+            }
+            if let sel = args["selector"] as? String, !sel.isEmpty {
+                return await callAsync(webView, function: "__desireWaitForElement",
+                                       args: ["selector": sel, "timeout": timeout])
+            }
+            let quiet = min(args["quietMs"] as? Int ?? 500, 5000)
+            return await callAsync(webView, function: "__desireWaitForNetworkIdle",
+                                   args: ["timeout": timeout, "quietMs": quiet])
 
         case "executeJS":
             guard let code = args["code"] as? String else { return "Missing code" }

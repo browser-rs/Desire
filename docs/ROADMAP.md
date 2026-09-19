@@ -214,7 +214,7 @@
 - 验收：一句话任务"在 3 个电商比价 X 并汇总最低价"→ 3 标签并行 →
   结构化汇总。
 
-### 0.3.2 — 页面感知 v1（Page Awareness）
+### 0.3.2 — 页面感知 v1（Page Awareness）✅（DOM 订阅留 v2）
 - Agent 工具面增加 `waitFor(selector|text|networkIdle)`：替代
   sleep 轮询，页面就绪即继续（超时可配）。
 - 视口语义升级：click/fill 支持元素截图回证（act + evidence 对），

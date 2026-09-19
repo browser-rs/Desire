@@ -134,6 +134,22 @@ private struct ToolCallChip: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 6) {
+                    // 页面感知回证（0.3.2）：动作类工具附"执行后视口"快照。
+                    if AgentEvidenceStore.evidenceTools.contains(toolCall.function.name),
+                       let evidence = AgentEvidenceStore.shared.image(for: toolCall.id) {
+                        Text("EVIDENCE")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.orange)
+                        Image(nsImage: evidence)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: 260)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                            )
+                    }
                     if !toolCall.function.arguments.isEmpty,
                        toolCall.function.arguments != "{}" {
                         Text("ARGS")
@@ -180,7 +196,9 @@ private struct ToolCallChip: View {
         let hasArgs = !toolCall.function.arguments.isEmpty
             && toolCall.function.arguments != "{}"
         let hasResult = !(result?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        return hasArgs || hasResult
+        let hasEvidence = AgentEvidenceStore.evidenceTools.contains(toolCall.function.name)
+            && AgentEvidenceStore.shared.image(for: toolCall.id) != nil
+        return hasArgs || hasResult || hasEvidence
     }
 
     private var chipBackground: Color {

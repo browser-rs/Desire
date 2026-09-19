@@ -6,6 +6,8 @@ struct BookmarksBarView: View {
     @ObservedObject var store: BookmarkStore
     /// 导航回调（当前选中标签页）。
     let onNavigate: (String) -> Void
+    /// 右键菜单"隐藏书签栏"回调（0.2.19 可发现性补全）。
+    var onToggleVisibility: (() -> Void)? = nil
 
     var body: some View {
         let items = store.bookmarks
@@ -28,6 +30,9 @@ struct BookmarksBarView: View {
             .frame(height: 26)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             .overlay(alignment: .bottom) { Divider() }
+            .contextMenu {
+                Button("Hide Bookmarks Bar") { onToggleVisibility?() }
+            }
         }
     }
 

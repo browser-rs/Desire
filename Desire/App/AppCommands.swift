@@ -175,14 +175,10 @@ struct AppCommands: Commands {
                 Button("From Firefox…") { postCommand(.importBookmarksFrom(.firefox)) }
                 Button("From HTML File…") { postCommand(.importBookmarksFrom(.html)) }
             }
-            if !bookmarks.leafEntries.isEmpty {
+            if !bookmarks.bookmarks.isEmpty {
                 Divider()
-                // 全部书签动态区（最多 20 条，多了走面板/书签栏）。
-                ForEach(bookmarks.leafEntries.prefix(20), id: \.url) { entry in
-                    Button(entry.title.isEmpty ? entry.url : entry.title) {
-                        postCommand(.openURL(entry.url))
-                    }
-                }
+                // 全部书签（树结构：文件夹进子菜单，叶子直达）。
+                bookmarkTreeSection(bookmarks.bookmarks)
             }
         }
 
@@ -255,5 +251,23 @@ struct AppCommands: Commands {
 
     private func postCommand(_ command: BrowserCommand) {
         CommandBus.shared.send(command)
+    }
+
+    /// Bookmarks 菜单的书签树：文件夹递归成子菜单，叶子直接导航。
+    /// 递归视图必须 AnyView 擦除（opaque type 无法自引用）。
+    private func bookmarkTreeSection(_ items: [Bookmark]) -> AnyView {
+        AnyView(ForEach(items) { bookmark in
+            if bookmark.isFolder, !bookmark.children.isEmpty {
+                AnyView(Menu(bookmark.title.isEmpty ? "Untitled Folder" : bookmark.title) {
+                    bookmarkTreeSection(bookmark.children)
+                })
+            } else if let url = bookmark.url {
+                AnyView(Button(bookmark.title.isEmpty ? url : bookmark.title) {
+                    postCommand(.openURL(url))
+                })
+            } else {
+                AnyView(EmptyView())
+            }
+        })
     }
 }

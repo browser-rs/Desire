@@ -13,7 +13,7 @@ extension ContentView {
             tabs: tabManager.tabs,
             selectedIndex: tabManager.selectedIndex,
             isFullScreen: isFullScreen,
-            showSwitcher: showTabSwitcher,
+            showSwitcher: $showTabSwitcher,
             onSelectTab: { index in
                 isUrlFocused = false
                 // Selecting a tab that belongs to a collapsed group expands

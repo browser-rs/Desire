@@ -96,6 +96,8 @@ extension ContentView {
         if settings.showBookmarksBar {
             BookmarksBarView(store: bookmarkStore) { url in
                 b.navigateToURL(url, for: tab)
+            } onToggleVisibility: {
+                settings.showBookmarksBar = false
             }
         }
     }

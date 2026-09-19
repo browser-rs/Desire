@@ -7,7 +7,7 @@ struct TabBar: View {
     let tabs: [Tab]
     let selectedIndex: Int
     let isFullScreen: Bool
-    let showSwitcher: Bool
+    @Binding var showSwitcher: Bool
     let onSelectTab: (Int) -> Void
     let onCloseTab: (Int) -> Void
     /// Closes by tab identity, resolving the index live at call time. Used
@@ -260,23 +260,34 @@ struct TabBar: View {
                     }
                 }
             }
+
+            Button {
+                showSwitcher = true
+            } label: {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(showSwitcher ? Color.accentColor : .primary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Tab Overview (⌘\\)")
         }
         .padding(.leading, isFullScreen ? 12 : 76)
         .padding(.trailing, 8)
         .padding(.top, 4)
         .padding(.bottom, 4)
         .background(Color.clear)
-        .overlay(alignment: .topLeading) {
-            if showSwitcher {
-                TabPopoverView(
-                    tabs: tabs,
-                    selectedIndex: selectedIndex,
-                    onSelectTab: onSelectTab,
-                    onAddTab: onAddTab,
-                    searchText: $searchText,
-                    isSearchFocused: $isSearchFocused
-                )
-            }
+        .popover(isPresented: $showSwitcher, arrowEdge: .bottom) {
+            TabPopoverView(
+                tabs: tabs,
+                selectedIndex: selectedIndex,
+                onSelectTab: onSelectTab,
+                onAddTab: onAddTab,
+                searchText: $searchText,
+                isSearchFocused: $isSearchFocused,
+                onClose: { showSwitcher = false }
+            )
         }
         .onChange(of: showSwitcher) { _, shown in
             if shown {
@@ -543,6 +554,16 @@ private struct TabPopoverView: View {
     let onAddTab: () -> Void
     @Binding var searchText: String
     var isSearchFocused: FocusState<Bool>.Binding
+    let onClose: () -> Void
+
+    /// 键盘导航（↑/↓ 移动、Enter 选中、Esc 关闭）：本地事件监视器，
+    /// 优先于搜索框的 field editor 消费方向键。
+    @State private var keyboardRow: Int?
+    @State private var keyMonitor: Any?
+
+    private var activeRow: Int? {
+        keyboardRow ?? filtered.firstIndex(where: { $0.offset == selectedIndex })
+    }
 
     private var filtered: [(offset: Int, element: Tab)] {
         if searchText.isEmpty {
@@ -603,7 +624,7 @@ private struct TabPopoverView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(index == selectedIndex ? Color.accentColor.opacity(0.1) : .clear)
+                        .background(hotRowBackground(index))
                         .contentShape(Rectangle())
                         .onTapGesture {
                             onSelectTab(index)
@@ -642,6 +663,44 @@ private struct TabPopoverView: View {
             RoundedRectangle(cornerRadius: .radiusPopover)
                 .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
         )
+        .onAppear(perform: installKeyMonitor)
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+            keyboardRow = nil
+        }
+    }
+
+    private func hotRowBackground(_ index: Int) -> Color {
+        let active = activeRow ?? selectedIndex
+        return index == active ? Color.accentColor.opacity(0.1) : .clear
+    }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let rows = filtered
+            guard !rows.isEmpty else { return event }
+            switch event.keyCode {
+            case 125: // down
+                keyboardRow = min((activeRow ?? -1) + 1, rows.count - 1)
+                return nil
+            case 126: // up
+                keyboardRow = max((activeRow ?? 1) - 1, 0)
+                return nil
+            case 36: // return
+                if let row = activeRow, rows.indices.contains(row) {
+                    onSelectTab(rows[row].offset)
+                    onClose()
+                }
+                return nil
+            case 53: // esc
+                onClose()
+                return nil
+            default:
+                return event
+            }
+        }
     }
 }
 

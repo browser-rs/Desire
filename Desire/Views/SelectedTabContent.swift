@@ -369,7 +369,11 @@ struct SelectedTabContent: View {
                     DragHookDivider(width: $agentPanelWidth, range: 260...1200,
                                     dragStarted: { beginPaneDrag() },
                                     dragEnded: { endPaneDrag() })
-                    AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
+                    // 等值门控：宽度是宿主 @State，拖动每帧重算宿主 body
+                    // 会连带重 diff 整个会话面板（Markdown 列表很贵）。
+                    // 面板输入稳定 → 跳过；其内部 @ObservedObject 的更新
+                    // 不经此路径，照常生效；宽度在门控外每帧应用。
+                    StableAgentPanel(content: content).equatable()
                         .frame(width: agentPanelWidth)
                         // Opening the assistant resumes the most recent
                         // conversation instead of a blank panel. Deferred
@@ -388,11 +392,8 @@ struct SelectedTabContent: View {
                     DragHookDivider(width: $devToolsWidth, range: 300...1400,
                                     dragStarted: { beginPaneDrag() },
                                     dragEnded: { endPaneDrag() })
-                    DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
-                        tab.browser.isPickingElement = true
-                        tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
-                    }, onClose: { content.toggleDevTools() })
-                    .frame(width: devToolsWidth)
+                    StableDevToolsPanel(content: content, tabID: tab.id)
+                        .frame(width: devToolsWidth)
                 }
             }
             .animation(.layoutSpring, value: content.tabManager.splitPartnerID)
@@ -417,6 +418,41 @@ struct SelectedTabContent: View {
 
 
 
+/// AgentPanel 的等值包装（0.3.9 卡顿治理）：恒等比较让宿主拖动期间
+/// 的每帧 body 重算跳过整个会话面板的 diff；面板自身的 store 发布
+/// 仍会驱动其更新（@ObservedObject 不走父路径）。
+private struct StableAgentPanel: View, Equatable {
+    let content: ContentView
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+
+    var body: some View {
+        AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
+    }
+}
+
+/// DevToolsPanel 同理（按 tab 身份比较——切标签需重渲染）。
+private struct StableDevToolsPanel: View, Equatable {
+    let content: ContentView
+    let tabID: UUID
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.tabID == rhs.tabID }
+
+    var body: some View {
+        if let tab = content.tabManager.tabs.first(where: { $0.id == tabID }) {
+            DevToolsPanel(
+                store: content.devToolsStore,
+                tab: tab,
+                onStartElementPicker: {
+                    tab.browser.isPickingElement = true
+                    tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                },
+                onClose: { content.toggleDevTools() }
+            )
+        }
+    }
+}
+
 /// 平台级快照层（0.3.9）：NSView + layer.contents 渲染拉伸快照。
 /// 必须是平台视图——SwiftUI Image 的 .overlay 会被后面的 webview 平台
 /// 视图盖住（本项目实测）；平台兄弟视图按声明序定 z 序，本视图声明在
@@ -435,12 +471,22 @@ struct SnapshotLayerView: NSViewRepresentable {
     }
 
     final class SnapshotLayerNSView: NSView {
+        // 拖动每帧都会走 updateNSView；NSImage→CGImage 是栅格化级重活，
+        // 图没变（同一引用）必须直接跳过——否则拖一下每帧白转两次大图。
+        private var lastImage: ObjectIdentifier?
+        private var cachedCG: CGImage?
+
         func update(image: NSImage) {
             wantsLayer = true
-            guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
-            layer?.contents = cg
-            layer?.contentsGravity = .resizeAspectFill
-            layer?.masksToBounds = true
+            let id = ObjectIdentifier(image)
+            guard id != lastImage else { return }
+            lastImage = id
+            cachedCG = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            if let cachedCG {
+                layer?.contents = cachedCG
+                layer?.contentsGravity = .resizeAspectFill
+                layer?.masksToBounds = true
+            }
         }
     }
 }

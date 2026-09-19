@@ -27,7 +27,8 @@
 | 0.1.14 | 网络拦截 v2 | 真节流 + pixelRatio，响应式正名 |
 | 0.1.15 | Agent 记忆与技能管理 | 记忆可查可编辑、技能导入/版本化 |
 | 0.1.16 | 视觉与命令面板 | 全页/元素截图、⌘K 统一入口 |
-| 0.2.x | 成熟弧线 | 见文末（passkey、Profiles、WebExtension、自动更新…） |
+| 0.2.x | 成熟弧线 | 见文末（passkey、Profiles、WebExtension、自动更新…）✅ |
+| 0.3.x | 智能体浏览器 | Tab Crew 并行作业、页面感知、WebExtension v2、同步… |
 
 ---
 
@@ -196,6 +197,85 @@
 
 ---
 
+## 0.3.x — 智能体浏览器（规划中，2026-09-19）
+
+> 定位跃迁：0.1.x 把浏览器做成 Agent 的执行环境（桥/MCP/工具面），
+> 0.2.x 补齐浏览器本体的成熟弧线。0.3.x 的主线是**把 Agent 变成
+> 浏览器的一等公民**：多标签并行作业、页面级感知、扩展生态闭环、
+> 性能与分发成熟化。发布号继续按时间顺延（当前已至 v0.2.19）。
+
+### 0.3.1 — Agent 多标签并行作业（Tab Crew v1）
+- Agent 会话可声明"作业组"：一次任务派发 N 个标签并行浏览
+  （搜索多引擎比对、多商品比价、批量信息收集），结果聚合回主会话。
+- 作业组视图：Agent 面板显示并行标签的进度瓦片（复用标签概览的
+  活 webview 瓦片）；取消单个子任务不影响其他。
+- 桥 `/agent/crew`（create/status/cancel）；SSE 事件
+  crewTaskStarted/Finished/Failed。
+- 验收：一句话任务"在 3 个电商比价 X 并汇总最低价"→ 3 标签并行 →
+  结构化汇总。
+
+### 0.3.2 — 页面感知 v1（Page Awareness）
+- Agent 工具面增加 `waitFor(selector|text|networkIdle)`：替代
+  sleep 轮询，页面就绪即继续（超时可配）。
+- 视口语义升级：click/fill 支持元素截图回证（act + evidence 对），
+  审批面板展示"Agent 要点哪"的截图。
+- DOM 变化订阅：`observeDOM(selector, callback)` 工具——
+  单页应用的路由跳转/弹窗出现可被 Agent 感知。
+
+### 0.3.3 — WebExtension v2：manifest 装载与 popup
+- manifest.json v3 子集装载（name/version/icons/permissions/
+  content_scripts），从 .msex zip 包安装（桥 + 面板拖入）。
+- 每插件 popup 页（工具栏固定图标点击弹出 HTML 面板，替代/并存
+  "运行一次"）。
+- 每插件独立 storage 命名空间（`browser.storage.local` 按插件隔离，
+  迁移现有共享存储）。
+- 验收：写一个真实的小扩展（如 GitHub star 计数）manifest 装载 →
+  popup 可用 → 存储隔离。
+
+### 0.3.4 — 性能成熟化
+- 50+ 标签 × 8 小时 soak 自动化（桥驱动 + RSS/能耗采样入
+  TEST-REPORT）；屏幕外瓦片降级快照（概览分级渲染）。
+- 启动预算复测：冷启动 <400ms（os_signpost）在真实会话（30 标签
+  恢复）下达标；超标则懒加载非关键 Store。
+- 下载/网络面板内存：条目上限 + 虚拟化列表。
+
+### 0.3.5 — Profiles 闭环
+- 书签/历史/密码/快拨按 Profile 作用域（0.2.10 挂账转正）。
+- Profile 切换器进工具栏（头像菜单）；窗口级"以 X 身份打开"右键。
+- 密码导出走 Keychain 授权（0.2.10 规划保留项）。
+- Agent 按 Profile 取上下文（工具调用带 profile 参数）。
+
+### 0.3.6 — 智能表单与自动登录
+- FormAutofill 升级：地址/信用卡字段分类（frosted 自动填充提示条）；
+  保存时字段级确认（不是整表覆盖）。
+- 检测登录页 → 有存档凭据时一键填充+提交（Agent 可代执行，走审批）。
+- 双因素提示条：检测到 OTP 输入框时提醒从密码备注取码。
+
+### 0.3.7 — 阅读与研究模式
+- 阅读模式增强：字体/行距/主题设置持久化；内嵌翻译对照。
+- 页面批注 v1：选中文本高亮（黄色系四色）+ 侧栏笔记列表 + 导出
+  Markdown；高亮数据按 URL+XPath 持久化。
+- Agent 联动："总结本页所有高亮"。
+
+### 0.3.8 — 分发成熟化
+- Sparkle 式应用内自更新（当前只检查不更新）：下载 + 签名校验 +
+  重启安装；SHA256 在 Release notes 固化。
+- 首启动引导（onboarding）：权限说明/默认浏览器引导/Agent 配置
+  三步走。
+- 崩溃回收：异常退出下次启动提示"恢复上次会话"（现有会话恢复的
+  兜底分支）。
+
+### 0.3.9 — Passkey（挂账，等 Apple entitlement）
+- WebAuthn 平台凭据 UI；Agent 代登录打通（依赖 Apple 审批
+  `com.apple.developer.web-browser.passkeys`，材料见
+  docs/PASSKEYS-APPLE-REQUEST.md）。
+
+### 0.3.10 — 账号云同步 v1（再议后转正）
+- 端到端加密的书签/阅读列表/设置同步（自建对象存储后端，Keychain
+  存密钥，服务器零知识）。
+- 多设备冲突解决（last-write-wins + 向量时钟）。
+- 明确不做：历史/密码上云（密码走 Keychain 本机 + 手动导出）。
+
 ## Backlog（浏览器本体，按需提前）
 
 - 书签栏（当 Agent 需要"地址簿"时提前）
@@ -207,7 +287,8 @@
 
 ## 明确不做（本阶段）
 
-- 账号云同步（需后端，0.3 再议）、iOS/iPadOS 移植、多语言扩展。
+- iOS/iPadOS 移植、Firefox/Edge 系扩展协议兼容（只做 Chrome/manifest v3 子集）、
+  内置 LLM 推理（Agent 走用户配置的云端/端侧模型）。
 
 ## 质量门（每版通用）
 

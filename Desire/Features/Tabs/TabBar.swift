@@ -425,8 +425,9 @@ private struct TabPillView: View {
             }
             .buttonStyle(.plain)
             .opacity(showClose ? 1 : 0)
+            .scaleEffect(showClose ? 1 : 0.6)
             .allowsHitTesting(showClose)
-            .animation(.hoverFast, value: showClose)
+            .animation(.controlSpring, value: showClose)
         }
         .padding(.horizontal, 10)
         .frame(height: 26)

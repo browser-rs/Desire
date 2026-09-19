@@ -237,7 +237,7 @@ struct ContentView: View {
                         .transition(.opacity)
                     }
                 }
-                .animation(.easeInOut(duration: 0.15), value: showTabOverview)
+                .animation(.layoutSpring, value: showTabOverview)
             }
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
@@ -454,10 +454,10 @@ struct ContentView: View {
         if !readingListStore.items.contains(where: { $0.url == url }) {
             readingListStore.add(title: title, url: url)
         }
-        actionToast = StatusBarToast(
+        withAnimation(.overlaySpring) { actionToast = StatusBarToast(
             icon: "book.read",
             text: String(localized: "Added to Reading List")
-        )
+        ) }
     }
 
     /// Agent ▸ Ask About This Page (⌘⇧A)：让活动会话的 Agent 阅读并
@@ -471,10 +471,10 @@ struct ContentView: View {
 
     func toggleBookmark() {
         guard let added = b.toggleBookmark() else { return }
-        actionToast = StatusBarToast(
+        withAnimation(.overlaySpring) { actionToast = StatusBarToast(
             icon: "bookmark.fill",
             text: added ? String(localized: "Bookmark Added") : String(localized: "Bookmark Removed")
-        )
+        ) }
     }
 
     // MARK: - Profile switching (0.2.10)

@@ -56,7 +56,7 @@ extension ContentView {
                 .background(.bar)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .overlayBottomTransition(visible: showUndoToast)
             }
         }
     }
@@ -78,11 +78,11 @@ extension ContentView {
                 .background(.bar)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .overlayBottomTransition(visible: actionToast != nil)
                 .task(id: toast) {
                     try? await Task.sleep(for: .milliseconds(1800))
                     guard !Task.isCancelled else { return }
-                    withAnimation(.transitionNormal) {
+                    withAnimation(.overlaySpring) {
                         if actionToast == toast { actionToast = nil }
                     }
                 }
@@ -93,13 +93,17 @@ extension ContentView {
     /// 常驻书签栏（可隐藏）。数据与书签面板/星标同源。
     @ViewBuilder
     func bookmarksBarSection(for tab: Tab) -> some View {
-        if settings.showBookmarksBar {
-            BookmarksBarView(store: bookmarkStore) { url in
-                b.navigateToURL(url, for: tab)
-            } onToggleVisibility: {
-                settings.showBookmarksBar = false
+        Group {
+            if settings.showBookmarksBar {
+                BookmarksBarView(store: bookmarkStore) { url in
+                    b.navigateToURL(url, for: tab)
+                } onToggleVisibility: {
+                    withAnimation(.layoutSpring) { settings.showBookmarksBar = false }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .animation(.layoutSpring, value: settings.showBookmarksBar)
     }
 
     /// Non-blocking notice bars stacked under the toolbar: password save
@@ -107,9 +111,15 @@ extension ContentView {
     /// replacing these sheets was 0.1.2: sheets steal focus mid-Agent-task).
     @ViewBuilder
     func noticeBars(for tab: Tab) -> some View {
-        PasswordSaveBar(store: passwordStore)
-        BeforeUnloadBar(browser: tab.browser)
-        DangerousDownloadBar(browser: tab.browser)
+        let hasNotice = passwordStore.pendingSave != nil
+            || tab.browser.pendingBeforeUnload != nil
+            || tab.browser.pendingDangerousDownload != nil
+        VStack(spacing: 0) {
+            PasswordSaveBar(store: passwordStore)
+            BeforeUnloadBar(browser: tab.browser)
+            DangerousDownloadBar(browser: tab.browser)
+        }
+        .animation(.overlaySpring, value: hasNotice)
     }
 
     /// Screenshot completion toast (message published by `BrowsingActions`).
@@ -124,7 +134,7 @@ extension ContentView {
                 .background(.bar)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .overlayBottomTransition(visible: b.screenshotToast != nil)
             }
         }
     }
@@ -145,7 +155,7 @@ extension ContentView {
                 .background(.bar)
                 .clipShape(Capsule())
                 .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .overlayTopTransition(visible: videoAdBlockerToast != nil)
             }
         }
     }
@@ -159,7 +169,7 @@ extension ContentView {
                     webView: tab.browser.webView,
                     onDismiss: { showTranslateBar = false }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .overlayBottomTransition(visible: showTranslateBar)
             }
         }
     }

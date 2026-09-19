@@ -270,6 +270,7 @@ struct SelectedTabContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let partner = content.tabManager.splitPartner, partner.id != tab.id {
+                    // 让 transition 有动画锚（无锚 = 瞬跳）。
                     // 分屏浏览（0.2.15）：主栏（选中标签）右侧并排显示
                     // 分屏对象。SplitResizeDivider 与通用 ResizableDivider
                     // 同为实时布局，但每次手势 tick 调
@@ -279,6 +280,7 @@ struct SelectedTabContent: View {
                     SplitResizeDivider(width: $splitPaneWidth, range: 220...1400)
                     SplitPartnerPane(partner: partner, content: content)
                         .frame(width: splitPaneWidth)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
                 if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
@@ -312,6 +314,7 @@ struct SelectedTabContent: View {
                     .frame(width: devToolsWidth)
                 }
             }
+            .animation(.layoutSpring, value: content.tabManager.splitPartnerID)
 
             if content.settings.showLinkPreview, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
                 HStack(spacing: 4) {

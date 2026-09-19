@@ -302,6 +302,16 @@ struct ContentView: View {
                        lastKey != sessionKey,
                        let session = TabSessionCoordinator.shared.session(forKey: lastKey),
                        !session.tabs.isEmpty {
+                        // 崩溃回收（0.3.8）：上次异常终止——提示用户已恢复
+                        // 到崩溃前最后写入的会话（非上次干净退出时的）。
+                        if TabSessionCoordinator.shared.launchedAfterCrash {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                actionToast = StatusBarToast(
+                                    icon: "arrow.counterclockwise.circle",
+                                    text: String(localized: "Restored session after an unexpected quit")
+                                )
+                            }
+                        }
                         // Re-bind the window to the adopted identity so all
                         // future persists land on the same session file.
                         tabManager.sessionKey = lastKey

@@ -257,7 +257,7 @@
   Markdown；高亮数据按 URL+XPath 持久化。
 - Agent 联动："总结本页所有高亮"。
 
-### 0.3.8 — 分发成熟化
+### 0.3.8 — 分发成熟化 ✅（自更新需公开仓库 + /Applications 安装）
 - Sparkle 式应用内自更新（当前只检查不更新）：下载 + 签名校验 +
   重启安装；SHA256 在 Release notes 固化。
 - 首启动引导（onboarding）：权限说明/默认浏览器引导/Agent 配置

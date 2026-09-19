@@ -5,6 +5,15 @@ import SwiftUI
 struct UpdateBannerView: View {
     @ObservedObject var checker: UpdateChecker
 
+    private var installButtonTitle: String {
+        switch checker.installState {
+        case .downloading: String(localized: "Downloading…")
+        case .installing: String(localized: "Installing…")
+        case .readyToRelaunch: String(localized: "Relaunching…")
+        default: String(localized: "Update & Relaunch")
+        }
+    }
+
     var body: some View {
         if let tag = checker.latestTag, !checker.bannerDismissed {
             HStack(spacing: 10) {
@@ -19,6 +28,33 @@ struct UpdateBannerView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
+                // 自更新（0.3.8）：装在 /Applications 时可一键下载校验
+                // 并重启安装。
+                if checker.canSelfUpdate {
+                    Button {
+                        checker.installNow()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if checker.installState == .downloading || checker.installState == .installing {
+                                ProgressView().controlSize(.mini)
+                            }
+                            Text(installButtonTitle)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.2)))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(checker.installState == .downloading || checker.installState == .installing)
+                    if case .failed(let reason) = checker.installState {
+                        Text(reason)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.red)
+                            .help(reason)
+                    }
+                }
                 Button {
                     checker.bannerDismissed = true
                     if let url = checker.releasePageURL {
@@ -29,8 +65,8 @@ struct UpdateBannerView: View {
                         .font(.system(size: 11, weight: .medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.2)))
-                        .foregroundStyle(Color.accentColor)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                        .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
                 Button {

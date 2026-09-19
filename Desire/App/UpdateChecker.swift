@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CryptoKit
 import Foundation
 import os
 @preconcurrency import UserNotifications
@@ -28,6 +29,122 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
 
     /// Controls the in-app banner: reset by "跳过此版本" or by visiting.
     @Published var bannerDismissed = false
+
+    // MARK: - 自更新（0.3.8）：下载 zip → SHA256 校验（SHASUMS256.txt
+    // 资产）→ 替换 /Applications 里的 bundle → 重启。
+
+    enum InstallState: Equatable {
+        case idle
+        case downloading
+        case installing
+        case failed(String)
+        case readyToRelaunch
+    }
+
+    @Published private(set) var installState: InstallState = .idle
+
+    /// 只有装在 /Applications 的正式包才可自更新（DerivedData 调试包
+    /// 替换没有意义且会被 Xcode 覆盖）。
+    var canSelfUpdate: Bool {
+        Bundle.main.bundleURL.path.hasPrefix("/Applications/")
+    }
+
+    func installNow() {
+        guard installState == .idle || installState == .failed("") else { return }
+        guard canSelfUpdate else {
+            installState = .failed("Move Desire to /Applications to enable in-app updates")
+            return
+        }
+        guard let tag = latestTag else {
+            installState = .failed("No release info")
+            return
+        }
+        installState = .downloading
+        Task { await install(tag: tag) }
+    }
+
+    private func install(tag: String) async {
+        do {
+            // 1) 取 release 资产清单（重新拉，带 assets）。
+            var req = URLRequest(url: Self.apiURL)
+            req.timeoutInterval = 15
+            req.setValue("Desire-update", forHTTPHeaderField: "User-Agent")
+            let (metaData, _) = try await URLSession.shared.data(for: req)
+            guard let meta = (try? JSONSerialization.jsonObject(with: metaData)) as? [String: Any],
+                  let assets = meta["assets"] as? [[String: Any]] else {
+                throw UpdateError.noAssets
+            }
+            let zipURL = assets.compactMap { a -> String? in
+                guard let name = a["name"] as? String, name.hasSuffix(".zip"),
+                      name.contains("macos-arm64"),
+                      let url = a["browser_download_url"] as? String else { return nil }
+                return url
+            }.first
+            let shasumURL = assets.compactMap { a -> String? in
+                guard let name = a["name"] as? String, name == "SHASUMS256.txt",
+                      let url = a["browser_download_url"] as? String else { return nil }
+                return url
+            }.first
+            guard let zipURL, let shasumURL else { throw UpdateError.noAssets }
+
+            // 2) 下载 SHASUMS256.txt 并取 zip 对应哈希。
+            let (sumData, _) = try await URLSession.shared.data(for: URLRequest(url: URL(string: shasumURL)!))
+            let sums = String(data: sumData, encoding: .utf8) ?? ""
+            let zipName = (zipURL as NSString).lastPathComponent
+            let expectedHash = sums.split(separator: "\n")
+                .first(where: { $0.contains(zipName) })?
+                .split(separator: " ").first.map(String.init)
+            guard let expectedHash, expectedHash.count == 64 else { throw UpdateError.noChecksum }
+
+            // 3) 下载 zip 并校验。
+            let (zipData, _) = try await URLSession.shared.data(for: URLRequest(url: URL(string: zipURL)!))
+            let digest = SHA256.hash(data: zipData).map { String(format: "%02x", $0) }.joined()
+            guard digest == expectedHash.lowercased() else { throw UpdateError.checksumMismatch }
+
+            // 4) 解包找 Desire.app。
+            let tmp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("desire-update-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+            let zipPath = tmp.appendingPathComponent("update.zip")
+            try zipData.write(to: zipPath)
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            proc.arguments = ["-x", "-k", zipPath.path, tmp.path]
+            try proc.run()
+            proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else { throw UpdateError.unpack }
+            let newAppURL = tmp.appendingPathComponent("Desire.app")
+            guard FileManager.default.fileExists(atPath: newAppURL.path) else { throw UpdateError.unpack }
+
+            // 5) 替换 /Applications/Desire.app。
+            installState = .installing
+            let destination = Bundle.main.bundleURL
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: newAppURL)
+
+            // 6) 重启。
+            installState = .readyToRelaunch
+            let relaunch = Process()
+            relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            relaunch.arguments = [destination.path]
+            try? relaunch.run()
+            NSApp.terminate(nil)
+        } catch {
+            installState = .failed(error.localizedDescription)
+        }
+    }
+
+    enum UpdateError: LocalizedError {
+        case noAssets, noChecksum, checksumMismatch, unpack
+
+        var errorDescription: String? {
+            switch self {
+            case .noAssets: "Release has no macOS zip asset"
+            case .noChecksum: "SHASUMS256.txt missing or unparsable"
+            case .checksumMismatch: "SHA256 mismatch — download rejected"
+            case .unpack: "Couldn't unpack the update"
+            }
+        }
+    }
 
     enum CheckResult: Equatable {
         case upToDate

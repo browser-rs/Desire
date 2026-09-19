@@ -691,6 +691,10 @@ final class TabSessionCoordinator {
     private var activeManager: TabManager?
     private var timer: Timer?
     private var isTerminating = false
+    /// 启动时哨兵已在 = 上次异常终止（含 kill -9 / 崩溃）。
+    private static let runningSentinelKey = "session.running"
+
+    private(set) var launchedAfterCrash = UserDefaults.standard.bool(forKey: "session.running")
 
     func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
 
@@ -705,6 +709,7 @@ final class TabSessionCoordinator {
         managers.removeAll { $0.manager == nil }
         guard !managers.contains(where: { $0.manager === manager }) else { return }
         managers.append(WeakManager(manager: manager))
+        UserDefaults.standard.set(true, forKey: Self.runningSentinelKey)
         startTimerIfNeeded()
     }
 
@@ -743,6 +748,7 @@ final class TabSessionCoordinator {
     /// flushes the DiskStore debounce queue synchronously.
     func prepareForTermination() {
         isTerminating = true
+        UserDefaults.standard.set(false, forKey: Self.runningSentinelKey)
         persistAll(force: true)
         let keys = managers.compactMap { $0.manager?.sessionKey }
         DiskStore.save(keys, key: Self.indexKey)
@@ -793,9 +799,36 @@ final class TabSessionCoordinator {
     /// the "continue where you left off" candidate for a freshly launched
     /// first window (whose own window-value restoration never happens on
     /// macOS 26; see ContentView's adoption path).
+    ///
+    /// 崩溃回收（0.3.8）：哨兵在启动时置位、干净退出时清除——哨兵仍在
+    /// = 上次异常终止。此时 index 是更早一次干净退出的（过期），改按
+    /// 文件 mtime 找最新的 session-*.json（15s 定时器崩溃前一直在写）。
     func mostRecentSessionKey() -> String? {
+        if launchedAfterCrash {
+            return newestSessionFileKey()
+        }
         guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return nil }
         return index.last
+    }
+
+    /// 启动哨兵：进程起来即置位；prepareForTermination 清除。
+    /// （键值在 launchedAfterCrash 初始化器处内联。）
+
+    /// 扫描 session-*.json，返回 mtime 最新的 key。
+    private func newestSessionFileKey() -> String? {
+        let fm = FileManager.default
+        let dir = DiskStore.directory
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
+            return nil
+        }
+        let newest = files
+            .filter { $0.lastPathComponent.hasPrefix("session-") && $0.pathExtension == "json" }
+            .max { a, b in
+                let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return da < db
+            }
+        return newest.map { $0.deletingPathExtension().lastPathComponent }
     }
 
     /// Loads a stored session without consuming it.

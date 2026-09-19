@@ -59,6 +59,7 @@ struct DesireApp: App {
     var body: some Scene {
         mainWindow
         settingsWindow
+        onboardingWindow
     }
 
     private var mainWindow: some Scene {
@@ -85,6 +86,17 @@ struct DesireApp: App {
     // Uses `WindowGroup` with a stable id so we can open it via
     // `@Environment(\.openWindow)` and get a real macOS window with the
     // standard traffic-light buttons in the title bar — same as Xcode's
+    // 首启动引导（0.3.8）：只在 desire.onboardingDone 缺席时打开。
+    private var onboardingWindow: some Scene {
+        WindowGroup(id: "onboarding") {
+            OnboardingView(onFinish: {
+                NSApp.keyWindow?.close()
+            })
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+    }
+
     // Settings window.
     private var settingsWindow: some Scene {
         WindowGroup("Settings", id: "settings") {

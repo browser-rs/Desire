@@ -30,4 +30,5 @@ protocol BrowserToolSurface: AnyObject {
     var tabGroupStore: TabGroupStore { get }
     var quickDialStore: QuickDialStore { get }
     var agentPreference: AgentPreferenceStore { get }
+    var passwordStore: PasswordStore { get }
 }

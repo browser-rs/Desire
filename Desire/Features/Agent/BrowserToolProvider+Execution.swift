@@ -1141,6 +1141,21 @@ extension BrowserToolProvider {
             let timeout = min(args["timeout"] as? Int ?? 5000, 60_000)
             return await callAsync(webView, function: "__desireWaitForElement", args: ["selector": sel, "timeout": timeout])
 
+        // 0.3.6 智能登录：填存档凭据（dangerous 级——gate 已在上游拦截）。
+        case "fillLogin":
+            guard let host = webView.url?.host, !host.isEmpty else {
+                return "No page loaded"
+            }
+            let entries = surface.passwordStore.find(domain: host)
+            guard let cred = entries.first else {
+                return "No stored credential for \(host)"
+            }
+            let submit = args["submit"] as? Bool ?? false
+            let result = await callAsync(webView, function: "__desireFillLogin",
+                                         args: ["user": cred.username, "pass": cred.password,
+                                                "submit": submit])
+            return result + (submit ? " (submitted)" : "")
+
         // 0.3.2 页面感知：统一等待原语——替代盲 sleep。
         case "waitFor":
             let timeout = min(args["timeout"] as? Int ?? 8000, 60_000)

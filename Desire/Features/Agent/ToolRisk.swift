@@ -95,6 +95,8 @@ enum ToolRisk: Int, Comparable {
     /// effect. Every call requires explicit confirmation.
     private static let dangerousTools: Set<String> = [
         "executeJS", "runCommand",
+        // 凭据操作：填存档密码并（可选）提交登录——必须显式确认。
+        "fillLogin",
     ]
 
     /// A short, human-readable label for this tier, shown in the approval UI.

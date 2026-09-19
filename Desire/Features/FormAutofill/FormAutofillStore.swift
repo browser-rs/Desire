@@ -35,24 +35,16 @@ class FormAutofillStore: ObservableObject {
         !profile.givenName.isEmpty || !profile.familyName.isEmpty || !profile.email.isEmpty
     }
 
+    /// 0.3.6：走 dom-tools.js 的模糊分类填充（autocomplete token +
+    /// name/id/placeholder 关键词分类，只填空字段），替代原先的精确
+    /// 属性名匹配（name="given-name" 之外基本全失手）。
     var fillScript: String {
         """
         (function() {
             var p = \(profile.toJSON());
-            function fill(name, value) {
-                var el = document.querySelector('[name="' + name + '"], [id="' + name + '"], [autocomplete="' + name + '"]');
-                if (el && !el.value) el.value = value;
+            if (typeof __desireFillProfile === 'function') {
+                __desireFillProfile(p);
             }
-            fill('given-name', p.gn);
-            fill('family-name', p.fn);
-            fill('email', p.em);
-            fill('tel', p.ph);
-            fill('organization', p.or);
-            fill('street-address', p.sa);
-            fill('address-level2', p.ci);
-            fill('address-level1', p.st);
-            fill('postal-code', p.zc);
-            fill('country', p.co);
         })();
         """
     }

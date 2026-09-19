@@ -1,5 +1,32 @@
 ## [Unreleased]
 
+## [v0.3.6] - 2026-09-20
+
+> 智能表单与自动登录。
+
+### Added
+
+- **表单填充升级为模糊分类**：FormAutofill 的填充脚本从"精确属性名
+  匹配"（name="given-name" 之外基本失手）换成 dom-tools.js 的
+  `__desireFillProfile` 分类器——autocomplete token 优先，name/id/
+  placeholder 关键词兜底（first-name/fname/surname/city/postal…），
+  只填空字段，触发 input/change（React/Vue 兼容）。
+- **Agent `fillLogin` 工具**（dangerous 级，走审批）：填当前站点
+  存档凭据，可选提交登录；智能定位登录表单（可见密码框 + 表单内
+  用户名字段推断），无凭据干净失败。域匹配复用 PasswordStore。
+- **OTP 提示条**：页面出现验证码输入框（autocomplete=one-time-code
+  或 name/id 含 otp，1.5s 轮询 SPA 场景）时顶部提示"取码后粘贴"，
+  点击消失，导航自动清除。
+
+### Verified
+
+- E2E：__desireFillLogin 填入 u=e2euser/p=e2epass（触发 React 兼容
+  事件）；OTP 选择器在含 one-time-code 的页面命中；fillScript 走新
+  分类器；fillLogin 标记 dangerous（每次审批）。地址填充的站点实测
+  待用户验收。
+
+## [v0.3.5] - 2026-09-20
+
 ## [v0.3.5] - 2026-09-20
 
 > Profiles 闭环：0.2.10 挂账的数据作用域转正 + 工具栏切换器。

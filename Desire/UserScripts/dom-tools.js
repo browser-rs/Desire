@@ -936,3 +936,91 @@ async function __desireGetNetworkLog(filter, maxItems) {
     }
     return out.length ? JSON.stringify({ count: out.length, requests: out.reverse() }) : "No requests captured" + (filter ? " matching filter" : "");
 }
+
+
+// --- 0.3.6 智能表单 ---
+
+// 登录填充：找"最像登录表单"的密码框（可见、type=password、表单内有
+// 提交按钮优先），填用户名/密码，触发 input/change（React/Vue 兼容），
+// 可选提交。返回结构化结果字符串。
+async function __desireFillLogin(user, pass, submit) {
+    function setValue(el, value) {
+        el.focus();
+        el.value = value;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        el.blur();
+    }
+    var candidates = Array.prototype.slice.call(
+        document.querySelectorAll("input[type=password]")).filter(function (el) {
+            return el.offsetParent !== null || el.getBoundingClientRect().width > 0;
+        });
+    if (!candidates.length) return "No visible password field";
+    var pwd = candidates[0];
+    var form = pwd.closest("form");
+    var userField = null;
+    if (form) {
+        userField = form.querySelector(
+            "input[name*=user i]:not([type=password]), input[name*=email i]:not([type=password])," +
+            "input[name*=login i]:not([type=password]), input[name*=account i]:not([type=password])," +
+            "input[autocomplete*=username i], input[type=email], input[type=text]");
+    }
+    if (!userField) {
+        userField = pwd.parentElement && pwd.parentElement.querySelector("input[type=text], input[type=email]");
+    }
+    if (userField) setValue(userField, user);
+    setValue(pwd, pass);
+    if (submit) {
+        var btn = form && (form.querySelector("button[type=submit], input[type=submit]") ||
+                           form.querySelector("button"));
+        if (btn) { btn.click(); return "Filled (submitted via button)"; }
+        if (form) { form.requestSubmit ? form.requestSubmit() : form.submit(); return "Filled (submitted via form)"; }
+        return "Filled (no submit target found)";
+    }
+    return "Filled (not submitted)";
+}
+
+// 地址/联系方式模糊分类填充（0.3.6）：按 autocomplete token、name/id/
+// placeholder 关键词给输入框分类，只填空字段。返回填充数。
+async function __desireFillProfile(profile) {
+    var KEYS = [
+        ["fname", /(^|[_-])(given-name|first.?name|fname)(|$)|^fn$/i, "gn"],
+        ["lname", /(^|[_-])(family-name|last.?name|lname|surname)(|$)/i, "fn"],
+        ["email", /e-?mail/i, "em"],
+        ["phone", /(^|[_-])(phone|tel|mobile)(|$)/i, "ph"],
+        ["org",   /(^|[_-])(organi[sz]ation|company|employer)(|$)/i, "or"],
+        ["street",/(street|address-?line-?1|address$|addr)/i, "sa"],
+        ["city",  /(address-?level-?2|city|town)/i, "ci"],
+        ["state", /(address-?level-?1|state|province|region)/i, "st"],
+        ["zip",   /(postal|zip)/i, "zc"],
+        ["country",/country/i, "co"],
+    ];
+    function classify(el) {
+        var ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+        var hint = ((el.name || "") + " " + (el.id || "") + " " + (el.placeholder || ""));
+        for (var i = 0; i < KEYS.length; i++) {
+            if (ac.indexOf(KEYS[i][0]) >= 0) return KEYS[i][2];
+        }
+        for (var j = 0; j < KEYS.length; j++) {
+            if (KEYS[j][1].test(hint)) return KEYS[j][2];
+        }
+        return null;
+    }
+    var filled = 0;
+    var fields = document.querySelectorAll("input:not([type=password]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]), textarea");
+    for (var k = 0; k < fields.length; k++) {
+        var el = fields[k];
+        if (el.value) continue;
+        if (el.offsetParent === null && el.getBoundingClientRect().width === 0) continue;
+        var key = classify(el);
+        if (key && profile[key]) {
+            el.focus();
+            el.value = profile[key];
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+            el.blur();
+            filled++;
+        }
+    }
+    return "Filled " + filled + " field(s)";
+}

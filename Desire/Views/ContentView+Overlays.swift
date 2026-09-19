@@ -114,10 +114,12 @@ extension ContentView {
         let hasNotice = passwordStore.pendingSave != nil
             || tab.browser.pendingBeforeUnload != nil
             || tab.browser.pendingDangerousDownload != nil
+            || tab.browser.pendingOTPHint != nil
         VStack(spacing: 0) {
             PasswordSaveBar(store: passwordStore)
             BeforeUnloadBar(browser: tab.browser)
             DangerousDownloadBar(browser: tab.browser)
+            OTPHintBar(browser: tab.browser)
         }
         .animation(.overlaySpring, value: hasNotice)
     }
@@ -177,6 +179,25 @@ extension ContentView {
 
 
 // MARK: - Notice bars
+
+/// OTP 提示条（0.3.6）：页面出现验证码输入框时提醒（从密码管理器/
+/// 短信取码），点击即消失。
+private struct OTPHintBar: View {
+    @ObservedObject var browser: BrowserState
+
+    var body: some View {
+        if let field = browser.pendingOTPHint {
+            NoticeBar(
+                icon: "clock.badge.checkmark",
+                tint: .blue,
+                title: String(localized: "Verification Code Field Detected"),
+                subtitle: String(localized: "Grab the code from your password manager or messages, then paste it here."),
+                primaryTitle: String(localized: "Got It"),
+                onPrimary: { browser.pendingOTPHint = nil }
+            )
+        }
+    }
+}
 
 /// 高危下载确认条（0.2.15 加固）：下载被决策点取消后在此放行/放弃。
 private struct DangerousDownloadBar: View {

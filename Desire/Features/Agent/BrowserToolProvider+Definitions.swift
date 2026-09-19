@@ -572,6 +572,12 @@ extension BrowserToolProvider {
                 name: "executeJS", description: "Execute arbitrary JavaScript code in the page context and return the result",
                 parameters: AgentJSONSchema(type: "object", properties: ["code": AgentJSONSchemaValue(type: "string", description: "JavaScript code")], required: ["code"])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "fillLogin", description: "Fill the CURRENT page's login form with the stored credentials for this site (username + password), optionally submitting. Requires user approval. Fails cleanly when no credential is stored for this domain.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "submit": AgentJSONSchemaValue(type: "boolean", description: "Submit the form after filling (default false)"),
+                ])
+            )),
 
             // --- Tab Crew (0.3.1) ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

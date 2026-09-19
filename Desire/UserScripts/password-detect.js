@@ -38,6 +38,23 @@
             });
         }, 500);
     }, true);
-    document.addEventListener('DOMContentLoaded', detectLoginForm);
+    /* OTP 检测（0.3.6）：验证码输入框出现时通知宿主弹提示条。 */
+    function detectOTPField() {
+        var el = document.querySelector(
+            "input[autocomplete=one-time-code], input[name*=otp i], input[id*=otp i]," +
+            "input[name*=onetime i], input[autocomplete*=one-time-code]");
+        if (el) {
+            window.webkit.messageHandlers.otpDetect.postMessage({
+                field: el.name || el.id || "verification code"
+            });
+            return;
+        }
+        setTimeout(detectOTPField, 1500);
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        detectLoginForm();
+        detectOTPField();
+    });
     setTimeout(detectLoginForm, 1000);
+    setTimeout(detectOTPField, 1200);
 })();

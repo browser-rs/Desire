@@ -92,6 +92,9 @@ class BrowserState: ObservableObject {
     /// WebExtension：该页是否有 tabs.* 事件监听（决定事件 hub 是否向此
     /// 页 evaluate）。
     var hasExtensionTabListeners = false
+    /// OTP 提示条（0.3.6）：页面出现验证码输入框时非 nil（值为字段名），
+    /// 导航开始时清空。
+    @Published var pendingOTPHint: String?
     @Published var lastError: Error?
     /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
     /// 对新建标签生效；已存在的标签不受影响)。
@@ -411,7 +414,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole",
+            "elementPicker", "videoAdBlocked", "devConsole", "otpDetect",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -585,6 +588,8 @@ struct WebView: NSViewRepresentable {
             if message.name == "desireExt" {
                 // Isolated-world WebExtension RPC (see extensionWorld).
                 handleExtensionMessage(message.body)
+            } else if message.name == "otpDetect", let dict = message.body as? [String: String] {
+                parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
             } else if message.name == "devConsole", let dict = message.body as? [String: Any],
@@ -720,6 +725,7 @@ struct WebView: NSViewRepresentable {
             parent.state.hoveredLinkURL = nil
             parent.state.mixedContentTotal = 0
             parent.state.mixedContentScripts = 0
+            parent.state.pendingOTPHint = nil
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for

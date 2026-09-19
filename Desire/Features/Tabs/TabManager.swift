@@ -94,10 +94,13 @@ class Tab: ObservableObject {
         browser.isPlayingAudio
     }
 
-    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerID: UUID? = nil) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
         self.isIncognito = incognito
         self.containerID = containerID
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerDataStore: containerID.flatMap { ContainerStore.shared.dataStore(for: $0) })
+        // Profile data store takes precedence over container (profile is a
+        // broader isolation boundary than per-tab containers).
+        let resolvedDataStore = profileDataStore ?? containerID.flatMap { ContainerStore.shared.dataStore(for: $0) }
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerDataStore: resolvedDataStore)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url
@@ -153,6 +156,9 @@ class TabManager: ObservableObject {
     /// Set by a DispatchSourceMemoryPressure event; consumed by the next
     /// suspendIdleTabs sweep to suspend additional LRU background tabs.
     var memoryPressureActive = false
+    /// Window-level profile data store — new tabs in this window use it.
+    /// Set by ContentView when the user switches profiles.
+    var profileDataStore: WKWebsiteDataStore?
     /// Per-window session storage key (set by ContentView once the window's
     /// value-based session UUID is known). Nil until then: persistence and
     /// restore are no-ops for unkeyed windows.
@@ -263,8 +269,8 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil) {
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID)
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID, profileDataStore: profileDataStore)
         defer { BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count]) }
         switch newTabPosition {
         case .end:

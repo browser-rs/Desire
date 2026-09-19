@@ -691,6 +691,11 @@ final class AutomationServer {
                 return try Self.json(Self.profiles())
             case ("POST", "/profiles/add"):
                 return try Self.json(Self.addProfile(name: Self.string(body, "name") ?? ""))
+            case ("GET", "/profiles/active"):
+                let tm = try? tabManager
+                return try Self.json(["profileDataStore": tm?.profileDataStore != nil ? "custom" : "default"])
+            case ("POST", "/profiles/active"):
+                return try Self.json(setActiveProfile(name: Self.string(body, "name") ?? ""))
             case ("POST", "/profiles/remove"):
                 return try Self.json(Self.removeProfile(name: Self.string(body, "name") ?? ""))
             case ("GET", "/watches"):
@@ -1666,6 +1671,27 @@ final class AutomationServer {
         return ["ok": true, "started": started]
     }
 
+    private static func startDownload(url: String) throws -> [String: Any] {
+        guard let store = DownloadStore.live, !url.isEmpty,
+              let sourceURL = URL(string: url) else { return ["error": "bad url"] }
+        let filename = sourceURL.lastPathComponent.isEmpty ? "download" : sourceURL.lastPathComponent
+        store.startURLSessionDownload(sourceURL: sourceURL, filename: filename)
+        return ["ok": true]
+    }
+
+
+    private func setActiveProfile(name: String) throws -> [String: Any] {
+        guard let tm = try tabManager else { return ["error": "no tab manager"] }
+        if name.isEmpty || name.lowercased() == "default" {
+            tm.profileDataStore = nil
+            return ["ok": true, "profile": "default"]
+        }
+        guard let profile = ProfileStore.shared.profile(named: name) else {
+            return ["error": "no such profile"]
+        }
+        tm.profileDataStore = ProfileStore.shared.dataStore(for: profile.id)
+        return ["ok": true, "profile": profile.name]
+    }
 
     // MARK: Profiles (0.2.9)
 

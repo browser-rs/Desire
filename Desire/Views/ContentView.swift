@@ -389,6 +389,14 @@ struct ContentView: View {
         )
     }
 
+    // MARK: - Profile switching (0.2.10)
+
+    /// Switches this window's browsing persona. New tabs use the profile's
+    /// isolated data store; existing tabs are NOT retroactively changed.
+    func switchProfile(to profileID: UUID?) {
+        tabManager.profileDataStore = ProfileStore.shared.dataStore(for: profileID)
+    }
+
     // MARK: - 标签拖出/拖回（0.2.13 提前）
 
     /// 标签拖动开始：监视鼠标位置，拖出自窗口边界即撕出为新窗口。

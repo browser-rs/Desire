@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+### 0.2.10 — Profiles v2（进行中）
+
+### Added
+
+- **窗口级 Profile 切换**：TabManager 新增 profileDataStore 属性——设置后
+  新建标签自动使用 Profile 的隔离数据存储（Cookie/会话完全独立）。
+- 桥 `/profiles/active`（GET 查状态 / POST 切换）——自动化可程序化切换
+  浏览人物。
+- Profile data store 优先于 container data store（Profile 是更宽的
+  隔离边界）。
+
+### Verified
+
+- E2E：add Profile → set active → profileDataStore 切换为 custom →
+  切回 default → 恢复。
+
+## [v0.2.8] - 2026-09-19
+
 ### 0.2.9 — Profiles v1（基础设施，进行中）
 
 ### Added

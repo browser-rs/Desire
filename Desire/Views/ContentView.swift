@@ -209,7 +209,7 @@ struct ContentView: View {
                     tab: tab, content: self, actions: b,
                     showSidebar: showSidebar,
                     showAgentPanel: $showAgentPanel,
-                    showDevToolsPanel: showDevToolsPanel,
+                    showDevToolsPanel: $showDevToolsPanel,
                     isFindBarVisible: isFindBarVisible,
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)

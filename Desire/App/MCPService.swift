@@ -569,6 +569,31 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/media/download", "body": ["url": "url", "referer": "referer", "filename": "filename"]],
         ],
+        // 0.2.7 — memory v2
+        [
+            "name": "searchMemory",
+            "description": "Search the agent's long-term memory (facts about the user and their preferences). Pinned results first.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["query": ["type": "string"]],
+                "required": ["query"],
+            ],
+            "_bridge": ["method": "POST", "path": "/memory/search", "body": ["query": "query"]],
+        ],
+        [
+            "name": "rememberFact",
+            "description": "Store a durable fact about the user or their preferences in the agent's long-term memory. Scope it to a domain (e.g. 'github.com') for site-specific facts.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "content": ["type": "string", "description": "The fact to remember"],
+                    "category": ["type": "string", "description": "preference | habit | fact | correction"],
+                    "scope": ["type": "string", "description": "global or a domain like 'github.com'"],
+                ],
+                "required": ["content"],
+            ],
+            "_bridge": ["method": "POST", "path": "/memory/facts/add", "body": ["content": "content", "category": "category", "scope": "scope"]],
+        ],
         // 0.1.13 — network interception
         [
             "name": "addInterceptRule",

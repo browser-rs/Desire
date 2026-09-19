@@ -717,6 +717,12 @@ final class AutomationServer {
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
             case ("POST", "/agent/tasks/fire"):
                 return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/memory/search"):
+                return try Self.json(Self.searchMemory(query: Self.string(body, "query") ?? ""))
+            case ("POST", "/memory/export"):
+                return try Self.json(Self.exportMemory())
+            case ("POST", "/memory/decay"):
+                return try Self.json(Self.decayMemory(olderThanDays: body["days"] as? Int ?? 90))
             case ("GET", "/memory"):
                 return try Self.json(Self.memorySnapshot())
             case ("POST", "/memory/facts/add"):
@@ -1666,6 +1672,27 @@ final class AutomationServer {
     }
 
     // MARK: Memory + skills management (0.1.15)
+
+    private static func searchMemory(query: String) throws -> [String: Any] {
+        let results = AgentMemoryStore.shared.searchFacts(query: query)
+        let formatter = ISO8601DateFormatter()
+        return ["results": results.map { f -> [String: Any] in
+            ["id": f.id.uuidString, "content": f.content, "category": f.category,
+             "pinned": f.pinned, "scope": f.scope, "updatedAt": formatter.string(from: f.updatedAt)]
+        }]
+    }
+
+    private static func exportMemory() throws -> [String: Any] {
+        let json = AgentMemoryStore.shared.exportJSON()
+        let path = NSHomeDirectory() + "/desire-memory-export.json"
+        try json.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+        return ["path": path, "bytes": json.count]
+    }
+
+    private static func decayMemory(olderThanDays days: Int) throws -> [String: Any] {
+        let removed = AgentMemoryStore.shared.decayOldFacts(olderThanDays: days)
+        return ["ok": true, "removed": removed]
+    }
 
     private static func memorySnapshot() -> [String: Any] {
         let store = AgentMemoryStore.shared

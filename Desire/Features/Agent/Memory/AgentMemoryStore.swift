@@ -118,6 +118,68 @@ final class AgentMemoryStore: ObservableObject {
         save()
     }
 
+    // MARK: - Memory v2 (search, export, import, decay)
+
+    /// Substring search across facts (content + category), pinned first.
+    func searchFacts(query: String) -> [MemoryFact] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return [] }
+        return archive.facts
+            .filter { $0.content.lowercased().contains(q) || $0.category.lowercased().contains(q) }
+            .sorted { a, b in
+                if a.pinned != b.pinned { return a.pinned }
+                return a.updatedAt > b.updatedAt
+            }
+    }
+
+    /// Serialises all facts + profile to JSON for export/backup.
+    func exportJSON() -> String {
+        let formatter = ISO8601DateFormatter()
+        let payload: [String: Any] = [
+            "profile": [
+                "name": archive.profile.name, "language": archive.profile.language,
+                "style": archive.profile.style,
+                "customInstructions": archive.profile.customInstructions,
+            ],
+            "facts": archive.facts.map { f in
+                ["content": f.content, "category": f.category,
+                 "pinned": f.pinned, "scope": f.scope,
+                 "createdAt": formatter.string(from: f.createdAt)]
+            },
+            "exportedAt": formatter.string(from: Date()),
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    /// Imports facts from a JSON array of {content, category?, scope?}.
+    /// Skips duplicates. Returns the count of newly added facts.
+    @discardableResult
+    func importFacts(fromJSON json: String) -> Int {
+        guard let data = json.data(using: .utf8),
+              let items = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return 0 }
+        var added = 0
+        for item in items {
+            guard let content = item["content"] as? String, !content.isEmpty else { continue }
+            let category = item["category"] as? String ?? "fact"
+            let scope = item["scope"] as? String ?? "global"
+            let before = archive.facts.count
+            addFact(content: content, category: category, scope: scope)
+            if archive.facts.count > before { added += 1 }
+        }
+        return added
+    }
+
+    /// Memory decay: removes unpinned facts older than `days` that haven't
+    /// been updated (low-engagement cleanup). Returns the count removed.
+    @discardableResult
+    func decayOldFacts(olderThanDays: Int = 90) -> Int {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -olderThanDays, to: Date()) ?? Date()
+        let stale = archive.facts.filter { !$0.pinned && $0.updatedAt < cutoff }
+        for fact in stale { removeFact(fact.id) }
+        return stale.count
+    }
+
     // MARK: - Prompt injection
 
     /// The system block injected into every agent request: profile, top

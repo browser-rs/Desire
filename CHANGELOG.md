@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+### 0.2.8 — 媒体流水线 v2（进行中）
+
+### Added
+
+- **HLS 画质选择**：`GET /media/variants` 列出 master playlist 的全部
+  画质变体（bandwidth + resolution + URL）；`downloadMedia` 接受
+  `maxBandwidth` 参数自动选择 ≤ 上限的最高画质（不够时降为最低）。
+- **批量下载**：`POST /downloads/batch` 和 MCP `batchDownload` 工具
+  接受 URL 数组一键启动多个下载。
+- **MCP 工具 34 → 36**：listMediaVariants / batchDownload。
+
+### Verified
+
+- E2E：MCP batchDownload 真实启动下载（300KB 小文件入列表）；
+  36 个工具全量列出。
+
+## [v0.2.7] - 2026-09-19
+
 ### 0.2.7 — 修改密码检测（进行中）
 
 ### Added

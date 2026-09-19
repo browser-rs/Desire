@@ -625,6 +625,8 @@ final class AutomationServer {
                 return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name)])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
+            case ("POST", "/downloads/batch"):
+                return try Self.json(Self.batchDownload(urls: body["urls"] as? [String] ?? []))
             case ("POST", "/downloads/start"):
                 return try Self.json(Self.startDownload(Self.string(body, "url") ?? ""))
             case ("POST", "/downloads/pause"):
@@ -673,11 +675,17 @@ final class AutomationServer {
                 ))
             case ("GET", "/media"):
                 return try Self.json(Self.detectedMedia(index: Self.index(query)))
+            case ("GET", "/media/variants"):
+                return try await Self.json(Self.mediaVariants(
+                    url: Self.string(query, "url") ?? "",
+                    referer: Self.string(query, "referer")
+                ))
             case ("POST", "/media/download"):
                 return try Self.json(Self.downloadMedia(
                     url: Self.string(body, "url") ?? "",
                     referer: Self.string(body, "referer"),
-                    fileNameHint: Self.string(body, "filename")
+                    fileNameHint: Self.string(body, "filename"),
+                    maxBandwidth: body["maxBandwidth"] as? Int
                 ))
             case ("GET", "/watches"):
                 return try Self.json(Self.listWatches())
@@ -1613,7 +1621,14 @@ final class AutomationServer {
     /// Kicks off a MediaExporter download WITHOUT blocking the caller —
     /// results land in ~/Downloads and the downloads flow. MCP clients must
     /// not hang for 30-minute HLS exports.
-    private static func downloadMedia(url: String, referer: String?, fileNameHint: String?) throws -> [String: Any] {
+    private static func mediaVariants(url: String, referer: String?) async throws -> [String: Any] {
+        guard let sourceURL = URL(string: url), !url.isEmpty else { return ["error": "bad url"] }
+        let ref = referer.flatMap { URL(string: $0) }
+        let variants = try await MediaExporter.listVariants(url: sourceURL, referer: ref, userAgent: nil)
+        return ["variants": variants]
+    }
+
+    private static func downloadMedia(url: String, referer: String?, fileNameHint: String?, maxBandwidth: Int?) throws -> [String: Any] {
         guard !url.isEmpty, let sourceURL = URL(string: url) else {
             return ["error": "missing or invalid url"]
         }
@@ -1622,7 +1637,7 @@ final class AutomationServer {
             do {
                 let result = try await MediaExporter.download(
                     url: sourceURL, referer: refererURL, userAgent: nil,
-                    fileNameHint: fileNameHint,
+                    fileNameHint: fileNameHint, maxBandwidth: maxBandwidth,
                     progress: { _, _ in }
                 )
                 Log.agent.info("media download finished: \(url, privacy: .public) → \(String(describing: result), privacy: .public)")
@@ -1632,6 +1647,19 @@ final class AutomationServer {
         }
         return ["ok": true, "started": url]
     }
+
+    private static func batchDownload(urls: [String]) throws -> [String: Any] {
+        guard let store = DownloadStore.live else { return ["error": "store not ready"] }
+        var started = 0
+        for url in urls {
+            guard !url.isEmpty, let sourceURL = URL(string: url) else { continue }
+            let filename = sourceURL.lastPathComponent.isEmpty ? "download" : sourceURL.lastPathComponent
+            store.startURLSessionDownload(sourceURL: sourceURL, filename: filename)
+            started += 1
+        }
+        return ["ok": true, "started": started]
+    }
+
 
     // MARK: Page watches
 

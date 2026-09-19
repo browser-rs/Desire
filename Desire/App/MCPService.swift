@@ -645,6 +645,30 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/screenshot/fullpage", "body": ["index": "index"]],
         ],
+        // 0.2.8 — media pipeline v2
+        [
+            "name": "listMediaVariants",
+            "description": "List available quality variants of an HLS master playlist (bandwidth + resolution for each). Use before downloadMedia when the user wants a specific quality.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "url": ["type": "string", "description": "Master m3u8 playlist URL"],
+                    "referer": ["type": "string"],
+                ],
+                "required": ["url"],
+            ],
+            "_bridge": ["method": "GET", "path": "/media/variants", "body": ["url": "url", "referer": "referer"]],
+        ],
+        [
+            "name": "batchDownload",
+            "description": "Start multiple downloads at once. Each URL is queued as a store-owned download with pause/resume support.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["urls": ["type": "array", "items": ["type": "string"], "description": "Direct download URLs"]],
+                "required": ["urls"],
+            ],
+            "_bridge": ["method": "POST", "path": "/downloads/batch", "body": ["urls": "urls"]],
+        ],
         // 0.1.11 — structured extraction
         [
             "name": "extractTables",

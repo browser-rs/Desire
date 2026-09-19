@@ -68,10 +68,22 @@ enum MediaExporter {
         referer: URL?,
         userAgent: String?,
         fileNameHint: String?,
+        maxBandwidth: Int? = nil,
         progress: @MainActor @escaping (Int, Int) -> Void
     ) async throws -> Result {
         let started = Date()
         let deadline = started.addingTimeInterval(30 * 60)
+
+        // Quality selection: resolve the variant URL at the caller level
+        // so exportHLS always sees a media playlist (not a master).
+        if let maxBW = maxBandwidth, url.pathExtension.lowercased() == "m3u8" {
+            let variants = try await listVariants(url: url, referer: referer, userAgent: userAgent)
+            if let selected = selectVariant(from: variants, maxBandwidth: maxBW) {
+                return try await download(
+                    url: selected, referer: referer, userAgent: userAgent,
+                    fileNameHint: fileNameHint, maxBandwidth: nil, progress: progress)
+            }
+        }
 
         func deadlineCheck() throws {
             guard Date() < deadline else { throw ExportError.timedOut }
@@ -106,6 +118,55 @@ enum MediaExporter {
             bytes: Int64(data.count),
             warnings: mime.isEmpty ? [] : []
         )
+    }
+
+    // MARK: - HLS
+
+    /// Parses a master m3u8 playlist and returns all available quality
+    /// variants (bandwidth + resolution + absolute URL). Non-master
+    /// playlists return an empty array (media playlist, single quality).
+    static func listVariants(url: URL, referer: URL?, userAgent: String?) async throws -> [[String: Any]] {
+        let (data, _) = try await fetch(url: url, referer: referer, userAgent: userAgent)
+        guard let text = String(data: data, encoding: .utf8), text.contains("#EXTM3U"),
+              text.contains("#EXT-X-STREAM-INF") else { return [] }
+        let lines = text.components(separatedBy: .newlines)
+        var variants: [[String: Any]] = []
+        var pendingBandwidth = 0
+        var pendingResolution = ""
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#EXT-X-STREAM-INF") {
+                pendingBandwidth = Int(attribute("BANDWIDTH", in: trimmed) ?? "") ?? 0
+                pendingResolution = attribute("RESOLUTION", in: trimmed) ?? ""
+            } else if !trimmed.isEmpty, !trimmed.hasPrefix("#"), pendingBandwidth > 0 {
+                if let variant = URL(string: trimmed, relativeTo: url) {
+                    variants.append([
+                        "bandwidth": pendingBandwidth,
+                        "resolution": pendingResolution,
+                        "url": variant.absoluteString,
+                    ])
+                }
+                pendingBandwidth = 0
+                pendingResolution = ""
+            }
+        }
+        return variants.sorted { first, second in
+            (first["bandwidth"] as? Int ?? 0) > (second["bandwidth"] as? Int ?? 0)
+        }
+    }
+
+    /// Selects the best variant URL under a bandwidth ceiling (or highest).
+    static func selectVariant(from variants: [[String: Any]], maxBandwidth: Int?) -> URL? {
+        guard let maxBW = maxBandwidth, maxBW > 0 else {
+            guard let first = variants.first,
+                  let urlString = first["url"] as? String else { return nil }
+            return URL(string: urlString)
+        }
+        // Pick the highest variant that fits the ceiling; fall back to lowest.
+        let eligible = variants.filter { ($0["bandwidth"] as? Int ?? 0) <= maxBW }
+        let chosen = eligible.first ?? variants.last
+        guard let urlString = chosen?["url"] as? String else { return nil }
+        return URL(string: urlString)
     }
 
     // MARK: - HLS

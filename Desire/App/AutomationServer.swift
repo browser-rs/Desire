@@ -303,6 +303,8 @@ final class AutomationServer {
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
         ep("POST", "/tabgroups/delete", "Delete group (tabs survive)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
         ep("POST", "/containers/remove", "Remove container by name", params: ["name:string"], example: "-d '{\"name\":\"Shop\"}'")
+        ep("GET", "/downloads/dangerous", "Pending dangerous-download confirmation (bar)", example: "…/downloads/dangerous")
+        ep("POST", "/downloads/dangerous/resolve", "Resolve the confirmation (allow=true reloads the URL as a download)", params: ["allow:bool"], example: "-d '{\"allow\":true}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
         ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
@@ -512,6 +514,20 @@ final class AutomationServer {
                 return try Self.json(Self.console(count: Int(query["count"] ?? "20") ?? 20))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
+            case ("GET", "/downloads/dangerous"):
+                let tm = try tabManager
+                if let pending = tm?.selectedTab?.browser.pendingDangerousDownload {
+                    return try Self.json(["pending": ["url": pending.url.absoluteString, "filename": pending.filename]])
+                }
+                return try Self.json(["pending": NSNull()])
+            case ("POST", "/downloads/dangerous/resolve"):
+                let tm = try tabManager
+                guard let pending = tm?.selectedTab?.browser.pendingDangerousDownload else {
+                    return try Self.json(["error": "no pending dangerous-download confirmation"])
+                }
+                let allow = body["allow"] as? Bool ?? false
+                pending.respond(allow)
+                return try Self.json(["ok": true, "allow": allow])
             case ("POST", "/passwords/add"):
                 return try Self.json(Self.addPassword(domain: Self.string(body, "domain") ?? "",
                                                       username: Self.string(body, "username") ?? "",
@@ -1000,6 +1016,8 @@ final class AutomationServer {
             "isLoading": tab.isLoading,
             "zoom": tab.browser.pageZoom,
             "error": tab.browser.lastError?.localizedDescription ?? NSNull(),
+            "mixedContent": tab.browser.mixedContentTotal,
+            "mixedContentScripts": tab.browser.mixedContentScripts,
         ]
     }
 

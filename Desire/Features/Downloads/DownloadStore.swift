@@ -54,6 +54,31 @@ class DownloadStore: ObservableObject {
         DownloadStore.live = self
     }
 
+    /// 高危下载类型（0.2.15 加固）：安装器/可执行脚本/磁盘镜像——页面
+    /// 自动发起这类下载前必须经过用户确认（见 WebView 的
+    /// navigationResponse 决策点）。扩展名优先，MIME 兜底。
+    static func isDangerousType(_ response: URLResponse) -> Bool {
+        let dangerousExtensions: Set<String> = [
+            "dmg", "pkg", "mpkg", "app", "deb", "rpm", "iso", "img", "hdim",
+            "sh", "zsh", "bash", "command", "tool", "terminal", "scpt",
+            "applescript", "workflow", "jar", "exe", "msi", "bat", "cmd",
+            "ps1", "vbs", "reg",
+        ]
+        if let name = response.suggestedFilename ?? response.url?.lastPathComponent {
+            let ext = (name as NSString).pathExtension.lowercased()
+            if dangerousExtensions.contains(ext) { return true }
+        }
+        let dangerousMIMEs: Set<String> = [
+            "application/x-apple-diskimage", "application/x-msdownload",
+            "application/x-ms-installer", "application/vnd.apple.installer+xml",
+            "application/x-sh", "application/x-bsh", "application/java-archive",
+        ]
+        if let mime = response.mimeType?.lowercased(), dangerousMIMEs.contains(mime) {
+            return true
+        }
+        return false
+    }
+
     private static func defaultDownloadsURL() -> URL {
         FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")

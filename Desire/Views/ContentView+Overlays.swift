@@ -107,6 +107,7 @@ extension ContentView {
     func noticeBars(for tab: Tab) -> some View {
         PasswordSaveBar(store: passwordStore)
         BeforeUnloadBar(browser: tab.browser)
+        DangerousDownloadBar(browser: tab.browser)
     }
 
     /// Screenshot completion toast (message published by `BrowsingActions`).
@@ -164,6 +165,26 @@ extension ContentView {
 
 
 // MARK: - Notice bars
+
+/// 高危下载确认条（0.2.15 加固）：下载被决策点取消后在此放行/放弃。
+private struct DangerousDownloadBar: View {
+    @ObservedObject var browser: BrowserState
+
+    var body: some View {
+        if let pending = browser.pendingDangerousDownload {
+            NoticeBar(
+                icon: "exclamationmark.shield.fill",
+                tint: .orange,
+                title: String(localized: "Download Blocked: \"\(pending.filename)\""),
+                subtitle: String(localized: "This file type can install software or run scripts. Download it anyway?"),
+                primaryTitle: String(localized: "Download Anyway"),
+                secondaryTitle: String(localized: "Dismiss"),
+                onPrimary: { pending.respond(true) },
+                onSecondary: { pending.respond(false) }
+            )
+        }
+    }
+}
 
 private struct PasswordSaveBar: View {
     @ObservedObject var store: PasswordStore

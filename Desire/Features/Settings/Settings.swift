@@ -87,6 +87,11 @@ class Settings: ObservableObject {
     @Published var defaultPageZoom: Double {
         didSet { UserDefaults.standard.set(defaultPageZoom, forKey: "defaultPageZoom") }
     }
+    /// 高危文件类型（.dmg/.pkg/.sh 等）下载前弹确认。WebView 决策点直读
+    /// UserDefaults，改动即时生效。
+    @Published var warnDangerousDownloads: Bool {
+        didSet { UserDefaults.standard.set(warnDangerousDownloads, forKey: "warnDangerousDownloads") }
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -127,6 +132,7 @@ class Settings: ObservableObject {
         downloadDockBadge = UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true
         askWhereToSaveDownloads = UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false
         defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
+        warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

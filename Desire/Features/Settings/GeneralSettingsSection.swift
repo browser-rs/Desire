@@ -234,6 +234,13 @@ struct GeneralSettingsSection: View {
                         systemImage: "questionmark.folder",
                         isOn: $settings.askWhereToSaveDownloads
                     )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Warn Before Downloading Harmful Files",
+                        subtitle: "Confirm installers, disk images, and script files (.dmg/.pkg/.sh…) before they download.",
+                        systemImage: "exclamationmark.shield",
+                        isOn: $settings.warnDangerousDownloads
+                    )
                 }
             }
 

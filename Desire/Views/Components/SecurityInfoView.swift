@@ -4,6 +4,9 @@ import SwiftUI
 struct SecurityInfoView: View {
     let trust: SecTrust?
     let host: String
+    /// https 页面上的 http 子资源计数（0 = 无混合内容）。
+    var mixedContentTotal: Int = 0
+    var mixedContentScripts: Int = 0
 
     private var certInfo: [(String, String)] {
         guard let trust else { return [] }
@@ -59,6 +62,20 @@ struct SecurityInfoView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
+
+                if mixedContentTotal > 0 {
+                    Divider()
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("Mixed Content")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    Text("\(mixedContentTotal) resource(s) on this page load over insecure HTTP\(mixedContentScripts > 0 ? ", including \(mixedContentScripts) active script/frame loads" : ""). The connection is encrypted, but the page's contents may be tampered with.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                }
             } else {
                 Text("This connection is not encrypted")
                     .font(.caption)

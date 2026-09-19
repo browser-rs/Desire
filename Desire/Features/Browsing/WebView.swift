@@ -1,3 +1,4 @@
+import AppKit
 import os
 import Combine
 import Security
@@ -40,6 +41,33 @@ final class PendingBeforeUnload {
     }
 }
 
+/// 高危下载确认（0.2.15 加固）：安装器/可执行脚本/磁盘镜像的下载在
+/// navigationResponse 决策点被取消，改为挂起这条非阻塞确认（模态
+/// NSAlert 会冻结自动化桥——密码保存条的同款教训）。确认后 URL 进
+/// `dangerousDownloadAllowedURLs` 白名单并重载放行一次。
+@MainActor
+final class PendingDangerousDownload {
+    let url: URL
+    let filename: String
+    var programmaticDismiss: (() -> Void)?
+
+    private let completion: (Bool) -> Void
+    private var resolved = false
+
+    init(url: URL, filename: String, completion: @escaping (Bool) -> Void) {
+        self.url = url
+        self.filename = filename
+        self.completion = completion
+    }
+
+    func respond(_ allow: Bool) {
+        guard !resolved else { return }
+        resolved = true
+        programmaticDismiss?()
+        completion(allow)
+    }
+}
+
 @MainActor
 class BrowserState: ObservableObject {
     let webView: BrowserWKWebView
@@ -53,6 +81,14 @@ class BrowserState: ObservableObject {
     @Published var estimatedProgress: Double = 0
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
+    /// 混合内容（0.2.15 加固）：https 页面上加载的 http 子资源计数。
+    /// scripts 单列——被动脚本才是真正的风险面。
+    @Published var mixedContentTotal: Int = 0
+    @Published var mixedContentScripts: Int = 0
+    /// 高危下载确认（非阻塞条 + 桥可代答）。
+    @Published var pendingDangerousDownload: PendingDangerousDownload?
+    /// 用户确认"仍然下载"的 URL——重载放行一次后移除。
+    var dangerousDownloadAllowedURLs: Set<String> = []
     @Published var lastError: Error?
     /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
     /// 对新建标签生效；已存在的标签不受影响)。
@@ -268,6 +304,19 @@ struct WebView: NSViewRepresentable {
         })()
         """
     }
+
+    /// 混合内容扫描（0.2.15）：https 页面上 http:// 子资源计数，按风险
+    /// 分组——script/iframe/object 是主动加载（可执行/可嵌套），img/video
+    /// 等是被动加载（主要涉及隐私与完整性）。
+    static let mixedContentScanJS = """
+    (function() {
+        var active = document.querySelectorAll(
+            'script[src^="http:"], iframe[src^="http:"], object[data^="http:"], embed[src^="http:"], link[rel="stylesheet"][href^="http:"]');
+        var passive = document.querySelectorAll(
+            'img[src^="http:"], source[src^="http:"], video[src^="http:"], audio[src^="http:"], link[href^="http:"]');
+        return { total: active.length + passive.length, scripts: active.length };
+    })()
+    """
 
     /// JS that removes an element-block `<style>` rule by its ID, then
     /// restores the hidden elements. Used by the undo-toast overlay.
@@ -555,6 +604,8 @@ struct WebView: NSViewRepresentable {
             parent.state.lastError = nil
             parent.state.serverTrust = nil
             parent.state.hoveredLinkURL = nil
+            parent.state.mixedContentTotal = 0
+            parent.state.mixedContentScripts = 0
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -685,6 +736,17 @@ struct WebView: NSViewRepresentable {
             }
             if parent.formAutofillStore.isConfigured {
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
+            }
+            // 混合内容扫描（0.2.15 加固）：https 页面统计 http:// 子资源。
+            // 一次被动扫描（didFinish 时 DOM 已就绪）；延迟写入的脚本由
+            // 下一轮导航或手动刷新再捕获。
+            if webView.url?.scheme == "https" {
+                webView.evaluateJavaScript(WebView.mixedContentScanJS) { value, _ in
+                    guard let dict = value as? [String: Int],
+                          let total = dict["total"], let scripts = dict["scripts"] else { return }
+                    self.parent.state.mixedContentTotal = total
+                    self.parent.state.mixedContentScripts = scripts
+                }
             }
         }
 
@@ -897,6 +959,34 @@ struct WebView: NSViewRepresentable {
                 )
             }
             if !navigationResponse.canShowMIMEType {
+                // 高危类型落地确认（0.2.15 加固）：安装器/可执行脚本/磁盘
+                // 镜像先取消本次导航，挂起非阻塞确认条（模态 NSAlert 会
+                // 冻结自动化桥——密码保存条的同款教训）。确认后白名单
+                // 放行一次。
+                let responseURL = navigationResponse.response.url
+                if UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true,
+                   DownloadStore.isDangerousType(navigationResponse.response),
+                   let responseURL,
+                   !parent.state.dangerousDownloadAllowedURLs.contains(responseURL.absoluteString) {
+                    let name = navigationResponse.response.suggestedFilename
+                        ?? responseURL.lastPathComponent
+                    parent.state.pendingDangerousDownload = PendingDangerousDownload(
+                        url: responseURL, filename: name
+                    ) { [weak state = parent.state, weak webView] allow in
+                        // 无论放行与否都摘条（respond 只置 resolved，不清
+                        // published 字段——密码保存条同款收尾）。
+                        state?.pendingDangerousDownload = nil
+                        if allow, let webView {
+                            state?.dangerousDownloadAllowedURLs.insert(responseURL.absoluteString)
+                            webView.load(URLRequest(url: responseURL))
+                        }
+                    }
+                    decisionHandler(.cancel)
+                    return
+                }
+                if let responseURL {
+                    parent.state.dangerousDownloadAllowedURLs.remove(responseURL.absoluteString)
+                }
                 decisionHandler(.download)
             } else {
                 decisionHandler(.allow)

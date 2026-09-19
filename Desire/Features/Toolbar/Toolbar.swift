@@ -175,15 +175,26 @@ struct Toolbar: View {
             Button {
                 showSecurityInfo.toggle()
             } label: {
-                Image(systemName: tab.browser.isSecure ? "lock.fill" : "lock.open")
-                    .foregroundStyle(tab.browser.isSecure ? Color.secondary : Color.orange)
+                // 混合内容（0.2.15）：https 页面引用 http 子资源时锁换警告
+                // 三角——连接是加密的，但页面完整性存疑。
+                let mixed = tab.browser.mixedContentTotal > 0
+                Image(systemName: mixed
+                      ? "exclamationmark.triangle.fill"
+                      : (tab.browser.isSecure ? "lock.fill" : "lock.open"))
+                    .foregroundStyle(mixed
+                                     ? Color.orange
+                                     : (tab.browser.isSecure ? Color.secondary : Color.orange))
                     .imageScale(.small)
             }
             .buttonStyle(.plain)
-            .help(tab.browser.isSecure ? "Connection Secure" : "Connection Not Secure")
+            .help(tab.browser.mixedContentTotal > 0
+                  ? "Connection Secure · Mixed Content (\(tab.browser.mixedContentTotal) insecure resources)"
+                  : (tab.browser.isSecure ? "Connection Secure" : "Connection Not Secure"))
             .popover(isPresented: $showSecurityInfo) {
                 SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
-                                 host: tab.browser.webView.url?.host ?? "")
+                                 host: tab.browser.webView.url?.host ?? "",
+                                 mixedContentTotal: tab.browser.mixedContentTotal,
+                                 mixedContentScripts: tab.browser.mixedContentScripts)
             }
 
             URLBarField(

@@ -1,5 +1,35 @@
 ## [Unreleased]
 
+## [v0.2.15] - 2026-09-19
+
+> 交付路线图 0.2.14 的内容（性能与加固）；发布序列号按时间顺延
+> （0.2.14 已被菜单/设置扩充占用）。
+
+### Added
+
+- **下载高危类型落地确认**：.dmg/.pkg/.app/.sh/.command/.jar/.exe 等
+  安装器/可执行/镜像类型在 navigationResponse 决策点被取消，弹非阻塞
+  确认条（模态 NSAlert 会冻结自动化桥——密码保存条的同款教训）；
+  "Download Anyway" 白名单放行一次。设置 ▸ Downloads 可关（默认开）。
+  桥 `/downloads/dangerous`（GET 查询 / POST resolve 代答）。
+- **混合内容警示**：https 页面 didFinish 时扫描 http:// 子资源
+  （script/iframe/object/embed/样式表为主动组，img/media 为被动组）；
+  有命中时工具栏锁图标换警告三角，安全面板列出明细，
+  桥 /page/url 暴露 mixedContent / mixedContentScripts 计数。
+
+### Verified
+
+- 高危下载 E2E：导航 .dmg → 决策取消 + 确认条挂起（下载列表无行）→
+  resolve allow → 白名单重载 → 下载 completed + 确认条摘除；dismiss
+  路径不产生下载行。
+- 混合内容扫描：https 页注入 http img/script 后 active/passive 计数
+  正确；干净页面 0/0；/page/url 字段就位。
+- **50 标签长会话回归**：50 标签开启 7.0s；10 轮随机切换选中全部
+  正确（均 229ms 往返）；RSS 228MB 稳定（切换前后无增长）；50 标签
+  连续关闭 11.5s 无崩溃，关闭后导航/执行正常，RSS 224MB（无泄漏）；
+  优雅退出 + 重启会话正确还原。休眠清扫未实测长时阈值（30min 默认），
+  内存压力路径已有 0.2.2 基线。
+
 ## [v0.2.14] - 2026-09-19
 
 > 菜单栏与设置页两轮扩充（用户反馈驱动）。

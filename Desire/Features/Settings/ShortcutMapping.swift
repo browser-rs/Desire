@@ -69,6 +69,8 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "toggleFullScreen", commandName: "Toggle Full Screen", keyEquivalent: "f", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "responsiveMode", commandName: "Responsive Design Mode", keyEquivalent: "m", modifierFlags: cmd | shift, isCustomized: false, category: .view),
             ShortcutMapping(id: "toggleDevTools", commandName: "Developer Tools", keyEquivalent: "i", modifierFlags: opt | cmd, isCustomized: false, category: .view),
+            ShortcutMapping(id: "stopLoading", commandName: "Stop Loading", keyEquivalent: ".", modifierFlags: cmd, isCustomized: false, category: .view),
+            ShortcutMapping(id: "viewSource", commandName: "View Source", keyEquivalent: "u", modifierFlags: opt | cmd, isCustomized: false, category: .view),
 
             // Tools
             ShortcutMapping(id: "findInPage", commandName: "Find in Page", keyEquivalent: "f", modifierFlags: cmd, isCustomized: false, category: .tools),

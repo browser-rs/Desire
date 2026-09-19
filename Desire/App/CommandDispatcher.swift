@@ -312,6 +312,76 @@ struct CommandDispatcher {
 
         case .goForward:
             if let tab = tabManager.selectedTab { tab.browser.webView.goForward() }
+
+        case .stopLoading:
+            if let tab = tabManager.selectedTab { tab.browser.webView.stopLoading() }
+
+        case .viewSource:
+            viewSource()
+
+        case .openURL(let url):
+            if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
+                tab.browser.webView.load(URLRequest(url: URL(string: url)!))
+                tab.urlString = url
+            } else {
+                // 没有可导航的选中标签（新标签页）→ 后台开新标签加载。
+                tabManager.addTab(
+                    url: url,
+                    javaScriptEnabled: settings.isJavaScriptEnabled,
+                    contentBlocker: contentBlocker,
+                    videoAdBlocker: videoAdBlocker,
+                    autoPlayPolicy: settings.autoPlayPolicy,
+                    newTabPosition: settings.newTabPosition
+                )
+            }
+
+        case .newContainerTab(let containerID):
+            tabManager.addTab(
+                javaScriptEnabled: settings.isJavaScriptEnabled,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker,
+                autoPlayPolicy: settings.autoPlayPolicy,
+                newTabPosition: settings.newTabPosition,
+                containerID: containerID
+            )
+            bindings.showTabSwitcher.wrappedValue = false
+        }
+    }
+
+    /// View ▸ View Source (⌥⌘U)：WebKit 不支持 view-source:// scheme
+    /// （实测照常渲染页面）。退而求其次：抓取当前 DOM 的 outerHTML，
+    /// 在新标签用 <pre> 渲染纯文本源码。
+    private func viewSource() {
+        guard let tab = tabManager.selectedTab,
+              tab.browser.webView.url != nil, !tab.isOnNewTabPage else { return }
+        tab.browser.webView.evaluateJavaScript("document.documentElement.outerHTML") { value, _ in
+            guard let html = value as? String else { return }
+            Task { @MainActor in
+                // 转义后塞进 <pre>——等宽折行，跟随系统深浅色。
+                let escaped = html
+                    .replacingOccurrences(of: "&", with: "&amp;")
+                    .replacingOccurrences(of: "<", with: "&lt;")
+                let doc = """
+                <!doctype html><html><head><meta charset="utf-8"><style>
+                body { margin: 0; padding: 16px; }
+                pre { font: 11px ui-monospace, Menlo, monospace;
+                      white-space: pre-wrap; word-break: break-all; }
+                </style></head><body><pre>\(escaped)</pre></body></html>
+                """
+                let host = tab.browser.webView.url?.host ?? "source"
+                self.tabManager.addTab(
+                    javaScriptEnabled: self.settings.isJavaScriptEnabled,
+                    contentBlocker: self.contentBlocker,
+                    videoAdBlocker: self.videoAdBlocker,
+                    autoPlayPolicy: self.settings.autoPlayPolicy,
+                    newTabPosition: .end
+                )
+                // addTab 选中了新标签——源码渲染进它。
+                if let sourceTab = self.tabManager.selectedTab {
+                    sourceTab.browser.webView.loadHTMLString(doc, baseURL: nil)
+                    sourceTab.urlString = "view-source of \(host)"
+                }
+            }
         }
     }
 

@@ -73,7 +73,12 @@ struct DesireApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
-        .commands { AppCommands(shortcuts: appState.system.keyboardShortcutStore, settings: appState.settings) }
+        .commands { AppCommands(
+            shortcuts: appState.system.keyboardShortcutStore,
+            settings: appState.settings,
+            bookmarks: appState.bookmarkStore,
+            containers: ContainerStore.shared
+        ) }
     }
 
     // MARK: - Settings Window
@@ -124,6 +129,10 @@ enum BrowserCommand {
     case openLocation, openFile, closeWindow
     case findNext, findPrevious, addToReadingList, askAgentAboutPage
     case goBack, goForward
+    // 菜单补全三批：停止加载/查看源代码/动态菜单导航/容器标签。
+    case stopLoading, viewSource
+    case openURL(String)
+    case newContainerTab(UUID)
 }
 
 

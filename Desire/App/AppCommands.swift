@@ -22,6 +22,10 @@ struct AppCommands: Commands {
     /// track state. (Commands body re-evaluates on observed store changes —
     /// see the live-rebinding note above.)
     @ObservedObject var settings: Settings
+    /// 书签栏/全部书签进菜单（Bookmarks 菜单动态区）。
+    @ObservedObject var bookmarks: BookmarkStore
+    /// File ▸ New Container Tab 子菜单。
+    @ObservedObject var containers: ContainerStore
 
     var body: some Commands {
         // Replace the default .appSettings command with one that opens our
@@ -43,6 +47,13 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("newTab", "t", .command))
             Button("New Incognito Tab") { postCommand(.newIncognitoTab) }
                 .keyboardShortcut(binding("newIncognitoTab", "n", [.command, .shift]))
+            if !containers.containers.isEmpty {
+                Menu("New Container Tab") {
+                    ForEach(containers.containers) { container in
+                        Button(container.name) { postCommand(.newContainerTab(container.id)) }
+                    }
+                }
+            }
             Divider()
             Button("Open Location…") { postCommand(.openLocation) }
                 .keyboardShortcut(binding("focusAddressBar", "l", .command))
@@ -100,7 +111,11 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("reload", "r", .command))
             Button("Force Reload Page") { postCommand(.forceReload) }
                 .keyboardShortcut(binding("forceReload", "r", [.command, .shift]))
+            Button("Stop Loading") { postCommand(.stopLoading) }
+                .keyboardShortcut(binding("stopLoading", ".", .command))
             Button("Reader View") { postCommand(.toggleReader) }
+            Button("View Source") { postCommand(.viewSource) }
+                .keyboardShortcut(binding("viewSource", "u", [.option, .command]))
             Divider()
             Button("Command Palette…") { postCommand(.toggleCommandPalette) }
                 .keyboardShortcut(binding("commandPalette", "k", .command))
@@ -159,6 +174,15 @@ struct AppCommands: Commands {
                 Button("From Chrome…") { postCommand(.importBookmarksFrom(.chrome)) }
                 Button("From Firefox…") { postCommand(.importBookmarksFrom(.firefox)) }
                 Button("From HTML File…") { postCommand(.importBookmarksFrom(.html)) }
+            }
+            if !bookmarks.leafEntries.isEmpty {
+                Divider()
+                // 全部书签动态区（最多 20 条，多了走面板/书签栏）。
+                ForEach(bookmarks.leafEntries.prefix(20), id: \.url) { entry in
+                    Button(entry.title.isEmpty ? entry.url : entry.title) {
+                        postCommand(.openURL(entry.url))
+                    }
+                }
             }
         }
 

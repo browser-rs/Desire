@@ -1109,6 +1109,11 @@ final class AutomationServer {
         case "actualSize": command = .actualSize
         case "screenshot": command = .screenshot
         case "restoreArchivedSession": command = .restoreArchivedSession
+        case "viewSource": command = .viewSource
+        case "stopLoading": command = .stopLoading
+        case "toggleSplitView": command = .toggleSplitView
+        case "addToReadingList": command = .addToReadingList
+        case "askAgentAboutPage": command = .askAgentAboutPage
         default:
             return ["error": "unknown command \(name)"]
         }

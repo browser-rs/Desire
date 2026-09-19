@@ -1,5 +1,49 @@
 ## [Unreleased]
 
+## [v0.2.14] - 2026-09-19
+
+> 菜单栏与设置页两轮扩充（用户反馈驱动）。
+
+### Added
+
+**菜单**
+- File：Open Location…（⌘L）、Open File…（⌘O，NSOpenPanel → 新标签）、
+  Close Window（⇧⌘W）、New Container Tab 子菜单（按容器动态生成）。
+- Edit：Find 子菜单（Find in Page ⌘F / Next ⌘G / Previous ⇧⌘G）。
+- View：Stop Loading（⌘.）、View Source（⌥⌘U——WebKit 不支持
+  view-source://，实测退化为抓 outerHTML 渲染 <pre>）、书签栏开关、
+  Split View（⇧⌘\）、阅读列表（⌃⌘R）、命令面板（⌘K）、Agent 面板
+  （⌘'）、Developer Tools（⌥⌘I）、全页截图。
+- History：Back（⌘[）/ Forward（⌘]）置顶。
+- Bookmarks：Add to Reading List、导入/导出（从 Tools 迁入）、
+  全部书签动态区（≤20 条，点击直接导航）。
+- Agent 菜单（新）：Agent 面板、Ask Agent About This Page（⌘⇧A）、
+  命令面板。
+- Help：GitHub / Releases / 桥文档链接。
+
+**设置**
+- Appearance：书签栏开关、链接预览、默认页面缩放（对新标签生效，
+  BrowserState 直读 UserDefaults）。
+- Downloads：完成通知开关、Dock 角标开关、**每次下载询问保存位置**
+  （完成时弹 NSSavePanel，此时文件名已确定）。
+- Profiles 区（新）：人物名录增删（0.2.9/0.2.10 收尾）。
+- Developer 区（新）：自动化桥 / MCP server 运行状态（按启动参数
+  探测）+ 桥文档直达——AI 原生身份首次进入设置页。
+
+### Changed
+
+- 窗口内隐藏快捷键按钮（⌘L/⌘[/⌘]/⌘G/⇧⌘G/⌘K/⌘'）全部收编进菜单，
+  消除同键双触发；侧栏默认键 ⇧⌘B → ⌃⌘B（书签栏取回浏览器通用
+  约定）；新默认键经 mergeOverDefaults 自动并入老安装。
+- /command 桥补 viewSource/stopLoading/toggleSplitView/
+  addToReadingList/askAgentAboutPage case。
+
+### Verified
+
+- E2E：/command viewSource → 新标签 <pre> 正确渲染转义源码；
+  /shortcuts 实测 openFile/closeWindow/askAgentAboutPage/viewSource/
+  stopLoading 等新映射注册；构建零警告。
+
 ## [v0.2.13] - 2026-09-19
 
 ### Added

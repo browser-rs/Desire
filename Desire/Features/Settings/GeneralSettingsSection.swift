@@ -39,6 +39,15 @@ struct GeneralSettingsSection: View {
                         systemImage: "link",
                         isOn: $settings.showLinkPreview
                     )
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Page Zoom",
+                        subtitle: "Default zoom for newly opened tabs.",
+                        systemImage: "plus.magnifyingglass",
+                        selection: $settings.defaultPageZoom,
+                        options: [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0],
+                        label: { zoomLabel($0) }
+                    )
                 }
             }
 
@@ -218,6 +227,13 @@ struct GeneralSettingsSection: View {
                         systemImage: "app.badge",
                         isOn: $settings.downloadDockBadge
                     )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Ask Where to Save Each File",
+                        subtitle: "Show a save panel when a download finishes. Off = save straight to the download folder.",
+                        systemImage: "questionmark.folder",
+                        isOn: $settings.askWhereToSaveDownloads
+                    )
                 }
             }
 
@@ -273,6 +289,10 @@ struct GeneralSettingsSection: View {
         case .requireUserAction: "Require user action"
         case .never: "Never auto-play"
         }
+    }
+
+    private func zoomLabel(_ zoom: Double) -> String {
+        zoom == 1.0 ? "100% (Default)" : "\(Int(zoom * 100))%"
     }
 }
 

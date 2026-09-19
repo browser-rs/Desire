@@ -486,7 +486,18 @@ class DownloadStore: ObservableObject {
             return
         }
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
-        let destination = uniqueURL(for: downloads[i].filename)
+        var destination = uniqueURL(for: downloads[i].filename)
+        // 设置 ▸ Downloads ▸ Ask where to save each file：落盘前弹保存
+        // 面板（此时已有完整文件名建议，比 Safari 在开始时猜名字更准）。
+        if UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false {
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = downloads[i].filename
+            panel.directoryURL = downloadFolder
+            panel.canCreateDirectories = true
+            if panel.runModal() == .OK, let chosen = panel.url {
+                destination = chosen
+            }
+        }
         try? FileManager.default.moveItem(at: tempURL, to: destination)
         downloads[i].fileURL = destination
         complete(id: id)

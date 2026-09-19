@@ -54,7 +54,9 @@ class BrowserState: ObservableObject {
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
     @Published var lastError: Error?
-    @Published var pageZoom: Double = 1.0
+    /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
+    /// 对新建标签生效；已存在的标签不受影响)。
+    @Published var pageZoom: Double = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
     @Published var isMuted: Bool = false

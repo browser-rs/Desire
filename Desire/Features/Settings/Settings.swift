@@ -78,6 +78,15 @@ class Settings: ObservableObject {
     @Published var downloadDockBadge: Bool {
         didSet { UserDefaults.standard.set(downloadDockBadge, forKey: "downloadDockBadge") }
     }
+    /// 每次下载完成时弹出保存面板选位置（关 = 直接进下载文件夹）。
+    @Published var askWhereToSaveDownloads: Bool {
+        didSet { UserDefaults.standard.set(askWhereToSaveDownloads, forKey: "askWhereToSaveDownloads") }
+    }
+    /// 新标签的默认页面缩放（0.5–2.0）。BrowserState 初始化时直读
+    /// UserDefaults 同名 key。
+    @Published var defaultPageZoom: Double {
+        didSet { UserDefaults.standard.set(defaultPageZoom, forKey: "defaultPageZoom") }
+    }
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
@@ -116,6 +125,8 @@ class Settings: ObservableObject {
         showBookmarksBar = UserDefaults.standard.object(forKey: "showBookmarksBar") as? Bool ?? true
         downloadNotifications = UserDefaults.standard.object(forKey: "downloadNotifications") as? Bool ?? true
         downloadDockBadge = UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true
+        askWhereToSaveDownloads = UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false
+        defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30

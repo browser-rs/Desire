@@ -148,35 +148,35 @@
 ### 0.2.2 — 稳定性专项
 - MetricKit 载荷趋势本地看板；50 标签 × 8h soak；内存水位休眠 v1。
 
-### 0.2.3 — 反馈闭环 v2
+### 0.2.3 — 反馈闭环 v2 ✅（v0.2.3）
 - 更新横幅（查看/跳过此版本）+ 设置页手动检查按钮。
 
-### 0.2.4 — MCP 会话与窗口绑定
+### 0.2.4 — MCP 会话与窗口绑定（窗口绑定 ✅ v0.2.4；listChanged 未做）
 - Mcp-Session-Id → 窗口绑定（工具带 window 参数覆盖）。
 - tools/listChanged 通知；--mcp-token 鉴权文档化进 README。
 
-### 0.2.5 — MCP resources 与 prompts
+### 0.2.5 — MCP resources 与 prompts（未做）
 - page://<tab>/text|html|screenshot 作为 MCP resource；常用任务 prompt 模板。
 - 长任务进度经 SSE progress 通知。
 
-### 0.2.6 — 审批策略引擎
+### 0.2.6 — 审批策略引擎 ✅（提前为 v0.2.5 交付）
 - 按工具/按域放行规则（持久化 + 面板管理）；审批历史日志，桥可查。
 
-### 0.2.7 — 记忆 v2
+### 0.2.7 — 记忆 v2 ✅（v0.2.7）
 - 记忆搜索 + 导入导出 + Agent 可编程读写（MCP 工具）。
 - 低命中老旧事实自动降权（pinned 豁免）；右键"记住此站"。
 
-### 0.2.8 — 媒体流水线 v2
+### 0.2.8 — 媒体流水线 v2 ✅（v0.2.8）
 - HLS 多码率画质选择；批量队列 UI；音频抽取预设。
 
-### 0.2.9 — Profiles v1（人物级隔离）
+### 0.2.9 — Profiles v1（人物级隔离）✅（基础设施 v0.2.9 + 窗口绑定/切换器 v0.2.10）
 - Profile 模型 + 独立 WKWebsiteDataStore + 窗口绑定 + 切换器。
 - Agent 按 Profile 取上下文。
 
-### 0.2.10 — Profiles v2
+### 0.2.10 — Profiles v2（部分：按 Profile 数据作用域/导入导出未完成）
 - 书签/历史/密码/快拨按 Profile 作用域；导入导出（密码走 Keychain）。
 
-### 0.2.11 — 密码中心
+### 0.2.11 — 密码中心 ✅（v0.2.11）
 - 生成器 + CSV 导入导出 + 修改密码检测。
 
 ### 0.2.12 — Passkey（entitlement 门控）

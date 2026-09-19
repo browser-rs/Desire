@@ -206,16 +206,20 @@ private struct PasswordSaveBar: View {
     var body: some View {
         if let pending = store.pendingSave {
             NoticeBar(
-                icon: "key.horizontal.fill",
+                icon: pending.isUpdate ? "key.fill" : "key.horizontal.fill",
                 tint: .accentColor,
-                title: String(localized: "Save Password for \(pending.domain)?"),
+                title: pending.isUpdate
+                    ? String(localized: "Update Password for \(pending.domain)?")
+                    : String(localized: "Save Password for \(pending.domain)?"),
                 subtitle: String(localized: "Username: \(pending.username)"),
-                primaryTitle: String(localized: "Save"),
+                primaryTitle: pending.isUpdate
+                    ? String(localized: "Update")
+                    : String(localized: "Save"),
                 secondaryTitle: String(localized: "Not Now"),
-                tertiaryTitle: String(localized: "Never for This Site"),
+                tertiaryTitle: pending.isUpdate ? nil : String(localized: "Never for This Site"),
                 onPrimary: { store.resolvePendingSave(true) },
                 onSecondary: { store.resolvePendingSave(false) },
-                onTertiary: {
+                onTertiary: pending.isUpdate ? nil : {
                     store.suppress(domain: pending.domain)
                     store.resolvePendingSave(false)
                 }

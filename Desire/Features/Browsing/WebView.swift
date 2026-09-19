@@ -454,9 +454,27 @@ struct WebView: NSViewRepresentable {
                        let username = dict["username"], let password = dict["password"],
                        !username.isEmpty, !password.isEmpty,
                        let host = parent.state.webView.url?.host {
-                let existing = parent.passwordStore.find(domain: host)
-                if existing.contains(where: { $0.username == username }) { return }
                 if parent.passwordStore.isSuppressed(domain: host) { return }
+                let existing = parent.passwordStore.find(domain: host)
+                // Same username + same password = an ordinary re-login, not
+                // worth a prompt. Same username + a different password is a
+                // password change — offer to update instead of staying silent.
+                if let match = existing.first(where: { $0.username == username }) {
+                    guard match.password != password else { return }
+                    // Non-blocking: the ContentView notice bar renders the prompt
+                    // (a sheet here stole focus mid-Agent-task; an earlier
+                    // runModal froze the whole app on every login submit).
+                    parent.passwordStore.pendingSave?.respond(false)
+                    parent.passwordStore.pendingSave = PendingPasswordSave(
+                        domain: host, username: username, isUpdate: true
+                    ) { [weak store = parent.passwordStore] save in
+                        if save {
+                            store?.updatePassword(match, to: password)
+                        }
+                        store?.pendingSave = nil
+                    }
+                    return
+                }
                 // Non-blocking: the ContentView notice bar renders the prompt
                 // (a sheet here stole focus mid-Agent-task; an earlier
                 // runModal froze the whole app on every login submit).

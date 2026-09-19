@@ -304,7 +304,9 @@ final class AutomationServer {
         ep("POST", "/tabgroups/delete", "Delete group (tabs survive)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
         ep("POST", "/containers/remove", "Remove container by name", params: ["name:string"], example: "-d '{\"name\":\"Shop\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
-        ep("POST", "/passwords/resolve", "Resolve save-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
+        ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
+        ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
+        ep("POST", "/passwords/resolve", "Resolve save/update-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
         ep("POST", "/passwords/delete", "Delete credentials for domain", params: ["domain:string"], example: "-d '{\"domain\":\"example.com\"}'")
         ep("GET", "/shortcuts", "Shortcut mappings + live NSMenu accelerators", example: "…/shortcuts")
         ep("POST", "/shortcuts/update", "Re-record binding (next launch)", params: ["id:string", "key:string", "modifierFlags:uint"], example: #"-d '{"id":"newTab","key":"k","modifierFlags":1048576}'"#)
@@ -499,6 +501,12 @@ final class AutomationServer {
                 return try Self.json(Self.console(count: Int(query["count"] ?? "20") ?? 20))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
+            case ("POST", "/passwords/add"):
+                return try Self.json(Self.addPassword(domain: Self.string(body, "domain") ?? "",
+                                                      username: Self.string(body, "username") ?? "",
+                                                      password: Self.string(body, "password") ?? ""))
+            case ("POST", "/passwords/import"):
+                return try Self.json(Self.importPasswordCSV(Self.string(body, "csv") ?? ""))
             case ("POST", "/passwords/resolve"):
                 return try Self.json(Self.resolvePasswordSave(body["save"] as? Bool ?? true))
             case ("POST", "/passwords/delete"):
@@ -1243,9 +1251,33 @@ final class AutomationServer {
         }
         var result: [String: Any] = ["entries": rows]
         if let pending = app.passwordStore.pendingSave {
-            result["pendingSave"] = ["domain": pending.domain, "username": pending.username]
+            result["pendingSave"] = [
+                "domain": pending.domain,
+                "username": pending.username,
+                "kind": pending.isUpdate ? "update" : "save",
+            ]
         }
         return result
+    }
+
+    /// Seeds one credential (test setup / Agent primitive). No secret in the
+    /// response.
+    private static func addPassword(domain: String, username: String, password: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !domain.isEmpty, !username.isEmpty, !password.isEmpty else {
+            return ["error": "missing domain/username/password"]
+        }
+        app.passwordStore.save(domain: domain, username: username, password: password)
+        return ["ok": true]
+    }
+
+    /// Imports a Chrome-format CSV. Reports counts only — the store never
+    /// echoes secrets back over the bridge.
+    private static func importPasswordCSV(_ csv: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !csv.isEmpty else { return ["error": "missing csv"] }
+        let count = app.passwordStore.importCSV(csv)
+        return ["ok": true, "imported": count]
     }
 
     /// Resolves the pending save-password prompt (the sheet's Save / Not Now).

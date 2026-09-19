@@ -1,11 +1,33 @@
-# 更新日志 (Changelog)
-
-本文件记录 Desire 的所有显著变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)；
-版本号采用 0.x 阶段的宽松语义（次版本 = 功能主题，补丁版本 = 修复与小 UX）。
-
 ## [Unreleased]
 
-### 0.2.10 — Profiles v2（进行中）
+## [v0.2.11] - 2026-09-19
+
+### Added
+
+- **修改密码检测**：同用户名提交不同密码时提示"更新密码"而非静默忽略
+  （此前该场景直接 return，改密永远不会入库）。同用户名同密码的普通
+  重登录保持静默；新用户名仍走保存流程。
+- 更新提示条：Update 按钮 + Username 副标题（保存提示的三按钮
+  Never-for-this-site 对更新场景不适用，已隐藏）。
+- 桥 `/passwords/pendingSave` 增加 `kind`（save/update）；
+  新增 `/passwords/add`（种子凭据）与 `/passwords/import`（CSV 导入，
+  只回传统计不回传 secret）。
+
+### Fixed
+
+- **CSV 解析器**：旧实现只认单引号且从不切换引号态，Chrome 导出的
+  双引号字段（含逗号/引号的密码）全部错位；重写为 RFC-4180 索引式
+  状态机（`""` 转义、引号内逗号、空字段均正确）。
+- importCSV 表头检测按内容判断（无表头文件不再丢第一行），兼容 BOM。
+
+### Verified
+
+- E2E：种子凭据 → autofill 命中 → 改密提交 → pendingSave kind=update
+  → 接受 → 重载 autofill 回填新密码（Keychain 改写实证）→ 同密码
+  重提交无提示 → 新用户名 kind=save 拒绝不入库 → CSV 引号字段导入
+  （密码含逗号+引号）→ autofill 原样回填 secret。
+
+## [v0.2.10] - 2026-09-19
 
 ### Added
 
@@ -21,9 +43,7 @@
 - E2E：add Profile → set active → profileDataStore 切换为 custom →
   切回 default → 恢复。
 
-## [v0.2.8] - 2026-09-19
-
-### 0.2.9 — Profiles v1（基础设施，进行中）
+## [v0.2.9] - 2026-09-19
 
 ### Added
 
@@ -32,8 +52,6 @@
 - 桥 `/profiles`（list/add/remove）。
 
 ## [v0.2.8] - 2026-09-19
-
-### 0.2.8 — 媒体流水线 v2（进行中）
 
 ### Added
 
@@ -51,14 +69,18 @@
 
 ## [v0.2.7] - 2026-09-19
 
-### 0.2.7 — 修改密码检测（进行中）
-
 ### Added
 
-- **密码生成器**：PasswordGeneratorSheet（SecRandomCopyBytes + 长度
-  滑块 8–64 + 符号开关 + 复制/重新生成）。
-- **CSV 导入导出**：Chrome 兼容列格式（name,url,username,password），
-  面板工具栏按钮 + 文件选择器/保存面板。
+- **记忆 v2**：AgentMemoryStore 增加 searchFacts（内容+类目子串匹配，
+  pinned 优先）、exportJSON（完整归档）、importFacts（JSON 数组去重
+  导入）、decayOldFacts（清理超过 N 天的未 pinned 事实）。
+- 桥 `POST /memory/search|export|decay`；MCP 工具 30 → 32：
+  searchMemory / rememberFact（带作用域）。
+
+### Verified
+
+- E2E：多事实写入（全局+域作用域）→ 子串搜索 → JSON 导出 →
+  MCP searchMemory → decay → 清理。
 
 ## [v0.2.6] - 2026-09-19
 
@@ -69,22 +91,6 @@
 - **CSV 导入导出**：Chrome 兼容列格式（name,url,username,password），
   面板工具栏按钮 + 文件选择器/保存面板。
 - 密码面板新增 Generate / Import CSV / Export CSV 工具栏按钮。
-
-## [v0.2.5] - 2026-09-19
-
-### 0.2.6 密码中心（进行中）
-
-### Added
-
-- **密码生成器**：PasswordGeneratorSheet——SecureRandom + 长度滑块
-  (8–64) + 符号开关 + 复制/重新生成。
-- **CSV 导入导出**：Chrome 兼容列格式（name,url,username,password），
-  面板工具栏按钮 + 文件选择器/保存面板。
-- 密码面板新增 Generate / Import CSV / Export CSV 工具栏按钮。
-
-## [v0.2.5] - 2026-09-19
-
-（无）
 
 ## [v0.2.5] - 2026-09-19
 

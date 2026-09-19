@@ -2,19 +2,23 @@ import Combine
 import Foundation
 import Security
 
-/// A save-password prompt awaiting a decision. The prompt presents as a
-/// non-modal sheet (a blocking runModal here froze the whole app — and the
+/// A save/update-password prompt awaiting a decision. The prompt presents as
+/// a non-modal bar (a blocking runModal here froze the whole app — and the
 /// automation bridge — on every login submit); `respond` is single-fire.
+/// `isUpdate` marks the password-change case: the username already has a
+/// stored credential whose password differs from the submitted one.
 @MainActor
 final class PendingPasswordSave {
     let domain: String
     let username: String
+    let isUpdate: Bool
     var programmaticDismiss: (() -> Void)?
 
     private let completion: (Bool) -> Void
     private var resolved = false
 
-    init(domain: String, username: String, completion: @escaping (Bool) -> Void) {
+    init(domain: String, username: String, isUpdate: Bool = false, completion: @escaping (Bool) -> Void) {
+        self.isUpdate = isUpdate
         self.domain = domain
         self.username = username
         self.completion = completion
@@ -66,6 +70,15 @@ class PasswordStore: ObservableObject {
         entries.insert(entry, at: 0)
     }
 
+    /// Rewrites a stored credential in place (password-change flow). The
+    /// keychain path deletes then re-adds, so this is safe to call on an
+    /// entry that is already persisted.
+    func updatePassword(_ entry: PasswordEntry, to newPassword: String) {
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        entries[index].password = newPassword
+        addToKeychain(domain: entry.domain, username: entry.username, password: newPassword)
+    }
+
     func find(domain: String) -> [PasswordEntry] {
         entries.filter { $0.domain == domain || $0.domain.hasSuffix("." + domain) || domain.hasSuffix("." + $0.domain) }
     }
@@ -91,7 +104,7 @@ class PasswordStore: ObservableObject {
         if includeSymbols { chars += Array("!@#$%^&*") }
         var result = ""
         var buffer = [UInt8](repeating: 0, count: length * 2)
-        for offset in stride(from: 0, to: length * 2, by: buffer.count) {
+        for _ in stride(from: 0, to: length * 2, by: buffer.count) {
             _ = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
             for byte in buffer where result.count < length {
                 result.append(chars[Int(byte) % chars.count])
@@ -110,10 +123,16 @@ class PasswordStore: ObservableObject {
     }
 
     /// Imports passwords from CSV (Chrome format: name,url,username,password).
+    /// The header is skipped only when actually present.
     @discardableResult
     func importCSV(_ csv: String) -> Int {
         var imported = 0
-        for line in csv.components(separatedBy: .newlines).dropFirst() {
+        let csv = csv.hasPrefix("\u{FEFF}") ? String(csv.dropFirst()) : csv
+        var lines = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        if let first = lines.first, first.lowercased().contains("username") && first.lowercased().contains("password") {
+            lines.removeFirst()
+        }
+        for line in lines {
             let fields = parseCSVLine(line)
             guard fields.count >= 4, !fields[1].isEmpty, !fields[3].isEmpty else { continue }
             // Extract host from the URL column (may be full URL or bare domain).
@@ -131,14 +150,35 @@ class PasswordStore: ObservableObject {
         return imported
     }
 
+    /// RFC-4180-style single-line parser: double quotes toggle quoting,
+    /// `""` inside quotes is a literal quote, commas only split when unquoted.
+    /// (The previous version only looked for single quotes and never
+    /// toggled; an iterator-peek rewrite then ate the character following a
+    /// closing quote — index-based walk keeps the lookahead side-effect free.)
     private func parseCSVLine(_ line: String) -> [String] {
+        let chars = Array(line)
         var fields: [String] = []
         var current = ""
         var inQuotes = false
-        for char in line {
-            if char == "'" { current.append(char); continue }
-            if char == "," && !inQuotes { fields.append(current); current = ""; continue }
-            current.append(char)
+        var i = 0
+        while i < chars.count {
+            let char = chars[i]
+            if inQuotes {
+                if char == "\"", i + 1 < chars.count, chars[i + 1] == "\"" {
+                    current.append("\"")
+                    i += 2
+                    continue
+                }
+                if char == "\"" { inQuotes = false } else { current.append(char) }
+            } else if char == "\"" {
+                inQuotes = true
+            } else if char == "," {
+                fields.append(current)
+                current = ""
+            } else {
+                current.append(char)
+            }
+            i += 1
         }
         fields.append(current)
         return fields

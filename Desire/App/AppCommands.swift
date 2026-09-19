@@ -96,10 +96,6 @@ struct AppCommands: Commands {
             Button("Zoom Out") { postCommand(.zoomOut) }
                 .keyboardShortcut(binding("zoomOut", "-", .command))
             Divider()
-            Button(settings.showBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar") {
-                postCommand(.toggleBookmarksBar)
-            }
-            .keyboardShortcut(binding("toggleBookmarksBar", "b", [.command, .shift]))
             Button("Tab Overview") { postCommand(.toggleTabOverview) }
                 .keyboardShortcut(binding("tabOverview", "\\", [.command, .shift]))
             Button("Split View") { postCommand(.toggleSplitView) }
@@ -164,11 +160,10 @@ struct AppCommands: Commands {
         // MARK: - Bookmarks
 
         CommandMenu("Bookmarks") {
-            // Safari 同款：书签栏开关在书签菜单首位（⇧⌘B 归 View 菜单，
-            // 这里不设键避免同键双触发）。
             Button(settings.showBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar") {
                 postCommand(.toggleBookmarksBar)
             }
+            .keyboardShortcut(binding("toggleBookmarksBar", "b", [.command, .shift]))
             Button("Bookmarks Panel") { postCommand(.showBookmarks) }
                 .keyboardShortcut(binding("showBookmarks", "b", .command))
             Button("Add Bookmark") { postCommand(.bookmarkPage) }

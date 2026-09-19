@@ -39,6 +39,7 @@ final class AnnotationStore: ObservableObject {
         return loaded
     }
 
+    @discardableResult
     func add(url: String, text: String, colorIndex: Int) -> PageHighlight {
         let highlight = PageHighlight(id: UUID(), url: url, text: text,
                                       colorIndex: max(0, min(colorIndex, Self.palette.count - 1)),

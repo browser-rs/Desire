@@ -1,5 +1,31 @@
 ## [Unreleased]
 
+## [v0.2.12] - 2026-09-19
+
+> 交付路线图 0.2.5 的内容（MCP resources 与 prompts）；发布序列号按
+> 时间顺延——`v0.2.5` tag 已被审批策略引擎占用。
+
+### Added
+
+- **MCP resources**：每个打开标签暴露为 `page://<index>/text|html|screenshot`
+  （resources/list 枚举、resources/read 读取——可见文本 / 完整 DOM HTML /
+  视口 PNG base64）。initialize capabilities 声明 resources + prompts。
+- **MCP prompts**：四个任务模板——summarize-page / extract-data /
+  monitor-page / download-media；prompts/get 支持参数替换（未提供的
+  可选参数占位符剥离）。
+- 桥 `/screenshot` 泛化：`index` 参数支持任意标签（原先只有选中标签）；
+  `inline=1` 直接返回 PNG base64（MCP resource 直读，不再必须落盘）；
+  文件路径行为不变。
+
+### Verified
+
+- MCP 协议 E2E（curl JSON-RPC over 8798）：initialize capabilities 含
+  resources/prompts → resources/list 每标签 3 条 → 三类 read 全通
+  （text 80 字符可见文本；html 完整 DOM；screenshot 82KB PNG，
+  magic `89504e47` 正确）→ prompts/list 4 条 → 参数替换与缺省剥离 →
+  未知 prompt -32602 → tools/list 36 个 / tools/call getPageText 回归
+  通过 → 旧文件落盘截图行为不变。
+
 ## [v0.2.11] - 2026-09-19
 
 ### Added

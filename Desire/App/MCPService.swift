@@ -237,8 +237,12 @@ final class MCPService {
         case "initialize":
             let result: [String: Any] = [
                 "protocolVersion": "2025-06-18",
-                "capabilities": ["tools": ["listChanged": false]],
-                "serverInfo": ["name": "Desire", "version": "0.1.6"],
+                "capabilities": [
+                    "tools": ["listChanged": false],
+                    "resources": [:],
+                    "prompts": [:],
+                ],
+                "serverInfo": ["name": "Desire", "version": "0.2.12"],
             ]
             return ("200 OK", Self.rpcResult(id: id, result: result), false)
 
@@ -289,9 +293,163 @@ final class MCPService {
             ]
             return ("200 OK", Self.rpcResult(id: id, result: result), false)
 
+        case "resources/list":
+            return await resourcesList(id: id)
+
+        case "resources/read":
+            return await resourcesRead(id: id, uri: params["uri"] as? String ?? "")
+
+        case "prompts/list":
+            return ("200 OK", Self.rpcResult(id: id, result: ["prompts": Self.promptCatalog.map { prompt in
+                prompt.filter { !$0.key.hasPrefix("_") }
+            }]), false)
+
+        case "prompts/get":
+            return promptsGet(id: id, name: params["name"] as? String ?? "",
+                              args: params["arguments"] as? [String: String] ?? [:])
+
         default:
             return ("200 OK", Self.rpcError(id: id, code: -32601, message: "method not found: \(method)"), false)
         }
+    }
+
+    // MARK: - MCP resources (page://<tab>/<kind>)
+
+    /// Every open tab as three resources: page://<index>/text|html|screenshot.
+    private func resourcesList(id: Any?) async -> (status: String, body: String, isNotification: Bool) {
+        let stateResponse = await AutomationServer.shared.callEndpoint(
+            method: "GET", path: "/state", json: nil, window: sessionWindowID
+        )
+        guard let parsed = try? JSONSerialization.jsonObject(with: Data(stateResponse.utf8)) as? [String: Any],
+              let tabs = parsed["tabs"] as? [[String: Any]] else {
+            return ("200 OK", Self.rpcError(id: id, code: -32603, message: "cannot enumerate tabs"), false)
+        }
+        var resources: [[String: Any]] = []
+        for tab in tabs {
+            let index = tab["index"] as? Int ?? 0
+            let title = tab["title"] as? String ?? "tab \(index)"
+            let url = tab["url"] as? String ?? ""
+            let label = "Tab \(index): \(title)"
+            resources.append([
+                "uri": "page://\(index)/text",
+                "name": "\(label) — text",
+                "description": "Visible text of \(url)",
+                "mimeType": "text/plain",
+            ])
+            resources.append([
+                "uri": "page://\(index)/html",
+                "name": "\(label) — html",
+                "description": "Full DOM HTML of \(url)",
+                "mimeType": "text/html",
+            ])
+            resources.append([
+                "uri": "page://\(index)/screenshot",
+                "name": "\(label) — screenshot",
+                "description": "Viewport PNG of \(url)",
+                "mimeType": "image/png",
+            ])
+        }
+        return ("200 OK", Self.rpcResult(id: id, result: ["resources": resources]), false)
+    }
+
+    private func resourcesRead(id: Any?, uri: String) async -> (status: String, body: String, isNotification: Bool) {
+        guard let url = URL(string: uri), url.scheme == "page",
+              let index = Int(url.host ?? ""),
+              url.path.count > 1 else {
+            return ("200 OK", Self.rpcError(id: id, code: -32602, message: "invalid resource URI (expected page://<tab>/<text|html|screenshot>)"), false)
+        }
+        let kind = String(url.path.dropFirst())
+        func contents(_ payload: [[String: Any]]) -> String {
+            Self.rpcResult(id: id, result: ["contents": payload])
+        }
+
+        switch kind {
+        case "text":
+            let response = await AutomationServer.shared.callEndpoint(
+                method: "GET", path: "/page/text?index=\(index)", json: nil, window: sessionWindowID
+            )
+            guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
+                  let text = parsed["text"] as? String else {
+                return ("200 OK", Self.rpcError(id: id, code: -32603, message: "cannot read text of tab \(index)"), false)
+            }
+            return ("200 OK", contents([["uri": uri, "mimeType": "text/plain", "text": text]]), false)
+
+        case "html":
+            let response = await AutomationServer.shared.callEndpoint(
+                method: "POST", path: "/execute",
+                json: ["js": "document.documentElement.outerHTML", "index": index],
+                window: sessionWindowID
+            )
+            guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
+                  let html = parsed["result"] as? String else {
+                return ("200 OK", Self.rpcError(id: id, code: -32603, message: "cannot read html of tab \(index)"), false)
+            }
+            return ("200 OK", contents([["uri": uri, "mimeType": "text/html", "text": html]]), false)
+
+        case "screenshot":
+            let response = await AutomationServer.shared.callEndpoint(
+                method: "GET", path: "/screenshot?index=\(index)&inline=1", json: nil, window: sessionWindowID
+            )
+            guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
+                  let base64 = parsed["base64"] as? String else {
+                return ("200 OK", Self.rpcError(id: id, code: -32603, message: "cannot read screenshot of tab \(index)"), false)
+            }
+            return ("200 OK", contents([["uri": uri, "mimeType": "image/png", "blob": base64]]), false)
+
+        default:
+            return ("200 OK", Self.rpcError(id: id, code: -32602, message: "unknown resource kind: \(kind)"), false)
+        }
+    }
+
+    // MARK: - MCP prompts
+
+    /// Reusable task templates. `_template` is rendered by prompts/get:
+    /// `{argument}` placeholders substitute provided values; unknown ones
+    /// resolve to "" (the surrounding sentence stays readable).
+    private static let promptCatalog: [[String: Any]] = [
+        [
+            "name": "summarize-page",
+            "description": "Summarize the current page: topic, key points, notable media.",
+            "arguments": [],
+            "_template": "Use the getPageText tool to read the current page, then write a concise summary in the user's language: the main topic, up to five key points, and any notable links, media, or download-worthy assets.",
+        ],
+        [
+            "name": "extract-data",
+            "description": "Extract structured data from the current page as JSON/CSV.",
+            "arguments": [["name": "target", "description": "What to extract, e.g. \"all product prices\"", "required": false]],
+            "_template": "Extract {target} from the current page. Try the extractTables or extractList tools first; fall back to getPageText plus careful parsing. Return clean JSON (or CSV on request) and say if the page paginates and data looks truncated.",
+        ],
+        [
+            "name": "monitor-page",
+            "description": "Set up change monitoring for the current tab.",
+            "arguments": [["name": "interval", "description": "Polling interval in minutes (default 5)", "required": false]],
+            "_template": "Set up change monitoring for the current tab with the watchPage tool, polling every {interval} minutes. Tell me what exactly will be watched (content fingerprint or selector), and how I will be notified when it changes.",
+        ],
+        [
+            "name": "download-media",
+            "description": "Find and download media from the current page.",
+            "arguments": [["name": "quality", "description": "Preferred quality, e.g. \"highest bandwidth\"", "required": false]],
+            "_template": "Find media on the current page: run listPageVideos, and listMediaVariants for HLS streams. Pick the {quality} match, download it with downloadMedia, then report the saved filename and size.",
+        ],
+    ]
+
+    private func promptsGet(id: Any?, name: String, args: [String: String]) -> (status: String, body: String, isNotification: Bool) {
+        guard let prompt = Self.promptCatalog.first(where: { $0["name"] as? String == name }),
+              let template = prompt["_template"] as? String else {
+            return ("200 OK", Self.rpcError(id: id, code: -32602, message: "unknown prompt \(name)"), false)
+        }
+        var text = template
+        for (field, value) in args {
+            text = text.replacingOccurrences(of: "{\(field)}", with: value)
+        }
+        // Unfilled optional arguments: drop the braces, keep a sane default.
+        text = text.replacingOccurrences(of: #"\{[a-zA-Z]+\}"#, with: "", options: .regularExpression)
+        let messages: [[String: Any]] = [[
+            "role": "user",
+            "content": ["type": "text", "text": text],
+        ]]
+        let description = prompt["description"] as? String ?? ""
+        return ("200 OK", Self.rpcResult(id: id, result: ["description": description, "messages": messages]), false)
     }
 
     /// Substitutes `{field}` path templates with argument values

@@ -268,7 +268,7 @@ final class AutomationServer {
         ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
-        ep("GET", "/screenshot", "PNG of selected tab → ~/desire_automation.png", example: "…/screenshot")
+        ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
         ep("POST", "/panel", "Open/close an app panel (downloads)", params: ["name:string", "show?:bool"], example: #"-d '{"name":"downloads","show":true}'"#)
         ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string"], example: "…/panel/snapshot?name=downloads")
@@ -455,7 +455,10 @@ final class AutomationServer {
             case ("POST", "/screenshot/fullpage"):
                 return try await Self.json(Self.fullPageScreenshot(index: Self.index(body)))
             case ("GET", "/screenshot"):
-                return try await Self.json(Self.screenshot())
+                return try await Self.json(Self.screenshot(
+                    index: Self.index(query),
+                    inline: query["inline"] == "1"
+                ))
             case ("GET", "/history"):
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
             case ("GET", "/spawn-test"):
@@ -988,8 +991,11 @@ final class AutomationServer {
 
     /// PNG snapshot of the selected tab's webview, written next to the
     /// project so external drivers can read it.
-    private static func screenshot() async throws -> [String: Any] {
-        guard let tab = shared.resolveIndex(nil) else { return ["error": "no such tab"] }
+    /// Viewport snapshot of any tab (default selected). `inline` returns the
+    /// PNG base64-encoded in the response (MCP resources read it directly);
+    /// otherwise the PNG lands in ~/desire_automation.png.
+    private static func screenshot(index: Int?, inline: Bool) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         let image: NSImage? = await withCheckedContinuation { continuation in
             tab.browser.webView.takeSnapshot(with: nil) { image, _ in
                 continuation.resume(returning: image)
@@ -1001,9 +1007,17 @@ final class AutomationServer {
               let png = rep.representation(using: .png, properties: [:]) else {
             return ["error": "snapshot failed"]
         }
+        let dims = ["width": rep.pixelsWide, "height": rep.pixelsHigh]
+        if inline {
+            var result: [String: Any] = ["base64": png.base64EncodedString()]
+            result.merge(dims) { _, new in new }
+            return result
+        }
         let path = NSHomeDirectory() + "/desire_automation.png"
         try png.write(to: URL(fileURLWithPath: path))
-        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+        var result: [String: Any] = ["path": path]
+        result.merge(dims) { _, new in new }
+        return result
     }
 
     private static func history(count: Int) throws -> [String: Any] {

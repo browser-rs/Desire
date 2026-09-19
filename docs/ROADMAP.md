@@ -155,7 +155,7 @@
 - Mcp-Session-Id → 窗口绑定（工具带 window 参数覆盖）。
 - tools/listChanged 通知；--mcp-token 鉴权文档化进 README。
 
-### 0.2.5 — MCP resources 与 prompts（未做）
+### 0.2.5 — MCP resources 与 prompts ✅（v0.2.12 交付）
 - page://<tab>/text|html|screenshot 作为 MCP resource；常用任务 prompt 模板。
 - 长任务进度经 SSE progress 通知。
 

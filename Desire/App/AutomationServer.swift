@@ -1189,6 +1189,7 @@ final class AutomationServer {
         case "restoreArchivedSession": command = .restoreArchivedSession
         case "viewSource": command = .viewSource
         case "stopLoading": command = .stopLoading
+        case "toggleTabOverview": command = .toggleTabOverview
         case "toggleSplitView": command = .toggleSplitView
         case "addToReadingList": command = .addToReadingList
         case "askAgentAboutPage": command = .askAgentAboutPage

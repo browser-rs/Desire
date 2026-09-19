@@ -143,16 +143,28 @@ class DownloadStore: ObservableObject {
         }
     }
 
+    /// 完成行内存上限（0.3.4）：列表是展示用历史，超限裁掉最旧的完成
+    /// 行（进行中/暂停行永不裁）。持久化不受影响。
+    private static let completedRowCap = 100
+
     @discardableResult
     func add(item: DownloadItem) -> UUID {
         let id = item.id
         downloads.insert(item, at: 0)
+        trimCompletedRows()
         syncDockBadge()
         // Single funnel for every new row (webview + URLSession paths).
         BridgeEventBus.shared.publish("downloadStarted", [
             "id": id.uuidString, "file": item.filename, "source": item.sourceURL?.absoluteString ?? "",
         ])
         return id
+    }
+
+    private func trimCompletedRows() {
+        let terminal = downloads.filter { $0.state == .completed }
+        guard terminal.count > Self.completedRowCap else { return }
+        let victims = Set(terminal.suffix(terminal.count - Self.completedRowCap).map(\.id))
+        downloads.removeAll { victims.contains($0.id) }
     }
 
     func setDestination(id: UUID, filename: String, fileURL: URL, totalBytes: Int64) {

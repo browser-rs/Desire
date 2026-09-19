@@ -19,6 +19,9 @@ class DevToolsStore: ObservableObject {
 
     /// Max retained console entries.
     private let consoleCap = 1000
+    /// 网络面板条目上限（0.3.4）：无上限时长会话里 chatter 页面能让
+    /// 数组无限增长。500 条覆盖任何合理检查窗口。
+    private let networkCap = 500
 
     enum DevPanel: String, CaseIterable {
         case console = "Console"
@@ -55,6 +58,9 @@ class DevToolsStore: ObservableObject {
         let request = NetworkRequest(url: url, method: method, resourceType: resourceType, requestHeaders: requestHeaders, requestBody: requestBody)
         pendingRequests[request.id] = request
         networkRequests.append(request)
+        if networkRequests.count > networkCap {
+            networkRequests.removeFirst(networkRequests.count - networkCap)
+        }
         return request.id
     }
 

@@ -26,27 +26,17 @@ struct TabOverviewView: View {
             let cellH = Self.baseSize.height * scale
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 44) {
-                    // 非懒加载：所有 webview 必须保持挂载（懒布局会在滚动
-                    // 时卸载 webview，页面丢失宿主）。
-                    ForEach(0 ..< rowCount, id: \.self) { row in
-                        HStack(alignment: .top, spacing: 40) {
-                            ForEach(0 ..< Self.columns, id: \.self) { col in
-                                let index = row * Self.columns + col
-                                if index < tabManager.tabs.count {
-                                    overviewCard(index: index, tab: tabManager.tabs[index],
-                                                 width: cellW, height: cellH, scale: scale)
-                                } else {
-                                    Color.clear.frame(width: cellW, height: 1)
-                                }
-                            }
-                        }
+                // 分级渲染（0.3.4）：LazyVGrid 只挂载可见行的活 webview；
+                // 滚出屏幕的瓦片自动摘除（WKWebView 对象由 Tab 持有，
+                // 摘除不销毁页面，滚回时重新挂载）。50 标签概览的常驻
+                // 活视图从 50 → 一屏 ≤9。
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(cellW), spacing: 40), count: Self.columns),
+                          spacing: 44) {
+                    ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                        overviewCard(index: index, tab: tab,
+                                     width: cellW, height: cellH, scale: scale)
                     }
-                    HStack(alignment: .top, spacing: 40) {
-                        newTabTile(width: cellW, height: cellH)
-                        Color.clear.frame(width: cellW, height: 1)
-                        Color.clear.frame(width: cellW, height: 1)
-                    }
+                    newTabTile(width: cellW, height: cellH)
                 }
                 .padding(.horizontal, 56)
                 .padding(.vertical, 48)
@@ -55,10 +45,6 @@ struct TabOverviewView: View {
         }
         .background(Color(red: 0.13, green: 0.16, blue: 0.21).onTapGesture { onClose() })
         .onExitCommand { onClose() } // Esc
-    }
-
-    private var rowCount: Int {
-        (tabManager.tabs.count + Self.columns - 1) / Self.columns
     }
 
     // MARK: - Card

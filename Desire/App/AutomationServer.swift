@@ -687,6 +687,12 @@ final class AutomationServer {
                     fileNameHint: Self.string(body, "filename"),
                     maxBandwidth: body["maxBandwidth"] as? Int
                 ))
+            case ("GET", "/profiles"):
+                return try Self.json(Self.profiles())
+            case ("POST", "/profiles/add"):
+                return try Self.json(Self.addProfile(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/profiles/remove"):
+                return try Self.json(Self.removeProfile(name: Self.string(body, "name") ?? ""))
             case ("GET", "/watches"):
                 return try Self.json(Self.listWatches())
             case ("POST", "/watches/add"):
@@ -1660,6 +1666,30 @@ final class AutomationServer {
         return ["ok": true, "started": started]
     }
 
+
+    // MARK: Profiles (0.2.9)
+
+    private static func profiles() throws -> [String: Any] {
+        let store = ProfileStore.shared
+        return ["profiles": store.profiles.map { p -> [String: Any] in
+            ["id": p.id.uuidString, "name": p.name, "color": p.colorName]
+        }]
+    }
+
+    private static func addProfile(name: String) throws -> [String: Any] {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "missing name"] }
+        let profile = ProfileStore.shared.addProfile(name: trimmed)
+        return ["ok": true, "id": profile.id.uuidString, "name": profile.name]
+    }
+
+    private static func removeProfile(name: String) throws -> [String: Any] {
+        guard let profile = ProfileStore.shared.profile(named: name) else {
+            return ["error": "no such profile"]
+        }
+        ProfileStore.shared.removeProfile(id: profile.id)
+        return ["ok": true]
+    }
 
     // MARK: Page watches
 

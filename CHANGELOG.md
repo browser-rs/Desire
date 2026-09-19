@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### 0.2.9 — Profiles v1（基础设施，进行中）
+
+### Added
+
+- **ProfileStore**：命名浏览人物（Work/Personal 等）——每个 Profile 拥有
+  独立 WKWebsiteDataStore（Cookie/会话/站点存储完全隔离）。持久化。
+- 桥 `/profiles`（list/add/remove）。
+
+## [v0.2.8] - 2026-09-19
+
 ### 0.2.8 — 媒体流水线 v2（进行中）
 
 ### Added

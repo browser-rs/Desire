@@ -1269,6 +1269,7 @@ final class AutomationServer {
         case "viewSource": command = .viewSource
         case "stopLoading": command = .stopLoading
         case "toggleTabOverview": command = .toggleTabOverview
+        case "toggleAgentPanel": command = .toggleAgentPanel
         case "toggleSplitView": command = .toggleSplitView
         case "addToReadingList": command = .addToReadingList
         case "askAgentAboutPage": command = .askAgentAboutPage

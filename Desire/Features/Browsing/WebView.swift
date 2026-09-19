@@ -196,6 +196,12 @@ class BrowserState: ObservableObject {
         PrivacyModeStore.shared.registerWebView(webView)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
+        // 白闪消除（0.3.9）：WKWebView 默认对 resize 新暴露的区域先画
+        // 白底再绘内容——面板/分屏拖动每帧 resize 即每帧白闪。关闭
+        // drawsBackground（KVC，无公开 API）后新区域透明露出底层
+        // windowBackgroundColor；underPageBackgroundColor 同步透明。
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.underPageBackgroundColor = .clear
         // Set the full Safari 26.5 UA on the WKWebView instance itself.
         // (See `applyDesktopSafariUA(to:)` for why this is on the view, not
         // the configuration.)

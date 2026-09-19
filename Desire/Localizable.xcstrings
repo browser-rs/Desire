@@ -243,6 +243,16 @@
         }
       }
     },
+    "[%lld] %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "[%1$lld] %2$@: %3$@"
+          }
+        }
+      }
+    },
     "#%@" : {
       "localizations" : {
         "en" : {
@@ -330,6 +340,9 @@
           }
         }
       }
+    },
+    "%@ (popup)" : {
+
     },
     "%@ is available" : {
       "localizations" : {
@@ -1114,6 +1127,9 @@
         }
       }
     },
+    "✓ Default" : {
+
+    },
     "1 Hour" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1274,6 +1290,9 @@
           }
         }
       }
+    },
+    "A" : {
+
     },
     "A model pulled on the server (llama3.2, qwen2.5, …)." : {
       "localizations" : {
@@ -2202,6 +2221,9 @@
           }
         }
       }
+    },
+    "An AI-native browser: the app itself is an execution environment for agents — a localhost automation bridge, an MCP server, and a built-in Agent with 20+ tools." : {
+
     },
     "API Permissions:" : {
       "localizations" : {
@@ -4251,6 +4273,9 @@
         }
       }
     },
+    "Configure Agent in Settings…" : {
+
+    },
     "Connection lost" : {
       "localizations" : {
         "en" : {
@@ -4387,6 +4412,9 @@
           }
         }
       }
+    },
+    "Continue" : {
+
     },
     "Continue Anyway" : {
       "comment" : "Certificate alert continue button",
@@ -5224,6 +5252,9 @@
         }
       }
     },
+    "Default" : {
+
+    },
     "Default Browser" : {
       "localizations" : {
         "en" : {
@@ -5632,6 +5663,9 @@
           }
         }
       }
+    },
+    "Desire is your default browser — links open here." : {
+
     },
     "Desire is your default browser." : {
       "localizations" : {
@@ -6588,6 +6622,9 @@
           }
         }
       }
+    },
+    "EVIDENCE" : {
+
     },
     "Exclude Patterns (one per line)" : {
       "comment" : "Plugin editor exclude patterns label",
@@ -7730,6 +7767,9 @@
         }
       }
     },
+    "Get Started" : {
+
+    },
     "Go Back" : {
       "comment" : "Keyboard shortcut",
       "extractionState" : "stale",
@@ -7777,6 +7817,12 @@
           }
         }
       }
+    },
+    "Got It" : {
+
+    },
+    "Grab the code from your password manager or messages, then paste it here." : {
+
     },
     "Green" : {
       "comment" : "Screenshot palette color: green",
@@ -8000,6 +8046,9 @@
           }
         }
       }
+    },
+    "Highlight" : {
+
     },
     "History" : {
       "comment" : "History panel title",
@@ -8623,6 +8672,9 @@
         }
       }
     },
+    "Installing…" : {
+
+    },
     "Invalid Certificate" : {
       "comment" : "Certificate alert title",
       "localizations" : {
@@ -8897,6 +8949,9 @@
         }
       }
     },
+    "Links from other apps will open in Desire." : {
+
+    },
     "Loading translator…" : {
       "localizations" : {
         "en" : {
@@ -8986,6 +9041,9 @@
         }
       }
     },
+    "Loose" : {
+
+    },
     "Low Priority" : {
       "localizations" : {
         "en" : {
@@ -9029,6 +9087,9 @@
           }
         }
       }
+    },
+    "Make Desire Your Default Browser" : {
+
     },
     "Manage" : {
       "localizations" : {
@@ -9279,6 +9340,9 @@
           }
         }
       }
+    },
+    "Meet Your Agent" : {
+
     },
     "Memory" : {
       "extractionState" : "stale",
@@ -10709,6 +10773,9 @@
         }
       }
     },
+    "Normal" : {
+
+    },
     "Normal Priority" : {
       "localizations" : {
         "en" : {
@@ -11318,6 +11385,9 @@
           }
         }
       }
+    },
+    "Open the agent panel (⌘') and ask it to browse, extract, monitor, or download for you. Configure a cloud model or use on-device models in Settings ▸ Agent." : {
+
     },
     "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
       "localizations" : {
@@ -12177,6 +12247,9 @@
         }
       }
     },
+    "Profile" : {
+
+    },
     "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」." : {
       "localizations" : {
         "en" : {
@@ -12692,6 +12765,9 @@
           }
         }
       }
+    },
+    "Relaunching…" : {
+
     },
     "Release Notes" : {
 
@@ -13326,6 +13402,9 @@
           }
         }
       }
+    },
+    "Restored session after an unexpected quit" : {
+
     },
     "RESULT" : {
       "localizations" : {
@@ -14991,6 +15070,9 @@
         }
       }
     },
+    "Set as Default Browser…" : {
+
+    },
     "Set as Default…" : {
       "localizations" : {
         "en" : {
@@ -15422,6 +15504,9 @@
           }
         }
       }
+    },
+    "Skip" : {
+
     },
     "Small" : {
       "comment" : "Screenshot font size: small",
@@ -16684,6 +16769,9 @@
         }
       }
     },
+    "Tight" : {
+
+    },
     "TikTok" : {
       "localizations" : {
         "en" : {
@@ -17247,6 +17335,9 @@
         }
       }
     },
+    "Update & Relaunch" : {
+
+    },
     "Update Password for %@?" : {
       "localizations" : {
         "en" : {
@@ -17493,6 +17584,9 @@
         }
       }
     },
+    "Verification Code Field Detected" : {
+
+    },
     "Version" : {
       "comment" : "Plugin version field label",
       "localizations" : {
@@ -17680,6 +17774,9 @@
           }
         }
       }
+    },
+    "Welcome to Desire" : {
+
     },
     "What the agent knows about the page you're on." : {
       "localizations" : {

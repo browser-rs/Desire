@@ -44,51 +44,6 @@ struct SelectedTabContent: View {
     /// 分屏右栏宽度（0.2.15）——随窗口布局持久性同 devToolsWidth，仅会话内有效。
     @State private var splitPaneWidth: CGFloat = 420
 
-    // MARK: 拖动期快照接管（0.3.9，彻底治抖动）
-    //
-    // 根因：WKWebView 是进程外合成，拖动中连续改 frame 每帧都要跨进程
-    // 重排 → 白闪/抖动（分屏、Agent 侧栏同病——拖 Agent 分隔条时变形
-    // 的是左侧主 webview）。方案 = Chrome 的 resize 策略：拖动开始时给
-    // 受影响的 webview 各截一张快照，拖动期间布局里摆的是**可拉伸的
-    // 静态图**（视觉实时跟随光标，无任何 WebKit 重排），松手时换回真
-    // webview、只做一次重排。截图是异步的（约一帧），期间冻结宽度。
-    @State private var panelResizeSnapshots: (main: NSImage, partner: NSImage?)?
-    @State private var resizeWidthFollowsDrag = false
-    /// 代数令牌：快速"按下→松开"时迟到快照回调不得重新进入快照态。
-    @State private var resizeGeneration = 0
-
-    private func beginPanelResize() {
-        guard panelResizeSnapshots == nil else { return }
-        resizeGeneration += 1
-        let generation = resizeGeneration
-        let partnerWebView = content.tabManager.splitPartner?.browser.webView
-        let group = DispatchGroup()
-        var mainImg: NSImage?
-        var partnerImg: NSImage?
-        group.enter()
-        tab.browser.webView.takeSnapshot(with: nil) { img, _ in
-            mainImg = img
-            group.leave()
-        }
-        if let partnerWebView {
-            group.enter()
-            partnerWebView.takeSnapshot(with: nil) { img, _ in
-                partnerImg = img
-                group.leave()
-            }
-        }
-        group.notify(queue: .main) { [self] in
-            guard generation == resizeGeneration else { return }
-            panelResizeSnapshots = (mainImg ?? NSImage(), partnerImg)
-            withAnimation(nil) { resizeWidthFollowsDrag = true }
-        }
-    }
-
-    private func endPanelResize() {
-        resizeGeneration += 1
-        resizeWidthFollowsDrag = false
-        panelResizeSnapshots = nil
-    }
     var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geo in
@@ -114,10 +69,6 @@ struct SelectedTabContent: View {
             content.noticeBars(for: tab)
 
             HStack(spacing: 0) {
-                if showAgentPanel {
-                    WorkbenchGrid()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
                 if showSidebar {
                     SidebarView(
                         bookmarkStore: content.bookmarkStore,
@@ -180,16 +131,6 @@ struct SelectedTabContent: View {
                             // 标签概览正挂载本标签的 webview——同一 NSView
                             // 不能双宿主，主区让位（概览关闭后自动还原）。
                             Color.clear
-                        } else if let mainSnap = panelResizeSnapshots?.main {
-                            // 拖动期：静态快照填满（无 WebKit 重排）。
-                            GeometryReader { geo in
-                                Image(nsImage: mainSnap)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .clipped()
-                                    .background(Color(nsColor: .windowBackgroundColor))
-                            }
                         } else {
                             GeometryReader { geo in
                                 let effectiveSize = tab.responsiveConfig.effectiveSize
@@ -337,14 +278,10 @@ struct SelectedTabContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let partner = content.tabManager.splitPartner, partner.id != tab.id {
-                    // 分屏浏览（0.2.15）：拖动走快照接管（见
-                    // beginPanelResize 注释）——拖动期页面零重排。
-                    PanelResizeDivider(width: $splitPaneWidth, range: 220...1400,
-                                       dragStarted: { beginPanelResize() },
-                                       mayUpdateWidth: { resizeWidthFollowsDrag },
-                                       dragEnded: { endPanelResize() })
-                    SplitPartnerPane(partner: partner, content: content,
-                                     snapshot: panelResizeSnapshots?.partner)
+                    // 分屏浏览（0.2.15）：实时跟随（白闪由
+                    // drawsBackground=false 消除，见 BrowserWKWebView）。
+                    ResizableDivider(width: $splitPaneWidth, range: 220...1400)
+                    SplitPartnerPane(partner: partner, content: content)
                         .frame(width: splitPaneWidth)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
@@ -355,10 +292,7 @@ struct SelectedTabContent: View {
                 }
 
                 if showAgentPanel {
-                    PanelResizeDivider(width: $agentPanelWidth, range: 260...1200,
-                                       dragStarted: { beginPanelResize() },
-                                       mayUpdateWidth: { resizeWidthFollowsDrag },
-                                       dragEnded: { endPanelResize() })
+                    ResizableDivider(width: $agentPanelWidth, range: 260...1200)
                     AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
                         .frame(width: agentPanelWidth)
                         // Opening the assistant resumes the most recent
@@ -375,10 +309,7 @@ struct SelectedTabContent: View {
                 }
 
                 if showDevToolsPanel {
-                    PanelResizeDivider(width: $devToolsWidth, range: 300...1400,
-                                       dragStarted: { beginPanelResize() },
-                                       mayUpdateWidth: { resizeWidthFollowsDrag },
-                                       dragEnded: { endPanelResize() })
+                    ResizableDivider(width: $devToolsWidth, range: 300...1400)
                     DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
                         tab.browser.isPickingElement = true
                         tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
@@ -408,61 +339,6 @@ struct SelectedTabContent: View {
 
 
 
-/// 面板分隔条（0.3.9 统一版）：分屏 / Agent / DevTools 共用。
-/// 手势语义与 ResizableDivider 相同（基线宽度 + 累计 translation），
-/// 差异：宽度只在 `mayUpdateWidth()` 为真时更新——面板内容在等快照
-/// 接管（异步截屏约一帧）期间布局冻结，杜绝任何 WebKit 重排。
-/// `dragStarted` 触发快照捕获，`dragEnded` 交回真视图。
-private struct PanelResizeDivider: View {
-    @Binding var width: CGFloat
-    let range: ClosedRange<CGFloat>
-    let dragStarted: () -> Void
-    let mayUpdateWidth: () -> Bool
-    let dragEnded: () -> Void
-
-    @State private var isHovering = false
-    @State private var isDragging = false
-    @State private var dragStartWidth: CGFloat?
-
-    var body: some View {
-        Rectangle()
-            .fill(isDragging || isHovering ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.22))
-            .frame(width: 5)
-            .contentShape(Rectangle().inset(by: -3))
-            .onHover { hovering in
-                isHovering = hovering
-                if hovering {
-                    NSCursor.resizeLeftRight.push()
-                } else if !isDragging {
-                    NSCursor.pop()
-                }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1)
-                    .onChanged { value in
-                        if !isDragging {
-                            isDragging = true
-                            dragStarted()
-                        }
-                        guard mayUpdateWidth() else { return }
-                        if dragStartWidth == nil { dragStartWidth = width }
-                        width = (dragStartWidth! - value.translation.width)
-                            .clamped(to: range)
-                    }
-                    .onEnded { value in
-                        guard isDragging else { return }
-                        if mayUpdateWidth() {
-                            width = ((dragStartWidth ?? width) - value.translation.width)
-                                .clamped(to: range)
-                        }
-                        dragStartWidth = nil
-                        isDragging = false
-                        dragEnded()
-                    }
-            )
-    }
-}
-
 /// 分屏右栏（0.2.15）：并排显示的第二个标签的活动 webview。顶部一条
 /// 迷你标题（标签标题 + 退出分屏）让右栏看起来是个成型的面板而不是
 /// 裸贴的第二个网页。工具栏/查找条/阅读模式/响应式模式是选中标签专属
@@ -471,8 +347,6 @@ private struct PanelResizeDivider: View {
 private struct SplitPartnerPane: View {
     @ObservedObject var partner: Tab
     let content: ContentView
-    /// 拖动期快照（0.3.9）：非 nil 时替代活 webview（无重排）。
-    var snapshot: NSImage?
 
     var body: some View {
         VStack(spacing: 0) {

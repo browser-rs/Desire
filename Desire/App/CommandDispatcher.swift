@@ -47,6 +47,7 @@ struct CommandDispatcher {
         var showReadingList: Binding<Bool>
         var showCommandPalette: Binding<Bool>
         var showAgentPanel: Binding<Bool>
+        var showTabOverview: Binding<Bool>
     }
 
     struct Actions {
@@ -306,6 +307,9 @@ struct CommandDispatcher {
 
         case .askAgentAboutPage:
             actions.askAgentAboutPage()
+
+        case .toggleTabOverview:
+            bindings.showTabOverview.wrappedValue.toggle()
 
         case .goBack:
             if let tab = tabManager.selectedTab { tab.browser.webView.goBack() }

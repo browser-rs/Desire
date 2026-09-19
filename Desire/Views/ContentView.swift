@@ -123,7 +123,8 @@ struct ContentView: View {
                 ),
                 showReadingList: $showReadingList,
                 showCommandPalette: $showCommandPalette,
-                showAgentPanel: $showAgentPanel
+                showAgentPanel: $showAgentPanel,
+                showTabOverview: $showTabOverview
             ),
             actions: .init(
                 newWindow: {
@@ -164,6 +165,8 @@ struct ContentView: View {
     @State var showExtensions = false
     @State var showReadingList = false
     @State var showTabSwitcher = false
+    /// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式缩略图网格。
+    @State var showTabOverview = false
     @State var showSidebar = false
     @State var showElementBlock = false
     @State var showSearchHistory = false
@@ -385,6 +388,29 @@ struct ContentView: View {
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
         .overlay(alignment: .bottom) { translateBarOverlay }
+        .overlay {
+            if showTabOverview {
+                TabOverviewView(
+                    tabManager: tabManager,
+                    thumbnailStore: thumbnailStore,
+                    onSelectTab: { index in
+                        isUrlFocused = false
+                        tabManager.selectTab(at: index)
+                    },
+                    onCloseTab: { index in
+                        guard tabManager.tabs.indices.contains(index) else { return }
+                        let id = tabManager.tabs[index].id
+                        thumbnailStore.clearThumbnail(for: id)
+                        tabManager.closeTab(at: index)
+                    },
+                    onAddTab: {
+                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
+                    },
+                    onClose: { showTabOverview = false }
+                )
+                .transition(.opacity)
+            }
+        }
     }
 
     // MARK: - Actions

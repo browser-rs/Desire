@@ -51,6 +51,8 @@ struct TabBar: View {
     /// 分屏浏览（0.2.15）：右栏标签的下标（nil = 未分屏）+ 切换动作。
     var splitPartnerIndex: Int? = nil
     var onToggleSplit: ((Int) -> Void)? = nil
+    /// 全窗口标签概览（0.2.19，Safari ⇧⌘\ 式网格）。
+    var onShowTabOverview: (() -> Void)? = nil
     /// 拖动开始（用于拖出监视：拖出窗口边界 → 撕出为新窗口）。
     let onDragStarted: (Tab) -> Void
     /// 跨窗口拖入：把别的窗口拖来的标签并入本条。（条级落点/条上落点）
@@ -262,16 +264,16 @@ struct TabBar: View {
             }
 
             Button {
-                showSwitcher = true
+                onShowTabOverview?()
             } label: {
                 Image(systemName: "square.on.square")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(showSwitcher ? Color.accentColor : .primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Tab Overview (⌘\\)")
+            .help("Tab Overview (⇧⌘\\)")
         }
         .padding(.leading, isFullScreen ? 12 : 76)
         .padding(.trailing, 8)

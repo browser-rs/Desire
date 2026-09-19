@@ -100,8 +100,10 @@ struct AppCommands: Commands {
                 postCommand(.toggleBookmarksBar)
             }
             .keyboardShortcut(binding("toggleBookmarksBar", "b", [.command, .shift]))
+            Button("Tab Overview") { postCommand(.toggleTabOverview) }
+                .keyboardShortcut(binding("tabOverview", "\\", [.command, .shift]))
             Button("Split View") { postCommand(.toggleSplitView) }
-                .keyboardShortcut(binding("toggleSplitView", "\\", [.command, .shift]))
+                .keyboardShortcut(binding("toggleSplitView", "\\", [.option, .command]))
             Button("Reading List") { postCommand(.showReadingList) }
                 .keyboardShortcut(binding("showReadingList", "r", [.control, .command]))
             Button("Enter Full Screen") { postCommand(.toggleFullScreen) }

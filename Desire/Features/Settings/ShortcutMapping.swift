@@ -65,7 +65,9 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "toggleSidebar", commandName: "Toggle Sidebar", keyEquivalent: "b", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
             // ⇧⌘B 是浏览器通用的书签栏开关（0.2.13 进菜单）；侧栏让位到 ⌃⌘B。
             ShortcutMapping(id: "toggleBookmarksBar", commandName: "Toggle Bookmarks Bar", keyEquivalent: "b", modifierFlags: cmd | shift, isCustomized: false, category: .view),
-            ShortcutMapping(id: "toggleSplitView", commandName: "Split View", keyEquivalent: "\\", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            // ⇧⌘\ 是 Safari 标签概览的肌肉记忆键——给概览，分屏让位 ⌥⌘\。
+            ShortcutMapping(id: "tabOverview", commandName: "Tab Overview", keyEquivalent: "\\", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            ShortcutMapping(id: "toggleSplitView", commandName: "Split View", keyEquivalent: "\\", modifierFlags: opt | cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "toggleFullScreen", commandName: "Toggle Full Screen", keyEquivalent: "f", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "responsiveMode", commandName: "Responsive Design Mode", keyEquivalent: "m", modifierFlags: cmd | shift, isCustomized: false, category: .view),
             ShortcutMapping(id: "toggleDevTools", commandName: "Developer Tools", keyEquivalent: "i", modifierFlags: opt | cmd, isCustomized: false, category: .view),

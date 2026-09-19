@@ -126,6 +126,9 @@ extension ContentView {
             onToggleSplit: { index in
                 tabManager.toggleSplitPartner(at: index)
             },
+            onShowTabOverview: {
+                showTabOverview = true
+            },
             onDragStarted: { tab in beginTearOutWatch(for: tab) },
             onTransferIn: { sourceSession, tabID, index in
                 transferIn(fromSession: sourceSession, tabID: tabID, index: index)

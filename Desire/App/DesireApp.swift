@@ -129,6 +129,7 @@ enum BrowserCommand {
     case openLocation, openFile, closeWindow
     case findNext, findPrevious, addToReadingList, askAgentAboutPage
     case goBack, goForward
+    case toggleTabOverview
     // 菜单补全三批：停止加载/查看源代码/动态菜单导航/容器标签。
     case stopLoading, viewSource
     case openURL(String)

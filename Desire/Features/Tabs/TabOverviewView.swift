@@ -1,139 +1,169 @@
 import SwiftUI
 import WebKit
 
-/// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式的缩略图网格——当前窗口的
-/// 所有标签铺成卡片，点击切换、悬停可关、末尾 "+" 新建，Esc/点击背景
-/// 退出。缩略图由 TabThumbnailStore 提供（卡片出现时惰性捕获）。
+/// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式。瓦片不是截图——直接挂载
+/// 每个标签**存活的 WKWebView 本体**（固定基准尺寸 + scaleEffect 缩小，
+/// 页面不重排，即迷你窗口效果），点击瓦片切换、悬停可关、末尾 "+"
+/// 新建。概览打开期间主内容区给选中标签让位（同一 NSView 不能双宿主，
+/// 见 SelectedTabContent 的占位分支）。
 struct TabOverviewView: View {
     @ObservedObject var tabManager: TabManager
-    @ObservedObject var thumbnailStore: TabThumbnailStore
+    /// 与 SelectedTabContent 同款：引用 ContentView 以复用 makeWebView。
+    let content: ContentView
     let onSelectTab: (Int) -> Void
     let onCloseTab: (Int) -> Void
     let onAddTab: () -> Void
     let onClose: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 300, maximum: 420), spacing: 36)]
+    /// 瓦片内 webview 的基准布局尺寸（页面按此宽度渲染，再整体缩小）。
+    private static let baseSize = CGSize(width: 1280, height: 800)
+    private static let columns = 3
 
     var body: some View {
-        ZStack {
-            // 暗色背景：点背景 = 退出概览。
-            Color.black.opacity(0.62)
-                .contentShape(Rectangle())
-                .onTapGesture { onClose() }
+        GeometryReader { geo in
+            let cellW = max(280, (geo.size.width - 2 * 56 - CGFloat(Self.columns - 1) * 40) / CGFloat(Self.columns))
+            let scale = cellW / Self.baseSize.width
+            let cellH = Self.baseSize.height * scale
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 40) {
-                    ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                        overviewCard(index: index, tab: tab)
+                VStack(alignment: .leading, spacing: 44) {
+                    // 非懒加载：所有 webview 必须保持挂载（懒布局会在滚动
+                    // 时卸载 webview，页面丢失宿主）。
+                    ForEach(0 ..< rowCount, id: \.self) { row in
+                        HStack(alignment: .top, spacing: 40) {
+                            ForEach(0 ..< Self.columns, id: \.self) { col in
+                                let index = row * Self.columns + col
+                                if index < tabManager.tabs.count {
+                                    overviewCard(index: index, tab: tabManager.tabs[index],
+                                                 width: cellW, height: cellH, scale: scale)
+                                } else {
+                                    Color.clear.frame(width: cellW, height: 1)
+                                }
+                            }
+                        }
                     }
-                    newTabTile
+                    HStack(alignment: .top, spacing: 40) {
+                        newTabTile(width: cellW, height: cellH)
+                        Color.clear.frame(width: cellW, height: 1)
+                        Color.clear.frame(width: cellW, height: 1)
+                    }
                 }
-                .padding(.horizontal, 64)
-                .padding(.vertical, 72)
+                .padding(.horizontal, 56)
+                .padding(.vertical, 48)
+                .frame(maxWidth: .infinity)
             }
         }
+        .background(Color(red: 0.13, green: 0.16, blue: 0.21).onTapGesture { onClose() })
         .onExitCommand { onClose() } // Esc
+    }
+
+    private var rowCount: Int {
+        (tabManager.tabs.count + Self.columns - 1) / Self.columns
     }
 
     // MARK: - Card
 
-    @ViewBuilder
-    private func overviewCard(index: Int, tab: Tab) -> some View {
-        let isSelected = index == tabManager.selectedIndex
-        VStack(spacing: 10) {
-            ZStack(alignment: .topTrailing) {
-                thumbnailArea(tab)
-                    .frame(height: 190)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                // 悬停显示关闭按钮。
-                Button {
-                    onCloseTab(index)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 20, height: 20)
-                        .background(Circle().fill(Color.black.opacity(0.55)))
-                }
-                .buttonStyle(.plain)
-                .opacity(hoverStates[tab.id] == true ? 1 : 0)
-                .help("Close Tab")
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.12),
-                            lineWidth: isSelected ? 2.5 : 1)
-            )
-
-            HStack(spacing: 6) {
-                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
-                Text(tab.displayTitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.white.opacity(0.85)))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelectTab(index)
-            onClose()
-        }
-        .onHover { hovering in
-            hoverStates[tab.id] = hovering
-        }
-        .onAppear {
-            // 缩略图缺失（或已过期）→ 惰性捕获；懒加载网格保证只截
-            // 可见卡片。
-            if thumbnailStore.thumbnail(for: tab.id) == nil {
-                thumbnailStore.captureThumbnail(for: tab)
-            }
-        }
-    }
-
     @State private var hoverStates: [UUID: Bool] = [:]
 
     @ViewBuilder
-    private func thumbnailArea(_ tab: Tab) -> some View {
-        if let image = thumbnailStore.thumbnail(for: tab.id) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            // 无缩略图（新标签/加载中/未捕获）：渐变占位 + 标题。
-            ZStack {
-                LinearGradient(
-                    colors: [Color.accentColor.opacity(0.22), Color.secondary.opacity(0.18)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                VStack(spacing: 8) {
-                    Image(systemName: tab.isOnNewTabPage ? "plus.square.dashed" : "globe")
-                        .font(.system(size: 30))
-                        .foregroundStyle(.white.opacity(0.75))
-                    Text(tab.displayTitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(1)
-                        .padding(.horizontal, 12)
+    private func overviewCard(index: Int, tab: Tab, width: CGFloat, height: CGFloat, scale: CGFloat) -> some View {
+        let isSelected = index == tabManager.selectedIndex
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                // 活的 webview 本体：基准尺寸渲染 + 缩小（不重排）。
+                // 禁点击——瓦片点击语义是"切换标签"，不是操作页面。
+                tileContent(tab)
+                    .frame(width: Self.baseSize.width, height: Self.baseSize.height)
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .allowsHitTesting(false)
+                    .frame(width: width, height: height, alignment: .topLeading)
+                    .clipped()
+
+                // 顶部条：✕ 居左，favicon + 标题居中（Safari 布局）。
+                HStack(spacing: 8) {
+                    Button {
+                        onCloseTab(index)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Color.black.opacity(0.45)))
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(hoverStates[tab.id] == true ? 1 : 0)
+                    .help("Close Tab")
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: 5) {
+                        FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 12)
+                        Text(tab.displayTitle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Color.clear.frame(width: 18, height: 18) // 平衡左侧，标题居中
                 }
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
             }
+            .frame(height: height, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.14),
+                            lineWidth: isSelected ? 3 : 1)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onSelectTab(index)
+                onClose()
+            }
+            .onHover { hovering in hoverStates[tab.id] = hovering }
         }
     }
 
-    private var newTabTile: some View {
+    /// 瓦片内容：非新标签页挂活 webview；新标签/挂起页给占位（它们的
+    /// webview 是空白的，展示无意义）。
+    @ViewBuilder
+    private func tileContent(_ tab: Tab) -> some View {
+        if tab.isOnNewTabPage || tab.isSuspended {
+            ZStack {
+                LinearGradient(
+                    colors: [Color.accentColor.opacity(0.20), Color.secondary.opacity(0.15)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                VStack(spacing: 10) {
+                    Image(systemName: tab.isOnNewTabPage ? "plus.square.dashed" : "moon.zzz")
+                        .font(.system(size: 34))
+                        .foregroundStyle(.white.opacity(0.7))
+                    Text(tab.displayTitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+        } else {
+            content.makeWebView(for: tab)
+        }
+    }
+
+    private func newTabTile(width: CGFloat, height: CGFloat) -> some View {
         Button {
             onAddTab()
             onClose()
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
+                    .fill(Color.white.opacity(0.09))
                 Image(systemName: "plus")
-                    .font(.system(size: 42, weight: .light))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(.white.opacity(0.7))
             }
-            .frame(height: 190)
+            .frame(width: width, height: height)
         }
         .buttonStyle(.plain)
         .help("New Tab")

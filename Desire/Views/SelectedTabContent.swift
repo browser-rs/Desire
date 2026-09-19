@@ -130,6 +130,10 @@ struct SelectedTabContent: View {
                             ), onNavigate: { input in
                                 actions.navigateToURL(input, for: tab)
                             }, suggestionModel: content.newTabSuggestionModel, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
+                        } else if content.showTabOverview {
+                            // 标签概览正挂载本标签的 webview——同一 NSView
+                            // 不能双宿主，主区让位（概览关闭后自动还原）。
+                            Color.clear
                         } else {
                             GeometryReader { geo in
                                 let effectiveSize = tab.responsiveConfig.effectiveSize

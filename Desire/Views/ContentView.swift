@@ -216,6 +216,28 @@ struct ContentView: View {
                         showAgentPanel = true
                     }
                 )
+                .overlay {
+                    // 标签概览（0.2.19）：盖住内容区，工具栏保持可见。
+                    if showTabOverview {
+                        TabOverviewView(
+                            tabManager: tabManager,
+                            content: self,
+                            onSelectTab: { index in
+                                isUrlFocused = false
+                                tabManager.selectTab(at: index)
+                            },
+                            onCloseTab: { index in
+                                tabManager.closeTab(at: index)
+                            },
+                            onAddTab: {
+                                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
+                            },
+                            onClose: { showTabOverview = false }
+                        )
+                        .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: showTabOverview)
             }
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
@@ -388,29 +410,6 @@ struct ContentView: View {
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
         .overlay(alignment: .bottom) { translateBarOverlay }
-        .overlay {
-            if showTabOverview {
-                TabOverviewView(
-                    tabManager: tabManager,
-                    thumbnailStore: thumbnailStore,
-                    onSelectTab: { index in
-                        isUrlFocused = false
-                        tabManager.selectTab(at: index)
-                    },
-                    onCloseTab: { index in
-                        guard tabManager.tabs.indices.contains(index) else { return }
-                        let id = tabManager.tabs[index].id
-                        thumbnailStore.clearThumbnail(for: id)
-                        tabManager.closeTab(at: index)
-                    },
-                    onAddTab: {
-                        tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
-                    },
-                    onClose: { showTabOverview = false }
-                )
-                .transition(.opacity)
-            }
-        }
     }
 
     // MARK: - Actions

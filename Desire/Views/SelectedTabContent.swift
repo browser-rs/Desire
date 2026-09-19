@@ -6,26 +6,97 @@ import WebKit
 
 // MARK: - SelectedTabContent
 
-/// 0.3.9 终版：三个尾侧面板（分屏右栏 / Agent / DevTools）全部改用
-/// **系统 `.inspector`**——底层 NSSplitView，分隔条与拖拽由系统提供
-/// （Safari/Finder 同款），彻底删除自研分隔条/快照/冻结机制。六轮自研
-/// 拖拽失败的教训：不要自己写 webview 拖拽，用系统的。
+/// Renders everything that must live-update with the selected tab's per-page
+/// state (estimatedProgress, isLoading, reader mode, error overlay, responsive
+/// config, hovered link, ...).
+///
+/// Split out of `ContentView.body` so that `Tab.browser.objectWillChange` —
+/// which fires on every progress tick, hover, and load-state flip — only
+/// re-evaluates *this* view, not the whole `ContentView` (which owns the tab
+/// strip, sheets, toasts, and keyboard-shortcut overlays). `Tab` is observed
+/// directly here via `@ObservedObject`. Before this split, `TabManager`
+/// forwarded every tab's `objectWillChange` up to itself, invalidating the
+/// entire app UI on each tick.
+///
+/// Reads `ContentView`'s stores and state through the `content` reference
+/// (those members are internal for that reason) and the browsing-actions
+/// coordinator through `actions`.
 struct SelectedTabContent: View {
     @ObservedObject var tab: Tab
     let content: ContentView
+    /// Direct reference to the browsing-actions coordinator so closures
+    /// inside this view call the real object (not a stale struct copy of
+    /// ContentView whose @StateObject may not be managed by SwiftUI here).
     let actions: BrowsingActions
+    /// Panel-visibility flags passed explicitly (not read through `content`)
+    /// so SwiftUI correctly re-renders this view when they change.
     let showSidebar: Bool
     @Binding var showAgentPanel: Bool
-    @Binding var showDevToolsPanel: Bool
+    let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
+    /// Sends an AI prompt (and opens the panel) from the selection bar.
     let onAskAI: (String) -> Void
+    /// Draggable panel widths (persisted per-session, not across launches).
+    @State private var devToolsWidth: CGFloat = 420
+    @State private var agentPanelWidth: CGFloat = 320
 
-    /// 分屏右栏显隐（绑定到 splitPartnerID 有无）。
-    private var splitBinding: Binding<Bool> {
-        Binding(
-            get: { content.tabManager.splitPartner != nil },
-            set: { if !$0 { content.tabManager.setSplitPartner(at: nil) } }
-        )
+    @State private var inspectorWidth: CGFloat = 220
+    /// 分屏右栏宽度（0.2.15）——随窗口布局持久性同 devToolsWidth，仅会话内有效。
+    @State private var splitPaneWidth: CGFloat = 420
+
+    // MARK: 拖动冻结 + 平台级快照层（0.3.9 终版）
+    //
+    // 五轮失败复盘（详见 memory/macos26-webkit-constraints）：
+    //  ③分支换快照 → 共享 webview 摘挂/重挂 = 拖起/松手两次白闪；
+    //  ④SwiftUI .overlay 遮罩 → 被后面的平台视图（webview）盖住，
+    //    遮罩从未可见，webview 仍逐帧 resize 逐帧闪（本项目实测坑）；
+    //  ⑤drawsBackground=false → 只灭了 AppKit 白底，页面自身背景
+    //    仍逐帧异步重画 = 依旧闪。
+    // 结论：唯一出路 = 拖动期【冻结真 webview 的 frame】（零 setFrame
+    // = 零 WebKit 重排），视觉实时跟随由快照层承担——且快照层必须是
+    // 平台视图（NSView + layer.contents），声明在 webview 之后，按
+    // 平台视图 z 序规则必然盖在其上（SwiftUI Image 做不到）。
+    @State private var dragActive = false
+    @State private var dragGeneration = 0
+    @State private var frozenMainWidth: CGFloat?
+    @State private var frozenPartnerWidth: CGFloat?
+    @State private var snapshotMain: NSImage?
+    @State private var snapshotPartner: NSImage?
+    /// 主栏当前实际宽（GeometryReader 持续回写；拖起时取作冻结值）。
+    @State private var liveMainWidth: CGFloat = 0
+
+    private func beginPaneDrag() {
+        guard !dragActive else { return }
+        dragActive = true
+        frozenMainWidth = liveMainWidth > 0 ? liveMainWidth : nil
+        frozenPartnerWidth = splitPaneWidth
+        dragGeneration += 1
+        let gen = dragGeneration
+        let mainWV = tab.browser.webView
+        let partnerWV = content.tabManager.splitPartner?.browser.webView
+        mainWV.takeSnapshot(with: nil) { [self] img, _ in
+            Task { @MainActor in
+                guard gen == dragGeneration, dragActive else { return }
+                snapshotMain = img
+            }
+        }
+        if let partnerWV {
+            partnerWV.takeSnapshot(with: nil) { [self] img, _ in
+                Task { @MainActor in
+                    guard gen == dragGeneration, dragActive else { return }
+                    snapshotPartner = img
+                }
+            }
+        }
+    }
+
+    private func endPaneDrag() {
+        dragGeneration += 1
+        dragActive = false
+        snapshotMain = nil
+        snapshotPartner = nil
+        frozenMainWidth = nil
+        frozenPartnerWidth = nil
     }
 
     var body: some View {
@@ -45,6 +116,9 @@ struct SelectedTabContent: View {
             .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
             .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
+            // Toolbar spans full width above the content area (matches
+            // original ContentView.body layout before SelectedTabContent
+            // extraction).
             content.toolbarSection(for: tab)
             content.bookmarksBarSection(for: tab)
             content.noticeBars(for: tab)
@@ -68,6 +142,7 @@ struct SelectedTabContent: View {
                             onScreenshot: { actions.captureResponsiveScreenshot(for: tab) },
                             mediaQueries: content.mediaQueries
                         )
+
                         ResponsiveMQBar(viewportWidth: tab.responsiveConfig.effectiveSize.width) { newWidth in
                             tab.responsiveConfig.selectedPresetID = nil
                             tab.responsiveConfig.customWidth = Int(newWidth)
@@ -87,6 +162,7 @@ struct SelectedTabContent: View {
                         )
                     }
 
+                    ZStack(alignment: .topLeading) {
                     Group {
                         if tab.browser.isReadingMode {
                             ReaderView(
@@ -107,6 +183,10 @@ struct SelectedTabContent: View {
                             ), onNavigate: { input in
                                 actions.navigateToURL(input, for: tab)
                             }, suggestionModel: content.newTabSuggestionModel, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
+                        } else if content.showTabOverview {
+                            // 标签概览正挂载本标签的 webview——同一 NSView
+                            // 不能双宿主，主区让位（概览关闭后自动还原）。
+                            Color.clear
                         } else {
                             GeometryReader { geo in
                                 let effectiveSize = tab.responsiveConfig.effectiveSize
@@ -114,6 +194,7 @@ struct SelectedTabContent: View {
                                 let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
                                 content.makeWebView(for: tab)
                                     .overlay(alignment: .topLeading) {
+                                        // AI bar next to the user's text selection.
                                         if let selection = tab.browser.selectionAI {
                                             SelectionAIBar(
                                                 onExplain: {
@@ -128,6 +209,17 @@ struct SelectedTabContent: View {
                                                     content.aiSession.addSelectedTextContext(selection.text)
                                                     showAgentPanel = true
                                                     tab.browser.selectionAI = nil
+                                                },
+                                                onHighlight: { colorIndex in
+                                                    if let url = tab.browser.webView.url?.absoluteString {
+                                                        AnnotationStore.shared.add(
+                                                            url: url, text: selection.text,
+                                                            colorIndex: colorIndex)
+                                                    }
+                                                    tab.browser.webView.evaluateJavaScript(
+                                                        "__desireApplyHighlight(\(colorIndex))",
+                                                        completionHandler: nil)
+                                                    tab.browser.selectionAI = nil
                                                 }
                                             )
                                             .offset(
@@ -137,6 +229,11 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .frame(width: responsiveW, height: responsiveH)
+                                    // Overlays attach to the DEVICE-SIZED
+                                    // frame — attaching after the infinity
+                                    // frame left handles/rulers floating in
+                                    // the empty space while the viewport sat
+                                    // centered.
                                     .overlay {
                                         if tab.responsiveConfig.isEnabled {
                                             DeviceFrameOverlay(config: tab.responsiveConfig, viewportSize: effectiveSize)
@@ -176,14 +273,25 @@ struct SelectedTabContent: View {
                                         }
                                     }
                                     .onChange(of: tab.responsiveConfig.isEnabled) { _, enabled in
+                                        // UA swap + reload: the single funnel so
+                                        // every enable/disable entry point behaves
+                                        // identically (menu, toolbar, agent tool).
                                         ResponsiveModeApplier.apply(enabled, to: tab)
                                     }
                                     .onChange(of: tab.responsiveConfig.effectiveSize) { _, size in
+                                        // Rotate / resize: keep the UA class in
+                                        // step without reloading (affects future
+                                        // requests only).
                                         if tab.responsiveConfig.isEnabled {
                                             tab.browser.webView.customUserAgent =
                                                 ResponsiveModeApplier.userAgent(forViewport: size)
                                         }
                                     }
+                                    .onChange(of: geo.size.width) { _, w in
+                                        // 拖起冻结用：主栏实时宽度（布局后回写）。
+                                        liveMainWidth = w
+                                    }
+                                    .onAppear { liveMainWidth = geo.size.width }
                                     .onChange(of: tab.responsiveConfig.showMediaQueryInspector) { _, show in
                                         if show {
                                             actions.refreshMediaQueries(for: tab) { content.mediaQueries = $0 }
@@ -198,6 +306,15 @@ struct SelectedTabContent: View {
                         }
                     }
                     .id(tab.id)
+                    .frame(width: frozenMainWidth, alignment: .topLeading)
+                    // 拖动冻结（0.3.9）：真 webview 固定在拖起时宽度（零
+                    // setFrame = 零重排）；快照层是平台视图且声明在后，
+                    // 按 z 序必然盖在 webview 上，拉伸实时跟随容器。
+                    if dragActive, let snap = snapshotMain {
+                        SnapshotLayerView(image: snap)
+                    }
+                    }
+                    .clipped()
                     .overlay(alignment: .top) {
                         if content.isUrlFocused {
                             AddressSuggestionsView(
@@ -219,6 +336,7 @@ struct SelectedTabContent: View {
                             )
                             .padding(.horizontal, 12)
                             .padding(.top, 2)
+                            .transition(.opacity)
                         }
                     }
                     .overlay {
@@ -226,33 +344,59 @@ struct SelectedTabContent: View {
                             ErrorPageView(error: error, tab: tab)
                         }
                     }
-                    .background {
-                        if tab.responsiveConfig.isEnabled {
-                            WorkbenchGrid()
-                        }
-                    }
-                    // ===== 系统面板链（0.3.9 终版）：NSSplitView 背书，=====
-                    // ===== 分隔条拖拽由系统提供，零自研。          =====
-                    .inspector(isPresented: splitBinding) {
-                        splitPane
-                    }
-                    .inspector(isPresented: $showAgentPanel) {
-                        AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                            .onAppear {
-                                Task { @MainActor in
-                                    content.aiSession.resumeLatestConversation()
-                                }
-                            }
-                    }
-                    .inspector(isPresented: $showDevToolsPanel) {
-                        DevToolsPanel(store: content.devToolsStore, tab: tab, onStartElementPicker: {
-                            tab.browser.isPickingElement = true
-                            tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
-                        }, onClose: { content.toggleDevTools() })
-                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let partner = content.tabManager.splitPartner, partner.id != tab.id {
+                    // 分屏浏览（0.2.15）：宽度实时跟随；拖起/松手钩子驱动
+                    // webview 冻结 + 快照层（见 beginPaneDrag 注释）。
+                    DragHookDivider(width: $splitPaneWidth, range: 220...1400,
+                                    dragStarted: { beginPaneDrag() },
+                                    dragEnded: { endPaneDrag() })
+                    SplitPartnerPane(partner: partner, content: content,
+                                     frozenWidth: frozenPartnerWidth,
+                                     snapshot: dragActive ? snapshotPartner : nil)
+                        .frame(width: splitPaneWidth)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+
+                if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
+                    MediaQueryInspector(queries: content.mediaQueries)
+                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 560)
+                }
+
+                if showAgentPanel {
+                    DragHookDivider(width: $agentPanelWidth, range: 260...1200,
+                                    dragStarted: { beginPaneDrag() },
+                                    dragEnded: { endPaneDrag() })
+                    // 等值门控：宽度是宿主 @State，拖动每帧重算宿主 body
+                    // 会连带重 diff 整个会话面板（Markdown 列表很贵）。
+                    // 面板输入稳定 → 跳过；其内部 @ObservedObject 的更新
+                    // 不经此路径，照常生效；宽度在门控外每帧应用。
+                    StableAgentPanel(content: content).equatable()
+                        .frame(width: agentPanelWidth)
+                        // Opening the assistant resumes the most recent
+                        // conversation instead of a blank panel. Deferred
+                        // off the view-update pass: loading publishes
+                        // `messages`, and mutating an observed store
+                        // synchronously inside onAppear trips
+                        // "Publishing changes from within view updates".
+                        .onAppear {
+                            Task { @MainActor in
+                                content.aiSession.resumeLatestConversation()
+                            }
+                        }
+                }
+
+                if showDevToolsPanel {
+                    DragHookDivider(width: $devToolsWidth, range: 300...1400,
+                                    dragStarted: { beginPaneDrag() },
+                                    dragEnded: { endPaneDrag() })
+                    StableDevToolsPanel(content: content, tabID: tab.id)
+                        .frame(width: devToolsWidth)
+                }
             }
+            .animation(.layoutSpring, value: content.tabManager.splitPartnerID)
 
             if content.settings.showLinkPreview, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
                 HStack(spacing: 4) {
@@ -269,63 +413,202 @@ struct SelectedTabContent: View {
             }
         }
     }
+}
 
-    // MARK: - 分屏右栏（inspector 内容）
 
-    @ViewBuilder
-    private var splitPane: some View {
-        if let partner = content.tabManager.splitPartner {
-            VStack(spacing: 0) {
-                HStack(spacing: 6) {
-                    if partner.isIncognito {
-                        Image(systemName: "mask")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(partner.displayTitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Button {
-                        content.tabManager.setSplitPartner(at: nil)
-                    } label: {
-                        Image(systemName: "rectangle.split.1x2")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(String(localized: "Leave Split View"))
-                }
-                .padding(.horizontal, 10)
-                .frame(height: 24)
-                .background(.bar)
 
-                Divider()
 
-                Group {
-                    if partner.isOnNewTabPage {
-                        NewTabPage(
-                            store: content.quickDialStore,
-                            urlString: Binding(
-                                get: { partner.urlString },
-                                set: { partner.urlString = $0 }
-                            ),
-                            onNavigate: { input in
-                                content.b.navigateToURL(input, for: partner)
-                            },
-                            suggestionModel: content.newTabSuggestionModel,
-                            bookmarkStore: content.bookmarkStore,
-                            historyStore: content.historyStore,
-                            settings: content.settings
-                        )
-                    } else {
-                        content.makeWebView(for: partner)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .id(partner.id)
+/// AgentPanel 的等值包装（0.3.9 卡顿治理）：恒等比较让宿主拖动期间
+/// 的每帧 body 重算跳过整个会话面板的 diff；面板自身的 store 发布
+/// 仍会驱动其更新（@ObservedObject 不走父路径）。
+private struct StableAgentPanel: View, Equatable {
+    let content: ContentView
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+
+    var body: some View {
+        AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
+    }
+}
+
+/// DevToolsPanel 同理（按 tab 身份比较——切标签需重渲染）。
+private struct StableDevToolsPanel: View, Equatable {
+    let content: ContentView
+    let tabID: UUID
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.tabID == rhs.tabID }
+
+    var body: some View {
+        if let tab = content.tabManager.tabs.first(where: { $0.id == tabID }) {
+            DevToolsPanel(
+                store: content.devToolsStore,
+                tab: tab,
+                onStartElementPicker: {
+                    tab.browser.isPickingElement = true
+                    tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                },
+                onClose: { content.toggleDevTools() }
+            )
+        }
+    }
+}
+
+/// 平台级快照层（0.3.9）：NSView + layer.contents 渲染拉伸快照。
+/// 必须是平台视图——SwiftUI Image 的 .overlay 会被后面的 webview 平台
+/// 视图盖住（本项目实测）；平台兄弟视图按声明序定 z 序，本视图声明在
+/// webview 之后 = 必然在上。
+struct SnapshotLayerView: NSViewRepresentable {
+    let image: NSImage
+
+    func makeNSView(context: Context) -> NSView {
+        let view = SnapshotLayerNSView()
+        view.update(image: image)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? SnapshotLayerNSView)?.update(image: image)
+    }
+
+    final class SnapshotLayerNSView: NSView {
+        // 拖动每帧都会走 updateNSView；NSImage→CGImage 是栅格化级重活，
+        // 图没变（同一引用）必须直接跳过——否则拖一下每帧白转两次大图。
+        private var lastImage: ObjectIdentifier?
+        private var cachedCG: CGImage?
+
+        func update(image: NSImage) {
+            wantsLayer = true
+            let id = ObjectIdentifier(image)
+            guard id != lastImage else { return }
+            lastImage = id
+            cachedCG = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            if let cachedCG {
+                layer?.contents = cachedCG
+                layer?.contentsGravity = .resizeAspectFill
+                layer?.masksToBounds = true
             }
+        }
+    }
+}
+
+/// 带拖起/松手钩子的分隔条（0.3.9）：宽度语义与 ResizableDivider 完全
+/// 相同（基线 + 累计 translation 实时跟随），钩子只驱动冻结/快照机制。
+struct DragHookDivider: View {
+    @Binding var width: CGFloat
+    let range: ClosedRange<CGFloat>
+    let dragStarted: () -> Void
+    let dragEnded: () -> Void
+
+    @State private var isHovering = false
+    @State private var isDragging = false
+    @State private var dragStartWidth: CGFloat?
+
+    var body: some View {
+        Rectangle()
+            .fill(isDragging || isHovering ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.22))
+            .frame(width: 5)
+            .contentShape(Rectangle().inset(by: -3))
+            .onHover { hovering in
+                isHovering = hovering
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else if !isDragging {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                            dragStarted()
+                        }
+                        if dragStartWidth == nil { dragStartWidth = width }
+                        width = (dragStartWidth! - value.translation.width)
+                            .clamped(to: range)
+                    }
+                    .onEnded { _ in
+                        guard isDragging else { return }
+                        dragStartWidth = nil
+                        isDragging = false
+                        dragEnded()
+                    }
+            )
+    }
+}
+
+/// 分屏右栏（0.2.15）：并排显示的第二个标签的活动 webview。顶部一条
+/// 迷你标题（标签标题 + 退出分屏）让右栏看起来是个成型的面板而不是
+/// 裸贴的第二个网页。工具栏/查找条/阅读模式/响应式模式是选中标签专属
+/// 机制，不复制到右栏；新标签页对象仍用 NewTabPage（webview 此时是
+/// 空白的）。
+private struct SplitPartnerPane: View {
+    @ObservedObject var partner: Tab
+    let content: ContentView
+    /// 拖动冻结宽（0.3.9）：非 nil 时真 webview 固定此宽（零 resize）。
+    var frozenWidth: CGFloat?
+    /// 拖动期快照层图（平台视图，盖在 webview 上拉伸跟随）。
+    var snapshot: NSImage?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                if partner.isIncognito {
+                    Image(systemName: "mask")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Text(partner.displayTitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button {
+                    content.tabManager.setSplitPartner(at: nil)
+                } label: {
+                    Image(systemName: "rectangle.split.1x2")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Leave Split View"))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.bar)
+
+            Divider()
+
+            Group {
+                if partner.isOnNewTabPage {
+                    NewTabPage(
+                        store: content.quickDialStore,
+                        urlString: Binding(
+                            get: { partner.urlString },
+                            set: { partner.urlString = $0 }
+                        ),
+                        onNavigate: { input in
+                            content.b.navigateToURL(input, for: partner)
+                        },
+                        suggestionModel: content.newTabSuggestionModel,
+                        bookmarkStore: content.bookmarkStore,
+                        historyStore: content.historyStore,
+                        settings: content.settings
+                    )
+                } else {
+                    ZStack(alignment: .topLeading) {
+                        content.makeWebView(for: partner)
+                            .frame(width: frozenWidth, alignment: .topLeading)
+                        // 同主栏：拖动期真 webview 冻结，快照层跟随拉伸。
+                        if let snapshot {
+                            SnapshotLayerView(image: snapshot)
+                        }
+                    }
+                    .clipped()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(partner.id)
         }
     }
 }
@@ -350,3 +633,6 @@ private struct WorkbenchGrid: View {
         }
     }
 }
+
+
+/// 点阵工作台背景 — 响应式模式下设备框周围的"操作台"质感。

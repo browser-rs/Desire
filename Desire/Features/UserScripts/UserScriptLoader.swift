@@ -57,4 +57,19 @@ enum UserScriptLoader {
             return ""
         }
     }
+
+    /// WebExtension API runtime — injected in the ISOLATED
+    /// `desireExtensions` content world so page JS can neither see nor
+    /// spoof `browser.*`. Plugin code (PluginStore) evaluates in the same
+    /// world; the DOM is shared, JS globals are not.
+    static func extensionAPIScript() -> WKUserScript? {
+        let source = load("webext-api")
+        guard !source.isEmpty else { return nil }
+        return WKUserScript(
+            source: source,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true,
+            in: WebView.extensionWorld
+        )
+    }
 }

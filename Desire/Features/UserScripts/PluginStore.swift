@@ -65,9 +65,14 @@ class PluginStore: ObservableObject {
                     .replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "'", with: "\\'")
                     .replacingOccurrences(of: "\n", with: "\\n")
-                webView.evaluateJavaScript("setTimeout(function() { \(escaped) }, \(delay))", completionHandler: nil)
+                // 插件跑在隔离 desireExtensions world（0.2.13）：可访问
+                // browser.* 与页面 DOM，但页面 JS 看不到插件的全局。
+                webView.evaluateJavaScript(
+                    "setTimeout(function() { \(escaped) }, \(delay))",
+                    in: nil, in: WebView.extensionWorld, completionHandler: nil)
             } else {
-                webView.evaluateJavaScript(code, completionHandler: nil)
+                webView.evaluateJavaScript(
+                    code, in: nil, in: WebView.extensionWorld, completionHandler: nil)
             }
         }
     }

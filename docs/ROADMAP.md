@@ -182,8 +182,11 @@
 ### 0.2.12 — Passkey（entitlement 门控）
 - WebAuthn 平台凭据创建/认证 UI；Agent 代登录打通。
 
-### 0.2.13 — WebExtension API v1
+### 0.2.13 — WebExtension API v1 ✅（v0.2.16 交付）
 - storage.local / tabs 事件 / notifications 子集；兼容性测试站。
+- 交付说明：API 挂在 `desireExtensions` 隔离世界（页面不可见），
+  宿主为内置 PluginStore 用户脚本（Greasemonkey 形态），桥可编程
+  装插件并直读隔离世界。
 
 ### 0.2.14 — 性能与加固 ✅（v0.2.15 交付）
 - 长会话（50+ 标签）回归；下载高危类型落地确认；混合内容警示。

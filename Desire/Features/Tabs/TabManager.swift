@@ -300,7 +300,10 @@ class TabManager: ObservableObject {
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
         let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID, profileDataStore: profileDataStore)
-        defer { BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count]) }
+        defer {
+            BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count])
+            ExtensionEventHub.shared.fire("tabs.onCreated", tabID: tab.id, extra: ["url": url ?? "", "index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1])
+        }
         switch newTabPosition {
         case .end:
             tabs.append(tab)
@@ -367,7 +370,10 @@ class TabManager: ObservableObject {
         recordClosed(tab)
         tearDown(tab)
         tabs.remove(at: index)
-        defer { BridgeEventBus.shared.publish("tabClosed", ["closedId": tab.id.uuidString, "count": tabs.count]) }
+        defer {
+            BridgeEventBus.shared.publish("tabClosed", ["closedId": tab.id.uuidString, "count": tabs.count])
+            ExtensionEventHub.shared.fire("tabs.onRemoved", tabID: tab.id, extra: ["windowId": sessionKey ?? ""])
+        }
         if tab.id == splitPartnerID {
             splitPartnerID = nil
         }
@@ -447,6 +453,7 @@ class TabManager: ObservableObject {
 
     func selectTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
+        let previousID = tabs[selectedIndex].id
         persistSession()
         selectedIndex = index
         // 选中分屏对象 = 解除分屏（它转正为主栏，避免主栏分栏同标签）。
@@ -456,6 +463,12 @@ class TabManager: ObservableObject {
         tabs[index].lastAccessed = Date()
         if tabs[index].isSuspended {
             unsuspend(tabs[index])
+        }
+        if tabs[index].id != previousID {
+            ExtensionEventHub.shared.fire("tabs.onActivated", tabID: tabs[index].id, extra: [
+                "previousTabId": previousID.uuidString,
+                "index": index,
+            ])
         }
     }
 

@@ -89,6 +89,9 @@ class BrowserState: ObservableObject {
     @Published var pendingDangerousDownload: PendingDangerousDownload?
     /// 用户确认"仍然下载"的 URL——重载放行一次后移除。
     var dangerousDownloadAllowedURLs: Set<String> = []
+    /// WebExtension：该页是否有 tabs.* 事件监听（决定事件 hub 是否向此
+    /// 页 evaluate）。
+    var hasExtensionTabListeners = false
     @Published var lastError: Error?
     /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
     /// 对新建标签生效；已存在的标签不受影响)。
@@ -179,6 +182,10 @@ class BrowserState: ObservableObject {
         // (removeAllUserScripts is the only removal API available).
         for script in UserScriptLoader.builtinScripts() {
             config.userContentController.addUserScript(script)
+        }
+        // WebExtension API runtime — isolated world (page JS can't see it).
+        if let extScript = UserScriptLoader.extensionAPIScript() {
+            config.userContentController.addUserScript(extScript)
         }
 
         webView = BrowserWKWebView(frame: .zero, configuration: config)
@@ -278,7 +285,15 @@ struct WebView: NSViewRepresentable {
     /// ("skip" / "seek") — when set the count is already 1.
     var onVideoAdBlocked: ((Int, String?, String?) -> Void)?
     var onInspectedElement: ((InspectedElement) -> Void)?
+    /// WebExtension API（0.2.13）：tabs.* 的宿主窗口通道。
+    var onQueryTabs: (() -> [[String: Any]])?
+    var onCreateTab: ((String) -> Void)?
+    var onRemoveTab: ((String) -> Void)?
     @ObservedObject var elementBlockStore: ElementBlockStore
+
+    /// 插件代码与 WebExtension API 运行在隔离 content world：页面 JS
+    /// 看不到（也不能伪造）`browser.*`；DOM 共享，JS 全局隔离。
+    static let extensionWorld = WKContentWorld.world(name: "desireExtensions")
 
     // Computed (not `static let`) so the file is read from the bundle lazily
     // on first use rather than at type-init time, before Bundle.main is ready.
@@ -408,6 +423,16 @@ struct WebView: NSViewRepresentable {
                 contentController.removeScriptMessageHandler(forName: name)
                 contentController.add(self, name: name)
             }
+            // WebExtension RPC — isolated world handler (name space is per
+            // world, so this doesn't collide with the page-world list).
+            contentController.removeScriptMessageHandler(
+                forName: "desireExt", contentWorld: WebView.extensionWorld)
+            contentController.add(self, contentWorld: WebView.extensionWorld, name: "desireExt")
+            // 快速切标签会重建 representable（stopObserving 摘过 hub 注册）——
+            // 只要页面曾声明过监听，observe 时重新入册。
+            if parent.state.hasExtensionTabListeners {
+                ExtensionEventHub.shared.register(parent.state)
+            }
 
             observations = [
                 webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] wv, _ in
@@ -462,6 +487,9 @@ struct WebView: NSViewRepresentable {
             for name in Self.scriptMessageHandlers {
                 wv.configuration.userContentController.removeScriptMessageHandler(forName: name)
             }
+            wv.configuration.userContentController.removeScriptMessageHandler(
+                forName: "desireExt", contentWorld: WebView.extensionWorld)
+            ExtensionEventHub.shared.unregister(parent.state)
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
@@ -470,8 +498,92 @@ struct WebView: NSViewRepresentable {
             wv.stopLoading()
         }
 
+        /// WebExtension RPC（0.2.13）：隔离世界里 `browser.*` 的宿主侧。
+        /// 协议：{id, ns, fn, args[]} → `_resolve(id, ok, payloadJSON)`，
+        /// payload 以 JSON 字面量内嵌（存储值已在 set 时校验可序列化）。
+        private func handleExtensionMessage(_ body: Any) {
+            guard let dict = body as? [String: Any],
+                  let ns = dict["ns"] as? String,
+                  let fn = dict["fn"] as? String else { return }
+            let id = dict["id"] as? Int
+            let args = dict["args"] as? [Any] ?? []
+
+            func reply(_ payload: Any?, error: String? = nil) {
+                guard let id else { return }
+                let json: String
+                if let error {
+                    let escaped = error
+                        .replacingOccurrences(of: "\\", with: "\\\\")
+                        .replacingOccurrences(of: "\"", with: "\\\"")
+                    json = "\"\(escaped)\""
+                } else if let payload,
+                          let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                          let str = String(data: data, encoding: .utf8) {
+                    json = str
+                } else {
+                    json = "null"
+                }
+                let js = "window.__desireExt && window.__desireExt._resolve(\(id), \(error == nil), \(json))"
+                parent.state.webView.evaluateJavaScript(
+                    js, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+            }
+
+            switch (ns, fn) {
+            case ("storage", "get"):
+                reply(WebExtensionStore.get(keys: args.first))
+            case ("storage", "set"):
+                guard let items = args.first as? [String: Any] else {
+                    reply(nil, error: "storage.set requires an object")
+                    return
+                }
+                WebExtensionStore.set(items: items)
+                reply([:])
+            case ("storage", "remove"):
+                let keys = (args.first as? [Any])?.compactMap { $0 as? String } ?? []
+                WebExtensionStore.remove(keys: keys)
+                reply([:])
+            case ("storage", "clear"):
+                WebExtensionStore.clear()
+                reply([:])
+            case ("tabs", "query"):
+                reply(parent.onQueryTabs?() ?? [])
+            case ("tabs", "create"):
+                if let url = (args.first as? [String: Any])?["url"] as? String, !url.isEmpty {
+                    parent.onCreateTab?(url)
+                    reply([:])
+                } else {
+                    reply(nil, error: "tabs.create requires {url}")
+                }
+            case ("tabs", "remove"):
+                if let single = args.first as? String {
+                    parent.onRemoveTab?(single)
+                    reply([:])
+                } else if let many = args.first as? [String] {
+                    many.forEach { parent.onRemoveTab?($0) }
+                    reply([:])
+                } else {
+                    reply(nil, error: "tabs.remove requires id(s)")
+                }
+            case ("notifications", "create"):
+                WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
+                    reply(result)
+                }
+            case ("events", "addListener"):
+                if let name = args.first as? String, name.hasPrefix("tabs.") {
+                    parent.state.hasExtensionTabListeners = true
+                    ExtensionEventHub.shared.register(parent.state)
+                }
+                reply([:])
+            default:
+                reply(nil, error: "unknown \(ns).\(fn)")
+            }
+        }
+
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            if message.name == "audioState", let playing = message.body as? Bool {
+            if message.name == "desireExt" {
+                // Isolated-world WebExtension RPC (see extensionWorld).
+                handleExtensionMessage(message.body)
+            } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
             } else if message.name == "devConsole", let dict = message.body as? [String: Any],
                       let levelStr = dict["level"] as? String,

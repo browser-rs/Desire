@@ -305,6 +305,12 @@ final class AutomationServer {
         ep("POST", "/containers/remove", "Remove container by name", params: ["name:string"], example: "-d '{\"name\":\"Shop\"}'")
         ep("GET", "/downloads/dangerous", "Pending dangerous-download confirmation (bar)", example: "…/downloads/dangerous")
         ep("POST", "/downloads/dangerous/resolve", "Resolve the confirmation (allow=true reloads the URL as a download)", params: ["allow:bool"], example: "-d '{\"allow\":true}'")
+        ep("GET", "/plugins", "User plugin (userscript) list", example: "…/plugins")
+        ep("GET", "/webext/debug", "ExtensionEventHub listener count + tab listener flags", example: "…/webext/debug")
+        ep("POST", "/webext/fire", "Manually fire an extension tab event (diagnostics)", params: ["event:string"], example: "-d '{\"event\":\"tabs.onActivated\"}'")
+        ep("POST", "/webext/eval", "Run JS in the ISOLATED extension world of the selected tab (sees browser.*; /execute cannot)", params: ["js:string"], example: "-d '{\"js\":\"typeof browser\"}'")
+        ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
+        ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
         ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
@@ -512,6 +518,42 @@ final class AutomationServer {
                 return try Self.json(Self.readerState(index: Self.index(query)))
             case ("GET", "/console"):
                 return try Self.json(Self.console(count: Int(query["count"] ?? "20") ?? 20))
+            case ("GET", "/plugins"):
+                return try Self.json(Self.pluginList())
+            case ("GET", "/webext/debug"):
+                return try Self.json(ExtensionEventHub.shared.debugInfo())
+            case ("POST", "/webext/fire"):
+                let tm = try tabManager
+                guard let tab = tm?.selectedTab else { return try Self.json(["error": "no selected tab"]) }
+                ExtensionEventHub.shared.fire(
+                    Self.string(body, "event") ?? "tabs.onActivated",
+                    tabID: tab.id,
+                    extra: ["probe": true]
+                )
+                return try Self.json(["ok": true])
+            case ("POST", "/webext/eval"):
+                let tm = try tabManager
+                guard let tab = tm?.selectedTab else { return try Self.json(["error": "no selected tab"]) }
+                let js = Self.string(body, "js") ?? ""
+                let result: String = await withCheckedContinuation { cont in
+                    tab.browser.webView.evaluateJavaScript(js, in: nil, in: WebView.extensionWorld) { value in
+                        switch value {
+                        case .success(let v): cont.resume(returning: String(describing: v ?? "null"))
+                        case .failure(let error): cont.resume(returning: "ERROR: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                return try Self.json(["result": result])
+            case ("POST", "/plugins/add"):
+                return try Self.json(Self.pluginAdd(
+                    name: Self.string(body, "name") ?? "",
+                    js: Self.string(body, "js") ?? "",
+                    patterns: body["patterns"] as? [String] ?? ["*"],
+                    runAt: Self.string(body, "runAt") ?? "document_end",
+                    css: Self.string(body, "css") ?? ""
+                ))
+            case ("POST", "/plugins/remove"):
+                return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
             case ("GET", "/downloads/dangerous"):
@@ -1329,6 +1371,48 @@ final class AutomationServer {
             ]
         }
         return result
+    }
+
+    /// User plugin (userscript) list — metadata only, not the code.
+    private static func pluginList() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        return ["plugins": app.pluginStore.plugins.map { p -> [String: Any] in
+            [
+                "id": p.id.uuidString,
+                "name": p.name,
+                "enabled": p.isEnabled,
+                "patterns": p.urlPatterns,
+                "runAt": p.runAt.rawValue,
+            ]
+        }]
+    }
+
+    /// Creates a userscript plugin (E2E / Agent primitive). The code runs
+    /// in the isolated extension world with the browser.* API available.
+    private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty, !js.isEmpty else {
+            return ["error": "missing name/js"]
+        }
+        let plugin = Plugin(
+            name: name,
+            urlPatterns: patterns.isEmpty ? ["*"] : patterns,
+            runAt: RunAt(rawValue: runAt) ?? .documentEnd,
+            jsCode: js,
+            cssCode: css
+        )
+        app.pluginStore.add(plugin)
+        return ["ok": true, "id": plugin.id.uuidString]
+    }
+
+    private static func pluginRemove(id: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let uuid = UUID(uuidString: id) else { return ["error": "invalid id"] }
+        guard let plugin = app.pluginStore.plugins.first(where: { $0.id == uuid }) else {
+            return ["error": "no such plugin"]
+        }
+        app.pluginStore.remove(plugin)
+        return ["ok": true]
     }
 
     /// Seeds one credential (test setup / Agent primitive). No secret in the

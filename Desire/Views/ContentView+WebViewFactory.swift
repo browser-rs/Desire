@@ -92,6 +92,29 @@ extension ContentView {
             onInspectedElement: { element in
                 devToolsStore.setInspectedElement(element)
             },
+            onQueryTabs: {
+                // WebExtension tabs.query：宿主窗口的标签快照。
+                tabManager.tabs.enumerated().map { index, t in
+                    [
+                        "id": t.id.uuidString,
+                        "index": index,
+                        "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                        "title": t.browser.pageTitle,
+                        "active": index == tabManager.selectedIndex,
+                        "incognito": t.isIncognito,
+                        "pinned": t.isPinned,
+                    ] as [String: Any]
+                }
+            },
+            onCreateTab: { urlString in
+                // 继承来源标签身份（与"在新标签打开链接"一致）。
+                tabManager.addTab(url: urlString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID)
+            },
+            onRemoveTab: { idString in
+                guard let id = UUID(uuidString: idString),
+                      let index = tabManager.tabs.firstIndex(where: { $0.id == id }) else { return }
+                tabManager.closeTab(at: index)
+            },
             elementBlockStore: elementBlockStore
         )
     }

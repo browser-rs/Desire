@@ -1,5 +1,41 @@
 ## [Unreleased]
 
+## [v0.2.16] - 2026-09-19
+
+> 交付路线图 0.2.13 的内容（WebExtension API v1）——最后一个大项。
+
+### Added
+
+- **WebExtension API v1**：`browser.*` / `chrome.*` 运行时——
+  - **隔离世界**：API 与插件代码运行在 `WKContentWorld.world(name:
+    "desireExtensions")`，页面 JS 看不到也不能伪造 `browser.*`
+    （E2E 实证：页面世界 `typeof browser === "undefined"`）；DOM
+    共享，插件照常操作页面。PluginStore 注入从页面世界切到隔离世界。
+  - **storage.local**：get/set/remove/clear（Promise，Chrome 语义——
+    null 返回全量、缺键回 null），UserDefaults JSON 持久化。
+  - **tabs**：query（id/index/url/title/active/incognito/pinned）、
+    create（继承来源标签身份）、remove；onCreated/onRemoved/onActivated
+    事件（ExtensionEventHub 直调分发，不依赖 SSE 订阅；切标签重建
+    representable 后自动重入册）。
+  - **notifications.create**（TCC 懒请求，下载通知同款模式）。
+  - **runtime**：id / getManifest 桩。
+- 桥 `/plugins` CRUD（add/list/remove——Agent 可编程装插件）；
+  `/webext/eval`（隔离世界直读，测试原语）、`/webext/debug`（hub
+  状态）、`/webext/fire`（手动投递事件）。
+
+### Fixed
+
+- events.addListener 注册消息无 id 字段被 RPC guard 整体拒绝（事件
+  从未到达）——id 改为可选（fire-and-forget 不回复）。
+
+### Verified
+
+- E2E：storage 往返 `{"hello":"world","n":42}` → remove 后
+  `{"hello":"world"}`；tabs.query 8 标签 + activeUrl 正确；
+  onCreated 事件跨标签投递到插件 DOM（`|created:event-probe`）；
+  隔离性实证；hub 注册/重入册状态经 /webext/debug 断言。
+  notifications.create 未自动化（TCC 弹窗），代码路径同下载通知。
+
 ## [v0.2.15] - 2026-09-19
 
 > 交付路线图 0.2.14 的内容（性能与加固）；发布序列号按时间顺延

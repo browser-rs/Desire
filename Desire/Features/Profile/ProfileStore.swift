@@ -65,6 +65,22 @@ final class ProfileStore: ObservableObject {
         profiles.removeAll { $0.id == id }
         save()
         dataStores.removeValue(forKey: id)
+        // 清该人物的各数据桶（0.3.5）：书签/历史/快拨 + webext 存储。
+        // Chrome 语义：删人物即删其数据。
+        if let active = activeProfileID, active == id {
+            activeProfileID = nil
+            UserDefaults.standard.removeObject(forKey: "desire.activeProfile")
+        }
+        for key in Self.scopedBucketKeys(id: id) {
+            DiskStore.remove(key: key)
+        }
+        UserDefaults.standard.removeObject(forKey: "desire.webext.storage.\(id.uuidString)")
+    }
+
+    /// 与各 store 的 scopedKey 规则保持一致（新增作用域 store 时同步）。
+    static func scopedBucketKeys(id: UUID) -> [String] {
+        ["bookmarks.\(id.uuidString)", "history.\(id.uuidString)",
+         "desire.quickdials.\(id.uuidString)"]
     }
 
     /// The persistent data store for a profile. Each profile gets its own

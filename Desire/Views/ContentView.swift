@@ -483,6 +483,7 @@ struct ContentView: View {
     /// isolated data store; existing tabs are NOT retroactively changed.
     func switchProfile(to profileID: UUID?) {
         tabManager.profileDataStore = ProfileStore.shared.dataStore(for: profileID)
+        appState.applyProfile(profileID)
     }
 
     // MARK: - 标签拖出/拖回（0.2.13 提前）

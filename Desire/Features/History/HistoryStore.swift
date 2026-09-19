@@ -6,6 +6,12 @@ class HistoryStore: ObservableObject {
     @Published var entries: [HistoryEntry] = []
     /// DiskStore key (file: App Support/Desire/storage/history.json).
     private let storageKey = "history"
+    /// Profile 作用域（0.3.5），模式同 BookmarkStore。
+    private var scopeID: UUID?
+    private var scopedKey: String {
+        guard let scopeID else { return storageKey }
+        return storageKey + "." + scopeID.uuidString
+    }
     /// Legacy UserDefaults key — read once during migration, then deleted.
     private let legacyKey = "desire.history"
     private let maxEntries = 500
@@ -86,6 +92,14 @@ class HistoryStore: ObservableObject {
     }
 
     private func save() {
-        DiskStore.save(entries, key: storageKey)
+        DiskStore.save(entries, key: scopedKey)
+    }
+
+    /// AppState.applyProfile 驱动（0.3.5）。
+    func applyScope(profileID: UUID?) {
+        guard scopeID != profileID else { return }
+        save()
+        scopeID = profileID
+        entries = DiskStore.load([HistoryEntry].self, key: scopedKey) ?? []
     }
 }

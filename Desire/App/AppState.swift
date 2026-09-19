@@ -44,6 +44,16 @@ class AppState: ObservableObject {
         privacy = PrivacyState()
         system = SystemState()
         Self.live = self
+        // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
+        // 创建标签时经 profileDataStore 各自恢复）。
+        let saved = UserDefaults.standard.string(forKey: "desire.activeProfile")
+            .flatMap(UUID.init(uuidString:))
+        if saved != nil, ProfileStore.shared.profile(for: saved) != nil {
+            ProfileStore.shared.activeProfileID = saved
+            browsing.bookmarkStore.applyScope(profileID: saved)
+            browsing.historyStore.applyScope(profileID: saved)
+            browsing.quickDialStore.applyScope(profileID: saved)
+        }
     }
 
     // MARK: - Forwarding accessors
@@ -87,5 +97,16 @@ class AppState: ObservableObject {
     /// this pointer — see `WindowToolSurface`.
     func attach(tabManager: TabManager) {
         TabSessionCoordinator.shared.setActive(tabManager)
+    }
+
+    /// Profiles 闭环（0.3.5）：切换活跃人物——cookie 隔离走各窗口的
+    /// profileDataStore（窗口自己管），数据作用域（书签/历史/快拨）
+    /// 在这里统一切桶。当前人物持久化，重启沿用。
+    func applyProfile(_ id: UUID?) {
+        ProfileStore.shared.activeProfileID = id
+        UserDefaults.standard.set(id?.uuidString, forKey: "desire.activeProfile")
+        bookmarkStore.applyScope(profileID: id)
+        historyStore.applyScope(profileID: id)
+        quickDialStore.applyScope(profileID: id)
     }
 }

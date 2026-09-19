@@ -65,3 +65,22 @@ extension View {
         animation(.layoutSpring, value: value)
     }
 }
+
+// MARK: - Profile/Container Color Name → SwiftUI Color
+
+/// 容器色名与 Profile 色名共用一组映射（原先各视图私有复制）。
+func desireColor(named name: String) -> Color {
+    switch name {
+    case "orange": .orange
+    case "blue": .blue
+    case "green": .green
+    case "purple": .purple
+    case "pink": .pink
+    case "red": .red
+    case "teal": .teal
+    case "indigo": .indigo
+    case "yellow": .yellow
+    case "brown": .brown
+    default: .gray
+    }
+}

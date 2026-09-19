@@ -70,6 +70,10 @@ struct Toolbar: View {
     var onRunPlugin: ((Plugin) -> Void)? = nil
     /// 当前弹 popup 的插件（0.3.3）。
     @State var popupPlugin: Plugin?
+    /// Profile 切换器（0.3.5）：人物名录 + 活跃人物 + 切换回调。
+    var profiles: [DesireProfile] = []
+    var activeProfileID: UUID? = nil
+    var onSwitchProfile: ((UUID?) -> Void)? = nil
 
     /// Derived search-engine state passed in by the parent so Toolbar doesn't
     /// hold `Settings` directly (AGENTS.md: Composites take Props-in/
@@ -498,7 +502,46 @@ struct Toolbar: View {
             .popover(isPresented: $showMoreMenu) {
                 moreMenuContent
             }
+
+            if !profiles.isEmpty {
+                profileMenu
+            }
         }
+    }
+
+    /// Profile 头像切换器（0.3.5）：活跃人物色圈 + Default 人形。
+    private var profileMenu: some View {
+        Menu {
+            Button(activeProfileID == nil ? "✓ Default" : "Default") {
+                onSwitchProfile?(nil)
+            }
+            ForEach(profiles) { profile in
+                Button(activeProfileID == profile.id
+                       ? "✓ \(profile.name)"
+                       : profile.name) {
+                    onSwitchProfile?(profile.id)
+                }
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(activeProfileColor)
+                    .frame(width: 20, height: 20)
+                Image(systemName: "person.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.95))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 24)
+        .help("Profile")
+    }
+
+    private var activeProfileColor: Color {
+        guard let active = profiles.first(where: { $0.id == activeProfileID }) else {
+            return Color.secondary.opacity(0.55)
+        }
+        return desireColor(named: active.colorName)
     }
 
     // MARK: - More Menu

@@ -1198,12 +1198,17 @@ final class AutomationServer {
         // Fresh instance = read-only view of the persisted state; no shared
         // mutable state with the UI's own store instance. Entries are stored
         // newest-first (addEntry inserts at 0) — prefix is the most recent.
-        let entries = HistoryStore().entries.prefix(count).map { ["title": $0.title, "url": $0.url] }
+        let historyStore = HistoryStore()
+        historyStore.applyScope(profileID: ProfileStore.shared.activeProfileID)
+        let entries = historyStore.entries.prefix(count).map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
     }
 
     private static func bookmarks() throws -> [String: Any] {
-        let entries = BookmarkStore().leafEntries.map { ["title": $0.title, "url": $0.url] }
+        // 新实例须落在当前活跃人物的桶上（0.3.5），否则永远读默认桶。
+        let store = BookmarkStore()
+        store.applyScope(profileID: ProfileStore.shared.activeProfileID)
+        let entries = store.leafEntries.map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
     }
 
@@ -1953,15 +1958,18 @@ final class AutomationServer {
 
 
     private func setActiveProfile(name: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
         guard let tm = try tabManager else { return ["error": "no tab manager"] }
         if name.isEmpty || name.lowercased() == "default" {
             tm.profileDataStore = nil
+            app.applyProfile(nil)
             return ["ok": true, "profile": "default"]
         }
         guard let profile = ProfileStore.shared.profile(named: name) else {
             return ["error": "no such profile"]
         }
         tm.profileDataStore = ProfileStore.shared.dataStore(for: profile.id)
+        app.applyProfile(profile.id)
         return ["ok": true, "profile": profile.name]
     }
 

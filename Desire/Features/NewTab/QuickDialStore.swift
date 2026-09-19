@@ -5,6 +5,12 @@ import Foundation
 class QuickDialStore: ObservableObject {
     @Published var dials: [QuickDial] = []
     private let storageKey = "desire.quickdials"
+    /// Profile 作用域（0.3.5），模式同 BookmarkStore。
+    private var scopeID: UUID?
+    private var scopedKey: String {
+        guard let scopeID else { return storageKey }
+        return storageKey + "." + scopeID.uuidString
+    }
 
     init() {
         load()
@@ -54,6 +60,14 @@ class QuickDialStore: ObservableObject {
     }
 
     private func save() {
-        DiskStore.save(dials, key: storageKey)
+        DiskStore.save(dials, key: scopedKey)
+    }
+
+    /// AppState.applyProfile 驱动（0.3.5）。新桶为空回退默认快拨。
+    func applyScope(profileID: UUID?) {
+        guard scopeID != profileID else { return }
+        save()
+        scopeID = profileID
+        dials = DiskStore.load([QuickDial].self, key: scopedKey) ?? defaultDials
     }
 }

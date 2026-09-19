@@ -7,6 +7,13 @@ import UniformTypeIdentifiers
 class BookmarkStore: ObservableObject {
     @Published var bookmarks: [Bookmark] = []
     private let saveKey = "bookmarks"
+    /// Profile 作用域（0.3.5）：nil = 默认桶；切换时保存当前 → 加载新桶
+    /// （种子/legacy 迁移只属于默认桶，作用域桶为空即空）。
+    private var scopeID: UUID?
+    private var scopedKey: String {
+        guard let scopeID else { return saveKey }
+        return saveKey + "." + scopeID.uuidString
+    }
     /// Legacy UserDefaults key — read once during migration, then deleted.
     private let legacySaveKey = "desire.bookmarks"
 
@@ -100,7 +107,16 @@ class BookmarkStore: ObservableObject {
     }
 
     func save() {
-        DiskStore.save(bookmarks, key: saveKey)
+        DiskStore.save(bookmarks, key: scopedKey)
+    }
+
+    /// AppState.applyProfile 驱动（0.3.5）。
+    func applyScope(profileID: UUID?) {
+        guard scopeID != profileID else { return }
+        save()
+        scopeID = profileID
+        bookmarks = DiskStore.load([Bookmark].self, key: scopedKey) ?? []
+        rebuildURLIndex()
     }
 
     func saveImported(_ newBookmarks: [Bookmark]) {

@@ -361,35 +361,18 @@ struct WebView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> BrowserWKWebView {
-        Self.attachShared(state.webView, parent: self, coordinator: context.coordinator)
-        return state.webView
-    }
-
-    /// 把共享 webview 挂上 delegate/KVO/消息 handler（0.3.9 下沉 AppKit
-    /// 布局用）：PanelSplitHost（非 representable 宿主）与 makeNSView
-    /// 走同一套挂接，保证两处行为的 delegate 生命周期完全一致。
-    @discardableResult
-    static func attachShared(_ webView: BrowserWKWebView, parent: WebView, coordinator: Coordinator) -> BrowserWKWebView {
-        webView.navigationDelegate = coordinator
-        webView.uiDelegate = coordinator
+        let webView = state.webView
+        webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.autoresizingMask = [.width, .height]
         webView.onOpenLinkInNewTab = { url in
-            coordinator.parent.onOpenLinkInNewTab?(url)
+            context.coordinator.parent.onOpenLinkInNewTab?(url)
         }
         webView.onSearchText = { text in
-            coordinator.parent.onSearchText?(text)
+            context.coordinator.parent.onSearchText?(text)
         }
-        coordinator.observe(webView)
+        context.coordinator.observe(webView)
         return webView
-    }
-
-    /// 对称拆挂（stopObserving + 断 delegate + 清回调）。
-    static func detachShared(_ webView: BrowserWKWebView, coordinator: Coordinator?) {
-        coordinator?.stopObserving()
-        webView.navigationDelegate = nil
-        webView.uiDelegate = nil
-        webView.onOpenLinkInNewTab = nil
-        webView.onSearchText = nil
     }
 
     func updateNSView(_ nsView: BrowserWKWebView, context: Context) {

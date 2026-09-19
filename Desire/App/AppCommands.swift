@@ -164,6 +164,11 @@ struct AppCommands: Commands {
         // MARK: - Bookmarks
 
         CommandMenu("Bookmarks") {
+            // Safari 同款：书签栏开关在书签菜单首位（⇧⌘B 归 View 菜单，
+            // 这里不设键避免同键双触发）。
+            Button(settings.showBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar") {
+                postCommand(.toggleBookmarksBar)
+            }
             Button("Bookmarks Panel") { postCommand(.showBookmarks) }
                 .keyboardShortcut(binding("showBookmarks", "b", .command))
             Button("Add Bookmark") { postCommand(.bookmarkPage) }

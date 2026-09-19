@@ -1,8 +1,34 @@
 ## [Unreleased]
 
+## [v0.3.2] - 2026-09-20
+
+> 页面感知 v1：让 Agent"看时机"而不是"盲等"，"动作有回证"而不是"说了算"。
+
+### Added
+
+- **`waitFor` 统一等待原语**（替代盲 sleep）：三态条件——`text`
+  （页面文本出现，大小写不敏感）、`selector`（CSS 存在）、
+  `networkIdle`（XHR/fetch 全部落定且静默 ~500ms，hook 原生
+  open/send/fetch 计数）。超时上限 60s。SPA/慢页面在 navigate/click
+  后先 waitFor 再读内容。
+- **动作回证（act + evidence）**：click / fill / clickAt / pressKey
+  执行后自动截视口快照，按调用 id 存档（容量 12，消费型数据）；
+  Agent 面板的工具调用条目展开后内联"EVIDENCE"缩略图——用户可直接
+  核对"Agent 点完之后页面长什么样"，不再只听 Agent 转述。
+- 已有 `__desireWaitForText` 改大小写不敏感（页面文案大小写不可控）。
+
+### Verified
+
+- E2E：注入延迟文本 → waitForText 1.2s 内命中 "Found text"；
+  networkIdle 无在途请求立即返回；超时路径返回 "Timeout waiting
+  for text"；回证截图走 takeSnapshot 自动通道（面板 UI 待用户验收）。
+
+## [v0.3.1] - 2026-09-19
+
 ## [v0.3.1] - 2026-09-19
 
 > 0.3.x「智能体浏览器」首版：Tab Crew 并行作业。
+
 ### Added
 
 - **Tab Crew**（领队-工人模式）：Agent 会话可把研究/比对类任务拆成

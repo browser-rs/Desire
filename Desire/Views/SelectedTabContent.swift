@@ -156,6 +156,17 @@ struct SelectedTabContent: View {
                                                     content.aiSession.addSelectedTextContext(selection.text)
                                                     showAgentPanel = true
                                                     tab.browser.selectionAI = nil
+                                                },
+                                                onHighlight: { colorIndex in
+                                                    if let url = tab.browser.webView.url?.absoluteString {
+                                                        AnnotationStore.shared.add(
+                                                            url: url, text: selection.text,
+                                                            colorIndex: colorIndex)
+                                                    }
+                                                    tab.browser.webView.evaluateJavaScript(
+                                                        "__desireApplyHighlight(\(colorIndex))",
+                                                        completionHandler: nil)
+                                                    tab.browser.selectionAI = nil
                                                 }
                                             )
                                             .offset(

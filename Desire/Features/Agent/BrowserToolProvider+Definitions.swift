@@ -573,6 +573,10 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: ["code": AgentJSONSchemaValue(type: "string", description: "JavaScript code")], required: ["code"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getPageHighlights", description: "Read the user's highlights (annotations) on the current page — use when asked to summarize/review what they highlighted.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "fillLogin", description: "Fill the CURRENT page's login form with the stored credentials for this site (username + password), optionally submitting. Requires user approval. Fails cleanly when no credential is stored for this domain.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "submit": AgentJSONSchemaValue(type: "boolean", description: "Submit the form after filling (default false)"),

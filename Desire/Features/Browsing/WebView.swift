@@ -857,6 +857,17 @@ struct WebView: NSViewRepresentable {
             if parent.formAutofillStore.isConfigured {
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
             }
+            // 页面批注恢复（0.3.7）：按 URL 文本锚定重新包裹高亮。
+            if let url = webView.url?.absoluteString {
+                let highlights = AnnotationStore.shared.highlights(for: url)
+                    .map { ["text": $0.text, "colorIndex": $0.colorIndex] }
+                if !highlights.isEmpty,
+                   let data = try? JSONSerialization.data(withJSONObject: highlights),
+                   let json = String(data: data, encoding: .utf8) {
+                    webView.evaluateJavaScript(
+                        "__desireRestoreHighlights(\(json))", completionHandler: nil)
+                }
+            }
             // 混合内容扫描（0.2.15 加固）：https 页面统计 http:// 子资源。
             // 一次被动扫描（didFinish 时 DOM 已就绪）；延迟写入的脚本由
             // 下一轮导航或手动刷新再捕获。

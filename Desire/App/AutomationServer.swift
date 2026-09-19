@@ -326,6 +326,7 @@ final class AutomationServer {
         ep("POST", "/profiles/remove", "Delete profile", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
         ep("GET", "/profiles/active", "Active profile data store of this window", example: "…/profiles/active")
         ep("POST", "/profiles/active", "Switch this window's profile (empty = default)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
+        ep("GET", "/annotations", "Highlights of a tab's page (Agent/export)", params: ["index?:int"], example: "…/annotations?index=0")
         ep("GET", "/shortcuts", "Shortcut mappings + live NSMenu accelerators", example: "…/shortcuts")
         ep("POST", "/shortcuts/update", "Re-record binding (next launch)", params: ["id:string", "key:string", "modifierFlags:uint"], example: #"-d '{"id":"newTab","key":"k","modifierFlags":1048576}'"#)
         // Agent
@@ -697,6 +698,17 @@ final class AutomationServer {
                     pattern: Self.string(body, "pattern") ?? "",
                     selector: Self.string(body, "selector") ?? ""
                 ))
+            case ("GET", "/annotations"):
+                let tm2 = try tabManager
+                guard let tab2 = tm2?.selectedTab,
+                      let url = tab2.browser.webView.url?.absoluteString else {
+                    return try Self.json(["highlights": [] as [[String: Any]]])
+                }
+                let highlights: [[String: Any]] = AnnotationStore.shared.highlights(for: url).map { h in
+                    ["id": h.id.uuidString, "text": h.text,
+                     "color": AnnotationStore.palette[min(h.colorIndex, AnnotationStore.palette.count - 1)]]
+                }
+                return try Self.json(["url": url, "highlights": highlights])
             case ("GET", "/shortcuts"):
                 return try Self.json(Self.shortcuts())
             case ("POST", "/shortcuts/update"):

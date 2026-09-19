@@ -1024,3 +1024,72 @@ async function __desireFillProfile(profile) {
     }
     return "Filled " + filled + " field(s)";
 }
+
+
+// --- 0.3.7 页面批注 ---
+
+var HL_COLORS = ["#ffe066", "#b2f2bb", "#a5d8ff", "#fcc2d7"];
+var HL_TAG = "desire-hl";
+
+function __hlWrapRange(range, colorIndex) {
+    var mark = document.createElement("mark");
+    mark.setAttribute("data-" + HL_TAG, String(colorIndex));
+    mark.style.backgroundColor = HL_COLORS[colorIndex] || HL_COLORS[0];
+    mark.style.color = "inherit";
+    try { range.surroundContents(mark); return true; }
+    catch (e) {
+        // 跨元素选区：extract+insert 兜底（保文本，丢内联样式）。
+        try {
+            var frag = range.extractContents();
+            mark.appendChild(frag);
+            range.insertNode(mark);
+            return true;
+        } catch (e2) { return false; }
+    }
+}
+
+// 包裹当前选区（色板下标），返回选中文本；失败返回空串。
+async function __desireApplyHighlight(colorIndex) {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return "";
+    var range = sel.getRangeAt(0);
+    var text = sel.toString();
+    if (!text.trim()) return "";
+    return __hlWrapRange(range, colorIndex) ? text : "";
+}
+
+// 恢复：按文本查找首次未包裹出现处包裹（动态页面文本锚定策略）。
+async function __desireRestoreHighlights(list) {
+    var restored = 0;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (var i = 0; i < list.length; i++) {
+        var target = (list[i].text || "").trim();
+        if (!target) continue;
+        var colorIndex = list[i].colorIndex || 0;
+        var done = false;
+        for (var n = 0; n < nodes.length && !done; n++) {
+            var node = nodes[n];
+            if (!node.parentElement) continue;
+            if (node.parentElement.closest("[data-" + HL_TAG + "]")) continue;
+            var idx = node.nodeValue.indexOf(target);
+            if (idx < 0) continue;
+            var range = document.createRange();
+            range.setStart(node, idx);
+            range.setEnd(node, idx + target.length);
+            if (__hlWrapRange(range, colorIndex)) { restored++; done = true; }
+        }
+    }
+    return "Restored " + restored + "/" + list.length;
+}
+
+// 收集当前页全部高亮（Agent/导出）。
+async function __desireCollectHighlights() {
+    var marks = document.querySelectorAll("mark[data-" + HL_TAG + "]");
+    var out = [];
+    for (var i = 0; i < marks.length; i++) {
+        out.push({ text: marks[i].textContent, colorIndex: parseInt(marks[i].getAttribute("data-" + HL_TAG)) || 0 });
+    }
+    return JSON.stringify(out);
+}

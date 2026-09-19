@@ -84,3 +84,19 @@ func desireColor(named name: String) -> Color {
     default: .gray
     }
 }
+
+// MARK: - Hex Color
+
+extension Color {
+    init(hex: String) {
+        var value: UInt64 = 0
+        var hexString = hex
+        if hexString.hasPrefix("#") { hexString.removeFirst() }
+        Scanner(string: hexString).scanHexInt64(&value)
+        self.init(.sRGB,
+                  red: Double((value >> 16) & 0xff) / 255,
+                  green: Double((value >> 8) & 0xff) / 255,
+                  blue: Double(value & 0xff) / 255,
+                  opacity: 1)
+    }
+}

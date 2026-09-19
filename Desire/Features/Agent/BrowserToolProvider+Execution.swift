@@ -1141,6 +1141,21 @@ extension BrowserToolProvider {
             let timeout = min(args["timeout"] as? Int ?? 5000, 60_000)
             return await callAsync(webView, function: "__desireWaitForElement", args: ["selector": sel, "timeout": timeout])
 
+        // 0.3.7 批注：当前页高亮（页面实时收集，含未持久化的）。
+        case "getPageHighlights":
+            let raw = await callAsync(webView, function: "__desireCollectHighlights", args: [:])
+            guard let data = raw.data(using: .utf8),
+                  let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  !list.isEmpty else {
+                return "No highlights on this page"
+            }
+            let colors = ["yellow", "green", "blue", "pink"]
+            return list.enumerated().map { i, h -> String in
+                let text = h["text"] as? String ?? ""
+                let ci = (h["colorIndex"] as? Int ?? 0)
+                return "[\(i + 1)] (\(colors[min(ci, colors.count - 1)])) \(text)"
+            }.joined(separator: "\n")
+
         // 0.3.6 智能登录：填存档凭据（dangerous 级——gate 已在上游拦截）。
         case "fillLogin":
             guard let host = webView.url?.host, !host.isEmpty else {

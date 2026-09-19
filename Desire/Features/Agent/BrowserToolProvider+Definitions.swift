@@ -563,6 +563,31 @@ extension BrowserToolProvider {
                 name: "executeJS", description: "Execute arbitrary JavaScript code in the page context and return the result",
                 parameters: AgentJSONSchema(type: "object", properties: ["code": AgentJSONSchemaValue(type: "string", description: "JavaScript code")], required: ["code"])
             )),
+
+            // --- Tab Crew (0.3.1) ---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "crewDispatch",
+                description: "Dispatch a crew: split a research/comparison task into 2-6 INDEPENDENT subtasks, each worked on its own tab by a worker agent. Use for parallel research (multi-site comparison, multi-engine search). Each subtask: {url: start URL, instruction: focused self-contained goal for the worker}. Workers are read-only (navigate+read tools only) and return short factual reports.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "objective": AgentJSONSchemaValue(type: "string", description: "Short task name shown to the user"),
+                    "tasks": AgentJSONSchemaValue(type: "array", description: "2-6 subtasks", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                        "url": AgentJSONSchemaValue(type: "string", description: "Start URL for this worker's tab"),
+                        "instruction": AgentJSONSchemaValue(type: "string", description: "Focused, self-contained instruction (the worker sees only this)"),
+                    ]))),
+                ], required: ["objective", "tasks"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "crewStatus",
+                description: "Get the crew's per-subtask progress and any finished reports. When settled, aggregate the reports into the final answer for the user.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "crewCancel",
+                description: "Cancel the whole crew (or one subtask by index).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "index": AgentJSONSchemaValue(type: "number", description: "Cancel only this subtask index (omit = cancel all)"),
+                ])
+            )),
         ]
     }
 }

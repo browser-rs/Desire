@@ -661,6 +661,37 @@ final class MCPService {
             "_bridge": ["method": "GET", "path": "/watches"],
         ],
         [
+            "name": "crewDispatch",
+            "description": "Dispatch a crew: 2-6 subtasks, each worked on its own tab by a read-only worker agent; reports aggregate in the leader session.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "objective": ["type": "string", "description": "Short task name"],
+                    "tasks": ["type": "array", "description": "2-6 subtasks", "items": ["type": "object", "properties": [
+                        "url": ["type": "string"],
+                        "instruction": ["type": "string"],
+                    ]]],
+                ],
+                "required": ["objective", "tasks"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/crew-dispatch", "body": ["objective": "objective", "tasks": "tasks"]],
+        ],
+        [
+            "name": "crewStatus",
+            "description": "Per-subtask progress and finished reports of the crew.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/crew"],
+        ],
+        [
+            "name": "crewCancel",
+            "description": "Cancel the crew (or one subtask by index).",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["index": ["type": "number"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/crew/cancel", "body": ["index": "index"]],
+        ],
+        [
             "name": "checkWatch",
             "description": "Force a watch check now. Returns whether the content changed.",
             "inputSchema": [

@@ -29,4 +29,5 @@ protocol BrowserToolSurface: AnyObject {
     var elementBlockStore: ElementBlockStore { get }
     var tabGroupStore: TabGroupStore { get }
     var quickDialStore: QuickDialStore { get }
+    var agentPreference: AgentPreferenceStore { get }
 }

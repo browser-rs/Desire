@@ -188,6 +188,25 @@ extension BrowserToolProvider {
             }
             return items.joined(separator: "\n")
 
+        // --- Tab Crew (0.3.1) ---
+        case "crewDispatch":
+            let objective = args["objective"] as? String ?? "research task"
+            let rawTasks = args["tasks"] as? [[String: Any]] ?? []
+            let tasks = rawTasks.map { t -> (url: String?, instruction: String) in
+                (t["url"] as? String, t["instruction"] as? String ?? "")
+            }
+            return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks, surface: surface)
+
+        case "crewStatus":
+            return AgentCrewStore.shared.statusReport()
+
+        case "crewCancel":
+            if let idx = args["index"] as? Int {
+                return AgentCrewStore.shared.cancel(taskIndex: idx)
+            }
+            AgentCrewStore.shared.cancelAll()
+            return "Crew cancelled"
+
         case "switchTab":
             guard let index = args["index"] as? Int,
                   index >= 0, index < (surface.tabManager?.tabs.count ?? 0) else { return "Invalid tab index" }

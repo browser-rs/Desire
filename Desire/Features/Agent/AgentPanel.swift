@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 /// (sidebar GeometryReader or floating NSPanel) controls the overall
 /// height, and AgentPanel fills that space.
 struct AgentPanel: View {
+    @ObservedObject var crewStore = AgentCrewStore.shared
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
 
@@ -141,6 +142,11 @@ struct AgentPanel: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 3)
+            }
+
+            // Tab Crew 进度条（0.3.1）：作业组活跃/最近落定时显示子任务瓦片。
+            if let crew = crewStore.crew {
+                CrewProgressStrip(crew: crew, onCancelAll: { crewStore.cancelAll() })
             }
 
             if let context = store.contextLabel {
@@ -505,4 +511,50 @@ struct AgentPanel: View {
     let store = AgentSessionStore(preference: preference, conversationStore: conversationStore)
     return AgentPanel(store: store, conversationStore: conversationStore)
         .frame(width: 360, height: 560)
+}
+/// Tab Crew 进度条（0.3.1）：每子任务一枚瓦片（状态色），点击对应标签；
+/// 全部落定后可一键关闭条子。UI 占位最简 v1。
+struct CrewProgressStrip: View {
+    let crew: AgentCrewStore.Crew
+    let onCancelAll: () -> Void
+
+    private func tint(_ state: AgentCrewStore.WorkerTask.State) -> Color {
+        switch state {
+        case .pending: .secondary.opacity(0.4)
+        case .running: .accentColor
+        case .done: .green
+        case .failed: .red
+        case .cancelled: .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.3.sequence")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text(crew.objective)
+                .font(.caption2.weight(.medium))
+                .lineLimit(1)
+            HStack(spacing: 4) {
+                ForEach(crew.tasks) { t in
+                    Circle()
+                        .fill(tint(t.state))
+                        .frame(width: 8, height: 8)
+                        .help("[\(t.index)] \(t.state.rawValue): \(t.instruction)")
+                }
+            }
+            Spacer(minLength: 8)
+            if !crew.isSettled {
+                Button("Cancel", action: onCancelAll)
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(Color.accentColor.opacity(0.08))
+        .animation(.overlaySpring, value: crew.tasks.map { $0.state.rawValue })
+    }
 }

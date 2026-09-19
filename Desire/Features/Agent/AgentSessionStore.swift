@@ -242,6 +242,34 @@ class AgentSessionStore: ObservableObject {
     func configure(with surface: BrowserToolSurface) {
         toolSurface = surface
         toolProvider.attach(surface: surface)
+        // Tab Crew（0.3.1）：作业组全部落定 → 把各子任务报告聚合成一条
+        // 提示送回领队消息流（领队忙则排队，空闲则直接开一轮聚合播报）。
+        AgentCrewStore.shared.onCrewSettled = { [weak self] crew in
+            guard let self else { return }
+            var sections: [String] = []
+            for t in crew.tasks {
+                switch t.state {
+                case .done:
+                    sections.append("### Subtask [\(t.index)] \(t.instruction.prefix(60))\n\(t.result ?? "")")
+                case .failed, .cancelled:
+                    sections.append("### Subtask [\(t.index)] FAILED: \(t.result ?? t.state.rawValue)")
+                case .pending, .running:
+                    break
+                }
+            }
+            let prompt = """
+            [Crew "\(crew.objective)" finished — \(crew.completedCount)/\(crew.tasks.count) subtasks succeeded]
+
+            \(sections.joined(separator: "\n\n"))
+
+            Aggregate these subtask reports into the final answer for the user now.
+            """
+            if !isProcessing {
+                sendMessage(prompt)
+            } else {
+                queuedMessages.append(QueuedMessage(text: prompt, images: nil))
+            }
+        }
     }
 
     func sendMessage(_ text: String, images: [String]? = nil) {

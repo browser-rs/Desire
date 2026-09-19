@@ -331,6 +331,9 @@ final class AutomationServer {
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
+        ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
+        ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
+        ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
         ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt:string", "minutes?:int | hour+minute"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
@@ -843,6 +846,47 @@ final class AutomationServer {
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
             case ("POST", "/agent/send"):
                 return try Self.json(Self.agentSend(Self.string(body, "text"), window: Self.string(body, "window")))
+            case ("GET", "/agent/crew"):
+                let c = AgentCrewStore.shared.crew
+                guard let c else { return try Self.json(["crew": NSNull()]) }
+                let tasks: [[String: Any]] = c.tasks.map { t in
+                    var row: [String: Any] = [
+                        "index": t.index,
+                        "state": t.state.rawValue,
+                        "instruction": t.instruction,
+                    ]
+                    if let url = t.url { row["url"] = url }
+                    if let tabID = t.tabID { row["tabId"] = tabID.uuidString }
+                    if let r = t.result { row["result"] = String(r.prefix(2000)) }
+                    return row
+                }
+                return try Self.json([
+                    "crew": [
+                        "objective": c.objective,
+                        "settled": c.isSettled,
+                        "done": c.completedCount,
+                        "failed": c.failedCount,
+                        "tasks": tasks,
+                    ] as [String: Any],
+                ])
+            case ("POST", "/agent/crew-dispatch"):
+                let objective = Self.string(body, "objective") ?? "research task"
+                let raw = body["tasks"] as? [[String: Any]] ?? []
+                let tasks = raw.map { t -> (url: String?, instruction: String) in
+                    (t["url"] as? String, t["instruction"] as? String ?? "")
+                }
+                guard let app = AppState.live, let tm = try tabManager else {
+                    return try Self.json(["error": "app/tab manager not ready"])
+                }
+                let surface = WindowToolSurface(app: app, tabManager: tm)
+                return try Self.json(["result": AgentCrewStore.shared.dispatch(
+                    objective: objective, tasks: tasks, surface: surface)])
+            case ("POST", "/agent/crew/cancel"):
+                if let idx = body["index"] as? Int {
+                    return try Self.json(["ok": true, "result": AgentCrewStore.shared.cancel(taskIndex: idx)])
+                }
+                AgentCrewStore.shared.cancelAll()
+                return try Self.json(["ok": true])
             case ("GET", "/agent/tasks"):
                 return try Self.json(Self.agentTasks())
             case ("POST", "/agent/tasks/create"):

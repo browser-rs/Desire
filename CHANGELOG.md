@@ -1,5 +1,37 @@
 ## [Unreleased]
 
+## [v0.3.1] - 2026-09-19
+
+> 0.3.x「智能体浏览器」首版：Tab Crew 并行作业。
+### Added
+
+- **Tab Crew**（领队-工人模式）：Agent 会话可把研究/比对类任务拆成
+  2-6 个独立子任务，每个子任务在**专属后台标签**上由一个 worker
+  agent 执行，报告聚合回领队会话。
+  - `crewDispatch`（objective + tasks[{url, instruction}]）、
+    `crewStatus`（逐子任务进度 + 已完成报告）、`crewCancel`（全部或
+    按下标）三个工具（Agent 内置工具面 + MCP 各一套，MCP 走
+    `/agent/crew-dispatch` 桥路径）。
+  - Worker：单向流式循环（AgentService.stream），只读研究工具子集
+    （getPageSnapshot/getPageText/getPageLinks/findInPage/extractTables），
+    预算 8 次工具调用 / 10 轮；模型停止调工具即视为最终报告。
+  - 聚合：全部落定后，各报告拼装为一条提示自动注入领队消息流
+    （领队忙则进队列），由领队产出面向用户的最终答案。
+  - SSE 事件 crewStarted / crewSettled；桥 `/agent/crew`（状态）、
+    `/agent/crew/cancel`、`/agent/crew-dispatch`。
+- Agent 面板 Crew 进度条：objective + 每子任务状态点（pending 灰/
+  running accent/done 绿/failed 红）+ Cancel 按钮。
+- BrowserToolSurface 协议新增 `agentPreference`（worker 流式调用
+  需要；WindowToolSurface 从 app.aiPreference 供）。
+
+### Verified
+
+- E2E（MCP tools/call 驱动）：crewDispatch 派发 2 子任务 → +2 后台
+  worker 标签打开、状态 running/pending → crewStatus 返回逐任务进度
+  → crewCancel 全取消 → settled=true；桥 /agent/crew 全程可观测。
+  worker 的 LLM 循环需真实模型端点（走用户配置），自动化仅验证到
+  状态机与浏览侧；聚合文案路径由单测覆盖（configure 注入逻辑）。
+
 ## [v0.2.18] - 2026-09-19
 
 ### Added

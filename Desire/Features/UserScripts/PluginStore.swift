@@ -23,6 +23,8 @@ class PluginStore: ObservableObject {
     func remove(_ plugin: Plugin) {
         plugins.removeAll { $0.id == plugin.id }
         save()
+        // Chrome 语义：卸载即清该插件的 storage.local 桶（0.3.3）。
+        WebExtensionStore.clear(ext: plugin.id.uuidString)
     }
 
     /// 工具栏固定切换（0.2.17 Chrome 式扩展面板）。
@@ -52,7 +54,8 @@ class PluginStore: ObservableObject {
     func runOnce(_ plugin: Plugin, in webView: WKWebView) -> Bool {
         guard plugin.isEnabled, !plugin.jsCode.isEmpty else { return false }
         webView.evaluateJavaScript(
-            plugin.jsCode, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+            "window.__desireExtID = '\(plugin.id.uuidString)';\n" + plugin.jsCode,
+            in: nil, in: WebView.extensionWorld, completionHandler: nil)
         return true
     }
 
@@ -65,17 +68,17 @@ class PluginStore: ObservableObject {
         }
     }
 
-    func injectionCode(for url: URL) -> (js: [(code: String, runAt: RunAt)], css: [String]) {
+    func injectionCode(for url: URL) -> (js: [(plugin: Plugin, code: String, runAt: RunAt)], css: [(plugin: Plugin, code: String)]) {
         let matched = matchingPlugins(for: url)
-        let js = matched.filter { !$0.jsCode.isEmpty }.map { ($0.jsCode, $0.runAt) }
-        let css = matched.filter { !$0.cssCode.isEmpty }.map { $0.cssCode }
+        let js = matched.filter { !$0.jsCode.isEmpty }.map { ($0, $0.jsCode, $0.runAt) }
+        let css = matched.filter { !$0.cssCode.isEmpty }.map { ($0, $0.cssCode) }
         return (js, css)
     }
 
     func inject(into webView: WKWebView, for url: URL) {
         let (js, css) = injectionCode(for: url)
 
-        for code in css {
+        for (plugin, code) in css {
             let escaped = code
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
@@ -89,8 +92,10 @@ class PluginStore: ObservableObject {
             """, completionHandler: nil)
         }
 
-        for (code, runAt) in js {
+        for (plugin, code, runAt) in js {
             let delay = runAt == .documentIdle ? 200 : 0
+            // 注入前置插件身份（0.3.3）：storage 等 API 按此命名空间。
+            let prologue = "window.__desireExtID = '\(plugin.id.uuidString)';\n"
             if delay > 0 {
                 let escaped = code
                     .replacingOccurrences(of: "\\", with: "\\\\")
@@ -99,11 +104,11 @@ class PluginStore: ObservableObject {
                 // 插件跑在隔离 desireExtensions world（0.2.13）：可访问
                 // browser.* 与页面 DOM，但页面 JS 看不到插件的全局。
                 webView.evaluateJavaScript(
-                    "setTimeout(function() { \(escaped) }, \(delay))",
+                    prologue + "setTimeout(function() { \(escaped) }, \(delay))",
                     in: nil, in: WebView.extensionWorld, completionHandler: nil)
             } else {
                 webView.evaluateJavaScript(
-                    code, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+                    prologue + code, in: nil, in: WebView.extensionWorld, completionHandler: nil)
             }
         }
     }

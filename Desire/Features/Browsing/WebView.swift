@@ -507,6 +507,8 @@ struct WebView: NSViewRepresentable {
                   let fn = dict["fn"] as? String else { return }
             let id = dict["id"] as? Int
             let args = dict["args"] as? [Any] ?? []
+            // 插件身份（0.3.3）：有 → 存储按插件命名空间；无 → legacy。
+            let extID = dict["ext"] as? String
 
             func reply(_ payload: Any?, error: String? = nil) {
                 guard let id else { return }
@@ -530,20 +532,20 @@ struct WebView: NSViewRepresentable {
 
             switch (ns, fn) {
             case ("storage", "get"):
-                reply(WebExtensionStore.get(keys: args.first))
+                reply(WebExtensionStore.get(keys: args.first, ext: extID))
             case ("storage", "set"):
                 guard let items = args.first as? [String: Any] else {
                     reply(nil, error: "storage.set requires an object")
                     return
                 }
-                WebExtensionStore.set(items: items)
+                WebExtensionStore.set(items: items, ext: extID)
                 reply([:])
             case ("storage", "remove"):
                 let keys = (args.first as? [Any])?.compactMap { $0 as? String } ?? []
-                WebExtensionStore.remove(keys: keys)
+                WebExtensionStore.remove(keys: keys, ext: extID)
                 reply([:])
             case ("storage", "clear"):
-                WebExtensionStore.clear()
+                WebExtensionStore.clear(ext: extID)
                 reply([:])
             case ("tabs", "query"):
                 reply(parent.onQueryTabs?() ?? [])

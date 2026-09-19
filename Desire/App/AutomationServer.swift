@@ -311,6 +311,7 @@ final class AutomationServer {
         ep("POST", "/webext/eval", "Run JS in the ISOLATED extension world of the selected tab (sees browser.*; /execute cannot)", params: ["js:string"], example: "-d '{\"js\":\"typeof browser\"}'")
         ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
         ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
+        ep("POST", "/plugins/install-msex", "Install a .msex package (manifest v3 subset: content_scripts + popup)", params: ["path:string"], example: "-d '{\"path\":\"/tmp/demo.msex\"}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
         ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
@@ -558,6 +559,23 @@ final class AutomationServer {
                     pinned: body["pinned"] as? Bool ?? false,
                     icon: Self.string(body, "icon")
                 ))
+            case ("POST", "/plugins/install-msex"):
+                guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
+                let path = Self.string(body, "path") ?? ""
+                guard FileManager.default.fileExists(atPath: path) else {
+                    return try Self.json(["error": "file not found: \(path)"])
+                }
+                do {
+                    let result = try MSExInstaller.install(from: URL(fileURLWithPath: path), store: app.pluginStore)
+                    return try Self.json([
+                        "ok": true,
+                        "id": result.plugin.id.uuidString,
+                        "name": result.plugin.name,
+                        "hasPopup": result.plugin.popupHTML != nil,
+                    ])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
             case ("POST", "/plugins/pin"):
                 let app = AppState.live
                 guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {

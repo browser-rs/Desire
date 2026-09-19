@@ -222,7 +222,7 @@
 - DOM 变化订阅：`observeDOM(selector, callback)` 工具——
   单页应用的路由跳转/弹窗出现可被 Agent 感知。
 
-### 0.3.3 — WebExtension v2：manifest 装载与 popup
+### 0.3.3 — WebExtension v2：manifest 装载与 popup ✅
 - manifest.json v3 子集装载（name/version/icons/permissions/
   content_scripts），从 .msex zip 包安装（桥 + 面板拖入）。
 - 每插件 popup 页（工具栏固定图标点击弹出 HTML 面板，替代/并存

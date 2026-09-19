@@ -1,5 +1,33 @@
 ## [Unreleased]
 
+## [v0.3.3] - 2026-09-20
+
+> WebExtension v2：从"能跑脚本"到"像扩展"——manifest 装载、popup 页、
+> 每插件独立存储。
+
+### Added
+
+- **manifest v3 子集装载（.msex 包）**：zip（根目录 manifest.json），
+  解析 name/version/description/content_scripts{matches,js,css,run_at}/
+  action.default_popup；js/css 文件内容内联进 Plugin。同名重装 = 更新
+  （沿用旧 id，已存数据不孤儿化）。桥 `POST /plugins/install-msex`。
+- **popup 页**：带 action.default_popup 的插件，固定图标点击弹出
+  独立 WKWebView 面板（320×420，扩展世界 + webext-api 运行时 + 插件
+  身份注入；RPC 支持 storage/notifications）。无 popup 的插件维持
+  "运行一次"语义。扩展面板行自动识别。
+- **每插件独立 storage.local**：宿主注入前设置 `__desireExtID`，RPC
+  携带身份，存储落 `desire.webext.storage.<插件id>` 桶；无身份 =
+  legacy 共享桶（0.2.13 数据仍可读）。卸载插件清其桶（Chrome 语义）。
+  browser._desireID() 供插件自查身份。
+
+### Verified
+
+- E2E：python 构造真 .msex → install → content script 注入命中
+  （storage 计数）→ 跨导航计数持久（独立桶）→ 同名重装 id 稳定 →
+  popup 页装载（hasPopup=true）→ 卸载清桶。
+
+## [v0.3.2] - 2026-09-20
+
 ## [v0.3.2] - 2026-09-20
 
 > 页面感知 v1：让 Agent"看时机"而不是"盲等"，"动作有回证"而不是"说了算"。

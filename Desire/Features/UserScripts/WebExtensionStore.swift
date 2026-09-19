@@ -3,20 +3,18 @@ import os
 import WebKit
 @preconcurrency import UserNotifications
 
-/// WebExtension `storage.local` backend (0.2.13). One JSON dictionary
-/// under a single UserDefaults key; values must be JSON-serializable
-/// (enforced at `set`). V1 uses a shared namespace — plugin code runs in
-/// the isolated `desireExtensions` world, so pages can't reach this, but
-/// plugins share one store (per-plugin namespaces need plugin identity
-/// inside the world, deferred).
+/// WebExtension `storage.local` backend. 0.3.3: per-plugin namespaces —
+/// the host sets `__desireExtID` before evaluating each plugin and the
+/// RPC carries it; storage then lives under `desire.webext.storage.<id>`.
+/// `nil` ext = legacy shared bucket (v0.2.13 data stays readable there).
 @MainActor
 enum WebExtensionStore {
-    private static let storageKey = "desire.webext.storage"
+    private static let legacyKey = "desire.webext.storage"
 
     /// Chrome semantics: null/omitted → all items; string or array →
     /// subset (missing keys come back as null).
-    static func get(keys: Any?) -> [String: Any] {
-        let store = loadAll()
+    static func get(keys: Any?, ext: String?) -> [String: Any] {
+        let store = loadAll(ext: ext)
         switch keys {
         case nil:
             return store
@@ -30,33 +28,39 @@ enum WebExtensionStore {
         }
     }
 
-    static func set(items: [String: Any]) {
-        var store = loadAll()
+    static func set(items: [String: Any], ext: String?) {
+        var store = loadAll(ext: ext)
         for (key, value) in items where JSONSerialization.isValidJSONObject([value]) {
             store[key] = value
         }
-        saveAll(store)
+        saveAll(store, ext: ext)
     }
 
-    static func remove(keys: [String]) {
-        var store = loadAll()
+    static func remove(keys: [String], ext: String?) {
+        var store = loadAll(ext: ext)
         for key in keys { store.removeValue(forKey: key) }
-        saveAll(store)
+        saveAll(store, ext: ext)
     }
 
-    static func clear() {
-        saveAll([:])
+    static func clear(ext: String?) {
+        saveAll([:], ext: ext)
     }
 
-    private static func loadAll() -> [String: Any] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
+    /// 一key一桶：nil = legacy 共享桶；有插件身份 = 独立命名空间。
+    private static func key(for ext: String?) -> String {
+        guard let ext, !ext.isEmpty else { return legacyKey }
+        return "\(legacyKey).\(ext)"
+    }
+
+    private static func loadAll(ext: String?) -> [String: Any] {
+        guard let data = UserDefaults.standard.data(forKey: key(for: ext)),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
         return obj
     }
 
-    private static func saveAll(_ store: [String: Any]) {
+    private static func saveAll(_ store: [String: Any], ext: String?) {
         guard let data = try? JSONSerialization.data(withJSONObject: store) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        UserDefaults.standard.set(data, forKey: key(for: ext))
     }
 
     /// `notifications.create` — TCC authorization is requested lazily on

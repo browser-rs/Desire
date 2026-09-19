@@ -83,7 +83,11 @@
         create: function(options) { return rpc("notifications", "create", [options || {}]); }
     };
 
-    var browser = { storage: storage, tabs: tabs, runtime: runtime, notifications: notifications };
+    var browser = {
+        storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
+        // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
+        _desireID: function () { return window.__desireExtID || null; },
+    };
     window.browser = browser;
     window.chrome = window.chrome || {};
     if (!chrome.storage) chrome.storage = storage;

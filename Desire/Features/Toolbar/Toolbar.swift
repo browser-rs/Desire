@@ -68,6 +68,8 @@ struct Toolbar: View {
     /// 扩展面板（0.2.17）：插件列表/固定管理 + 固定图标点击运行。
     @ObservedObject var pluginStore: PluginStore
     var onRunPlugin: ((Plugin) -> Void)? = nil
+    /// 当前弹 popup 的插件（0.3.3）。
+    @State var popupPlugin: Plugin?
 
     /// Derived search-engine state passed in by the parent so Toolbar doesn't
     /// hold `Settings` directly (AGENTS.md: Composites take Props-in/
@@ -337,7 +339,11 @@ struct Toolbar: View {
             HStack(spacing: 2) {
                 ForEach(pinned) { plugin in
                     Button {
-                        onRunPlugin?(plugin)
+                        if plugin.popupHTML != nil {
+                            popupPlugin = plugin
+                        } else {
+                            onRunPlugin?(plugin)
+                        }
                     } label: {
                         Image(systemName: plugin.toolbarIcon)
                             .font(.system(size: 12))
@@ -345,7 +351,12 @@ struct Toolbar: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Run \"\(plugin.name)\" on this page")
+                    .help(plugin.popupHTML != nil
+                          ? "\(plugin.name) (popup)"
+                          : "Run \"\(plugin.name)\" on this page")
+                    .popover(item: $popupPlugin, arrowEdge: .bottom) { pl in
+                        ExtensionPopupWebView(plugin: pl)
+                    }
                 }
             }
         }

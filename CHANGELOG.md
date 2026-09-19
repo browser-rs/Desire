@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+## [v0.2.18] - 2026-09-19
+
+### Added
+
+- **多语言完善**：Localizable.xcstrings 三语全覆盖——801 键 ×
+  zh-Hans / zh-Hant / en 全部 100%。
+  - 补齐 zh-Hans 缺口 140（0.2.x 新增 UI：分屏/扩展面板/密码中心/
+    更新横幅/高危下载确认条等）。
+  - zh-Hant 缺口 232 由 OpenCC（s2twp，台湾用词短语级）从 zh-Hans
+    全量转换（強制重新整理/清空資料/記憶…）。
+  - 36 个中文原文键补英文值（记忆/任务计划/响应式模式等 Agent
+    onboarding 文案，英文用户不再看到中文）。
+  - CLI 构建不做字符串抽取——代码里 16 个 `String(localized:)` 新键
+    （分屏/下载确认/更新横幅等）手工补入目录，并建立"源码键 vs 目录"
+    对账脚本化检查。
+- 运行时验证：`defaults write AppleLanguages zh-Hans` + 桥面板快照
+  ——下载面板完整中文渲染（下载/1 个已暂停/今天/昨天）。
+
 ## [v0.2.17] - 2026-09-19
 
 ### Added

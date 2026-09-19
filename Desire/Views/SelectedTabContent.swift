@@ -235,11 +235,9 @@ struct SelectedTabContent: View {
                     // ===== 分隔条拖拽由系统提供，零自研。          =====
                     .inspector(isPresented: splitBinding) {
                         splitPane
-                            .inspectorColumnWidth(min: 220, ideal: 420, max: 1200)
                     }
                     .inspector(isPresented: $showAgentPanel) {
                         AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
-                            .inspectorColumnWidth(min: 260, ideal: 320, max: 1000)
                             .onAppear {
                                 Task { @MainActor in
                                     content.aiSession.resumeLatestConversation()
@@ -251,7 +249,6 @@ struct SelectedTabContent: View {
                             tab.browser.isPickingElement = true
                             tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                         }, onClose: { content.toggleDevTools() })
-                        .inspectorColumnWidth(min: 300, ideal: 420, max: 1200)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

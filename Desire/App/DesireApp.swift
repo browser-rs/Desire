@@ -73,7 +73,7 @@ struct DesireApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
-        .commands { AppCommands(shortcuts: appState.system.keyboardShortcutStore) }
+        .commands { AppCommands(shortcuts: appState.system.keyboardShortcutStore, settings: appState.settings) }
     }
 
     // MARK: - Settings Window
@@ -117,6 +117,9 @@ enum BrowserCommand {
     case clearHistory, exportBookmarks, importBookmarksFrom(BookmarkImportService.ImportSource)
     case screenshot
     case restoreArchivedSession
+    // 菜单补全（0.2.13）：新功能的统一入口。
+    case toggleBookmarksBar, toggleCommandPalette, toggleAgentPanel
+    case toggleDevTools, toggleSplitView, showReadingList, fullPageScreenshot
 }
 
 

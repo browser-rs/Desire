@@ -122,6 +122,10 @@ extension ContentView {
             onDuplicateTab: { index in
                 tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
             },
+            splitPartnerIndex: tabManager.splitPartnerIndex,
+            onToggleSplit: { index in
+                tabManager.toggleSplitPartner(at: index)
+            },
             onDragStarted: { tab in beginTearOutWatch(for: tab) },
             onTransferIn: { sourceSession, tabID, index in
                 transferIn(fromSession: sourceSession, tabID: tabID, index: index)

@@ -44,6 +44,9 @@ struct CommandDispatcher {
         var showSidebar: Binding<Bool>
         var isFindBarVisible: Binding<Bool>
         var showDownloads: Binding<Bool>
+        var showReadingList: Binding<Bool>
+        var showCommandPalette: Binding<Bool>
+        var showAgentPanel: Binding<Bool>
     }
 
     struct Actions {
@@ -55,6 +58,8 @@ struct CommandDispatcher {
         var printPage: () -> Void
         var savePage: () -> Void
         var startScreenshot: () -> Void
+        var toggleDevTools: () -> Void
+        var captureFullPage: () -> Void
         /// Resign address-bar focus. Backed by a `@FocusState`, which exposes
         /// a `FocusState<Bool>.Binding` that isn't convertible to
         /// `Binding<Bool>`, so it rides along as a closure.
@@ -239,6 +244,40 @@ struct CommandDispatcher {
             actions.startScreenshot()
         case .restoreArchivedSession:
             restoreArchivedSession()
+
+        // MARK: 菜单补全（0.2.13）
+
+        case .toggleBookmarksBar:
+            settings.showBookmarksBar.toggle()
+
+        case .toggleCommandPalette:
+            withAnimation(.transitionNormal) {
+                bindings.showCommandPalette.wrappedValue.toggle()
+            }
+
+        case .toggleAgentPanel:
+            bindings.showAgentPanel.wrappedValue.toggle()
+
+        case .toggleDevTools:
+            actions.toggleDevTools()
+
+        case .toggleSplitView:
+            // 已分屏 → 解除；未分屏 → 取相邻标签（优先右侧）为分屏对象。
+            if tabManager.splitPartnerID != nil {
+                tabManager.setSplitPartner(at: nil)
+            } else {
+                let next = tabManager.selectedIndex + 1
+                let other = tabManager.tabs.indices.contains(next)
+                    ? next
+                    : tabManager.selectedIndex - 1
+                tabManager.setSplitPartner(at: tabManager.tabs.indices.contains(other) ? other : nil)
+            }
+
+        case .showReadingList:
+            bindings.showReadingList.wrappedValue = true
+
+        case .fullPageScreenshot:
+            actions.captureFullPage()
         }
     }
 

@@ -308,6 +308,14 @@ final class AutomationServer {
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
         ep("POST", "/passwords/resolve", "Resolve save/update-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
         ep("POST", "/passwords/delete", "Delete credentials for domain", params: ["domain:string"], example: "-d '{\"domain\":\"example.com\"}'")
+        ep("GET", "/split", "Split-view state (selected + partner tab index)", example: "…/split")
+        ep("POST", "/split", "Set the split-view right pane to a tab index", params: ["index:int"], example: "-d '{\"index\":1}'")
+        ep("POST", "/split/close", "Leave split view", example: "-d '{}'")
+        ep("GET", "/profiles", "Named browsing personas", example: "…/profiles")
+        ep("POST", "/profiles/add", "Create profile", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
+        ep("POST", "/profiles/remove", "Delete profile", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
+        ep("GET", "/profiles/active", "Active profile data store of this window", example: "…/profiles/active")
+        ep("POST", "/profiles/active", "Switch this window's profile (empty = default)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
         ep("GET", "/shortcuts", "Shortcut mappings + live NSMenu accelerators", example: "…/shortcuts")
         ep("POST", "/shortcuts/update", "Re-record binding (next launch)", params: ["id:string", "key:string", "modifierFlags:uint"], example: #"-d '{"id":"newTab","key":"k","modifierFlags":1048576}'"#)
         // Agent
@@ -700,6 +708,32 @@ final class AutomationServer {
                 ))
             case ("GET", "/profiles"):
                 return try Self.json(Self.profiles())
+            case ("GET", "/split"):
+                let tm = try tabManager
+                var state: [String: Any] = ["selected": tm?.selectedIndex ?? -1]
+                if let partner = tm?.splitPartnerIndex {
+                    state["partner"] = partner
+                } else {
+                    state["partner"] = NSNull()
+                }
+                return try Self.json(state)
+            case ("POST", "/split"):
+                let tm = try tabManager
+                guard let tm else { return try Self.json(["error": "no tab manager"]) }
+                guard let index = body["index"] as? Int, tm.tabs.indices.contains(index) else {
+                    return try Self.json(["error": "missing/invalid index"])
+                }
+                tm.setSplitPartner(at: index)
+                var result: [String: Any] = ["ok": true]
+                if let partner = tm.splitPartnerIndex {
+                    result["partner"] = partner
+                } else {
+                    result["partner"] = NSNull()
+                }
+                return try Self.json(result)
+            case ("POST", "/split/close"):
+                try tabManager?.setSplitPartner(at: nil)
+                return try Self.json(["ok": true, "partner": NSNull()])
             case ("POST", "/profiles/add"):
                 return try Self.json(Self.addProfile(name: Self.string(body, "name") ?? ""))
             case ("GET", "/profiles/active"):

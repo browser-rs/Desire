@@ -55,16 +55,8 @@ extension ContentView {
             .keyboardShortcut(.escape, modifiers: [])
             .hidden()
         }
-        Button("") { showAgentPanel.toggle() }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "toggleAgentPanel")
-                              ?? KeyboardShortcut("'", modifiers: .command))
-            .hidden()
-        Button("") {
-            withAnimation(.transitionNormal) { showCommandPalette = true }
-        }
-            .keyboardShortcut(shortcutStore.keyboardShortcut(for: "commandPalette")
-                              ?? KeyboardShortcut("k", modifiers: .command))
-            .hidden()
+        // ⌘K 命令面板与 ⌘' Agent 面板已进 View 菜单（AppCommands）——
+        // 这里的隐藏按钮已移除，避免同一快捷键双触发。
     }
 
     /// "Element blocked" toast with an undo button (element blocker).

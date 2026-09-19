@@ -60,9 +60,13 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "zoomIn", commandName: "Zoom In", keyEquivalent: "=", modifierFlags: cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "zoomOut", commandName: "Zoom Out", keyEquivalent: "-", modifierFlags: cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "resetZoom", commandName: "Reset Zoom", keyEquivalent: "0", modifierFlags: cmd, isCustomized: false, category: .view),
-            ShortcutMapping(id: "toggleSidebar", commandName: "Toggle Sidebar", keyEquivalent: "b", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            ShortcutMapping(id: "toggleSidebar", commandName: "Toggle Sidebar", keyEquivalent: "b", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
+            // ⇧⌘B 是浏览器通用的书签栏开关（0.2.13 进菜单）；侧栏让位到 ⌃⌘B。
+            ShortcutMapping(id: "toggleBookmarksBar", commandName: "Toggle Bookmarks Bar", keyEquivalent: "b", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            ShortcutMapping(id: "toggleSplitView", commandName: "Split View", keyEquivalent: "\\", modifierFlags: cmd | shift, isCustomized: false, category: .view),
             ShortcutMapping(id: "toggleFullScreen", commandName: "Toggle Full Screen", keyEquivalent: "f", modifierFlags: ctrl | cmd, isCustomized: false, category: .view),
             ShortcutMapping(id: "responsiveMode", commandName: "Responsive Design Mode", keyEquivalent: "m", modifierFlags: cmd | shift, isCustomized: false, category: .view),
+            ShortcutMapping(id: "toggleDevTools", commandName: "Developer Tools", keyEquivalent: "i", modifierFlags: opt | cmd, isCustomized: false, category: .view),
 
             // Tools
             ShortcutMapping(id: "findInPage", commandName: "Find in Page", keyEquivalent: "f", modifierFlags: cmd, isCustomized: false, category: .tools),
@@ -77,6 +81,7 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "showHistory", commandName: "Show History", keyEquivalent: "y", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showDownloads", commandName: "Show Downloads", keyEquivalent: "j", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "showBookmarks", commandName: "Show Bookmarks", keyEquivalent: "b", modifierFlags: cmd, isCustomized: false, category: .panels),
+            ShortcutMapping(id: "showReadingList", commandName: "Show Reading List", keyEquivalent: "r", modifierFlags: ctrl | cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "toggleAgentPanel", commandName: "Toggle AI Panel", keyEquivalent: "'", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "bookmarkPage", commandName: "Add Bookmark", keyEquivalent: "d", modifierFlags: cmd, isCustomized: false, category: .panels),
             ShortcutMapping(id: "settings", commandName: "Settings", keyEquivalent: ",", modifierFlags: cmd, isCustomized: false, category: .panels),

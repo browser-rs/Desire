@@ -1,5 +1,33 @@
 ## [Unreleased]
 
+## [v0.2.13] - 2026-09-19
+
+### Added
+
+- **分屏浏览**（路线图 0.2.15）：同窗口双标签并排——标签右键
+  "Show Alongside (Split)"、View ▸ Split View（⇧⌘\）、桥
+  `/split`（GET 状态 / POST 设置 / POST /split/close）。分屏对象
+  豁免 LRU/内存压力休眠；胶囊弱高亮；右栏迷你标题（标题 + 退出分屏）。
+  生命周期：选中分屏对象 = 转正解除分屏；关闭任一侧按落点正确解除。
+- **菜单补全**：View 菜单新增 书签栏开关（⇧⌘B）、Split View（⇧⌘\）、
+  阅读列表（⌃⌘R）、Command Palette（⌘K）、AI Agent 面板（⌘'）、
+  Developer Tools（⌥⌘I）；Tools 新增 全页截图。侧栏默认键从 ⇧⌘B
+  让位到 ⌃⌘B；窗口内隐藏的 ⌘K/⌘' 按钮移除（进菜单后避免双触发）。
+  新默认键经 mergeOverDefaults 对老安装自动合并。
+
+### Changed
+
+- **分屏拖动**：恢复实时跟随（延迟提交的"松手跳一下"手感被否）——
+  拖动期间高亮锁定 accent（hover 翻色是当初抖动观感的一部分），
+  宽度半像素对齐消除亚像素闪动。disableScreenUpdatesUntilFlush 在
+  macOS 15+ 已是空操作，不采用。
+
+### Verified
+
+- E2E：/split 状态机全绿（设置/选中分屏对象解除/选中他栏保持/
+  关闭分屏对象解除/关闭主栏落点解除/幂等 close）；⇧⌘B 等新映射经
+  /shortcuts 确认注册；构建零警告。
+
 ## [v0.2.12] - 2026-09-19
 
 > 交付路线图 0.2.5 的内容（MCP resources 与 prompts）；发布序列号按

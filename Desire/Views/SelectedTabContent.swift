@@ -41,6 +41,8 @@ struct SelectedTabContent: View {
     @State private var agentPanelWidth: CGFloat = 320
 
     @State private var inspectorWidth: CGFloat = 220
+    /// 分屏右栏宽度（0.2.15）——随窗口布局持久性同 devToolsWidth，仅会话内有效。
+    @State private var splitPaneWidth: CGFloat = 420
     var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geo in
@@ -263,6 +265,18 @@ struct SelectedTabContent: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                if let partner = content.tabManager.splitPartner, partner.id != tab.id {
+                    // 分屏浏览（0.2.15）：主栏（选中标签）右侧并排显示
+                    // 分屏对象。SplitResizeDivider 与通用 ResizableDivider
+                    // 同为实时布局，但每次手势 tick 调
+                    // disableScreenUpdatesUntilFlush 把 SwiftUI 布局与
+                    // WebKit 重排合并成一次原子上屏——分屏两侧都是活动
+                    // WKWebView，不合帧的话进程外合成会追出可见抖动。
+                    SplitResizeDivider(width: $splitPaneWidth, range: 220...1400)
+                    SplitPartnerPane(partner: partner, content: content)
+                        .frame(width: splitPaneWidth)
+                }
+
                 if tab.responsiveConfig.isEnabled && tab.responsiveConfig.showMediaQueryInspector {
                     MediaQueryInspector(queries: content.mediaQueries)
                         .frame(minWidth: 180, idealWidth: 220, maxWidth: 560)
@@ -314,6 +328,117 @@ struct SelectedTabContent: View {
 
 
 
+
+/// 分屏分隔条（0.2.15）。与 ResizableDivider 相同的基线 + 1:1 手势语义，
+/// 差异：每次拖动 tick 对 key window 调 disableScreenUpdatesUntilFlush，
+/// 把该帧内 SwiftUI 的布局变化与两个 WKWebView 的重排合并为一次原子上
+/// 屏（分屏分隔条两侧都是活动 webview——进程外合成不同帧到达就是可见
+/// 抖动）；拖动期间高亮色锁定 accent，hover 翻转不再闪。
+private struct SplitResizeDivider: View {
+    @Binding var width: CGFloat
+    let range: ClosedRange<CGFloat>
+
+    @State private var isHovering = false
+    @State private var isDragging = false
+    @State private var dragStartWidth: CGFloat?
+
+    var body: some View {
+        Rectangle()
+            .fill(isDragging ? Color.accentColor.opacity(0.6)
+                  : isHovering ? Color.accentColor.opacity(0.45)
+                  : Color.secondary.opacity(0.22))
+            .frame(width: 5)
+            .contentShape(Rectangle().inset(by: -3))
+            .onHover { hovering in
+                isHovering = hovering
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else if !isDragging {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if dragStartWidth == nil { dragStartWidth = width }
+                        isDragging = true
+                        // 半像素对齐：亚像素帧位置在 2x 屏上是可见的闪动源。
+                        width = ((dragStartWidth! - value.translation.width)
+                            .clamped(to: range) * 2).rounded() / 2
+                    }
+                    .onEnded { value in
+                        width = (((dragStartWidth ?? width) - value.translation.width)
+                            .clamped(to: range) * 2).rounded() / 2
+                        dragStartWidth = nil
+                        isDragging = false
+                    }
+            )
+    }
+}
+
+/// 分屏右栏（0.2.15）：并排显示的第二个标签的活动 webview。顶部一条
+/// 迷你标题（标签标题 + 退出分屏）让右栏看起来是个成型的面板而不是
+/// 裸贴的第二个网页。工具栏/查找条/阅读模式/响应式模式是选中标签专属
+/// 机制，不复制到右栏；新标签页对象仍用 NewTabPage（webview 此时是
+/// 空白的）。
+private struct SplitPartnerPane: View {
+    @ObservedObject var partner: Tab
+    let content: ContentView
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                if partner.isIncognito {
+                    Image(systemName: "mask")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Text(partner.displayTitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button {
+                    content.tabManager.setSplitPartner(at: nil)
+                } label: {
+                    Image(systemName: "rectangle.split.1x2")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Leave Split View"))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.bar)
+
+            Divider()
+
+            Group {
+                if partner.isOnNewTabPage {
+                    NewTabPage(
+                        store: content.quickDialStore,
+                        urlString: Binding(
+                            get: { partner.urlString },
+                            set: { partner.urlString = $0 }
+                        ),
+                        onNavigate: { input in
+                            content.b.navigateToURL(input, for: partner)
+                        },
+                        suggestionModel: content.newTabSuggestionModel,
+                        bookmarkStore: content.bookmarkStore,
+                        historyStore: content.historyStore,
+                        settings: content.settings
+                    )
+                } else {
+                    content.makeWebView(for: partner)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(partner.id)
+        }
+    }
+}
 
 /// 点阵工作台背景 — 响应式模式下设备框周围的"操作台"质感。
 private struct WorkbenchGrid: View {

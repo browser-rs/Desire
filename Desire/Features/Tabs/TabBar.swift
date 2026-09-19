@@ -48,6 +48,9 @@ struct TabBar: View {
     let onCaptureThumbnail: (Tab) -> Void
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
+    /// 分屏浏览（0.2.15）：右栏标签的下标（nil = 未分屏）+ 切换动作。
+    var splitPartnerIndex: Int? = nil
+    var onToggleSplit: ((Int) -> Void)? = nil
     /// 拖动开始（用于拖出监视：拖出窗口边界 → 撕出为新窗口）。
     let onDragStarted: (Tab) -> Void
     /// 跨窗口拖入：把别的窗口拖来的标签并入本条。（条级落点/条上落点）
@@ -111,6 +114,7 @@ struct TabBar: View {
                                 tab: tab,
                                 index: realIndex,
                                 selectedIndex: selectedIndex,
+                                splitPartnerIndex: splitPartnerIndex,
                                 windowSessionID: windowSessionID,
                                 onDragStarted: onDragStarted,
                                 onTransferIn: onTransferIn,
@@ -125,7 +129,8 @@ struct TabBar: View {
                                     closeTabsToRight: onCloseTabsToRight,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
-                                    duplicateTab: onDuplicateTab
+                                    duplicateTab: onDuplicateTab,
+                                    toggleSplit: onToggleSplit ?? { _ in }
                                 ),
                                 onCloseTabID: onCloseTabID,
                                 tabs: tabs,
@@ -171,6 +176,7 @@ struct TabBar: View {
                                 tab: tab,
                                 index: realIndex,
                                 selectedIndex: selectedIndex,
+                                splitPartnerIndex: splitPartnerIndex,
                                 windowSessionID: windowSessionID,
                                 onDragStarted: onDragStarted,
                                 onTransferIn: onTransferIn,
@@ -185,7 +191,8 @@ struct TabBar: View {
                                     closeTabsToRight: onCloseTabsToRight,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
-                                    duplicateTab: onDuplicateTab
+                                    duplicateTab: onDuplicateTab,
+                                    toggleSplit: onToggleSplit ?? { _ in }
                                 ),
                                 onCloseTabID: onCloseTabID,
                                 tabs: tabs,
@@ -298,6 +305,8 @@ struct TabBar: View {
         let addTab: () -> Void
         let createGroup: (Int) -> Void
         let duplicateTab: (Int) -> Void
+        /// 分屏浏览（0.2.15）：把该标签设为/移出分屏右栏。
+        let toggleSplit: (Int) -> Void
     }
 }
 
@@ -305,6 +314,8 @@ private struct TabPillView: View {
     @ObservedObject var tab: Tab
     let index: Int
     let selectedIndex: Int
+    /// 分屏右栏的下标（nil = 未分屏）——右栏胶囊用弱高亮区分。
+    let splitPartnerIndex: Int?
     let windowSessionID: String
     let onDragStarted: (Tab) -> Void
     /// 跨窗口拖入的落点回调（透传给条级落点代理）。
@@ -412,11 +423,14 @@ private struct TabPillView: View {
                       : Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
-            Capsule()
-                .stroke(index == selectedIndex
-                        ? Color.accentColor
+            Capsule().stroke(
+                index == selectedIndex
+                    ? Color.accentColor
+                    : index == splitPartnerIndex
+                        ? Color.accentColor.opacity(0.45)
                         : Color.secondary.opacity(0.25),
-                        lineWidth: index == selectedIndex ? 1.5 : 0.5)
+                lineWidth: index == selectedIndex ? 1.5 : 1
+            )
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
@@ -482,6 +496,10 @@ private struct TabPillView: View {
             .disabled(tab.isOnNewTabPage)
         Button("Copy URL") { actions.copyTabURL(tab) }
             .disabled(tab.isOnNewTabPage)
+        Button(index == splitPartnerIndex ? "Remove from Split" : "Show Alongside (Split)") {
+            actions.toggleSplit(index)
+        }
+        .disabled(index == selectedIndex)
 
         Divider()
 

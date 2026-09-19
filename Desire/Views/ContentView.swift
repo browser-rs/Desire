@@ -120,7 +120,10 @@ struct ContentView: View {
                 showDownloads: Binding(
                     get: { appState.showDownloadsPanel },
                     set: { appState.showDownloadsPanel = $0 }
-                )
+                ),
+                showReadingList: $showReadingList,
+                showCommandPalette: $showCommandPalette,
+                showAgentPanel: $showAgentPanel
             ),
             actions: .init(
                 newWindow: {
@@ -139,6 +142,8 @@ struct ContentView: View {
                 printPage: { printPage() },
                 savePage: { savePage() },
                 startScreenshot: { startScreenshot() },
+                toggleDevTools: { toggleDevTools() },
+                captureFullPage: { captureFullPage() },
                 clearUrlFocus: { isUrlFocused = false }
             )
         )

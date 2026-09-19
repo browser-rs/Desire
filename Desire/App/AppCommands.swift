@@ -17,6 +17,10 @@ import SwiftUI
 /// rebuilds update them. The Settings page says so in its subtitle.
 struct AppCommands: Commands {
     @ObservedObject var shortcuts: KeyboardShortcutStore
+    /// Observed so toggle-style menu titles ("Show/Hide Bookmarks Bar")
+    /// track state. (Commands body re-evaluates on observed store changes —
+    /// see the live-rebinding note above.)
+    @ObservedObject var settings: Settings
 
     var body: some Commands {
         // Replace the default .appSettings command with one that opens our
@@ -66,6 +70,14 @@ struct AppCommands: Commands {
             Button("Zoom Out") { postCommand(.zoomOut) }
                 .keyboardShortcut(binding("zoomOut", "-", .command))
             Divider()
+            Button(settings.showBookmarksBar ? "Hide Bookmarks Bar" : "Show Bookmarks Bar") {
+                postCommand(.toggleBookmarksBar)
+            }
+            .keyboardShortcut(binding("toggleBookmarksBar", "b", [.command, .shift]))
+            Button("Split View") { postCommand(.toggleSplitView) }
+                .keyboardShortcut(binding("toggleSplitView", "\\", [.command, .shift]))
+            Button("Reading List") { postCommand(.showReadingList) }
+                .keyboardShortcut(binding("showReadingList", "r", [.control, .command]))
             Button("Enter Full Screen") { postCommand(.toggleFullScreen) }
                 .keyboardShortcut(binding("toggleFullScreen", "f", [.control, .command]))
             Divider()
@@ -75,8 +87,15 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("forceReload", "r", [.command, .shift]))
             Button("Reader View") { postCommand(.toggleReader) }
             Divider()
+            Button("Command Palette…") { postCommand(.toggleCommandPalette) }
+                .keyboardShortcut(binding("commandPalette", "k", .command))
+            Button("AI Agent Panel") { postCommand(.toggleAgentPanel) }
+                .keyboardShortcut(binding("toggleAgentPanel", "'", .command))
+            Divider()
             Button("Safari Web Inspector") { postCommand(.inspectElement) }
                 .keyboardShortcut(binding("inspectElement", "i", [.command, .shift]))
+            Button("Developer Tools") { postCommand(.toggleDevTools) }
+                .keyboardShortcut(binding("toggleDevTools", "i", [.option, .command]))
             Button("Responsive Design Mode") { postCommand(.toggleResponsiveMode) }
                 .keyboardShortcut(binding("responsiveMode", "m", [.command, .shift]))
             Divider()
@@ -109,7 +128,7 @@ struct AppCommands: Commands {
             Button("Search Tabs") { postCommand(.tabSearch) }
                 .keyboardShortcut(binding("tabSearch", "\\", .command))
             Button("Sidebar") { postCommand(.toggleSidebar) }
-                .keyboardShortcut(binding("toggleSidebar", "b", [.command, .shift]))
+                .keyboardShortcut(binding("toggleSidebar", "b", [.control, .command]))
             Divider()
             Button("Previous Tab") { postCommand(.previousTab) }
                 .keyboardShortcut(binding("previousTab", "[", [.command, .shift]))
@@ -143,6 +162,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("print", "p", .command))
             Button("Screenshot Region…") { postCommand(.screenshot) }
                 .keyboardShortcut(binding("screenshot", "5", [.command, .shift]))
+            Button("Full-Page Screenshot") { postCommand(.fullPageScreenshot) }
             Divider()
             Button("Restore Archived Session…") { postCommand(.restoreArchivedSession) }
         }

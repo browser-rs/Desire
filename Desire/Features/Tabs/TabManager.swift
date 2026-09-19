@@ -127,6 +127,9 @@ class Tab: ObservableObject {
 class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
+    /// 分屏浏览（0.2.15）：与选中标签并排显示的第二个标签，nil = 单栏。
+    /// 选中标签即主栏；选中分屏对象本身 = 解除分屏（该标签转正为主栏）。
+    @Published var splitPartnerID: UUID?
     /// Called when the user closes the last tab — the owning window should
     /// close itself rather than leaving an empty tab bar.
     var onRequestWindowClose: (() -> Void)?
@@ -218,7 +221,7 @@ class TabManager: ObservableObject {
         guard configured >= 0 else { return }
         let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
-        for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
+        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 if !tab.isSuspended {
                     tab.captureSuspendedState()
@@ -231,10 +234,10 @@ class TabManager: ObservableObject {
 
         // Memory watermark: suspend LRU background tabs when the system
         // reports memory pressure. Exemptions: selected, pinned, incognito,
-        // playing audio.
+        // playing audio, split partner.
         if memoryPressureActive {
             let candidates = tabs
-                .filter { $0.id != selectedTab?.id && !$0.isPinned && !$0.isOnNewTabPage
+                .filter { $0.id != selectedTab?.id && $0.id != splitPartnerID && !$0.isPinned && !$0.isOnNewTabPage
                     && !$0.isIncognito && !$0.isSuspended && !$0.isPlayingAudio }
                 .sorted { $0.lastAccessed < $1.lastAccessed }
             for tab in candidates {
@@ -248,7 +251,7 @@ class TabManager: ObservableObject {
     }
 
     func suspendAllBackgroundTabs() {
-        for tab in tabs where tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito {
+        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isIncognito {
             if !tab.isSuspended {
                 tab.captureSuspendedState()
                 tab.isSuspended = true
@@ -267,6 +270,32 @@ class TabManager: ObservableObject {
     var selectedTab: Tab? {
         guard tabs.indices.contains(selectedIndex) else { return nil }
         return tabs[selectedIndex]
+    }
+
+    /// The tab shown in the split pane, if any (id may go stale across
+    /// churn — every mutating path below clears it).
+    var splitPartner: Tab? {
+        guard let id = splitPartnerID else { return nil }
+        return tabs.first(where: { $0.id == id })
+    }
+
+    /// 分屏对象标签的当前下标（不存在/已失效 → nil）。
+    var splitPartnerIndex: Int? {
+        guard let id = splitPartnerID else { return nil }
+        return tabs.firstIndex(where: { $0.id == id })
+    }
+
+    /// 直接设置/清除分屏右栏（桥端点用；nil = 解除分屏）。程序化切换与
+    /// toggle 不同：幂等 set，不做二次点击解除。
+    func setSplitPartner(at index: Int?) {
+        guard let index, tabs.indices.contains(index), tabs[index].id != selectedTab?.id else {
+            splitPartnerID = nil
+            persistSession()
+            return
+        }
+        splitPartnerID = tabs[index].id
+        tabs[index].lastAccessed = Date()
+        persistSession()
     }
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
@@ -303,6 +332,9 @@ class TabManager: ObservableObject {
     func moveOut(_ tab: Tab) {
         guard let idx = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
         tabs.remove(at: idx)
+        if tab.id == splitPartnerID {
+            splitPartnerID = nil
+        }
         if selectedIndex >= tabs.count {
             selectedIndex = max(0, tabs.count - 1)
         }
@@ -336,8 +368,15 @@ class TabManager: ObservableObject {
         tearDown(tab)
         tabs.remove(at: index)
         defer { BridgeEventBus.shared.publish("tabClosed", ["closedId": tab.id.uuidString, "count": tabs.count]) }
+        if tab.id == splitPartnerID {
+            splitPartnerID = nil
+        }
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
+        }
+        // 关闭主栏后选中若落在分屏对象上 → 解除分屏。
+        if tabs[selectedIndex].id == splitPartnerID {
+            splitPartnerID = nil
         }
         persistSession()
     }
@@ -358,6 +397,8 @@ class TabManager: ObservableObject {
         }
         tabs = [kept]
         selectedIndex = 0
+        // 保留的标签要么不是分屏对象，要么成了唯一标签——两种情况都解除。
+        splitPartnerID = nil
         persistSession()
     }
 
@@ -370,6 +411,9 @@ class TabManager: ObservableObject {
         }
         tabs = Array(tabs.prefix(index + 1))
         if selectedIndex > index { selectedIndex = index }
+        if let partnerID = splitPartnerID, !tabs.contains(where: { $0.id == partnerID }) {
+            splitPartnerID = nil
+        }
         persistSession()
     }
 
@@ -405,10 +449,30 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         persistSession()
         selectedIndex = index
+        // 选中分屏对象 = 解除分屏（它转正为主栏，避免主栏分栏同标签）。
+        if tabs[index].id == splitPartnerID {
+            splitPartnerID = nil
+        }
         tabs[index].lastAccessed = Date()
         if tabs[index].isSuspended {
             unsuspend(tabs[index])
         }
+    }
+
+    // MARK: - 分屏浏览（0.2.15）
+
+    /// 把 `index` 标签设为分屏右栏；已是右栏则解除。主栏（选中标签）不能
+    /// 分屏自己——选中标签被设为分屏对象时视为解除。
+    func toggleSplitPartner(at index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let id = tabs[index].id
+        if splitPartnerID == id || id == selectedTab?.id {
+            splitPartnerID = nil
+        } else {
+            splitPartnerID = id
+            tabs[index].lastAccessed = Date()
+        }
+        persistSession()
     }
 
     // MARK: - Session persistence

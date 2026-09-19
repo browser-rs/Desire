@@ -59,7 +59,19 @@ class FaviconStore {
         return host
     }
 
+    /// `www.` 变体只对注册域名有意义——对 localhost / IP 字面量
+    /// (`127.0.0.1`、`[::1]`)生成的变体 URL 不会有任何服务器应答。
+    private static func isHostLiteral(_ host: String) -> Bool {
+        host == "localhost"
+            || host.contains(":")  // bracketed IPv6
+            || !host.isEmpty && host.allSatisfy { $0.isNumber || $0 == "." }
+    }
+
     func favicon(for urlString: String) async -> NSImage? {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pageURL = trimmed.contains("://")
+            ? URL(string: trimmed)
+            : trimmed.isEmpty ? nil : URL(string: "https://" + trimmed)
         guard let domain = Self.domainKey(from: urlString) else { return nil }
         let key = domain as NSString
 
@@ -75,7 +87,7 @@ class FaviconStore {
 
         let path = diskPath(for: domain)
         let task = Task<NSImage?, Never> { [weak self] in
-            await self?.loadFavicon(domain: domain, diskPath: path)
+            await self?.loadFavicon(domain: domain, pageURL: pageURL, diskPath: path)
         }
         inFlight[domain] = task
         let image = await task.value
@@ -88,7 +100,7 @@ class FaviconStore {
     }
 
     /// The actual fetch pipeline, run exactly once per domain at a time.
-    private func loadFavicon(domain: String, diskPath: URL) async -> NSImage? {
+    private func loadFavicon(domain: String, pageURL: URL?, diskPath: URL) async -> NSImage? {
         let key = domain as NSString
         // Disk read off-main: cache misses shouldn't block the main actor
         // (one miss per address-suggestion row on first encounter).
@@ -102,13 +114,24 @@ class FaviconStore {
             return img
         }
 
-        // Try multiple favicon sources in order of reliability
-        let sources = [
+        // Try multiple favicon sources in order of reliability. Third-party
+        // services key by bare host; the direct probes use the page's own
+        // origin — rebuilding them from the bare host lost custom ports and
+        // forced https (`http://127.0.0.1:8877` → `https://127.0.0.1`, and
+        // even `https://www.127.0.0.1`, which no server ever answers).
+        var sources = [
             "https://www.google.com/s2/favicons?domain=\(domain)&sz=64",
-            "https://icons.duckduckgo.com/ip3/\(domain).ico",
-            "https://\(domain)/favicon.ico",
-            "https://www.\(domain)/favicon.ico"
+            "https://icons.duckduckgo.com/ip3/\(domain).ico"
         ]
+        if let pageURL, let scheme = pageURL.scheme, let host = pageURL.host,
+           scheme.hasPrefix("http") {
+            // origin = scheme://host[:port] — 保留自定义端口与 http。
+            let port = pageURL.port.map { ":\($0)" } ?? ""
+            sources.append("\(scheme)://\(host)\(port)/favicon.ico")
+        }
+        if let host = pageURL?.host, !Self.isHostLiteral(host) {
+            sources.append("https://www.\(domain)/favicon.ico")
+        }
 
         for source in sources {
             guard let url = URL(string: source) else { continue }

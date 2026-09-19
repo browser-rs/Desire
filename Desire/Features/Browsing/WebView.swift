@@ -196,12 +196,10 @@ class BrowserState: ObservableObject {
         PrivacyModeStore.shared.registerWebView(webView)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
-        // 白闪消除（0.3.9）：WKWebView 默认对 resize 新暴露的区域先画
-        // 白底再绘内容——面板/分屏拖动每帧 resize 即每帧白闪。关闭
-        // drawsBackground（KVC，无公开 API）后新区域透明露出底层
-        // windowBackgroundColor；underPageBackgroundColor 同步透明。
-        webView.setValue(false, forKey: "drawsBackground")
-        webView.underPageBackgroundColor = .clear
+        // drawsBackground 保持默认（不透明）：0.3.9 曾用 KVC 关掉它试图
+        // 消 resize 过场闪（8a880f6），历轮实测均未通过——透明内容让
+        // WebKit 无法只拉伸旧帧过渡 resize，每帧合成页面背景反而加剧
+        // 闪烁。勿再关闭。
         // Set the full Safari 26.5 UA on the WKWebView instance itself.
         // (See `applyDesktopSafariUA(to:)` for why this is on the view, not
         // the configuration.)

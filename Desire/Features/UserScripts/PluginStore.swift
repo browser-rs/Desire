@@ -78,7 +78,7 @@ class PluginStore: ObservableObject {
     func inject(into webView: WKWebView, for url: URL) {
         let (js, css) = injectionCode(for: url)
 
-        for (plugin, code) in css {
+        for (_, code) in css {
             let escaped = code
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")

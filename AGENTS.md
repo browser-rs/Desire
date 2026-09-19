@@ -19,7 +19,7 @@ CLI build: `xcodebuild -project Desire.xcodeproj -scheme Desire build`
 - `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` — prefer `@MainActor` on observable types.
 - Strict concurrency checking is on (`SWIFT_APPROACHABLE_CONCURRENCY = YES`).
 - `SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES` — each file must `import` every framework it uses directly (e.g. `import WebKit` for `WKWebView`, `import Combine` for `ObservableObject`). Cross-module re-exports are not visible.
-- App Sandbox is enabled with `ENABLE_USER_SELECTED_FILES = readonly` — file access must use `NSOpenPanel`/`NSOpenPanel` URLs and scoped bookmarks.
+- **App Sandbox is OFF** (`ENABLE_APP_SANDBOX = NO`, entitlements file is empty) — **deliberate**: the built-in AI Agent executes arbitrary shell commands / system operations, which a sandboxed app cannot. Do NOT "fix" this by re-enabling the sandbox. Consequence, not bug: the app process has full user-file access, so any file-scoping (e.g. downloads) is enforced in app logic, not by the platform.
 - Hardened Runtime is enabled.
 - `COMBINE_HIDPI_IMAGES = YES` — use `@2x` asset variants for Retina.
 - Bundle ID: `me.siwi.Desire`, team: `F8JZTX6J52`.
@@ -28,8 +28,7 @@ CLI build: `xcodebuild -project Desire.xcodeproj -scheme Desire build`
 
 Building a web browser on macOS. Consider:
 - `WKWebView` for page rendering
-- App Sandbox with `com.apple.security.network.client` entitlement for web access
-- `ENABLE_USER_SELECTED_FILES = readonly` limits file access — downloads need `NSDownloadsDirectory` or user-selected save locations
+- No App Sandbox — network and file access need no entitlements; security boundaries are Hardened Runtime + app-level logic
 - String catalogs (`LOCALIZATION_PREFERS_STRING_CATALOGS = YES`) for localization
 
 ---
@@ -306,11 +305,21 @@ Features/Bookmarks/
 
 ## 架构决策（勿回退、勿重复踩坑）
 
-- **分栏拖拽**：用 `HStack + ResizableDivider`（基线宽度 + 1:1 跟随 +
-  11pt 命中区）。**禁用 HSplitView** 包含 WKWebView 平台视图的组合 —
-  SwiftUI HoverEventDispatcher 会在主线程断言处崩溃（启动即崩，实测
-  两次复现）。面板宽度所有权归容器，**禁止**面板内部固定
-  `.frame(width:)`（会顶住拖拽）。
+- **App Sandbox 有意关闭**（`ENABLE_APP_SANDBOX = NO`、entitlements 为
+  空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
+  名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key
+  Conventions。
+- **分栏拖拽（0.3.10 终版，用户实测收敛）**：**HSplitView 原生分栏**——
+  分屏右栏/MQ 检查器/Agent/DevTools 全部是其子视图，分隔条与拖拽由
+  SwiftUI 提供，视图内**零拖拽代码**。宽度协商只走子视图
+  `minWidth/idealWidth/maxWidth`，**禁止**面板内部固定 `.frame(width:)`
+  （会顶住拖拽）。历史：2026-09-18 HSplitView+WKWebView 曾有
+  HoverEventDispatcher 延迟崩溃记录（15d279c 回退），0.3.10 同组合
+  实测未复现——旧禁令作废；反过来**系统 `.inspector` 在实机上分隔条
+  不可拖**（75734fb 回退原因）。九轮自研机制（冻结/快照/盖布）全部
+  因卡顿或宽度失控被否；webview resize 的过场闪是 WebKit 引擎行为，
+  与分隔条组件无关，`drawsBackground` 保持默认**不透明**（KVC 关闭
+  会破坏旧帧拉伸、加剧闪烁）。
 - **TCC/隐私授权必须懒请求**：只在用户点击对应功能时发起
   （见 VoiceInputManager）。面板 init 时发起会在非标准启动方式下
   （nohup 直跑二进制，bundle 上下文残缺）被 TCC 直接杀进程。

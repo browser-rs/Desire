@@ -186,7 +186,7 @@ private struct OTPHintBar: View {
     @ObservedObject var browser: BrowserState
 
     var body: some View {
-        if let field = browser.pendingOTPHint {
+        if browser.pendingOTPHint != nil {
             NoticeBar(
                 icon: "clock.badge.checkmark",
                 tint: .blue,

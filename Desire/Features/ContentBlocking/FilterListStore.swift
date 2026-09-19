@@ -166,6 +166,13 @@ class FilterListStore: ObservableObject {
                 throw NSError(domain: "FilterList", code: 1,
                               userInfo: [NSLocalizedDescriptionKey: "Empty filter list"])
             }
+            // 代理/门户可能把请求劫持成 HTML 错误页——非空但注定编译失败，
+            // 提前拦下并报真实原因。
+            let head = abp.prefix(2048).lowercased()
+            if head.contains("<!doctype html") || head.contains("<html") {
+                throw NSError(domain: "FilterList", code: 3,
+                              userInfo: [NSLocalizedDescriptionKey: "Source returned an HTML page, not a rule list"])
+            }
 
             guard let compiledList = await compile(id: id, abp: abp) else {
                 throw NSError(domain: "FilterList", code: 2,
@@ -211,15 +218,22 @@ class FilterListStore: ObservableObject {
         let identifier = Self.ruleListIdentifier(id)
         await removeStoredList(identifier)
         let full = ABPRuleConverter.convert(abp, includeHiding: true)
-        if let compiledList = try? await store.compileContentRuleList(forIdentifier: identifier,
-                                                                      encodedContentRuleList: full.json) {
-            return compiledList
+        do {
+            return try await store.compileContentRuleList(forIdentifier: identifier,
+                                                          encodedContentRuleList: full.json)
+        } catch {
+            // `try?` 在这里会吞掉失败原因（大小超限 vs JSON 非法无从区分）。
+            Log.contentBlocking.error("filter list \(id, privacy: .public) full compile failed: \(error.localizedDescription, privacy: .public) — json \(full.json.count, privacy: .public)B, retrying blocking-only")
         }
-        Log.contentBlocking.error("filter list \(id, privacy: .public) full compile failed — retrying blocking-only")
         await removeStoredList(identifier)
         let blockingOnly = ABPRuleConverter.convert(abp, includeHiding: false)
-        return try? await store.compileContentRuleList(forIdentifier: identifier,
-                                                       encodedContentRuleList: blockingOnly.json)
+        do {
+            return try await store.compileContentRuleList(forIdentifier: identifier,
+                                                          encodedContentRuleList: blockingOnly.json)
+        } catch {
+            Log.contentBlocking.error("filter list \(id, privacy: .public) blocking-only compile failed: \(error.localizedDescription, privacy: .public) — json \(blockingOnly.json.count, privacy: .public)B")
+            return nil
+        }
     }
 
     // MARK: - Controller distribution

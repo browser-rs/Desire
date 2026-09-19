@@ -602,7 +602,6 @@ class TabManager: ObservableObject {
                     unarchiver.requiresSecureCoding = true
                     let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
                     if let state = state {
-                        Log.storage.info("interactionState decoded type: \(String(describing: type(of: state)), privacy: .public)")
                         tab.browser.webView.interactionState = state
                         restoredInteractionState = true
                     }

@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+### 0.2.6 密码中心（进行中）
+
+### Added
+
+- **密码生成器**：PasswordGeneratorSheet——SecureRandom + 长度滑块
+  (8–64) + 符号开关 + 复制/重新生成。
+- **CSV 导入导出**：Chrome 兼容列格式（name,url,username,password），
+  面板工具栏按钮 + 文件选择器/保存面板。
+- 密码面板新增 Generate / Import CSV / Export CSV 工具栏按钮。
+
+## [v0.2.5] - 2026-09-19
+
 （无）
 
 ## [v0.2.5] - 2026-09-19

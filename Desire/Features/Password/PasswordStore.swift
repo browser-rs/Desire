@@ -82,6 +82,77 @@ class PasswordStore: ObservableObject {
         entries.removeAll()
     }
 
+    // MARK: - Password Center (0.2.6)
+
+    /// Generates a cryptographically secure password.
+    static func generatePassword(length: Int = 16, includeSymbols: Bool = true) -> String {
+        let length = max(8, min(128, length))
+        var chars = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        if includeSymbols { chars += Array("!@#$%^&*") }
+        var result = ""
+        var buffer = [UInt8](repeating: 0, count: length * 2)
+        for offset in stride(from: 0, to: length * 2, by: buffer.count) {
+            _ = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
+            for byte in buffer where result.count < length {
+                result.append(chars[Int(byte) % chars.count])
+            }
+        }
+        return result
+    }
+
+    /// Exports all entries as CSV (Chrome-compatible column order).
+    func exportCSV() -> String {
+        var out = "name,url,username,password\n"
+        for entry in entries {
+            out += Self.csvLine([entry.domain, "https://" + entry.domain, entry.username, entry.password])
+        }
+        return out
+    }
+
+    /// Imports passwords from CSV (Chrome format: name,url,username,password).
+    @discardableResult
+    func importCSV(_ csv: String) -> Int {
+        var imported = 0
+        for line in csv.components(separatedBy: .newlines).dropFirst() {
+            let fields = parseCSVLine(line)
+            guard fields.count >= 4, !fields[1].isEmpty, !fields[3].isEmpty else { continue }
+            // Extract host from the URL column (may be full URL or bare domain).
+            let rawURL = fields[1]
+            let host: String
+            if let url = URL(string: rawURL), let h = url.host {
+                host = h
+            } else {
+                host = rawURL
+            }
+            guard !host.isEmpty else { continue }
+            save(domain: host, username: fields[2], password: fields[3])
+            imported += 1
+        }
+        return imported
+    }
+
+    private func parseCSVLine(_ line: String) -> [String] {
+        var fields: [String] = []
+        var current = ""
+        var inQuotes = false
+        for char in line {
+            if char == "'" { current.append(char); continue }
+            if char == "," && !inQuotes { fields.append(current); current = ""; continue }
+            current.append(char)
+        }
+        fields.append(current)
+        return fields
+    }
+
+    private static func csvLine(_ fields: [String]) -> String {
+        fields.map { field in
+            if field.contains(",") || field.contains("\"") || field.contains("\n") {
+                return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+            }
+            return field
+        }.joined(separator: ",")
+    }
+
     // MARK: - Keychain
 
     private func addToKeychain(domain: String, username: String, password: String) {

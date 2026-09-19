@@ -1,9 +1,15 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PasswordPanel: View {
     @ObservedObject var passwordStore: PasswordStore
     @State private var searchText = ""
     @State private var showClearConfirmation = false
+    @State private var showGenerator = false
+    @State private var generatedPassword = ""
+    @State private var generatorLength = 16
+    @State private var generatorSymbols = true
+    @State private var importResult: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +28,21 @@ struct PasswordPanel: View {
             }
             .padding()
 
+            HStack(spacing: 8) {
+                Button { showGenerator = true } label: {
+                    Label("Generate", systemImage: "wand.and.stars").font(.caption)
+                }.buttonStyle(.plain)
+                Button { doImport() } label: {
+                    Label("Import CSV", systemImage: "square.and.arrow.down.on.square").font(.caption)
+                }.buttonStyle(.plain)
+                Button { doExport() } label: {
+                    Label("Export CSV", systemImage: "square.and.arrow.up").font(.caption)
+                }.buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 4)
+
             if filtered.isEmpty {
                 Spacer()
                 EmptyState(message: String(localized: "No Saved Passwords"))
@@ -37,12 +58,46 @@ struct PasswordPanel: View {
         }
         .frame(width: 420, height: 400)
         .searchable(text: $searchText, prompt: "Search Domains")
+        .sheet(isPresented: $showGenerator) {
+            PasswordGeneratorSheet(
+                generatedPassword: $generatedPassword,
+                generatorLength: $generatorLength,
+                generatorSymbols: $generatorSymbols
+            )
+        }
+        .alert("Import Result", isPresented: Binding(
+            get: { importResult != nil },
+            set: { if !$0 { importResult = nil } }
+        )) {
+            Button("OK") { importResult = nil }
+        } message: {
+            Text(importResult ?? "")
+        }
         .alert("Clear All Passwords", isPresented: $showClearConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) { passwordStore.clearAll() }
         } message: {
             Text("This will permanently delete all saved passwords.")
         }
+    }
+
+    private func doImport() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.canChooseFiles = true
+        guard panel.runModal() == .OK, let url = panel.url,
+              let csv = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let count = passwordStore.importCSV(csv)
+        importResult = count > 0 ? "Imported \(count) passwords" : "No passwords imported"
+    }
+
+    private func doExport() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "desire-passwords.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? passwordStore.exportCSV().write(to: url, atomically: true, encoding: .utf8)
+        importResult = "Exported to \(url.lastPathComponent)"
     }
 
     private var filtered: [PasswordEntry] {

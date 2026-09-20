@@ -1938,9 +1938,18 @@ private struct ElementPanel: View {
     @State private var newName = ""
     @State private var newValue = ""
 
+    /// DOM 树：根节点、已展开层的子节点（path → children）、展开集合与选中项。
+    @State private var treeRoot: DOMNode?
+    @State private var treeChildren: [String: [DOMNode]] = [:]
+    @State private var treeExpanded: Set<String> = []
+    @State private var treeSelectedPath: String?
+    @State private var treeLoadedTabID: UUID?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                treeSection
+
                 if let element = store.inspectedElement {
                     PanelSection(title: String(localized: "Element")) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -2010,6 +2019,32 @@ private struct ElementPanel: View {
                         }
                     }
 
+                    if let rules = element.matchingRules, !rules.isEmpty {
+                        PanelSection(title: String(localized: "Matching Rules (\(rules.count))")) {
+                            VStack(alignment: .leading, spacing: 7) {
+                                ForEach(rules) { rule in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(rule.selector)
+                                            .font(.system(size: 10.5, design: .monospaced))
+                                            .foregroundStyle(appAccent)
+                                            .textSelection(.enabled)
+                                            .lineLimit(2)
+                                        Text(rule.css)
+                                            .font(.system(size: 10, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                            .lineLimit(4)
+                                    }
+                                }
+                                if let crossOrigin = element.crossOriginSheets, crossOrigin > 0 {
+                                    Text(String(localized: "\(crossOrigin) cross-origin stylesheets not readable."))
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                    }
+
                     if let box = element.boundingBox, box.width > 0 || box.height > 0 {
                         PanelSection(title: String(localized: "Box Model")) {
                             boxModelDiagram(element.computedStyle)
@@ -2075,6 +2110,138 @@ private struct ElementPanel: View {
                 }
             }
             .padding(12)
+        }
+        // 换标签页 / 首次出现时把树重新挂到当前页面（懒展开：只取一层）。
+        .task(id: tab?.id) { reloadTree() }
+    }
+
+    // MARK: - DOM 树
+
+    private struct TreeRow: Identifiable {
+        let node: DOMNode
+        let depth: Int
+        var id: String { node.path }
+    }
+
+    private var treeSection: some View {
+        PanelSection(title: String(localized: "DOM Tree")) {
+            if let root = treeRoot {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(visibleTreeRows) { row in
+                        treeRow(row.node, depth: row.depth)
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Text(tab == nil
+                         ? String(localized: "No page loaded.")
+                         : String(localized: "Loading…"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                    if tab != nil {
+                        Button("Reload") { reloadTree() }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(appAccent)
+                    }
+                }
+            }
+        }
+    }
+
+    /// 展开状态下的可见行（深度优先；只递归已展开的层）。
+    private var visibleTreeRows: [TreeRow] {
+        guard let root = treeRoot else { return [] }
+        var rows: [TreeRow] = []
+        func walk(_ node: DOMNode, depth: Int) {
+            rows.append(TreeRow(node: node, depth: depth))
+            guard treeExpanded.contains(node.path), let children = treeChildren[node.path] else { return }
+            for child in children { walk(child, depth: depth + 1) }
+        }
+        walk(root, depth: 0)
+        return rows
+    }
+
+    private func treeRow(_ node: DOMNode, depth: Int) -> some View {
+        let selected = treeSelectedPath == node.path
+        return HStack(spacing: 4) {
+            Button {
+                toggleTreeNode(node)
+            } label: {
+                Image(systemName: treeExpanded.contains(node.path) ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 7.5, weight: .semibold))
+                    .foregroundStyle(node.childCount > 0 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary))
+                    .frame(width: 10, height: 12)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(node.childCount == 0)
+
+            Text(node.display)
+                .font(.system(size: 10.5, design: .monospaced))
+                .foregroundStyle(selected ? appAccent : Color.primary)
+                .lineLimit(1)
+
+            if let text = node.text, !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, CGFloat(depth) * 12)
+        .padding(.vertical, 1.5)
+        .padding(.horizontal, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 3)
+                .fill(selected ? appAccent.opacity(0.14) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { selectTreeNode(node) }
+        .help(node.selector)
+    }
+
+    private func toggleTreeNode(_ node: DOMNode) {
+        guard let webView = tab?.browser.webView else { return }
+        if treeExpanded.contains(node.path) {
+            treeExpanded.remove(node.path)
+            return
+        }
+        treeExpanded.insert(node.path)
+        guard treeChildren[node.path] == nil else { return }
+        Task {
+            let loaded = await store.loadTreeChildren(path: node.path, in: webView)
+            treeChildren[node.path] = loaded?.children ?? []
+        }
+    }
+
+    /// 选中树节点 = 用它的 nth-child 选择器跑既有的采集链（Element 详情）。
+    private func selectTreeNode(_ node: DOMNode) {
+        guard let webView = tab?.browser.webView else { return }
+        treeSelectedPath = node.path
+        Task { await store.inspectElement(selector: node.selector, in: webView) }
+    }
+
+    private func reloadTree() {
+        guard let webView = tab?.browser.webView else {
+            treeRoot = nil
+            return
+        }
+        treeChildren.removeAll()
+        treeExpanded.removeAll()
+        treeSelectedPath = nil
+        Task {
+            guard let root = await store.loadTreeChildren(path: "", in: webView) else {
+                treeRoot = nil
+                return
+            }
+            treeRoot = root
+            // 根 + 一层：打开就能看到 head/body 的骨架。
+            treeChildren[""] = root.children ?? []
+            treeExpanded.insert("")
         }
     }
 

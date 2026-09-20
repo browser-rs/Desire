@@ -23,6 +23,28 @@
         }
       }
     },
+    "%lld cross-origin stylesheets not readable." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cross-origin stylesheets not readable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张跨域样式表无法读取。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張跨來源樣式表無法讀取。"
+          }
+        }
+      }
+    },
     ":" : {
       "localizations" : {
         "en" : {
@@ -199,6 +221,28 @@
         }
       }
     },
+    "DOM Tree" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM Tree"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM 树"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM 樹"
+          }
+        }
+      }
+    },
     "Initiator" : {
       "localizations" : {
         "en" : {
@@ -243,6 +287,28 @@
         }
       }
     },
+    "Matching Rules (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matching Rules (%lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命中的规则（%lld）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命中的規則（%lld）"
+          }
+        }
+      }
+    },
     "Messages (%lld)" : {
       "localizations" : {
         "en" : {
@@ -283,6 +349,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚無訊息。"
+          }
+        }
+      }
+    },
+    "No page loaded." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No page loaded."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有已加载的页面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有已載入的頁面。"
           }
         }
       }

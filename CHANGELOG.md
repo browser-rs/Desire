@@ -2,6 +2,23 @@
 
 ### Added
 
+- **Element 页签有了 DOM 树**：此前只有"一次一个元素"的检查器，看不到结构。
+  新脚本 `dom-tree.js` 按 **nth-child 链**一次取一层（懒展开，`path` 形如
+  `0/2/1`），行上给 `tag#id.class` + 文本预览 + 子元素数；点行就用它的
+  nth-child 选择器跑既有采集链（详情区不变），换标签页自动重挂。实测：
+  `html` → `head`（4 个子元素）/ `body` → `div.box` → `h1#target`，选择器与
+  DOM 一致；失效路径干净报错。
+- **命中的 CSS 规则（级联排查）**：`element-inspect.js` 顺带走一遍
+  `document.styleSheets`，列出能匹配该元素的选择器与声明（上限 40 条），跨域
+  样式表读不到就计数说明（"N 张跨域样式表无法读取"），详情里单列一节。实测
+  `#target` → `h1 { letter-spacing: 2px }`（外部样式表）+
+  `#target { color: rgb(255, 0, 0) }`（页内 style）。
+- **桥端点**：`GET /devtools/tree?path=`（一层树，与面板懒展开同路径）；
+  `POST /devtools/inspect` 的返回里加了 `cssPath` / `matchingRules` /
+  `crossOriginSheets`。新增 4 条三语文案。
+
+### Added
+
 - **Network 页签补上长连接与发起者**：
   - **WebSocket / SSE**：`network-monitor.js` 包装了两个构造函数，连接本身是一条
     请求（状态 101 / 200），每条消息是一帧（`phase:"frame"`，方向 in/out/system，

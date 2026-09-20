@@ -63,6 +63,31 @@
         return 'html>' + parts.join('>');
     }
 
+    // 命中的 CSS 规则（级联排查）：作者样式表里能匹配上这个元素的选择器及其声明。
+    // 跨域样式表读 cssRules 会抛 SecurityError——跳过并计数，面板里说明
+    // "N 张跨域样式表未读"，免得让人以为规则丢了。
+    var matchingRules = [];
+    var crossOriginSheets = 0;
+    try {
+        var sheets = document.styleSheets;
+        for (var s = 0; s < sheets.length && matchingRules.length < 40; s++) {
+            var list = null;
+            try { list = sheets[s].cssRules; } catch (e) { crossOriginSheets++; continue; }
+            if (!list) continue;
+            for (var r = 0; r < list.length && matchingRules.length < 40; r++) {
+                var rule = list[r];
+                if (!rule.selectorText) continue;
+                var matched = false;
+                try { matched = el.matches(rule.selectorText); } catch (e) { matched = false; }
+                if (!matched) continue;
+                matchingRules.push({
+                    selector: rule.selectorText,
+                    css: rule.style && rule.style.cssText ? rule.style.cssText.slice(0, 600) : ''
+                });
+            }
+        }
+    } catch (e) {}
+
     var rect = el.getBoundingClientRect();
     return JSON.stringify({
         tagName: tag,
@@ -74,6 +99,8 @@
         boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         selector: selector,
         cssPath: cssPathOf(el),
-        xpath: null
+        xpath: null,
+        matchingRules: matchingRules,
+        crossOriginSheets: crossOriginSheets
     });
 })();

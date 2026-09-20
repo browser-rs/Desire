@@ -401,6 +401,12 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **Element 的 DOM 树用 nth-child 链当路径（2026-09-21）**：
+  `UserScripts/dom-tree.js` 的 `path` 形如 `0/2/1`（"" = `<html>`），**一次只取
+  一层**（面板懒展开），每个节点带一个可直接交给 `element-inspect.js` 的
+  nth-child 选择器。**不要**改成"整棵树一次取回"：深层页面会撑爆 JSON 与面板。
+  树的加载挂在 `.task(id: tab?.id)` 上，所以 `/panel/snapshot`（离屏宿主）里
+  树是空的——别据此判"功能坏了"（同 [[desire-testing-env]] 的 .task 坑）。
 - **`callAsyncJavaScript` 的字典键 = 包装函数的形参名（2026-09-21 实测）**：
   `arguments:` 的键会成为形参，脚本里再 `const url = arguments[0]` 直接
   `SyntaxError: Cannot declare a const variable twice: 'url'`——这条异常文本

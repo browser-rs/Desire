@@ -767,6 +767,11 @@ final class AutomationServer {
                     attributes: body["attributes"] as? [String: String] ?? [:],
                     index: Self.index(body)
                 ))
+            case ("GET", "/devtools/tree"):
+                return try await Self.json(Self.devToolsTree(
+                    path: query["path"] ?? "",
+                    index: Self.index(query)
+                ))
             case ("POST", "/devtools/replay"):
                 return try await Self.json(Self.devToolsReplay(
                     url: Self.string(body, "url") ?? "",
@@ -1435,10 +1440,14 @@ final class AutomationServer {
         }
         try await Task.sleep(for: .milliseconds(250))
         store.setActivePanel(.element)
+        let element = store.inspectedElement
         return [
             "ok": result == "clicked",
             "result": result,
-            "selector": store.inspectedElement?.selector ?? "",
+            "selector": element?.selector ?? "",
+            "cssPath": element?.cssPath ?? "",
+            "matchingRules": (element?.matchingRules ?? []).map { ["selector": $0.selector, "css": $0.css] },
+            "crossOriginSheets": element?.crossOriginSheets ?? 0,
         ]
     }
 
@@ -1552,6 +1561,36 @@ final class AutomationServer {
             return ["error": "unknown kind"]
         }
         return ["ok": true]
+    }
+
+    /// Element 页签的 DOM 树（一层）：面板懒展开用的就是这条路径。
+    /// `path` 是 nth-child 链（省略 = `<html>`）。
+    private static func devToolsTree(path: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard let node = await store.loadTreeChildren(path: path, in: tab.browser.webView) else {
+            return ["error": "could not read the tree (no page, stale path, or script missing)"]
+        }
+        var children: [[String: Any]] = []
+        for child in node.children ?? [] {
+            children.append([
+                "path": child.path,
+                "tag": child.tag,
+                "id": child.elementID ?? "",
+                "classes": child.classes,
+                "childCount": child.childCount,
+                "text": child.text ?? "",
+                "selector": child.selector,
+            ])
+        }
+        return [
+            "path": node.path,
+            "tag": node.tag,
+            "childCount": node.childCount,
+            "truncated": node.truncated ?? false,
+            "selector": node.selector,
+            "children": children,
+        ]
     }
 
     /// 重放一条已记录的请求（面板详情里的 ↻ 按钮走同一条路径）：在页面里用

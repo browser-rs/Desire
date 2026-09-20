@@ -794,6 +794,26 @@ class DevToolsStore: ObservableObject {
         }
     }
 
+    /// Element 页签的 DOM 树：按 nth-child 链取**一层**子节点（懒展开）。
+    /// 返回 nil 表示取不到（页面没加载、路径失效、脚本缺失）。
+    func loadTreeChildren(path: String, in webView: WKWebView) async -> DOMNode? {
+        let script = UserScriptLoader.load("dom-tree")
+        guard !script.isEmpty else { return nil }
+        do {
+            // 形参名必须与字典键一致（AGENTS.md 的 callAsyncJavaScript 约定）。
+            let result = try await webView.callAsyncJavaScript(
+                script,
+                arguments: ["path": path, "maxChildren": 200],
+                in: nil,
+                contentWorld: .page
+            )
+            guard let json = result as? String, let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(DOMNode.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+
     /// 在页面里取一张图片并转成 data URL，供 Network 详情内联预览。
     ///
     /// 走**页面自己的 fetch**（带 cookie），所以同源资源一定能取到；跨域图片

@@ -163,10 +163,12 @@ class BrowserState: ObservableObject {
         // takes over); it must stay free of extra tokens so the fallback is
         // also a complete, genuine-shaped Safari UA.
         config.defaultWebpagePreferences.preferredContentMode = .desktop
-        // Explicitly enable HTML5 Fullscreen API for video sites (YouTube, etc.).
-        // Defaults to true, but being explicit avoids edge cases where the
-        // fullscreen transition silently no-ops inside SwiftUI-hosted WKWebView.
-        config.preferences.isElementFullscreenEnabled = true
+        // Element fullscreen 保持禁用（2026-09-20 裁决）：macOS 26 +
+        // SwiftUI 承载环境下 WebKit 的 element fullscreen 损坏——全屏
+        // 视口 0×0、VisionKit 以 NaN 几何崩溃（进程死）。三轮窗口级
+        // 同步方案亦全败。视频全屏 = 系统窗口全屏（⌃⌘F）+ 播放器剧场
+        // 模式（YouTube 按 t），全系统原语。勿再打开此开关。
+        config.preferences.isElementFullscreenEnabled = false
         config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15"
         contentBlocker?.apply(to: config)
         // Network interception rules (0.1.13): block/redirect applied to
@@ -363,6 +365,8 @@ struct WebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.autoresizingMask = [.width, .height]
+        // （WebKit 私有的 VisionKit 集成无公开开关;element fullscreen
+        // 已禁用,VKC 崩溃路径不会进入。）
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
         }

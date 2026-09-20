@@ -34,6 +34,9 @@ enum UserScriptLoader {
             scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
         }
         add("console-intercept", at: .atDocumentStart)
+        // 网页满屏 shim（纯 CSS,不触碰 WebKit 全屏管线/窗口操作,
+        // 机制与禁区见 fullscreen-shim.js 头注释与 WebView.swift）。
+        add("fullscreen-shim", at: .atDocumentStart)
         add("media-sniffer", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)

@@ -36,6 +36,7 @@
         window.__desireFSEl = el;
         el.classList.add('desire-fs');
         document.body.classList.add('desire-fs-on');
+        lastEnterAt = Date.now();
         notify(true);
         document.dispatchEvent(new Event('fullscreenchange'));
     }
@@ -88,8 +89,15 @@
 
     // The native window left fullscreen at the macOS level (ESC / shortcut)
     // — release the page styles so the video returns to the page layout.
+    // The ENTERING fullscreen animation also fires a burst of resizes whose
+    // intermediate heights read as "left fullscreen" — that auto-exited the
+    // video right after entering. Resizes within 1s of enter are the
+    // animation itself and are ignored.
+    var lastEnterAt = 0;
     window.addEventListener('resize', function() {
-        if (window.__desireFSEl && window.outerHeight <= window.screen.availHeight * 0.75) {
+        if (!window.__desireFSEl) return;
+        if (Date.now() - lastEnterAt < 1000) return;
+        if (window.outerHeight <= window.screen.availHeight * 0.75) {
             exitFS();
         }
     });

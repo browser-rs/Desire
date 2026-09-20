@@ -5,6 +5,8 @@ import SwiftUI
 /// BrowserCommand, the registered containers, and window controls. The
 /// BrowserCommand enum IS the catalog — no parallel registry to drift.
 struct CommandPalette: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     /// Runs a selected command through the same bus the menus use.
     let onRun: (BrowserCommand) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -126,7 +128,7 @@ struct CommandPalette: View {
                         .padding(.vertical, 7)
                         .background(
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(index == selectedIndex ? Color.accentColor.opacity(0.14) : Color.clear)
+                                .fill(index == selectedIndex ? appAccent.opacity(0.14) : Color.clear)
                         )
                         .contentShape(Rectangle())
                         .onHover { hovering in

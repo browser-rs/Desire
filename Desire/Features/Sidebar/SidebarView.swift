@@ -75,13 +75,9 @@ struct SidebarView: View {
                 .frame(height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            isActive
-                                ? Color.accentColor.opacity(0.15)
-                                : (isHovered ? Color(nsColor: .systemFill) : Color.clear)
-                        )
+                        .fill(sidebarSelectionFill(isActive: isActive, isHovered: isHovered))
                 )
-                .foregroundStyle(isActive ? Color.accentColor : .primary)
+                .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -150,4 +146,12 @@ struct SidebarView: View {
             }
         }
     }
+    /// 侧栏选中/悬停底色。用 `.tint`（跟随设置里的强调色）而不是
+    /// `Color.accentColor`（系统强调色，见 TabBar 里的同款注释）。
+    private func sidebarSelectionFill(isActive: Bool, isHovered: Bool) -> AnyShapeStyle {
+        if isActive { return AnyShapeStyle(.tint.opacity(0.15)) }
+        if isHovered { return AnyShapeStyle(Color(nsColor: .systemFill)) }
+        return AnyShapeStyle(Color.clear)
+    }
+
 }

@@ -3,6 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct QuickDialCard: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let dial: QuickDial
     let index: Int
     let onNavigate: () -> Void
@@ -35,7 +37,7 @@ struct QuickDialCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(
                     isHovering
-                        ? Color.accentColor.opacity(0.35)
+                        ? appAccent.opacity(0.35)
                         : Color.secondary.opacity(0.12),
                     lineWidth: 0.5
                 )
@@ -72,8 +74,8 @@ struct QuickDialCard: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.accentColor.opacity(0.18),
-                                Color.accentColor.opacity(0.05)
+                                appAccent.opacity(0.18),
+                                appAccent.opacity(0.05)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -81,7 +83,7 @@ struct QuickDialCard: View {
                     )
                 Image(systemName: dial.icon)
                     .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
             }
             .frame(width: 56, height: 56)
         }

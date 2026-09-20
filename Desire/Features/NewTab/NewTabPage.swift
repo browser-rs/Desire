@@ -3,6 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct NewTabPage: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: QuickDialStore
     @Binding var urlString: String
     var onNavigate: (String) -> Void
@@ -210,7 +212,7 @@ struct NewTabPage: View {
             Color(nsColor: .windowBackgroundColor)
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.06),
+                    appAccent.opacity(0.06),
                     .clear
                 ],
                 startPoint: .top,

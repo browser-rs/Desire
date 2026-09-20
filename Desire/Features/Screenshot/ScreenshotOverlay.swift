@@ -11,6 +11,8 @@ import SwiftUI
 
 @MainActor
 struct ScreenshotToolbar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var model: ScreenshotToolbarModel
 
     let onToolChange: (ScreenshotTool) -> Void
@@ -138,9 +140,9 @@ struct ScreenshotToolbar: View {
                 .frame(width: 26, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(model.activeTool == item.tool ? Color.accentColor.opacity(0.25) : Color.clear)
+                        .fill(model.activeTool == item.tool ? appAccent.opacity(0.25) : Color.clear)
                 )
-                .foregroundStyle(model.activeTool == item.tool ? Color.accentColor : .primary)
+                .foregroundStyle(model.activeTool == item.tool ? appAccent : .primary)
         }
         .buttonStyle(.plain)
         .help(item.help)
@@ -165,7 +167,7 @@ struct ScreenshotToolbar: View {
                 .frame(width: 16, height: 16)
                 .overlay(
                     Circle()
-                        .stroke(isActiveColor(color) ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isActiveColor(color) ? 2 : 0.5)
+                        .stroke(isActiveColor(color) ? appAccent : Color(nsColor: .separatorColor), lineWidth: isActiveColor(color) ? 2 : 0.5)
                 )
         }
         .buttonStyle(.plain)
@@ -195,7 +197,7 @@ struct ScreenshotToolbar: View {
             .frame(width: 16, height: 16)
             .overlay(
                 Circle()
-                    .stroke(model.customColor != nil ? Color.accentColor : Color.clear, lineWidth: 1)
+                    .stroke(model.customColor != nil ? appAccent : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -210,9 +212,9 @@ struct ScreenshotToolbar: View {
                 .frame(width: 26, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(isOn ? Color.accentColor.opacity(0.25) : Color.clear)
+                        .fill(isOn ? appAccent.opacity(0.25) : Color.clear)
                 )
-                .foregroundStyle(isOn ? Color.accentColor : .primary)
+                .foregroundStyle(isOn ? appAccent : .primary)
         }
         .buttonStyle(.plain)
         .help(isOn ? "Filled" : "Outlined")
@@ -225,9 +227,9 @@ struct ScreenshotToolbar: View {
                 .frame(width: 26, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(model.strokeWidth == width ? Color.accentColor.opacity(0.25) : Color.clear)
+                        .fill(model.strokeWidth == width ? appAccent.opacity(0.25) : Color.clear)
                 )
-                .foregroundStyle(model.strokeWidth == width ? Color.accentColor : .primary)
+                .foregroundStyle(model.strokeWidth == width ? appAccent : .primary)
         }
         .buttonStyle(.plain)
         .help(help)
@@ -240,9 +242,9 @@ struct ScreenshotToolbar: View {
                 .frame(width: 26, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(model.fontSize == size ? Color.accentColor.opacity(0.25) : Color.clear)
+                        .fill(model.fontSize == size ? appAccent.opacity(0.25) : Color.clear)
                 )
-                .foregroundStyle(model.fontSize == size ? Color.accentColor : .primary)
+                .foregroundStyle(model.fontSize == size ? appAccent : .primary)
         }
         .buttonStyle(.plain)
         .help(help)

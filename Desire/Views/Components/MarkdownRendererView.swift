@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct MarkdownRendererView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let text: String
 
     /// Parsed blocks, memoized so re-renders don't re-parse the markdown.
@@ -103,7 +105,7 @@ struct MarkdownRendererView: View {
         case .blockquote(let content):
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.accentColor.opacity(0.55))
+                    .fill(appAccent.opacity(0.55))
                     .frame(width: 2.5)
                 Text(inlineContent(content))
                     .font(.system(size: 13))

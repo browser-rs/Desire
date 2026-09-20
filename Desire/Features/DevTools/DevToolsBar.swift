@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DevToolsBar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
 
     var body: some View {
@@ -34,7 +36,7 @@ struct DevToolsBar: View {
             .frame(minWidth: 80)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(store.activePanel == panel ? Color.accentColor.opacity(0.15) : Color.clear)
+                    .fill(store.activePanel == panel ? appAccent.opacity(0.15) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -52,7 +54,7 @@ struct DevToolsBar: View {
             }
         }
         .font(.system(size: 12))
-        .foregroundStyle(store.activePanel == panel ? Color.accentColor : .secondary)
+        .foregroundStyle(store.activePanel == panel ? appAccent : .secondary)
     }
 
     private func panelBadge(_ panel: DevToolsStore.DevPanel) -> some View {

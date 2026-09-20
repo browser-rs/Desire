@@ -7,6 +7,8 @@ private struct FlatBookmark: Identifiable {
 }
 
 struct BookmarkPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: BookmarkStore
     var onSelect: (String) -> Void
     var onDelete: (Bookmark) -> Void
@@ -55,7 +57,7 @@ struct BookmarkPanel: View {
                     if !isSelecting { selectedIDs.removeAll() }
                 } label: {
                     Image(systemName: isSelecting ? "checkmark.circle.fill" : "checkmark.circle")
-                        .foregroundStyle(isSelecting ? Color.accentColor : .secondary)
+                        .foregroundStyle(isSelecting ? appAccent : .secondary)
                 }
                 .buttonStyle(.plain)
                 .help(isSelecting ? "Done Selecting" : "Select Multiple")
@@ -177,7 +179,7 @@ struct BookmarkPanel: View {
                         }
                     } label: {
                         Image(systemName: selectedIDs.contains(item.id) ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(selectedIDs.contains(item.id) ? Color.accentColor : .secondary)
+                            .foregroundStyle(selectedIDs.contains(item.id) ? appAccent : .secondary)
                             .font(.system(size: 14))
                     }
                     .buttonStyle(.plain)
@@ -213,7 +215,7 @@ struct BookmarkPanel: View {
                     Spacer()
                 } else {
                     Image(systemName: "folder.fill")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                         .font(.system(size: 14))
                     Text(item.bookmark.title)
                         .font(.system(size: 13, weight: .medium))
@@ -231,7 +233,7 @@ struct BookmarkPanel: View {
             .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(selectedIDs.contains(item.id) ? Color.accentColor.opacity(0.1) : Color.clear)
+                    .fill(selectedIDs.contains(item.id) ? appAccent.opacity(0.1) : Color.clear)
             )
             .onTapGesture {
                 if isSelecting {

@@ -6,6 +6,8 @@ import SwiftUI
 /// badges. Data comes from the live tool registry, so the page always
 /// matches what the agent can actually do.
 struct AgentCapabilitiesView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     var onBack: () -> Void
 
     @State private var searchText = ""
@@ -101,11 +103,11 @@ struct AgentCapabilitiesView: View {
                     HStack(spacing: 10) {
                         Image(systemName: ability.icon)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(appAccent)
                             .frame(width: 24, height: 24)
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.accentColor.opacity(0.10))
+                                    .fill(appAccent.opacity(0.10))
                             )
                         VStack(alignment: .leading, spacing: 1) {
                             Text(ability.title)

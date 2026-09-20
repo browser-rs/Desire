@@ -3,6 +3,8 @@ import SwiftUI
 /// In-app update banner (toolbar area): shows when a newer release exists
 /// and the user hasn't dismissed it for this tag.
 struct UpdateBannerView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var checker: UpdateChecker
 
     private var installButtonTitle: String {
@@ -19,7 +21,7 @@ struct UpdateBannerView: View {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(String(localized: "\(tag) is available"))
                         .font(.system(size: 12, weight: .medium))
@@ -43,8 +45,8 @@ struct UpdateBannerView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.2)))
-                        .foregroundStyle(Color.accentColor)
+                        .background(Capsule().fill(appAccent.opacity(0.2)))
+                        .foregroundStyle(appAccent)
                     }
                     .buttonStyle(.plain)
                     .disabled(checker.installState == .downloading || checker.installState == .installing)
@@ -81,7 +83,7 @@ struct UpdateBannerView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
-            .background(Color.accentColor.opacity(0.06))
+            .background(appAccent.opacity(0.06))
             .overlay(alignment: .bottom) { Divider() }
             .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -91,6 +93,8 @@ struct UpdateBannerView: View {
 /// Settings ▸ System ▸ "Check for Updates" row: manual trigger with
 /// inline result feedback.
 struct CheckUpdatesRow: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var checker: UpdateChecker
 
     var body: some View {
@@ -102,7 +106,7 @@ struct CheckUpdatesRow: View {
                 case .available(let tag):
                     Text(String(localized: "\(tag) is available"))
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                 case .upToDate:
                     Text(String(localized: "You're up to date."))
                         .font(.system(size: 11))
@@ -130,8 +134,8 @@ struct CheckUpdatesRow: View {
                         .font(.system(size: 12, weight: .medium))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                        .foregroundStyle(Color.accentColor)
+                        .background(Capsule().fill(appAccent.opacity(0.18)))
+                        .foregroundStyle(appAccent)
                 }
             }
             .buttonStyle(.plain)

@@ -31,7 +31,7 @@ final class PluginsWindowController {
         }
 
         let view = PluginPanel(store: pluginStore)
-        let hosting = NSHostingView(rootView: view)
+        let hosting = NSHostingView(rootView: view.appAccent(AppAccent.current))
         let newWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],

@@ -6,10 +6,13 @@ class AgentFloatingPanel {
     private var window: NSWindow?
     private let store: AgentSessionStore
     private let conversationStore: ConversationStore
+    /// 独立窗口的强调色（见 AppAccent.swift）。
+    let accentColor: Color
 
-    init(store: AgentSessionStore, conversationStore: ConversationStore) {
+    init(store: AgentSessionStore, conversationStore: ConversationStore, accentColor: Color) {
         self.store = store
         self.conversationStore = conversationStore
+        self.accentColor = accentColor
     }
 
     var isVisible: Bool { window?.isVisible ?? false }
@@ -50,6 +53,8 @@ class AgentFloatingPanel {
         let hostingController = NSHostingController(
             rootView: AgentPanel(store: store, conversationStore: conversationStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 独立窗口：ContentView 的强调色注入不跨窗口（见 AppAccent.swift）。
+                .appAccent(accentColor)
         )
         panel.contentViewController = hostingController
 

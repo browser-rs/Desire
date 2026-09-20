@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ReadingListPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: ReadingListStore
     let onSelect: (String) -> Void
     let onClose: () -> Void
@@ -31,7 +33,7 @@ struct ReadingListPanel: View {
                         HStack(spacing: 10) {
                             Image(systemName: item.isRead ? "circle.fill" : "circle")
                                 .font(.system(size: 8))
-                                .foregroundStyle(item.isRead ? .secondary : Color.accentColor)
+                                .foregroundStyle(item.isRead ? .secondary : appAccent)
 
                             Button {
                                 let url = item.url

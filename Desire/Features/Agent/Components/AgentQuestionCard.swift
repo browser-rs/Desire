@@ -3,6 +3,8 @@ import SwiftUI
 /// Inline card for the agent's mid-task questions (askUser tool): shows the
 /// question with a text field for the answer.
 struct AgentQuestionCard: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let question: String
     let onAnswer: (String) -> Void
 
@@ -14,7 +16,7 @@ struct AgentQuestionCard: View {
             HStack(spacing: 6) {
                 Image(systemName: "questionmark.bubble.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 Text("Agent 需要你的确认")
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
@@ -37,14 +39,14 @@ struct AgentQuestionCard: View {
                         } label: {
                             Text(option.trimmingCharacters(in: .whitespaces))
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(appAccent)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
                                 .background(
-                                    Capsule().fill(Color.accentColor.opacity(0.10))
+                                    Capsule().fill(appAccent.opacity(0.10))
                                 )
                                 .overlay(
-                                    Capsule().stroke(Color.accentColor.opacity(0.35), lineWidth: 0.6)
+                                    Capsule().stroke(appAccent.opacity(0.35), lineWidth: 0.6)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -63,18 +65,18 @@ struct AgentQuestionCard: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.accentColor))
+                    .background(Capsule().fill(appAccent))
                     .disabled(answer.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
+                .fill(appAccent.opacity(0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.3), lineWidth: 0.7)
+                .stroke(appAccent.opacity(0.3), lineWidth: 0.7)
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 4)

@@ -32,7 +32,11 @@ class Settings: ObservableObject {
         didSet { UserDefaults.standard.set(appearanceTheme.rawValue, forKey: "appearanceTheme") }
     }
     @Published var accentColor: AccentColor {
-        didSet { UserDefaults.standard.set(accentColor.rawValue, forKey: "accentColor") }
+        didSet {
+            UserDefaults.standard.set(accentColor.rawValue, forKey: "accentColor")
+            // 全局镜像：给拿不到 Settings 的窗口（插件窗、截图工具条）读。
+            AppAccent.current = accentColor.color
+        }
     }
     @Published var newTabPosition: NewTabPosition {
         didSet { UserDefaults.standard.set(newTabPosition.rawValue, forKey: "newTabPosition") }

@@ -7,6 +7,8 @@ import SwiftUI
 /// the new tab page's surface — so navigating between Settings pages doesn't
 /// produce a visual jump.
 struct SettingsPageBackground: ViewModifier {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -15,7 +17,7 @@ struct SettingsPageBackground: ViewModifier {
                     Color(nsColor: .windowBackgroundColor)
                     LinearGradient(
                         colors: [
-                            Color.accentColor.opacity(0.05),
+                            appAccent.opacity(0.05),
                             .clear,
                         ],
                         startPoint: .topLeading,
@@ -266,6 +268,8 @@ struct SettingsPickerRow<Item: Hashable>: View {
 // MARK: - Action Row
 
 struct SettingsActionRow: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let title: String
     let subtitle: String?
     let systemImage: String?
@@ -303,9 +307,9 @@ struct SettingsActionRow: View {
                         Capsule()
                             .fill(isDestructive
                                   ? Color.red.opacity(0.12)
-                                  : Color.accentColor.opacity(0.14))
+                                  : appAccent.opacity(0.14))
                     )
-                    .foregroundStyle(isDestructive ? Color.red : Color.accentColor)
+                    .foregroundStyle(isDestructive ? Color.red : appAccent)
             }
             .buttonStyle(.plain)
             .disabled(isDisabled)
@@ -368,6 +372,8 @@ struct StatusPill: View {
 
 /// Used by the AI settings to pick between provider kinds.
 struct ProviderCard: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let title: String
     let subtitle: String
     let systemImage: String
@@ -381,13 +387,13 @@ struct ProviderCard: View {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+                    .foregroundStyle(isSelected ? Color.white : appAccent)
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
                             .fill(isSelected
-                                  ? Color.accentColor
-                                  : Color.accentColor.opacity(0.12))
+                                  ? appAccent
+                                  : appAccent.opacity(0.12))
                     )
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -404,21 +410,21 @@ struct ProviderCard: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
+                    .foregroundStyle(isSelected ? appAccent : Color.secondary.opacity(0.4))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(isSelected
-                          ? Color.accentColor.opacity(0.08)
+                          ? appAccent.opacity(0.08)
                           : Color(nsColor: .controlBackgroundColor).opacity(isHovering ? 1.0 : 0.6))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(
                         isSelected
-                            ? Color.accentColor.opacity(0.5)
+                            ? appAccent.opacity(0.5)
                             : Color.secondary.opacity(0.12),
                         lineWidth: isSelected ? 1.0 : 0.5
                     )

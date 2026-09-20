@@ -3,6 +3,8 @@ import SwiftUI
 import WebKit
 
 struct Toolbar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     struct Actions {
         let goBack: () -> Void
         let goForward: () -> Void
@@ -252,10 +254,10 @@ struct Toolbar: View {
             )
 
             HoverIcon(systemName: isReadingMode ? "doc.text.fill" : "doc.text", action: actions.toggleReader, disabled: tab.isOnNewTabPage, help: isReadingMode ? "Exit Reader Mode" : "Reader Mode")
-                .foregroundStyle(isReadingMode ? Color.accentColor : .secondary)
+                .foregroundStyle(isReadingMode ? appAccent : .secondary)
 
             HoverIcon(systemName: isBookmarked ? "bookmark.fill" : "bookmark", action: actions.toggleBookmark, disabled: tab.isOnNewTabPage, help: isBookmarked ? "Remove Bookmark" : "Bookmark This Page")
-                .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+                .foregroundStyle(isBookmarked ? appAccent : .secondary)
 
             searchEngineButton
         }
@@ -263,11 +265,11 @@ struct Toolbar: View {
         .frame(height: 30)
         .background(
             Capsule()
-                .fill(isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                .fill(isUrlFocused.wrappedValue ? appAccent.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
                 .overlay(
                     Capsule()
                         .strokeBorder(
-                            isUrlFocused.wrappedValue ? Color.accentColor.opacity(0.4) :
+                            isUrlFocused.wrappedValue ? appAccent.opacity(0.4) :
                             tab.isIncognito ? Color.purple.opacity(0.3) :
                             Color.clear, lineWidth: 0.5)
                 )
@@ -396,10 +398,10 @@ struct Toolbar: View {
                     HStack(spacing: 10) {
                         Image(systemName: plugin.toolbarIcon)
                             .font(.system(size: 12))
-                            .foregroundStyle(plugin.isEnabled ? Color.accentColor : .secondary)
+                            .foregroundStyle(plugin.isEnabled ? appAccent : .secondary)
                             .frame(width: 22, height: 22)
                             .background(
-                                Circle().fill(Color.accentColor.opacity(plugin.isEnabled ? 0.12 : 0.05))
+                                Circle().fill(appAccent.opacity(plugin.isEnabled ? 0.12 : 0.05))
                             )
                         VStack(alignment: .leading, spacing: 1) {
                             Text(plugin.name)
@@ -419,7 +421,7 @@ struct Toolbar: View {
                         } label: {
                             Image(systemName: plugin.isPinned ? "pin.fill" : "pin")
                                 .font(.system(size: 11))
-                                .foregroundStyle(plugin.isPinned ? Color.accentColor : .secondary)
+                                .foregroundStyle(plugin.isPinned ? appAccent : .secondary)
                                 .frame(width: 22, height: 22)
                         }
                         .buttonStyle(.plain)
@@ -455,8 +457,8 @@ struct Toolbar: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                    .foregroundStyle(Color.accentColor)
+                    .background(Capsule().fill(appAccent.opacity(0.18)))
+                    .foregroundStyle(appAccent)
                 }
                 .buttonStyle(.plain)
             }
@@ -484,7 +486,7 @@ struct Toolbar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(isDevModeEnabled ? Color.accentColor : .primary)
+            .foregroundStyle(isDevModeEnabled ? appAccent : .primary)
             .help("Developer Tools")
 
             DownloadButton(store: downloadStore, showDownloads: $showDownloads)
@@ -663,6 +665,8 @@ private struct BackForwardButton: View {
 }
 
 private struct DownloadButton: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DownloadStore
     @Binding var showDownloads: Bool
     @State private var isHovering = false
@@ -673,12 +677,12 @@ private struct DownloadButton: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: store.hasActive ? "arrow.down.circle.fill" : "arrow.down.circle")
-                    .foregroundStyle(store.hasActive ? Color.accentColor : .primary)
+                    .foregroundStyle(store.hasActive ? appAccent : .primary)
                 if store.activeCount > 0 {
                     Text("\(store.activeCount)")
                         .font(.system(size: 9, weight: .bold))
                         .padding(3)
-                        .background(Color.accentColor)
+                        .background(appAccent)
                         .foregroundStyle(.white)
                         .clipShape(Circle())
                         .offset(x: 7, y: -7)

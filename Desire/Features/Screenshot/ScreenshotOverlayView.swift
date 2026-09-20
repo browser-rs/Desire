@@ -18,7 +18,7 @@ final class ScreenshotOverlayView: NSView {
     // MARK: - State
 
     private let toolbarModel = ScreenshotToolbarModel()
-    private var toolbarHostingView: NSHostingView<ScreenshotToolbar>?
+    private var toolbarHostingView: NSHostingView<AnyView>?
 
     private var mode: ScreenshotMode = .idle
     private var selectionRect: CGRect = .zero
@@ -70,7 +70,7 @@ final class ScreenshotOverlayView: NSView {
             onCopy: { [weak self] in self?.copyImage() },
             onCancel: { [weak self] in self?.cancel() }
         )
-        let hosting = NSHostingView(rootView: toolbar)
+        let hosting: NSHostingView<AnyView> = NSHostingView(rootView: AnyView(toolbar.appAccent(AppAccent.current)))
         hosting.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hosting)
         hosting.isHidden = true

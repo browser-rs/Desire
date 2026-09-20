@@ -9,6 +9,8 @@ struct RecentEntry: Identifiable {
 }
 
 struct RecentVisitedCard: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let entry: RecentEntry
     let onNavigate: () -> Void
 
@@ -59,7 +61,7 @@ struct RecentVisitedCard: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(
                         isHovering
-                            ? Color.accentColor.opacity(0.25)
+                            ? appAccent.opacity(0.25)
                             : Color.secondary.opacity(0.08),
                         lineWidth: 0.5
                     )

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DevToolsPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
     var tab: Tab?
     var onStartElementPicker: (() -> Void)?
@@ -29,7 +31,7 @@ struct DevToolsPanel: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(store.activePanel == panel ? Color.accentColor.opacity(0.1) : Color.clear)
+                        .background(store.activePanel == panel ? appAccent.opacity(0.1) : Color.clear)
                     }
                     .buttonStyle(.plain)
                 }
@@ -88,6 +90,8 @@ struct DevToolsPanel: View {
 // MARK: - Console Panel
 
 private struct ConsolePanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
     @Binding var filter: ConsoleMessage.Level?
     @State private var searchText = ""
@@ -206,7 +210,7 @@ private struct ConsolePanel: View {
         }
         .background(
             copiedMessageId == message.id
-                ? Color.accentColor.opacity(0.1)
+                ? appAccent.opacity(0.1)
                 : levelBackgroundColor(message.level)
         )
     }

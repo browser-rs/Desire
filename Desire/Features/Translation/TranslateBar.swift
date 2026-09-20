@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TranslateBar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var service: TranslationService
     let webView: BrowserWKWebView
     let onDismiss: () -> Void
@@ -24,7 +26,7 @@ struct TranslateBar: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             } else if let source = service.sourceLanguage {
                 HStack(spacing: 4) {
                     Text("This page is in")
@@ -37,7 +39,7 @@ struct TranslateBar: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             } else {
                 Text("Translate this page?")
                     .font(.caption)

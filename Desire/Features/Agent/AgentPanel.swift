@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 /// (sidebar GeometryReader or floating NSPanel) controls the overall
 /// height, and AgentPanel fills that space.
 struct AgentPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var crewStore = AgentCrewStore.shared
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
@@ -130,7 +132,7 @@ struct AgentPanel: View {
                         HStack(spacing: 6) {
                             Image(systemName: "person.2")
                                 .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(appAccent)
                             Text(run.label)
                                 .font(.system(size: 11))
                                 .lineLimit(1)
@@ -138,10 +140,10 @@ struct AgentPanel: View {
                             if let tool = run.currentTool {
                                 Text(tool)
                                     .font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(appAccent)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1)
-                                    .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                                    .background(Capsule().fill(appAccent.opacity(0.12)))
                             }
                             Spacer(minLength: 0)
                             Text("\(run.step)/\(run.maxSteps)")
@@ -303,11 +305,11 @@ struct AgentPanel: View {
             .overlay {
                 if isDroppingImage {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(appAccent.opacity(0.12))
                         .overlay(
                             Image(systemName: "photo.on.rectangle.angled")
                                 .font(.system(size: 22))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(appAccent)
                         )
                         .allowsHitTesting(false)
                 }
@@ -545,6 +547,8 @@ struct AgentPanel: View {
 /// Tab Crew 进度条（0.3.1）：每子任务一枚瓦片（状态色），点击对应标签；
 /// 全部落定后可一键关闭条子。UI 占位最简 v1。
 struct CrewProgressStrip: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let crew: AgentCrewStore.Crew
     let onCancelAll: () -> Void
 
@@ -584,7 +588,7 @@ struct CrewProgressStrip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
-        .background(Color.accentColor.opacity(0.08))
+        .background(appAccent.opacity(0.08))
         .animation(.overlaySpring, value: crew.tasks.map { $0.state.rawValue })
     }
 }

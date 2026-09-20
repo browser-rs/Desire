@@ -35,6 +35,8 @@ struct AgentMessageBubble: View {
 // MARK: - User bubble
 
 private struct UserBubble: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let text: String
     var imageDataURIs: [String] = []
     @State private var isHovering = false
@@ -63,15 +65,15 @@ private struct UserBubble: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color.accentColor,
-                                            Color.accentColor.opacity(0.85),
+                                            appAccent,
+                                            appAccent.opacity(0.85),
                                         ],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                         )
-                        .shadow(color: Color.accentColor.opacity(0.18), radius: 4, y: 1)
+                        .shadow(color: appAccent.opacity(0.18), radius: 4, y: 1)
                 }
 
             }
@@ -112,6 +114,8 @@ private struct UserBubble: View {
 // MARK: - Assistant bubble
 
 private struct AssistantBubble: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let message: AgentMessage
     let isStreamingTail: Bool
     var toolResults: [String: String] = [:]
@@ -148,7 +152,7 @@ private struct AssistantBubble: View {
                     // Trailing caret pulse while the stream is still open
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(Color.accentColor)
+                            .fill(appAccent)
                             .frame(width: 5, height: 5)
                             .opacity(0.85)
                         Text("streaming")
@@ -190,8 +194,8 @@ private struct AssistantBubble: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.accentColor,
-                            Color.accentColor.opacity(0.65),
+                            appAccent,
+                            appAccent.opacity(0.65),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -271,6 +275,8 @@ private struct ToolBubble: View {
 // MARK: - Screenshot view
 
 private struct ScreenshotView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let image: NSImage
     @State private var isHovering = false
 
@@ -301,7 +307,7 @@ private struct ScreenshotView: View {
                             Text("Copy")
                                 .font(.system(size: 10, weight: .medium))
                         }
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                     }
                     .buttonStyle(.plain)
                 }

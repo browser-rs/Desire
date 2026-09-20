@@ -231,9 +231,9 @@ private struct CookieManageButton: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(
-                Capsule().fill(Color.accentColor.opacity(0.14))
+                Capsule().fill(.tint.opacity(0.14))
             )
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(.tint)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showPanel) {

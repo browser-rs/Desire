@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct FindBar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @Binding var findString: String
     let findMatchCount: Int
     let findCurrentIndex: Int
@@ -47,7 +49,7 @@ struct FindBar: View {
 
             Button("Done") { onHide() }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

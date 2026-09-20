@@ -349,6 +349,15 @@ Features/Bookmarks/
   “信任远程规则脚本”；没有配置源时缓存的包一律不参与解析。
   脚本清单里各站自己有 `window.__desire*` 一次性标志位，代数变化时由包装器
   清掉以重跑——新增站点脚本必须保留这个 guard 名对应关系（`VideoSite.guardFlag`）。
+- **应用内强调色只能用 `.tint` 系样式，禁止 `Color.accentColor`**（2026-09-20）：
+  `Color.accentColor` 既不跟随 macOS 系统强调色也不跟随 Desire 设置里的强调色
+  （实测 `.tint(purple)` 环境下它仍返回 SwiftUI 默认蓝 #009DFF）——`.tint` 只对
+  系统控件生效，自绘的胶囊/描边/图标会一直是默认蓝，于是"主题色在标签栏没应用"。
+  需要 ShapeStyle 的地方写 `.tint` / `AnyShapeStyle(.tint.opacity(x))`；三目里混
+  非强调色时用 `AnyShapeStyle(...)` 包两侧；确实要 `Color` 值（如
+  `LinearGradient(colors:)`）就由调用方把 `settings.accentColor.color` 传进去。
+  每个独立窗口/面板（设置窗、Agent 浮窗、截图层、引导页）都要在根视图自己挂
+  `.tint(...)`——ContentView 的 tint 不跨 scene。
 - **App Sandbox 有意关闭**（`ENABLE_APP_SANDBOX = NO`、entitlements 为
   空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
   名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key

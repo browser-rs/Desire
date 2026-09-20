@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct AddressSuggestionsView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var model: AddressSuggestionsModel
     var engineName: String
     var searchHistoryStore: SearchHistoryStore?
@@ -119,7 +121,7 @@ struct AddressSuggestionsView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(index == model.selectedIndex ? Color.accentColor.opacity(0.15) : .clear)
+        .background(index == model.selectedIndex ? appAccent.opacity(0.15) : .clear)
         .contentShape(Rectangle())
         .onTapGesture {
             onSelect(suggestion)
@@ -175,7 +177,7 @@ struct AddressSuggestionsView: View {
                 .font(.caption2)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.accentColor.opacity(0.12))
+                .background(appAccent.opacity(0.12))
                 .clipShape(Capsule())
                 .foregroundStyle(.secondary)
         case .history:

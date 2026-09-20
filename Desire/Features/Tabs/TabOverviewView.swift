@@ -8,6 +8,10 @@ import WebKit
 /// 见 SelectedTabContent 的占位分支）。
 struct TabOverviewView: View {
     @ObservedObject var tabManager: TabManager
+    /// 占位瓦片的渐变要用颜色值（`LinearGradient` 只吃 `Color`，没有
+    /// ShapeStyle 版本），所以由调用方把设置里的强调色传进来——不用
+    /// `Color.accentColor`，那是系统强调色，不跟随应用设置。
+    let accentColor: Color
     /// 与 SelectedTabContent 同款：引用 ContentView 以复用 makeWebView。
     let content: ContentView
     let onSelectTab: (Int) -> Void
@@ -101,7 +105,7 @@ struct TabOverviewView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.14),
+                    .stroke(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.white.opacity(0.14)),
                             lineWidth: isSelected ? 3 : 1)
             )
             .contentShape(Rectangle())
@@ -120,7 +124,7 @@ struct TabOverviewView: View {
         if tab.isOnNewTabPage || tab.isSuspended {
             ZStack {
                 LinearGradient(
-                    colors: [Color.accentColor.opacity(0.20), Color.secondary.opacity(0.15)],
+                    colors: [accentColor.opacity(0.20), Color.secondary.opacity(0.15)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
                 VStack(spacing: 10) {

@@ -59,6 +59,8 @@ struct ToolCallList: View {
 }
 
 private struct ToolCallChip: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let toolCall: AgentToolCall
     var result: String?
     @State private var isExpanded = false
@@ -104,7 +106,7 @@ private struct ToolCallChip: View {
             HStack(spacing: 6) {
                 Image(systemName: iconName)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                     .frame(width: 14)
                 Text(toolCall.function.name)
                     .font(.system(size: 11, weight: .medium))
@@ -203,7 +205,7 @@ private struct ToolCallChip: View {
 
     private var chipBackground: Color {
         isHovering
-            ? Color.accentColor.opacity(0.10)
+            ? appAccent.opacity(0.10)
             : Color(nsColor: .controlBackgroundColor).opacity(0.45)
     }
 

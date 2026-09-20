@@ -23,6 +23,8 @@ import WebKit
 /// 宽度协商只经子视图的 minWidth/idealWidth/maxWidth 接口（容器所有），
 /// 面板内部不得再设固定 `.frame(width:)`。
 struct SelectedTabContent: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var tab: Tab
     let content: ContentView
     /// Direct reference to the browsing-actions coordinator so closures
@@ -49,11 +51,11 @@ struct SelectedTabContent: View {
             if !isFullScreen {
                 GeometryReader { geo in
                     Capsule()
-                        .fill(Color.accentColor.opacity(0.15))
+                        .fill(appAccent.opacity(0.15))
                         .frame(height: 2)
                         .overlay(alignment: .leading) {
                             Capsule()
-                                .fill(Color.accentColor)
+                                .fill(appAccent)
                                 .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
                         }
                 }

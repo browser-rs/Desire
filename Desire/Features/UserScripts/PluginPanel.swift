@@ -15,6 +15,8 @@ import UniformTypeIdentifiers
 /// Lists plugins grouped by Enabled / Disabled with a count badge in the
 /// header. `PluginEditor` is presented as a sheet.
 struct PluginPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: PluginStore
 
     @State private var editingPlugin: Plugin?
@@ -84,8 +86,8 @@ struct PluginPanel: View {
                 .font(.caption.bold())
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                .foregroundStyle(Color.accentColor)
+                .background(Capsule().fill(appAccent.opacity(0.15)))
+                .foregroundStyle(appAccent)
             Spacer()
             Button {
                 let p = Plugin(

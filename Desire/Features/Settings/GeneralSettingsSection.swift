@@ -437,15 +437,15 @@ private struct AccentSwatch: View {
             .background(
                 Circle()
                     .fill(isSelected
-                          ? Color.accentColor.opacity(0.18)
-                          : Color.secondary.opacity(isHovering ? 0.12 : 0.06))
+                          ? AnyShapeStyle(.tint.opacity(0.18))
+                          : AnyShapeStyle(Color.secondary.opacity(isHovering ? 0.12 : 0.06)))
             )
             .overlay(
                 Circle()
                     .stroke(
                         isSelected
-                            ? Color.accentColor.opacity(0.6)
-                            : Color.secondary.opacity(0.0),
+                            ? AnyShapeStyle(.tint.opacity(0.6))
+                            : AnyShapeStyle(Color.secondary.opacity(0.0)),
                         lineWidth: 1.0
                     )
             )
@@ -507,9 +507,9 @@ private struct ContainerSection: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule().fill(Color.accentColor.opacity(0.18))
+                                Capsule().fill(.tint.opacity(0.18))
                             )
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(.tint)
                     }
                     .buttonStyle(.plain)
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -625,9 +625,9 @@ private struct ProfilesSection: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule().fill(Color.accentColor.opacity(0.18))
+                                Capsule().fill(.tint.opacity(0.18))
                             )
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(.tint)
                     }
                     .buttonStyle(.plain)
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -809,8 +809,8 @@ private struct FolderPathRow: View {
                     .font(.system(size: 12, weight: .medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                    .foregroundStyle(Color.accentColor)
+                    .background(Capsule().fill(.tint.opacity(0.18)))
+                    .foregroundStyle(.tint)
             }
         }
         .padding(.horizontal, 14)
@@ -862,8 +862,8 @@ private struct SystemSection: View {
                             .font(.system(size: 12, weight: .medium))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 5)
-                            .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                            .foregroundStyle(Color.accentColor)
+                            .background(Capsule().fill(.tint.opacity(0.18)))
+                            .foregroundStyle(.tint)
                     }
                     .buttonStyle(.plain)
                 }
@@ -931,6 +931,8 @@ private struct SystemSection: View {
 // MARK: - Custom Search Engines
 
 private struct CustomEngineSection: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var settings: Settings
     @State private var showAdd = false
     @State private var newName = ""
@@ -973,8 +975,8 @@ private struct CustomEngineSection: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                    .foregroundStyle(Color.accentColor)
+                    .background(Capsule().fill(.tint.opacity(0.18)))
+                    .foregroundStyle(.tint)
                 }
                 .buttonStyle(.plain)
             }
@@ -1004,9 +1006,9 @@ private struct CustomEngineSection: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass.circle")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.tint)
                 .frame(width: 22, height: 22)
-                .background(Circle().fill(Color.accentColor.opacity(0.12)))
+                .background(Circle().fill(appAccent.opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(engine.name)
@@ -1037,6 +1039,8 @@ private struct CustomEngineSection: View {
 // MARK: - Add Custom Engine Sheet
 
 private struct AddCustomEngineSheet: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @Binding var name: String
     @Binding var searchURL: String
     @Binding var suggestionURL: String
@@ -1048,7 +1052,7 @@ private struct AddCustomEngineSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "plus.magnifyingglass")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                 Text("Add Search Engine")
                     .font(.system(size: 14, weight: .semibold))
             }
@@ -1095,10 +1099,10 @@ private struct AddCustomEngineSheet: View {
                     .padding(.vertical, 6)
                     .background(
                         Capsule().fill(
-                            Color.accentColor.opacity(canAdd ? 0.22 : 0.08)
+                            appAccent.opacity(canAdd ? 0.22 : 0.08)
                         )
                     )
-                    .foregroundStyle(canAdd ? Color.accentColor : .secondary)
+                    .foregroundStyle(canAdd ? appAccent : .secondary)
                     .disabled(!canAdd)
             }
         }

@@ -33,6 +33,8 @@ private enum ModelPreset: String, CaseIterable {
 }
 
 struct AgentSettingsSection: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AgentPreferenceStore
 
     @State private var apiKey: String = ""
@@ -211,7 +213,7 @@ struct AgentSettingsSection: View {
                         } label: {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 14))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(appAccent)
                         }
                         .buttonStyle(.plain)
                         .disabled(newBinary.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -371,7 +373,7 @@ struct AgentSettingsSection: View {
         let isActive = store.activeEndpointID == ep.id
         HStack(spacing: 6) {
             Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isActive ? appAccent : Color.secondary)
                 .font(.system(size: 11))
             Text(ep.name)
                 .font(.system(size: 12, weight: isActive ? .semibold : .regular))
@@ -654,9 +656,9 @@ struct AgentSettingsSection: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule().fill(Color.accentColor.opacity(0.18))
+                                Capsule().fill(appAccent.opacity(0.18))
                             )
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(appAccent)
                     }
                     .buttonStyle(.plain)
                     .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -879,6 +881,8 @@ extension ModelProviderKind {
 /// Manages remote MCP servers whose tools are bridged into the agent's
 /// tool table (`MCPStore`). Experimental: HTTP transport only.
 struct MCPServersSection: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store = MCPStore.shared
     @State private var newName = ""
     @State private var newURL = ""
@@ -995,7 +999,7 @@ struct MCPServersSection: View {
                             }
                             .font(.system(size: 11, weight: .medium))
                             .buttonStyle(.plain)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(appAccent)
                         }
                     }
                     .padding(.bottom, 6)

@@ -3,6 +3,8 @@ import SwiftUI
 /// Welcome / empty state shown when there is no active conversation.
 /// Renders a hero card and a 2x2 grid of quick-action cards.
 struct AgentEmptyStateView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let onAction: (AgentQuickAction) -> Void
 
     var body: some View {
@@ -29,8 +31,8 @@ struct AgentEmptyStateView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.accentColor.opacity(0.18),
-                                Color.accentColor.opacity(0.04),
+                                appAccent.opacity(0.18),
+                                appAccent.opacity(0.04),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -42,8 +44,8 @@ struct AgentEmptyStateView: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                Color.accentColor,
-                                Color.accentColor.opacity(0.7),
+                                appAccent,
+                                appAccent.opacity(0.7),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -99,6 +101,8 @@ struct AgentEmptyStateView: View {
 }
 
 private struct QuickActionCard: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let action: AgentQuickAction
     let onTap: () -> Void
 
@@ -148,22 +152,22 @@ private struct QuickActionCard: View {
 
     private var cardFill: Color {
         isHovering
-            ? Color.accentColor.opacity(0.08)
+            ? appAccent.opacity(0.08)
             : Color(nsColor: .controlBackgroundColor).opacity(0.45)
     }
 
     private var borderColor: Color {
         isHovering
-            ? Color.accentColor.opacity(0.35)
+            ? appAccent.opacity(0.35)
             : Color(nsColor: .separatorColor).opacity(0.3)
     }
 
     private var iconBackground: Color {
-        Color.accentColor.opacity(isHovering ? 0.18 : 0.12)
+        appAccent.opacity(isHovering ? 0.18 : 0.12)
     }
 
     private var iconForeground: Color {
-        Color.accentColor
+        appAccent
     }
 }
 

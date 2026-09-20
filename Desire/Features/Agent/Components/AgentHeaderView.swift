@@ -5,6 +5,8 @@ import SwiftUI
 /// dot when streaming, and trailing
 /// actions (history / clear).
 struct AgentHeaderView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AgentSessionStore
     let hasHistory: Bool
     var onShowHistory: () -> Void
@@ -120,8 +122,8 @@ struct AgentHeaderView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.accentColor,
-                            Color.accentColor.opacity(0.7),
+                            appAccent,
+                            appAccent.opacity(0.7),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -132,7 +134,7 @@ struct AgentHeaderView: View {
                 .foregroundStyle(.white)
         }
         .frame(width: 22, height: 22)
-        .shadow(color: Color.accentColor.opacity(0.25), radius: 3, y: 1)
+        .shadow(color: appAccent.opacity(0.25), radius: 3, y: 1)
     }
 
     private var statusLine: some View {
@@ -207,7 +209,7 @@ struct AgentHeaderView: View {
             Color(nsColor: .windowBackgroundColor)
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.04),
+                    appAccent.opacity(0.04),
                     Color.clear,
                 ],
                 startPoint: .top,

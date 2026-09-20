@@ -61,6 +61,14 @@ struct SettingsView: View {
     @State private var selectedSection: Section = .general
 
     var body: some View {
+        content
+            // 设置窗口是独立 scene：ContentView 上的 .tint(settings.accentColor)
+            // 不会覆盖到这里，不补这一次的话设置里的强调色在设置窗内不生效
+            // （侧栏选中、按钮胶囊都会退回系统强调色）。
+            .appAccent(settings.accentColor.color)
+    }
+
+    private var content: some View {
         NavigationSplitView {
             List(Section.allCases, selection: $selectedSection) { section in
                 Label(section.title, systemImage: section.icon)
@@ -331,19 +339,19 @@ private struct CategoryChip: View {
             .background(
                 Capsule()
                     .fill(isSelected
-                          ? Color.accentColor.opacity(0.18)
-                          : Color.secondary.opacity(isHovering ? 0.12 : 0.08))
+                          ? AnyShapeStyle(.tint.opacity(0.18))
+                          : AnyShapeStyle(Color.secondary.opacity(isHovering ? 0.12 : 0.08)))
             )
             .overlay(
                 Capsule()
                     .stroke(
                         isSelected
-                            ? Color.accentColor.opacity(0.4)
-                            : Color.secondary.opacity(0.18),
+                            ? AnyShapeStyle(.tint.opacity(0.4))
+                            : AnyShapeStyle(Color.secondary.opacity(0.18)),
                         lineWidth: 0.5
                     )
             )
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.primary))
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
@@ -369,7 +377,7 @@ private struct ShortcutRecorderView: View {
             if isRecording {
                 Text("Press new shortcut…")
                     .font(.system(.title2, design: .monospaced))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                     .padding(12)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .cornerRadius(8)

@@ -2,6 +2,8 @@ import SwiftUI
 
 /// 响应式模式顶部工具条 — Chrome DevTools 单行范式。
 struct ResponsiveDesignBar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @Binding var config: ResponsiveConfig
     let responsiveStore: ResponsiveDesignStore
     var onScreenshot: (() -> Void)?
@@ -56,12 +58,12 @@ struct ResponsiveDesignBar: View {
                 Text(label)
                     .font(.system(size: 11.5, weight: .medium))
             }
-            .foregroundStyle(isOn ? Color.accentColor : .secondary)
+            .foregroundStyle(isOn ? appAccent : .secondary)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isOn ? Color.accentColor.opacity(0.14) : Color.clear)
+                    .fill(isOn ? appAccent.opacity(0.14) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -97,12 +99,12 @@ struct ResponsiveDesignBar: View {
                 Text("完成")
             }
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(appAccent)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.accentColor.opacity(0.12))
+                    .fill(appAccent.opacity(0.12))
             )
         }
         .buttonStyle(.plain)
@@ -134,7 +136,7 @@ struct ResponsiveDesignBar: View {
             HStack(spacing: 6) {
                 Image(systemName: "iphone.gen3")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 Text(deviceLabel)
                     .font(.system(size: 12, weight: .semibold))
                 Image(systemName: "chevron.up.chevron.down")
@@ -245,11 +247,11 @@ private func barToggleLabel(_ label: String, icon: String, isOn: Bool) -> some V
         Text(label)
             .font(.system(size: 11.5, weight: .medium))
     }
-    .foregroundStyle(isOn ? Color.accentColor : .secondary)
+    .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
     .padding(.horizontal, 9)
     .padding(.vertical, 5)
     .background(
         RoundedRectangle(cornerRadius: 7)
-            .fill(isOn ? Color.accentColor.opacity(0.14) : Color.clear)
+            .fill(isOn ? AnyShapeStyle(.tint.opacity(0.14)) : AnyShapeStyle(Color.clear))
     )
 }

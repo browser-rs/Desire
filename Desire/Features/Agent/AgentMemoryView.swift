@@ -4,6 +4,8 @@ import SwiftUI
 /// profile, L1 learned facts (pin / edit / delete), and L2 conversation
 /// summaries. Memory must be a glass box, not a black box.
 struct AgentMemoryView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     var onBack: () -> Void
 
     @ObservedObject private var memory = AgentMemoryStore.shared
@@ -114,7 +116,7 @@ struct AgentMemoryView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(appAccent)
                     }
                     .buttonStyle(.plain)
                     .disabled(newFact.trimmingCharacters(in: .whitespaces).isEmpty)

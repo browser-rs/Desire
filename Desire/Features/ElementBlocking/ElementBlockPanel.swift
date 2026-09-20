@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ElementBlockPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: ElementBlockStore
     var onStartPicker: () -> Void
     var onClose: () -> Void
@@ -17,10 +19,10 @@ struct ElementBlockPanel: View {
                 Spacer()
                 Button("Pick from Page") { onStartPicker(); onClose() }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 Button("Add Rule") { showAddSheet = true }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 Button("Close", action: onClose)
             }
             .padding()

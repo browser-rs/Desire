@@ -269,7 +269,7 @@ struct TabBar: View {
             } label: {
                 Image(systemName: "square.on.square")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isTabOverviewActive ? Color.accentColor : .primary)
+                    .foregroundStyle(isTabOverviewActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
@@ -325,6 +325,18 @@ struct TabBar: View {
 }
 
 private struct TabPillView: View {
+    /// 选中 / 分屏伙伴 / 普通 三种胶囊描边。
+    ///
+    /// 必须用 `.tint`（环境色，由 ContentView 的 `.tint(settings.accentColor)`
+    /// 注入）而不是 `Color.accentColor`：后者是**系统**强调色，无视应用设置里的
+    /// “强调色”——实测 tint=purple 时 `Color.accentColor` 仍返回系统蓝 #009DFF，
+    /// 于是标签栏永远不跟随主题色。
+    private func pillStrokeStyle(index: Int) -> AnyShapeStyle {
+        if index == selectedIndex { return AnyShapeStyle(.tint) }
+        if index == splitPartnerIndex { return AnyShapeStyle(.tint.opacity(0.45)) }
+        return AnyShapeStyle(Color.secondary.opacity(0.25))
+    }
+
     @ObservedObject var tab: Tab
     let index: Int
     let selectedIndex: Int
@@ -407,7 +419,7 @@ private struct TabPillView: View {
                 } label: {
                     Image(systemName: tab.audioMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.caption2)
-                        .foregroundStyle(tab.audioMuted ? .secondary : Color.accentColor)
+                        .foregroundStyle(tab.audioMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
                 }
                 .buttonStyle(.plain)
                 .help(tab.audioMuted ? "Unmute tab" : "Mute tab")
@@ -439,11 +451,7 @@ private struct TabPillView: View {
         )
         .overlay(
             Capsule().stroke(
-                index == selectedIndex
-                    ? Color.accentColor
-                    : index == splitPartnerIndex
-                        ? Color.accentColor.opacity(0.45)
-                        : Color.secondary.opacity(0.25),
+                pillStrokeStyle(index: index),
                 lineWidth: index == selectedIndex ? 1.5 : 1
             )
         )
@@ -602,7 +610,7 @@ private struct TabPopoverView: View {
                     ForEach(filtered, id: \.element.id) { index, tab in
                         HStack(spacing: 8) {
                             Circle()
-                                .fill(tab.isLoading ? Color.accentColor : (tab.isOnNewTabPage ? Color.secondary.opacity(0.3) : .clear))
+                                .fill(statusDotStyle(tab))
                                 .frame(width: 6, height: 6)
 
                             if tab.isIncognito {
@@ -623,7 +631,7 @@ private struct TabPopoverView: View {
                             if index == selectedIndex {
                                 Image(systemName: "checkmark")
                                     .font(.caption2)
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(.tint)
                             }
                         }
                         .padding(.horizontal, 12)
@@ -675,9 +683,15 @@ private struct TabPopoverView: View {
         }
     }
 
-    private func hotRowBackground(_ index: Int) -> Color {
+    private func hotRowBackground(_ index: Int) -> AnyShapeStyle {
         let active = activeRow ?? selectedIndex
-        return index == active ? Color.accentColor.opacity(0.1) : .clear
+        return index == active ? AnyShapeStyle(.tint.opacity(0.1)) : AnyShapeStyle(Color.clear)
+    }
+
+    private func statusDotStyle(_ tab: Tab) -> AnyShapeStyle {
+        if tab.isLoading { return AnyShapeStyle(.tint) }
+        if tab.isOnNewTabPage { return AnyShapeStyle(Color.secondary.opacity(0.3)) }
+        return AnyShapeStyle(Color.clear)
     }
 
     private func installKeyMonitor() {

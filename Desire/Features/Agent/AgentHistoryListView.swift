@@ -280,6 +280,8 @@ private struct HistoryGroup: Identifiable {
 // MARK: - Row
 
 private struct ConversationRow: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let conversation: Conversation
     let isCurrent: Bool
     let onSelect: () -> Void
@@ -397,16 +399,16 @@ private struct ConversationRow: View {
 
     private var iconFill: Color {
         isCurrent
-            ? Color.accentColor.opacity(0.18)
+            ? appAccent.opacity(0.18)
             : Color(nsColor: .controlBackgroundColor).opacity(0.6)
     }
 
     private var iconForeground: Color {
-        isCurrent ? Color.accentColor : Color.secondary
+        isCurrent ? appAccent : Color.secondary
     }
 
     private var rowFill: Color {
-        if isCurrent { return Color.accentColor.opacity(0.08) }
+        if isCurrent { return appAccent.opacity(0.08) }
         if isHovering { return Color(nsColor: .controlBackgroundColor).opacity(0.6) }
         return Color.clear
     }

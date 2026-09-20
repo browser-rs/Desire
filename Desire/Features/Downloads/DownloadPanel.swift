@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct DownloadPanel: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DownloadStore
 
     @State private var searchText = ""
@@ -145,12 +147,12 @@ struct DownloadPanel: View {
             } label: {
                 Image(systemName: store.fileTypeFilter?.icon ?? "line.3.horizontal.decrease.circle")
                     .font(.system(size: 12))
-                    .foregroundStyle(store.fileTypeFilter != nil ? Color.accentColor : .secondary)
+                    .foregroundStyle(store.fileTypeFilter != nil ? appAccent : .secondary)
                     .frame(width: 26, height: 26)
                     .background(
                         RoundedRectangle(cornerRadius: 6).fill(
                             store.fileTypeFilter != nil
-                                ? Color.accentColor.opacity(0.12)
+                                ? appAccent.opacity(0.12)
                                 : Color(nsColor: .controlBackgroundColor)
                         )
                     )
@@ -223,6 +225,8 @@ struct DownloadPanel: View {
 // MARK: - Row
 
 private struct DownloadRow: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let item: DownloadItem
     @ObservedObject var store: DownloadStore
 
@@ -337,7 +341,7 @@ private struct DownloadRow: View {
             HStack(spacing: 4) {
                 if item.speed > 0 {
                     Text(formatSpeed(item.speed))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                 }
                 Text("\(Int((item.progress * 100).rounded()))%")
                     .foregroundStyle(.secondary)
@@ -373,7 +377,7 @@ private struct DownloadRow: View {
     private var progressBar: some View {
         ProgressView(value: item.isIndeterminate ? nil : item.progress)
             .progressViewStyle(.linear)
-            .tint(item.isPaused ? Color.orange : Color.accentColor)
+            .tint(item.isPaused ? Color.orange : appAccent)
     }
 
     @ViewBuilder

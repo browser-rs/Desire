@@ -17,7 +17,7 @@ struct CookiePanel: View {
                 }
                 Button("Refresh") { store.refresh() }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                     .disabled(store.isLoading)
             }
             .padding(12)

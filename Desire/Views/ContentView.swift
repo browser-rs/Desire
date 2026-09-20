@@ -37,6 +37,9 @@ struct ContentView: View {
     @FocusState var isFindFocused: Bool
     @State var showTranslateBar = false
     @Environment(\.scenePhase) var scenePhase
+    /// 应用强调色：extension 里的 chrome（toast/通知条等）用它，见 AppAccent.swift。
+    /// 不能是 `private`——`ContentView+Overlays.swift` 里的 extension 也要读。
+    @Environment(\.appAccent) var appAccent: Color
     @Environment(\.openWindow) var openWindow
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
@@ -227,6 +230,7 @@ struct ContentView: View {
                     if showTabOverview {
                         TabOverviewView(
                             tabManager: tabManager,
+                            accentColor: settings.accentColor.color,
                             content: self,
                             onSelectTab: { index in
                                 isUrlFocused = false
@@ -247,7 +251,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
-        .tint(settings.accentColor.color)
+        .appAccent(settings.accentColor.color)
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard(onWindow: { hostingWindow = $0 }) {
             // This window just became key — record it as the
@@ -257,7 +261,11 @@ struct ContentView: View {
         })
         .onAppear {
             if aiFloatingPanel == nil {
-                aiFloatingPanel = AgentFloatingPanel(store: aiSession, conversationStore: conversationStore)
+                aiFloatingPanel = AgentFloatingPanel(
+                    store: aiSession,
+                    conversationStore: conversationStore,
+                    accentColor: settings.accentColor.color
+                )
             }
             if !isAgentConfigured {
                 // Record this window as the session-persistence target, then

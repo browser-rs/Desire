@@ -4,6 +4,8 @@ import SwiftUI
 /// viewport: corner (width+height), right edge (width), bottom edge
 /// (height). A live size badge appears while dragging.
 struct DragHandleOverlay: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @Binding var config: ResponsiveConfig
     let viewportSize: CGSize
 
@@ -44,7 +46,7 @@ struct DragHandleOverlay: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.92)))
+                    .background(Capsule().fill(appAccent.opacity(0.92)))
                     .position(x: w / 2, y: h + 26)
                     .transition(.opacity)
             }
@@ -78,12 +80,14 @@ struct DragHandleOverlay: View {
 
 /// 把手视觉：accent 实心圆 + 白描边 + 握纹方向随轴。
 private struct HandleGlyph: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     var grips: DragHandleOverlay.GripSet
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color.accentColor)
+                .fill(appAccent)
                 .overlay(Circle().stroke(Color.white.opacity(0.85), lineWidth: 1.5))
             Group {
                 if grips.contains(.width) && grips.contains(.height) {

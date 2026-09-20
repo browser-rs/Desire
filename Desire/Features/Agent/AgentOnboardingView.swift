@@ -5,6 +5,8 @@ import SwiftUI
 /// already feels personalized. Skippable — everything is editable later in
 /// the memory view.
 struct AgentOnboardingView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var memory = AgentMemoryStore.shared
 
     @State private var name = ""
@@ -75,7 +77,7 @@ struct AgentOnboardingView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 7)
                             .background(
-                                Capsule().fill(Color.accentColor)
+                                Capsule().fill(appAccent)
                             )
                     }
                     .buttonStyle(.plain)
@@ -89,7 +91,7 @@ struct AgentOnboardingView: View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "sparkles")
                 .font(.system(size: 22))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             Text("让我们认识一下")
                 .font(.system(size: 17, weight: .bold))
             Text("花 10 秒设置偏好，之后每次对话都会生效。全部可随时修改。")

@@ -49,7 +49,7 @@ extension ContentView {
                         showUndoToast = false
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -70,7 +70,7 @@ extension ContentView {
                 HStack(spacing: 6) {
                     Image(systemName: toast.icon)
                         .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                     Text(toast.text).font(.caption)
                 }
                 .padding(.horizontal, 12)
@@ -148,7 +148,7 @@ extension ContentView {
                 HStack(spacing: 8) {
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(appAccent)
                     Text(message)
                         .font(.caption.weight(.medium))
                 }

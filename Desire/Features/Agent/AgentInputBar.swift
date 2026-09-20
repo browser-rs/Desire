@@ -4,6 +4,8 @@ import SwiftUI
 /// auto-grows with content, with an inline send button and a context
 /// strip above (question prompt / quick action shortcut).
 struct AgentInputBar: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @Binding var text: String
     let isProcessing: Bool
     let awaitingQuestion: Bool
@@ -53,7 +55,7 @@ struct AgentInputBar: View {
         HStack(spacing: 6) {
             Image(systemName: "ellipsis.bubble.fill")
                 .font(.system(size: 11))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             Text("Asking about this page")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -67,10 +69,10 @@ struct AgentInputBar: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(
-            Capsule().fill(Color.accentColor.opacity(0.10))
+            Capsule().fill(appAccent.opacity(0.10))
         )
         .overlay(
-            Capsule().stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
+            Capsule().stroke(appAccent.opacity(0.25), lineWidth: 0.5)
         )
     }
 
@@ -311,15 +313,15 @@ struct AgentInputBar: View {
 
     private var borderColor: Color {
         isFocused
-            ? Color.accentColor.opacity(0.55)
+            ? appAccent.opacity(0.55)
             : Color(nsColor: .separatorColor).opacity(0.6)
     }
 
     private var sendFill: Color {
         if showsStop { return Color.red.opacity(0.85) }
         if !canSubmit { return Color(nsColor: .controlBackgroundColor) }
-        if isHoveringSend { return Color.accentColor.opacity(0.85) }
-        return Color.accentColor
+        if isHoveringSend { return appAccent.opacity(0.85) }
+        return appAccent
     }
 
     private var sendForeground: Color {

@@ -214,6 +214,8 @@ struct NetworkMonitorPanel: View {
 }
 
 private struct NetworkRequestRow: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let request: NetworkRequest
     let isSelected: Bool
 
@@ -286,7 +288,7 @@ private struct NetworkRequestRow: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+                .fill(isSelected ? appAccent.opacity(0.15) : Color.clear)
         )
     }
 }

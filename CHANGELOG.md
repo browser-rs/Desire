@@ -1,5 +1,29 @@
 ## [Unreleased]
 
+### Fixed
+
+- **强调色不生效于标签栏等自绘 chrome**（用户报"主题颜色 tab 栏好像没应用"）：
+  根因是这些视图用的是 `Color.accentColor` —— 实测它既不跟随 macOS 系统强调色
+  也不跟随应用设置（`.tint(purple)` 下仍返回 SwiftUI 默认蓝 #009DFF），只跟随
+  `.tint` 的只有系统控件，所以自绘的胶囊/描边/图标一直是默认蓝。已改为
+  `.tint` 系 ShapeStyle（TabBar 的选中胶囊/静音图标/加载点/切换器、Sidebar
+  选中态、标签概览瓦片描边），并把强调色作为参数传进标签概览的占位渐变
+  （`LinearGradient` 只吃 `Color`，没有 ShapeStyle 版本）。设置窗口是独立
+  scene，`ContentView` 的 `.tint` 覆盖不到，已在 `SettingsView` 根视图补
+  `.tint(settings.accentColor.color)`，窗口内的选中态/胶囊按钮一并跟随。
+  量化验证（2560x1440 @2x，强调色设为 purple）：修复前标签栏区域紫像素 55 /
+  蓝像素 390 → 修复后紫 279 / 蓝 1。
+  随后做了 app-wide 扫除（用户确认）：**40 个文件、148 处** `Color.accentColor`
+  全部改为跟随应用强调色——能用 ShapeStyle 的地方写 `.tint`，需要 `Color` 值的
+  地方（渐变数组、`Color` 返回值、与 `Color.clear` 混用的三目）读新的环境值
+  `\.appAccent`（`Views/Components/AppAccent.swift`）；自由函数/非 View 类型里
+  无法读环境值的一律退化为 `.tint` 系样式。每个独立窗口根视图各自挂一次
+  `appAccent(_:)`（设置窗、Agent 浮窗走参数；插件窗与截图工具条读
+  `AppAccent.current` 镜像，由 `Settings.accentColor.didSet` 维护）。
+  实测（purple）：下载面板快照 紫 531 / 蓝 0；设置窗选中态与 Picker 值均为紫；
+  主窗（标签栏/工具栏）紫 444（蓝 194 为网页内容本身）。未实测：标签概览
+  （需 ≥2 个标签）、Agent 浮窗、截图工具条。
+
 ### Changed
 
 - **视频广告拦截规则改为热插拔**（不再需要重新构建/发版才能改规则）：

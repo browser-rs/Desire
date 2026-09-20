@@ -3,6 +3,8 @@ import SwiftUI
 /// Live task checklist rendered above the conversation while the agent
 /// works through a multi-step plan (fed by the updatePlan tool).
 struct AgentPlanView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     let steps: [AgentPlanStep]
 
     var body: some View {
@@ -10,7 +12,7 @@ struct AgentPlanView: View {
             HStack(spacing: 5) {
                 Image(systemName: "checklist")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(appAccent)
                 Text("任务计划")
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -36,11 +38,11 @@ struct AgentPlanView: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.06))
+                .fill(appAccent.opacity(0.06))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.2), lineWidth: 0.6)
+                .stroke(appAccent.opacity(0.2), lineWidth: 0.6)
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 4)

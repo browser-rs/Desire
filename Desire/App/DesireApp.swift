@@ -92,6 +92,7 @@ struct DesireApp: App {
             OnboardingView(onFinish: {
                 NSApp.keyWindow?.close()
             })
+            .appAccent(appState.settings.accentColor.color)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

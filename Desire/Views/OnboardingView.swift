@@ -4,6 +4,8 @@ import SwiftUI
 /// 首启动引导（0.3.8）：三步——欢迎定位 / 默认浏览器 / Agent 配置入口。
 /// 只在首次启动出现（desire.onboardingDone），完成后不再打扰。
 struct OnboardingView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     enum Step: Int {
         case welcome = 0, defaultBrowser = 1, agent = 2
     }
@@ -19,7 +21,7 @@ struct OnboardingView: View {
             HStack(spacing: 6) {
                 ForEach(0..<3, id: \.self) { i in
                     Capsule()
-                        .fill(i == step.rawValue ? Color.accentColor : Color.secondary.opacity(0.25))
+                        .fill(i == step.rawValue ? appAccent : Color.secondary.opacity(0.25))
                         .frame(width: i == step.rawValue ? 22 : 8, height: 4)
                         .animation(.controlSpring, value: step)
                 }
@@ -78,7 +80,7 @@ struct OnboardingView: View {
         VStack(spacing: 14) {
             Image(systemName: "globe.badge.arrow.clockwise")
                 .font(.system(size: 52, weight: .light))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             Text("Welcome to Desire")
                 .font(.system(size: 24, weight: .bold))
             Text("An AI-native browser: the app itself is an execution environment for agents — a localhost automation bridge, an MCP server, and a built-in Agent with 20+ tools.")
@@ -93,7 +95,7 @@ struct OnboardingView: View {
         VStack(spacing: 14) {
             Image(systemName: isDefault ? "checkmark.seal.fill" : "globe.badge.chevron.backward")
                 .font(.system(size: 44, weight: .light))
-                .foregroundStyle(isDefault ? .green : Color.accentColor)
+                .foregroundStyle(isDefault ? .green : appAccent)
             Text("Make Desire Your Default Browser")
                 .font(.system(size: 19, weight: .semibold))
             Text(isDefault
@@ -116,7 +118,7 @@ struct OnboardingView: View {
         VStack(spacing: 14) {
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(appAccent)
             Text("Meet Your Agent")
                 .font(.system(size: 19, weight: .semibold))
             Text("Open the agent panel (⌘') and ask it to browse, extract, monitor, or download for you. Configure a cloud model or use on-device models in Settings ▸ Agent.")

@@ -4,7 +4,10 @@ import Foundation
 /// Split out of `BrowserToolProvider` so the Store class holds only state
 /// + dispatch helpers.
 extension BrowserToolProvider {
-    static var toolDefs: [AgentToolDef] {
+    /// Stored (not computed): the table is pure static data (~80 defs), and
+    /// a computed property rebuilt it on every access — including once per
+    /// keystroke in the capabilities view.
+    static let toolDefs: [AgentToolDef] = {
         [
             // --- Page reading ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -607,6 +610,6 @@ extension BrowserToolProvider {
                     "index": AgentJSONSchemaValue(type: "number", description: "Cancel only this subtask index (omit = cancel all)"),
                 ])
             )),
-        ]
-    }
+                ]
+    }()
 }

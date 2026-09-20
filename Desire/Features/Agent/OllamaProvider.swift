@@ -24,7 +24,7 @@ struct OllamaProvider: ModelProvider {
         prefs: AgentPreferenceStore
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 let base = prefs.ollamaHost
                 let urlStr = base.hasSuffix("/chat/completions")
                     ? base : base + "/chat/completions"
@@ -62,9 +62,14 @@ struct OllamaProvider: ModelProvider {
                         continuation.yield(event)
                     }
                     continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }

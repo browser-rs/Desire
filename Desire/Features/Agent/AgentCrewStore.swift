@@ -141,15 +141,20 @@ final class AgentCrewStore: ObservableObject {
         var calls = 0
         defer { worker.finishedAt = Date() }
         for _ in 0..<10 {
-            if Task.isCancelled {
-                worker.state = .cancelled
+            // Cancelled (per-worker) workers must stop burning model calls —
+            // the state flag is what cancel(taskIndex:) sets.
+            if Task.isCancelled || worker.state == .cancelled {
+                if worker.state != .cancelled { worker.state = .cancelled }
                 return
             }
             // 单轮流式：聚合文本与工具调用。
             var text = ""
             var toolCalls: [AgentToolCall] = []
             do {
-                for try await event in AgentService.stream(messages: transcript, tools: toolDefs, prefs: surface.agentPreference) {
+                // 走用户配置的 provider(routing/Ollama/cloud)——旧的
+                // AgentService facade 写死云端,无 API key 的配置必然失败。
+                for try await event in surface.agentPreference.provider.stream(messages: transcript, tools: toolDefs, prefs: surface.agentPreference) {
+                    if worker.state == .cancelled { break }
                     switch event {
                     case .text(let chunk):
                         text += chunk
@@ -160,8 +165,10 @@ final class AgentCrewStore: ObservableObject {
                     }
                 }
             } catch {
-                worker.state = .failed
-                worker.result = "model error: \(error.localizedDescription)"
+                if worker.state != .cancelled {
+                    worker.state = .failed
+                    worker.result = "model error: \(error.localizedDescription)"
+                }
                 return
             }
             if !text.isEmpty {

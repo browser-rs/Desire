@@ -169,6 +169,10 @@ class VoiceInputManager: ObservableObject {
 
         recognitionRequest?.endAudio()
         recognitionRequest = nil
+        // Finish (not just drop) the in-flight task: its completion callback
+        // fires later and used to overwrite transcribedText after the user
+        // had already stopped.
+        recognitionTask?.finish()
         recognitionTask = nil
 
         if !transcribedText.isEmpty {

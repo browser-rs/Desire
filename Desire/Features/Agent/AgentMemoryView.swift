@@ -80,42 +80,24 @@ struct AgentMemoryView: View {
     private var profileSection: some View {
         sectionCard(title: "用户画像", icon: "person.crop.circle") {
             VStack(spacing: 8) {
-                memoryField("称呼", text: memory.archive.profile.name) { newValue in
+                MemoryProfileField(label: "称呼", initial: memory.archive.profile.name) { newValue in
                     memory.updateProfile { $0.name = newValue }
                 }
-                memoryField("回复语言", text: memory.archive.profile.language) { newValue in
+                MemoryProfileField(label: "回复语言", initial: memory.archive.profile.language) { newValue in
                     memory.updateProfile { $0.language = newValue }
                 }
-                memoryField("回复风格", text: memory.archive.profile.style) { newValue in
+                MemoryProfileField(label: "回复风格", initial: memory.archive.profile.style) { newValue in
                     memory.updateProfile { $0.style = newValue }
                 }
-                memoryField("自定义指令", text: memory.archive.profile.customInstructions) { newValue in
+                MemoryProfileField(label: "自定义指令", initial: memory.archive.profile.customInstructions) { newValue in
                     memory.updateProfile { $0.customInstructions = newValue }
                 }
             }
         }
     }
 
-    private func memoryField(_ label: String, text: String, commit: @escaping (String) -> Void) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
-            TextField("未设置", text: Binding(
-                get: { text },
-                set: { commit($0) }
-            ))
-            .textFieldStyle(.plain)
-            .font(.system(size: 12))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor).opacity(0.7))
-        )
-    }
+    // 资料输入行已提取为文件尾部的 `MemoryProfileField`（回车/离开视图
+    // 时才提交——此前每个按键都触发一次整个 MemoryArchive 的重编码写盘）。
 
     // MARK: - Facts (L1)
 
@@ -309,5 +291,41 @@ struct AgentMemoryView: View {
                     .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
             )
         }
+    }
+}
+
+/// 资料输入行：草稿在本地编辑,回车或离开视图时才提交——此前每个
+/// 按键都触发一次整个 MemoryArchive 的重编码与写盘。
+private struct MemoryProfileField: View {
+    let label: String
+    let initial: String
+    let commit: (String) -> Void
+
+    @State private var draft: String = ""
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            TextField("未设置", text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .onSubmit { submit() }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor).opacity(0.7))
+        )
+        .onAppear { draft = initial }
+        .onChange(of: initial) { _, newValue in draft = newValue }
+        .onDisappear { submit() }
+    }
+
+    private func submit() {
+        if draft != initial { commit(draft) }
     }
 }

@@ -110,8 +110,9 @@ enum SyntheticInput {
         window.makeFirstResponder(webView)
         defer { window.makeFirstResponder(previousResponder) }
 
+        // 大写判定用原始 name——normalized 已 lowercased,isUppercase 恒 false。
         let flags: NSEvent.ModifierFlags = modifiers.isEmpty
-            ? (normalized.count == 1 && normalized.first?.isUppercase == true ? .shift : [])
+            ? (normalized.count == 1 && name.trimmingCharacters(in: .whitespaces).first?.isUppercase == true ? .shift : [])
             : modifiers
 
         let characters = flags.contains(.shift) ? mapped.characters.uppercased() : mapped.characters

@@ -108,11 +108,15 @@ class AgentSessionStore: ObservableObject {
     private var isNewChatIntentional = false
 
     /// A message typed while a turn was already running. Delivered to the
-    /// model automatically when the running turn finishes.
+    /// model automatically when the running turn finishes. `onTurnFinish`
+    /// rides along so an EXTERNAL delivery (scheduled task) that got queued
+    /// has its completion handler bound to ITS turn, not to whichever turn
+    /// happens to end first.
     struct QueuedMessage: Identifiable {
         let id = UUID()
         let text: String
         let images: [String]?
+        var onTurnFinish: ((TurnOutcome) -> Void)? = nil
     }
 
     /// Input typed mid-turn, flushed by `processLoop` when the turn ends
@@ -149,9 +153,20 @@ class AgentSessionStore: ObservableObject {
 
     /// Entry point for `AgentScheduler` firings: starts (or queues) a turn
     /// carrying the scheduled prompt, tagged so the conversation shows
-    /// where it came from.
-    func deliverScheduled(_ prompt: String, from taskName: String) {
-        sendMessage("[定时任务 · \(taskName)] \(prompt)")
+    /// where it came from. `onTurnFinish` fires when THAT turn ends —
+    /// either the one started here or the queued one when the loop flushes.
+    func deliverScheduled(_ prompt: String, from taskName: String,
+                          onTurnFinish: ((TurnOutcome) -> Void)? = nil) {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !isProcessing else {
+            queuedMessages.append(QueuedMessage(
+                text: "[定时任务 · \(taskName)] \(trimmed)", images: nil,
+                onTurnFinish: onTurnFinish))
+            return
+        }
+        if let onTurnFinish { turnFinishHandlers.append(onTurnFinish) }
+        sendMessage("[定时任务 · \(taskName)] \(trimmed)")
     }
 
     /// Soft cap on agent loop iterations to prevent runaway execution.
@@ -624,6 +639,11 @@ class AgentSessionStore: ObservableObject {
             // would otherwise burn the whole queue in rapid error bursts.
             guard !turnFailed, !isCancelled, let next = queuedMessages.first else { break }
             queuedMessages.removeFirst()
+            // A queued external delivery carries its own turn-finish hook —
+            // attach it so the coming turn reports to the right run record.
+            if let handler = next.onTurnFinish {
+                turnFinishHandlers.append(handler)
+            }
             messages.append(AgentMessage(role: .user, content: next.text, images: next.images))
             saveCurrentConversation()
             streamingTokenCount = 0
@@ -631,11 +651,17 @@ class AgentSessionStore: ObservableObject {
             processingStartedAt = Date()
         }
 
-        await generateTitleIfNeeded()
+        // Cancelled turns skip the post-work: a title generation would spend
+        // one more model call on a conversation the user just walked away from.
+        if !isCancelled {
+            await generateTitleIfNeeded()
+        }
 
         // Background memory housekeeping (L1 facts + L2 summary) — never
         // blocks or fails the turn.
-        await runMemoryHousekeeping()
+        if !isCancelled {
+            await runMemoryHousekeeping()
+        }
     }
 
     /// One model→tools→model turn. Returns when the model stops calling
@@ -661,9 +687,19 @@ class AgentSessionStore: ObservableObject {
             // provider can be swapped in without touching the agent loop.
             // When `providerKind == .routing`, each call may target a
             // different concrete provider and report it via lastProviderUsed.
+            // Consumes one model stream into the conversation. Nested func so
+            // the transient-error retry below can re-run it on a fresh stream
+            // without duplicating the event handling.
+            //
+            // Token counters are @Published — writing them per token event
+            // republished the whole session store at token frequency (100+/s)
+            // and re-evaluated the entire panel body. They now advance only
+            // inside the throttled flush (~12 fps), which is also the display
+            // granularity of the status line.
             var assistantMsg: AgentMessage?
             var hasContent = false
-            var lastTokenTime = Date()
+            var pendingTokenCount = 0
+            var rateWindowStart = Date()
 
             // Consumes one model stream into the conversation. Nested func so
             // the transient-error retry below can re-run it on a fresh stream
@@ -679,7 +715,7 @@ class AgentSessionStore: ObservableObject {
                 )
                 // UI flush state: per-token array writes + view
                 // invalidations dominate long streams, so the tail message
-                // is published at ~25 fps instead of per token.
+                // is published at ~12 fps instead of per token.
                 var tailIndex: Int?
                 var lastFlush = Date.distantPast
                 func flushTail() {
@@ -699,15 +735,15 @@ class AgentSessionStore: ObservableObject {
                         }
                         assistantMsg!.content = (assistantMsg!.content ?? "") + delta
                         hasContent = true
-                        streamingTokenCount += 1
+                        pendingTokenCount += 1
                         let now = Date()
-                        let interval = now.timeIntervalSince(lastTokenTime)
-                        if interval > 0.001 {
-                            streamingTokensPerSecond = 1.0 / interval
-                        }
-                        lastTokenTime = now
-                        if now.timeIntervalSince(lastFlush) >= 0.04 {
+                        if now.timeIntervalSince(lastFlush) >= 0.08 {
                             lastFlush = now
+                            streamingTokenCount += pendingTokenCount
+                            let dt = now.timeIntervalSince(rateWindowStart)
+                            if dt > 0 { streamingTokensPerSecond = Double(pendingTokenCount) / dt }
+                            pendingTokenCount = 0
+                            rateWindowStart = now
                             flushTail()
                         }
                     case .toolCall(let call):

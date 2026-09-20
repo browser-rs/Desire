@@ -30,6 +30,22 @@ struct AgentPanel: View {
     @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
+    /// Memo box for the per-render derived collections (tool result lookup
+    /// + tool-call chip ids). Rebuilt only when the message count, the tail
+    /// message id, or the tail's tool-call count changes — streaming text
+    /// deltas mutate none of them, so the full-list scans are skipped on
+    /// every token flush. Class box on purpose: mutating its fields inside
+    /// `body` is not a @State write, so it can't trip SwiftUI's
+    /// "modifying state during view update".
+    private final class DerivedBox {
+        var count = -1
+        var tailID: UUID?
+        var tailCalls = -1
+        var results: [String: String] = [:]
+        var chips: Set<String> = []
+    }
+    @State private var derived = DerivedBox()
+
     var body: some View {
         VStack(spacing: 0) {
             if !memory.onboardingCompleted {
@@ -324,18 +340,9 @@ struct AgentPanel: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    let toolResults = Dictionary(
-                        store.messages.compactMap { m in
-                            m.toolCallId.map { ($0, m.content ?? "") }
-                        },
-                        uniquingKeysWith: { current, _ in current }
-                    )
-                    // Tool-call ids already rendered inside an assistant
-                    // bubble's chips — their standalone tool messages are
-                    // duplicates and get skipped.
-                    let chipToolIds = Set(store.messages.flatMap { m in
-                        m.role == .assistant ? (m.toolCalls?.map(\.id) ?? []) : []
-                    })
+                    let derivedData = refreshDerivedCache()
+                    let toolResults = derivedData.results
+                    let chipToolIds = derivedData.chips
                     ForEach(store.messages) { msg in
                         if msg.role == .tool,
                            let id = msg.toolCallId,
@@ -422,6 +429,29 @@ struct AgentPanel: View {
     private func isStreamingTail(_ msg: AgentMessage) -> Bool {
         guard store.isProcessing, msg.role == .assistant else { return false }
         return store.messages.last?.id == msg.id
+    }
+
+    /// Memoized derived collections (see `DerivedBox`). Rebuilt only when
+    /// the message count, tail id, or tail tool-call count changed.
+    private func refreshDerivedCache() -> (results: [String: String], chips: Set<String>) {
+        let tail = store.messages.last
+        if derived.count != store.messages.count
+            || derived.tailID != tail?.id
+            || derived.tailCalls != (tail?.toolCalls?.count ?? -1) {
+            derived.results = Dictionary(
+                store.messages.compactMap { m in
+                    m.toolCallId.map { ($0, m.content ?? "") }
+                },
+                uniquingKeysWith: { current, _ in current }
+            )
+            derived.chips = Set(store.messages.flatMap { m in
+                m.role == .assistant ? (m.toolCalls?.map(\.id) ?? []) : []
+            })
+            derived.count = store.messages.count
+            derived.tailID = tail?.id
+            derived.tailCalls = tail?.toolCalls?.count ?? -1
+        }
+        return (derived.results, derived.chips)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, force: Bool = false) {

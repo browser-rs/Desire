@@ -10,6 +10,16 @@ struct AgentHistoryListView: View {
     var onBack: () -> Void
 
     @State private var searchText: String = ""
+    /// 防抖后的搜索词:过滤对每条会话每条消息做全文扫描,直接跟键
+    /// 会随每次按键全量重扫。结果缓存盒按 (词, 会话数, 更新时间) 失效。
+    @State private var debouncedQuery: String = ""
+    @State private var searchDebounce: Task<Void, Never>?
+    private final class FilterCacheBox {
+        var key: String = ""
+        var stamp: String = ""
+        var out: [Conversation] = []
+    }
+    @State private var filterCache = FilterCacheBox()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -54,6 +64,15 @@ struct AgentHistoryListView: View {
             TextField("Search conversations", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
+                .onChange(of: searchText) { _, query in
+                    // 300ms 防抖:打字期间不做全量正文扫描。
+                    searchDebounce?.cancel()
+                    searchDebounce = Task {
+                        try? await Task.sleep(for: .seconds(0.3))
+                        guard !Task.isCancelled else { return }
+                        debouncedQuery = query
+                    }
+                }
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
@@ -197,19 +216,26 @@ struct AgentHistoryListView: View {
     // MARK: - Grouping / filtering
 
     private var filteredGrouped: [HistoryGroup] {
-        let filtered: [Conversation] = {
-            guard !searchText.isEmpty else {
-                return conversationStore.conversations
-            }
-            // Search the title AND message bodies — "那个 m3u8 的对话" must
-            // hit conversations whose title never mentions m3u8.
-            return conversationStore.conversations.filter { conv in
-                if conv.title.localizedCaseInsensitiveContains(searchText) { return true }
-                return conv.messages.contains { message in
-                    message.content?.localizedCaseInsensitiveContains(searchText) == true
+        // 搜索词变化 → 重置缓存;会话列表变化(count 或最新 updatedAt)→ 失效。
+        let stamp = "\(conversationStore.conversations.count)-\(conversationStore.conversations.first?.updatedAt.timeIntervalSince1970 ?? 0)"
+        let key = debouncedQuery
+        if filterCache.key != key || filterCache.stamp != stamp {
+            let filtered: [Conversation]
+            if key.isEmpty {
+                filtered = conversationStore.conversations
+            } else {
+                filtered = conversationStore.conversations.filter { conv in
+                    if conv.title.localizedCaseInsensitiveContains(key) { return true }
+                    return conv.messages.contains { message in
+                        message.content?.localizedCaseInsensitiveContains(key) == true
+                    }
                 }
             }
-        }()
+            filterCache.out = filtered
+            filterCache.key = key
+            filterCache.stamp = stamp
+        }
+        let filtered = filterCache.out
 
         let cal = Calendar.current
         let now = Date()

@@ -304,23 +304,30 @@ final class AgentScheduler: ObservableObject {
                 finishedAt: nil, status: "delivered", success: nil, error: nil, attempts: attempts
             ))
         }
-        target.addTurnFinishHandler { [weak self] outcome in
+        // The turn-finish hook is passed THROUGH deliverScheduled: when the
+        // prompt gets queued behind a running turn, the hook rides with the
+        // queue entry and binds to its own turn — never to whichever turn
+        // ends first.
+        target.deliverScheduled(task.prompt, from: task.name) { [weak self] outcome in
             self?.finishRun(id: runID, outcome: outcome)
         }
-        target.deliverScheduled(task.prompt, from: task.name)
         if let i = taskIndex { tasks[i].lastResult = "delivered" }
         Self.log.info("Scheduled task '\(task.name, privacy: .public)' delivered")
     }
 
-    /// Fires every due, enabled task. Runs on a 20s wall clock.
+    /// Fires every due, enabled task. Runs on a 20s wall clock. Persisting
+    /// happens only when something actually fired — an idle tick must not
+    /// rewrite the task file every 20 seconds.
     func evaluate(now: Date = Date()) {
+        var firedAny = false
         for idx in tasks.indices where tasks[idx].isEnabled {
             guard isDue(tasks[idx], now: now) else { continue }
             let task = tasks[idx]
             tasks[idx].lastFiredAt = now
             deliver(task: task)
+            firedAny = true
         }
-        save()
+        if firedAny { save() }
     }
 
     private func isDue(_ task: ScheduledTask, now: Date) -> Bool {

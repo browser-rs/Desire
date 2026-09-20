@@ -42,11 +42,14 @@ class AgentFloatingPanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 320, height: 480)
 
+        // Capture only the stores, not self — the window holds the content
+        // closure forever, so a `self` capture would pin the whole panel
+        // object (window → contentViewController → closure → self → window).
+        let store = self.store
+        let conversationStore = self.conversationStore
         let hostingController = NSHostingController(
-            rootView: GeometryReader { _ in
-                AgentPanel(store: self.store, conversationStore: self.conversationStore)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            rootView: AgentPanel(store: store, conversationStore: conversationStore)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         )
         panel.contentViewController = hostingController
 

@@ -131,21 +131,33 @@ final class RecordingOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         guard type == .screen, CMSampleBufferDataIsReady(sampleBuffer) else { return }
         guard input.isReadyForMoreMediaData else { return }
 
-        if !sessionStarted {
-            writer.startWriting()
-            writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-            sessionStarted = true
-        }
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        if adaptor.append(pixelBuffer, withPresentationTime: time) {
-            frameCount += 1
+        // AVAssetWriter is not thread-safe: confine every writer interaction
+        // (and the sessionStarted/frameCount state) to this serial queue —
+        // finish() hops here too, so no cross-thread access remains.
+        queue.sync {
+            if !sessionStarted {
+                writer.startWriting()
+                writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+                sessionStarted = true
+            }
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+            let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            if adaptor.append(pixelBuffer, withPresentationTime: time) {
+                frameCount += 1
+            }
         }
     }
 
     /// Finalizes the movie; returns the file URL when writing succeeded.
     func finish() async -> URL? {
-        input.markAsFinished()
+        // markAsFinished + finishWriting run on the SAME serial queue as the
+        // sample-buffer callbacks (AVAssetWriter is single-thread by contract).
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                self.input.markAsFinished()
+            }
+            continuation.resume()
+        }
         await writer.finishWriting()
         let ok = writer.status == .completed
         if !ok {
@@ -153,7 +165,6 @@ final class RecordingOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             let message = writer.error?.localizedDescription ?? "nil"
             Log.agent.error("recorder finish status: \(status) \(message, privacy: .public)")
         }
-        _ = frameCount
         return ok ? writer.outputURL : nil
     }
 }

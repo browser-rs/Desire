@@ -9,6 +9,7 @@ struct AgentTypingIndicator: View {
     var spacing: CGFloat = 4
 
     @State private var phase: Int = 0
+    @State private var animationTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: spacing) {
@@ -22,13 +23,18 @@ struct AgentTypingIndicator: View {
             }
         }
         .onAppear { startAnimating() }
+        .onDisappear { animationTask?.cancel(); animationTask = nil }
         .accessibilityLabel(Text("Agent is typing"))
     }
 
     private func startAnimating() {
-        Task { @MainActor in
+        // Cancelled on disappear — the fire-and-forget version leaked one
+        // perpetual MainActor task per bubble instance.
+        animationTask?.cancel()
+        animationTask = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { break }
                 phase = (phase + 1) % 3
             }
         }

@@ -155,8 +155,19 @@ final class SystemCommandStore: ObservableObject {
             // Pipe handlers drain on WebKit/POSIX queues, not the main
             // actor — isolation must be opted out explicitly here.
             nonisolated func append(_ chunk: Data) {
-                lock.lock(); data.append(chunk); lock.unlock()
+                lock.lock(); data.append(chunk)
+                // 无上限累积:`yes`/大日志能把内存吃到 GB,而结果最终只取
+                // 8000 字符——累计超过 64 KB 后丢弃后续(保留满量标记)。
+                if data.count > 64_000 {
+                    data = data.prefix(64_000)
+                    overflowed = true
+                }
+                lock.unlock()
             }
+            nonisolated var didOverflow: Bool {
+                lock.lock(); defer { lock.unlock() }; return overflowed
+            }
+            nonisolated(unsafe) private var overflowed = false
             nonisolated var value: Data {
                 lock.lock(); defer { lock.unlock() }; return data
             }

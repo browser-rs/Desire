@@ -15,7 +15,7 @@ enum OpenAICompatSSE {
     /// - Yields `.text` deltas and `.toolCall` events as they arrive.
     static func stream(for request: URLRequest) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else {
@@ -112,9 +112,17 @@ enum OpenAICompatSSE {
                     flushToolCalls()
 
                     continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
                 } catch {
                     continuation.finish(throwing: AgentServiceError.network(error))
                 }
+            }
+            // Stop must actually stop: without onTermination the internal
+            // task kept downloading the SSE stream to the end after the
+            // consumer was cancelled (wasting tokens on an abandoned turn).
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }
@@ -212,7 +220,7 @@ struct CloudOpenAIProvider: ModelProvider {
         prefs: AgentPreferenceStore
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 guard let apiKey = prefs.loadAPIKey() else {
                     continuation.finish(throwing: AgentServiceError.noAPIKey)
                     return
@@ -254,9 +262,14 @@ struct CloudOpenAIProvider: ModelProvider {
                         continuation.yield(event)
                     }
                     continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }
@@ -286,18 +299,4 @@ struct CloudOpenAIProvider: ModelProvider {
         }
     }
     #endif
-}
-
-/// Backward-compatibility facade. Existing call sites that referenced
-/// `AgentService.stream(...)` continue to work, delegating to the default
-/// cloud provider. New code should go through `ModelProvider` / the
-/// `provider` on `AgentPreferenceStore`.
-enum AgentService {
-    static func stream(
-        messages: [AgentMessage],
-        tools: [AgentToolDef],
-        prefs: AgentPreferenceStore
-    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
-        CloudOpenAIProvider().stream(messages: messages, tools: tools, prefs: prefs)
-    }
 }

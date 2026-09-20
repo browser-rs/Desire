@@ -56,7 +56,7 @@ enum PreviewServer {
                 let head = String(data: buffer.subdata(in: buffer.startIndex..<range.lowerBound), encoding: .utf8) ?? ""
                 let requestLine = head.components(separatedBy: "\r\n").first ?? "GET / HTTP/1.1"
                 let rawPath = requestLine.split(separator: " ").dropFirst().first.map(String.init) ?? "/"
-                Task { @MainActor in respond(connection: connection, rawPath: rawPath) }
+                Task { await respond(connection: connection, rawPath: rawPath) }
                 return
             }
             if error == nil {
@@ -67,7 +67,7 @@ enum PreviewServer {
         }
     }
 
-    private static func respond(connection: NWConnection, rawPath: String) {
+    private static func respond(connection: NWConnection, rawPath: String) async {
         var path = rawPath.split(separator: "?").first.map(String.init) ?? "/"
         path = path.removingPercentEncoding ?? path
         if path.contains("..") {
@@ -85,16 +85,22 @@ enum PreviewServer {
                 return
             }
         }
-        guard let data = try? Data(contentsOf: fileURL) else {
-            send(connection, body: "404 Not Found", mime: "text/plain; charset=utf-8")
+        // 大产物(mp4/pdf)的磁盘读取移出调用方线程——此前在主线程
+        // 同步读,生成的产物越大卡顿越久。
+        let mimeHint = mime(for: fileURL.pathExtension)
+        let readTask = Task.detached(priority: .utility) { () -> Data? in
+            try? Data(contentsOf: fileURL)
+        }
+        guard let data = await readTask.value else {
+            send(connection, body: "404 Not Found", mime: "text/plain; charset=utf-8", status: "404 Not Found")
             return
         }
-        send(connection, data: data, mime: mime(for: fileURL.pathExtension))
+        send(connection, data: data, mime: mimeHint)
     }
 
-    private static func send(_ connection: NWConnection, body: String, mime: String) {
+    private static func send(_ connection: NWConnection, body: String, mime: String, status: String = "200 OK") {
         let bodyData = Data(body.utf8)
-        let header = "HTTP/1.1 200 OK\r\nContent-Type: \(mime)\r\nContent-Length: \(bodyData.count)\r\nConnection: close\r\n\r\n"
+        let header = "HTTP/1.1 \(status)\r\nContent-Type: \(mime)\r\nContent-Length: \(bodyData.count)\r\nConnection: close\r\n\r\n"
         let payload = Data(header.utf8) + bodyData
         let completion = NWConnection.SendCompletion.contentProcessed { _ in
             connection.cancel()

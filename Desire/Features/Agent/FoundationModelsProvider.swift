@@ -75,8 +75,8 @@ struct FoundationModelsProvider: ModelProvider {
                         guard !chunk.isEmpty else { continue }
                         if hasTools {
                             buffer += chunk
-                            if buffer.count > holdback {
-                                let split = buffer.index(buffer.endIndex, offsetBy: -holdback)
+                            if buffer.count > holdback,
+                               let split = Self.safeEmitIndex(buffer, delimiter: Self.toolOpen, holdback: holdback) {
                                 continuation.yield(.text(String(buffer[..<split])))
                                 buffer.removeSubrange(buffer.startIndex..<split)
                             }
@@ -116,6 +116,24 @@ struct FoundationModelsProvider: ModelProvider {
     // MARK: - Text tool protocol
 
     private static let toolOpen = "⟦TOOL⟧"
+
+    /// Fixed-window holdback can slice the tool delimiter in half (opener
+    /// starts within the window) — `extractToolBlock` then never matches and
+    /// the call is silently lost with `⟦TO` leaking into the chat. Hold back
+    /// any suffix that is a prefix of `delimiter` as well.
+    private static func safeEmitIndex(_ buffer: String, delimiter: String, holdback: Int) -> String.Index? {
+        let n = buffer.count
+        var keep = min(holdback, n)
+        let maxCheck = min(delimiter.count - 1, n)
+        for k in 1...max(maxCheck, 1) where k <= n {
+            let start = buffer.index(buffer.endIndex, offsetBy: -k)
+            if delimiter.hasPrefix(String(buffer[start...])) {
+                keep = max(keep, k)
+            }
+        }
+        guard n > keep else { return nil }
+        return buffer.index(buffer.startIndex, offsetBy: n - keep)
+    }
     private static let toolClose = "⟦/TOOL⟧"
 
     /// Splits a finished response into the visible text before the tool

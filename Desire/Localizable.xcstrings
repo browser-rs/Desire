@@ -930,6 +930,7 @@
       }
     },
     "%lld%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8700,6 +8701,28 @@
         }
       }
     },
+    "Files you download show up here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files you download show up here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载完成的文件会出现在这里。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載完成的檔案會出現在這裡。"
+          }
+        }
+      }
+    },
     "Filled" : {
       "comment" : "Screenshot shape fill toggle: filled state",
       "localizations" : {
@@ -8767,6 +8790,9 @@
           }
         }
       }
+    },
+    "Filter by Type" : {
+
     },
     "Filter Lists" : {
       "extractionState" : "stale",
@@ -9600,6 +9626,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分組方式"
+          }
+        }
+      }
+    },
+    "Group by Date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group by Date"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按日期分组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按日期分組"
+          }
+        }
+      }
+    },
+    "Group by Status" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group by Status"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按状态分组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按狀態分組"
+          }
+        }
+      }
+    },
+    "Group by Type" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group by Type"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按类型分组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按類型分組"
           }
         }
       }
@@ -11765,6 +11857,9 @@
           }
         }
       }
+    },
+    "More" : {
+
     },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",

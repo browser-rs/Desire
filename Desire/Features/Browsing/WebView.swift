@@ -398,9 +398,6 @@ struct WebView: NSViewRepresentable {
         }
 
         private var loadTimeoutTask: Task<Void, Never>?
-        /// True while element fullscreen made us native-fullscreen the host
-        /// window (so element-exit also restores the window).
-        private var elementFullscreenDroveWindow = false
 
         private func disarmLoadTimeout() {
             loadTimeoutTask?.cancel()
@@ -418,7 +415,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole", "fullscreenRequest",
+            "elementPicker", "videoAdBlocked", "devConsole",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -454,39 +451,12 @@ struct WebView: NSViewRepresentable {
                         }
                     }
                 },
-                // Element fullscreen (YouTube etc.): mainstream macOS
-                // browser pattern — auto-approve WebKit's fullscreen prompt
-                // (below) and drive the HOST WINDOW into native fullscreen
-                // as the element enters, back out as it exits. Without the
-                // sync, WebKit presents in its own window = "two windows".
-                webView.observe(\.fullscreenState, options: [.new]) { [weak self] wv, _ in
-                    DispatchQueue.main.async { [weak self] in
-                        self?.syncWindowFullscreen(wv)
-                    }
-                },
             ]
         }
 
-        /// fullscreenState KVO target: keep the hosting window's native
-        /// fullscreen state in step with the page element's fullscreen.
-        func syncWindowFullscreen(_ wv: WKWebView) {
-            guard let window = wv.window else { return }
-            let windowIsFullscreen = window.styleMask.contains(.fullScreen)
-            switch wv.fullscreenState {
-            case .enteringFullscreen, .inFullscreen:
-                if !windowIsFullscreen {
-                    elementFullscreenDroveWindow = true
-                    window.toggleFullScreen(nil)
-                }
-            case .exitingFullscreen, .notInFullscreen:
-                if elementFullscreenDroveWindow, windowIsFullscreen {
-                    elementFullscreenDroveWindow = false
-                    window.toggleFullScreen(nil)
-                }
-            @unknown default:
-                break
-            }
-        }
+        // 全屏走 WebKit 原生 element fullscreen(57df77e 启用 HTML5
+        // Fullscreen API),窗口级同步方案(shim + KVO)经三轮实测均致
+        // 黑屏/自动退屏,已整体移除——勿再引入。
 
         func stopObserving() {
             observations.removeAll()
@@ -667,22 +637,6 @@ struct WebView: NSViewRepresentable {
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
-            } else if message.name == "fullscreenRequest", let dict = message.body as? [String: Any],
-                      let enter = dict["enter"] as? Bool {
-                // fullscreen-shim.js: the page asked for element fullscreen —
-                // fullscreen OUR window instead (native-app convention) so
-                // users never see WebKit's second fullscreen window.
-                // 467921d 清警告时误删过,黑边回归由此而来。
-                let webView = message.webView ?? parent.state.webView
-                DispatchQueue.main.async {
-                    guard let window = webView.window else { return }
-                    let windowIsFullscreen = window.styleMask.contains(.fullScreen)
-                    if enter, !windowIsFullscreen {
-                        window.toggleFullScreen(nil)
-                    } else if !enter, windowIsFullscreen {
-                        window.toggleFullScreen(nil)
-                    }
-                }
             } else if message.name == "middleClickLink", let raw = message.body as? String {
                 // Middle-click (auxiliary button) on a link — the injected
                 // middle-click.js already resolved it against the page URL.

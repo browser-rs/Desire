@@ -51,6 +51,8 @@ struct DevToolsBar: View {
                 Image(systemName: "network")
             case .element:
                 Image(systemName: "viewfinder")
+            case .application:
+                Image(systemName: "shippingbox")
             }
         }
         .font(.system(size: 12))
@@ -89,6 +91,8 @@ struct DevToolsBar: View {
                         .padding(.vertical, 1)
                         .background(Capsule().fill(Color.red.opacity(0.2)))
                 }
+            case .application:
+                EmptyView()
             case .element:
                 EmptyView()
             }

@@ -11,6 +11,153 @@
   （画面整屏）→ 退视频全屏（标签栏回来，仍在窗口全屏）→ 退窗口全屏（恢复原状）。
 
 
+### Fixed
+
+- **插件存储命名空间其实没生效**（本轮的根因）：`webext-api.js` 的 RPC 只发了
+  `{id, ns, fn, args}`，没带插件身份，宿主侧的 `ext` 永远是 nil——于是**所有插件
+  的 `chrome.storage.local` 都写进同一个共享桶**（0.3.3 声称的按插件隔离只做了
+  宿主一半）。现在 RPC 带上调用时刻的 `window.__desireExtID`，每个插件读写自己的
+  桶；0.2.13 的共享桶数据仍在，面板里单列为"共享存储（旧版）"，不会被藏起来。
+- **调试面板读 Cookie 崩溃**（SIGABRT，2026-09-20 23:01 崩溃报告）：
+  `sameSiteLabel` 用 KVC 猜 `_sameSitePolicy` 私有键，`value(forKey:)` 抛
+  `NSUnknownKeyException` 直接把进程 abort。改用公开 API
+  `HTTPCookie.sameSitePolicy`（macOS 10.15+，别再退回 KVC）；没显式声明 SameSite
+  的 Cookie 不再挂 "None" 徽章（只认显式的 Lax/Strict/None）。
+
+### Added
+
+- **调试面板 · 应用页签的存储可读写**（不只是看）：
+  - **localStorage / sessionStorage 可编辑**：点值或铅笔进编辑（回车提交）、
+    单条删除、"新增键"行内新增。写入走页面 JS `setItem`，改完立即重新采集——
+    实测桥写 `regress=ok` 后页面 `localStorage.getItem` 立刻读到。
+  - **新增"扩展存储"子页签**：按插件分组列出各自的 `chrome.storage.local`
+    （就是插件代码里 `browser.storage.local` 看到的那份），可改值 / 新增键 /
+    删除 / 清空；0.2.13 的共享桶单列为一组（有数据才显示）。写入的值能解析成
+    JSON 就按 JSON 存，插件读回的是对象而不是字符串。
+  - 子页签选择移到 store（跨面板重建保持，也便于自动化直接选中某一节）。
+- **桥端点**：`POST /devtools/application/set`（写/新增 localStorage、
+  sessionStorage、插件扩展存储），`/devtools/application/delete` 增加
+  `kind:"extension"`，`GET /devtools/application` 增加 `section` 与 `extensions`
+  （每个插件的键名全量，不只是样例）；`POST /devtools/config` 可切 `applicationSection`。
+- `GET /panel/snapshot` 在截图前给异步加载留渲染节拍（约 0.7s 上限）——面板里
+  localStorage/扩展存储这类 `.task` 异步拉的数据，早先拍出来一律是空态。
+- 新增 7 条三语文案。
+
+
+### Added
+
+- **调试面板第四轮补全**：
+  - **Element 可编辑**：内联样式与属性行都可点值直接改（回车提交）、单条删除、
+    "+" 新增；悬停任一属性/样式行会在页面上给该元素描边。编辑走
+    `el.style.setProperty` / `setAttribute`，改完立即重新采集——实测把 `h1`
+    的 color 改成红色后，页面的 `getComputedStyle` 立刻是 `rgb(255, 0, 0)`。
+  - **Network**：缓存命中徽章（`transferSize === 0` 且已知体积 ⇒ 缓存，来自资源
+    计时）、复制菜单里新增"导出日志…"（JSON，含方法/状态/耗时/字节/缓存标记/
+    响应头）、详情里可**重放请求**（页面内 `fetch` 重发同样方法/头/体，结果与
+    CORS 报错都写进控制台）与"保存响应体到文件"。
+  - **Console**：搜索支持**正则**（写错自动退回普通包含匹配）、**导航时清空**
+    开关（默认关，保留日志便于对比两次加载）。
+  - **桥端点**：`POST /devtools/edit`（改样式/属性，等价于面板里编辑）、
+    `POST /devtools/config`（运行期开关）；`GET /devtools` 增加缓存命中计数与
+    开关状态。新增 14 条三语文案。
+
+### Added
+
+- **调试面板新增 Application 页签**（Chrome 同名页签的核心部分）：
+  - **Cookie**：读的是**当前标签页所在的 `WKWebsiteDataStore`**（容器标签、无痕
+    标签各看各的），因此 HttpOnly 的 Cookie 也在（`document.cookie` 看不到）——
+    实测 YouTube 页 27 条（含 `HSID`/`LOGIN_INFO` 的 HttpOnly/Secure 标记）。
+    默认**只列当前站点**（按域名后缀匹配，含父域 Cookie），工具栏有"全部站点"
+    开关切到整个数据存储。
+  - **本地存储 / 会话存储**：走页面 JS 读 localStorage / sessionStorage，
+    带字节数、可搜索、单条复制/删除、一键清空（两步确认，不用模态框）。
+  - 行内显示 HttpOnly / Secure / SameSite / 会话 Cookie 标记与所属域+路径，
+    复制支持 `name=value` 与 `document.cookie` 两种口径（排查登录态最常用）。
+  - 子页签、搜索、刷新、清空按钮与其余页签同一套观感。
+- **桥端点**：`GET /devtools/application`（Cookie 与两种 Web 存储的计数与样例）、
+  `POST /devtools/application/delete`（`kind` + `key`）。新增 12 条三语文案。
+
+### Added
+
+- **调试面板再扩展**（第二轮）：
+  - **Network 瀑布条**：Time 列改为"相对起始位置 + 时长"的横条（按当前可见集合
+    最早请求对齐，颜色跟随状态码/失败），右侧仍给毫秒数——一眼看出哪个请求拖了
+    时间线。
+  - **Network 过滤与批量操作**：URL 搜索框、"只看失败"开关、复制全部 URL /
+    全部复制为 cURL。
+  - **耗时分解**：资源计时的分段（排队 / DNS / 连接 / TLS / 首字节 / 下载）进了
+    详情面板，来自 `performance` 的 `PerformanceResourceTiming`；fetch/XHR 钩子用
+    墙钟补 ttfb。
+  - **响应体 JSON 美化**：body 能解析成 JSON 就按缩进展示（接口排查的常见场景），
+    并给"复制"按钮。
+  - **Element 盒模型图**：外边距 / 边框 / 内边距 / 内容 的分层示意，数值取计算样式。
+  - **Element CSS 路径**：新增到根的完整路径（`html>body>ytd-app>div:nth-child(6)`）
+    展示与一键复制（`element-inspect.js` 里按 nth-child 生成）。
+  - **控制台折叠重复**：同级别 + 同文本的消息合并成一行（保留首次位置、显示最新
+    时间、附 ×N），过滤条上有开关。实测三条相同输入 → 一行 ×3。
+  - 新增 18 条三语文案。
+
+### Added
+
+- **调试面板功能补全**（不止视觉）：
+  - **控制台 REPL**：面板底部输入行，↵ 执行、↑/↓ 翻历史。按输入形态选路径
+    （表达式 → 直接求值 / DOM 节点 → 给标记 / 语句 → 当函数体跑），异常文本取
+    `WKJavaScriptExceptionMessage`，输入与结果都写进日志（`› …` 前缀）。
+    实测：`1+1`→2、`document.querySelectorAll("a").length`→153、
+    `document.body`→元素标记、`throw new Error("boom")`→Error: boom、
+    `nope.x()`→ReferenceError。
+  - **真实子资源抓取**：新用户脚本 `network-monitor.js` = PerformanceObserver
+    （覆盖所有子资源，含缓存命中）+ fetch/XHR 钩子（补方法/状态/头/截断 body），
+    按 URL 去重、按 jsId 串起 start→complete→body。此前 Network 页签只记录文档
+    级导航；现在一次 YouTube 首页 = 65 条请求 / 2.2 MB，含脚本、图片与
+    `POST accounts.youtube.com/RotateCookies 200`。
+  - Network 页签：新增 **Size 列**、五列全部可点表头排序、过滤条显示
+    `条数 · 总传输量`、详情里可"复制为 cURL"。
+  - Element 页签：**采集链补上**（见下）、复制选择器 / 复制 HTML / 在页面里闪烁
+    定位三个动作、计算样式折叠区（34 项常用属性）。
+  - 控制台：长消息可展开/折叠（右键菜单）、导出日志到 `~/Downloads/desire-console-*.log`
+    并在访达里选中。
+- **桥端点**：`POST /devtools/eval`（走 REPL 路径）、`POST /devtools/inspect`
+  （用内置拾取器填 Element 页签，无需真点页面）、`GET /devtools`（三页签计数与
+  最近条目）。新增 13 条三语文案。
+
+### Fixed
+
+- **Element 页签从来没被填过**（实测发现）：`onInspectedElement` 这条回调只接了
+  线、从无调用点，采集 JS 只存在于 `ElementInspector.swift` 的 `#Preview` 里
+  （该文件仅被自己的预览引用）。现在补上 `UserScripts/element-inspect.js`
+  （返回 `InspectedElement` 形状的 JSON）与 `DevToolsStore.inspectElement(selector:in:)`。
+- **元素拾取器被 AI 分支劫持**：拾取器只有一条消息通道，原生侧却无条件优先
+  `onAIElementPicked`（该回调常驻非空），于是 Element 页签填不上、**元素屏蔽的
+  "Block this element?" 弹窗也永远弹不出来**。改为由"谁启动拾取"声明
+  `BrowserState.elementPickIntent`（block / devTools / ai），原生侧按意图分发。
+
+### Changed
+
+- **调试面板（Console / Network / Element）视觉重做**（与下载面板同一套令牌）：
+  - 头部改成真正的标签条：图标 + 中文名 + 计数（>0 才显示，错误/失败红字），
+    选中态是强调色底 + 强调色文字；"清除/关闭"换成统一的 `HoverIcon`。
+    面板名此前直接用了英文枚举 rawValue（"Console/Network/Element"），现已进
+    字符串目录（三语）。
+  - 过滤条：级别/类型改用自绘图标分段控件（与下载面板同款、选中跟随强调色），
+    搜索框统一 26pt / 圆角 6；总数等宽数字右对齐。
+  - Console 行：等宽消息 + 等宽时间戳 + 来源 URL 三级层次；错误/警告保留极淡
+    底色，分隔线内缩到文字；hover 显示复制图标（整行点按复制保留），URL 截断
+    从中间改成尾部（窄面板下至少保住域名，旧写法只剩 "https"）。
+  - Network：沿用原生 Table，只统一单元格观感——方法名从"白字实底"改为
+    "彩字淡底"药丸、状态/时间等宽；详情区从裸 `GroupBox` 换成面板自己的小节
+    标题（请求头/请求体/响应头/响应体，三语），并给 URL 加复制按钮。
+  - Element：分组同样换成小节样式（消息/属性/CSS/盒模型），空态给出图标 +
+    说明 + "选择元素"引导；面板宽度下限提到 380（四列表格低于此会把 URL 挤成
+    一条缝；宽度仍由 HSplitView 协商）。
+  - 新增 18 条三语文案。
+- **调试面板接入自动化桥**（此前只能点菜单）：`BrowserCommand.toggleDevTools`
+  可由 `POST /command` 触发；`POST /panel {"name":"devtools","tab":"network"}`
+  切页签并显示面板；`GET /panel/snapshot?name=devtools&tab=…` 进程内渲染该
+  页签（面板在主窗分栏里，不是 popover）。
+- 修 `AppAccent.current` 的初值：`Settings.init` 里读取设置不触发 `didSet`，
+  于是插件窗与截图工具条（读该镜像）在用户改过强调色之前一直用默认蓝。
+
 ### Changed
 
 - **下载面板视觉重做**（美学轮，功能与 store API 未动）：

@@ -42,6 +42,8 @@ enum UserScriptLoader {
         // 视口 = 屏幕 2560x1440；注入同一份 shim 后立刻退化成 DOM-only）。
         // 机制说明见 WebView.swift 的 fullscreen 注释。
         add("media-sniffer", at: .atDocumentStart)
+        // DevTools ▸ Network：子资源计时 + fetch/XHR 钩子（见脚本头注释）。
+        add("network-monitor", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)

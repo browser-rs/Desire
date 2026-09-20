@@ -466,6 +466,7 @@
       }
     },
     "%@: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -505,6 +506,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
+          }
+        }
+      }
+    },
+    "%lld · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld · %@"
           }
         }
       }
@@ -1195,6 +1218,28 @@
         }
       }
     },
+    "×%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×%lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "×%lld"
+          }
+        }
+      }
+    },
     "=" : {
       "localizations" : {
         "en" : {
@@ -1810,6 +1855,13 @@
         }
       }
     },
+    "Add Key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增键" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增鍵" } }
+      }
+    },
     "Add Rule" : {
       "comment" : "Add rule button",
       "localizations" : {
@@ -2307,6 +2359,28 @@
         }
       }
     },
+    "All Domains" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Domains"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部站点"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部網站"
+          }
+        }
+      }
+    },
     "All entries in the history list." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2686,6 +2760,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外觀"
+          }
+        }
+      }
+    },
+    "Application" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "應用"
           }
         }
       }
@@ -3796,7 +3892,30 @@
         }
       }
     },
+    "Border" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Border"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "边框"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邊框"
+          }
+        }
+      }
+    },
     "Bounding Box" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3814,6 +3933,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邊界框"
+          }
+        }
+      }
+    },
+    "Box Model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box Model"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "盒模型"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "盒模型"
           }
         }
       }
@@ -3911,7 +4052,6 @@
     },
     "Cache" : {
       "comment" : "Clear cache option",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4591,6 +4731,28 @@
         }
       }
     },
+    "Clear on Navigate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear on Navigate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导航时清空"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "導覽時清空"
+          }
+        }
+      }
+    },
     "Clear queued messages" : {
       "localizations" : {
         "en" : {
@@ -5014,6 +5176,28 @@
         }
       }
     },
+    "Collapse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "折叠"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收合"
+          }
+        }
+      }
+    },
     "Collapse Group" : {
       "localizations" : {
         "en" : {
@@ -5032,6 +5216,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "摺疊群組"
+          }
+        }
+      }
+    },
+    "Collapse Repeats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse Repeats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "折叠重复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收合重複"
           }
         }
       }
@@ -5194,6 +5400,28 @@
         }
       }
     },
+    "Computed Style (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Computed Style (%lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "计算样式（%lld）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計算樣式（%lld）"
+          }
+        }
+      }
+    },
     "Configure Agent in Settings…" : {
       "localizations" : {
         "en" : {
@@ -5258,6 +5486,51 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載安裝程式、磁碟映像與指令碼檔案(.dmg/.pkg/.sh…)前先確認。"
+          }
+        }
+      }
+    },
+    "Confirm?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认清除？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認清除？"
+          }
+        }
+      }
+    },
+    "Connect" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線"
           }
         }
       }
@@ -5374,6 +5647,28 @@
         }
       }
     },
+    "Console" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Console"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "控制台"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主控台"
+          }
+        }
+      }
+    },
     "Contact" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5415,6 +5710,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "容器標籤頁"
+          }
+        }
+      }
+    },
+    "Content" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容"
           }
         }
       }
@@ -5601,6 +5918,28 @@
         }
       }
     },
+    "Cookies of this tab's data store (containers/private tabs have their own)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cookies of this tab's data store (containers/private tabs have their own)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自本标签页的数据存储（容器标签与无痕标签各自独立）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自本分頁的資料儲存（容器分頁與無痕分頁各自獨立）。"
+          }
+        }
+      }
+    },
     "Copied" : {
       "localizations" : {
         "en" : {
@@ -5669,6 +6008,94 @@
         }
       }
     },
+    "Copy All as cURL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy All as cURL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部复制为 cURL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部複製為 cURL"
+          }
+        }
+      }
+    },
+    "Copy All URLs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy All URLs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制全部 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製全部 URL"
+          }
+        }
+      }
+    },
+    "Copy as cURL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as cURL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制为 cURL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製為 cURL"
+          }
+        }
+      }
+    },
+    "Copy as document.cookie" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as document.cookie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制为 document.cookie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製為 document.cookie"
+          }
+        }
+      }
+    },
     "Copy code" : {
       "localizations" : {
         "en" : {
@@ -5709,6 +6136,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將對話拷貝為文字"
+          }
+        }
+      }
+    },
+    "Copy CSS Path" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy CSS Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制 CSS 路径"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製 CSS 路徑"
+          }
+        }
+      }
+    },
+    "Copy HTML" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy HTML"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制 HTML"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製 HTML"
           }
         }
       }
@@ -5845,6 +6318,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝查詢"
+          }
+        }
+      }
+    },
+    "Copy Selector" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Selector"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制选择器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製選擇器"
           }
         }
       }
@@ -6046,6 +6542,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CSS 程式碼"
+          }
+        }
+      }
+    },
+    "CSS Path" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 路径"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 路徑"
           }
         }
       }
@@ -6364,6 +6883,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "深色模式已啟用"
+          }
+        }
+      }
+    },
+    "Debug" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除錯"
           }
         }
       }
@@ -7794,6 +8335,13 @@
         }
       }
     },
+    "Edit Value" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Value" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑值" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯值" } }
+      }
+    },
     "Edit…" : {
       "comment" : "Edit bookmark button",
       "localizations" : {
@@ -7813,6 +8361,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯…"
+          }
+        }
+      }
+    },
+    "Element" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Element"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元素"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元素"
           }
         }
       }
@@ -7864,6 +8434,7 @@
       }
     },
     "Element Information" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8026,11 +8597,34 @@
       }
     },
     "Err" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Err"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤"
+          }
+        }
+      }
+    },
+    "Errors" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errors"
           }
         },
         "zh-Hans" : {
@@ -8232,6 +8826,28 @@
         }
       }
     },
+    "Expand" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開"
+          }
+        }
+      }
+    },
     "Expand Group" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8390,6 +9006,51 @@
         }
       }
     },
+    "Export Log" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出日誌"
+          }
+        }
+      }
+    },
+    "Export Log…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Log…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出日志…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出日誌…"
+          }
+        }
+      }
+    },
     "Export…" : {
       "localizations" : {
         "en" : {
@@ -8477,6 +9138,13 @@
             "value" : "擴充功能資訊"
           }
         }
+      }
+    },
+    "Extension Storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extension Storage" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扩展存储" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "擴充功能儲存" } }
       }
     },
     "Extensions" : {
@@ -8770,6 +9438,7 @@
       }
     },
     "Filter" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8879,6 +9548,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "篩選 URL"
+          }
+        }
+      }
+    },
+    "Filter URLs…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter URLs…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤 URL…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過濾 URL…"
+          }
+        }
+      }
+    },
+    "Filter…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筛选…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選…"
           }
         }
       }
@@ -9040,6 +9753,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名"
+          }
+        }
+      }
+    },
+    "Flash in Page" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash in Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面中高亮"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面中突顯"
           }
         }
       }
@@ -10575,6 +11311,7 @@
       }
     },
     "Inner HTML" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10845,6 +11582,13 @@
             "value" : "跳到最新"
           }
         }
+      }
+    },
+    "Keys of this page's storage — add or edit them here." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keys of this page's storage — add or edit them here." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前页面存储的键值 —— 可在此新增或修改。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前頁面儲存的鍵值 —— 可在此新增或修改。" } }
       }
     },
     "Keyboard Shortcuts" : {
@@ -11231,6 +11975,28 @@
         }
       }
     },
+    "Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日誌"
+          }
+        }
+      }
+    },
     "Loose" : {
       "localizations" : {
         "en" : {
@@ -11382,6 +12148,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "管理外掛"
+          }
+        }
+      }
+    },
+    "Margin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Margin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外边距"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外邊距"
           }
         }
       }
@@ -11906,6 +12694,28 @@
         }
       }
     },
+    "name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
     "Name" : {
       "comment" : "Name field label",
       "localizations" : {
@@ -11993,6 +12803,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前往 Chrome 的設定檔資料夾並選擇 Bookmarks"
+          }
+        }
+      }
+    },
+    "Network" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網路"
+          }
+        }
+      }
+    },
+    "Network activity of this page appears here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network activity of this page appears here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个页面的网络活动会显示在这里。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個頁面的網路活動會顯示在這裡。"
           }
         }
       }
@@ -12475,6 +13329,28 @@
         }
       }
     },
+    "No console messages" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No console messages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无控制台消息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無主控台訊息"
+          }
+        }
+      }
+    },
     "No containers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -12586,6 +13462,28 @@
         }
       }
     },
+    "No cookies for this tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cookies for this tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此标签页暂无 Cookie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此分頁暫無 Cookie"
+          }
+        }
+      }
+    },
     "No custom engines" : {
       "localizations" : {
         "en" : {
@@ -12675,6 +13573,35 @@
             "value" : "暫無下載"
           }
         }
+      }
+    },
+    "No element inspected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No element inspected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未检查元素"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未檢查元素"
+          }
+        }
+      }
+    },
+    "No extension storage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No extension storage" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有扩展存储" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有擴充功能儲存" } }
       }
     },
     "No Forward History" : {
@@ -13080,6 +14007,28 @@
         }
       }
     },
+    "No requests captured" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No requests captured"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无网络请求"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無網路請求"
+          }
+        }
+      }
+    },
     "No results for \"%@\"" : {
       "localizations" : {
         "en" : {
@@ -13210,6 +14159,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫無搜尋紀錄"
+          }
+        }
+      }
+    },
+    "No storage entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No storage entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无存储项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無儲存項目"
           }
         }
       }
@@ -13638,6 +14609,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批次下載完成時傳送一則彙總系統通知。"
+          }
+        }
+      }
+    },
+    "Only Failures" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only Failures"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只看失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只看失敗"
           }
         }
       }
@@ -14201,6 +15194,28 @@
         }
       }
     },
+    "Padding" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padding"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内边距"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內邊距"
+          }
+        }
+      }
+    },
     "Page changed" : {
       "localizations" : {
         "en" : {
@@ -14219,6 +15234,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面已更新"
+          }
+        }
+      }
+    },
+    "Page console output appears here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page console output appears here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面里 console 的输出会显示在这里。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面裡 console 的輸出會顯示在這裡。"
           }
         }
       }
@@ -14605,6 +15642,28 @@
         }
       }
     },
+    "Pick an element to see its tag, CSS and box model." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick an element to see its tag, CSS and box model."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选一个元素查看它的标签、CSS 与盒模型。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一個元素查看它的標籤、CSS 與盒模型。"
+          }
+        }
+      }
+    },
     "Pick color…" : {
       "comment" : "Screenshot toolbar: open system color picker",
       "localizations" : {
@@ -14851,6 +15910,13 @@
             "value" : "外掛"
           }
         }
+      }
+    },
+    "Plugins that use chrome.storage.local show their keys here." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Plugins that use chrome.storage.local show their keys here." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 chrome.storage.local 的插件会在这里显示其键值。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用 chrome.storage.local 的擴充功能會在這裡顯示其鍵值。" } }
       }
     },
     "Position relative to the current tab." : {
@@ -15188,6 +16254,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排隊傳送"
+          }
+        }
+      }
+    },
+    "Queued" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queued"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排队"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排隊"
           }
         }
       }
@@ -15620,6 +16709,28 @@
         }
       }
     },
+    "Regex Search" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regex Search"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正则搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規表達式搜尋"
+          }
+        }
+      }
+    },
     "Relaunching…" : {
       "localizations" : {
         "en" : {
@@ -15957,6 +17068,72 @@
         }
       }
     },
+    "Replay" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重放请求"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重放請求"
+          }
+        }
+      }
+    },
+    "Request Body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request Body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求体"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請求內容"
+          }
+        }
+      }
+    },
+    "Request Headers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request Headers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求头"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請求標頭"
+          }
+        }
+      }
+    },
     "Request timed out" : {
       "localizations" : {
         "en" : {
@@ -16179,6 +17356,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置縮放"
+          }
+        }
+      }
+    },
+    "Response Body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Response Body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "响应体"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回應內容"
+          }
+        }
+      }
+    },
+    "Response Headers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Response Headers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "响应头"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回應標頭"
           }
         }
       }
@@ -16677,6 +17898,28 @@
         }
       }
     },
+    "Run JavaScript in the page…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run JavaScript in the page…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面里执行 JavaScript…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面裡執行 JavaScript…"
+          }
+        }
+      }
+    },
     "Running" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17033,6 +18276,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存此端點與模型配置"
+          }
+        }
+      }
+    },
+    "Save to File" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to File"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存到文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存到檔案"
           }
         }
       }
@@ -18160,6 +19425,28 @@
         }
       }
     },
+    "Session" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作階段"
+          }
+        }
+      }
+    },
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -18316,6 +19603,13 @@
             "value" : "設定"
           }
         }
+      }
+    },
+    "Shared (legacy)" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared (legacy)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共享存储（旧版）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "共用儲存（舊版）" } }
       }
     },
     "Share…" : {
@@ -18769,6 +20063,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有網站的登出狀態。"
+          }
+        }
+      }
+    },
+    "Size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大小"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大小"
           }
         }
       }
@@ -20476,6 +21792,28 @@
         }
       }
     },
+    "Timing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "耗时分解"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "耗時分解"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "en" : {
@@ -20494,6 +21832,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標題"
+          }
+        }
+      }
+    },
+    "TLS" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TLS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TLS"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TLS"
           }
         }
       }
@@ -20835,6 +22196,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "嘗試將 HTTP 請求自動升級為 HTTPS。"
+          }
+        }
+      }
+    },
+    "TTFB" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TTFB"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首字节"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首位元組"
           }
         }
       }
@@ -21424,6 +22808,28 @@
         }
       }
     },
+    "value" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "value"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值"
+          }
+        }
+      }
+    },
     "Verification Code Field Detected" : {
       "localizations" : {
         "en" : {
@@ -21627,6 +23033,7 @@
       }
     },
     "Warn" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21667,6 +23074,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載有害檔案前警告"
+          }
+        }
+      }
+    },
+    "Warnings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warnings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告"
           }
         }
       }

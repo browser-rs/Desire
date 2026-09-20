@@ -168,6 +168,9 @@ class Settings: ObservableObject {
         } else {
             selectedCustomEngineId = nil
         }
+        // 初次读取也要同步镜像：didSet 在 init 里不触发，否则插件窗/
+        // 截图工具条（读 AppAccent.current）会一直用默认蓝。
+        AppAccent.current = accentColor.color
     }
 
     var searchURLTemplate: String {

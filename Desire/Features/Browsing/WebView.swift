@@ -116,6 +116,15 @@ class BrowserState: ObservableObject {
     /// `listPageVideos` tool; capped, session-scoped, never persisted.
     @Published var detectedMedia: [MediaResource] = []
     var onAIElementPicked: ((String, String) -> Void)?
+
+    /// 元素拾取器这次是给谁用的。
+    ///
+    /// 拾取器只有一条消息通道（`elementPicker`），但有三条消费链：DevTools 的
+    /// Element 页签、元素屏蔽弹窗、AI 上下文。此前原生侧无条件优先 AI 分支，
+    /// 于是 Element 页签永远是空的、屏蔽弹窗也弹不出来。现在由"谁启动拾取"
+    /// 显式声明意图，原生侧按意图分发。
+    enum ElementPickIntent { case block, devTools, ai }
+    var elementPickIntent: ElementPickIntent = .block
     let videoAdBlocker: VideoAdBlocker?
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
@@ -437,7 +446,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole",
+            "elementPicker", "videoAdBlocked", "devConsole", "netEntry",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -591,6 +600,8 @@ struct WebView: NSViewRepresentable {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
+                parent.devToolsStore.applyNetworkEvent(dict)
             } else if message.name == "devConsole", let dict = message.body as? [String: Any],
                       let levelStr = dict["level"] as? String,
                       let msgText = dict["message"] as? String {
@@ -679,19 +690,30 @@ struct WebView: NSViewRepresentable {
             } else if message.name == "elementPicker", let dict = message.body as? [String: String],
                       let selector = dict["cssSelector"] {
                 let xpath = dict["xpath"]
-                if let aiHandler = parent.state.onAIElementPicked {
-                    let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-                    parent.state.webView.evaluateJavaScript("""
-                    (function() {
-                        var el = document.querySelector('\(escaped)');
-                        return el ? el.outerHTML.substring(0, 2000) : '';
-                    })()
-                    """) { result, _ in
-                        if let html = result as? String {
-                            aiHandler(selector, html)
-                        }
+                parent.state.isPickingElement = false
+                switch parent.state.elementPickIntent {
+                case .devTools:
+                    // 采集完整元素信息填进 Element 页签。
+                    Task { [store = parent.devToolsStore, wv = parent.state.webView] in
+                        await store.inspectElement(selector: selector, in: wv)
                     }
-                } else {
+                case .ai:
+                    if let aiHandler = parent.state.onAIElementPicked {
+                        let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                        parent.state.webView.evaluateJavaScript("""
+                        (function() {
+                            var el = document.querySelector('\(escaped)');
+                            return el ? el.outerHTML.substring(0, 2000) : '';
+                        })()
+                        """) { result, _ in
+                            if let html = result as? String {
+                                aiHandler(selector, html)
+                            }
+                        }
+                    } else {
+                        parent.onElementPicked?(selector, xpath)
+                    }
+                case .block:
                     parent.onElementPicked?(selector, xpath)
                 }
             } else if message.name == "mediaFound", let dict = message.body as? [String: Any],
@@ -713,6 +735,9 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            if parent.devToolsStore.clearConsoleOnNavigate {
+                parent.devToolsStore.clearConsole()
+            }
             // A new navigation invalidates the previous failure — without
             // this, the error page kept covering the NEW page whenever the
             // old error was set right before a successful reload.

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import Network
 import os
 import WebKit
@@ -32,6 +33,14 @@ import WebKit
 ///   GET  /page/timing?index=0 → {ttfb,domContentLoaded,load,transferBytes,protocol}
 ///   GET  /screenshot         → {path} PNG of the selected tab (≤1280w)
 ///   GET  /history?count=10   → {entries:[{title,url}]}
+///   POST /devtools/eval      {"js":"…"}     → console REPL (executes + logs)
+///   POST /devtools/inspect   {"selector":"…"} → fill the Element tab
+///   GET  /devtools           → console/network/element counters + last rows
+///   GET  /devtools/application → cookies + localStorage/sessionStorage of the tab
+///   POST /devtools/edit      {"selector":"…","style":{…},"attributes":{…}}
+///   POST /devtools/application/delete {"kind":"cookie|localStorage|sessionStorage","key":"…"}
+///   POST /devtools/application/set    {"kind":"localStorage|sessionStorage|extension",
+///                                       "key":"…","value":"…","ext":uuid?}
 ///   GET  /rules              → ad-rule sources (builtin/local/remote) + dir
 ///   POST /rules/refresh      → re-read local overrides + fetch remote bundle
 ///   GET  /diag/geometry?index=0 → web view frame/superview/subview tree +
@@ -274,8 +283,8 @@ final class AutomationServer {
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
-        ep("POST", "/panel", "Open/close an app panel (downloads)", params: ["name:string", "show?:bool"], example: #"-d '{"name":"downloads","show":true}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string"], example: "…/panel/snapshot?name=downloads")
+        ep("POST", "/panel", "Open/close an app panel (downloads, devtools+tab)", params: ["name:string", "show?:bool", "tab?:string"], example: #"-d '{"name":"devtools","tab":"network"}'"#)
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string", "tab?:string (devtools)"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -284,6 +293,14 @@ final class AutomationServer {
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
+        ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
+        ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
+        ep("GET", "/devtools", "DevTools panel state (console/network/element counters)", example: "…/devtools")
+        ep("POST", "/devtools/config", "Runtime toggles (clearConsoleOnNavigate)", params: ["clearConsoleOnNavigate?:bool"], example: #"-d '{"clearConsoleOnNavigate":true}'"#)
+        ep("GET", "/devtools/application", "Cookies + web storage of the active tab", params: ["index?:int"], example: "…/devtools/application")
+        ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
+        ep("POST", "/devtools/application/delete", "Delete a cookie/storage entry", params: ["kind:string", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo"}'"#)
+        ep("POST", "/devtools/application/set", "Write/add a localStorage/sessionStorage/extension key", params: ["kind:string", "key:string", "value:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo","value":"bar"}'"#)
         ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
         ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
@@ -735,6 +752,55 @@ final class AutomationServer {
                     Self.string(body, "decision") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("POST", "/devtools/eval"):
+                return try await Self.json(Self.devToolsEval(js: Self.string(body, "js") ?? "", index: Self.index(body)))
+            case ("POST", "/devtools/inspect"):
+                return try await Self.json(Self.devToolsInspect(selector: Self.string(body, "selector") ?? "", index: Self.index(body)))
+            case ("GET", "/devtools"):
+                return try Self.json(Self.devToolsState())
+            case ("POST", "/devtools/edit"):
+                return try await Self.json(Self.devToolsEdit(
+                    selector: Self.string(body, "selector") ?? "",
+                    style: body["style"] as? [String: String] ?? [:],
+                    attributes: body["attributes"] as? [String: String] ?? [:],
+                    index: Self.index(body)
+                ))
+            case ("POST", "/devtools/config"):
+                // 调试面板的运行期开关（UserDefaults 在已运行的进程里读不到外部
+                // 改动，E2E 直接改内存值最可靠）。
+                guard let store = AppState.live?.devToolsStore else {
+                    return Self.error("app state not ready")
+                }
+                if let clear = body["clearConsoleOnNavigate"] as? Bool {
+                    store.clearConsoleOnNavigate = clear
+                }
+                if let section = Self.string(body, "applicationSection"),
+                   let parsed = DevToolsStore.ApplicationSection(rawValue: section) {
+                    store.applicationSection = parsed
+                }
+                return try Self.json([
+                    "clearConsoleOnNavigate": store.clearConsoleOnNavigate,
+                    "applicationSection": store.applicationSection.rawValue,
+                    "devMode": store.isDevModeEnabled,
+                    "panel": store.activePanel.rawValue,
+                ])
+            case ("GET", "/devtools/application"):
+                return try await Self.json(Self.devToolsApplication(index: Self.index(query)))
+            case ("POST", "/devtools/application/set"):
+                return try await Self.json(Self.devToolsSetStorage(
+                    kind: Self.string(body, "kind") ?? "",
+                    key: Self.string(body, "key") ?? "",
+                    value: Self.string(body, "value") ?? "",
+                    extID: Self.string(body, "ext"),
+                    index: Self.index(body)
+                ))
+            case ("POST", "/devtools/application/delete"):
+                return try await Self.json(Self.devToolsDeleteStorage(
+                    kind: Self.string(body, "kind") ?? "",
+                    key: Self.string(body, "key"),
+                    extID: Self.string(body, "ext"),
+                    index: Self.index(body)
+                ))
             case ("GET", "/rules"):
                 return try Self.json(Self.videoAdRules())
             case ("POST", "/rules/refresh"):
@@ -788,10 +854,14 @@ final class AutomationServer {
             case ("POST", "/panel"):
                 return try Self.json(Self.panel(
                     name: Self.string(body, "name") ?? "",
-                    show: body["show"] as? Bool
+                    show: body["show"] as? Bool,
+                    tab: Self.string(body, "tab")
                 ))
             case ("GET", "/panel/snapshot"):
-                return try Self.json(Self.panelSnapshot(name: query["name"] ?? "downloads"))
+                return try await Self.json(Self.panelSnapshot(
+                    name: query["name"] ?? "downloads",
+                    tab: query["tab"]
+                ))
             case ("GET", "/bookmarks"):
                 return try Self.json(Self.bookmarks())
             case ("POST", "/command"):
@@ -1298,6 +1368,194 @@ final class AutomationServer {
         ]
     }
 
+    /// 调试面板的自动化入口：`/devtools/eval` 走控制台的 REPL 路径（执行 + 把
+    /// 输入与结果写进日志），`/devtools/inspect` 用内置元素拾取器把某个选择器
+    /// 的结果填进 Element 页签（无需真的点页面），`GET /devtools` 给出面板状态。
+    private static func devToolsEval(js: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard !js.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return ["error": "empty js"]
+        }
+        await store.evaluateConsoleInput(js, in: tab.browser.webView)
+        return [
+            "ok": true,
+            "consoleCount": store.consoleMessages.count,
+            "last": store.consoleMessages.suffix(2).map { ["\($0.level.rawValue)": $0.message] },
+        ]
+    }
+
+    private static func devToolsInspect(selector: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "empty selector"] }
+        let webView = tab.browser.webView
+        let escaped = trimmed
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        tab.browser.elementPickIntent = .devTools
+        tab.browser.isPickingElement = true
+        webView.evaluateJavaScript(WebView.pickerJS, in: nil, in: .page, completionHandler: nil)
+        try await Task.sleep(for: .milliseconds(250))
+        let clickJS = """
+        (function() {
+            var el = document.querySelector('\(escaped)');
+            if (!el) return 'not-found';
+            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            return 'clicked';
+        })()
+        """
+        let result: String = await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(clickJS) { value, _ in
+                continuation.resume(returning: (value as? String) ?? "nil")
+            }
+        }
+        try await Task.sleep(for: .milliseconds(250))
+        store.setActivePanel(.element)
+        return [
+            "ok": result == "clicked",
+            "result": result,
+            "selector": store.inspectedElement?.selector ?? "",
+        ]
+    }
+
+    /// 改元素的内联样式 / 属性（值为空串 = 删除）。等价于 Element 页签里的编辑。
+    private static func devToolsEdit(
+        selector: String,
+        style: [String: String],
+        attributes: [String: String],
+        index: Int?
+    ) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard !selector.isEmpty else { return ["error": "empty selector"] }
+        let webView = tab.browser.webView
+        for (name, value) in style {
+            await store.setElementStyle(selector: selector, name: name, value: value.isEmpty ? nil : value, in: webView)
+        }
+        for (name, value) in attributes {
+            await store.setElementAttribute(selector: selector, name: name, value: value.isEmpty ? nil : value, in: webView)
+        }
+        return [
+            "ok": true,
+            "selector": store.inspectedElement?.selector ?? "",
+            "attributes": store.inspectedElement?.attributes ?? [:],
+            "inlineStyles": store.inspectedElement?.cssProperties.map(\.name) ?? [],
+        ]
+    }
+
+    /// 当前标签页数据存储里的 Cookie 与 Web 存储（Application 页签的数据源）。
+    private static func devToolsApplication(index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        let webView = tab.browser.webView
+        let cookies = await store.loadCookies(in: webView.configuration.websiteDataStore)
+        let local = await store.loadWebStorage(kind: .local, in: webView)
+        let session = await store.loadWebStorage(kind: .session, in: webView)
+        let extensions = store.extensionStorageSnapshots()
+        return [
+            "section": store.applicationSection.rawValue,
+            "extensions": extensions.map { snapshot in
+                [
+                    "id": snapshot.id,
+                    "name": snapshot.name,
+                    "count": snapshot.items.count,
+                    "sample": snapshot.items.keys.sorted().prefix(8).map { $0 },
+                    "keys": snapshot.items.keys.sorted(),
+                ] as [String: Any]
+            },
+            "cookies": [
+                "count": cookies.count,
+                "httpOnly": cookies.filter(\.isHttpOnly).count,
+                "sample": cookies.prefix(8).map { "\($0.name)@\($0.domain)" },
+            ],
+            "localStorage": [
+                "count": local.count,
+                "sample": local.prefix(8).map(\.key),
+            ],
+            "sessionStorage": [
+                "count": session.count,
+                "sample": session.prefix(8).map(\.key),
+            ],
+        ]
+    }
+
+    /// 写一条存储项（`kind` = localStorage / sessionStorage / extension）；
+    /// `ext` 为插件 UUID（插件存储走 `WebExtensionStore`，不是文件）。
+    /// 空 value 允许（Chrome 里也有空值键），key 必须给。
+    private static func devToolsSetStorage(kind: String, key: String, value: String, extID: String?, index: Int?) async throws -> [String: Any] {
+        guard !key.isEmpty else { return ["error": "key required"] }
+        switch kind {
+        case "localStorage", "sessionStorage":
+            guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+            guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+            await store.setStorageItem(
+                kind: kind == "localStorage" ? .local : .session,
+                key: key,
+                value: value,
+                in: tab.browser.webView
+            )
+        case "extension":
+            guard let extID else { return ["error": "ext required"] }
+            guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+            store.setExtensionStorageValue(pluginID: extID, key: key, value: value)
+        default:
+            return ["error": "unknown kind"]
+        }
+        return ["ok": true]
+    }
+
+    /// 删除一条存储项（`kind` = cookie / localStorage / sessionStorage）。
+    private static func devToolsDeleteStorage(kind: String, key: String?, extID: String?, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        let webView = tab.browser.webView
+        switch kind {
+        case "cookie":
+            guard let key else { return ["error": "key required"] }
+            let dataStore = webView.configuration.websiteDataStore
+            let cookies = await store.loadCookies(in: dataStore)
+            guard let cookie = cookies.first(where: { "\($0.name)@\($0.domain)" == key }) else {
+                return ["error": "no such cookie"]
+            }
+            await store.deleteCookie(name: cookie.name, domain: cookie.domain, path: cookie.path, in: dataStore)
+        case "localStorage", "sessionStorage":
+            await store.removeStorageItem(kind: kind == "localStorage" ? .local : .session, key: key, in: webView)
+        case "extension":
+            guard let key else { return ["error": "key required"] }
+            guard let extID else { return ["error": "ext required"] }
+            store.setExtensionStorageValue(pluginID: extID, key: key, value: nil)
+        default:
+            return ["error": "unknown kind"]
+        }
+        return ["ok": true]
+    }
+
+    private static func devToolsState() -> [String: Any] {
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        return [
+            "panel": store.activePanel.rawValue,
+            "devMode": store.isDevModeEnabled,
+            "clearConsoleOnNavigate": store.clearConsoleOnNavigate,
+            "console": [
+                "count": store.consoleMessages.count,
+                "errors": store.consoleErrorCount,
+                "warnings": store.consoleWarningCount,
+                "last": store.consoleMessages.suffix(5).map { "\($0.level.rawValue): \($0.message)" },
+            ],
+            "network": [
+                "count": store.networkRequests.count,
+                "failed": store.networkFailedCount,
+                "pending": store.networkPendingCount,
+                "bytes": store.networkTotalBytes,
+                "cached": store.networkRequests.filter { $0.fromCache == true }.count,
+                "last": store.networkRequests.suffix(5).map { "\($0.method) \($0.statusCode ?? 0)\($0.fromCache == true ? " [cache]" : "") \($0.url)" },
+            ],
+            "element": ["selector": store.inspectedElement?.selector ?? ""],
+        ]
+    }
+
     /// 视频广告规则的解析状态：目录、远程源、每站来源（builtin/local/remote）、
     /// 最近错误。配合 `POST /rules/refresh`（本地重读 + 远程拉取）让整套"规则
     /// 热插拔"链路可被脚本化验证。
@@ -1387,6 +1645,7 @@ final class AutomationServer {
         case "toggleTabOverview": command = .toggleTabOverview
         case "toggleAgentPanel": command = .toggleAgentPanel
         case "toggleSplitView": command = .toggleSplitView
+        case "toggleDevTools": command = .toggleDevTools
         case "addToReadingList": command = .addToReadingList
         case "askAgentAboutPage": command = .askAgentAboutPage
         default:
@@ -1446,7 +1705,27 @@ final class AutomationServer {
 
     /// Opens/closes app-shell panels so external drivers can screenshot
     /// SwiftUI chrome that /screenshot (webview-only) cannot see.
-    private static func panel(name: String, show: Bool?) throws -> [String: Any] {
+    private static func panel(name: String, show: Bool?, tab: String? = nil) throws -> [String: Any] {
+        // 调试面板：`{"name":"devtools","tab":"network"}` —— 切页签并让面板可见，
+        // 便于对真实窗口截图（`Table` 在进程内快照里渲染不出行）。
+        if name == "devtools" {
+            guard let app = AppState.live else { return ["error": "app state not ready"] }
+            if let tab,
+               let panel = DevToolsStore.DevPanel.allCases.first(where: { $0.rawValue.lowercased() == tab.lowercased() }) {
+                app.devToolsStore.setActivePanel(panel)
+            }
+            // 面板可见性由 ContentView 的本地状态持有（不是 AppState），走命令
+            // 总线触发它的 toggle；dev mode 开关与面板显隐在 toggleDevTools() 里
+            // 始终成对翻转，所以它可以直接当作"面板是否已打开"的判据。
+            if !app.devToolsStore.isDevModeEnabled {
+                CommandBus.shared.send(.toggleDevTools)
+            }
+            return [
+                "ok": true,
+                "visible": app.devToolsStore.isDevModeEnabled,
+                "panel": app.devToolsStore.activePanel.rawValue,
+            ]
+        }
         guard name == "downloads" else { return ["error": "unknown panel"] }
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let visible = show ?? !app.showDownloadsPanel
@@ -1457,7 +1736,13 @@ final class AutomationServer {
     /// Renders an open panel's content view to PNG **in-process** via
     /// `dataWithPDF` — unlike `screencapture -l` this works while the
     /// display is occluded, on another Space, or capture-shielded.
-    private static func panelSnapshot(name: String) throws -> [String: Any] {
+    private static func panelSnapshot(name: String, tab: String?) async throws -> [String: Any] {
+        // 调试面板：`?name=devtools&tab=console|network|element` —— 用当场渲染的
+        // NSHostingView 拍照。面板不在 popover 里（主窗分栏），走 ImageRenderer 路径，
+        // 且需要临时切一下 live store 的 activePanel（渲染完立刻还原）。
+        if name == "devtools" {
+            return try await devToolsSnapshot(tab: tab)
+        }
         guard name == "downloads" else { return ["error": "unknown panel"] }
         // SwiftUI presents .popover content in an NSPopover-backed window.
         let popoverWindow = NSApp.windows.first { window in
@@ -1484,6 +1769,54 @@ final class AutomationServer {
         let path = NSHomeDirectory() + "/desire_panel.png"
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// 渲染调试面板某个页签的快照。面板在主窗的分栏里（不是 popover），所以
+    /// 当场建一个 NSHostingView 渲染 `DevToolsPanel`；store 的 activePanel 需要
+    /// 临时切换，渲染后立刻还原。
+    private static func devToolsSnapshot(tab: String?) async throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.devToolsStore
+        let original = store.activePanel
+        defer { store.setActivePanel(original) }
+        if let tab,
+           let panel = DevToolsStore.DevPanel.allCases.first(where: { $0.rawValue.lowercased() == tab.lowercased() }) {
+            store.setActivePanel(panel)
+        }
+        let size = NSSize(width: 420, height: 520)
+        let host = NSHostingView(
+            // 带上 tab：REPL 输入行与"选择元素"按钮需要目标标签页，不传的话
+            // 快照会少掉这两块（和 app 里看到的不一致）。
+            rootView: DevToolsPanel(store: store, tab: shared.resolveIndex(nil))
+                .appAccent(AppAccent.current)
+                // 面板在 app 里贴在窗口背景上；宿主视图默认透明，不铺底色
+                // 拍出来就是白底 + 浅色文字的组合（看起来像外观错乱）。
+                .background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: size.width, height: size.height)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        // 新宿主视图默认浅色外观，拍出来会和 app 里的深色不一致。
+        host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+            ?? NSApp.effectiveAppearance
+        host.layoutSubtreeIfNeeded()
+        // 面板里有些内容是 `.task` 异步加载的（localStorage/扩展存储要等一次页面
+        // JS 往返），host 建完立刻拍只会拍到空态。给它几个渲染节拍：睡一会儿 →
+        // 重新布局 → 让 SwiftUI 提交新一帧，然后才截图（上限 ~700ms，别拖慢桥）。
+        for _ in 0..<10 {
+            try? await Task.sleep(for: .milliseconds(70))
+            host.needsLayout = true
+            host.layoutSubtreeIfNeeded()
+        }
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = NSHomeDirectory() + "/desire_devtools.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh, "panel": store.activePanel.rawValue]
     }
 
     /// Starts a store-owned download from a raw URL (MCP/bridge driven).

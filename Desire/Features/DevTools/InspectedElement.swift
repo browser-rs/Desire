@@ -9,6 +9,8 @@ struct InspectedElement: Codable {
     let computedStyle: [String: String]
     let boundingBox: BoundingBox?
     let selector: String
+    /// 到根的完整 CSS 路径（`html>body>div:nth-child(2)`），比 tag+class 更能唯一定位。
+    let cssPath: String?
     let xpath: String?
 
     struct CSSProperty: Codable {
@@ -25,7 +27,7 @@ struct InspectedElement: Codable {
         let height: Double
     }
 
-    init(tagName: String, attributes: [String: String], innerHTML: String, outerHTML: String, cssProperties: [CSSProperty], computedStyle: [String: String], boundingBox: BoundingBox?, selector: String, xpath: String?) {
+    init(tagName: String, attributes: [String: String], innerHTML: String, outerHTML: String, cssProperties: [CSSProperty], computedStyle: [String: String], boundingBox: BoundingBox?, selector: String, cssPath: String? = nil, xpath: String?) {
         self.tagName = tagName
         self.attributes = attributes
         self.innerHTML = innerHTML
@@ -34,6 +36,7 @@ struct InspectedElement: Codable {
         self.computedStyle = computedStyle
         self.boundingBox = boundingBox
         self.selector = selector
+        self.cssPath = cssPath
         self.xpath = xpath
     }
 }

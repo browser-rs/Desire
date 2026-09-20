@@ -17,7 +17,11 @@
             var id = ++seq;
             pending[id] = { resolve: resolve, reject: reject };
             window.webkit.messageHandlers.desireExt.postMessage({
-                id: id, ns: ns, fn: fn, args: args || []
+                id: id, ns: ns, fn: fn, args: args || [],
+                // 插件身份（宿主在跑每个插件前设 window.__desireExtID）：
+                // 宿主按它选 storage 命名空间。取调用时刻的值——延迟回调
+                // （Promise/timer）里发出也必须归到发起它的插件。
+                ext: window.__desireExtID || null
             });
         });
     }

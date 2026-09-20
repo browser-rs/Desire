@@ -76,7 +76,11 @@ class SystemState: ObservableObject {
     let settings: Settings
 
     lazy var siteSettingsStore = SiteSettingsStore()
-    lazy var devToolsStore = DevToolsStore()
+    lazy var devToolsStore: DevToolsStore = {
+        let store = DevToolsStore()
+        store.pluginStore = pluginStore
+        return store
+    }()
     lazy var pluginStore = PluginStore()
     lazy var safariExtensionManager = SafariExtensionStore()
     /// Single shared instance: menu commands, the window's hidden shortcut

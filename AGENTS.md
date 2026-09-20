@@ -379,6 +379,20 @@ Features/Bookmarks/
   因卡顿或宽度失控被否；webview resize 的过场闪是 WebKit 引擎行为，
   与分隔条组件无关，`drawsBackground` 保持默认**不透明**（KVC 关闭
   会破坏旧帧拉伸、加剧闪烁）。
+- **扩展/插件存储的两个坑（2026-09-21 实测）**：
+  - **插件列表 = `PluginStore`（UserDefaults `desire.plugins`），存储后端 =
+    `WebExtensionStore`（UserDefaults 的 `desire.webext.storage.<uuid>` 桶）**。
+    `WebExtensionRegistry`（`storage.json` 文件那套）**是没接线的旧子系统**——
+    全仓只有它自己引用自己，别照它写新功能。
+  - 插件世界的 `browser.storage` 走 `webext-api.js` 的 RPC，**必须带 `ext`
+    （`window.__desireExtID`）**；不带的话宿主 `WebExtensionView ...handleExtensionMessage`
+    取到 nil，所有插件的存储会混进共享桶 `desire.webext.storage`（已修，
+    勿改回）。`/webext/eval` 没有插件身份，写的也是共享桶。
+- **Cookie 的 SameSite 用公开 API `HTTPCookie.sameSitePolicy?.rawValue`**
+  （macOS 10.15+）：**禁止**用 KVC 猜 `_sameSitePolicy` 之类的私有键——
+  `value(forKey:)` 遇到不存在的键抛 `NSUnknownKeyException` 直接 abort
+  （2026-09-20 崩溃报告）。没显式声明 SameSite 的 Cookie 也会得到 `.none`，
+  要区分得看 `properties` 里有没有该键。
 - **TCC/隐私授权必须懒请求**：只在用户点击对应功能时发起
   （见 VoiceInputManager）。面板 init 时发起会在非标准启动方式下
   （nohup 直跑二进制，bundle 上下文残缺）被 TCC 直接杀进程。

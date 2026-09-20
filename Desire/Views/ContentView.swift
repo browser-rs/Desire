@@ -198,7 +198,13 @@ struct ContentView: View {
     @State var findHasMatch = false
     @State var findMatchCount = 0
     @State var findCurrentIndex = 0
-    @State var isFullScreen = false
+    /// 原生窗口全屏（⌃⌘F）：只影响标签栏给红绿灯留的边距（全屏时红绿灯
+    /// 浮在内容上），**不再收起 chrome**——全屏浏览没有标签栏没法用。
+    @State var isWindowFullScreen = false
+    /// 站点视频/元素全屏：WebKit 自建的整屏窗口（`WebCoreFullScreenWindow`）
+    /// 盖住整屏，此时才收起 chrome。与窗口全屏是两件事，必须分开判：
+    /// 前者是"视频占满屏幕"，后者是"窗口占满屏幕、但还要能切标签"。
+    @State var isSiteFullScreen = false
     @State var showAgentPanel = false
     @State private var hostingWindow: NSWindow?
     @State var aiFloatingPanel: AgentFloatingPanel?
@@ -207,10 +213,10 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
-                // 原生窗口全屏（⌃⌘F）时收起标签栏/工具栏/进度条：全屏的
-                // 页面视口应当是整屏（Safari/Chrome 同款）。站点视频全屏走
-                // WebKit 自建的整屏窗口，与本标志无关。
-                if !isFullScreen {
+                // 只有**站点自己发起的整屏**（视频/元素全屏）才收掉标签栏与
+                // 工具栏——那是 WebKit 的整屏窗口在盖屏。原生窗口全屏（⌃⌘F）
+                // 保持 chrome 可见：全屏浏览不能切标签等于没法用。
+                if !isSiteFullScreen {
                     tabBarSection(for: tab)
                 }
                 SelectedTabContent(
@@ -219,7 +225,7 @@ struct ContentView: View {
                     showAgentPanel: $showAgentPanel,
                     showDevToolsPanel: showDevToolsPanel,
                     isFindBarVisible: isFindBarVisible,
-                    isFullScreen: isFullScreen,
+                    isFullScreen: isSiteFullScreen,
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)
                         showAgentPanel = true
@@ -365,11 +371,21 @@ struct ContentView: View {
                 tabManager.persistSession(force: true)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
-            isFullScreen = true
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
+            guard let window = note.object as? NSWindow else { return }
+            if Self.isSiteFullscreenWindow(window, hosting: hostingWindow) {
+                isSiteFullScreen = true
+            } else if window === hostingWindow {
+                isWindowFullScreen = true
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
-            isFullScreen = false
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
+            guard let window = note.object as? NSWindow else { return }
+            if Self.isSiteFullscreenWindow(window, hosting: hostingWindow) {
+                isSiteFullScreen = false
+            } else if window === hostingWindow {
+                isWindowFullScreen = false
+            }
         }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
@@ -437,6 +453,13 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+
+    /// 通知里那个窗口是不是"站点整屏窗口"（WebKit 为视频/元素全屏自建的
+    /// 窗口）。宿主窗口还没拿到时退回类名判断——两者都不是我们的窗口。
+    static func isSiteFullscreenWindow(_ window: NSWindow, hosting: NSWindow?) -> Bool {
+        if let hosting { return window !== hosting }
+        return String(describing: type(of: window)).contains("WebCoreFullScreenWindow")
+    }
 
     func toggleFullScreen() {
         NSApp.mainWindow?.toggleFullScreen(nil)

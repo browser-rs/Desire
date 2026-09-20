@@ -331,8 +331,14 @@ Features/Bookmarks/
     应用侧代码再碰 WebKit 的几何。
   - **禁止**在全屏中手动改 webview frame：实测 WebKit 会把它重置成 0×0
     （黑屏）。
-  - 原生窗口全屏（⌃⌘F）时收起 chrome（标签栏/工具栏/进度条/书签栏），
-    与 Safari/Chrome 一致：`ContentView.isFullScreen` → `SelectedTabContent`。
+  - **窗口全屏与站点整屏必须分开判**（2026-09-21 现场指令）：原生窗口全屏
+    （⌃⌘F）**保持标签栏/工具栏可见**——全屏浏览不能切标签等于没法用；只有
+    **站点自己发起的整屏**（视频/元素全屏 = WebKit 自建的
+    `WebCoreFullScreenWindow`）才收起 chrome。实现：ContentView 两个独立标志
+    （`isWindowFullScreen` 只管标签栏给红绿灯留的边距，`isSiteFullScreen` 才收
+    chrome），由 `NSWindow.didEnter/ExitFullScreenNotification` **按窗口身份**
+    区分（`Self.isSiteFullscreenWindow(_:hosting:)`）。原先只用一个
+    `isFullScreen` 一视同仁地收 chrome，用户实测"全屏时没有 tab 栏，很难用"。
   - VisionKit 图像分析（Live Text）已关（`config.setValue(false, forKey:
     "systemTextExtractionEnabled")`）：WebKit 对视频帧自动跑文本提取并在
     webview 里装 VKC 浮层，该浮层在布局过渡中以 0×0 bounds 算出 NaN

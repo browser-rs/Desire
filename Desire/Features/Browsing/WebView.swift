@@ -480,8 +480,8 @@ struct WebView: NSViewRepresentable {
         // HTML5 Fullscreen API 注释）：WebKit 自建整屏窗口、自动批准
         // JS 全屏请求、退出由页面/系统管。窗口级同步方案（shim +
         // fullscreenRequest + fullscreenState KVO）三轮实测均致黑屏，
-        // 已整体移除——勿再引入。窗口全屏（⌃⌘F）时的 chrome 收起在
-        // ContentView/SelectedTabContent（isFullScreen）。
+        // 已整体移除——勿再引入。chrome 收起（只在站点整屏时）在
+        // ContentView/SelectedTabContent（isSiteFullScreen）。
 
         func stopObserving() {
             observations.removeAll()

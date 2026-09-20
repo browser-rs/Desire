@@ -12,7 +12,8 @@ extension ContentView {
         TabBar(
             tabs: tabManager.tabs,
             selectedIndex: tabManager.selectedIndex,
-            isFullScreen: isFullScreen,
+            // 红绿灯在窗口全屏时浮在内容上，标签栏的左边距要跟着收。
+            isFullScreen: isWindowFullScreen,
             showSwitcher: $showTabSwitcher,
             onSelectTab: { index in
                 isUrlFocused = false

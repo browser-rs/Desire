@@ -37,11 +37,10 @@ struct SelectedTabContent: View {
     @Binding var showAgentPanel: Bool
     let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
-    /// Native window fullscreen (⌃⌘F). Fullscreen collapses the progress bar,
-    /// toolbar and bookmark bar to zero height so the web content — and with
-    /// it the page viewport — is the whole screen, the way Safari and Chrome
-    /// treat fullscreen. Site-initiated video fullscreen uses WebKit's own
-    /// screen-covering window instead, so it does not depend on this flag.
+    /// 站点自己发起的整屏（视频/元素全屏，WebKit 自建的整屏窗口）——此时
+    /// 收起进度条/工具栏/书签栏，让画面占满。**原生窗口全屏（⌃⌘F）不算**：
+    /// 那种情况要保持 chrome，否则全屏浏览没法切标签（用户现场指令
+    /// 2026-09-21）。
     let isFullScreen: Bool
     /// Sends an AI prompt (and opens the panel) from the selection bar.
     let onAskAI: (String) -> Void

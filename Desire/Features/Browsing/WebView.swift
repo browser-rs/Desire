@@ -418,7 +418,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole", "otpDetect",
+            "elementPicker", "videoAdBlocked", "devConsole", "fullscreenRequest",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -667,6 +667,22 @@ struct WebView: NSViewRepresentable {
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
+            } else if message.name == "fullscreenRequest", let dict = message.body as? [String: Any],
+                      let enter = dict["enter"] as? Bool {
+                // fullscreen-shim.js: the page asked for element fullscreen —
+                // fullscreen OUR window instead (native-app convention) so
+                // users never see WebKit's second fullscreen window.
+                // 467921d 清警告时误删过,黑边回归由此而来。
+                let webView = message.webView ?? parent.state.webView
+                DispatchQueue.main.async {
+                    guard let window = webView.window else { return }
+                    let windowIsFullscreen = window.styleMask.contains(.fullScreen)
+                    if enter, !windowIsFullscreen {
+                        window.toggleFullScreen(nil)
+                    } else if !enter, windowIsFullscreen {
+                        window.toggleFullScreen(nil)
+                    }
+                }
             } else if message.name == "middleClickLink", let raw = message.body as? String {
                 // Middle-click (auxiliary button) on a link — the injected
                 // middle-click.js already resolved it against the page URL.

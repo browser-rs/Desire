@@ -34,6 +34,9 @@ enum UserScriptLoader {
             scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
         }
         add("console-intercept", at: .atDocumentStart)
+        // 467921d 清警告时误删过——没有它 YouTube 全屏只剩页面内 CSS
+        // 全屏,宿主窗口不进 macOS 全屏(视频黑边回归)。
+        add("fullscreen-shim", at: .atDocumentStart)
         add("media-sniffer", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)

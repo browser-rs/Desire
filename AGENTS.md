@@ -414,7 +414,9 @@ Features/Bookmarks/
   正解：按名直接用形参（`BrowserToolProvider.callAsync` 就是这个约定：`args`
   的键必须等于页面函数的参数名），或让脚本内声明与键错开。**DevTools 的
   Replay 与图片预览都踩过**：Replay 自 0.3.x 起一直抛语法错（面板里点了没反应），
-  2026-09-21 修好并加了 `POST /devtools/replay` 做回归。
+  2026-09-21 修好并加了 `POST /devtools/replay` 做回归。**没传的键在脚本里根本
+  不存在**——直接引用会 `ReferenceError`（`page-storage.js` 的 `scope` 踩过），
+  可选参数一律 `typeof x === 'undefined'` 兜底。
 - **Cookie 的 SameSite 用公开 API `HTTPCookie.sameSitePolicy?.rawValue`**
   （macOS 10.15+）：**禁止**用 KVC 猜 `_sameSitePolicy` 之类的私有键——
   `value(forKey:)` 遇到不存在的键抛 `NSUnknownKeyException` 直接 abort

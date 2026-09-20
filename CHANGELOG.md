@@ -2,6 +2,29 @@
 
 ### Added
 
+- **Application 页签补上 IndexedDB / Cache Storage / Service Worker**（新脚本
+  `page-storage.js`，都在页面侧列举，一次只取一层/带上限）：
+  - **IndexedDB**：`indexedDB.databases()` 列出本站源的库，逐个只读打开（**不带
+    版本号**，避免触发 `upgradeneeded`）列出对象存储与条数；行上给
+    `库名 · vN`，删除按库（该库所有存储一起删）。
+  - **Cache Storage**：按缓存名列出条目（上限 300），行上给缓存名 + 请求 URL；
+    单条删除 / 一键清空。
+  - **Service Worker**：列出注册（scriptURL / scope / state），单个或全部注销。
+  - 实测（本地 fixture 建 1 库 2 存储 3 条、1 缓存 2 条、1 个 SW）：三节分别
+    列出 2 / 2 / 1 条；删除后 0 / 0 / 0；注销返回 `{"unregistered":1}`。
+- **Cookie 可写**：值可改（行内编辑，走 `WKHTTPCookieStore.setCookie`，所以
+  HttpOnly 的也能写——`document.cookie` 那条路写不了），"+"可新增（域默认当前
+  页面主机、路径 `/`）。实测桥写 `desire_probe=42` → Cookie 计数 106 → 107。
+- **Application 的节选择移到独立一行**：7 个节（新增 3 个）与搜索/动作挤一行放
+  不下，现在上一行是节、下一行是搜索 + 全部域 + 新增/重载/清空。
+- **桥端点**：`GET /devtools/application` 增加 `indexedDB` / `cacheStorage` /
+  `serviceWorkers` 三节的计数与样例；`POST /devtools/application/set` 支持
+  `kind:"cookie"`（需 `domain`）；`delete` 支持 `indexedDB`（key = 库名）、
+  `cache`（key = `缓存名<TAB>URL`）、`cacheAll`、`serviceWorker`（无 key = 全部）。
+  新增 10 条三语文案。
+
+### Added
+
 - **Element 页签有了 DOM 树**：此前只有"一次一个元素"的检查器，看不到结构。
   新脚本 `dom-tree.js` 按 **nth-child 链**一次取一层（懒展开，`path` 形如
   `0/2/1`），行上给 `tag#id.class` + 文本预览 + 子元素数；点行就用它的

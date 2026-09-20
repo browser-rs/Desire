@@ -366,6 +366,7 @@ class DevToolsStore: ObservableObject {
     /// 自动化直接选中某一节）。
     enum ApplicationSection: String, CaseIterable {
         case cookies, localStorage, sessionStorage, extensionStorage
+        case indexedDB, cacheStorage, serviceWorkers
 
         var title: String {
             switch self {
@@ -373,6 +374,9 @@ class DevToolsStore: ObservableObject {
             case .localStorage: StorageKind.local.title
             case .sessionStorage: StorageKind.session.title
             case .extensionStorage: String(localized: "Extension Storage")
+            case .indexedDB: String(localized: "IndexedDB")
+            case .cacheStorage: String(localized: "Cache Storage")
+            case .serviceWorkers: String(localized: "Service Workers")
             }
         }
 
@@ -382,19 +386,154 @@ class DevToolsStore: ObservableObject {
             case .localStorage: "internaldrive"
             case .sessionStorage: "clock.arrow.circlepath"
             case .extensionStorage: "puzzlepiece.extension"
+            case .indexedDB: "cylinder.split.1x2"
+            case .cacheStorage: "square.stack.3d.up"
+            case .serviceWorkers: "gearshape.2"
             }
         }
 
         var storageKind: StorageKind? {
             switch self {
-            case .cookies, .extensionStorage: nil
+            case .cookies, .extensionStorage, .indexedDB, .cacheStorage, .serviceWorkers: nil
             case .localStorage: .local
             case .sessionStorage: .session
             }
         }
 
-        /// Cookies 只读（改 Cookie 要走 setCookie，语义不同）；存储项可编辑。
-        var isEditable: Bool { storageKind != nil || self == .extensionStorage }
+        /// 值可改的节：Web 存储与插件存储（行内编辑）；Cookie 的值也可改
+        /// （走 `WKHTTPCookieStore.setCookie`，见 `setCookie`）。
+        var isEditable: Bool {
+            switch self {
+            case .localStorage, .sessionStorage, .extensionStorage, .cookies: true
+            case .indexedDB, .cacheStorage, .serviceWorkers: false
+            }
+        }
+
+        /// 只读节（列举 + 删除，不能新增/改值）。
+        var isReadOnly: Bool { !isEditable }
+    }
+
+    // MARK: - Application ▸ IndexedDB / Cache Storage / Service Worker
+
+    /// 一个 IndexedDB 对象存储（库名 + 版本 + 存储名 + 条数）。
+    struct IndexedDBStore: Identifiable, Hashable, Codable {
+        let database: String
+        let version: Int
+        let name: String
+        let count: Int
+
+        var id: String { "\(database)\u{1}\(name)" }
+    }
+
+    /// Cache Storage 里的一条缓存条目。
+    struct CacheEntry: Identifiable, Hashable, Codable {
+        let cache: String
+        let url: String
+        let method: String
+
+        var id: String { "\(cache)\u{1}\(method)\u{1}\(url)" }
+    }
+
+    /// 一个 Service Worker 注册。
+    struct ServiceWorkerRegistration: Identifiable, Hashable, Codable {
+        let scope: String
+        let scriptURL: String
+        let state: String
+
+        var id: String { scope }
+    }
+
+    /// 页面侧数据源脚本（`page-storage.js`）的统一入口：传 `mode` 与参数，
+    /// 拿回 JSON 字符串。异常抛出（面板/桥都要能看到原因）。
+    private func runPageStorage(mode: String, _ extra: [String: Any] = [:], in webView: WKWebView) async throws -> String {
+        let script = UserScriptLoader.load("page-storage")
+        guard !script.isEmpty else { throw PageStorageError.scriptMissing }
+        var arguments: [String: Any] = ["mode": mode]
+        for (key, value) in extra { arguments[key] = value }
+        let result = try await webView.callAsyncJavaScript(
+            script,
+            arguments: arguments,
+            in: nil,
+            contentWorld: .page
+        )
+        guard let json = result as? String else { throw PageStorageError.emptyResult }
+        return json
+    }
+
+    enum PageStorageError: Error {
+        case scriptMissing
+        case emptyResult
+    }
+
+    private func decodePageStorage<T: Decodable>(_ type: T.Type, mode: String, _ extra: [String: Any] = [:], in webView: WKWebView) async -> T? {
+        guard let json = try? await runPageStorage(mode: mode, extra, in: webView),
+              let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    private struct IndexedDBPayload: Decodable { let stores: [IndexedDBStore]? }
+    private struct CachePayload: Decodable { let entries: [CacheEntry]? }
+    private struct ServiceWorkerPayload: Decodable { let workers: [ServiceWorkerRegistration]? }
+
+    func loadIndexedDB(in webView: WKWebView) async -> [IndexedDBStore] {
+        let payload = await decodePageStorage(IndexedDBPayload.self, mode: "idb-list", in: webView)
+        return payload?.stores ?? []
+    }
+
+    func loadCacheStorage(in webView: WKWebView) async -> [CacheEntry] {
+        let payload = await decodePageStorage(CachePayload.self, mode: "cache-list", ["limit": 300], in: webView)
+        return payload?.entries ?? []
+    }
+
+    func loadServiceWorkers(in webView: WKWebView) async -> [ServiceWorkerRegistration] {
+        let payload = await decodePageStorage(ServiceWorkerPayload.self, mode: "sw-list", in: webView)
+        return payload?.workers ?? []
+    }
+
+    /// 删除一个 IndexedDB 库（该库的所有对象存储一起没了）。返回页面侧的结果
+    /// JSON（`{"ok":…}`），便于桥断言。
+    @discardableResult
+    func deleteDatabase(named name: String, in webView: WKWebView) async -> String? {
+        try? await runPageStorage(mode: "idb-delete", ["name": name], in: webView)
+    }
+
+    /// 删一条缓存条目 / 清空所有缓存 / 注销 Service Worker。
+    func deleteCacheEntry(cache: String, url: String, in webView: WKWebView) async {
+        _ = try? await runPageStorage(mode: "cache-delete", ["cacheName": cache, "url": url], in: webView)
+    }
+
+    @discardableResult
+    func clearCaches(in webView: WKWebView) async -> String? {
+        try? await runPageStorage(mode: "cache-clear", in: webView)
+    }
+
+    @discardableResult
+    func unregisterServiceWorker(scope: String, in webView: WKWebView) async -> String? {
+        try? await runPageStorage(mode: "sw-unregister", ["scope": scope], in: webView)
+    }
+
+    @discardableResult
+    func unregisterAllServiceWorkers(in webView: WKWebView) async -> String? {
+        try? await runPageStorage(mode: "sw-unregister", in: webView)
+    }
+
+    /// 写一个 Cookie（新增或改值）：走 `WKHTTPCookieStore`，因此 HttpOnly 的
+    /// 也能写——`document.cookie` 那条路写不了它们。
+    func setCookie(_ cookie: HTTPCookie, in dataStore: WKWebsiteDataStore) async {
+        await dataStore.httpCookieStore.setCookie(cookie)
+    }
+
+    /// 由面板的"新增 Cookie"行构造一个 Cookie：域/路径按当前页面补默认值。
+    func makeCookie(name: String, value: String, domain: String, path: String, secure: Bool, httpOnly: Bool) -> HTTPCookie? {
+        var properties: [HTTPCookiePropertyKey: Any] = [
+            .name: name,
+            .value: value,
+            .domain: domain,
+            .path: path.isEmpty ? "/" : path,
+        ]
+        if secure { properties[.secure] = "TRUE" }
+        if httpOnly { properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
+        return HTTPCookie(properties: properties)
     }
 
     @Published var applicationSection: ApplicationSection = .cookies

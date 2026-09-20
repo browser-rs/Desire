@@ -1373,6 +1373,12 @@ private struct ApplicationPanel: View {
     @State private var cookies: [CookieEntry] = []
     @State private var storageItems: [DevToolsStore.StorageItem] = []
     @State private var extensions: [DevToolsStore.ExtensionSnapshot] = []
+    @State private var indexedDBStores: [DevToolsStore.IndexedDBStore] = []
+    @State private var cacheEntries: [DevToolsStore.CacheEntry] = []
+    @State private var serviceWorkers: [DevToolsStore.ServiceWorkerRegistration] = []
+    /// 新增 Cookie 的域/路径默认值（打开新增行时从当前页面取一次）。
+    @State private var newCookieDomain = ""
+    @State private var newCookiePath = "/"
     @State private var searchText = ""
     @State private var confirmClear = false
     @State private var copiedKey: String?
@@ -1417,50 +1423,71 @@ private struct ApplicationPanel: View {
 
     // MARK: Bar
 
+    /// 两行：上一行是节选择（7 个节塞进一行放不下搜索框与动作按钮），
+    /// 下一行是搜索 + 动作。
     private var filterBar: some View {
-        HStack(spacing: 8) {
-            IconSegmentedControl(
-                items: DevToolsStore.ApplicationSection.allCases,
-                icon: { $0?.icon ?? "shippingbox" },
-                title: { $0?.title ?? "" },
-                selection: Binding(
-                    get: { store.applicationSection },
-                    set: { if let value = $0 { store.applicationSection = value; confirmClear = false; addingFor = nil; editingKey = nil } }
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                IconSegmentedControl(
+                    items: DevToolsStore.ApplicationSection.allCases,
+                    icon: { $0?.icon ?? "shippingbox" },
+                    title: { $0?.title ?? "" },
+                    selection: Binding(
+                        get: { store.applicationSection },
+                        set: { if let value = $0 { store.applicationSection = value; confirmClear = false; addingFor = nil; editingKey = nil } }
+                    )
                 )
-            )
 
-            PanelSearchField(placeholder: String(localized: "Filter…"), text: $searchText)
+                Spacer(minLength: 4)
 
-            if section == .cookies {
-                Button {
-                    allDomains.toggle()
-                } label: {
-                    Image(systemName: allDomains ? "globe" : "globe.americas")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(allDomains ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
-                        .frame(width: 26, height: 22)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(allDomains ? appAccent.opacity(0.14) : .clear)
-                        )
-                        .contentShape(Rectangle())
+                Text("\(rowCount)")
+                    .font(.system(size: 11))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+
+            HStack(spacing: 8) {
+                PanelSearchField(placeholder: String(localized: "Filter…"), text: $searchText)
+
+                if section == .cookies {
+                    allDomainsToggle
                 }
-                .buttonStyle(.plain)
-                .help("All Domains")
+
+                Spacer(minLength: 4)
+
+                if section.isEditable {
+                    HoverIcon(systemName: "plus", action: { beginAdd(addingFor == "web" ? nil : "web") }, help: "Add")
+                }
+
+                HoverIcon(systemName: "arrow.clockwise", action: { Task { await reload() } }, help: "Reload")
+
+                clearButton
             }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
 
-            Spacer(minLength: 4)
+    private var allDomainsToggle: some View {
+        Button {
+            allDomains.toggle()
+        } label: {
+            Image(systemName: allDomains ? "globe" : "globe.americas")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(allDomains ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .frame(width: 26, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(allDomains ? appAccent.opacity(0.14) : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("All Domains")
+    }
 
-            Text("\(rowCount)")
-                .font(.system(size: 11))
-                .monospacedDigit()
-                .foregroundStyle(.tertiary)
-
-            if section.isEditable {
-                HoverIcon(systemName: "plus", action: { beginAdd(addingFor == "web" ? nil : "web") }, help: "Add")
-            }
-
-            HoverIcon(systemName: "arrow.clockwise", action: { Task { await reload() } }, help: "Reload")
+    private var clearButton: some View {
+        Group {
 
             // 清空：按一下变"确认"，3 秒后自动复原（不用模态框，避免挡住自动化桥）。
             Button {
@@ -1488,8 +1515,6 @@ private struct ApplicationPanel: View {
             .buttonStyle(.plain)
             .help("Clear")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
     }
 
     // MARK: Rows
@@ -1542,7 +1567,9 @@ private struct ApplicationPanel: View {
                         name: cookie.name,
                         value: cookie.value,
                         detail: "\(cookie.domain)\(cookie.path)",
-                        flags: flags
+                        flags: flags,
+                        // Cookie 的值可改（走 setCookie，HttpOnly 也能写）。
+                        editable: true
                     )
                 }
         case .localStorage, .sessionStorage, .extensionStorage:
@@ -1550,6 +1577,36 @@ private struct ApplicationPanel: View {
                 .filter { q.isEmpty || $0.key.lowercased().contains(q) || $0.value.lowercased().contains(q) }
                 .map { item in
                     Row(id: item.key, name: item.key, value: item.value, detail: "", flags: ["\(item.bytes) B"], editable: true)
+                }
+        case .indexedDB:
+            return indexedDBStores
+                .filter { q.isEmpty || $0.database.lowercased().contains(q) || $0.name.lowercased().contains(q) }
+                .map { item in
+                    Row(
+                        id: item.id,
+                        name: item.name,
+                        value: String(localized: "\(item.count) entries"),
+                        detail: "\(item.database) · v\(item.version)",
+                        flags: []
+                    )
+                }
+        case .cacheStorage:
+            return cacheEntries
+                .filter { q.isEmpty || $0.url.lowercased().contains(q) || $0.cache.lowercased().contains(q) }
+                .map { entry in
+                    Row(id: entry.id, name: entry.url, value: entry.method, detail: entry.cache, flags: [])
+                }
+        case .serviceWorkers:
+            return serviceWorkers
+                .filter { q.isEmpty || $0.scriptURL.lowercased().contains(q) || $0.scope.lowercased().contains(q) }
+                .map { worker in
+                    Row(
+                        id: worker.id,
+                        name: worker.scriptURL.isEmpty ? worker.scope : worker.scriptURL,
+                        value: worker.scope,
+                        detail: "",
+                        flags: [worker.state]
+                    )
                 }
         }
     }
@@ -1588,7 +1645,7 @@ private struct ApplicationPanel: View {
                     rowView(row)
                     rowSeparator
                 }
-                if section.storageKind != nil {
+                if section.isEditable {
                     addFooter(owner: "web")
                 }
             }
@@ -1653,11 +1710,18 @@ private struct ApplicationPanel: View {
             HStack(spacing: 4) {
                 TextField("name", text: $newName)
                     .textFieldStyle(.plain)
-                    .frame(width: 110)
+                    .frame(width: section == .cookies ? 80 : 110)
                 Text("=").foregroundStyle(.tertiary)
                 TextField("value", text: $newValue)
                     .textFieldStyle(.plain)
                     .onSubmit { Task { await commitNew(owner: owner) } }
+                if section == .cookies {
+                    // Cookie 必须有域（页面默认域已填好，改的是子域/父域时手改）。
+                    TextField("domain", text: $newCookieDomain)
+                        .textFieldStyle(.plain)
+                        .frame(width: 110)
+                        .foregroundStyle(.secondary)
+                }
                 Button("Add") { Task { await commitNew(owner: owner) } }
                     .buttonStyle(.plain)
                     .foregroundStyle(appAccent)
@@ -1700,6 +1764,9 @@ private struct ApplicationPanel: View {
         addingFor = owner
         newName = ""
         newValue = ""
+        // 新增 Cookie 的域/路径默认取当前页面。
+        newCookieDomain = tab?.browser.webView.url?.host ?? ""
+        newCookiePath = "/"
     }
 
     private func rowView(_ row: Row) -> some View {
@@ -1827,6 +1894,9 @@ private struct ApplicationPanel: View {
         case .cookies: String(localized: "No cookies for this tab")
         case .localStorage, .sessionStorage: String(localized: "No storage entries")
         case .extensionStorage: String(localized: "No extension storage")
+        case .indexedDB: String(localized: "No IndexedDB databases")
+        case .cacheStorage: String(localized: "No cache entries")
+        case .serviceWorkers: String(localized: "No service workers")
         }
     }
 
@@ -1835,6 +1905,9 @@ private struct ApplicationPanel: View {
         case .cookies: String(localized: "Cookies of this tab's data store (containers/private tabs have their own).")
         case .localStorage, .sessionStorage: String(localized: "Keys of this page's storage — add or edit them here.")
         case .extensionStorage: nil
+        case .indexedDB: String(localized: "Databases of this origin, with their object stores.")
+        case .cacheStorage: String(localized: "Entries of this origin's Cache Storage (service worker caches).")
+        case .serviceWorkers: String(localized: "Service workers registered by this origin.")
         }
     }
 
@@ -1848,6 +1921,15 @@ private struct ApplicationPanel: View {
             storageItems = await store.loadWebStorage(kind: kind, in: webView)
         case .extensionStorage:
             extensions = store.extensionStorageSnapshots()
+        case .indexedDB:
+            guard let webView = tab?.browser.webView else { return }
+            indexedDBStores = await store.loadIndexedDB(in: webView)
+        case .cacheStorage:
+            guard let webView = tab?.browser.webView else { return }
+            cacheEntries = await store.loadCacheStorage(in: webView)
+        case .serviceWorkers:
+            guard let webView = tab?.browser.webView else { return }
+            serviceWorkers = await store.loadServiceWorkers(in: webView)
         }
     }
 
@@ -1855,6 +1937,20 @@ private struct ApplicationPanel: View {
     private func commit(_ row: Row) async {
         if let extID = row.extID {
             store.setExtensionStorageValue(pluginID: extID, key: row.name, value: draftValue)
+        } else if section == .cookies {
+            // 改值 = 用同样的 name/domain/path 重写这个 Cookie（setCookie 覆盖）。
+            if let dataStore = tab?.browser.webView.configuration.websiteDataStore,
+               let cookie = cookies.first(where: { "\($0.domain)|\($0.path)|\($0.name)" == row.id }),
+               let updated = store.makeCookie(
+                   name: cookie.name,
+                   value: draftValue,
+                   domain: cookie.domain,
+                   path: cookie.path,
+                   secure: cookie.isSecure,
+                   httpOnly: cookie.isHttpOnly
+               ) {
+                await store.setCookie(updated, in: dataStore)
+            }
         } else if let webView = tab?.browser.webView, let kind = section.storageKind {
             await store.setStorageItem(kind: kind, key: row.name, value: draftValue, in: webView)
         }
@@ -1869,6 +1965,20 @@ private struct ApplicationPanel: View {
         if owner.hasPrefix("ext:") {
             let extID = String(owner.dropFirst(4))
             store.setExtensionStorageValue(pluginID: extID, key: key, value: newValue)
+        } else if section == .cookies {
+            let domain = newCookieDomain.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let dataStore = tab?.browser.webView.configuration.websiteDataStore,
+               !domain.isEmpty,
+               let cookie = store.makeCookie(
+                   name: key,
+                   value: newValue,
+                   domain: domain,
+                   path: newCookiePath,
+                   secure: false,
+                   httpOnly: false
+               ) {
+                await store.setCookie(cookie, in: dataStore)
+            }
         } else if let webView = tab?.browser.webView, let kind = section.storageKind {
             await store.setStorageItem(kind: kind, key: key, value: newValue, in: webView)
         }
@@ -1888,6 +1998,18 @@ private struct ApplicationPanel: View {
             case .localStorage, .sessionStorage:
                 guard let webView = tab?.browser.webView, let kind = section.storageKind else { return }
                 await store.removeStorageItem(kind: kind, key: row.name, in: webView)
+            case .indexedDB:
+                guard let webView = tab?.browser.webView,
+                      let item = indexedDBStores.first(where: { $0.id == row.id }) else { return }
+                await store.deleteDatabase(named: item.database, in: webView)
+            case .cacheStorage:
+                guard let webView = tab?.browser.webView,
+                      let entry = cacheEntries.first(where: { $0.id == row.id }) else { return }
+                await store.deleteCacheEntry(cache: entry.cache, url: entry.url, in: webView)
+            case .serviceWorkers:
+                guard let webView = tab?.browser.webView,
+                      let worker = serviceWorkers.first(where: { $0.id == row.id }) else { return }
+                await store.unregisterServiceWorker(scope: worker.scope, in: webView)
             case .extensionStorage:
                 return
             }
@@ -1903,6 +2025,17 @@ private struct ApplicationPanel: View {
         case .localStorage, .sessionStorage:
             guard let webView = tab?.browser.webView, let kind = section.storageKind else { return }
             await store.removeStorageItem(kind: kind, key: nil, in: webView)
+        case .indexedDB:
+            guard let webView = tab?.browser.webView else { return }
+            for database in Set(indexedDBStores.map(\.database)) {
+                await store.deleteDatabase(named: database, in: webView)
+            }
+        case .cacheStorage:
+            guard let webView = tab?.browser.webView else { return }
+            await store.clearCaches(in: webView)
+        case .serviceWorkers:
+            guard let webView = tab?.browser.webView else { return }
+            await store.unregisterAllServiceWorkers(in: webView)
         case .extensionStorage:
             let ids = extensionGroups.map(\.id)
             for extID in ids {

@@ -301,8 +301,8 @@ final class AutomationServer {
         ep("POST", "/devtools/replay", "Re-send a recorded request from the page (same path as the ↻ button)", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8879/api/data"}'"#)
         ep("GET", "/devtools/application", "Cookies + web storage of the active tab", params: ["index?:int"], example: "…/devtools/application")
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
-        ep("POST", "/devtools/application/delete", "Delete a cookie/storage entry", params: ["kind:string", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo"}'"#)
-        ep("POST", "/devtools/application/set", "Write/add a localStorage/sessionStorage/extension key", params: ["kind:string", "key:string", "value:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo","value":"bar"}'"#)
+        ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string (cookie|localStorage|sessionStorage|extension|indexedDB|cache|cacheAll|serviceWorker)", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"indexedDB","key":"mydb"}'"#)
+        ep("POST", "/devtools/application/set", "Write a cookie / localStorage / sessionStorage / extension key", params: ["kind:string", "key:string", "value:string", "domain?:string (cookies)", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo","value":"bar"}'"#)
         ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
         ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
@@ -818,6 +818,7 @@ final class AutomationServer {
                     key: Self.string(body, "key") ?? "",
                     value: Self.string(body, "value") ?? "",
                     extID: Self.string(body, "ext"),
+                    domain: Self.string(body, "domain"),
                     index: Self.index(body)
                 ))
             case ("POST", "/devtools/application/delete"):
@@ -1485,6 +1486,9 @@ final class AutomationServer {
         let local = await store.loadWebStorage(kind: .local, in: webView)
         let session = await store.loadWebStorage(kind: .session, in: webView)
         let extensions = store.extensionStorageSnapshots()
+        let databases = await store.loadIndexedDB(in: webView)
+        let caches = await store.loadCacheStorage(in: webView)
+        let workers = await store.loadServiceWorkers(in: webView)
         return [
             "section": store.applicationSection.rawValue,
             "extensions": extensions.map { snapshot in
@@ -1509,15 +1513,41 @@ final class AutomationServer {
                 "count": session.count,
                 "sample": session.prefix(8).map(\.key),
             ],
+            "indexedDB": [
+                "count": databases.count,
+                "sample": databases.prefix(8).map { "\($0.database)/\($0.name) (\($0.count))" },
+            ],
+            "cacheStorage": [
+                "count": caches.count,
+                "sample": caches.prefix(8).map { "\($0.cache): \($0.url)" },
+            ],
+            "serviceWorkers": [
+                "count": workers.count,
+                "sample": workers.prefix(8).map { "\($0.state) \($0.scriptURL)" },
+            ],
         ]
     }
 
     /// 写一条存储项（`kind` = localStorage / sessionStorage / extension）；
     /// `ext` 为插件 UUID（插件存储走 `WebExtensionStore`，不是文件）。
     /// 空 value 允许（Chrome 里也有空值键），key 必须给。
-    private static func devToolsSetStorage(kind: String, key: String, value: String, extID: String?, index: Int?) async throws -> [String: Any] {
+    private static func devToolsSetStorage(kind: String, key: String, value: String, extID: String?, domain: String?, index: Int?) async throws -> [String: Any] {
         guard !key.isEmpty else { return ["error": "key required"] }
         switch kind {
+        case "cookie":
+            // 新增/改值：`domain` 必填（面板会带当前页面域），path 默认 "/"。
+            guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+            guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+            guard let domain, !domain.isEmpty else { return ["error": "domain required for cookies"] }
+            guard let cookie = store.makeCookie(
+                name: key,
+                value: value,
+                domain: domain,
+                path: "/",
+                secure: false,
+                httpOnly: false
+            ) else { return ["error": "could not build cookie"] }
+            await store.setCookie(cookie, in: tab.browser.webView.configuration.websiteDataStore)
         case "localStorage", "sessionStorage":
             guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
             guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
@@ -1537,7 +1567,8 @@ final class AutomationServer {
         return ["ok": true]
     }
 
-    /// 删除一条存储项（`kind` = cookie / localStorage / sessionStorage）。
+    /// 删除一条存储项（`kind` = cookie / localStorage / sessionStorage /
+    /// extension / indexedDB / cache / serviceWorker）。
     private static func devToolsDeleteStorage(kind: String, key: String?, extID: String?, index: Int?) async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
@@ -1557,6 +1588,30 @@ final class AutomationServer {
             guard let key else { return ["error": "key required"] }
             guard let extID else { return ["error": "ext required"] }
             store.setExtensionStorageValue(pluginID: extID, key: key, value: nil)
+        case "indexedDB":
+            guard let key, !key.isEmpty else { return ["error": "key = database name required"] }
+            return ["ok": true, "detail": await store.deleteDatabase(named: key, in: webView) ?? ""]
+        case "cache":
+            // key = "cacheName<TAB>url"（面板的行 id 就是这个形状）。
+            guard let key, let separator = key.range(of: "\u{1}") else {
+                return ["error": "key = \"cacheName\\turl\" required"]
+            }
+            let cacheName = String(key[key.startIndex..<separator.lowerBound])
+            let url = String(key[separator.upperBound...])
+            await store.deleteCacheEntry(cache: cacheName, url: url, in: webView)
+        case "cacheAll":
+            return ["ok": true, "detail": await store.clearCaches(in: webView) ?? ""]
+        case "serviceWorker":
+            let detail: String?
+            if let key, !key.isEmpty {
+                detail = await store.unregisterServiceWorker(scope: key, in: webView)
+            } else {
+                detail = await store.unregisterAllServiceWorkers(in: webView)
+            }
+            // 注销后**注册表**可能仍列出该 worker，直到它的客户端（页面）卸载——
+            // 返回页面侧的结果（`{"unregistered":N}`）让调用方能区分"没注销成"
+            // 与"注销了但列表还没刷新"。
+            return ["ok": true, "detail": detail ?? ""]
         default:
             return ["error": "unknown kind"]
         }

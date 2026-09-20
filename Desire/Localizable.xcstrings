@@ -45,6 +45,28 @@
         }
       }
     },
+    "%lld entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 筆"
+          }
+        }
+      }
+    },
     ":" : {
       "localizations" : {
         "en" : {
@@ -199,6 +221,28 @@
         }
       }
     },
+    "Cache Storage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache Storage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缓存存储"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快取儲存"
+          }
+        }
+      }
+    },
     "Couldn't load this image (cross-origin or too large)." : {
       "localizations" : {
         "en" : {
@@ -239,6 +283,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DOM 樹"
+          }
+        }
+      }
+    },
+    "Databases of this origin, with their object stores." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Databases of this origin, with their object stores."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源的数据库及其对象存储。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源的資料庫及其物件儲存。"
+          }
+        }
+      }
+    },
+    "Entries of this origin's Cache Storage (service worker caches)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entries of this origin's Cache Storage (service worker caches)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源 Cache Storage 的条目（Service Worker 的缓存）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源 Cache Storage 的項目（Service Worker 的快取）。"
+          }
+        }
+      }
+    },
+    "IndexedDB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
           }
         }
       }
@@ -331,6 +441,50 @@
         }
       }
     },
+    "No IndexedDB databases" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No IndexedDB databases"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 IndexedDB 数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有 IndexedDB 資料庫"
+          }
+        }
+      }
+    },
+    "No cache entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cache entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有缓存条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有快取項目"
+          }
+        }
+      }
+    },
     "No messages yet." : {
       "localizations" : {
         "en" : {
@@ -371,6 +525,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有已載入的頁面。"
+          }
+        }
+      }
+    },
+    "No service workers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No service workers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Service Worker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有 Service Worker"
           }
         }
       }
@@ -459,6 +635,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新導向至…"
+          }
+        }
+      }
+    },
+    "Service Workers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Workers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Worker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Worker"
+          }
+        }
+      }
+    },
+    "Service workers registered by this origin." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service workers registered by this origin."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源注册的 Service Worker。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源註冊的 Service Worker。"
           }
         }
       }

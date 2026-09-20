@@ -149,6 +149,18 @@ struct SelectedTabContent: View {
                                     tab.browser.isPickingElement = true
                                     tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                                 },
+                                onOpenURLInNewTab: { url in
+                                    content.tabManager.addTab(
+                                        url: url,
+                                        incognito: tab.isIncognito,
+                                        javaScriptEnabled: content.settings.isJavaScriptEnabled,
+                                        contentBlocker: content.contentBlocker,
+                                        videoAdBlocker: content.videoAdBlocker,
+                                        autoPlayPolicy: content.settings.autoPlayPolicy,
+                                        newTabPosition: content.settings.newTabPosition,
+                                        containerID: tab.containerID
+                                    )
+                                },
                                 onClose: { content.toggleDevTools() }
                             )
                             // 调试面板的 Network 是四列表格：低于 ~380 会把 URL 挤成

@@ -401,6 +401,14 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **`callAsyncJavaScript` 的字典键 = 包装函数的形参名（2026-09-21 实测）**：
+  `arguments:` 的键会成为形参，脚本里再 `const url = arguments[0]` 直接
+  `SyntaxError: Cannot declare a const variable twice: 'url'`——这条异常文本
+  经 `WKJavaScriptExceptionMessage` 能拿到（`evaluateJavaScript` 拿不到，见下）。
+  正解：按名直接用形参（`BrowserToolProvider.callAsync` 就是这个约定：`args`
+  的键必须等于页面函数的参数名），或让脚本内声明与键错开。**DevTools 的
+  Replay 与图片预览都踩过**：Replay 自 0.3.x 起一直抛语法错（面板里点了没反应），
+  2026-09-21 修好并加了 `POST /devtools/replay` 做回归。
 - **Cookie 的 SameSite 用公开 API `HTTPCookie.sameSitePolicy?.rawValue`**
   （macOS 10.15+）：**禁止**用 KVC 猜 `_sameSitePolicy` 之类的私有键——
   `value(forKey:)` 遇到不存在的键抛 `NSUnknownKeyException` 直接 abort

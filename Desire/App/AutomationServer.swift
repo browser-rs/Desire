@@ -297,6 +297,8 @@ final class AutomationServer {
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
         ep("GET", "/devtools", "DevTools panel state (scoped counters, tab list, totals)", example: "…/devtools")
         ep("POST", "/devtools/config", "Runtime toggles (console clearing, Application section, tab scope)", params: ["clearConsoleOnNavigate?:bool", "applicationSection?:string", "tabScope?:current|all|<tab uuid>"], example: #"-d '{"tabScope":"all"}'"#)
+        ep("POST", "/devtools/preview", "Fetch a page resource via the page (cookies included) and save it as PNG", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8878/pixel.png"}'"#)
+        ep("POST", "/devtools/replay", "Re-send a recorded request from the page (same path as the ↻ button)", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8879/api/data"}'"#)
         ep("GET", "/devtools/application", "Cookies + web storage of the active tab", params: ["index?:int"], example: "…/devtools/application")
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage entry", params: ["kind:string", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo"}'"#)
@@ -763,6 +765,16 @@ final class AutomationServer {
                     selector: Self.string(body, "selector") ?? "",
                     style: body["style"] as? [String: String] ?? [:],
                     attributes: body["attributes"] as? [String: String] ?? [:],
+                    index: Self.index(body)
+                ))
+            case ("POST", "/devtools/replay"):
+                return try await Self.json(Self.devToolsReplay(
+                    url: Self.string(body, "url") ?? "",
+                    index: Self.index(body)
+                ))
+            case ("POST", "/devtools/preview"):
+                return try await Self.json(Self.devToolsPreview(
+                    url: Self.string(body, "url") ?? "",
                     index: Self.index(body)
                 ))
             case ("POST", "/devtools/config"):
@@ -1542,6 +1554,77 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    /// 重放一条已记录的请求（面板详情里的 ↻ 按钮走同一条路径）：在页面里用
+    /// 同样的方法/头/体再发一次，结果与异常都写进控制台。
+    private static func devToolsReplay(url: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard !url.isEmpty else { return ["error": "empty url"] }
+        // 先在本标签页的记录里找，找不到就用 URL 现造一条（只重发 GET 语义）。
+        let request = store.networkRequests.last { $0.url == url && $0.tabID == tab.id }
+            ?? NetworkRequest(url: url, method: "GET", resourceType: .other, tabID: tab.id)
+        await store.replayRequest(request, in: tab.browser.webView)
+        return [
+            "ok": true,
+            "method": request.method,
+            "url": request.url,
+            "console": store.scopedConsoleMessages.suffix(3).map { "\($0.level.rawValue): \($0.message)" },
+        ]
+    }
+
+    /// 取一个页面资源并落盘（面板里是内联预览，这里是它的可脚本化版本）：
+    /// 走页面自己的 fetch（带 cookie），因此同源资源一定能拿到；跨域看 CORS。
+    private static func devToolsPreview(url: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard !url.isEmpty else { return ["error": "empty url"] }
+        let request = NetworkRequest(url: url, method: "GET", resourceType: .image, tabID: tab.id)
+        let dataURL: String?
+        do {
+            dataURL = try await store.previewImageDataURL(for: request, in: tab.browser.webView)
+        } catch {
+            let userInfo = (error as NSError).userInfo
+            let detail = (userInfo["WKJavaScriptExceptionMessage"] as? String)
+                ?? (userInfo["NSLocalizedDescriptionKey"] as? String)
+                ?? "\(error)"
+            return ["error": detail]
+        }
+        guard let dataURL else {
+            return ["error": "could not load (cross-origin, not an image, or over the size cap)"]
+        }
+        guard let comma = dataURL.firstIndex(of: ",") else { return ["error": "malformed data url"] }
+        let meta = String(dataURL[dataURL.startIndex..<comma])
+        let mime = meta.replacingOccurrences(of: "data:", with: "").replacingOccurrences(of: ";base64", with: "")
+        guard let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...]), options: .ignoreUnknownCharacters) else {
+            return ["error": "bad base64 payload"]
+        }
+        let path = NSHomeDirectory() + "/desire_devtools_preview.png"
+        try? data.write(to: URL(fileURLWithPath: path))
+        return ["ok": true, "path": path, "bytes": data.count, "mime": mime]
+    }
+
+    /// 长连接摘要（拆成独立函数：整个字面量塞进 `devToolsState` 的字典里会让
+    /// 类型检查超时——实测 "unable to type-check this expression in reasonable time"）。
+    private static func streamSummaries(_ requests: [NetworkRequest]) -> [[String: Any]] {
+        requests
+            .filter { $0.streaming || !$0.frames.isEmpty }
+            .suffix(5)
+            .map { request -> [String: Any] in
+                let inbound = request.frames.filter { $0.direction == .inbound }.count
+                let outbound = request.frames.filter { $0.direction == .outbound }.count
+                let last = request.frames.last.map { "\($0.direction.rawValue): \($0.payload)" } ?? ""
+                return [
+                    "url": request.url,
+                    "status": request.statusCode ?? 0,
+                    "frames": request.frames.count,
+                    "inbound": inbound,
+                    "outbound": outbound,
+                    "lastFrame": last,
+                    "initiator": request.initiator ?? "",
+                ]
+            }
+    }
+
     private static func devToolsState() -> [String: Any] {
         guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
         // 计数与列表都按**当前作用域**给（面板看到的就是这里的数），另外附
@@ -1571,7 +1654,14 @@ final class AutomationServer {
                 "pending": store.networkPendingCount,
                 "bytes": store.networkTotalBytes,
                 "cached": store.scopedNetworkRequests.filter { $0.fromCache == true }.count,
-                "last": store.scopedNetworkRequests.suffix(5).map { "\($0.method) \($0.statusCode ?? 0)\($0.fromCache == true ? " [cache]" : "") \($0.url)" },
+                "last": store.scopedNetworkRequests.suffix(5).map {
+                    var line = "\($0.method) \($0.statusCode ?? 0)\($0.fromCache == true ? " [cache]" : "") \($0.url)"
+                    if let initiator = $0.initiator { line += " ← \(initiator)" }
+                    return line
+                },
+                // 长连接（WebSocket / SSE）：帧数、最后一帧、发起者——面板详情
+                // 展示的就是这些，桥要能断言。
+                "streams": streamSummaries(store.scopedNetworkRequests),
             ],
             "totals": [
                 "console": store.consoleMessages.count,

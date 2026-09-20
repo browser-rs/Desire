@@ -24,6 +24,9 @@ struct DevToolsPanel: View {
     @ObservedObject var store: DevToolsStore
     var tab: Tab?
     var onStartElementPicker: (() -> Void)?
+    /// Network 详情里的"Open in New Tab"：交给 ContentView 的 tabManager 在
+    /// 应用内开标签页（不能走系统默认浏览器）。
+    var onOpenURLInNewTab: ((String) -> Void)?
     var onClose: (() -> Void)?
 
     @State private var consoleFilter: ConsoleMessage.Level? = nil
@@ -39,7 +42,12 @@ struct DevToolsPanel: View {
             case .console:
                 ConsolePanel(store: store, tab: tab, filter: $consoleFilter)
             case .network:
-                NetworkPanel(store: store, tab: tab, filter: $networkFilter)
+                NetworkPanel(
+                    store: store,
+                    tab: tab,
+                    onOpenURLInNewTab: onOpenURLInNewTab,
+                    filter: $networkFilter
+                )
             case .element:
                 ElementPanel(store: store, tab: tab, onStartElementPicker: onStartElementPicker)
             case .application:
@@ -721,13 +729,23 @@ private struct ConsolePanel: View {
 // MARK: - Network Panel
 
 private struct NetworkPanel: View {
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
     var tab: Tab?
+    /// 在应用里新标签页打开（面板自己不开窗，交给 ContentView 的 tabManager）。
+    var onOpenURLInNewTab: ((String) -> Void)?
     @Binding var filter: NetworkRequest.ResourceType?
     @State private var selectedRequest: NetworkRequest.ID?
     @State private var sortOrder: [KeyPathComparator<NetworkRequest>] = []
     @State private var searchText = ""
     @State private var onlyFailures = false
+    /// 正在输入重定向目标的请求（菜单里选"Redirect To…"后出现的行内输入框，
+    /// 与 Element 页签的编辑同款：不用模态框）。
+    @State private var redirectingRequest: NetworkRequest.ID?
+    @State private var redirectTarget = ""
+    /// 图片预览（按需在页面里取，见 `DevToolsStore.previewImageDataURL`）。
+    @State private var previewImage: (id: UUID, image: NSImage)?
+    @State private var previewFailure: (id: UUID, message: String)?
 
     private var kinds: [NetworkRequest.ResourceType?] {
         [nil, .document, .script, .stylesheet, .image, .xhr]
@@ -919,6 +937,20 @@ private struct NetworkPanel: View {
                     Menu {
                         Button("Copy") { copyToPasteboard(r.url) }
                         Button("Copy as cURL") { copyToPasteboard(Self.curlCommand(for: r)) }
+                        Divider()
+                        Button("Open in New Tab") { openInNewTab(r.url) }
+                        if r.mimeType?.hasPrefix("image/") == true || r.resourceType == .image {
+                            Button("Preview Image") { loadImagePreview(r) }
+                        }
+                        Divider()
+                        // 网络拦截（0.1.13 的 InterceptStore）此前只有桥能写规则，
+                        // 面板里直接给入口：规则是全局的，加到 Settings 那套里。
+                        Button("Block This URL") { block(r, wholeHost: false) }
+                        Button("Block This Host") { block(r, wholeHost: true) }
+                        Button("Redirect To…") {
+                            redirectingRequest = r.id
+                            redirectTarget = ""
+                        }
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 13))
@@ -931,6 +963,53 @@ private struct NetworkPanel: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help("Copy")
+                }
+
+                if redirectingRequest == r.id {
+                    redirectRow(r)
+                }
+
+                if let initiator = r.initiator {
+                    PanelSection(title: String(localized: "Initiator")) {
+                        Text(initiator)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    }
+                }
+
+                if let preview = previewImage, preview.id == r.id {
+                    PanelSection(title: String(localized: "Preview")) {
+                        Image(nsImage: preview.image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 220)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else if let failure = previewFailure, failure.id == r.id {
+                    PanelSection(title: String(localized: "Preview")) {
+                        Text(failure.message)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if r.streaming || !r.frames.isEmpty {
+                    PanelSection(title: String(localized: "Messages (\(r.frames.count))")) {
+                        if r.frames.isEmpty {
+                            Text(String(localized: "No messages yet."))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.tertiary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 3) {
+                                ForEach(r.frames.suffix(80)) { frame in
+                                    frameRow(frame)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if let timing = r.timing, hasTiming(timing) {
@@ -969,6 +1048,115 @@ private struct NetworkPanel: View {
             .padding(10)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 长连接消息 / 拦截动作
+
+    private static let frameTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
+
+    private func frameRow(_ frame: NetworkRequest.Frame) -> some View {
+        HStack(alignment: .top, spacing: 5) {
+            Image(systemName: frameSymbol(frame.direction))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(frame.direction == .outbound ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .frame(width: 12)
+            Text(frame.payload)
+                .font(.system(size: 10, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(4)
+            Spacer(minLength: 4)
+            Text(Self.frameTimeFormatter.string(from: frame.timestamp))
+                .font(.system(size: 9.5, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func frameSymbol(_ direction: NetworkRequest.Frame.Direction) -> String {
+        switch direction {
+        case .inbound: "arrow.down.left"
+        case .outbound: "arrow.up.right"
+        case .system: "info.circle"
+        }
+    }
+
+    /// 重定向目标输入行：行内输入（与 Element 页签的编辑同款，不用模态框）。
+    private func redirectRow(_ request: NetworkRequest) -> some View {
+        PanelSection(title: String(localized: "Redirect To")) {
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("https://…", text: $redirectTarget)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .onSubmit { applyRedirect(request) }
+                HStack(spacing: 10) {
+                    Button("Apply") { applyRedirect(request) }
+                        .disabled(redirectTarget.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Cancel") {
+                        redirectingRequest = nil
+                        redirectTarget = ""
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(appAccent)
+                Text(String(localized: "Interception rules are global and apply from the next load."))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func applyRedirect(_ request: NetworkRequest) {
+        let target = redirectTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else { return }
+        InterceptStore.shared.add(
+            urlFilter: InterceptRule.exactFilter(for: request.url),
+            kind: .redirect,
+            payload: target
+        )
+        redirectingRequest = nil
+        redirectTarget = ""
+        store.addConsoleMessage(level: .log, message: "↪ \(request.url) → \(target)", tabID: request.tabID)
+    }
+
+    private func block(_ request: NetworkRequest, wholeHost: Bool) {
+        guard let filter = wholeHost
+            ? InterceptRule.hostFilter(for: request.url)
+            : InterceptRule.exactFilter(for: request.url) else { return }
+        InterceptStore.shared.add(urlFilter: filter, kind: .block, payload: nil)
+        store.addConsoleMessage(
+            level: .log,
+            message: "⛔ blocked \(wholeHost ? "host" : "url"): \(request.url)",
+            tabID: request.tabID
+        )
+    }
+
+    private func loadImagePreview(_ request: NetworkRequest) {
+        guard let webView = tab?.browser.webView else { return }
+        previewImage = nil
+        previewFailure = nil
+        Task {
+            let dataURL = try? await store.previewImageDataURL(for: request, in: webView)
+            if let dataURL, let image = Self.image(fromDataURL: dataURL) {
+                previewImage = (request.id, image)
+                return
+            }
+            previewFailure = (request.id, String(localized: "Couldn't load this image (cross-origin or too large)."))
+        }
+    }
+
+    private func openInNewTab(_ url: String) {
+        onOpenURLInNewTab?(url)
+    }
+
+    private static func image(fromDataURL dataURL: String) -> NSImage? {
+        guard let comma = dataURL.firstIndex(of: ",") else { return nil }
+        let base64 = String(dataURL[dataURL.index(after: comma)...])
+        guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else { return nil }
+        return NSImage(data: data)
     }
 
     private func hasTiming(_ timing: NetworkRequest.Timing) -> Bool {

@@ -120,6 +120,8 @@ class DevToolsStore: ObservableObject {
 
     /// Max retained console entries.
     private let consoleCap = 1000
+    /// 每条长连接（WebSocket / SSE）保留的消息帧上限——流是无限的。
+    private let frameCap = 200
     /// 网络面板条目上限（0.3.4）：无上限时长会话里 chatter 页面能让
     /// 数组无限增长。500 条覆盖任何合理检查窗口。
     private let networkCap = 500
@@ -283,6 +285,20 @@ class DevToolsStore: ObservableObject {
         let headers = dict["responseHeaders"] as? [String: String]
         let reqBody = dict["requestBody"] as? String
         let respBody = dict["responseBody"] as? String
+        let mime = dict["mimeType"] as? String
+        let initiator = dict["initiator"] as? String
+        let streaming = dict["streaming"] as? Bool ?? false
+
+        // 长连接的消息帧：挂到对应请求上（连接本身早就报过 start）。
+        if phase == "frame" {
+            let direction = NetworkRequest.Frame.Direction(rawValue: (dict["direction"] as? String) ?? "in") ?? .system
+            let payload = (dict["payload"] as? String) ?? ""
+            let target = jsId.flatMap { jsRequestIDs[$0] } ?? recentRequestID(url: url, tabID: tabID)
+            guard let target, let index = networkRequests.firstIndex(where: { $0.id == target }) else { return }
+            networkRequests[index] = networkRequests[index]
+                .addingFrame(NetworkRequest.Frame(direction: direction, payload: payload), cap: frameCap)
+            return
+        }
 
         // 已有请求：补全。
         let existingID = jsId.flatMap { jsRequestIDs[$0] }
@@ -294,6 +310,7 @@ class DevToolsStore: ObservableObject {
                 timing: timing,
                 fromCache: fromCache,
                 size: size,
+                mimeType: mime,
                 responseHeaders: headers,
                 requestBody: reqBody,
                 responseBody: respBody
@@ -305,7 +322,15 @@ class DevToolsStore: ObservableObject {
         guard phase != "body" else { return }   // 没有对应请求的 body 事件忽略
 
         // 新请求。
-        var request = NetworkRequest(url: url, method: method, resourceType: type, requestBody: reqBody, tabID: tabID)
+        var request = NetworkRequest(
+            url: url,
+            method: method,
+            resourceType: type,
+            requestBody: reqBody,
+            tabID: tabID,
+            initiator: initiator,
+            streaming: streaming
+        )
         if status != nil || duration != nil || size != nil || headers != nil || respBody != nil {
             request = request.completedFromJS(
                 statusCode: status,
@@ -313,6 +338,7 @@ class DevToolsStore: ObservableObject {
                 timing: timing,
                 fromCache: fromCache,
                 size: size,
+                mimeType: mime,
                 responseHeaders: headers,
                 responseBody: respBody
             )
@@ -734,12 +760,13 @@ class DevToolsStore: ObservableObject {
     func replayRequest(_ request: NetworkRequest, in webView: WKWebView) async {
         var headers = request.requestHeaders ?? [:]
         headers.removeValue(forKey: "Cookie")   // Cookie 由浏览器自己带
+        // 形参名（= 字典键）不能和脚本里的声明重名（`callAsyncJavaScript` 把
+        // 键当包装函数的形参）——见 previewImageDataURL 里的实测说明。
         let script = """
-        const url = arguments[0], method = arguments[1], headers = arguments[2], body = arguments[3];
-        const init = { method: method, headers: headers, credentials: 'include' };
-        if (body !== null && method !== 'GET' && method !== 'HEAD') init.body = body;
+        const init = { method: verb, headers: extra, credentials: 'include' };
+        if (payload !== null && verb !== 'GET' && verb !== 'HEAD') init.body = payload;
         const started = performance.now();
-        const response = await fetch(url, init);
+        const response = await fetch(target, init);
         const text = await response.text();
         return JSON.stringify({
             status: response.status,
@@ -753,10 +780,10 @@ class DevToolsStore: ObservableObject {
             let result = try await webView.callAsyncJavaScript(
                 script,
                 arguments: [
-                    "url": request.url,
-                    "method": request.method,
-                    "headers": headers,
-                    "body": request.requestBody as Any,
+                    "target": request.url,
+                    "verb": request.method,
+                    "extra": headers,
+                    "payload": request.requestBody as Any,
                 ],
                 in: nil,
                 contentWorld: .page
@@ -765,6 +792,37 @@ class DevToolsStore: ObservableObject {
         } catch {
             addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription, tabID: request.tabID)
         }
+    }
+
+    /// 在页面里取一张图片并转成 data URL，供 Network 详情内联预览。
+    ///
+    /// 走**页面自己的 fetch**（带 cookie），所以同源资源一定能取到；跨域图片
+    /// 要看对方的 CORS 头——取不到就让调用方显示"加载不了"。超过 `maxBytes`
+    /// 直接放弃（面板里预览大图没有意义）。
+    func previewImageDataURL(for request: NetworkRequest, in webView: WKWebView, maxBytes: Int = 512 * 1024) async throws -> String? {
+        // 形参名（= 字典键）**不能**和脚本里的声明重名：`callAsyncJavaScript`
+        // 把字典的键当作包装函数的形参，脚本里再 `const url = …` 就是
+        // "Cannot declare a const variable twice: 'url'"（实测）。
+        let script = """
+        const response = await fetch(src, { credentials: 'include' });
+        if (!response.ok) return null;
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength > cap) return null;
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const type = response.headers.get('content-type') || 'image/png';
+        return 'data:' + type + ';base64,' + btoa(binary);
+        """
+        // 异常要抛出去（而不是吞成 nil）：面板要能说清"为什么没预览成"，
+        // 桥也要能把真实异常文本回给调用方。
+        let result = try await webView.callAsyncJavaScript(
+            script,
+            arguments: ["src": request.url, "cap": maxBytes],
+            in: nil,
+            contentWorld: .page
+        )
+        return result as? String
     }
 
     /// 表达式路径：① 直接求值（结果可 JSON 化）；② 字符串化（DOM 节点给

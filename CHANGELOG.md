@@ -1,7 +1,36 @@
 ## [Unreleased]
 
+### Added
+
+- **Network 页签补上长连接与发起者**：
+  - **WebSocket / SSE**：`network-monitor.js` 包装了两个构造函数，连接本身是一条
+    请求（状态 101 / 200），每条消息是一帧（`phase:"frame"`，方向 in/out/system，
+    每条截断 4KB、每条连接保留 200 帧）。详情里按"消息（N）"列表展示，出站用
+    强调色箭头。实测：页面开一条 WS + 一条 SSE → `GET 101 ws://…`（4 in / 1 out，
+    最后一帧 `in: bye`）、SSE 3 帧 `in: tick-3`。
+  - **发起者（Initiator）**：fetch / XHR / WS / SSE 的调用点（`url:行`）随请求上报，
+    详情里单列一行。实测行号与页面里 `new WebSocket(…)` / `fetch(…)` 的行一致。
+  - **图片预览**：详情里"Preview Image"按需在页面里 fetch 该资源（带 cookie，
+    同源必成、跨域看 CORS，上限 512KB）内联显示；另有 `POST /devtools/preview`
+    把同一路径落盘成 PNG（实测 16×16 fixture → 119 字节文件）。
+- **网络拦截接进面板**：请求详情的菜单里新增"Block This URL / Block This Host /
+  Redirect To…"（行内输入目标，不用模态框）——此前 `InterceptStore` 只有桥能写
+  规则。过滤串由 `InterceptRule.exactFilter/hostFilter` 生成（WebKit 的
+  `url-filter` 是正则，URL 里的 `.` `?` `*` 必须转义）。实测：加规则后重载，
+  该请求变成 `GET 0`（被拦），清空规则后恢复。
+- **桥端点**：`POST /devtools/replay`（重放一条已记录请求，与面板 ↻ 同路径）、
+  `POST /devtools/preview`；`GET /devtools` 的 network 段新增 `streams`（帧数 /
+  出入方向 / 最后一帧 / 发起者），`last` 行带上发起者。
+- 新增 12 条三语文案。
+
 ### Fixed
 
+- **重放请求（Network 详情的 ↻）此前必然抛语法错**：`callAsyncJavaScript` 把
+  `arguments:` 字典的**键当作包装函数的形参名**，而脚本里又写了
+  `const url = arguments[0]` → `SyntaxError: Cannot declare a const variable
+  twice: 'url'`（异常文本经 `WKJavaScriptExceptionMessage` 原样返回）。改成直接
+  使用命名形参。实测重放 `http://127.0.0.1:8879/api/data` → 控制台打出
+  `{"status":200,"ms":4,"bytes":32,…}`。
 - **调试面板的日志不再跨标签页混成一条流**：Console / Network 的数据源是 app 级
   共享 store（每个 webview 都往同一个实例发消息），此前没有标签页维度。现在每条
   记录带上来源标签页（`tabID`），过滤条多了**标签页作用域**菜单（默认"当前

@@ -25,6 +25,30 @@ struct InterceptRule: Codable, Identifiable {
         case block
         case redirect
     }
+
+    // MARK: - URL filter 构造（面板/桥共用）
+
+    /// WebKit 的 `url-filter` 是**正则**：URL 里的 `.` `?` `*` `+` `(` 等必须
+    /// 转义，否则 `?` 会让规则编译失败、`*` 会变成通配符（把别的 URL 一起拦掉）。
+    static func escapedForURLFilter(_ text: String) -> String {
+        var out = ""
+        for character in text {
+            if "\\^$.|?*+()[]{}".contains(character) { out.append("\\") }
+            out.append(character)
+        }
+        return out
+    }
+
+    /// 只匹配这一个 URL（面板"Block This URL"）。
+    static func exactFilter(for url: String) -> String {
+        "^\(escapedForURLFilter(url))$"
+    }
+
+    /// 匹配整个主机（面板"Block This Host"）：`^https?://host(/|$|:)`。
+    static func hostFilter(for url: String) -> String? {
+        guard let host = URL(string: url)?.host, !host.isEmpty else { return nil }
+        return "^[a-z]+://\(escapedForURLFilter(host))(/|$|:)"
+    }
 }
 
 /// Store + compiler + distributor for interception rules (0.1.13). Rules

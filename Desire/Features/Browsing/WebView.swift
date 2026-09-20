@@ -775,6 +775,15 @@ struct WebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             // Response headers arrived — the watchdog did its job.
             disarmLoadTimeout()
+            // 广告规则可能刚被改过（本地覆盖文件 / 远程包）：把页面里旧代数的
+            // 隐藏规则换成本次解析出来的。user script 是 webview 创建时定格的，
+            // 只有这条导航路径能把新规则送进已打开的标签页（同代则空操作）。
+            if let blocker = parent.state.videoAdBlocker, blocker.isEnabled {
+                webView.evaluateJavaScript(
+                    VideoAdRulesStore.shared.cssInstallScript(replaceStale: true),
+                    completionHandler: nil
+                )
+            }
             // New page — the sniffed media list belongs to the old one.
             parent.state.detectedMedia.removeAll()
             parent.state.isSecure = webView.url?.scheme == "https"

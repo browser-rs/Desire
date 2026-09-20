@@ -32,6 +32,8 @@ import WebKit
 ///   GET  /page/timing?index=0 → {ttfb,domContentLoaded,load,transferBytes,protocol}
 ///   GET  /screenshot         → {path} PNG of the selected tab (≤1280w)
 ///   GET  /history?count=10   → {entries:[{title,url}]}
+///   GET  /rules              → ad-rule sources (builtin/local/remote) + dir
+///   POST /rules/refresh      → re-read local overrides + fetch remote bundle
 ///   GET  /diag/geometry?index=0 → web view frame/superview/subview tree +
 ///                              every window's frame, style mask & screen
 ///   GET  /bookmarks          → {entries:[{title,url}]}
@@ -282,6 +284,8 @@ final class AutomationServer {
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
+        ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
+        ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -731,11 +735,24 @@ final class AutomationServer {
                     Self.string(body, "decision") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("GET", "/rules"):
+                return try Self.json(Self.videoAdRules())
+            case ("POST", "/rules/refresh"):
+                // 可选 {"trustRemoteJS": true|false} —— 等价于设置里的
+                // "信任远程规则脚本"开关（脚本化验证信任门控用）。
+                if let trusted = body["trustRemoteJS"] as? Bool {
+                    VideoAdRulesStore.shared.setRemoteScriptsTrusted(trusted)
+                }
+                await VideoAdRulesStore.shared.reloadAll()
+                return try Self.json(Self.videoAdRules())
             case ("GET", "/settings"):
                 let st = Settings()
                 return try Self.json([
                     "searchEngine": st.searchEngine.rawValue,
                     "httpsUpgradeEnabled": st.httpsUpgradeEnabled,
+                    // 生效值（而非落盘的原始键）：旧安装里的 false 来自
+                    // 2026-09-16 前的首次启动 bug，未显式选择过时按默认 ON。
+                    "videoAdBlockerEnabled": VideoAdBlocker.resolvedEnabled,
                 ])
             case ("POST", "/mcp/add"):
                 return try Self.json(Self.addMCPServer(
@@ -1278,6 +1295,30 @@ final class AutomationServer {
             "webViewSubviews": tree(webView, depth: 3),
             "fullscreenState": String(describing: webView.fullscreenState),
             "windows": windows,
+        ]
+    }
+
+    /// 视频广告规则的解析状态：目录、远程源、每站来源（builtin/local/remote）、
+    /// 最近错误。配合 `POST /rules/refresh`（本地重读 + 远程拉取）让整套"规则
+    /// 热插拔"链路可被脚本化验证。
+    private static func videoAdRules() -> [String: Any] {
+        let store = VideoAdRulesStore.shared
+        var perSite: [String: String] = [:]
+        for site in VideoSite.allCases {
+            perSite[site.key] = store.source(for: site).rawValue
+        }
+        return [
+            "directory": VideoAdRulesStore.rulesDirectory.path,
+            "remoteURL": store.remoteURL?.absoluteString ?? "",
+            "remoteVersion": store.appliedRemoteVersion ?? "",
+            "remoteFetchedAt": store.remoteFetchedAt.map {
+                ISO8601DateFormatter().string(from: $0)
+            } ?? "",
+            "remoteScriptsTrusted": store.remoteScriptsTrusted,
+            "isRefreshing": store.isRefreshing,
+            "lastError": store.lastError ?? "",
+            "status": store.statusLine(),
+            "sites": perSite,
         ]
     }
 

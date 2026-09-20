@@ -17,21 +17,50 @@ import WebKit
 /// like "已拦截 12 个视频广告".
 @MainActor
 class VideoAdBlocker: ObservableObject {
-    @Published var isEnabled = true {
-        didSet {
-            UserDefaults.standard.set(isEnabled, forKey: "videoAdBlockerEnabled")
-        }
-    }
+    /// `private(set)`: the only writer is `setEnabled(_:)`, so every off-switch
+    /// is an explicit user choice (see `init` for why that distinction exists).
+    @Published private(set) var isEnabled = true
+
+    /// Set once the user has flipped the Settings switch themselves. Until
+    /// then the stored value is not authoritative: before 4d67f1e the
+    /// initializer read the unset UserDefaults bool and wrote `false` back on
+    /// first launch, so installs from that era carry an "off" that no user ever
+    /// chose (it silently kept the blocker dead long after the bug was fixed).
+    private static let userChoiceKey = "videoAdBlockerUserSet"
+    private static let enabledKey = "videoAdBlockerEnabled"
 
     /// Cumulative number of ads removed on this tab lifetime. Reset by
     /// `resetCount()` when navigating to a new page.
     @Published var blockedCount: Int = 0
 
     init() {
-        // Unset key must default to ON (the declared intent) — plain
-        // `bool(forKey:)` returns false on first launch and silently
-        // disabled the blocker for every new user.
-        isEnabled = UserDefaults.standard.object(forKey: "videoAdBlockerEnabled") as? Bool ?? true
+        let defaults = UserDefaults.standard
+        isEnabled = Self.resolvedEnabled
+        if !defaults.bool(forKey: Self.userChoiceKey) {
+            // No explicit choice on record → the legacy `false` (from the
+            // first-launch bug) is overwritten with the declared default, so
+            // the blocker can't stay dead forever on an old install.
+            defaults.set(true, forKey: Self.enabledKey)
+        }
+    }
+
+    /// The value the setting actually means: without a recorded user choice
+    /// it is the declared default (ON), regardless of what an old build left
+    /// in UserDefaults. Single source of truth for `init` and the bridge's
+    /// `GET /settings`.
+    static var resolvedEnabled: Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: userChoiceKey) else { return true }
+        return defaults.object(forKey: enabledKey) as? Bool ?? true
+    }
+
+    /// Settings switch entry point — records the choice as explicit.
+    func setEnabled(_ enabled: Bool) {
+        let defaults = UserDefaults.standard
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+        defaults.set(enabled, forKey: Self.enabledKey)
+        defaults.set(true, forKey: Self.userChoiceKey)
     }
 
     /// Reports that `n` more ads were just removed. Exposed as a method
@@ -52,61 +81,44 @@ class VideoAdBlocker: ObservableObject {
     /// CSS injection script (always added at document start when enabled).
     /// Wraps the CSS in an IIFE that creates a single `<style id="desire-video-ad-css">`
     /// element. Re-runs are harmless (idempotent).
+    ///
+    /// The CSS comes from `VideoAdRulesStore` at call time (per new webview), so
+    /// a rule change is a file/edit + reload — not a rebuild. See that type for
+    /// the local-override / remote-bundle / built-in precedence.
     func documentStartScript() -> WKUserScript {
-        WKUserScript(source: Self.cssBootstrap, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        WKUserScript(
+            source: VideoAdRulesStore.shared.cssInstallScript(replaceStale: false),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
     }
 
     /// JS injection script (added at document end when enabled). Wraps all
     /// per-site page scripts in a host-matching `if` so only the relevant
     /// site executes on each page. Non-video sites bail early (near-zero cost).
+    /// Rules resolved through `VideoAdRulesStore` (see `documentStartScript`).
     func documentEndScript() -> WKUserScript {
-        WKUserScript(source: Self.universalJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        WKUserScript(
+            source: Self.universalJS(store: VideoAdRulesStore.shared),
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
     }
 
-    /// Returns the per-site page script for `host`, or `nil` if the host
-    /// isn't a supported video site or the blocker is disabled.
-    /// Matching is done on `host.contains` so subdomains (e.g. `m.youtube.com`,
-    /// `www.bilibili.com`) all work.
+    /// 导航时（`didFinish`）按"当前规则"重投一次页面脚本：user script 是
+    /// webview 创建时定格的，规则改动后只有这条路能把新规则送进已打开的标签
+    /// （外层代数包装器决定是否需要重跑，见 `VideoAdRulesStore`）。
     func pageScript(for host: String) -> String? {
         guard isEnabled else { return nil }
-        let h = host.lowercased()
-        for site in VideoSite.allCases {
-            if site.matches(h) {
-                return site.pageScript
-            }
-        }
-        return nil
+        return VideoAdRulesStore.shared.pageJSScript(for: host)
     }
 
     // MARK: - CSS bootstrap
 
-    private static let cssBootstrap: String = {
-        let escaped = aggregateCSS
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        return """
-        (function() {
-            if (document.getElementById('desire-video-ad-css')) return;
-            var s = document.createElement('style');
-            s.id = 'desire-video-ad-css';
-            s.textContent = '\(escaped)';
-            (document.head || document.documentElement).appendChild(s);
-        })();
-        """
-    }()
-
-    /// Aggregated CSS from every registered `VideoSite`. Computed once at
-    /// type-init time. Marked `static let` (not via `Self`) so it can be
-    /// referenced from a stored property initializer below.
-    private static let aggregateCSS: String = VideoSite.allCases
-        .map { $0.css }
-        .joined(separator: "\n")
-
     /// Universal JS that runs at `.atDocumentEnd`. Checks `location.hostname`
     /// against each site's host markers and runs only the matching site's page
     /// script. Non-video pages bail after the host-matching function definition.
-    private static let universalJS: String = {
+    private static func universalJS(store: VideoAdRulesStore) -> String {
         var js = """
 (function() {
     var __h = location.hostname.toLowerCase();
@@ -120,7 +132,7 @@ class VideoAdBlocker: ObservableObject {
             let markers = site.hostMarkers.map { "'\($0)'" }.joined(separator: ",")
             js += """
     if (__m([\(markers)])) {
-        \(site.pageScript)
+        \(store.pageJSScript(for: site))
     }
 
 """
@@ -129,5 +141,5 @@ class VideoAdBlocker: ObservableObject {
 })();
 """
         return js
-    }()
+    }
 }

@@ -49,6 +49,8 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var aiPreference: AgentPreferenceStore
     @ObservedObject var contentBlocker: ContentBlockerStore
+    /// 视频站广告拦截（YouTube/哔哩哔哩等的广告位与列表页广告卡片）。
+    @ObservedObject var videoAdBlocker: VideoAdBlocker
     @ObservedObject var downloadStore: DownloadStore
     @ObservedObject var formAutofillStore: FormAutofillStore
     @ObservedObject var permissionStore: PermissionStore
@@ -78,7 +80,11 @@ struct SettingsView: View {
     private var detailContent: some View {
         switch selectedSection {
         case .general:
-            GeneralSettingsSection(settings: settings, downloadStore: downloadStore)
+            GeneralSettingsSection(
+                settings: settings,
+                downloadStore: downloadStore,
+                videoAdBlocker: videoAdBlocker
+            )
         case .ai:
             AgentSettingsSection(store: aiPreference)
         case .privacy:

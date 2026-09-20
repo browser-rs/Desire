@@ -1673,6 +1673,29 @@
         }
       }
     },
+    "Ad Blocking Rules" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ad Blocking Rules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广告拦截规则"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "廣告攔截規則"
+          }
+        }
+      }
+    },
     "Add" : {
       "comment" : "Add button",
       "localizations" : {
@@ -3586,6 +3609,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "封鎖此元素？"
+          }
+        }
+      }
+    },
+    "Block Video Ads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Block Video Ads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拦截视频广告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "攔截影片廣告"
           }
         }
       }
@@ -7494,6 +7540,29 @@
         }
       }
     },
+    "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 <site>.css / <site>.js 放进这个目录即可覆盖内置规则；远程包则在 remote/source.txt 里写一行 URL（都无需重新构建）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 <site>.css / <site>.js 放進這個目錄即可覆蓋內建規則；遠端包則在 remote/source.txt 裡寫一行 URL（都無需重新建置）。"
+          }
+        }
+      }
+    },
     "Duplicate Tab" : {
       "comment" : "Context menu: duplicate tab",
       "localizations" : {
@@ -9665,6 +9734,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏密碼"
+          }
+        }
+      }
+    },
+    "Hide player and in-feed ad slots on YouTube, Bilibili, Tencent Video, iQIYI, Youku and Mango TV. Applies to the next page load." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide player and in-feed ad slots on YouTube, Bilibili, Tencent Video, iQIYI, Youku and Mango TV. Applies to the next page load."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏 YouTube、哔哩哔哩、腾讯视频、爱奇艺、优酷、芒果 TV 的播放器广告与列表页广告位，下次加载页面生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏 YouTube、嗶哩嗶哩、騰訊視頻、愛奇藝、優酷、芒果 TV 的播放器廣告與列表頁廣告位，下次載入頁面生效。"
           }
         }
       }
@@ -13610,6 +13702,29 @@
         }
       }
     },
+    "Open Folder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开文件夹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟檔案夾"
+          }
+        }
+      }
+    },
     "Open Group" : {
       "localizations" : {
         "en" : {
@@ -15455,7 +15570,6 @@
       }
     },
     "Reload" : {
-      "comment" : "Reload button",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16373,6 +16487,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤銷"
+          }
+        }
+      }
+    },
+    "Rule Files" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rule Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "规则文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規則檔案"
           }
         }
       }
@@ -18013,6 +18150,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將 Desire 設為預設瀏覽器以開啟 http 和 https 連結。"
+          }
+        }
+      }
+    },
+    "Set the bundle URL in Rule Files ▸ remote/source.txt (one line). Its CSS always applies; its JavaScript runs in page context, so it stays off until you trust the source." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the bundle URL in Rule Files ▸ remote/source.txt (one line). Its CSS always applies; its JavaScript runs in page context, so it stays off until you trust the source."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「规则文件 ▸ remote/source.txt」里写一行规则包 URL。它的 CSS 始终生效；JS 会在页面上下文执行，所以在信任该来源之前默认关闭。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「規則檔案 ▸ remote/source.txt」裡寫一行規則包 URL。它的 CSS 一律生效；JS 會在頁面內容中執行，所以在信任該來源之前預設關閉。"
           }
         }
       }
@@ -20534,6 +20694,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "翻譯…"
+          }
+        }
+      }
+    },
+    "Trust Remote Rule Scripts" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust Remote Rule Scripts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任远程规则脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任遠端規則腳本"
           }
         }
       }

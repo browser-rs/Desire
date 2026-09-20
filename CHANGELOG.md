@@ -1,7 +1,54 @@
 ## [Unreleased]
 
+### Changed
+
+- **视频广告拦截规则改为热插拔**（不再需要重新构建/发版才能改规则）：
+  规则解析顺序 **本地覆盖 > 远程规则包 > 内置**，全部由新增的
+  `VideoAdRulesStore` 统一解析，`VideoAdBlocker` 在注入时（每个新 webview）
+  才取规则。
+  - 本地覆盖：`~/Library/Application Support/Desire/VideoAdRules/<site>.css|.js`
+    （site ∈ youtube / bilibili / tencent / iqiyi / youku / mgtv / tiktok /
+    twitter），改完在 设置 ▸ 通用 ▸ 媒体 ▸ 广告拦截规则 点“重新加载”。
+  - 远程包：`…/VideoAdRules/remote/source.txt` 写一行 `rules.json` 的 URL，
+    格式 `{"version":"…","sites":{"youtube":{"css":"…","js":"…"}}}`，缓存于
+    `remote/rules.json`，启动时若超过 24h 自动拉取。**远程 CSS 始终生效；
+    远程 JS 默认不生效**——它会在页面上下文执行，必须在设置里显式打开
+    “信任远程规则脚本”。没有配置源时缓存的包不参与解析（删源即失效）。
+  - 注入改为**代数化**（`data-gen` / `window.__desireRulesGen`）：user script
+    是 webview 创建时定格的，所以导航时（`didCommit` 换 CSS、`didFinish` 重投
+    站点 JS）按当前代数补投，规则改动后**刷新页面即可生效，不必重开标签页**。
+  - 新增设置行（规则状态 / 重新加载 / 打开规则目录 / 信任远程脚本）与桥端点
+    `GET /rules`、`POST /rules/refresh`（可选 `{"trustRemoteJS":true|false}`）。
+  - 已验证（Debug 构建 + 本地 http 规则包）：本地覆盖替换内置且压过远程、
+    远程 CSS 生效、信任关时远程 JS 不跑/打开后跑、删源后缓存包失效、恢复内置
+    后首页 33 格全部有内容且 0 空壳 0 可见广告位。
+
 ### Fixed
 
+- **视频广告拦截在列表页失败 + 误删正常视频**（YouTube 列表页"赞助商广告太多"
+  的真因）：
+  1) 它的开关值一直是 `false`——来自 4d67f1e 之前"首次启动把未设置的
+     UserDefaults bool 读成 false 并写回"的 bug，而且这个功能在设置里
+     **根本没有开关行**，所以用户既看不到也无从打开。现补上设置行
+     （设置 ▸ 通用 ▸ 媒体 ▸ 拦截视频广告），并加 `videoAdBlockerUserSet`
+     显式选择标记：没有标记的旧安装一律按默认 ON 处理，旧 false 被覆盖。
+  2) 列表页规则会误删正常视频：`ytd-badge-supported-renderer`（通用徽章
+     容器，承载 4K/CC/LIVE/新闻角标）被当作广告信号，且对整张卡片文本做
+     `'ad'` 子串匹配。实测首页 60 张卡里误删 2 张新闻视频（"ME grijpt in
+     op Malieveld"）与 1 张标题含 'ad' 的视频——这正是用户关掉整个拦截的
+     原因。现改为**整段标签精确匹配**（`Ad` / `赞助商广告` / `Sponsored`，
+     支持「Ad · 30 秒」式组合）＋只认 `.badge-style-type-ad`，并停止用
+     CSS 隐藏全部徽章。哔哩哔哩的同类子串规则一并收紧。
+  3) 广告 renderer 的外层网格格子必须一起删：`ytd-rich-item-renderer` 的高度
+     由网格 CSS 决定、内部 renderer 被隐藏时不会塌陷，只删内部 renderer 会在
+     页面上留下等高空壳——实测首页留下 4 个 700x494 的空框，即用户报的
+     "赞助商广告变成黑框"。现改为命中列表页广告 renderer 时 `closest()` 到
+     外层格子（section 级广告同理）一起删除，CSS 侧同步用
+     `ytd-rich-item-renderer:has(ytd-ad-slot-renderer)` 等规则让空框不出现。
+  4) 实测（Debug 构建）：首页连测两轮空壳数 = 0、页面无可见广告位，60/33 张
+     内容卡片全部带缩略图与标题；搜索结果页 23/23 张卡片有内容、无可见广告；
+     之前被误删的新闻与 LADYBOY 视频保留、36 个徽章恢复可见、Adobe/HBO Max
+     等赞助卡片消失。视频内广告（快进/跳过按钮逻辑）未改动。
 - **视频全屏（黑边 / 崩溃）修复**——三轮返工的真正根因有两条：
   1) 注入的 `fullscreen-shim.js` 覆盖了 `Element.prototype.requestFullscreen`，
      原生全屏管线从此不再运行，元素只能被 CSS 钉在 webview 视口里，于是

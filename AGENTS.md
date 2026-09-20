@@ -338,6 +338,17 @@ Features/Bookmarks/
     webview 里装 VKC 浮层，该浮层在布局过渡中以 0×0 bounds 算出 NaN
     contentsRect → `_NSViewValidateGeometry` 断言直接杀进程（2026-09-20
     崩溃报告）。Desire 没有 Live Text UI，勿再打开。
+- **视频广告拦截规则是热插拔的（2026-09-20）**：CSS/JS 由
+  `VideoAdRulesStore` 按 **本地覆盖 > 远程包 > 内置** 解析，注入时（新 webview /
+  每次导航）才取值。改规则不用重新构建：改 `~/Library/Application
+  Support/Desire/VideoAdRules/<site>.css|.js`（或远程包的 `remote/source.txt`
+  指向的 rules.json）→ 设置里点“重新加载” → 刷新页面。注入是代数化的
+  （CSS `data-gen`、JS `window.__desireRulesGen`）：导航时补投新代数，避免
+  user script "创建 webview 时定格"导致新规则进不了已开的标签页。
+  **信任边界**：远程包的 JS 默认不生效（会在页面上下文执行），必须显式打开
+  “信任远程规则脚本”；没有配置源时缓存的包一律不参与解析。
+  脚本清单里各站自己有 `window.__desire*` 一次性标志位，代数变化时由包装器
+  清掉以重跑——新增站点脚本必须保留这个 guard 名对应关系（`VideoSite.guardFlag`）。
 - **App Sandbox 有意关闭**（`ENABLE_APP_SANDBOX = NO`、entitlements 为
   空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
   名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key

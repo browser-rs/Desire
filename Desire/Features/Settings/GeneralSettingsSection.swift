@@ -4,6 +4,10 @@ import SwiftUI
 struct GeneralSettingsSection: View {
     @ObservedObject var settings: Settings
     @ObservedObject var downloadStore: DownloadStore
+    /// 视频站广告拦截（YouTube / 哔哩哔哩等的播放器广告与列表页广告卡片）。
+    @ObservedObject var videoAdBlocker: VideoAdBlocker
+    /// 广告规则的热插拔层（本地覆盖 / 远程包 / 内置的解析状态）。
+    @ObservedObject var videoAdRules = VideoAdRulesStore.shared
 
     /// AppleLanguages 覆盖（"system" = 不覆盖，跟随系统语言）。写入
     /// app 域 defaults，下次启动生效——菜单与界面语言在进程启动时
@@ -160,6 +164,47 @@ struct GeneralSettingsSection: View {
                     selection: $settings.autoPlayPolicy,
                     options: AutoPlayPolicy.allCases,
                     label: autoPlayLabel
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Block Video Ads",
+                    subtitle: "Hide player and in-feed ad slots on YouTube, Bilibili, Tencent Video, iQIYI, Youku and Mango TV. Applies to the next page load.",
+                    systemImage: "rectangle.slash",
+                    isOn: Binding(
+                        get: { videoAdBlocker.isEnabled },
+                        set: { videoAdBlocker.setEnabled($0) }
+                    )
+                )
+                SettingsRowDivider()
+                // 规则热插拔：本地覆盖文件 > 远程规则包 > 内置。改选择器不用
+                // 重新构建——存盘 + 这里点“重新加载” + 刷新页面即可。
+                SettingsActionRow(
+                    "Ad Blocking Rules",
+                    subtitle: videoAdRules.statusLine(),
+                    systemImage: "arrow.triangle.2.circlepath",
+                    buttonTitle: "Reload",
+                    isDisabled: videoAdRules.isRefreshing
+                ) {
+                    Task { await videoAdRules.reloadAll() }
+                }
+                SettingsRowDivider()
+                SettingsActionRow(
+                    "Rule Files",
+                    subtitle: "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed).",
+                    systemImage: "folder",
+                    buttonTitle: "Open Folder"
+                ) {
+                    videoAdRules.revealRulesDirectory()
+                }
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Trust Remote Rule Scripts",
+                    subtitle: "Set the bundle URL in Rule Files ▸ remote/source.txt (one line). Its CSS always applies; its JavaScript runs in page context, so it stays off until you trust the source.",
+                    systemImage: "lock.open",
+                    isOn: Binding(
+                        get: { videoAdRules.remoteScriptsTrusted },
+                        set: { videoAdRules.setRemoteScriptsTrusted($0) }
+                    )
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(

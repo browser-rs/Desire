@@ -42,6 +42,27 @@ enum VideoSite: CaseIterable {
         return false
     }
 
+    /// 稳定的站点键：规则文件名（`<key>.css` / `<key>.js`）与远程规则包
+    /// `sites` 字典的键都用它（见 `VideoAdRulesStore`）。取自 case 名，别改
+    /// case 名。
+    var key: String { String(describing: self) }
+
+    /// 站点脚本自己用的"只跑一次"标志位（脚本内部第一件事就是查它）。
+    /// 规则热插拔时，新规则要能重跑脚本，所以由外层包装器把它清掉——见
+    /// `VideoAdRulesStore.pageJSScript(for:)`。
+    var guardFlag: String {
+        switch self {
+        case .youtube: "__desireYT"
+        case .bilibili: "__desireBili"
+        case .tencent: "__desireTencent"
+        case .iqiyi: "__desireIQiyi"
+        case .youku: "__desireYouku"
+        case .mgtv: "__desireMGTV"
+        case .tiktok: "__desireTikTok"
+        case .twitter: "__desireTwitter"
+        }
+    }
+
     var css: String {
         switch self {
         case .youtube: Self.youtubeCSS
@@ -84,12 +105,31 @@ yt-lockup-view-model[is-ad], ytd-in-feed-ad-renderer,
 ytd-infeed-ad-layout-renderer, ytd-ad-slot,
 ytd-ad-simple, yt-about-ad-renderer, ytd-merch-shelf-renderer,
 ytd-search-panel-ad-renderer, ytd-unlimited-supply-renderer,
-ytd-badge-supported-renderer, .badge-style-type-ad,
+.badge-style-type-ad,
 ytd-ad-inline-playback-renderer, ytd-inline-survey-renderer,
 ytd-banner-promo-renderer, .ytd-banner-promo-renderer,
 ytd-reel-video-renderer[is-ad],
 ytm-companion-ad-renderer, ytm-promoted-sparkles-web-renderer,
 ytm-rich-item-renderer[is-ad], .ytd-rich-shelf-renderer[is-ad] {
+    display: none !important;
+}
+
+/* 广告 renderer 的外层网格格子也要一起收起：ytd-rich-item-renderer 的高度由
+   网格 CSS 决定，内部 renderer 被隐藏时它不会塌陷，页面上就留下一个等高的
+   空框（用户看到的"赞助商广告变成黑框"）。:has() 在 WebKit 15.4+ 可用。 */
+ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+ytd-rich-item-renderer:has(ytd-in-feed-ad-renderer),
+ytd-rich-item-renderer:has(ytd-display-ad-renderer),
+ytd-rich-item-renderer:has(ytd-text-ad-renderer),
+ytd-rich-item-renderer:has(ytd-promoted-video-renderer),
+ytd-rich-item-renderer:has(ytd-promoted-sparkles-web-renderer),
+ytd-rich-item-renderer:has(ytd-compact-promoted-video-renderer),
+ytd-rich-item-renderer:has(ytd-infeed-ad-layout-renderer),
+yt-lockup-view-model:has(ytd-ad-slot-renderer),
+ytd-rich-section-renderer:has(ytd-ad-slot-renderer),
+ytd-rich-section-renderer:has(ytd-in-feed-ad-renderer),
+ytd-rich-section-renderer:has(ytd-display-ad-renderer),
+ytd-rich-section-renderer:has(ytd-promoted-sparkles-web-renderer) {
     display: none !important;
 }
 
@@ -320,11 +360,10 @@ extension VideoSite {
         'ytm-shorts-ad-renderer','ytm-shorts-player-ad-renderer',
         'ytd-engagement-panel-section-list-holder[target-id="engagement-panel-ads"]'
     ];
-    var AD_KEYWORDS = [
-        'ad','ads','sponsored','promoted','推广','广告','sponsorlu','sponsorludur',
-        'includes paid promotion','包含付费推广','paid promotion','paid_promotion',
-        'reklam','patrocinado','publicidad','sponsorisé','gesponsert',
-        'sponsored by','brought to you by','sponsored content'
+    var AD_LABELS = [
+        'ad','ads','advertisement','sponsored','sponsored by','sponsored content',
+        'promoted','包含付费推广','赞助商广告','赞助商','赞助','广告','推广',
+        'reklam','patrocinado','publicidad','sponsorisé','gesponsert'
     ];
     var PAID_BADGE_HREFS = [
         'youtube.com/?p=ppp',
@@ -338,23 +377,39 @@ extension VideoSite {
             }
         } catch(e) {}
     };
-    function isAdText(t) {
-        if (!t) return false;
-        t = t.toLowerCase();
-        for (var i = 0; i < AD_KEYWORDS.length; i++) {
-            if (t.indexOf(AD_KEYWORDS[i]) !== -1) return true;
+    // 广告标签必须"整段就是标签"才算命中。旧版对整张卡片的 textContent 做
+    // substring 匹配（任何含 'ad' 的文本都算，如 download / Shadow / ladyboy），
+    // 会把正常视频整卡删掉。
+    // YouTube 会把标签写成「Ad · 30 秒」「赞助商广告 · 短片」这类组合，先取
+    // 首个分隔符前的片段，再做精确比对。
+    function adLabel(text) {
+        if (!text) return false;
+        var t = String(text).trim().toLowerCase().replace(/\\s+/g, ' ');
+        t = t.split(' · ')[0].split(' • ')[0].split('｜')[0].trim();
+        if (!t || t.length > 24) return false;
+        for (var i = 0; i < AD_LABELS.length; i++) {
+            if (t === AD_LABELS[i]) return true;
         }
         return false;
     }
+    // 只认真正的广告徽章：.badge-style-type-ad，或文本恰为广告标签的徽章。
+    // 旧版「卡片里存在任意 ytd-badge-supported-renderer 即判定为广告」会把带
+    // 4K / CC / LIVE / 新闻角标 的正常卡片整张删除——实测首页 60 张卡里误删
+    // 2 张新闻视频，这正是用户把整个视频广告拦截关掉的原因。
+    // 新版徽章是自定义元素 <badge-shape>，文本可能落在 shadow root 里，
+    // 直接读 textContent 会拿到空串（真实广告卡片上「赞助商广告」就是这么
+    // 藏的）——两种都要看。
+    function badgeText(node) {
+        var t = (node && node.textContent) || '';
+        if (!t && node && node.shadowRoot) t = node.shadowRoot.textContent || '';
+        return t;
+    }
     function hasAdBadge(el) {
         if (!el) return false;
-        if (el.querySelector('.badge-style-type-ad,.ytd-badge-supported-renderer,.ytm-badge')) return true;
-        var badges = el.querySelectorAll('span,yt-formatted-string,badge-shape,yt-badge-shape-watcher');
+        if (el.querySelector('.badge-style-type-ad')) return true;
+        var badges = el.querySelectorAll('badge-shape, yt-badge-shape-watcher, ytm-badge, [class*="badge-shape"]');
         for (var i = 0; i < badges.length; i++) {
-            var txt = (badges[i].textContent || '').trim().toLowerCase();
-            if (txt === 'ad' || txt === 'ads' || txt === 'reklam' ||
-                txt.indexOf('ad •') === 0 || txt.indexOf('sponsored') === 0 ||
-                txt.indexOf('promoted') === 0 || txt === '广告' || txt === '推广') return true;
+            if (adLabel(badgeText(badges[i]))) return true;
         }
         return false;
     }
@@ -364,6 +419,25 @@ extension VideoSite {
             if (a.href.indexOf(PAID_BADGE_HREFS[i]) !== -1) return true;
         }
         return false;
+    }
+    // 列表页广告 renderer：这些必须连同**外层网格格子**一起删。只删内部
+    // renderer 的话，ytd-rich-item-renderer 的尺寸由网格 CSS 决定、不随子节点
+    // 塌陷，页面上就留下一个等高的空壳（实测首页留下 4 个 700x494 的"黑框"
+    // ——用户报的"赞助商广告变成黑框"）。播放器/页面级 renderer 不在列表内。
+    var LIST_AD_SLOTS = [
+        'ytd-ad-slot-renderer','ytd-in-feed-ad-renderer','ytd-display-ad-renderer',
+        'ytd-text-ad-renderer','ytd-promoted-video-renderer',
+        'ytd-promoted-sparkles-web-renderer','ytd-promoted-sparkles-text-search-renderer',
+        'ytd-compact-promoted-video-renderer','ytd-compact-promoted-item-renderer',
+        'ytd-search-panel-ad-renderer','ytd-ad-slot','ytd-ad-simple',
+        'ytd-action-companion-ad-renderer','ytd-infeed-ad-layout-renderer',
+        'ytd-unlimited-supply-renderer'
+    ];
+    var GRID_CELL = 'ytd-rich-item-renderer, ytd-rich-section-renderer, ytd-video-renderer, ' +
+        'ytd-compact-video-renderer, ytd-grid-video-renderer, yt-lockup-view-model, ytm-rich-item-renderer';
+    function listAdTarget(sel, el) {
+        if (LIST_AD_SLOTS.indexOf(sel) === -1) return el;
+        return el.closest(GRID_CELL) || el;
     }
     function removeCard(el) {
         if (!el || !el.parentNode) return false;
@@ -375,14 +449,14 @@ extension VideoSite {
         var count = 0;
         STATIC_SLOTS.forEach(function(sel) {
             document.querySelectorAll(sel).forEach(function(el) {
-                if (removeCard(el)) count++;
+                if (removeCard(listAdTarget(sel, el))) count++;
             });
         });
         document.querySelectorAll('[is-ad]').forEach(function(el) {
             var c = el.closest(CARD);
             if (removeCard(c || el)) count++;
         });
-        document.querySelectorAll('.badge-style-type-ad,.ytd-badge-supported-renderer').forEach(function(el) {
+        document.querySelectorAll('.badge-style-type-ad').forEach(function(el) {
             if (removeCard(el.closest(CARD))) count++;
         });
         document.querySelectorAll('a').forEach(function(a) {
@@ -392,7 +466,7 @@ extension VideoSite {
             }
         });
         document.querySelectorAll(CARD).forEach(function(card) {
-            if (hasAdBadge(card) || isAdText(card.textContent)) {
+            if (hasAdBadge(card)) {
                 if (removeCard(card)) count++;
             }
         });
@@ -544,16 +618,32 @@ extension VideoSite {
     // Container selectors for video feed cards. Removing one of these
     // removes the whole sponsored video entry.
     var CARD = '.bili-video-card,.video-card,.feed-card,.bili-feed-card,.recommend-list .video-card,.bili-rank-list__item,.recommend-card';
-    // Keywords that mark a "恰饭" / "创作推广" / sponsored content disclosure.
-    var AD_KEYWORDS = [
+    // Labels that mark a "恰饭" / "创作推广" / sponsored disclosure. Matched
+    // as WHOLE labels (see `adLabel`), never as substrings of a card's text:
+    // substring matching removed any card whose title merely mentioned 广告 /
+    // 推广 / 'ad' (same bug class as the YouTube list rules).
+    var AD_LABELS = [
         '广告','推广','恰饭','商务合作','商单','合作推广',
         '创作推广','商业推广','付费推广','包含推广',
         'ad','ads','sponsored','promoted','sponsored by'
     ];
-    function isAdText(t) {
-        if (!t) return false;
-        for (var i = 0; i < AD_KEYWORDS.length; i++) {
-            if (t.indexOf(AD_KEYWORDS[i]) !== -1) return true;
+    // 命中条件：某个元素"整段文本就是广告标签"（标签常见写法「广告 · xxx」，
+    // 取首个分隔符前的片段）。卡片标题/UP 名里出现这些词不算。
+    function adLabel(text) {
+        if (!text) return false;
+        var t = String(text).trim().replace(/\\s+/g, ' ');
+        t = t.split(' · ')[0].split(' • ')[0].split('|')[0].trim();
+        if (!t || t.length > 16) return false;
+        for (var i = 0; i < AD_LABELS.length; i++) {
+            if (t.toLowerCase() === AD_LABELS[i].toLowerCase()) return true;
+        }
+        return false;
+    }
+    function hasAdLabel(el) {
+        if (!el) return false;
+        var nodes = el.querySelectorAll('span,i,em,b,div[class*="tag"],div[class*="badge"],[class*="--ad"]');
+        for (var i = 0; i < nodes.length; i++) {
+            if (adLabel(nodes[i].textContent)) return true;
         }
         return false;
     }
@@ -598,9 +688,9 @@ extension VideoSite {
             var c = marker.closest(CARD);
             if (removeCard(c || marker)) count++;
         });
-        // 3) Cards whose info section contains ad keywords (sponsored disclosure)
+        // 3) Cards carrying an ad disclosure label (whole-label match only)
         document.querySelectorAll(CARD).forEach(function(card) {
-            if (isAdText(card.textContent)) {
+            if (hasAdLabel(card)) {
                 if (removeCard(card)) count++;
             }
         });

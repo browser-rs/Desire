@@ -429,6 +429,7 @@ extension BrowsingActions {
             permissionStore: permissionStore,
             siteSettingsStore: siteSettingsStore,
             devToolsStore: devToolsStore,
+            tabID: tab.id,
             urlString: Binding(get: { tab.urlString }, set: { tab.urlString = $0 }),
             isLoading: Binding(get: { tab.isLoading }, set: { tab.isLoading = $0 }),
             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),

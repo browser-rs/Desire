@@ -388,6 +388,19 @@ Features/Bookmarks/
     （`window.__desireExtID`）**；不带的话宿主 `WebExtensionView ...handleExtensionMessage`
     取到 nil，所有插件的存储会混进共享桶 `desire.webext.storage`（已修，
     勿改回）。`/webext/eval` 没有插件身份，写的也是共享桶。
+- **调试面板按标签页收敛（2026-09-21）**：`DevToolsStore` 是 **app 级单例**，
+  Console / Network 的每条记录都带 `tabID`（`WebView.tabID` ← `Tab.id`，
+  在 `ContentView+WebViewFactory` 扎进去），面板用 `TabScope`
+  （current / all / tab(id)）过滤，计数、清除按钮、桥端点都跟着作用域走
+  （`GET /devtools` 给作用域计数 + `totals`；`POST /devtools/config` 切 scope）。
+  两个坑：① **后台/挂起标签页的 `navigationDelegate` 被置空**
+  （`TabManager` 挂起路径），`didStart/didFinish` 不触发，所以"登记标签页"
+  必须也从消息路径走（`Coordinator.noteTabInDevTools`）——顺带说明后台标签页
+  的 console/network 消息本来就不上报（消息处理器随视图挂/卸），面板里的
+  "全部标签页"= 本次会话里被前台化过的那些；② `noteTab` 内容没变时**不要
+  发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
+  面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
+  写进 store（`activeTabID`），`.current` 靠它解析。
 - **Cookie 的 SameSite 用公开 API `HTTPCookie.sameSitePolicy?.rawValue`**
   （macOS 10.15+）：**禁止**用 KVC 猜 `_sameSitePolicy` 之类的私有键——
   `value(forKey:)` 遇到不存在的键抛 `NSUnknownKeyException` 直接 abort

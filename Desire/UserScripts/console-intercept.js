@@ -24,10 +24,21 @@
             var stack = new Error().stack;
             var line = null, col = null, url = null;
             if (stack) {
-                var match = stack.match(/:(\d+):(\d+)/);
-                if (match) { line = parseInt(match[1]); col = parseInt(match[2]); }
-                var urlMatch = stack.match(/https?:\/\/[^\s]+/);
-                if (urlMatch) { url = urlMatch[0].split(':')[0]; }
+                // 取第一帧里的 `…/file.js:行:列`，尾部坐标按**最后**两个冒号拆。
+                // （曾经写成按第一个冒号切，于是每个 https 页面的来源都退化成
+                // 协议名 "https"——面板的来源列全页显示 "https"。）
+                var frame = stack.match(/https?:\/\/[^\s)]+:\d+:\d+/) || stack.match(/https?:\/\/[^\s)]+/);
+                if (frame) {
+                    var text = frame[0];
+                    var tail = text.match(/:(\d+):(\d+)$/);
+                    if (tail) {
+                        line = parseInt(tail[1], 10);
+                        col = parseInt(tail[2], 10);
+                        text = text.slice(0, text.length - tail[0].length);
+                    }
+                    // 行内脚本/扩展页的来源是 about:blank 之类，不可用时保持 null。
+                    url = /^https?:/.test(text) ? text : null;
+                }
             }
             window.webkit.messageHandlers.devConsole.postMessage({
                 level: level,

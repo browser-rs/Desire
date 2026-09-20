@@ -2470,6 +2470,28 @@
         }
       }
     },
+    "All Tabs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Tabs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部标签页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部標籤頁"
+          }
+        }
+      }
+    },
     "All Types" : {
       "localizations" : {
         "en" : {
@@ -6632,6 +6654,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CSS：%@"
+          }
+        }
+      }
+    },
+    "Current Tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前标签页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前標籤頁"
           }
         }
       }
@@ -20960,6 +21004,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標籤頁概覽 (⇧⌘\\)"
+          }
+        }
+      }
+    },
+    "Tab Scope" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab Scope"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签页范围"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標籤頁範圍"
           }
         }
       }

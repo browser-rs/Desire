@@ -12,11 +12,111 @@ class DevToolsStore: ObservableObject {
     @Published var activePanel: DevPanel = .console
     @Published var pendingRequests: [UUID: NetworkRequest] = [:]
 
-    /// Incrementally maintained so the panel header badges don't re-scan the
-    /// whole (up to 1000-entry) console array on every publish.
-    @Published private(set) var consoleErrorCount = 0
-    @Published private(set) var consoleWarningCount = 0
-    @Published private(set) var networkFailedCount = 0
+    /// 面板的标签页作用域。Console / Network 的数据源是 app 级共享 store
+    /// （每个 webview 都往同一实例发消息），所以必须能按标签页收敛：
+    /// `current` 跟随面板所在标签页，`all` 是全部标签页的合并流，
+    /// `tab(id)` 锁定某一个（含已关闭的标签页，便于回头看它留下的日志）。
+    enum TabScope: Equatable, Hashable {
+        case current
+        case all
+        case tab(UUID)
+
+        /// 桥/持久化用的字符串形式：`current` / `all` / UUID 串。
+        var bridgeValue: String {
+            switch self {
+            case .current: "current"
+            case .all: "all"
+            case .tab(let id): id.uuidString
+            }
+        }
+
+        init?(bridgeValue: String) {
+            switch bridgeValue {
+            case "current": self = .current
+            case "all": self = .all
+            default:
+                guard let id = UUID(uuidString: bridgeValue) else { return nil }
+                self = .tab(id)
+            }
+        }
+    }
+
+    @Published var tabScope: TabScope = .current
+
+    /// 面板所在的标签页（`DevToolsPanel` 在标签页变化时写入）。`.current`
+    /// 由它解析；解析不到（面板尚未挂上）时退化为不过滤。
+    @Published var activeTabID: UUID?
+
+    /// 消息里出现过的标签页（作用域菜单的标题来源）。按首次出现排序——
+    /// 菜单开着时不会跳来跳去；标题随导航更新。
+    struct TabRef: Identifiable, Equatable {
+        let id: UUID
+        var title: String?
+        var url: String?
+    }
+
+    @Published private(set) var knownTabs: [TabRef] = []
+    private let knownTabsCap = 20
+
+    /// 当前作用域解析出的标签页（nil = 不过滤）。
+    var scopedTabID: UUID? {
+        switch tabScope {
+        case .all: nil
+        case .current: activeTabID
+        case .tab(let id): id
+        }
+    }
+
+    func isInScope(_ tabID: UUID?) -> Bool {
+        guard let scoped = scopedTabID else { return true }
+        return tabID == scoped
+    }
+
+    var scopedConsoleMessages: [ConsoleMessage] { consoleMessages.filter { isInScope($0.tabID) } }
+    var scopedNetworkRequests: [NetworkRequest] { networkRequests.filter { isInScope($0.tabID) } }
+
+    /// 作用域内的计数（面板徽章与桥共用）。数组本身有上限（1000 / 500），
+    /// 直接扫描比维护增量不容易出错——增量在"按标签页清除"后会立刻失真。
+    var consoleErrorCount: Int { scopedConsoleMessages.filter { $0.level == .error }.count }
+    var consoleWarningCount: Int { scopedConsoleMessages.filter { $0.level == .warn }.count }
+    var networkFailedCount: Int { scopedNetworkRequests.filter(\.failed).count }
+
+    /// 登记/更新一个标签页（标题与 URL 供作用域菜单显示）。
+    /// 只有内容真的变了才写回——这条路径会被每条 console/network 消息调用，
+    /// 每次发布都会让面板重绘。
+    func noteTab(id: UUID, title: String? = nil, url: String? = nil) {
+        if let index = knownTabs.firstIndex(where: { $0.id == id }) {
+            var ref = knownTabs[index]
+            var changed = false
+            if let title, !title.isEmpty, ref.title != title {
+                ref.title = title
+                changed = true
+            }
+            if let url, !url.isEmpty, ref.url != url {
+                ref.url = url
+                changed = true
+            }
+            if changed { knownTabs[index] = ref }
+            return
+        }
+        knownTabs.append(TabRef(id: id, title: title, url: url))
+        if knownTabs.count > knownTabsCap {
+            knownTabs.removeFirst(knownTabs.count - knownTabsCap)
+        }
+    }
+
+    /// 作用域菜单里的显示名：标题 → 主机+路径 → 短 id。
+    ///
+    /// 标题常常拿不到（WebKit 的 title 晚于首次消息，标签页可能还没进过前台），
+    /// 此时只给主机名会让同一站点的多个标签页看起来一模一样，所以带上路径。
+    func displayName(for ref: TabRef) -> String {
+        if let title = ref.title, !title.isEmpty { return title }
+        if let url = ref.url, let parsed = URL(string: url), let host = parsed.host, !host.isEmpty {
+            let path = parsed.path
+            return (path.isEmpty || path == "/") ? host : host + path
+        }
+        return String(ref.id.uuidString.prefix(8))
+    }
 
     /// Max retained console entries.
     private let consoleCap = 1000
@@ -38,31 +138,40 @@ class DevToolsStore: ObservableObject {
 
     init() {}
 
-    func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil) {
-        let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column)
+    func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil, tabID: UUID? = nil) {
+        let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column, tabID: tabID)
         // Mutate the backing array once (append + optional trim), then publish
         // a single time. The previous append-then-trim sequence published twice.
         var newMessages = consoleMessages
         newMessages.append(msg)
         if newMessages.count > consoleCap {
-            let dropped = newMessages.prefix(newMessages.count - consoleCap)
             newMessages.removeFirst(newMessages.count - consoleCap)
-            for dropped in dropped {
-                applyCount(dropped.level, delta: -1)
-            }
         }
         consoleMessages = newMessages
-        applyCount(msg.level, delta: 1)
     }
 
+    /// 清空所有标签页的日志。
     func clearConsole() {
         consoleMessages.removeAll()
-        consoleErrorCount = 0
-        consoleWarningCount = 0
     }
 
-    func startNetworkRequest(url: String, method: String, resourceType: NetworkRequest.ResourceType, requestHeaders: [String: String]? = nil, requestBody: String? = nil) -> UUID {
-        let request = NetworkRequest(url: url, method: method, resourceType: resourceType, requestHeaders: requestHeaders, requestBody: requestBody)
+    /// 只清一个标签页的日志（`clearConsoleOnNavigate` 走这条：导航的是那个
+    /// 标签页，不该顺手抹掉别的标签页的日志）。
+    func clearConsole(tabID: UUID) {
+        consoleMessages.removeAll { $0.tabID == tabID }
+    }
+
+    /// 面板"清除"按钮：清掉当前作用域内的条目（作用域是"全部"就是全部）。
+    func clearConsoleInScope() {
+        if let scoped = scopedTabID {
+            consoleMessages.removeAll { $0.tabID == scoped }
+        } else {
+            consoleMessages.removeAll()
+        }
+    }
+
+    func startNetworkRequest(url: String, method: String, resourceType: NetworkRequest.ResourceType, requestHeaders: [String: String]? = nil, requestBody: String? = nil, tabID: UUID? = nil) -> UUID {
+        let request = NetworkRequest(url: url, method: method, resourceType: resourceType, requestHeaders: requestHeaders, requestBody: requestBody, tabID: tabID)
         pendingRequests[request.id] = request
         networkRequests.append(request)
         if networkRequests.count > networkCap {
@@ -86,15 +195,26 @@ class DevToolsStore: ObservableObject {
         pendingRequests.removeValue(forKey: id)
         if let index = networkRequests.firstIndex(where: { $0.id == id }) {
             networkRequests[index] = failed
-            networkFailedCount += 1
         }
     }
 
+    /// 清空所有标签页的请求记录。
     func clearNetworkRequests() {
         networkRequests.removeAll()
         pendingRequests.removeAll()
         jsRequestIDs.removeAll()
-        networkFailedCount = 0
+    }
+
+    /// 面板"清除"按钮：只清当前作用域内的请求。
+    func clearNetworkRequestsInScope() {
+        if let scoped = scopedTabID {
+            let removed = Set(networkRequests.filter { $0.tabID == scoped }.map(\.id))
+            guard !removed.isEmpty else { return }
+            networkRequests.removeAll { removed.contains($0.id) }
+            pendingRequests = pendingRequests.filter { !removed.contains($0.key) }
+        } else {
+            clearNetworkRequests()
+        }
     }
 
     func setInspectedElement(_ element: InspectedElement?) {
@@ -115,12 +235,12 @@ class DevToolsStore: ObservableObject {
     }
 
     var networkPendingCount: Int {
-        pendingRequests.count
+        pendingRequests.values.filter { isInScope($0.tabID) }.count
     }
 
-    /// 已记录请求的传输字节合计（面板汇总行用）。
+    /// 当前作用域内已记录请求的传输字节合计。
     var networkTotalBytes: Int64 {
-        networkRequests.reduce(0) { $0 + ($1.size ?? 0) }
+        scopedNetworkRequests.reduce(0) { $0 + ($1.size ?? 0) }
     }
 
     /// JS 侧生成的请求 id → store 的请求 id（fetch/XHR 钩子先 start、
@@ -132,7 +252,10 @@ class DevToolsStore: ObservableObject {
     /// phase: `start`（fetch/XHR 发起）/ `complete`（含 PerformanceObserver 的
     /// 一次性上报）/ `body`（响应体截断文本）。没有 jsId 的 complete 视为独立
     /// 资源（PerformanceObserver），按 URL 与最近 2s 内 start 过的请求去重。
-    func applyNetworkEvent(_ dict: [String: Any]) {
+    ///
+    /// `tabID` 是上报它的标签页：既写进新请求，也参与去重（同一个 URL 在
+    /// 两个标签页里各发一次是两条请求，不能互相吞掉）。
+    func applyNetworkEvent(_ dict: [String: Any], tabID: UUID? = nil) {
         let phase = (dict["phase"] as? String) ?? "complete"
         guard let url = dict["url"] as? String, !url.isEmpty else { return }
         // 自家注入/数据 URL 不进面板。
@@ -163,7 +286,7 @@ class DevToolsStore: ObservableObject {
 
         // 已有请求：补全。
         let existingID = jsId.flatMap { jsRequestIDs[$0] }
-            ?? (jsId == nil ? recentRequestID(url: url) : nil)
+            ?? (jsId == nil ? recentRequestID(url: url, tabID: tabID) : nil)
         if let id = existingID, let index = networkRequests.firstIndex(where: { $0.id == id }) {
             networkRequests[index] = networkRequests[index].completedFromJS(
                 statusCode: status,
@@ -182,7 +305,7 @@ class DevToolsStore: ObservableObject {
         guard phase != "body" else { return }   // 没有对应请求的 body 事件忽略
 
         // 新请求。
-        var request = NetworkRequest(url: url, method: method, resourceType: type, requestBody: reqBody)
+        var request = NetworkRequest(url: url, method: method, resourceType: type, requestBody: reqBody, tabID: tabID)
         if status != nil || duration != nil || size != nil || headers != nil || respBody != nil {
             request = request.completedFromJS(
                 statusCode: status,
@@ -202,9 +325,9 @@ class DevToolsStore: ObservableObject {
         if let status, status >= 400 { noticeFailure(of: request.id) }
     }
 
-    /// 最近的、同 URL 且未完成的请求（PerformanceObserver 去重用）。
-    private func recentRequestID(url: String) -> UUID? {
-        networkRequests.last { $0.url == url && $0.statusCode == nil && !$0.failed }?.id
+    /// 最近的、同 URL（且同标签页）未完成的请求（PerformanceObserver 去重用）。
+    private func recentRequestID(url: String, tabID: UUID?) -> UUID? {
+        networkRequests.last { $0.url == url && $0.tabID == tabID && $0.statusCode == nil && !$0.failed }?.id
     }
 
     private func noticeFailure(of id: UUID) {
@@ -580,15 +703,17 @@ class DevToolsStore: ObservableObject {
     /// 先按输入形态选路径（`looksLikeStatement`），避免先撞一次语法错——那次失败
     /// 会被页面的 window.onerror 记成 "Script error." 噪声行。异常文本要用
     /// `WKJavaScriptExceptionMessage`（见 AGENTS.md）。
-    func evaluateConsoleInput(_ source: String, in webView: WKWebView) async {
+    /// `tabID` 是执行这一行的标签页：输入回显与结果都归到它名下，这样
+    /// 作用域切到"当前标签页"时 REPL 的输出不会消失。
+    func evaluateConsoleInput(_ source: String, in webView: WKWebView, tabID: UUID? = nil) async {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        addConsoleMessage(level: .log, message: "› \(trimmed)")
+        addConsoleMessage(level: .log, message: "› \(trimmed)", tabID: tabID)
 
         if Self.looksLikeStatement(trimmed) {
-            await runStatements(trimmed, in: webView)
+            await runStatements(trimmed, in: webView, tabID: tabID)
         } else {
-            await runExpression(trimmed, in: webView)
+            await runExpression(trimmed, in: webView, tabID: tabID)
         }
     }
 
@@ -623,7 +748,7 @@ class DevToolsStore: ObservableObject {
             head: text.slice(0, 400)
         });
         """
-        addConsoleMessage(level: .log, message: "↻ \(request.method) \(request.url)")
+        addConsoleMessage(level: .log, message: "↻ \(request.method) \(request.url)", tabID: request.tabID)
         do {
             let result = try await webView.callAsyncJavaScript(
                 script,
@@ -636,23 +761,23 @@ class DevToolsStore: ObservableObject {
                 in: nil,
                 contentWorld: .page
             )
-            addConsoleMessage(level: .log, message: Self.describe(result))
+            addConsoleMessage(level: .log, message: Self.describe(result), tabID: request.tabID)
         } catch {
-            addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription)
+            addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription, tabID: request.tabID)
         }
     }
 
     /// 表达式路径：① 直接求值（结果可 JSON 化）；② 字符串化（DOM 节点给
     /// outerHTML）；③ 都不行时退回语句路径。
-    private func runExpression(_ source: String, in webView: WKWebView) async {
+    private func runExpression(_ source: String, in webView: WKWebView, tabID: UUID?) async {
         let exprBody = "return (\n\(source)\n)"
         do {
             let value = try await webView.callAsyncJavaScript(exprBody, arguments: [:], in: nil, contentWorld: .page)
-            addConsoleMessage(level: .log, message: Self.describe(value))
+            addConsoleMessage(level: .log, message: Self.describe(value), tabID: tabID)
             return
         } catch {
             if let message = Self.exceptionMessage(error), !message.hasPrefix("SyntaxError") {
-                addConsoleMessage(level: .error, message: message)
+                addConsoleMessage(level: .error, message: message, tabID: tabID)
                 return
             }
         }
@@ -671,19 +796,19 @@ class DevToolsStore: ObservableObject {
         return String(__v);
         """
         if let text = try? await webView.callAsyncJavaScript(stringifyBody, arguments: [:], in: nil, contentWorld: .page) as? String {
-            addConsoleMessage(level: .log, message: text)
+            addConsoleMessage(level: .log, message: text, tabID: tabID)
             return
         }
-        await runStatements(source, in: webView)
+        await runStatements(source, in: webView, tabID: tabID)
     }
 
     /// 语句路径：整体当函数体跑；有返回值就显示，没有就报 undefined。
-    private func runStatements(_ source: String, in webView: WKWebView) async {
+    private func runStatements(_ source: String, in webView: WKWebView, tabID: UUID?) async {
         do {
             let value = try await webView.callAsyncJavaScript(source, arguments: [:], in: nil, contentWorld: .page)
-            addConsoleMessage(level: .log, message: value == nil ? "undefined" : Self.describe(value))
+            addConsoleMessage(level: .log, message: value == nil ? "undefined" : Self.describe(value), tabID: tabID)
         } catch {
-            addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription)
+            addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription, tabID: tabID)
         }
     }
 
@@ -706,11 +831,4 @@ class DevToolsStore: ObservableObject {
         return nil
     }
 
-    private func applyCount(_ level: ConsoleMessage.Level, delta: Int) {
-        switch level {
-        case .error: consoleErrorCount = max(0, consoleErrorCount + delta)
-        case .warn: consoleWarningCount = max(0, consoleWarningCount + delta)
-        default: break
-        }
-    }
 }

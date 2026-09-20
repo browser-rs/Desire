@@ -34,6 +34,9 @@ struct NetworkRequest: Identifiable, Codable {
     let resourceType: ResourceType
     let failed: Bool
     let errorMessage: String?
+    /// 发起这条请求的标签页（面板是 app 级共享 store，靠它按标签页过滤；
+    /// 桥注入/外部来源可以为 nil）。
+    let tabID: UUID?
 
     /// 排序键：`Table` 的 `value:` 列要求非可选 `Comparable`，而这三个字段在
     /// 请求未完成时是 nil。用 0 兜底，未完成/无值的行自然排在最前/最后。
@@ -54,7 +57,8 @@ struct NetworkRequest: Identifiable, Codable {
         case other = "other"
     }
 
-    init(url: String, method: String, resourceType: ResourceType, requestHeaders: [String: String]? = nil, requestBody: String? = nil) {
+    init(url: String, method: String, resourceType: ResourceType, requestHeaders: [String: String]? = nil, requestBody: String? = nil, tabID: UUID? = nil) {
+        self.tabID = tabID
         self.id = UUID()
         self.url = url
         self.method = method
@@ -95,8 +99,10 @@ struct NetworkRequest: Identifiable, Codable {
         responseBody: String?,
         resourceType: ResourceType,
         failed: Bool,
-        errorMessage: String?
+        errorMessage: String?,
+        tabID: UUID?
     ) {
+        self.tabID = tabID
         self.id = id
         self.url = url
         self.method = method
@@ -140,7 +146,8 @@ struct NetworkRequest: Identifiable, Codable {
             responseBody: responseBody,
             resourceType: resourceType,
             failed: false,
-            errorMessage: nil
+            errorMessage: nil,
+            tabID: tabID
         )
     }
 
@@ -176,7 +183,8 @@ struct NetworkRequest: Identifiable, Codable {
             responseBody: responseBody ?? self.responseBody,
             resourceType: resourceType,
             failed: false,
-            errorMessage: nil
+            errorMessage: nil,
+            tabID: tabID
         )
     }
 
@@ -202,7 +210,8 @@ struct NetworkRequest: Identifiable, Codable {
             responseBody: nil,
             resourceType: resourceType,
             failed: true,
-            errorMessage: error
+            errorMessage: error,
+            tabID: tabID
         )
     }
 }

@@ -295,8 +295,8 @@ final class AutomationServer {
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
-        ep("GET", "/devtools", "DevTools panel state (console/network/element counters)", example: "…/devtools")
-        ep("POST", "/devtools/config", "Runtime toggles (clearConsoleOnNavigate)", params: ["clearConsoleOnNavigate?:bool"], example: #"-d '{"clearConsoleOnNavigate":true}'"#)
+        ep("GET", "/devtools", "DevTools panel state (scoped counters, tab list, totals)", example: "…/devtools")
+        ep("POST", "/devtools/config", "Runtime toggles (console clearing, Application section, tab scope)", params: ["clearConsoleOnNavigate?:bool", "applicationSection?:string", "tabScope?:current|all|<tab uuid>"], example: #"-d '{"tabScope":"all"}'"#)
         ep("GET", "/devtools/application", "Cookies + web storage of the active tab", params: ["index?:int"], example: "…/devtools/application")
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage entry", params: ["kind:string", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo"}'"#)
@@ -778,9 +778,18 @@ final class AutomationServer {
                    let parsed = DevToolsStore.ApplicationSection(rawValue: section) {
                     store.applicationSection = parsed
                 }
+                // 标签页作用域：`current` / `all` / 某个标签页的 UUID。
+                if let scope = Self.string(body, "tabScope") {
+                    if let parsed = DevToolsStore.TabScope(bridgeValue: scope) {
+                        store.tabScope = parsed
+                    } else {
+                        return Self.error("bad tabScope (use current | all | <tab uuid>)")
+                    }
+                }
                 return try Self.json([
                     "clearConsoleOnNavigate": store.clearConsoleOnNavigate,
                     "applicationSection": store.applicationSection.rawValue,
+                    "tabScope": store.tabScope.bridgeValue,
                     "devMode": store.isDevModeEnabled,
                     "panel": store.activePanel.rawValue,
                 ])
@@ -1377,9 +1386,10 @@ final class AutomationServer {
         guard !js.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return ["error": "empty js"]
         }
-        await store.evaluateConsoleInput(js, in: tab.browser.webView)
+        await store.evaluateConsoleInput(js, in: tab.browser.webView, tabID: tab.id)
         return [
             "ok": true,
+            "tab": tab.id.uuidString,
             "consoleCount": store.consoleMessages.count,
             "last": store.consoleMessages.suffix(2).map { ["\($0.level.rawValue)": $0.message] },
         ]
@@ -1534,23 +1544,38 @@ final class AutomationServer {
 
     private static func devToolsState() -> [String: Any] {
         guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        // 计数与列表都按**当前作用域**给（面板看到的就是这里的数），另外附
+        // 全量计数 `totals`，便于断言"过滤真的生效了"。
         return [
             "panel": store.activePanel.rawValue,
             "devMode": store.isDevModeEnabled,
             "clearConsoleOnNavigate": store.clearConsoleOnNavigate,
+            "tabScope": store.tabScope.bridgeValue,
+            "activeTab": store.activeTabID?.uuidString ?? "",
+            "tabs": store.knownTabs.map {
+                ["id": $0.id.uuidString, "title": store.displayName(for: $0), "url": $0.url ?? ""]
+            },
             "console": [
-                "count": store.consoleMessages.count,
+                "count": store.scopedConsoleMessages.count,
                 "errors": store.consoleErrorCount,
                 "warnings": store.consoleWarningCount,
-                "last": store.consoleMessages.suffix(5).map { "\($0.level.rawValue): \($0.message)" },
+                // 带上来源（`url:line`）——控制台来源列的正确性靠它断言。
+                "last": store.scopedConsoleMessages.suffix(5).map { message -> String in
+                    let source = message.url.map { "\($0):\(message.line ?? 0)" } ?? "-"
+                    return "\(message.level.rawValue): \(message.message) @ \(source)"
+                },
             ],
             "network": [
-                "count": store.networkRequests.count,
+                "count": store.scopedNetworkRequests.count,
                 "failed": store.networkFailedCount,
                 "pending": store.networkPendingCount,
                 "bytes": store.networkTotalBytes,
-                "cached": store.networkRequests.filter { $0.fromCache == true }.count,
-                "last": store.networkRequests.suffix(5).map { "\($0.method) \($0.statusCode ?? 0)\($0.fromCache == true ? " [cache]" : "") \($0.url)" },
+                "cached": store.scopedNetworkRequests.filter { $0.fromCache == true }.count,
+                "last": store.scopedNetworkRequests.suffix(5).map { "\($0.method) \($0.statusCode ?? 0)\($0.fromCache == true ? " [cache]" : "") \($0.url)" },
+            ],
+            "totals": [
+                "console": store.consoleMessages.count,
+                "network": store.networkRequests.count,
             ],
             "element": ["selector": store.inspectedElement?.selector ?? ""],
         ]

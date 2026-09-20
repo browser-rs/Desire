@@ -302,6 +302,9 @@ struct WebView: NSViewRepresentable {
     /// renders from this store, so observing it would invalidate the
     /// representable on every console line from every frame — pure overhead.
     let devToolsStore: DevToolsStore
+    /// 这个 webview 所属的标签页。调试面板的 store 是 app 级共享的，每条
+    /// console / network 记录都要带上它才能按标签页过滤（见 DevToolsStore.TabScope）。
+    let tabID: UUID
     @Binding var urlString: String
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -592,6 +595,20 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        /// 把这个标签页登记进调试面板的作用域菜单。
+        ///
+        /// 导航回调（didStart/didFinish）也会登记，但**后台/挂起的标签页拿不到
+        /// 导航回调**（挂起时 `navigationDelegate` 被置空，见 TabManager），
+        /// 于是"桥在后台标签页里跑了一页"这种情形下菜单里就没有它。消息本身
+        /// 一定会到（消息处理器与导航代理无关），所以每条消息也顺手登记一次。
+        private func noteTabInDevTools() {
+            parent.devToolsStore.noteTab(
+                id: parent.tabID,
+                title: parent.state.webView.title,
+                url: parent.state.webView.url?.absoluteString
+            )
+        }
+
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "desireExt" {
                 // Isolated-world WebExtension RPC (see extensionWorld).
@@ -601,7 +618,8 @@ struct WebView: NSViewRepresentable {
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
             } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
-                parent.devToolsStore.applyNetworkEvent(dict)
+                noteTabInDevTools()
+                parent.devToolsStore.applyNetworkEvent(dict, tabID: parent.tabID)
             } else if message.name == "devConsole", let dict = message.body as? [String: Any],
                       let levelStr = dict["level"] as? String,
                       let msgText = dict["message"] as? String {
@@ -609,7 +627,8 @@ struct WebView: NSViewRepresentable {
                 let url = dict["url"] as? String
                 let line = dict["line"] as? Int
                 let column = dict["column"] as? Int
-                parent.devToolsStore.addConsoleMessage(level: level, message: msgText, url: url, line: line, column: column)
+                noteTabInDevTools()
+                parent.devToolsStore.addConsoleMessage(level: level, message: msgText, url: url, line: line, column: column, tabID: parent.tabID)
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
                        let usernameName = dict["username"],
                        let host = parent.state.webView.url?.host {
@@ -735,9 +754,13 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            // 只清这个标签页的日志：导航的是它，别的标签页的日志不该被顺手抹掉。
             if parent.devToolsStore.clearConsoleOnNavigate {
-                parent.devToolsStore.clearConsole()
+                parent.devToolsStore.clearConsole(tabID: parent.tabID)
             }
+            // 让调试面板的作用域菜单尽早有这个标签页（此时标题还没拿到，
+            // 先记 URL，didFinish 再补标题）。
+            parent.devToolsStore.noteTab(id: parent.tabID, url: webView.url?.absoluteString)
             // A new navigation invalidates the previous failure — without
             // this, the error page kept covering the NEW page whenever the
             // old error was set right before a successful reload.
@@ -834,6 +857,12 @@ struct WebView: NSViewRepresentable {
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
                 parent.onPageFinished?(url, parent.state.pageTitle)
+                // 调试面板的作用域菜单要显示标题（KVO 的标题晚到，用 live title）。
+                parent.devToolsStore.noteTab(
+                    id: parent.tabID,
+                    title: webView.title ?? parent.state.pageTitle,
+                    url: url.absoluteString
+                )
                 BridgeEventBus.shared.publish("pageReady", [
                     "url": url.absoluteString,
                     // pageTitle KVO lands later — prefer the live title.
@@ -1111,7 +1140,8 @@ struct WebView: NSViewRepresentable {
                 let requestID = parent.devToolsStore.startNetworkRequest(
                     url: url.absoluteString,
                     method: "GET",
-                    resourceType: resourceType
+                    resourceType: resourceType,
+                    tabID: parent.tabID
                 )
                 parent.devToolsStore.completeNetworkRequest(
                     id: requestID,

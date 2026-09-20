@@ -47,6 +47,11 @@ struct DevToolsPanel: View {
             }
         }
         .clipped()
+        // 面板所在标签页 → store（`.current` 作用域靠它解析）。标签页切换、
+        // 以及面板首次出现时都要写，否则作用域会停在旧标签页上。
+        .onChange(of: tab?.id, initial: true) { _, newValue in
+            store.activeTabID = newValue
+        }
     }
 
     // MARK: - Header
@@ -60,9 +65,11 @@ struct DevToolsPanel: View {
             Spacer(minLength: 8)
 
             HoverIcon(systemName: "eraser", action: {
+                // 清除跟随当前作用域：作用域是"某个标签页"时只清它的日志
+                // （看到的和清掉的是同一批），"全部标签页"才清全部。
                 switch store.activePanel {
-                case .console: store.clearConsole()
-                case .network: store.clearNetworkRequests()
+                case .console: store.clearConsoleInScope()
+                case .network: store.clearNetworkRequestsInScope()
                 case .element: store.inspectedElement = nil
                 case .application: break   // 应用页签各自带"清空"（两步确认），不走这里
                 }
@@ -313,6 +320,76 @@ private struct PanelSearchField: View {
     }
 }
 
+/// 标签页作用域菜单（Console / Network 共用）。
+///
+/// 面板的数据源是 app 级共享 store：所有标签页、容器、无痕窗口的日志都进
+/// 同一个数组。默认只看**当前标签页**，需要时切到"全部标签页"（多标签联调）
+/// 或某个具体标签页（含已关闭的——它留下的日志还在这里）。Chrome 对应的是
+/// Console 左上角那个 context 下拉。
+private struct TabScopeMenu: View {
+    @ObservedObject var store: DevToolsStore
+
+    var body: some View {
+        Menu {
+            Picker(String(localized: "Tab Scope"), selection: $store.tabScope) {
+                Text(String(localized: "Current Tab"))
+                    .tag(DevToolsStore.TabScope.current)
+                Text(String(localized: "All Tabs"))
+                    .tag(DevToolsStore.TabScope.all)
+                ForEach(store.knownTabs) { ref in
+                    Text(store.displayName(for: ref))
+                        .tag(DevToolsStore.TabScope.tab(ref.id))
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "macwindow.on.rectangle")
+                    .font(.system(size: 10))
+                Text(scopeLabel)
+                    .font(.system(size: 11))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7.5, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .frame(minWidth: 78, maxWidth: 132, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Tab Scope")
+    }
+
+    /// 菜单标题：当前标签页显示它的标题（比"当前标签页"更有信息量）。
+    private var scopeLabel: String {
+        switch store.tabScope {
+        case .current:
+            if let id = store.activeTabID,
+               let ref = store.knownTabs.first(where: { $0.id == id }) {
+                return store.displayName(for: ref)
+            }
+            return String(localized: "Current Tab")
+        case .all:
+            return String(localized: "All Tabs")
+        case .tab(let id):
+            if let ref = store.knownTabs.first(where: { $0.id == id }) {
+                return store.displayName(for: ref)
+            }
+            return String(id.uuidString.prefix(8))
+        }
+    }
+}
+
 // MARK: - Console Panel
 
 private struct ConsolePanel: View {
@@ -398,11 +475,13 @@ private struct ConsolePanel: View {
         if inputHistory.count > 100 { inputHistory.removeFirst(inputHistory.count - 100) }
         historyIndex = nil
         input = ""
-        Task { await store.evaluateConsoleInput(source, in: webView) }
+        Task { await store.evaluateConsoleInput(source, in: webView, tabID: tab?.id) }
     }
 
     private var filterBar: some View {
         HStack(spacing: 8) {
+            TabScopeMenu(store: store)
+
             IconSegmentedControl(
                 items: levels,
                 icon: { $0?.icon ?? "line.3.horizontal" },
@@ -529,7 +608,7 @@ private struct ConsolePanel: View {
             let key = "\(message.level.rawValue)\u{1}\(message.message)"
             if var existing = grouped[key] {
                 existing.count += 1
-                existing.message = ConsoleMessage(level: message.level, message: message.message, url: message.url, line: message.line, column: message.column)
+                existing.message = ConsoleMessage(level: message.level, message: message.message, url: message.url, line: message.line, column: message.column, tabID: message.tabID)
                 grouped[key] = existing
             } else {
                 grouped[key] = (message, 1)
@@ -540,7 +619,8 @@ private struct ConsolePanel: View {
     }
 
     private var filteredMessages: [ConsoleMessage] {
-        var messages = store.consoleMessages
+        // 先按标签页作用域收敛，再按级别/搜索过滤。
+        var messages = store.scopedConsoleMessages
         if let filter = filter {
             messages = messages.filter { $0.level == filter }
         }
@@ -673,6 +753,8 @@ private struct NetworkPanel: View {
 
     private var filterBar: some View {
         HStack(spacing: 8) {
+            TabScopeMenu(store: store)
+
             IconSegmentedControl(
                 items: kinds,
                 icon: { $0?.icon ?? "line.3.horizontal" },
@@ -1025,7 +1107,8 @@ private struct NetworkPanel: View {
     }
 
     private var filteredRequests: [NetworkRequest] {
-        var requests = store.networkRequests
+        // 先按标签页作用域收敛，再按类型/搜索/失败过滤。
+        var requests = store.scopedNetworkRequests
         if let filter { requests = requests.filter { $0.resourceType == filter } }
         if onlyFailures {
             requests = requests.filter { $0.failed || ($0.statusCode ?? 0) >= 400 }

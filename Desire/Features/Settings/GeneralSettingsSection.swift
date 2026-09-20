@@ -5,8 +5,33 @@ struct GeneralSettingsSection: View {
     @ObservedObject var settings: Settings
     @ObservedObject var downloadStore: DownloadStore
 
+    /// AppleLanguages 覆盖（"system" = 不覆盖，跟随系统语言）。写入
+    /// app 域 defaults，下次启动生效——菜单与界面语言在进程启动时
+    /// 由系统决定，无法热切换。初值钳制到合法选项：残留的非法值会
+    /// 让 Picker 无法匹配任何 tag（下拉无勾选、按钮无回显）。
+    @State private var appLanguage: String = {
+        let raw = UserDefaults.standard
+            .stringArray(forKey: "AppleLanguages")?.first ?? "system"
+        return ["system", "zh-Hans", "zh-Hant", "en"].contains(raw) ? raw : "system"
+    }()
+
     var body: some View {
         SettingsContainer {
+            // MARK: - Language(置顶分区:进设置第一眼可见)
+
+            SettingsSection(
+                title: "Language",
+                subtitle: "Changes apply the next time you open Desire.",
+                icon: "globe"
+            ) {
+                SettingsPickerRow(
+                    "Language",
+                    selection: $appLanguage,
+                    options: ["system", "zh-Hans", "zh-Hant", "en"],
+                    label: { appLanguageLabel($0) }
+                )
+            }
+
             // MARK: - Appearance
 
             SettingsSection(
@@ -252,9 +277,25 @@ struct GeneralSettingsSection: View {
 
             SystemSection()
         }
+        .onChange(of: appLanguage) { _, code in
+            if code == "system" {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.set([code], forKey: "AppleLanguages")
+            }
+        }
     }
 
     // MARK: - Labels
+
+    private func appLanguageLabel(_ code: String) -> String {
+        switch code {
+        case "zh-Hans": "简体中文"
+        case "zh-Hant": "繁體中文"
+        case "en": "English"
+        default: "System"
+        }
+    }
 
     private func appearanceLabel(_ theme: AppearanceTheme) -> String {
         switch theme {

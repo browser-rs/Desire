@@ -35,6 +35,13 @@ extension View {
 
 // MARK: - Settings Container
 
+/// Settings 组件的 title/subtitle 以 String 传入(调用点几乎全是字面
+/// 量),渲染时按该串作为 key 查字符串目录。目录缺失或传入的是运行时
+/// 拼接的动态串(statusLine 等)时原样返回——查表失败无损。
+func localizedSettingText(_ value: String) -> String {
+    String(localized: String.LocalizationValue(value))
+}
+
 /// Centers a column of settings sections and gives them a consistent
 /// max width, padding, and scroll behaviour.
 struct SettingsContainer<Content: View>: View {
@@ -113,13 +120,13 @@ struct SettingsSection<Content: View>: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 if let title {
-                    Text(title)
+                    Text(localizedSettingText(title))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                 }
                 if let subtitle {
-                    Text(subtitle)
+                    Text(localizedSettingText(subtitle))
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                 }
@@ -165,11 +172,11 @@ struct SettingsRow<Trailing: View>: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(localizedSettingText(title))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
                 if let subtitle {
-                    Text(subtitle)
+                    Text(localizedSettingText(subtitle))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -245,7 +252,7 @@ struct SettingsPickerRow<Item: Hashable>: View {
         SettingsRow(title, subtitle: subtitle, systemImage: systemImage) {
             Picker("", selection: $selection) {
                 ForEach(options, id: \.self) { item in
-                    Text(label(item)).tag(item)
+                    Text(localizedSettingText(label(item))).tag(item)
                 }
             }
             .labelsHidden()
@@ -288,7 +295,7 @@ struct SettingsActionRow: View {
     var body: some View {
         SettingsRow(title, subtitle: subtitle, systemImage: systemImage) {
             Button(action: action) {
-                Text(buttonTitle)
+                Text(localizedSettingText(buttonTitle))
                     .font(.system(size: 12, weight: .medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
@@ -437,9 +444,9 @@ struct SettingsTextField: View {
     var body: some View {
         Group {
             if isSecure {
-                SecureField(placeholder, text: $text)
+                SecureField(localizedSettingText(placeholder), text: $text)
             } else {
-                TextField(placeholder, text: $text)
+                TextField(localizedSettingText(placeholder), text: $text)
             }
         }
         .textFieldStyle(.plain)

@@ -28,14 +28,14 @@ struct AppCommands: Commands {
     @ObservedObject var containers: ContainerStore
 
     var body: some Commands {
-        // Replace the default .appSettings command with one that opens our
-        // id-based Settings window. This puts the menu item in the right
-        // place (App menu → Settings…) and binds ⌘, automatically.
+        // Replace the default .appSettings command. MUST be a Button through
+        // the command bus — SettingsLink only opens SwiftUI's built-in
+        // Settings scene, which this app does not have (the settings window
+        // is a custom `WindowGroup(id: "settings")` opened via openSettings).
+        // The SettingsLink variant left ⌘, dead.
         CommandGroup(replacing: .appSettings) {
-            SettingsLink {
-                Text("Settings…")
-            }
-            .keyboardShortcut(binding("settings", ",", .command))
+            Button("Settings…") { postCommand(.showSettings) }
+                .keyboardShortcut(binding("settings", ",", .command))
         }
 
         // MARK: - File
@@ -88,7 +88,16 @@ struct AppCommands: Commands {
 
         // MARK: - View
 
-        CommandMenu("View") {
+        // Safari 式分组：缩放 → 窗口布局（概览/分屏/全屏）→ 页面刷新 →
+        // 页面工具（阅读器/源码）→ 命令面板 → 开发者。阅读列表归
+        // Bookmarks、下载归 Tools、Agent 面板归 Agent 菜单——避免同一
+        // 命令出现在两个菜单（d9355d7 同类教训）。
+        //
+        // 用替换 `.sidebar` 组而非 `CommandMenu("View")`：后者会与
+        // SwiftUI 自动生成的默认 View 菜单并存，菜单栏出现两个"显示"。
+        // 替换后系统默认的 Enter Full Screen（⌃⌘F）保留，标题随全屏
+        // 状态自动切换（Enter/Exit），无需自维护。
+        CommandGroup(replacing: .sidebar) {
             Button("Actual Size") { postCommand(.actualSize) }
                 .keyboardShortcut(binding("resetZoom", "0", .command))
             Button("Zoom In") { postCommand(.zoomIn) }
@@ -100,10 +109,6 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("tabOverview", "\\", [.command, .shift]))
             Button("Split View") { postCommand(.toggleSplitView) }
                 .keyboardShortcut(binding("toggleSplitView", "\\", [.option, .command]))
-            Button("Reading List") { postCommand(.showReadingList) }
-                .keyboardShortcut(binding("showReadingList", "r", [.control, .command]))
-            Button("Enter Full Screen") { postCommand(.toggleFullScreen) }
-                .keyboardShortcut(binding("toggleFullScreen", "f", [.control, .command]))
             Divider()
             Button("Reload Page") { postCommand(.reload) }
                 .keyboardShortcut(binding("reload", "r", .command))
@@ -111,14 +116,12 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("forceReload", "r", [.command, .shift]))
             Button("Stop Loading") { postCommand(.stopLoading) }
                 .keyboardShortcut(binding("stopLoading", ".", .command))
+            Divider()
             Button("Reader View") { postCommand(.toggleReader) }
             Button("View Source") { postCommand(.viewSource) }
                 .keyboardShortcut(binding("viewSource", "u", [.option, .command]))
-            Divider()
             Button("Command Palette…") { postCommand(.toggleCommandPalette) }
                 .keyboardShortcut(binding("commandPalette", "k", .command))
-            Button("AI Agent Panel") { postCommand(.toggleAgentPanel) }
-                .keyboardShortcut(binding("toggleAgentPanel", "'", .command))
             Divider()
             Button("Safari Web Inspector") { postCommand(.inspectElement) }
                 .keyboardShortcut(binding("inspectElement", "i", [.command, .shift]))
@@ -126,9 +129,6 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("toggleDevTools", "i", [.option, .command]))
             Button("Responsive Design Mode") { postCommand(.toggleResponsiveMode) }
                 .keyboardShortcut(binding("responsiveMode", "m", [.command, .shift]))
-            Divider()
-            Button("Show Downloads") { postCommand(.showDownloads) }
-                .keyboardShortcut(binding("showDownloads", "j", .command))
         }
 
         // MARK: - Agent
@@ -138,9 +138,6 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("toggleAgentPanel", "'", .command))
             Button("Ask Agent About This Page") { postCommand(.askAgentAboutPage) }
                 .keyboardShortcut(binding("askAgentAboutPage", "a", [.command, .shift]))
-            Divider()
-            Button("Command Palette…") { postCommand(.toggleCommandPalette) }
-                .keyboardShortcut(binding("commandPalette", "k", .command))
         }
 
         // MARK: - History
@@ -168,7 +165,10 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("showBookmarks", "b", .command))
             Button("Add Bookmark") { postCommand(.bookmarkPage) }
                 .keyboardShortcut(binding("bookmarkPage", "d", .command))
+            Divider()
             Button("Add to Reading List") { postCommand(.addToReadingList) }
+            Button("Reading List") { postCommand(.showReadingList) }
+                .keyboardShortcut(binding("showReadingList", "r", [.control, .command]))
             Divider()
             Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
             Menu("Import Bookmarks") {
@@ -212,6 +212,8 @@ struct AppCommands: Commands {
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Divider()
+            Button("Show Downloads") { postCommand(.showDownloads) }
+                .keyboardShortcut(binding("showDownloads", "j", .command))
             Button("Print…") { postCommand(.printPage) }
                 .keyboardShortcut(binding("print", "p", .command))
             Button("Screenshot Region…") { postCommand(.screenshot) }
@@ -237,10 +239,9 @@ struct AppCommands: Commands {
 
         // MARK: - Window
 
-        CommandGroup(replacing: .windowArrangement) {
-            Button("Settings…") { postCommand(.showSettings) }
-                .keyboardShortcut(binding("settings", ",", .command))
-        }
+        // 系统的窗口平铺/排列命令（.windowArrangement）保持原样——
+        // 此前这里被替换成一个重复的 Settings 项，顺带禁用了 macOS
+        // 的窗口平铺菜单。Settings 已在 App 菜单（⌘,）。
     }
 
     /// Store-driven shortcut for `id`, falling back to the built-in default

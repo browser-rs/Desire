@@ -163,12 +163,31 @@ class BrowserState: ObservableObject {
         // takes over); it must stay free of extra tokens so the fallback is
         // also a complete, genuine-shaped Safari UA.
         config.defaultWebpagePreferences.preferredContentMode = .desktop
-        // Element fullscreen 保持禁用（2026-09-20 裁决）：macOS 26 +
-        // SwiftUI 承载环境下 WebKit 的 element fullscreen 损坏——全屏
-        // 视口 0×0、VisionKit 以 NaN 几何崩溃（进程死）。三轮窗口级
-        // 同步方案亦全败。视频全屏 = 系统窗口全屏（⌃⌘F）+ 播放器剧场
-        // 模式（YouTube 按 t），全系统原语。勿再打开此开关。
-        config.preferences.isElementFullscreenEnabled = false
+        // HTML5 Fullscreen API 必须保持开启 —— 它就是视频全屏本身：WebKit
+        // 会为全屏元素新建一个覆盖整屏的窗口（WebCoreFullScreenWindow）并把
+        // 页面视口放大到整屏，视频层随之铺满。
+        //
+        // 历史教训（2026-09-20，三轮全屏返工的真根因）：全屏曾经"只有网页
+        // 区域大小、四周黑边"，原因是注入的 fullscreen-shim 覆盖了
+        // Element.prototype.requestFullscreen 做纯 CSS 满屏——原生 API 被
+        // 覆盖后 WebKit 全屏管线永远不跑，元素只能被 CSS 钉在 webview 视口
+        // （= 窗口减去 chrome）里。最小宿主对照实验已证实：同一份页面，
+        // 不注入 shim → WebCoreFullScreenWindow + 视口 2560x1440（正常）；
+        // 注入 shim → fullscreenState 停在 notInFullscreen、视口不变。
+        // 结论：**任何覆盖 requestFullscreen/exitFullscreen 的注入脚本都
+        // 会废掉全屏**，勿再引入（shim 文件与注册行已删除）。
+        config.preferences.isElementFullscreenEnabled = true
+        // Live Text / 图像分析（VisionKit）关闭：WebKit 会对页面里的视频帧
+        // 自动跑文本提取，并在 webview 内装入 VKCImageAnalysis 浮层
+        // （日志：[com.apple.WebKit:ImageAnalysis] Installing image analysis
+        // overlay view）。该浮层在布局过渡（进入全屏、缩放、窗口尺寸变化）
+        // 中以 0×0 bounds 计算出 NaN contentsRect，触发 AppKit 几何断言
+        // 直接杀死进程（EXC_BREAKPOINT _NSViewValidateGeometry ←
+        // VKCImageAnalysisBaseView/updateCurrentDisplayedViewContentsRect，
+        // 2026-09-20 崩溃报告）。Desire 没有 Live Text UI，关掉最干净。
+        // 键名无公开 API（WKWebView 无 allowsImageAnalysis），走 KVC —
+        // 与本文件既有的 developerExtrasEnabled 同路。
+        config.setValue(false, forKey: "systemTextExtractionEnabled")
         config.applicationNameForUserAgent = "Version/26.5 Safari/605.1.15"
         contentBlocker?.apply(to: config)
         // Network interception rules (0.1.13): block/redirect applied to
@@ -360,13 +379,10 @@ struct WebView: NSViewRepresentable {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> BrowserWKWebView {
+    func makeNSView(context: Context) -> WebViewContainer {
         let webView = state.webView
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        webView.autoresizingMask = [.width, .height]
-        // （WebKit 私有的 VisionKit 集成无公开开关;element fullscreen
-        // 已禁用,VKC 崩溃路径不会进入。）
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
         }
@@ -374,14 +390,16 @@ struct WebView: NSViewRepresentable {
             context.coordinator.parent.onSearchText?(text)
         }
         context.coordinator.observe(webView)
-        return webView
+        // Container (not the web view itself) — see WebViewContainer for why
+        // that indirection is what makes fullscreen video fill the screen.
+        return WebViewContainer(webView: webView)
     }
 
-    func updateNSView(_ nsView: BrowserWKWebView, context: Context) {
+    func updateNSView(_ nsView: WebViewContainer, context: Context) {
         context.coordinator.parent = self
     }
 
-    static func dismantleNSView(_ nsView: BrowserWKWebView, coordinator: Coordinator) {
+    static func dismantleNSView(_ nsView: WebViewContainer, coordinator: Coordinator) {
         coordinator.stopObserving()
     }
 
@@ -458,9 +476,12 @@ struct WebView: NSViewRepresentable {
             ]
         }
 
-        // 全屏走 WebKit 原生 element fullscreen(57df77e 启用 HTML5
-        // Fullscreen API),窗口级同步方案(shim + KVO)经三轮实测均致
-        // 黑屏/自动退屏,已整体移除——勿再引入。
+        // 全屏 = WebKit 原生 element fullscreen（见 BrowserState.init 的
+        // HTML5 Fullscreen API 注释）：WebKit 自建整屏窗口、自动批准
+        // JS 全屏请求、退出由页面/系统管。窗口级同步方案（shim +
+        // fullscreenRequest + fullscreenState KVO）三轮实测均致黑屏，
+        // 已整体移除——勿再引入。窗口全屏（⌃⌘F）时的 chrome 收起在
+        // ContentView/SelectedTabContent（isFullScreen）。
 
         func stopObserving() {
             observations.removeAll()

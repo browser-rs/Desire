@@ -35,31 +35,39 @@ struct SelectedTabContent: View {
     @Binding var showAgentPanel: Bool
     let showDevToolsPanel: Bool
     let isFindBarVisible: Bool
+    /// Native window fullscreen (⌃⌘F). Fullscreen collapses the progress bar,
+    /// toolbar and bookmark bar to zero height so the web content — and with
+    /// it the page viewport — is the whole screen, the way Safari and Chrome
+    /// treat fullscreen. Site-initiated video fullscreen uses WebKit's own
+    /// screen-covering window instead, so it does not depend on this flag.
+    let isFullScreen: Bool
     /// Sends an AI prompt (and opens the panel) from the selection bar.
     let onAskAI: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            GeometryReader { geo in
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.15))
-                    .frame(height: 2)
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.accentColor)
-                            .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
-                    }
-            }
-            .frame(height: 2)
-            .opacity(tab.isLoading ? 1 : 0)
-            .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
-            .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
+            if !isFullScreen {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.15))
+                        .frame(height: 2)
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
+                        }
+                }
+                .frame(height: 2)
+                .opacity(tab.isLoading ? 1 : 0)
+                .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
+                .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
-            // Toolbar spans full width above the content area (matches
-            // original ContentView.body layout before SelectedTabContent
-            // extraction).
-            content.toolbarSection(for: tab)
-            content.bookmarksBarSection(for: tab)
+                // Toolbar spans full width above the content area (matches
+                // original ContentView.body layout before SelectedTabContent
+                // extraction).
+                content.toolbarSection(for: tab)
+                content.bookmarksBarSection(for: tab)
+            }
             content.noticeBars(for: tab)
 
             HStack(spacing: 0) {

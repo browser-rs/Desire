@@ -1,5 +1,34 @@
 ## [Unreleased]
 
+### Fixed
+
+- **视频全屏（黑边 / 崩溃）修复**——三轮返工的真正根因有两条：
+  1) 注入的 `fullscreen-shim.js` 覆盖了 `Element.prototype.requestFullscreen`，
+     原生全屏管线从此不再运行，元素只能被 CSS 钉在 webview 视口里，于是
+     "全屏"只有网页区域大小、四周黑边。最小宿主对照实验证实原生 element
+     fullscreen 在本机完全正常（`WebCoreFullScreenWindow` + 视口 2560x1440）；
+     shim 文件与注册行已删除，`isElementFullscreenEnabled` 恢复开启。
+  2) 即使原生全屏跑起来，全屏视频仍只有 2314x1302：`WebView`
+     （NSViewRepresentable）直接返回 webview，SwiftUI 在 WebKit 把它搬进
+     全屏窗口后仍每轮布局重设其 frame（实测 1262 → 1440 → 1262 → 0×0），
+     页面被锁在过期视口甚至渲染成 0×0。新增 `WebViewContainer`：SwiftUI 只
+     管容器，webview 以 autoresizing mask 跟随，全屏期间应用侧不再触碰
+     WebKit 的几何。
+- **全屏崩溃**：WebKit 的 Live Text（图像分析）会为视频帧装入
+  `VKCImageAnalysisOverlayView`，该浮层在布局过渡中以 0×0 bounds 算出 NaN
+  contentsRect，触发 AppKit 几何断言（`EXC_BREAKPOINT _NSViewValidateGeometry`
+  ← `VKCImageAnalysisBaseView.updateCurrentDisplayedViewContentsRect`）直接
+  杀进程。已用 `systemTextExtractionEnabled = false` 关闭（Desire 没有 Live
+  Text UI），同时消掉 `checkRichAnalysisAvailability XPC failed` 噪音。
+
+### Changed
+
+- 原生窗口全屏（⌃⌘F）收起浏览器 chrome（标签栏/工具栏/进度条/书签栏），
+  内容铺满整屏，与 Safari/Chrome 全屏一致。
+- 新增自动化端点 `GET /diag/geometry`（webview 与各窗口的 frame / styleMask /
+  全屏状态 / 所在屏幕 / 子视图树），用于全屏与面板类几何问题的无截图排查。
+
+
 ## [v0.3.10] - 2026-09-20
 
 > 分栏拖拽终局：HSplitView 原生分栏。v0.3.9 链路（系统 `.inspector`

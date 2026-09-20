@@ -32,6 +32,8 @@ import WebKit
 ///   GET  /page/timing?index=0 → {ttfb,domContentLoaded,load,transferBytes,protocol}
 ///   GET  /screenshot         → {path} PNG of the selected tab (≤1280w)
 ///   GET  /history?count=10   → {entries:[{title,url}]}
+///   GET  /diag/geometry?index=0 → web view frame/superview/subview tree +
+///                              every window's frame, style mask & screen
 ///   GET  /bookmarks          → {entries:[{title,url}]}
 ///   GET  /downloads          → {downloads:[{id,file,state,paused,bytes,total,private}]}
 ///   POST /downloads/pause    {"id"?:uuid}  (first in-progress if omitted) → {ok,id}
@@ -279,6 +281,7 @@ final class AutomationServer {
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
+        ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -483,6 +486,8 @@ final class AutomationServer {
                 ))
             case ("GET", "/history"):
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
+            case ("GET", "/diag/geometry"):
+                return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/spawn-test"):
                 // Direct spawn probe — proves the (removed) sandbox really
                 // lets the app run system binaries, no LLM involved.
@@ -1204,6 +1209,76 @@ final class AutomationServer {
         var result: [String: Any] = ["path": path]
         result.merge(dims) { _, new in new }
         return result
+    }
+
+    /// Window/view geometry snapshot — the diagnostic for fullscreen and
+    /// panel bugs, which are all about who owns which frame. Reports the web
+    /// view's own frame plus every window's frame, style mask and screen, so
+    /// a mismatch (e.g. a fullscreen window hosting a web view still sized to
+    /// the browser window, or SwiftUI re-laying-out a web view WebKit
+    /// reparented into its fullscreen window) is visible without screen
+    /// capture.
+    private static func geometry(index: Int?) throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        let webView = tab.browser.webView
+
+        func rect(_ r: CGRect) -> [Double] {
+            [Double(r.origin.x), Double(r.origin.y), Double(r.size.width), Double(r.size.height)]
+        }
+
+        var chain: [String] = []
+        var view: NSView? = webView
+        while let current = view {
+            let frame = current.frame
+            chain.append("\(type(of: current)) \(Int(frame.width))x\(Int(frame.height))@\(Int(frame.origin.x)),\(Int(frame.origin.y))")
+            view = current.superview
+        }
+
+        // Subview tree (depth-limited) — shows WebKit's fullscreen
+        // placeholder and its VisionKit image-analysis overlay when present.
+        func tree(_ root: NSView, depth: Int) -> [String] {
+            guard depth > 0 else { return [] }
+            var out: [String] = []
+            for sub in root.subviews {
+                let f = sub.frame
+                var line = "\(type(of: sub)) \(Int(f.origin.x)),\(Int(f.origin.y)) \(Int(f.width))x\(Int(f.height))"
+                if sub.isHidden { line += " hidden" }
+                out.append(line)
+                out.append(contentsOf: tree(sub, depth: depth - 1).map { "  " + $0 })
+            }
+            return out
+        }
+
+        let windows: [[String: Any]] = NSApp.windows.map { window in
+            var entry: [String: Any] = [
+                "class": String(describing: type(of: window)),
+                "frame": rect(window.frame),
+                "contentLayout": rect(window.contentLayoutRect),
+                "styleMask": Int(window.styleMask.rawValue),
+                "isFullScreen": window.styleMask.contains(.fullScreen),
+                "isKey": window.isKeyWindow,
+                "visible": window.isVisible,
+                "number": window.windowNumber,
+            ]
+            if let screen = window.screen {
+                entry["screenFrame"] = rect(screen.frame)
+                entry["screenVisibleFrame"] = rect(screen.visibleFrame)
+            }
+            if window === webView.window { entry["hostsWebView"] = true }
+            return entry
+        }
+
+        return [
+            "webViewFrame": rect(webView.frame),
+            "webViewBounds": rect(webView.bounds),
+            "webViewWindowNumber": webView.window?.windowNumber ?? -1,
+            "webViewWindowClass": webView.window.map { String(describing: type(of: $0)) } ?? "nil",
+            "webViewSuperviewClass": webView.superview.map { String(describing: type(of: $0)) } ?? "nil",
+            "viewChain": chain,
+            "webViewSubviews": tree(webView, depth: 3),
+            "fullscreenState": String(describing: webView.fullscreenState),
+            "windows": windows,
+        ]
     }
 
     private static func history(count: Int) throws -> [String: Any] {

@@ -249,6 +249,14 @@ Features/Bookmarks/
   不需要屏幕录制权限，锁定屏幕/捕获遮罩下也能用（screencapture -l
   在这些情况下只会报 could not create image）。
 
+- **读应用/WebKit 日志要用 `/usr/bin/log`**：zsh 有同名 builtin，直接敲
+  `log` 会报 "too many arguments"（曾据此误判"统一日志不可用"）。
+  `/usr/bin/log show --last 2m --info --debug --predicate 'process == "Desire"' --style compact`
+  能看到 WebKit 的 `com.apple.WebKit:Fullscreen`/`ImageAnalysis`、VisionKit
+  的 DD element/VKC 等机制日志——全屏与浮层问题的第一现场。配合
+  `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
+  每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
+
 ## 已知半成品 / 未支持完整的功能
 
 修功能前先查此清单，避免重复踩坑或误判"这是新 bug"：
@@ -305,6 +313,31 @@ Features/Bookmarks/
 
 ## 架构决策（勿回退、勿重复踩坑）
 
+- **视频全屏 = WebKit 原生 element fullscreen + `WebViewContainer`**
+  （2026-09-20 实测收敛；此前三轮返工的真根因）：
+  - `isElementFullscreenEnabled = true` 必须保持。WebKit 会自建覆盖整屏的
+    `WebCoreFullScreenWindow`，把页面视口放大到整屏，视频层随之铺满。
+  - **任何覆盖 `Element.prototype.requestFullscreen` 的注入脚本都会废掉
+    全屏**——历史 shim 正是这么把全屏降级成"CSS 把元素钉在 webview 视口"，
+    于是视频只有网页区域大小、四周黑边。最小宿主对照实验：同页面不注入
+    shim → `WebCoreFullScreenWindow` + 视口 2560x1440；注入同一份 shim →
+    `fullscreenState` 停在 notInFullscreen、视口不变。**勿再注入全屏 shim**。
+  - `WebView`（NSViewRepresentable）**必须返回 `WebViewContainer`，不要直接
+    返回 webview**：SwiftUI 每轮布局都会重设"它返回的那个视图"的 frame——
+    包括 webview 已被 WebKit 搬进全屏窗口之后。实测帧序列 1262 →
+    1440（WebKit 设置正确）→ 1262 → 0×0（SwiftUI 用旧标签区尺寸盖回去），
+    结果全屏视频锁死在过期视口（黑边）或页面渲染成 0×0（黑屏）。容器方案
+    下 SwiftUI 只动容器、webview 靠 autoresizing mask 跟随，全屏期间没有
+    应用侧代码再碰 WebKit 的几何。
+  - **禁止**在全屏中手动改 webview frame：实测 WebKit 会把它重置成 0×0
+    （黑屏）。
+  - 原生窗口全屏（⌃⌘F）时收起 chrome（标签栏/工具栏/进度条/书签栏），
+    与 Safari/Chrome 一致：`ContentView.isFullScreen` → `SelectedTabContent`。
+  - VisionKit 图像分析（Live Text）已关（`config.setValue(false, forKey:
+    "systemTextExtractionEnabled")`）：WebKit 对视频帧自动跑文本提取并在
+    webview 里装 VKC 浮层，该浮层在布局过渡中以 0×0 bounds 算出 NaN
+    contentsRect → `_NSViewValidateGeometry` 断言直接杀进程（2026-09-20
+    崩溃报告）。Desire 没有 Live Text UI，勿再打开。
 - **App Sandbox 有意关闭**（`ENABLE_APP_SANDBOX = NO`、entitlements 为
   空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
   名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key

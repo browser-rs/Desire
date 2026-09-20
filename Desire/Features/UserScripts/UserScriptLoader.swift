@@ -34,9 +34,13 @@ enum UserScriptLoader {
             scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
         }
         add("console-intercept", at: .atDocumentStart)
-        // 网页满屏 shim（纯 CSS,不触碰 WebKit 全屏管线/窗口操作,
-        // 机制与禁区见 fullscreen-shim.js 头注释与 WebView.swift）。
-        add("fullscreen-shim", at: .atDocumentStart)
+        // 曾在此注入 fullscreen-shim（覆盖 Element.prototype.requestFullscreen
+        // 做纯 CSS "网页满屏"）。那正是"视频只有网页区域大小、四周黑边"的
+        // 根因——覆盖掉原生 API 之后 WebKit 的全屏管线永远不跑，元素被 CSS
+        // 钉在 webview 视口（= 窗口减去 chrome）里。原生 element fullscreen
+        // 在本机实测完全正常（最小宿主对照实验：WebCoreFullScreenWindow，
+        // 视口 = 屏幕 2560x1440；注入同一份 shim 后立刻退化成 DOM-only）。
+        // 机制说明见 WebView.swift 的 fullscreen 注释。
         add("media-sniffer", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)

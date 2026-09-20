@@ -204,13 +204,19 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
-                tabBarSection(for: tab)
+                // 原生窗口全屏（⌃⌘F）时收起标签栏/工具栏/进度条：全屏的
+                // 页面视口应当是整屏（Safari/Chrome 同款）。站点视频全屏走
+                // WebKit 自建的整屏窗口，与本标志无关。
+                if !isFullScreen {
+                    tabBarSection(for: tab)
+                }
                 SelectedTabContent(
                     tab: tab, content: self, actions: b,
                     showSidebar: showSidebar,
                     showAgentPanel: $showAgentPanel,
                     showDevToolsPanel: showDevToolsPanel,
                     isFindBarVisible: isFindBarVisible,
+                    isFullScreen: isFullScreen,
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)
                         showAgentPanel = true

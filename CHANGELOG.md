@@ -2,6 +2,28 @@
 
 ### Added
 
+- **Console 的对象是"真对象"了**：此前参数在捕获时就 `JSON.stringify`，于是
+  `console.log(document.body)` 只显示 `{}`（元素没有可枚举自有属性），对象也没法
+  展开。现在：
+  - 参数按**片段**上报：文本照旧，对象给短预览（`Object {a: 1, …}`、`Array(3)`、
+    `<h1#title>`、`Error: …`）并登记一个**页面侧句柄**；
+  - 点 chip 就地展开一层属性——值是活对象、留在页面里，属性仍是对象时给新句柄可
+    继续展开（句柄表 300 条 FIFO，过期显示"句柄已失效"）；
+  - DOM 元素单独给一组字段（tagName / id / className / childElementCount /
+    textContent / 属性 / 前 10 个子元素各带句柄），因为元素用 `Object.keys` 是空的；
+  - **REPL 便捷绑定**：`$0` = 最后检查的元素、`$_` = 上一次的结果、`$(sel)` /
+    `$$(sel)` 简写（页面自己有 `$` 就不覆盖）。
+  - 实测：`console.log('with object:', {a:1,b:'two',nested:{deep:true},list:[1,2,3]})`
+    → 预览 `Object {a: 1, b: "two", nested: {…}, …}`，展开句柄得 4 个属性（嵌套两项
+    各带新句柄）；`console.log(document.getElementById('title'))` → `<h1#title>`，
+    展开得 tagName/id/textContent/@id；REPL：`$0.tagName`→H1、`1+1`→2、`$_ + 1`→3、
+    `$("#title").textContent`→`console fixture`、`$$("div").length`→1。
+- **桥端点**：`GET /devtools/console/ref?ref=`（展开一个句柄，一层）；
+  `GET /devtools` 的 console 段新增 `objects`（最近消息里的句柄与预览）。新增 2 条
+  三语文案。
+
+### Added
+
 - **Application 页签补上 IndexedDB / Cache Storage / Service Worker**（新脚本
   `page-storage.js`，都在页面侧列举，一次只取一层/带上限）：
   - **IndexedDB**：`indexedDB.databases()` 列出本站源的库，逐个只读打开（**不带

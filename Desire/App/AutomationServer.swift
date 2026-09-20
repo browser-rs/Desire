@@ -299,6 +299,7 @@ final class AutomationServer {
         ep("POST", "/devtools/config", "Runtime toggles (console clearing, Application section, tab scope)", params: ["clearConsoleOnNavigate?:bool", "applicationSection?:string", "tabScope?:current|all|<tab uuid>"], example: #"-d '{"tabScope":"all"}'"#)
         ep("POST", "/devtools/preview", "Fetch a page resource via the page (cookies included) and save it as PNG", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8878/pixel.png"}'"#)
         ep("POST", "/devtools/replay", "Re-send a recorded request from the page (same path as the ↻ button)", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8879/api/data"}'"#)
+        ep("GET", "/devtools/console/ref", "Expand a console object handle (one level; handles come from console rows)", params: ["ref:string", "index?:int"], example: "…/devtools/console/ref?ref=c1")
         ep("GET", "/devtools/application", "Cookies + web storage of the active tab", params: ["index?:int"], example: "…/devtools/application")
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string (cookie|localStorage|sessionStorage|extension|indexedDB|cache|cacheAll|serviceWorker)", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"indexedDB","key":"mydb"}'"#)
@@ -766,6 +767,11 @@ final class AutomationServer {
                     style: body["style"] as? [String: String] ?? [:],
                     attributes: body["attributes"] as? [String: String] ?? [:],
                     index: Self.index(body)
+                ))
+            case ("GET", "/devtools/console/ref"):
+                return try await Self.json(Self.devToolsConsoleRef(
+                    ref: query["ref"] ?? "",
+                    index: Self.index(query)
                 ))
             case ("GET", "/devtools/tree"):
                 return try await Self.json(Self.devToolsTree(
@@ -1618,6 +1624,24 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    /// 展开一个控制台对象句柄（一层）：面板里点 chip 走的是同一条路径。
+    /// 句柄由页面侧分配（`console-intercept.js` 的 `parts[].ref`），面板的
+    /// 消息行文本里就能看到预览。
+    private static func devToolsConsoleRef(ref: String, index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let store = AppState.live?.devToolsStore else { return ["error": "app state not ready"] }
+        guard !ref.isEmpty else { return ["error": "ref required"] }
+        guard let node = await store.loadConsoleRef(ref, in: tab.browser.webView) else {
+            return ["error": "handle expired or page not loaded"]
+        }
+        return [
+            "ctor": node.ctor ?? "",
+            "preview": node.preview ?? "",
+            "error": node.error ?? "",
+            "props": (node.props ?? []).map { ["name": $0.name, "preview": $0.preview, "ref": $0.ref ?? ""] },
+        ]
+    }
+
     /// Element 页签的 DOM 树（一层）：面板懒展开用的就是这条路径。
     /// `path` 是 nth-child 链（省略 = `<html>`）。
     private static func devToolsTree(path: String, index: Int?) async throws -> [String: Any] {
@@ -1740,6 +1764,13 @@ final class AutomationServer {
                 "last": store.scopedConsoleMessages.suffix(5).map { message -> String in
                     let source = message.url.map { "\($0):\(message.line ?? 0)" } ?? "-"
                     return "\(message.level.rawValue): \(message.message) @ \(source)"
+                },
+                // 最近几条消息里的对象句柄（面板点 chip 用的就是它们，
+                // 配合 GET /devtools/console/ref 展开）。
+                "objects": store.scopedConsoleMessages.suffix(5).flatMap { message in
+                    (message.parts ?? []).filter(\.isObject).map { part -> [String: Any] in
+                        ["ref": part.ref ?? "", "preview": part.preview ?? ""]
+                    }
                 },
             ],
             "network": [

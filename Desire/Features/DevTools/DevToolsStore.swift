@@ -140,8 +140,8 @@ class DevToolsStore: ObservableObject {
 
     init() {}
 
-    func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil, tabID: UUID? = nil) {
-        let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column, tabID: tabID)
+    func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil, tabID: UUID? = nil, parts: [ConsoleMessage.Part]? = nil) {
+        let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column, tabID: tabID, parts: parts)
         // Mutate the backing array once (append + optional trim), then publish
         // a single time. The previous append-then-trim sequence published twice.
         var newMessages = consoleMessages
@@ -868,12 +868,48 @@ class DevToolsStore: ObservableObject {
     /// 先按输入形态选路径（`looksLikeStatement`），避免先撞一次语法错——那次失败
     /// 会被页面的 window.onerror 记成 "Script error." 噪声行。异常文本要用
     /// `WKJavaScriptExceptionMessage`（见 AGENTS.md）。
+    /// REPL 的便捷绑定（Chrome 同款）：`$0` = 最后检查的元素、`$_` = 上一次的结果、
+    /// `$(sel)` / `$$(sel)` = querySelector(All) 简写。页面自己定义了 `$`
+    /// （jQuery 之类）就不覆盖。
+    private static let replPreamble = """
+    if (!window.$) { window.$ = document.querySelector.bind(document); window.$$ = document.querySelectorAll.bind(document); }
+    """
+
+    /// 执行前把 `$0` 指到最后检查（拾取）的那个元素上。
+    private func prepareReplHelpers(in webView: WKWebView) async {
+        guard let selector = inspectedElement?.selector, !selector.isEmpty else { return }
+        let script = "try { window.$0 = document.querySelector('\(Self.escapeJS(selector))'); } catch (e) {}"
+        _ = try? await webView.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .page)
+    }
+
+    /// 按句柄取一个控制台对象的属性（一层）：值是活对象、留在页面里，
+    /// 属性值仍是对象时会给新句柄，面板可以继续展开。
+    func loadConsoleRef(_ ref: String, in webView: WKWebView) async -> ConsoleRefNode? {
+        let script = """
+        if (!window.__desireConsole) return null;
+        return window.__desireConsole.describe(ref);
+        """
+        do {
+            let result = try await webView.callAsyncJavaScript(
+                script,
+                arguments: ["ref": ref],
+                in: nil,
+                contentWorld: .page
+            )
+            guard let json = result as? String, let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(ConsoleRefNode.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+
     /// `tabID` 是执行这一行的标签页：输入回显与结果都归到它名下，这样
     /// 作用域切到"当前标签页"时 REPL 的输出不会消失。
     func evaluateConsoleInput(_ source: String, in webView: WKWebView, tabID: UUID? = nil) async {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         addConsoleMessage(level: .log, message: "› \(trimmed)", tabID: tabID)
+        await prepareReplHelpers(in: webView)
 
         if Self.looksLikeStatement(trimmed) {
             await runStatements(trimmed, in: webView, tabID: tabID)
@@ -987,7 +1023,13 @@ class DevToolsStore: ObservableObject {
     /// 表达式路径：① 直接求值（结果可 JSON 化）；② 字符串化（DOM 节点给
     /// outerHTML）；③ 都不行时退回语句路径。
     private func runExpression(_ source: String, in webView: WKWebView, tabID: UUID?) async {
-        let exprBody = "return (\n\(source)\n)"
+        let exprBody = """
+        \(Self.replPreamble)
+        window.$_ = (
+        \(source)
+        );
+        return window.$_;
+        """
         do {
             let value = try await webView.callAsyncJavaScript(exprBody, arguments: [:], in: nil, contentWorld: .page)
             addConsoleMessage(level: .log, message: Self.describe(value), tabID: tabID)
@@ -1000,7 +1042,9 @@ class DevToolsStore: ObservableObject {
         }
 
         let stringifyBody = """
+        \(Self.replPreamble)
         const __v = (\(source));
+        window.$_ = __v;
         if (__v === undefined) return 'undefined';
         if (__v === null) return 'null';
         // DOM 节点先给标记（JSON.stringify 一个元素只会吐它的可枚举属性，没用）。
@@ -1021,8 +1065,17 @@ class DevToolsStore: ObservableObject {
 
     /// 语句路径：整体当函数体跑；有返回值就显示，没有就报 undefined。
     private func runStatements(_ source: String, in webView: WKWebView, tabID: UUID?) async {
+        // 包一层 async IIFE 才能拿到完成值并记进 `$_`（`return` 语义不变）。
+        let body = """
+        \(Self.replPreamble)
+        const __result = await (async () => {
+        \(source)
+        })();
+        if (__result !== undefined) window.$_ = __result;
+        return __result;
+        """
         do {
-            let value = try await webView.callAsyncJavaScript(source, arguments: [:], in: nil, contentWorld: .page)
+            let value = try await webView.callAsyncJavaScript(body, arguments: [:], in: nil, contentWorld: .page)
             addConsoleMessage(level: .log, message: value == nil ? "undefined" : Self.describe(value), tabID: tabID)
         } catch {
             addConsoleMessage(level: .error, message: Self.exceptionMessage(error) ?? error.localizedDescription, tabID: tabID)

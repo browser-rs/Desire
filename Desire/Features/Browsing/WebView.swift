@@ -628,7 +628,15 @@ struct WebView: NSViewRepresentable {
                 let line = dict["line"] as? Int
                 let column = dict["column"] as? Int
                 noteTabInDevTools()
-                parent.devToolsStore.addConsoleMessage(level: level, message: msgText, url: url, line: line, column: column, tabID: parent.tabID)
+                parent.devToolsStore.addConsoleMessage(
+                    level: level,
+                    message: msgText,
+                    url: url,
+                    line: line,
+                    column: column,
+                    tabID: parent.tabID,
+                    parts: ConsoleMessage.parseParts(dict["parts"])
+                )
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
                        let usernameName = dict["username"],
                        let host = parent.state.webView.url?.host {

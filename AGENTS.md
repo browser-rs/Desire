@@ -401,6 +401,10 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **互相递归的 SwiftUI 视图要类型擦除**（2026-09-21 实测）：Console 的对象 chip
+  （`objectChip` ↔ `refDetail`）互相调用，两个都返回 `some View` 时报
+  "function opaque return type was inferred as … which defines the opaque type in
+  terms of itself"。在递归的那一侧返回 `AnyView` 即可（另一侧保持 `some View`）。
 - **Element 的 DOM 树用 nth-child 链当路径（2026-09-21）**：
   `UserScripts/dom-tree.js` 的 `path` 形如 `0/2/1`（"" = `<html>`），**一次只取
   一层**（面板懒展开），每个节点带一个可直接交给 `element-inspect.js` 的

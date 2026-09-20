@@ -417,6 +417,9 @@ private struct ConsolePanel: View {
     @State private var inputHistory: [String] = []
     @State private var historyIndex: Int?
     @FocusState private var inputFocused: Bool
+    /// 展开中的对象句柄，以及它们的属性缓存（按需向页面取）。
+    @State private var expandedRefs: Set<String> = []
+    @State private var refNodes: [String: ConsoleRefNode] = [:]
 
     private var levels: [ConsoleMessage.Level?] { [nil, .error, .warn, .info] }
 
@@ -647,6 +650,108 @@ private struct ConsolePanel: View {
         return messages
     }
 
+    /// 对象 chip：点一下向页面要这一层的属性并就地展开（值是活对象，留在页面里）。
+    private func objectChip(ref: String, preview: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                toggleRef(ref)
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: expandedRefs.contains(ref) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    Text(preview)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(expandedRefs.contains(ref) ? appAccent : Color.primary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.12))
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expandedRefs.contains(ref) {
+                refDetail(ref: ref, depth: 1)
+            }
+        }
+    }
+
+    /// 返回 `AnyView`：`objectChip` ↔ `refDetail` 是互相递归的视图，不类型擦除
+    /// 会让不透明返回类型推断失败（"defines the opaque type in terms of itself"）。
+    private func refDetail(ref: String, depth: Int) -> AnyView {
+        let indent = CGFloat(depth) * 10
+        guard let node = refNodes[ref] else {
+            return AnyView(
+                Text(String(localized: "Loading…"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, indent)
+            )
+        }
+        if let error = node.error {
+            return AnyView(
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, indent)
+            )
+        }
+        let props = node.props ?? []
+        if props.isEmpty {
+            return AnyView(
+                Text(String(localized: "No enumerable properties"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, indent)
+            )
+        }
+        return AnyView(
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(props) { prop in
+                    HStack(alignment: .top, spacing: 4) {
+                        Text(prop.name)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text(":")
+                            .foregroundStyle(.tertiary)
+                        if let childRef = prop.ref, depth < 4 {
+                            objectChip(ref: childRef, preview: prop.preview)
+                        } else {
+                            Text(prop.preview)
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineLimit(2)
+                        }
+                    }
+                    .padding(.leading, indent)
+                }
+            }
+        )
+    }
+
+    private func toggleRef(_ ref: String) {
+        if expandedRefs.contains(ref) {
+            expandedRefs.remove(ref)
+            return
+        }
+        expandedRefs.insert(ref)
+        guard refNodes[ref] == nil, let webView = tab?.browser.webView else { return }
+        Task {
+            let node = await store.loadConsoleRef(ref, in: webView)
+            refNodes[ref] = node ?? ConsoleRefNode(
+                ctor: nil,
+                preview: nil,
+                props: [],
+                error: String(localized: "Handle expired")
+            )
+        }
+    }
+
     private func messageRow(_ message: ConsoleMessage, repeatCount: Int = 1) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: message.level.icon)
@@ -656,11 +761,28 @@ private struct ConsolePanel: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(message.message)
-                    .font(.system(size: 11, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(expandedMessageIDs.contains(message.id) ? nil : 8)
-                    .animation(.hoverFast, value: expandedMessageIDs.contains(message.id))
+                if let parts = message.parts, !parts.isEmpty {
+                    // 富片段：对象是可点开的 chip（点开向页面要一层属性）。
+                    HStack(alignment: .top, spacing: 4) {
+                        ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                            if let ref = part.ref, part.isObject {
+                                objectChip(ref: ref, preview: part.preview ?? "{}")
+                            } else {
+                                Text(part.text ?? "")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .lineLimit(expandedMessageIDs.contains(message.id) ? nil : 8)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(message.message)
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(expandedMessageIDs.contains(message.id) ? nil : 8)
+                        .animation(.hoverFast, value: expandedMessageIDs.contains(message.id))
+                }
 
                 if let url = message.url {
                     Text(url)

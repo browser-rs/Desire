@@ -331,6 +331,28 @@
         }
       }
     },
+    "Handle expired" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handle expired"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "句柄已失效"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "控制代碼已失效"
+          }
+        }
+      }
+    },
     "IndexedDB" : {
       "localizations" : {
         "en" : {
@@ -481,6 +503,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有快取項目"
+          }
+        }
+      }
+    },
+    "No enumerable properties" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No enumerable properties"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可枚举属性"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可列舉屬性"
           }
         }
       }

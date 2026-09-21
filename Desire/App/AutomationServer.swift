@@ -357,6 +357,10 @@ final class AutomationServer {
         ep("GET", "/shortcuts", "Shortcut mappings + live NSMenu accelerators", example: "…/shortcuts")
         ep("POST", "/shortcuts/update", "Re-record binding (next launch)", params: ["id:string", "key:string", "modifierFlags:uint"], example: #"-d '{"id":"newTab","key":"k","modifierFlags":1048576}'"#)
         // Agent
+        ep("GET", "/ai/profiles", "Model services: endpoint/model/headers/key state + which is active", example: "…/ai/profiles")
+        ep("POST", "/ai/profiles", "Create (no id) or update a model service; key supported", params: ["id?:uuid", "name:string", "endpoint:string", "model?:string", "models?:array", "headers?:object", "key?:string"], example: #"-d '{"name":"My gateway","endpoint":"https://host/v1/chat/completions","model":"gpt-4o","key":"sk-…"}'"#)
+        ep("POST", "/ai/profiles/activate", "Switch the active model service", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
@@ -768,6 +772,22 @@ final class AutomationServer {
                     attributes: body["attributes"] as? [String: String] ?? [:],
                     index: Self.index(body)
                 ))
+            case ("GET", "/ai/profiles"):
+                return try Self.json(Self.aiProfiles())
+            case ("POST", "/ai/profiles"):
+                return try Self.json(Self.aiProfileUpsert(
+                    id: Self.string(body, "id"),
+                    name: Self.string(body, "name") ?? "",
+                    endpoint: Self.string(body, "endpoint") ?? "",
+                    model: Self.string(body, "model") ?? "",
+                    models: (body["models"] as? [String]) ?? [],
+                    headers: (body["headers"] as? [String: String]) ?? [:],
+                    key: Self.string(body, "key")
+                ))
+            case ("POST", "/ai/profiles/activate"):
+                return try Self.json(Self.aiProfileActivate(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/ai/profiles/delete"):
+                return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
             case ("GET", "/devtools/console/ref"):
                 return try await Self.json(Self.devToolsConsoleRef(
                     ref: query["ref"] ?? "",

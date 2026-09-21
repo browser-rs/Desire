@@ -4,11 +4,41 @@ import Security
 
 @MainActor
 class AgentPreferenceStore: ObservableObject {
-    @Published var model: String {
-        didSet { UserDefaults.standard.set(model, forKey: "aiModel") }
+    /// 模型服务档案：内置预设 + 用户自定义（见 `AIProviderProfile`）。
+    @Published var profiles: [AIProviderProfile] {
+        didSet { DiskStore.save(profiles, key: "aiProfiles") }
     }
-    @Published var endpoint: String {
-        didSet { UserDefaults.standard.set(endpoint, forKey: "aiEndpoint") }
+
+    /// 当前使用的服务档案。
+    @Published var activeProfileID: UUID? {
+        didSet { UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID") }
+    }
+
+    /// 当前档案（没显式选就取第一个）。
+    var activeProfile: AIProviderProfile? {
+        guard let id = activeProfileID else { return profiles.first }
+        return profiles.first { $0.id == id } ?? profiles.first
+    }
+
+    /// 端点 / 模型是**当前档案的视图**——providers 与设置页照旧读这两个名字，
+    /// 但真相存在档案里（每个服务一套配置，不再全局共用）。
+    var endpoint: String {
+        get { activeProfile?.endpoint ?? "" }
+        set { mutateActiveProfile { $0.endpoint = newValue } }
+    }
+
+    var model: String {
+        get { activeProfile?.model ?? "" }
+        set { mutateActiveProfile { $0.model = newValue } }
+    }
+
+    /// 当前档案的额外请求头（请求构造时叠加）。
+    var activeHeaders: [String: String] { activeProfile?.headers ?? [:] }
+
+    private func mutateActiveProfile(_ change: (inout AIProviderProfile) -> Void) {
+        guard let id = activeProfile?.id,
+              let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        change(&profiles[index])
     }
     @Published var systemPrompt: String {
         didSet { UserDefaults.standard.set(systemPrompt, forKey: "aiSystemPrompt") }
@@ -51,7 +81,9 @@ class AgentPreferenceStore: ObservableObject {
             UserDefaults.standard.set(maxLoopIterations, forKey: "aiMaxLoopIterations")
         }
     }
-    @Published var hasAPIKey: Bool = false
+    /// 当前档案是否已有 API Key（由 `refreshKeyState()` 维护——Keychain 读是
+    /// 系统调用，不放进每次渲染都求值的计算属性）。
+    @Published private(set) var hasAPIKey: Bool = false
 
     /// Which model backend the agent loop talks to. Persisted so the user's
     /// choice survives relaunch. See `ModelProviderKind` for the options.
@@ -59,30 +91,73 @@ class AgentPreferenceStore: ObservableObject {
         didSet { UserDefaults.standard.set(providerKind.rawValue, forKey: "aiProviderKind") }
     }
 
-    /// Identifies the active cloud provider ("openai", "deepseek", "zhipu",
-    /// "opencode-go", or a custom id). Used to select the per-provider API
-    /// key from Keychain and to resolve preset endpoint/model values.
-    @Published var cloudProviderID: String {
-        didSet { UserDefaults.standard.set(cloudProviderID, forKey: "aiCloudProviderID") }
+    // MARK: - 服务档案增删改
+
+    /// 新增一个自定义服务档案（可同时写入它的 Key）。
+    @discardableResult
+    func addProfile(name: String, endpoint: String, model: String = "", key: String? = nil) -> AIProviderProfile {
+        let profile = AIProviderProfile(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom" : name,
+            endpoint: endpoint
+        )
+        var created = profile
+        created.model = model
+        profiles.append(created)
+        if let key, !key.isEmpty { saveAPIKey(key, profileID: created.id) }
+        return created
     }
 
-    /// Saved endpoint profiles — each is a self-contained {name, url, model}
-    /// combo. Users add one per model/service combo they use (e.g. "GLM-4
-    /// Plus via Zhipu", "GPT-4o via OpenCode Go"). Switching profiles copies
-    /// the URL + model into the active endpoint/model fields.
-    @Published var savedEndpoints: [SavedAIEndpoint] {
-        didSet { DiskStore.save(savedEndpoints, key: "aiSavedEndpoints") }
-    }
-    /// Which saved endpoint is active (drives the AI's actual API calls).
-    @Published var activeEndpointID: UUID? {
-        didSet { UserDefaults.standard.set(activeEndpointID?.uuidString, forKey: "aiActiveEndpointID") }
+    /// 复制一个档案（内置的也能复制出可改的副本；Key 一并复制）。
+    @discardableResult
+    func duplicateProfile(id: UUID) -> AIProviderProfile? {
+        guard let source = profiles.first(where: { $0.id == id }) else { return nil }
+        let copy = AIProviderProfile(
+            name: source.name + " Copy",
+            endpoint: source.endpoint,
+            model: source.model,
+            modelList: source.modelList,
+            headers: source.headers
+        )
+        profiles.append(copy)
+        if let key = loadAPIKey(profileID: source.id) {
+            saveAPIKey(key, profileID: copy.id)
+        }
+        return copy
     }
 
-    /// The active saved endpoint, if any. When set, `endpoint` and `model`
-    /// delegates to this entry's values.
-    var activeSavedEndpoint: SavedAIEndpoint? {
-        guard let id = activeEndpointID else { return nil }
-        return savedEndpoints.first(where: { $0.id == id })
+    /// 删除一个自定义档案（内置的不可删，返回 false）。
+    @discardableResult
+    func deleteProfile(id: UUID) -> Bool {
+        guard let profile = profiles.first(where: { $0.id == id }), !profile.isBuiltin else { return false }
+        keychainDelete(account: profile.keychainAccount)
+        profiles.removeAll { $0.id == id }
+        if activeProfileID == id { activeProfileID = profiles.first?.id }
+        refreshKeyState()
+        return true
+    }
+
+    /// 切到某个档案并刷新"有没有 Key"的状态。
+    func activateProfile(id: UUID) {
+        guard profiles.contains(where: { $0.id == id }) else { return }
+        activeProfileID = id
+        refreshKeyState()
+    }
+
+    /// 把从 `/models` 拉到的模型并进**当前档案**的清单（去重，保留原顺序，
+    /// 新模型追加）——每个服务记自己的模型，换服务时列表跟着换。
+    func applyModelList(_ models: [String]) {
+        mutateActiveProfile { profile in
+            var seen = Set(profile.modelList)
+            for model in models where !model.isEmpty && !seen.contains(model) {
+                seen.insert(model)
+                profile.modelList.append(model)
+            }
+        }
+    }
+
+    private func account(for profileID: UUID?) -> String? {
+        if let profileID { return profiles.first { $0.id == profileID }?.keychainAccount }
+        return activeProfile?.keychainAccount
     }
 
     /// Ollama server base URL. Only used when `providerKind == .ollama`.
@@ -139,15 +214,10 @@ class AgentPreferenceStore: ObservableObject {
     /// Legacy single-key account — checked once during migration.
     private let legacyKeychainAccount = "ai-api-key"
 
-    /// Keychain account for the ACTIVE cloud provider. Each provider gets
-    /// its own key so switching providers switches the credential too.
-    private var keychainAccount: String { "ai-key-" + cloudProviderID }
-
     init() {
-        // Initialize all stored @Published properties before calling any
-        // self method (loadAPIKey) — Swift requires full initialization first.
-        model = UserDefaults.standard.string(forKey: "aiModel") ?? "gpt-4o"
-        endpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? "https://api.openai.com/v1"
+        // 先把所有存储属性初始化完，再调用 self 方法（迁移里要读 Keychain）。
+        profiles = []
+        activeProfileID = nil
         if let stored = UserDefaults.standard.string(forKey: "aiSystemPrompt"),
            !Self.isOutdatedBuiltInPrompt(stored) {
             systemPrompt = stored
@@ -172,37 +242,70 @@ class AgentPreferenceStore: ObservableObject {
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
-        cloudProviderID = UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"
-        savedEndpoints = DiskStore.load([SavedAIEndpoint].self, key: "aiSavedEndpoints") ?? []
-        activeEndpointID = UserDefaults.standard.string(forKey: "aiActiveEndpointID").flatMap { UUID(uuidString: $0) }
 
-        // Legacy migration: if the old single "ai-api-key" exists and no
-        // per-provider key has been saved yet for the default provider,
-        // copy it forward so the upgrade is transparent.
-        if loadAPIKey() == nil,
-           let legacyKey = keychainRead(account: legacyKeychainAccount),
-           let legacyData = legacyKey.data(using: .utf8) {
-            keychainWrite(data: legacyData, account: "ai-key-openai")
-            keychainDelete(account: legacyKeychainAccount)
+        // 服务档案：首次运行（或从旧版本升级）时构建，并立即落盘。
+        let storedProfiles = DiskStore.load([AIProviderProfile].self, key: "aiProfiles") ?? []
+        if storedProfiles.isEmpty {
+            var built = AIProviderProfile.builtins(
+                endpointOverride: UserDefaults.standard.string(forKey: "aiEndpoint"),
+                modelOverride: UserDefaults.standard.string(forKey: "aiModel"),
+                providerID: UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"
+            )
+            // 旧的"已保存配置"只有 name/url/model，共用当时那把 Key——迁移成
+            // 各自独立的档案，并把 Key 带过去，升级后不用重新输入。
+            let legacyKey = keychainRead(account: "ai-key-" + (UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"))
+            for saved in DiskStore.load([SavedAIEndpoint].self, key: "aiSavedEndpoints") ?? [] {
+                guard !saved.url.isEmpty,
+                      !built.contains(where: { $0.endpoint == saved.url && $0.model == saved.model }) else { continue }
+                let profile = AIProviderProfile(name: saved.name, endpoint: saved.url, model: saved.model)
+                if let legacyKey, let data = legacyKey.data(using: .utf8) {
+                    keychainWrite(data: data, account: profile.keychainAccount)
+                }
+                built.append(profile)
+            }
+            profiles = built
+            let legacyEndpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? ""
+            activeProfileID = built.first { $0.endpoint == legacyEndpoint }?.id ?? built.first?.id
+            DiskStore.save(profiles, key: "aiProfiles")
+            // 老的单键 `ai-api-key` → 内置 OpenAI 档案（若还没有它自己的 Key）。
+            if keychainRead(account: "ai-key-openai") == nil,
+               let legacy = keychainRead(account: legacyKeychainAccount),
+               let data = legacy.data(using: .utf8) {
+                keychainWrite(data: data, account: "ai-key-openai")
+                keychainDelete(account: legacyKeychainAccount)
+            }
+        } else {
+            profiles = storedProfiles
+            activeProfileID = UserDefaults.standard.string(forKey: "aiActiveProfileID")
+                .flatMap { UUID(uuidString: $0) }
         }
 
-        // Now fully initialized — safe to call self methods.
+        // 全部初始化完成——可以调用 self 方法了。
+        refreshKeyState()
+    }
+
+    /// 读当前档案（或指定档案）的 API Key。
+    func loadAPIKey(profileID: UUID? = nil) -> String? {
+        guard let account = account(for: profileID) else { return nil }
+        return keychainRead(account: account)
+    }
+
+    func saveAPIKey(_ key: String, profileID: UUID? = nil) {
+        guard let account = account(for: profileID), let data = key.data(using: .utf8) else { return }
+        keychainWrite(data: data, account: account)
+        refreshKeyState()
+    }
+
+    func deleteAPIKey(profileID: UUID? = nil) {
+        guard let account = account(for: profileID) else { return }
+        keychainDelete(account: account)
+        refreshKeyState()
+    }
+
+    /// 刷新 `hasAPIKey`（当前档案是否有 Key）。Keychain 读是系统调用，不放在
+    /// 计算属性里每次渲染都读——只在切换/读写 Key 时更新一次。
+    func refreshKeyState() {
         hasAPIKey = loadAPIKey() != nil
-    }
-
-    func loadAPIKey() -> String? {
-        keychainRead(account: keychainAccount)
-    }
-
-    func saveAPIKey(_ key: String) {
-        guard let data = key.data(using: .utf8) else { return }
-        keychainWrite(data: data, account: keychainAccount)
-        hasAPIKey = true
-    }
-
-    func deleteAPIKey() {
-        keychainDelete(account: keychainAccount)
-        hasAPIKey = false
     }
 
     // MARK: - Keychain primitives

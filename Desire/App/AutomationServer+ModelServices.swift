@@ -1,0 +1,98 @@
+import Foundation
+
+/// 模型服务档案（AIProviderProfile）的自动化入口。
+///
+/// 与设置页是同一份数据：新建/激活/删除/写 Key 都直接改 `AgentPreferenceStore`，
+/// 所以脚本化的验证与手工操作看到的结果一致。
+extension AutomationServer {
+
+    static func aiProfiles() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        return [
+            "active": store.activeProfileID?.uuidString ?? store.activeProfile?.id.uuidString ?? "",
+            "providerKind": store.providerKind.rawValue,
+            "profiles": store.profiles.map { profile -> [String: Any] in
+                [
+                    "id": profile.id.uuidString,
+                    "name": profile.name,
+                    "endpoint": profile.endpoint,
+                    "model": profile.model,
+                    "models": profile.modelList,
+                    "headers": profile.headers,
+                    "builtin": profile.isBuiltin,
+                    "active": store.activeProfileID == profile.id,
+                    "hasKey": store.loadAPIKey(profileID: profile.id) != nil,
+                ]
+            },
+        ]
+    }
+
+    /// 新建或就地更新一个服务档案（带 `id` 就更新）。`key` 非空时一并写入
+    /// Keychain；`key` 传空字符串表示删除该档案的 Key。
+    static func aiProfileUpsert(
+        id raw: String?,
+        name: String,
+        endpoint: String,
+        model: String,
+        models: [String],
+        headers: [String: String],
+        key: String?
+    ) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        guard !endpoint.isEmpty else { return ["error": "endpoint required"] }
+
+        let profileID: UUID
+        if let raw, let id = UUID(uuidString: raw) {
+            guard let index = store.profiles.firstIndex(where: { $0.id == id }) else {
+                return ["error": "no such profile"]
+            }
+            if !name.isEmpty { store.profiles[index].name = name }
+            store.profiles[index].endpoint = endpoint
+            store.profiles[index].model = model
+            if !models.isEmpty { store.profiles[index].modelList = models }
+            if !headers.isEmpty { store.profiles[index].headers = headers }
+            profileID = id
+        } else {
+            let created = store.addProfile(name: name, endpoint: endpoint, model: model)
+            if let index = store.profiles.firstIndex(where: { $0.id == created.id }) {
+                if !models.isEmpty { store.profiles[index].modelList = models }
+                if !headers.isEmpty { store.profiles[index].headers = headers }
+            }
+            profileID = created.id
+        }
+
+        if let key {
+            if key.isEmpty {
+                store.deleteAPIKey(profileID: profileID)
+            } else {
+                store.saveAPIKey(key, profileID: profileID)
+            }
+        }
+        return ["ok": true, "id": profileID.uuidString]
+    }
+
+    static func aiProfileActivate(id raw: String) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let id = UUID(uuidString: raw) else { return ["error": "bad id"] }
+        let store = app.aiPreference
+        guard store.profiles.contains(where: { $0.id == id }) else { return ["error": "no such profile"] }
+        store.activateProfile(id: id)
+        store.providerKind = .cloud
+        return [
+            "ok": true,
+            "active": id.uuidString,
+            "endpoint": store.endpoint,
+            "model": store.model,
+            "hasKey": store.hasAPIKey,
+        ]
+    }
+
+    static func aiProfileDelete(id raw: String) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let id = UUID(uuidString: raw) else { return ["error": "bad id"] }
+        let removed = app.aiPreference.deleteProfile(id: id)
+        return removed ? ["ok": true] : ["error": "profile is built-in or missing"]
+    }
+}

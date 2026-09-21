@@ -239,6 +239,16 @@ struct CloudOpenAIProvider: ModelProvider {
                 req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                 req.setValue("chatcmpl-\(String(UUID().uuidString.prefix(8)))", forHTTPHeaderField: "X-Request-Id")
 
+                // 当前服务档案的自定义请求头（自定义网关常见：租户 id、路由键…）。
+                // Authorization / Content-Type 由上面掌管，这里不覆盖。
+                for (name, value) in prefs.activeHeaders {
+                    let header = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !header.isEmpty,
+                          !header.lowercased().hasPrefix("authorization"),
+                          !header.lowercased().hasPrefix("content-type") else { continue }
+                    req.setValue(value, forHTTPHeaderField: header)
+                }
+
                 // OpenCode Go requires a session header for request routing.
                 // A stable UUID per launch is sufficient — the server uses it
                 // for sticky backend selection.

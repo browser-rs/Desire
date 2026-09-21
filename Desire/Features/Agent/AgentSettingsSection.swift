@@ -46,6 +46,23 @@ struct AgentSettingsSection: View {
     /// Models fetched from the API's `/models` endpoint (nil = not fetched).
     @State private var fetchedModels: [String]? = nil
     @State private var isFetchingModels = false
+
+    // MARK: 服务档案编辑器（模型服务的一等公民，见 AIProviderProfile）
+    /// 正在编辑的档案（nil = 没在编辑；`newProfileID` 表示这是一个新档案）。
+    @State private var editingProfileID: UUID?
+    @State private var draftName = ""
+    @State private var draftEndpoint = ""
+    @State private var draftModel = ""
+    @State private var draftKey = ""
+    @State private var draftModels: [String] = []
+    @State private var draftHeaders: [HeaderDraft] = []
+    @State private var newModelName = ""
+
+    struct HeaderDraft: Identifiable, Equatable {
+        let id = UUID()
+        var name: String
+        var value: String
+    }
     @State private var newBinary = ""
     @State private var workspaceRefresh = 0
     private func addBinary() {
@@ -349,164 +366,38 @@ struct AgentSettingsSection: View {
         .onAppear {
             apiKey = store.loadAPIKey() ?? ""
         }
-        .onChange(of: store.cloudProviderID) { _, _ in
-            // Switching providers reloads the API key (per-provider keychain).
+        .onChange(of: store.activeProfileID) { _, _ in
+            // 换服务 = 换端点 + 换模型 + 换 Key（每个服务各存各的）。
             apiKey = store.loadAPIKey() ?? ""
         }
     }
 
-    // MARK: - Saved endpoints
+    /// 编辑器里的模型 chip（横向滚动，点叉移除）。
+    private struct FlowChips: View {
+        let models: [String]
+        let onRemove: (String) -> Void
 
-    private func saveCurrentEndpoint() {
-        let name = store.cloudProviderID
-        let endpoint = store.endpoint
-        let model = store.model
-        guard !endpoint.isEmpty else { return }
-        store.savedEndpoints.append(SavedAIEndpoint(name: name, url: endpoint, model: model))
-        store.activeEndpointID = store.savedEndpoints.last?.id
-    }
-
-    // MARK: - Saved endpoints
-
-    @ViewBuilder
-    private func savedEndpointRow(_ ep: SavedAIEndpoint) -> some View {
-        let isActive = store.activeEndpointID == ep.id
-        HStack(spacing: 6) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isActive ? appAccent : Color.secondary)
-                .font(.system(size: 11))
-            Text(ep.name)
-                .font(.system(size: 12, weight: isActive ? .semibold : .regular))
-                .lineLimit(1)
-            Spacer()
-            Button {
-                store.savedEndpoints.removeAll { $0.id == ep.id }
-                if store.activeEndpointID == ep.id { store.activeEndpointID = nil }
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.red.opacity(0.6))
-            }
-            .buttonStyle(.plain)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { switchToEndpoint(ep) }
-    }
-
-    private func switchToEndpoint(_ ep: SavedAIEndpoint) {
-        store.activeEndpointID = ep.id
-        store.endpoint = ep.url
-        store.model = ep.model
-        apiKey = store.loadAPIKey() ?? ""
-    }
-
-    // MARK: - Model picker + fetch
-
-    private var fetchModelsSubtitle: String {
-        if let models = fetchedModels, !models.isEmpty {
-            return "\(models.count) models available"
-        }
-        return "Query the provider's /models endpoint for available models."
-    }
-
-    private func fetchModels() {
-        isFetchingModels = true
-        let ep = store.endpoint
-        let key = apiKey
-        Task {
-            do {
-                let models = try await ModelListFetcher.fetch(endpoint: ep, apiKey: key)
-                fetchedModels = models
-            } catch {
-                fetchedModels = nil
-            }
-            isFetchingModels = false
-        }
-    }
-
-    /// Returns the preset model list for the ACTIVE cloud provider.
-    /// Each provider has its own model lineup (Zhipu → GLM series, OpenAI
-    /// → GPT series, etc.) so the picker reflects what's actually available.
-    private var providerModelPresets: [String] {
-        switch store.cloudProviderID {
-        case "openai":
-            return ["gpt-4o", "gpt-4o-mini", "o3-mini", "gpt-4-turbo", "o1-preview"]
-        case "deepseek":
-            return ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"]
-        case "zhipu":
-            return ["glm-4-plus", "glm-4-flash", "glm-4-long", "glm-4v-plus", "glm-4-air"]
-        case "opencode-go":
-            return ["glm-4-plus", "deepseek-chat", "claude-3-5-sonnet"]
-        default:
-            return []
-        }
-    }
-
-    @ViewBuilder
-    private var modelPickerRow: some View {
-        SettingsRow(String(localized: "Model"), subtitle: modelPickerSubtitle, systemImage: "cpu") {
-            Menu {
-                // Presets for the active provider
-                Section("Models") {
-                    ForEach(providerModelPresets, id: \.self) { model in
-                        Button(model) { store.model = model }
-                    }
-                }
-                // Fetched models from the API
-                if let models = fetchedModels, !models.isEmpty {
-                    Section("Fetched from API") {
-                        ForEach(models, id: \.self) { model in
-                            Button(model) { store.model = model }
+        var body: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(models, id: \.self) { model in
+                        HStack(spacing: 3) {
+                            Text(model)
+                                .font(.system(size: 10.5, design: .monospaced))
+                            Button { onRemove(model) } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
                     }
                 }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Text(store.model.isEmpty ? "Select a model…" : store.model)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.08))
-                )
             }
-            .menuStyle(.borderlessButton)
-            .frame(maxWidth: 260, alignment: .leading)
         }
-
-        SettingsRow(String(localized: "Or Type Model Name"), subtitle: nil, systemImage: "pencil") {
-            SettingsTextField(placeholder: "e.g. my-fine-tuned-model", text: $store.model, width: 220)
-        }
-    }
-
-    private var modelPickerSubtitle: String {
-        if let models = fetchedModels, !models.isEmpty {
-            return "\(models.count) models from the API"
-        }
-        return "Pick a preset, fetch from the API, or type a custom name."
-    }
-
-    private func presetChip(_ name: String, providerID: String, endpoint: String, model: String) -> some View {
-        Button(name) {
-            store.cloudProviderID = providerID
-            store.endpoint = endpoint
-            if !model.isEmpty { store.model = model }
-        }
-        .font(.system(size: 11, weight: .medium))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(Color.secondary.opacity(0.1)))
-        .foregroundStyle(.primary)
-        .buttonStyle(.plain)
     }
 
     // MARK: - Foundation Models section
@@ -554,171 +445,341 @@ struct AgentSettingsSection: View {
 
     // MARK: - Cloud section
 
+    /// 模型服务：内置预设 + 自定义服务，**每个服务自带端点 / 模型 / 请求头 /
+    /// API Key**（此前只有 4 个写死的预设，自定义端点只能串用某个预设的 Key）。
     @ViewBuilder
     private var cloudSection: some View {
         SettingsSection(
-            title: String(localized: "Cloud API"),
-            subtitle: String(localized: "OpenAI / Anthropic / DeepSeek compatible endpoints."),
+            title: String(localized: "Model Services"),
+            subtitle: String(localized: "Each service carries its own endpoint, model, headers and API key."),
             icon: "cloud"
         ) {
             VStack(spacing: 0) {
-                SettingsRow(
-                    "API Key",
-                    subtitle: String(localized: "Stored in the macOS Keychain."),
-                    systemImage: "key"
-                ) {
-                    HStack(spacing: 6) {
-                        SettingsTextField(placeholder: "sk-…", text: $apiKey, isSecure: !showKey, width: 200)
-                        Button {
-                            showKey.toggle()
-                        } label: {
-                            Image(systemName: showKey ? "eye.slash" : "eye")
-                                .font(.system(size: 12))
-                                .frame(width: 24, height: 24)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(Color.secondary.opacity(0.08))
-                                )
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showKey ? "Hide" : "Show")
-                    }
-                }
-                SettingsRowDivider()
-
-                SettingsRow(
-                    "Endpoint URL",
-                    subtitle: String(localized: "Full chat-completions URL."),
-                    systemImage: "link"
-                ) {
-                    SettingsTextField(placeholder: "https://api.openai.com/v1/chat/completions", text: $store.endpoint, width: 260)
-                }
-                SettingsRowDivider()
-
-                // Provider quick presets — switching sets cloudProviderID,
-                // endpoint, model, AND loads the per-provider API key.
-                SettingsRow(String(localized: "Provider Presets"), subtitle: String(localized: "Quick setup — click to fill endpoint + model."), systemImage: "bolt") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            presetChip("OpenAI", providerID: "openai", endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4o")
-                            presetChip("DeepSeek", providerID: "deepseek", endpoint: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat")
-                            presetChip("Zhipu GLM", providerID: "zhipu", endpoint: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions", model: "glm-4-plus")
-                            presetChip("OpenCode Go", providerID: "opencode-go", endpoint: "https://opencode.ai/zen/go/v1/chat/completions", model: "claude-sonnet-4-20250514")
-                        }
-                    }
-                }
-                SettingsRowDivider()
-
-                // Saved endpoint profiles — switch between configurations.
-                if !store.savedEndpoints.isEmpty {
-                    SettingsRow(String(localized: "Saved Configurations"), subtitle: String(localized: "Click to switch."), systemImage: "square.stack") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(store.savedEndpoints) { ep in
-                                savedEndpointRow(ep)
-                            }
-                        }
-                    }
+                ForEach(store.profiles) { profile in
+                    serviceRow(profile)
                     SettingsRowDivider()
                 }
 
-                // Model picker: dynamic (presets + fetched + custom text).
-                modelPickerRow
-                SettingsRowDivider()
-
-                // Fetch models from the API
-                SettingsRow(String(localized: "Fetch Models"), subtitle: fetchModelsSubtitle, systemImage: "arrow.down.circle") {
+                if editingProfileID == nil {
                     Button {
-                        fetchModels()
+                        beginEditing(profile: nil)
                     } label: {
-                        HStack(spacing: 4) {
-                            if isFetchingModels { ProgressView().scaleEffect(0.5) }
-                            Text(isFetchingModels ? "Fetching…" : "Fetch")
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundStyle(appAccent)
+                            Text(String(localized: "Add Custom Service"))
                                 .font(.system(size: 12, weight: .medium))
+                            Spacer()
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.secondary.opacity(0.1)))
-                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(isFetchingModels || apiKey.isEmpty)
+                } else {
+                    serviceEditor
                 }
+            }
+        }
+    }
 
-                SettingsRowDivider()
+    /// 一个服务档案：名字 + 主机·模型 + Key 状态；点一下切成当前服务。
+    @ViewBuilder
+    private func serviceRow(_ profile: AIProviderProfile) -> some View {
+        let isActive = store.activeProfileID == profile.id && store.providerKind == .cloud
+        HStack(spacing: 8) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 12))
+                .foregroundStyle(isActive ? appAccent : Color.secondary)
 
-                HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(profile.name)
+                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                        .lineLimit(1)
+                    if profile.isBuiltin {
+                        Text(String(localized: "Built-in"))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 0.5)
+                            .background(Capsule().fill(Color.secondary.opacity(0.14)))
+                    }
+                }
+                Text("\(profile.host) · \(profile.model.isEmpty ? String(localized: "no model") : profile.model)")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 6)
+
+            StatusPill(
+                text: store.loadAPIKey(profileID: profile.id) == nil
+                    ? String(localized: "No key")
+                    : String(localized: "Key saved"),
+                kind: store.loadAPIKey(profileID: profile.id) == nil ? .warning : .success
+            )
+
+            HStack(spacing: 2) {
+                Button { beginEditing(profile: profile) } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Edit")
+
+                Button { store.duplicateProfile(id: profile.id) } label: {
+                    Image(systemName: "plus.square.on.square")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Duplicate")
+
+                if !profile.isBuiltin {
                     Button {
-                        store.saveAPIKey(apiKey)
+                        if store.activeProfileID == profile.id { store.providerKind = .cloud }
+                        store.deleteProfile(id: profile.id)
                     } label: {
-                        Text(String(localized: "Save Key"))
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().fill(appAccent.opacity(0.18))
-                            )
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.red.opacity(0.7))
+                            .frame(width: 20, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete")
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.activateProfile(id: profile.id)
+            store.providerKind = .cloud
+        }
+    }
+
+    /// 行内编辑器：新增时 `editingProfileID` 是一个新 UUID（保存时才入库）。
+    @ViewBuilder
+    private var serviceEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            editorField(String(localized: "Name"), text: $draftName, placeholder: "My gateway")
+            editorField(String(localized: "Endpoint URL"), text: $draftEndpoint, placeholder: "https://host/v1/chat/completions")
+            editorField(String(localized: "Model"), text: $draftModel, placeholder: "gpt-4o")
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "API Key"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    SettingsTextField(placeholder: "sk-…", text: $draftKey, isSecure: !showKey, width: 240)
+                    Button { showKey.toggle() } label: {
+                        Image(systemName: showKey ? "eye.slash" : "eye")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // 模型清单（这个服务自己的候选模型）
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(String(localized: "Models"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Button { fetchDraftModels() } label: {
+                        HStack(spacing: 3) {
+                            if isFetchingModels { ProgressView().scaleEffect(0.45) }
+                            Text(isFetchingModels ? "Fetching…" : "Fetch from API")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isFetchingModels || draftEndpoint.isEmpty)
+                }
+                if !draftModels.isEmpty {
+                    FlowChips(models: draftModels) { model in
+                        draftModels.removeAll { $0 == model }
+                    }
+                }
+                HStack(spacing: 6) {
+                    SettingsTextField(placeholder: "add a model name…", text: $newModelName, width: 180)
+                    Button {
+                        let name = newModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty, !draftModels.contains(name) else { return }
+                        draftModels.append(name)
+                        newModelName = ""
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 13))
                             .foregroundStyle(appAccent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(newModelName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
 
-                    if store.hasAPIKey {
+            // 额外请求头（自定义网关常见）
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(String(localized: "Extra Headers"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Button {
+                        draftHeaders.append(HeaderDraft(name: "", value: ""))
+                    } label: {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
+                ForEach($draftHeaders) { $header in
+                    HStack(spacing: 6) {
+                        SettingsTextField(placeholder: "X-Tenant", text: $header.name, width: 120)
+                        SettingsTextField(placeholder: "value", text: $header.value, width: 150)
                         Button {
-                            store.deleteAPIKey()
-                            apiKey = ""
+                            draftHeaders.removeAll { $0.id == header.id }
                         } label: {
-                            Text(String(localized: "Remove Key"))
-                                .font(.system(size: 12, weight: .medium))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule().fill(Color.red.opacity(0.12))
-                                )
-                                .foregroundStyle(Color.red)
+                            Image(systemName: "minus.circle")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.red.opacity(0.7))
                         }
                         .buttonStyle(.plain)
                     }
+                }
+            }
 
-                    Button {
-                        saveCurrentEndpoint()
-                    } label: {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Save this endpoint + model configuration")
-
-                    Spacer()
-
-                    Button {
-                        testConnection()
-                    } label: {
-                        HStack(spacing: 4) {
-                            if isTestingCloud { ProgressView().scaleEffect(0.5) }
-                            Text(isTestingCloud ? "Testing…" : "Test Connection")
-                                .font(.system(size: 12, weight: .medium))
-                        }
+            HStack(spacing: 10) {
+                Button { commitEditor() } label: {
+                    Text(String(localized: "Save Service"))
+                        .font(.system(size: 12, weight: .medium))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
-                        .background(
-                            Capsule().fill(Color.secondary.opacity(0.1))
-                        )
-                        .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isTestingCloud || apiKey.isEmpty)
-
-                    if let status = cloudTestStatus {
-                        StatusPill(
-                            text: status,
-                            kind: status == "Connected ✓" ? .success : .error
-                        )
-                    }
+                        .background(Capsule().fill(appAccent.opacity(0.18)))
+                        .foregroundStyle(appAccent)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .buttonStyle(.plain)
+                .disabled(draftEndpoint.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                Button { cancelEditing() } label: {
+                    Text(String(localized: "Cancel"))
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.secondary.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+
+                Button { testConnection() } label: {
+                    HStack(spacing: 4) {
+                        if isTestingCloud { ProgressView().scaleEffect(0.5) }
+                        Text(isTestingCloud ? "Testing…" : "Test Connection")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.secondary.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .disabled(isTestingCloud || draftEndpoint.isEmpty)
+
+                if let status = cloudTestStatus {
+                    StatusPill(text: status, kind: status == "Connected ✓" ? .success : .error)
+                }
+                Spacer()
             }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private func editorField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            SettingsTextField(placeholder: placeholder, text: text, width: 280)
+        }
+    }
+
+    private func beginEditing(profile: AIProviderProfile?) {
+        editingProfileID = profile?.id ?? UUID()
+        draftName = profile?.name ?? ""
+        draftEndpoint = profile?.endpoint ?? ""
+        draftModel = profile?.model ?? ""
+        draftKey = profile.flatMap { store.loadAPIKey(profileID: $0.id) } ?? ""
+        draftModels = profile?.modelList ?? []
+        draftHeaders = (profile?.headers ?? [:]).sorted { $0.key < $1.key }.map { HeaderDraft(name: $0.key, value: $0.value) }
+        cloudTestStatus = nil
+    }
+
+    private func cancelEditing() {
+        editingProfileID = nil
+        cloudTestStatus = nil
+    }
+
+    /// 保存编辑器内容：新档案入库并切成当前服务；已有档案就地更新。
+    private func commitEditor() {
+        let endpoint = draftEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !endpoint.isEmpty else { return }
+
+        var headers: [String: String] = [:]
+        for draft in draftHeaders {
+            let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            headers[name] = draft.value
+        }
+
+        if let id = editingProfileID, let index = store.profiles.firstIndex(where: { $0.id == id }) {
+            store.profiles[index].name = draftName.isEmpty ? store.profiles[index].name : draftName
+            store.profiles[index].endpoint = endpoint
+            store.profiles[index].model = draftModel
+            store.profiles[index].modelList = draftModels
+            store.profiles[index].headers = headers
+            store.activeProfileID = id
+        } else {
+            let profile = store.addProfile(name: draftName, endpoint: endpoint, model: draftModel)
+            if let index = store.profiles.firstIndex(where: { $0.id == profile.id }) {
+                store.profiles[index].modelList = draftModels
+                store.profiles[index].headers = headers
+            }
+            store.activeProfileID = profile.id
+        }
+
+        if !draftKey.trimmingCharacters(in: .whitespaces).isEmpty {
+            store.saveAPIKey(draftKey, profileID: store.activeProfileID)
+        }
+        store.providerKind = .cloud
+        editingProfileID = nil
+        cloudTestStatus = nil
+    }
+
+    /// 编辑器里的"从 API 拉模型"：写进草稿清单（保存时才落库）。
+    private func fetchDraftModels() {
+        isFetchingModels = true
+        let endpoint = draftEndpoint
+        let key = draftKey.isEmpty ? (store.loadAPIKey() ?? "") : draftKey
+        Task {
+            let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
+            isFetchingModels = false
+            for model in models where !draftModels.contains(model) {
+                draftModels.append(model)
+            }
+            fetchedModels = models
+            if models.isEmpty { cloudTestStatus = "No models" }
         }
     }
 
@@ -808,9 +869,11 @@ struct AgentSettingsSection: View {
         cloudTestStatus = nil
         Task {
             defer { isTestingCloud = false }
-            let key = apiKey
-            let endpoint = store.endpoint
-            let model = store.model
+            // 编辑器开着就测草稿（还没保存的服务），否则测当前服务。
+            let editing = editingProfileID != nil
+            let key = editing ? draftKey : (store.loadAPIKey() ?? "")
+            let endpoint = editing ? draftEndpoint : store.endpoint
+            let model = editing ? draftModel : store.model
 
             let urlStr = endpoint.hasSuffix("/chat/completions") ? endpoint : endpoint + "/chat/completions"
             guard let url = URL(string: urlStr) else {

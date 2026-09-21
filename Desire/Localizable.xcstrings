@@ -23,50 +23,6 @@
         }
       }
     },
-    "%lld cross-origin stylesheets not readable." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cross-origin stylesheets not readable."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 张跨域样式表无法读取。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 張跨來源樣式表無法讀取。"
-          }
-        }
-      }
-    },
-    "%lld entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld entries"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 条"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 筆"
-          }
-        }
-      }
-    },
     ":" : {
       "localizations" : {
         "en" : {
@@ -151,578 +107,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "!important"
-          }
-        }
-      }
-    },
-    "Apply" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "应用"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "套用"
-          }
-        }
-      }
-    },
-    "Block This Host" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Block This Host"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "屏蔽此主机"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "封鎖此主機"
-          }
-        }
-      }
-    },
-    "Block This URL" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Block This URL"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "屏蔽此 URL"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "封鎖此 URL"
-          }
-        }
-      }
-    },
-    "Cache Storage" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cache Storage"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缓存存储"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快取儲存"
-          }
-        }
-      }
-    },
-    "Couldn't load this image (cross-origin or too large)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't load this image (cross-origin or too large)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法加载这张图片（跨域或体积过大）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法載入這張圖片（跨來源或體積過大）。"
-          }
-        }
-      }
-    },
-    "DOM Tree" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DOM Tree"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DOM 树"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DOM 樹"
-          }
-        }
-      }
-    },
-    "Databases of this origin, with their object stores." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Databases of this origin, with their object stores."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源的数据库及其对象存储。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源的資料庫及其物件儲存。"
-          }
-        }
-      }
-    },
-    "Entries of this origin's Cache Storage (service worker caches)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entries of this origin's Cache Storage (service worker caches)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源 Cache Storage 的条目（Service Worker 的缓存）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源 Cache Storage 的項目（Service Worker 的快取）。"
-          }
-        }
-      }
-    },
-    "Handle expired" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Handle expired"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "句柄已失效"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "控制代碼已失效"
-          }
-        }
-      }
-    },
-    "IndexedDB" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "IndexedDB"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "IndexedDB"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "IndexedDB"
-          }
-        }
-      }
-    },
-    "Initiator" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Initiator"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发起者"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "發起者"
-          }
-        }
-      }
-    },
-    "Interception rules are global and apply from the next load." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Interception rules are global and apply from the next load."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拦截规则是全局的，下次加载生效。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "攔截規則是全域的，下次載入生效。"
-          }
-        }
-      }
-    },
-    "Matching Rules (%lld)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Matching Rules (%lld)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命中的规则（%lld）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命中的規則（%lld）"
-          }
-        }
-      }
-    },
-    "Messages (%lld)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Messages (%lld)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "消息（%lld）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "訊息（%lld）"
-          }
-        }
-      }
-    },
-    "No IndexedDB databases" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No IndexedDB databases"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有 IndexedDB 数据库"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有 IndexedDB 資料庫"
-          }
-        }
-      }
-    },
-    "No cache entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No cache entries"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有缓存条目"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有快取項目"
-          }
-        }
-      }
-    },
-    "No enumerable properties" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No enumerable properties"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可枚举属性"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有可列舉屬性"
-          }
-        }
-      }
-    },
-    "No messages yet." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No messages yet."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有消息。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚無訊息。"
-          }
-        }
-      }
-    },
-    "No page loaded." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No page loaded."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有已加载的页面。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有已載入的頁面。"
-          }
-        }
-      }
-    },
-    "No service workers" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No service workers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有 Service Worker"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有 Service Worker"
-          }
-        }
-      }
-    },
-    "Preview" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preview"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "预览"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預覽"
-          }
-        }
-      }
-    },
-    "Preview Image" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preview Image"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "预览图片"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預覽圖片"
-          }
-        }
-      }
-    },
-    "Redirect To" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Redirect To"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重定向到"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新導向至"
-          }
-        }
-      }
-    },
-    "Redirect To…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Redirect To…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重定向到…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新導向至…"
-          }
-        }
-      }
-    },
-    "Service Workers" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Service Workers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Service Worker"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Service Worker"
-          }
-        }
-      }
-    },
-    "Service workers registered by this origin." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Service workers registered by this origin."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源注册的 Service Worker。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本站源註冊的 Service Worker。"
           }
         }
       }
@@ -926,6 +310,7 @@
       }
     },
     "%@ — %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -943,6 +328,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ — %@"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@"
           }
         }
       }
@@ -1232,6 +639,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個進行中"
+          }
+        }
+      }
+    },
+    "%lld cross-origin stylesheets not readable." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cross-origin stylesheets not readable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 张跨域样式表无法读取。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張跨來源樣式表無法讀取。"
+          }
+        }
+      }
+    },
+    "%lld entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 筆"
           }
         }
       }
@@ -2381,6 +1832,29 @@
         }
       }
     },
+    "add a model name…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "add a model name…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加模型名…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增模型名稱…"
+          }
+        }
+      }
+    },
     "Add binary name…" : {
       "localizations" : {
         "en" : {
@@ -2449,7 +1923,30 @@
         }
       }
     },
+    "Add Custom Service" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custom Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加自定义服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增自訂服務"
+          }
+        }
+      }
+    },
     "Add endpoints in Settings → Agent" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2473,9 +1970,24 @@
     },
     "Add Key" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Key" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增键" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增鍵" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增键"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增鍵"
+          }
+        }
       }
     },
     "Add Rule" : {
@@ -3042,6 +2554,28 @@
         }
       }
     },
+    "All Tabs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Tabs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部标签页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部標籤頁"
+          }
+        }
+      }
+    },
     "All tools run without approval — including code execution" : {
       "localizations" : {
         "en" : {
@@ -3082,28 +2616,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有工具無需審批即可執行——包括程式碼執行。可在輸入欄切換。"
-          }
-        }
-      }
-    },
-    "All Tabs" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Tabs"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部标签页"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部標籤頁"
           }
         }
       }
@@ -3357,6 +2869,28 @@
         }
       }
     },
+    "API Key" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 金鑰"
+          }
+        }
+      }
+    },
     "API Permissions:" : {
       "localizations" : {
         "en" : {
@@ -3442,6 +2976,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "對所有提供方生效。"
+          }
+        }
+      }
+    },
+    "Apply" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套用"
           }
         }
       }
@@ -4348,6 +3904,50 @@
         }
       }
     },
+    "Block This Host" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Block This Host"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏蔽此主机"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封鎖此主機"
+          }
+        }
+      }
+    },
+    "Block This URL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Block This URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏蔽此 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封鎖此 URL"
+          }
+        }
+      }
+    },
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4666,6 +4266,28 @@
         }
       }
     },
+    "Built-in" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內建"
+          }
+        }
+      }
+    },
     "by %@" : {
       "localizations" : {
         "en" : {
@@ -4707,6 +4329,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快取"
+          }
+        }
+      }
+    },
+    "Cache Storage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache Storage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缓存存储"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快取儲存"
           }
         }
       }
@@ -5613,6 +5257,7 @@
       }
     },
     "Click to switch." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5793,6 +5438,7 @@
       }
     },
     "Cloud API" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7028,6 +6674,28 @@
         }
       }
     },
+    "Couldn't load this image (cross-origin or too large)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load this image (cross-origin or too large)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法加载这张图片（跨域或体积过大）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入這張圖片（跨來源或體積過大）。"
+          }
+        }
+      }
+    },
     "Couldn't read this session file" : {
       "localizations" : {
         "en" : {
@@ -7543,6 +7211,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "深色模式已啟用"
+          }
+        }
+      }
+    },
+    "Databases of this origin, with their object stores." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Databases of this origin, with their object stores."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源的数据库及其对象存储。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源的資料庫及其物件儲存。"
           }
         }
       }
@@ -8447,6 +8137,50 @@
         }
       }
     },
+    "DOM Tree" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM Tree"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM 树"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DOM 樹"
+          }
+        }
+      }
+    },
+    "domain" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "domain"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "域"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網域"
+          }
+        }
+      }
+    },
     "Domain" : {
       "comment" : "Certificate domain label",
       "localizations" : {
@@ -8765,6 +8499,28 @@
         }
       }
     },
+    "Duplicate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製"
+          }
+        }
+      }
+    },
     "Duplicate Tab" : {
       "comment" : "Context menu: duplicate tab",
       "localizations" : {
@@ -8853,6 +8609,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每個配置檔案擁有隔離的 Cookie/工作階段儲存(工作與私人分開)。從視窗工具列切換配置檔案;該視窗的新標籤頁使用對應檔案的資料。"
+          }
+        }
+      }
+    },
+    "Each service carries its own endpoint, model, headers and API key." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each service carries its own endpoint, model, headers and API key."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个服务自带端点、模型、请求头与 API 密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個服務自帶端點、模型、請求標頭與 API 金鑰。"
           }
         }
       }
@@ -8997,9 +8775,24 @@
     },
     "Edit Value" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Value" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑值" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯值" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Value"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯值"
+          }
+        }
       }
     },
     "Edit…" : {
@@ -9209,6 +9002,28 @@
         }
       }
     },
+    "Endpoint URL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endpoint URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端点 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端點 URL"
+          }
+        }
+      }
+    },
     "Enter Full Screen" : {
       "comment" : "View menu",
       "extractionState" : "stale",
@@ -9252,6 +9067,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入分組名稱"
+          }
+        }
+      }
+    },
+    "Entries of this origin's Cache Storage (service worker caches)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entries of this origin's Cache Storage (service worker caches)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源 Cache Storage 的条目（Service Worker 的缓存）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源 Cache Storage 的項目（Service Worker 的快取）。"
           }
         }
       }
@@ -9802,9 +9639,24 @@
     },
     "Extension Storage" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Extension Storage" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扩展存储" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "擴充功能儲存" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extension Storage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扩展存储"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "擴充功能儲存"
+          }
+        }
       }
     },
     "Extensions" : {
@@ -9825,6 +9677,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "擴充功能"
+          }
+        }
+      }
+    },
+    "Extra Headers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extra Headers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "额外请求头"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "額外請求標頭"
           }
         }
       }
@@ -9920,6 +9794,7 @@
       }
     },
     "Fetch" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9941,7 +9816,30 @@
         }
       }
     },
+    "Fetch from API" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fetch from API"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 API 拉取"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 API 取得"
+          }
+        }
+      }
+    },
     "Fetch Models" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9964,6 +9862,7 @@
       }
     },
     "Fetched from API" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10711,6 +10610,7 @@
       }
     },
     "Full chat-completions URL." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11159,7 +11059,30 @@
         }
       }
     },
+    "Handle expired" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handle expired"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "句柄已失效"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "控制代碼已失效"
+          }
+        }
+      }
+    },
     "Hide" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11566,6 +11489,28 @@
         }
       }
     },
+    "https://…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://…"
+          }
+        }
+      }
+    },
     "I'm looking at this page and want to ask:" : {
       "localizations" : {
         "en" : {
@@ -11948,6 +11893,28 @@
         }
       }
     },
+    "IndexedDB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IndexedDB"
+          }
+        }
+      }
+    },
     "Info" : {
       "localizations" : {
         "en" : {
@@ -11966,6 +11933,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資訊"
+          }
+        }
+      }
+    },
+    "Initiator" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Initiator"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发起者"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發起者"
           }
         }
       }
@@ -12082,6 +12071,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安裝…"
+          }
+        }
+      }
+    },
+    "Interception rules are global and apply from the next load." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interception rules are global and apply from the next load."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拦截规则是全局的，下次加载生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "攔截規則是全域的，下次載入生效。"
           }
         }
       }
@@ -12244,11 +12255,26 @@
         }
       }
     },
-    "Keys of this page's storage — add or edit them here." : {
+    "Key saved" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keys of this page's storage — add or edit them here." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前页面存储的键值 —— 可在此新增或修改。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前頁面儲存的鍵值 —— 可在此新增或修改。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key saved"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存金鑰"
+          }
+        }
       }
     },
     "Keyboard Shortcuts" : {
@@ -12270,6 +12296,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速鍵"
+          }
+        }
+      }
+    },
+    "Keys of this page's storage — add or edit them here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys of this page's storage — add or edit them here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前页面存储的键值 —— 可在此新增或修改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前頁面儲存的鍵值 —— 可在此新增或修改。"
           }
         }
       }
@@ -12812,6 +12860,28 @@
         }
       }
     },
+    "Manage Services…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Services…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理服务…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理服務…"
+          }
+        }
+      }
+    },
     "Margin" : {
       "localizations" : {
         "en" : {
@@ -12921,6 +12991,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "符合：%@"
+          }
+        }
+      }
+    },
+    "Matching Rules (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matching Rules (%lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命中的规则（%lld）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命中的規則（%lld）"
           }
         }
       }
@@ -13173,6 +13265,28 @@
         }
       }
     },
+    "Messages (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messages (%lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "消息（%lld）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訊息（%lld）"
+          }
+        }
+      }
+    },
     "Method" : {
       "localizations" : {
         "en" : {
@@ -13280,6 +13394,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模型"
+          }
+        }
+      }
+    },
+    "Model Services" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model Services"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型服務"
           }
         }
       }
@@ -13989,6 +14125,28 @@
         }
       }
     },
+    "No cache entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cache entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有缓存条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有快取項目"
+          }
+        }
+      }
+    },
     "No console messages" : {
       "localizations" : {
         "en" : {
@@ -14257,11 +14415,48 @@
         }
       }
     },
+    "No enumerable properties" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No enumerable properties"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可枚举属性"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可列舉屬性"
+          }
+        }
+      }
+    },
     "No extension storage" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No extension storage" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有扩展存储" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有擴充功能儲存" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No extension storage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有扩展存储"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有擴充功能儲存"
+          }
+        }
       }
     },
     "No Forward History" : {
@@ -14310,6 +14505,28 @@
         }
       }
     },
+    "No IndexedDB databases" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No IndexedDB databases"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 IndexedDB 数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有 IndexedDB 資料庫"
+          }
+        }
+      }
+    },
     "No internet connection" : {
       "localizations" : {
         "en" : {
@@ -14350,6 +14567,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無網路連線"
+          }
+        }
+      }
+    },
+    "No key" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定金鑰"
           }
         }
       }
@@ -14510,7 +14749,52 @@
         }
       }
     },
+    "No messages yet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No messages yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有消息。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無訊息。"
+          }
+        }
+      }
+    },
+    "no model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no model"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未选模型"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未選模型"
+          }
+        }
+      }
+    },
     "No models cached — refresh to load them" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14528,6 +14812,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫無快取模型 — 點選重新整理載入"
+          }
+        }
+      }
+    },
+    "No models yet — refresh, or add one in Settings → Agent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No models yet — refresh, or add one in Settings → Agent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有模型——刷新，或在“设置 → Agent”里添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有模型——重新整理，或在「設定 → Agent」裡新增。"
+          }
+        }
+      }
+    },
+    "No page loaded." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No page loaded."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有已加载的页面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有已載入的頁面。"
           }
         }
       }
@@ -14819,6 +15147,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫無搜尋紀錄"
+          }
+        }
+      }
+    },
+    "No service workers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No service workers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Service Worker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有 Service Worker"
           }
         }
       }
@@ -15698,6 +16048,7 @@
       }
     },
     "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15720,6 +16071,7 @@
       }
     },
     "Or Type Model Name" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16574,9 +16926,24 @@
     },
     "Plugins that use chrome.storage.local show their keys here." : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Plugins that use chrome.storage.local show their keys here." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 chrome.storage.local 的插件会在这里显示其键值。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用 chrome.storage.local 的擴充功能會在這裡顯示其鍵值。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plugins that use chrome.storage.local show their keys here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 chrome.storage.local 的插件会在这里显示其键值。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 chrome.storage.local 的擴充功能會在這裡顯示其鍵值。"
+          }
+        }
       }
     },
     "Position relative to the current tab." : {
@@ -16643,6 +17010,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按下新的快速鍵…"
+          }
+        }
+      }
+    },
+    "Preview" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預覽"
+          }
+        }
+      }
+    },
+    "Preview Image" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview Image"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览图片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預覽圖片"
           }
         }
       }
@@ -16875,6 +17286,7 @@
       }
     },
     "Provider Presets" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16964,6 +17376,7 @@
       }
     },
     "Quick setup — click to fill endpoint + model." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17231,6 +17644,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "紅色"
+          }
+        }
+      }
+    },
+    "Redirect To" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redirect To"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重定向到"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新導向至"
+          }
+        }
+      }
+    },
+    "Redirect To…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redirect To…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重定向到…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新導向至…"
           }
         }
       }
@@ -17661,6 +18118,7 @@
       }
     },
     "Remove Key" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18831,6 +19289,7 @@
       }
     },
     "Save Key" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18918,7 +19377,30 @@
         }
       }
     },
+    "Save Service" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存服務"
+          }
+        }
+      }
+    },
     "Save this endpoint + model configuration" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18963,6 +19445,7 @@
       }
     },
     "Saved Configurations" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18985,6 +19468,7 @@
       }
     },
     "Saved Endpoints" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20085,6 +20569,72 @@
         }
       }
     },
+    "Service Workers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Workers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Worker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service Worker"
+          }
+        }
+      }
+    },
+    "Service workers registered by this origin." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service workers registered by this origin."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源注册的 Service Worker。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站源註冊的 Service Worker。"
+          }
+        }
+      }
+    },
+    "Services" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Services"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服務"
+          }
+        }
+      }
+    },
     "Session" : {
       "localizations" : {
         "en" : {
@@ -20265,13 +20815,6 @@
         }
       }
     },
-    "Shared (legacy)" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared (legacy)" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共享存储（旧版）" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "共用儲存（舊版）" } }
-      }
-    },
     "Share…" : {
       "comment" : "More menu: share",
       "localizations" : {
@@ -20291,6 +20834,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享…"
+          }
+        }
+      }
+    },
+    "Shared (legacy)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared (legacy)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享存储（旧版）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共用儲存（舊版）"
           }
         }
       }
@@ -20318,6 +20883,7 @@
       }
     },
     "Show" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21153,6 +21719,7 @@
       }
     },
     "Stored in the macOS Keychain." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

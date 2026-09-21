@@ -401,6 +401,14 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **模型配置的单一真相 = `AIProviderProfile`**（2026-09-21 重做）：每个服务自带
+  端点、模型、模型清单、额外请求头与**自己的 Keychain 账号**；
+  `AgentPreferenceStore.endpoint` / `.model` 只是**当前档案的视图**（providers
+  照旧读这两个名字，不用改）。**不要再往 `cloudProviderID` 式的全局字段里加东西**
+  ——自定义网关正是被"Key 按 provider id 存"卡住的（4 个预设之外的端点只能共用
+  预设的 Key）。老字段（`aiCloudProviderID`/`aiEndpoint`/`aiSavedEndpoints`/
+  `ai-api-key`）只在首次迁移时读。改这块时注意：`profiles` 在 init 里赋值不触发
+  `didSet`，迁移后要显式 `DiskStore.save`。
 - **互相递归的 SwiftUI 视图要类型擦除**（2026-09-21 实测）：Console 的对象 chip
   （`objectChip` ↔ `refDetail`）互相调用，两个都返回 `some View` 时报
   "function opaque return type was inferred as … which defines the opaque type in

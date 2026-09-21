@@ -1,5 +1,32 @@
 ## [Unreleased]
 
+### Changed
+
+- **Agent 的模型配置重做成"模型服务"（一等公民）**：此前只有 4 个写死的预设
+  （OpenAI / DeepSeek / 智谱 / OpenCode Go），自定义端点只能去蹭某个预设的
+  Keychain 条目——`cloudProviderID` 决定用哪把 Key，而它只能由预设写入；"已保存
+  配置"又只存 name/url/model，换一个网关就得重填。现在：
+  - **每个服务是一条档案**：名字、端点、模型、模型清单、额外请求头、**自己的
+    API Key**。内置 4 个降级为不可删的内置档案（可改、可复制），自定义服务可增删改。
+  - 设置页的 Cloud 区改成服务列表（名字 + 主机·模型 + Key 状态 + 选中态），行内
+    编辑器能改名字/端点/模型/Key、增删**模型清单**（可一键从 `/models` 拉取）、
+    增删**额外请求头**，并能就地测试连接。
+  - 运行时按档案装配请求：端点/模型/Key 都取自当前服务，**额外请求头会真的发出去**
+    （`Authorization` / `Content-Type` 不允许被覆盖）。输入栏的模型菜单列的是当前
+    服务的模型，并能直接切换服务。
+  - **迁移透明**：老的 `aiCloudProviderID` / `aiEndpoint` / `aiModel` 与
+    `savedEndpoints` 自动变成档案（各带原来那把 Key），单键 `ai-api-key` 迁进内置
+    OpenAI 档案——升级后不用重新输入。
+  - **端到端实测**（用一个假的 OpenAI 兼容端点回显收到的头）：新建自定义服务
+    `{name:"Local Fake", endpoint:"http://127.0.0.1:8880/v1/chat/completions",
+    model:"fake-1", key:"sk-probe-42", headers:{"X-Tenant":"acme"}}` → 激活 →
+    `POST /agent/send` → 模型回复 `auth=Bearer sk-probe-42; tenant=acme;
+    model=fake-1`：自定义 Key 与自定义请求头确实到了服务端。内置档案删除被拒绝，
+    更新保留模型清单与请求头。
+- **桥端点**：`GET /ai/profiles`、`POST /ai/profiles`（新建/更新，可带 key /
+  models / headers）、`POST /ai/profiles/activate`、`POST /ai/profiles/delete`。
+- 新增 15 条三语文案；`SavedAIEndpoint` 与 `cloudProviderID` 退役（只用于迁移）。
+
 ### Added
 
 - **Console 的对象是"真对象"了**：此前参数在捕获时就 `JSON.stringify`，于是

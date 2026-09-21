@@ -12,7 +12,7 @@ struct AgentModelMenu: View {
     var body: some View {
         Menu {
             Section("Models") {
-                ForEach(store.preference.cachedModels.prefix(40), id: \.self) { model in
+                ForEach(availableModels.prefix(40), id: \.self) { model in
                     Button {
                         store.preference.model = model
                         store.preference.providerKind = .cloud
@@ -24,8 +24,8 @@ struct AgentModelMenu: View {
                         )
                     }
                 }
-                if store.preference.cachedModels.isEmpty {
-                    Text("No models cached — refresh to load them")
+                if availableModels.isEmpty {
+                    Text("No models yet — refresh, or add one in Settings → Agent")
                 }
                 Button {
                     refreshModels()
@@ -55,21 +55,24 @@ struct AgentModelMenu: View {
                           systemImage: store.preference.providerKind == .ollama ? "checkmark" : "server.rack")
                 }
             }
-            Section("Saved Endpoints") {
-                ForEach(store.preference.savedEndpoints) { ep in
+            // 服务档案（内置预设 + 自定义服务）：切换 = 换端点 + 换模型 + 换 Key。
+            Section("Services") {
+                ForEach(store.preference.profiles) { profile in
                     Button {
-                        store.preference.activeEndpointID = ep.id
+                        store.preference.activateProfile(id: profile.id)
                         store.preference.providerKind = .cloud
-                        store.preference.cloudProviderID = Self.providerID(for: ep.url)
-                        store.preference.endpoint = ep.url
-                        store.preference.model = ep.model
                     } label: {
-                        Label("\(ep.name) — \(ep.model)",
-                              systemImage: store.preference.activeEndpointID == ep.id && store.preference.providerKind == .cloud ? "checkmark" : "globe")
+                        Label(
+                            profile.model.isEmpty ? profile.name : "\(profile.name) — \(profile.model)",
+                            systemImage: store.preference.activeProfileID == profile.id && store.preference.providerKind == .cloud
+                                ? "checkmark" : "globe"
+                        )
                     }
                 }
-                if store.preference.savedEndpoints.isEmpty {
-                    Text("Add endpoints in Settings → Agent")
+                Button {
+                    openWindow(id: "settings")
+                } label: {
+                    Label("Manage Services…", systemImage: "plus")
                 }
             }
         } label: {
@@ -105,26 +108,21 @@ struct AgentModelMenu: View {
         return model.isEmpty ? "No model" : model
     }
 
-    /// Tilde-abbreviated working directory for the menu info row.
-    /// Rough share of the agent context budget the stored conversation
-    /// occupies (same 160k-char estimate as AgentSessionStore.compactForContext).
-    /// Maps an endpoint URL to the per-provider Keychain account suffix
-    /// ("ai-key-<providerID>") so a switch loads the right key.
-    private static func providerID(for url: String) -> String {
-        let known: [(String, String)] = [
-            ("openrouter", "openrouter"), ("deepseek", "deepseek"),
-            ("bigmodel", "zhipu"), ("zhipu", "zhipu"),
-            ("opencode", "opencode-go"), ("openai", "openai"),
-        ]
-        let lower = url.lowercased()
-        for (fragment, id) in known where lower.contains(fragment) {
-            return id
+    /// 当前服务档案的模型候选：档案自己的清单 + 从 /models 拉回的缓存
+    /// （去重、保持档案内的顺序）。
+    private var availableModels: [String] {
+        var seen = Set<String>()
+        var models: [String] = []
+        for model in (store.preference.activeProfile?.modelList ?? []) + store.preference.cachedModels {
+            guard !model.isEmpty, !seen.contains(model) else { continue }
+            seen.insert(model)
+            models.append(model)
         }
-        return "openai"
+        return models
     }
 
-    /// Pulls the live model list from the active endpoint's /models and
-    /// caches it for the dropdown (and across launches).
+    /// 从当前服务的 /models 拉取模型列表：写进该档案（换服务时各看各的），
+    /// 同时更新 input bar 的缓存。
     private func refreshModels() {
         guard !isRefreshingModels else { return }
         isRefreshingModels = true
@@ -133,9 +131,9 @@ struct AgentModelMenu: View {
             let endpoint = store.preference.endpoint
             let key = store.preference.loadAPIKey() ?? ""
             let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
-            if !models.isEmpty {
-                store.preference.cachedModels = models
-            }
+            guard !models.isEmpty else { return }
+            store.preference.cachedModels = models
+            store.preference.applyModelList(models)
         }
     }
 }

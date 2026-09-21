@@ -375,7 +375,7 @@ final class AutomationServer {
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
-        ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
+        ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
@@ -1076,7 +1076,11 @@ final class AutomationServer {
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
-                return try Self.json(Self.agentSend(Self.string(body, "text"), window: Self.string(body, "window")))
+                return try Self.json(Self.agentSend(
+                    Self.string(body, "text"),
+                    window: Self.string(body, "window"),
+                    recordHistory: (body["recordHistory"] as? Bool) ?? false
+                ))
             case ("GET", "/agent/crew"):
                 let c = AgentCrewStore.shared.crew
                 guard let c else { return try Self.json(["crew": NSNull()]) }
@@ -2600,7 +2604,12 @@ final class AutomationServer {
             if let calls = message.toolCalls { item["toolCalls"] = calls.map(\.function.name) }
             return item
         }
-        return ["messages": Array(messages), "busy": session.isProcessing]
+        return [
+            "messages": Array(messages),
+            "busy": session.isProcessing,
+            // 输入历史（按对话保存，面板 ↑/↓ 翻阅的那份）
+            "inputHistory": Array(session.inputHistory.suffix(20)),
+        ]
     }
 
     /// Resolves the target session: explicit `window` UUID wins, else the
@@ -2849,12 +2858,12 @@ final class AutomationServer {
         return ["ok": true, "wasBusy": wasBusy, "window": window ?? "newest"]
     }
 
-    private static func agentSend(_ text: String?, window: String?) throws -> [String: Any] {
+    private static func agentSend(_ text: String?, window: String?, recordHistory: Bool = false) throws -> [String: Any] {
         guard let text, !text.isEmpty else { return ["error": "missing text"] }
         guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
-        session.sendMessage(text)
+        session.sendMessage(text, recordHistory: recordHistory)
         return ["ok": true, "window": window ?? "newest"]
     }
 

@@ -419,6 +419,12 @@ Features/Bookmarks/
   DeepSeek 这类服务直接拒（400）；③ 展示是**折叠块**，流式思考时自动展开、正文一开始自动
   收起，用户手动点过之后不再自动切换（`ReasoningBlock`，`isLive = isStreamingTail &&
   content.isEmpty`）。
+- **输入历史记在 `sendMessage`，不是面板里**（2026-09-21 用户需求后又修正）：Agent 输入框
+  ↑/↓ 翻的是**按对话**保存的 `inputHistory`（随会话文件落盘，上限 100、相邻去重）。
+  最初我把 `rememberInput` 放在 `AgentPanel.submit()`，结果**桥/排队的发送路径绕过了它**
+  ——记录点放进 `sendMessage` 并加 `recordHistory`（默认 true = 用户输入；桥/调度传
+  false，免得自动化提示词混进用户历史）。↑/↓ 只在输入框为空或已在翻阅时接管，否则
+  交还 TextEditor（多行编辑的光标移动不能被历史抢走）。
 - **请求里 system 只能有一条、且必须在开头**（2026-09-21 实测）：OpenAI 兼容服务
   （amd 网关实测）拒绝夹在对话中间的 system 消息，报 `System message must be at the
   beginning.`。所以**带外备注（`appendExternalNote`，下载完成之类的 system 消息）不能

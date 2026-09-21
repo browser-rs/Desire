@@ -16,6 +16,10 @@ struct AgentPanel: View {
     @ObservedObject var conversationStore: ConversationStore
 
     @State private var inputText = ""
+    /// 输入历史翻阅位置（nil = 不在翻阅）。历史本身在 store 里、按对话保存。
+    @State private var historyIndex: Int?
+    /// 上一次的文本变化来自历史回填（据此区分"用户手打" → 退出翻阅）。
+    @State private var recalledFromHistory = false
     @State private var showHistory = false
     @State private var showCapabilities = false
     @State private var showMemory = false
@@ -282,12 +286,43 @@ struct AgentPanel: View {
                     store.cancel()
                 },
                 isFocused: $isInputFocused,
+                onHistoryUp: {
+                    let history = store.inputHistory
+                    guard !history.isEmpty else { return nil }
+                    let next = historyIndex.map { max(0, $0 - 1) } ?? (history.count - 1)
+                    historyIndex = next
+                    recalledFromHistory = true
+                    return history[next]
+                },
+                onHistoryDown: {
+                    guard let index = historyIndex else { return nil }
+                    guard index + 1 < store.inputHistory.count else {
+                        historyIndex = nil
+                        recalledFromHistory = true
+                        return ""          // 翻过最新一条 → 回到空白草稿
+                    }
+                    historyIndex = index + 1
+                    recalledFromHistory = true
+                    return store.inputHistory[index + 1]
+                },
+                isBrowsingHistory: historyIndex != nil,
                 voiceManager: voiceManager,
                 modelMenu: AnyView(AgentModelMenu(store: store, preference: store.preference)),
                 fullAccessPill: AnyView(AgentFullAccessPill(store: store))
             )
             .frame(maxWidth: Self.contentMaxWidth)
             .frame(maxWidth: .infinity)
+            .onChange(of: inputText) { _, _ in
+                // 历史回填的那次变化不算"手打"；其余任何输入都退出翻阅状态。
+                if recalledFromHistory {
+                    recalledFromHistory = false
+                } else {
+                    historyIndex = nil
+                }
+            }
+            .onChange(of: store.conversationId) { _, _ in
+                historyIndex = nil      // 换了对话：历史也跟着换
+            }
             .onChange(of: voiceManager.transcribedText) { _, newText in
                 inputText = newText
             }
@@ -518,6 +553,7 @@ struct AgentPanel: View {
     private func submit() {
         let text = inputText
         let images = pendingImages.isEmpty ? nil : pendingImages
+        historyIndex = nil            // 输入历史由 sendMessage 记录（按对话）
         inputText = ""
         pendingImages = []
         if store.awaitingQuestion {

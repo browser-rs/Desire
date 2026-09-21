@@ -20,6 +20,12 @@ struct AgentInputBar: View {
     var onCancel: () -> Void = {}
     var onCancelQuestion: () -> Void
     @FocusState.Binding var isFocused: Bool
+    /// 输入历史翻阅（↑/↓）。返回要填入的文本；nil = 没有可翻的。
+    /// **只在输入框为空或正在翻阅时接管方向键**，否则让 TextEditor 自己移动光标。
+    var onHistoryUp: (() -> String?)?
+    var onHistoryDown: (() -> String?)?
+    /// 正在翻阅历史（由调用方维护）：为空时按 ↓ 应该回到空白草稿。
+    var isBrowsingHistory: Bool = false
     /// Voice input manager — nil hides the mic button.
     var voiceManager: VoiceInputManager? = nil
     /// Model/provider switcher capsule — right group, next to send.
@@ -147,6 +153,18 @@ struct AgentInputBar: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .frame(minHeight: 32, maxHeight: 120)
+                    .onKeyPress(.upArrow) {
+                        // 空输入框（或已在翻阅）时把 ↑ 交给历史；否则保留光标移动。
+                        guard text.isEmpty || isBrowsingHistory else { return .ignored }
+                        guard let recalled = onHistoryUp?() else { return .ignored }
+                        text = recalled
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        guard isBrowsingHistory else { return .ignored }
+                        text = onHistoryDown?() ?? ""
+                        return .handled
+                    }
                     .onKeyPress(keys: [.return]) { press in
                         // Mainstream chat semantics: Enter sends,
                         // Shift+Enter inserts a newline, ⌘+Return is

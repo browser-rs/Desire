@@ -287,9 +287,13 @@ class AgentSessionStore: ObservableObject {
         }
     }
 
-    func sendMessage(_ text: String, images: [String]? = nil) {
+    /// `recordHistory`：把这条输入记进该对话的输入历史（面板输入框 ↑/↓ 翻阅的那份）。
+    /// 默认记录——**用户输入**才会走这里；桥/调度等自动化调用显式传 false，
+    /// 免得把机器人的提示词混进用户的历史。
+    func sendMessage(_ text: String, images: [String]? = nil, recordHistory: Bool = true) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
+        if recordHistory { rememberInput(trimmed) }
         // A second concurrent loop would interleave appends into `messages`
         // and corrupt tool-call/result pairing — queue instead.
         guard !isProcessing else {
@@ -405,6 +409,23 @@ class AgentSessionStore: ObservableObject {
         loopTask = Task { await processLoop() }
     }
 
+    /// 本对话的输入历史（面板输入框 ↑/↓ 翻阅）。**按对话**记录并随会话落盘，
+    /// 最新在末尾，最多 100 条；相邻重复不重复记录。
+    @Published private(set) var inputHistory: [String] = []
+    private let inputHistoryCap = 100
+
+    /// 记一条用户输入（面板提交时调用）。
+    func rememberInput(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard inputHistory.last != trimmed else { return }
+        inputHistory.append(trimmed)
+        if inputHistory.count > inputHistoryCap {
+            inputHistory.removeFirst(inputHistory.count - inputHistoryCap)
+        }
+        saveCurrentConversation()
+    }
+
     /// 从外部往会话追加一条 system 备注（后台任务完成等）。**不触发**新一轮模型
     /// 调用：面板里不渲染 system 消息（`AgentMessageBubble` 的 `.system` 是
     /// EmptyView），但下一轮请求会带上它，模型因此知道下载/导出已经结束。
@@ -438,6 +459,7 @@ class AgentSessionStore: ObservableObject {
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil
+        inputHistory.removeAll()   // 新对话从空历史开始
         isProcessing = false
         currentAction = nil
         isCancelled = false
@@ -466,6 +488,7 @@ class AgentSessionStore: ObservableObject {
         messages = conv.messages
         conversationId = conv.id
         conversationTitle = conv.title
+        inputHistory = conv.inputHistory ?? []   // 每个对话记自己的输入历史
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
@@ -501,7 +524,7 @@ class AgentSessionStore: ObservableObject {
             copy.imageDataURIs = nil
             return copy
         }
-        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: persistedMessages)
+        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory)
         conversationStore.save(conv)
     }
 

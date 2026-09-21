@@ -364,6 +364,7 @@ final class AutomationServer {
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
@@ -1025,6 +1026,8 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("POST", "/agent/cancel"):
+                return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
                 return try Self.json(Self.agentSend(Self.string(body, "text"), window: Self.string(body, "window")))
             case ("GET", "/agent/crew"):
@@ -2574,6 +2577,16 @@ final class AutomationServer {
             ]
         }
         return ["windows": windows]
+    }
+
+    /// 停掉正在跑的一轮（等价于面板里的 Esc / Stop）。
+    private static func agentCancel(window: String?) throws -> [String: Any] {
+        guard let session = resolveSession(window) else {
+            return ["error": "no live agent session"]
+        }
+        let wasBusy = session.isProcessing
+        session.cancel()
+        return ["ok": true, "wasBusy": wasBusy, "window": window ?? "newest"]
     }
 
     private static func agentSend(_ text: String?, window: String?) throws -> [String: Any] {

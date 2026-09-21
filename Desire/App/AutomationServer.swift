@@ -361,6 +361,7 @@ final class AutomationServer {
         ep("POST", "/ai/profiles", "Create (no id) or update a model service; key supported", params: ["id?:uuid", "name:string", "endpoint:string", "model?:string", "models?:array", "headers?:object", "key?:string"], example: #"-d '{"name":"My gateway","endpoint":"https://host/v1/chat/completions","model":"gpt-4o","key":"sk-…"}'"#)
         ep("POST", "/ai/profiles/activate", "Switch the active model service", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
+        ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
@@ -785,6 +786,8 @@ final class AutomationServer {
                     headers: (body["headers"] as? [String: String]) ?? [:],
                     key: Self.string(body, "key")
                 ))
+            case ("POST", "/ai/models/fetch"):
+                return try await Self.json(Self.aiFetchModels(id: Self.string(body, "id")))
             case ("POST", "/ai/model"):
                 return try Self.json(Self.aiSetModel(Self.string(body, "model") ?? ""))
             case ("POST", "/ai/profiles/activate"):

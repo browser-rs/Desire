@@ -575,7 +575,7 @@ struct AgentSettingsSection: View {
         VStack(alignment: .leading, spacing: 10) {
             editorField(String(localized: "Name"), text: $draftName, placeholder: "My gateway")
             editorField(String(localized: "Endpoint URL"), text: $draftEndpoint, placeholder: "https://host/v1/chat/completions")
-            editorField(String(localized: "Model"), text: $draftModel, placeholder: "gpt-4o")
+            draftModelPicker
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(String(localized: "API Key"))
@@ -704,6 +704,83 @@ struct AgentSettingsSection: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    /// 模型**下拉选择**（服务自己的模型清单 + 从 /models 拉到的），下面留一行
+    /// 手动输入兜底（随手敲的名字回车即记进清单，下次就能在下拉里选）。
+    @ViewBuilder
+    private var draftModelPicker: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(String(localized: "Model"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Menu {
+                let options = draftModelOptions
+                if options.isEmpty {
+                    Text("No models yet — fetch them or add names below")
+                } else {
+                    ForEach(options, id: \.self) { model in
+                        Button { draftModel = model } label: {
+                            Label(model, systemImage: draftModel == model ? "checkmark" : "cpu")
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text(draftModel.isEmpty ? String(localized: "Select a model…") : draftModel)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.08))
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .frame(maxWidth: 280, alignment: .leading)
+
+            HStack(spacing: 6) {
+                SettingsTextField(placeholder: "or type a model name…", text: $draftModel, width: 200)
+                    .onSubmit {
+                        let name = draftModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty, !draftModels.contains(name) else { return }
+                        draftModels.append(name)
+                    }
+                if !draftModel.trimmingCharacters(in: .whitespaces).isEmpty,
+                   !draftModels.contains(draftModel) {
+                    Button {
+                        draftModels.append(draftModel)
+                    } label: {
+                        Text(String(localized: "Add to list"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// 下拉里的候选：清单里的 + 拉取到的 + 当前值（三者去重）。
+    private var draftModelOptions: [String] {
+        var seen = Set<String>()
+        var models: [String] = []
+        for model in [draftModel] + draftModels + (fetchedModels ?? []) {
+            let name = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !seen.contains(name) else { continue }
+            seen.insert(name)
+            models.append(name)
+        }
+        return models
     }
 
     private func editorField(_ label: String, text: Binding<String>, placeholder: String) -> some View {

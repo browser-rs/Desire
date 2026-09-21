@@ -73,6 +73,39 @@ extension AutomationServer {
         return ["ok": true, "id": profileID.uuidString]
     }
 
+    /// 从某个服务的 `/models` 拉取模型清单并并进该档案——设置页的"Fetch from API"
+    /// 与输入栏菜单的"Refresh Model List"走的是同一个 `ModelListFetcher`。
+    static func aiFetchModels(id raw: String?) async -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        let profile: AIProviderProfile?
+        if let raw, let id = UUID(uuidString: raw) {
+            profile = store.profiles.first { $0.id == id }
+        } else {
+            profile = store.activeProfile
+        }
+        guard let profile else { return ["error": "no such profile"] }
+        let key = store.loadAPIKey(profileID: profile.id) ?? ""
+        let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key)) ?? []
+        guard !models.isEmpty else {
+            return ["error": "no models returned", "endpoint": profile.endpoint]
+        }
+        if let index = store.profiles.firstIndex(where: { $0.id == profile.id }) {
+            var seen = Set(store.profiles[index].modelList)
+            for model in models where !seen.contains(model) {
+                seen.insert(model)
+                store.profiles[index].modelList.append(model)
+            }
+        }
+        return [
+            "ok": true,
+            "profile": profile.name,
+            "count": models.count,
+            "models": models,
+            "modelList": store.profiles.first { $0.id == profile.id }?.modelList ?? [],
+        ]
+    }
+
     /// 切当前模型（走 `preference.model` 的 setter——输入栏菜单点一下走的是
     /// 同一条路径），顺带把 providerKind 固定成 cloud，与菜单行为一致。
     static func aiSetModel(_ model: String) -> [String: Any] {

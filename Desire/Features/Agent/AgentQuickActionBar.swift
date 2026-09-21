@@ -5,6 +5,9 @@ import SwiftUI
 struct AgentQuickActionBar: View {
     let isProcessing: Bool
     var onAction: (AgentQuickAction) -> Void
+    /// "重新生成"（可空）。**和快捷动作同一行**——分成两行看起来像两组无关的按钮
+    /// （用户实测反馈）。
+    var onRegenerate: (() -> Void)?
 
     var body: some View {
         // Horizontal scroll: in the narrow sidebar the 5 pills have less
@@ -35,6 +38,28 @@ struct AgentQuickActionBar: View {
                 .buttonStyle(.plain)
                 .disabled(isProcessing)
                 .help(action.prompt)
+                }
+                if let onRegenerate {
+                    Button(action: onRegenerate) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 10, weight: .medium))
+                            Text(String(localized: "Regenerate"))
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                        )
+                        .overlay(
+                            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isProcessing)
+                    .help("Re-run the last message")
                 }
             }
             Spacer(minLength: 0)

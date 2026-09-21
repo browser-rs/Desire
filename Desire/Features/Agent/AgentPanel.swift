@@ -197,30 +197,14 @@ struct AgentPanel: View {
             }
 
             if !store.messages.isEmpty && !store.awaitingQuestion && !store.isProcessing {
-                AgentQuickActionBar(isProcessing: store.isProcessing) { action in
-                    store.performQuickAction(action)
-                }
+                AgentQuickActionBar(
+                    isProcessing: store.isProcessing,
+                    onAction: { action in store.performQuickAction(action) },
+                    // 与快捷动作同一行（此前是独立的一行，看着像两组无关按钮）。
+                    onRegenerate: canRegenerate ? { store.regenerate() } : nil
+                )
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)
-            }
-
-            if canRegenerate {
-                HStack {
-                    Button {
-                        store.regenerate()
-                    } label: {
-                        Label("Regenerate", systemImage: "arrow.clockwise")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Re-run the last message")
-                    Spacer()
-                }
-                .frame(maxWidth: Self.contentMaxWidth)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 2)
             }
 
             if let question = promptCenter.pending {

@@ -139,10 +139,10 @@ struct AgentInputBar: View {
                     Text(placeholder)
                         .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
-                        // Matches the TextEditor's padding + its native text
-                        // inset, so the caret never sits on the glyphs.
+                        // 与 TextEditor 的 padding + 它的原生文本内缩对齐，
+                        // 光标不会压在占位文字上（编辑器上边距改大后这里跟着调）。
                         .padding(.horizontal, 14)
-                        .padding(.top, 8)
+                        .padding(.top, 12)
                         .allowsHitTesting(false)
                 }
 
@@ -151,7 +151,9 @@ struct AgentInputBar: View {
                     .scrollContentBackground(.hidden)
                     .focused($isFocused)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    // 上边距比下边大：单行时文字不要贴着边框（用户实测反馈）。
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
                     .frame(minHeight: 32, maxHeight: 120)
                     .onKeyPress(.upArrow) {
                         // 空输入框（或已在翻阅）时把 ↑ 交给历史；否则保留光标移动。
@@ -180,19 +182,16 @@ struct AgentInputBar: View {
 
             // Controls live in their OWN full-width row below the text —
             // beside a greedy TextEditor they'd all bunch to the right.
-            HStack(spacing: 0) {
+            // 统一间距：相邻控件一律 6pt（此前 4/6 混用，看起来忽紧忽松）。
+            HStack(spacing: 6) {
                 fullAccessPill
-                    .padding(.leading, 6)
                 attachButton
-                    .padding(.leading, 4)
                 micButton
-                    .padding(.leading, 4)
-                Spacer(minLength: 4)
+                Spacer(minLength: 6)
                 modelMenu
                 sendButton
-                    .padding(.leading, 6)
-                    .padding(.trailing, 6)
             }
+            .padding(.horizontal, 6)
             .padding(.bottom, 6)
         }
         .background(
@@ -238,18 +237,23 @@ struct AgentInputBar: View {
     }
 
     /// Opens the image picker (panel handled by the parent).
+    /// 输入栏控件的**共同规格**：26pt 高、同一描边与底色。
+    /// 此前是"20pt 胶囊 + 28pt 圆钮 + 三种描边"，一行里四种观感（用户反馈"和谐一点"）。
+    private enum Control {
+        static let size: CGFloat = 26
+        static let fill = Color(nsColor: .controlBackgroundColor).opacity(0.6)
+        static let stroke = Color(nsColor: .separatorColor).opacity(0.4)
+        static let strokeWidth: CGFloat = 0.5
+    }
+
     private var attachButton: some View {
         Button(action: onAddAttachment) {
             Image(systemName: "paperclip")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.secondary)
-                .frame(width: 28, height: 28)
-                .background(
-                    Circle().fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    Circle().stroke(Color.secondary.opacity(0.3), lineWidth: 0.8)
-                )
+                .frame(width: Control.size, height: Control.size)
+                .background(Circle().fill(Control.fill))
+                .overlay(Circle().stroke(Control.stroke, lineWidth: Control.strokeWidth))
         }
         .buttonStyle(.plain)
         .help("Attach image ( vision models)")
@@ -262,16 +266,15 @@ struct AgentInputBar: View {
                 vm.toggle()
             } label: {
                 Circle()
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .frame(width: 28, height: 28)
+                    .fill(Control.fill)
+                    .frame(width: Control.size, height: Control.size)
                     .overlay(
                         Image(systemName: vm.isRecording ? "mic.fill" : "mic")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(vm.isRecording ? Color.red : Color.secondary)
                     )
                     .overlay(
-                        Circle()
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 0.8)
+                        Circle().stroke(Control.stroke, lineWidth: Control.strokeWidth)
                     )
             }
             .buttonStyle(.plain)
@@ -294,9 +297,9 @@ struct AgentInputBar: View {
             ZStack {
                 Circle()
                     .fill(sendFill)
-                    .frame(width: 28, height: 28)
+                    .frame(width: Control.size, height: Control.size)
                 Image(systemName: showsStop ? "stop.fill" : "arrow.up")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 11.5, weight: .bold))
                     .foregroundStyle(sendForeground)
             }
         }
@@ -337,7 +340,7 @@ struct AgentInputBar: View {
 
     private var sendFill: Color {
         if showsStop { return Color.red.opacity(0.85) }
-        if !canSubmit { return Color(nsColor: .controlBackgroundColor) }
+        if !canSubmit { return Control.fill }        // 与其他控件同一底色（禁用态不突兀）
         if isHoveringSend { return appAccent.opacity(0.85) }
         return appAccent
     }

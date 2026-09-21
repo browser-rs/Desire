@@ -18,8 +18,9 @@ struct AgentFullAccessPill: View {
                     .lineLimit(1)
             }
             .foregroundStyle(store.fullAccess ? Color.orange : Color.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 9)
+            // 与输入栏其它控件同高、同描边（此前 20pt 胶囊和 28pt 圆钮混在一起）。
+            .frame(height: 26)
             .background(
                 Capsule().fill(
                     store.fullAccess
@@ -29,7 +30,7 @@ struct AgentFullAccessPill: View {
             )
             .overlay(
                 Capsule().stroke(
-                    (store.fullAccess ? Color.orange : Color(nsColor: .separatorColor)).opacity(0.5),
+                    (store.fullAccess ? Color.orange.opacity(0.5) : Color(nsColor: .separatorColor).opacity(0.4)),
                     lineWidth: 0.5
                 )
             )

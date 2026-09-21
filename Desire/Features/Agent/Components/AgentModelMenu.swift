@@ -92,8 +92,10 @@ struct AgentModelMenu: View {
                     .font(.system(size: 7, weight: .semibold))
             }
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 9)
+            // 与输入栏其它控件同高、同描边；`.tint(.secondary)` 是为了挡住强调色
+            // 渗进菜单标签——实测模型名会被染成强调色（用户强调色是红时像报错）。
+            .frame(height: 26)
             .background(
                 Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             )
@@ -102,6 +104,7 @@ struct AgentModelMenu: View {
             )
             .frame(maxWidth: 130)
         }
+        .tint(.secondary)
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()

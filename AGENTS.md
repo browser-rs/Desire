@@ -413,6 +413,18 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **长任务不能阻塞 agent 轮次**（2026-09-21，用户实测"下载一直在等待"）：
+  `downloadMedia` 曾 await 整个导出（HLS 几分钟）。现在的模式：工具**立刻返回任务 id**，
+  工作在 `MediaExportStore` 的后台 Task 里跑，完成时 ① 往会话追加 system 备注
+  （`AgentSessionStore.appendExternalNote`，面板不渲染 system 但模型能看到）
+  ② 发系统通知（懒请求授权）。**新增长任务工具照这个模式做**，不要再 await 到底；
+  进度用 `listMediaExports` / 桥 `GET /media/exports` 查。
+- **广告识别与屏蔽是"候选 + 理由 → 用户确认 → 规则"三步**（2026-09-21）：
+  `ad-candidates.js` 只读打分（class/id、跨域 iframe、广告联盟域名、覆盖层 z-index、
+  广告位尺寸、Sponsored 文案），`blockElements` 写 ElementBlockStore 并**立刻注入**隐藏
+  CSS（下次导航由 WebView 的 didFinish 自动注入）。**注意**：class 里带 `ad-` 这类元素
+  **内置过滤列表已经会隐藏**（实测 0×0），验证时要用规则拦不住的形态，否则会误判成
+  "AI 起效了"。规则可回滚：`GET /ads/rules`、`POST /ads/rules/clear`。
 - **聊天内容是一列同宽（2026-09-21）**：消息、快捷按钮行、重新生成、提问卡、审批条、
   排队条、输入框**统一 `AgentPanel.contentMaxWidth = 960`**（居中）；头部与状态条通栏。
   改宽度只改这一个常量。此前消息列单独 760、输入框通栏，面板拖宽后是"上面窄一列、

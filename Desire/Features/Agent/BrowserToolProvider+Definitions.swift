@@ -183,7 +183,7 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "downloadMedia", description: "Download a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Pair with listPageVideos: extract, confirm with the user which one, then download. The tool call blocks until the export finishes.",
+                name: "downloadMedia", description: "Start a BACKGROUND export of a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Returns a job id immediately — do NOT wait for it; the user is notified when it finishes and listMediaExports reports progress. Pair with listPageVideos: extract, confirm with the user which one, then start it.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),
                     "fileName": AgentJSONSchemaValue(type: "string", description: "Optional file name without extension"),
@@ -393,7 +393,26 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: ["title": AgentJSONSchemaValue(type: "string", description: "Custom title (optional)")])
             )),
 
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "findAdCandidates",
+                description: "Scan the current page for ad-like elements and return ranked candidates WITH the reason each one matched (class/id tokens, cross-origin iframe, ad network host, overlay z-index, standard ad slot size, ad label, iframe-in-block). Read-only: nothing is removed. Present the findings to the user, then call blockElements with the selectors they approve.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "blockElements",
+                description: "Hide elements on this site permanently (ElementBlockStore rules, applied now and on every future load of the host). Pass the selectors returned by findAdCandidates (or a selector the user gave you). Optionally also block matching network requests via InterceptStore. Prefer asking the user before blocking non-ad content.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "selectors": AgentJSONSchemaValue(type: "array", description: "CSS selectors to hide (from findAdCandidates)"),
+                    "urlPattern": AgentJSONSchemaValue(type: "string", description: "Host pattern the rule applies to; defaults to the current host; \"*.example.com\" or \"*\" also work"),
+                    "blockRequests": AgentJSONSchemaValue(type: "array", description: "Optional InterceptStore url-filters to block (ad hosts/paths)"),
+                ], required: ["selectors"])
+            )),
+
             // --- Downloads ---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listMediaExports", description: "Progress of background media exports started by downloadMedia (running / finished / failed, with file and size).",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listDownloads", description: "List all downloads with filenames and status",
                 parameters: AgentJSONSchema(type: "object", properties: [:])

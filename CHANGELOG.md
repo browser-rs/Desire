@@ -1,5 +1,36 @@
 ## [Unreleased]
 
+### Added
+
+- **Agent 的媒体下载不再阻塞对话**（用户实测反馈："下载的时候一直在等待，可以改成后台
+  异步吗"）：`downloadMedia` 此前**阻塞整轮**直到导出结束——HLS 视频动辄几分钟，面板上
+  就是"一直在等待"。现在它立刻返回任务 id，导出在后台跑：
+  - 完成后 ① 往会话追加一条 **system 备注**（面板不渲染 system 消息，但模型下一轮看得
+    到，用户也能在历史里看到）② 发一条 **macOS 系统通知**（**首次真正要通知时才请求
+    授权**，守 TCC 懒请求约定）。
+  - 新增 `listMediaExports` 工具让模型自己查进度；桥端点 `GET /media/exports` /
+    `POST /media/exports/cancel`。
+  - 实测：20MB 慢速文件（服务端限速约 10s）——**这一轮在 12.3s 结束（模型延迟），此时
+    任务仍是 running**；随后状态转 finished（`slow.bin.ts — 1 segment(s), 20.0 MB`），
+    会话里出现一条 `Download finished: …` 备注。此前这一轮必须等下载结束才能返回。
+- **AI 识别广告并一键屏蔽**（用户需求："通过 AI 识别页面广告并且设置拦截"）：
+  - 新脚本 `UserScripts/ad-candidates.js`：纯启发式**只读**扫描，返回带**理由**的候选
+    （class/id 关键词、跨域 iframe、广告联盟域名、覆盖层 z-index、标准广告位尺寸、
+    "广告/Sponsored" 文案、块内 iframe），按证据条数与面积排序。
+  - 新工具 **`findAdCandidates`**（扫描并解释）与 **`blockElements`**（按选择器批量屏蔽：
+    写 ElementBlockStore 规则 + **立刻**把隐藏 CSS 注进当前页，以后每次打开该站点自动
+    生效；可选 `blockRequests` 一并加网络层拦截）。
+  - 内置技能 `clean-page-ads` 固化了流程：先讲给用户听、由用户挑、只屏蔽广告不误伤正文、
+    可回滚。
+  - 桥端点：`GET /ads/candidates`、`POST /ads/block`、`GET /ads/rules`、
+    `POST /ads/rules/clear`（可回滚）。
+  - 实测（本地 fixture，故意用**规则拦不住**的形态）：5 个候选——跨域广告 iframe
+    （`iframe:ad-host` + `slot-size`）、"Sponsored: Acme Corp" 行（`link:ad-host`）、
+    300×250 卡位（`slot-size`）、全屏 cookie 覆盖层（`overlay:z2147483000`）；屏蔽后
+    三者 `display: none`，正文标题与段落仍是 `block`（无误伤），规则落库 3 条。
+  - **顺带发现**：class 里带 `ad-` 的元素**内置过滤列表已经隐藏**（fixture 里那个
+    `.ad-banner` 实测 0×0），所以 AI 这条链路真正的价值在"规则拦不住的"那类广告。
+
 ### Changed
 
 - **聊天内容的宽度上限统一并调大**（用户实测反馈）：消息列此前单独限 760pt、

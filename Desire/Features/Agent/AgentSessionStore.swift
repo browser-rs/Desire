@@ -405,6 +405,15 @@ class AgentSessionStore: ObservableObject {
         loopTask = Task { await processLoop() }
     }
 
+    /// 从外部往会话追加一条 system 备注（后台任务完成等）。**不触发**新一轮模型
+    /// 调用：面板里不渲染 system 消息（`AgentMessageBubble` 的 `.system` 是
+    /// EmptyView），但下一轮请求会带上它，模型因此知道下载/导出已经结束。
+    func appendExternalNote(_ text: String) {
+        messages.append(AgentMessage(role: .system, content: text))
+        streamingVersion += 1
+        saveCurrentConversation()
+    }
+
     func clear() {
         // The conversation is about to disappear — capture its L2 summary
         // first so "新对话" doesn't erase what happened.

@@ -649,37 +649,121 @@ extension BrowserToolProvider {
             return "\(lines.count) media resource(s):\n" + lines.joined(separator: "\n")
 
         case "downloadMedia":
-            // Export a media resource to ~/Downloads. Direct files stream to
-            // disk; HLS playlists (m3u8) are parsed, their segments fetched
-            // (with the page URL as Referer + the webview's Safari UA against
-            // hotlink protection), decrypted when AES-128, and concatenated
-            // into one playable file. Blocks this tool call until finished —
-            // progress lands in the result.
+            // 后台导出：直接文件流式落盘；HLS（m3u8）解析分片、按 Referer +
+            // Safari UA 抓取（对付防盗链）、AES-128 解密后拼成可播放文件。
+            // **不再阻塞这一轮**：HLS 导出动辄几分钟，等它结束会让整轮对话卡住
+            // （用户实测"一直在等待"）。现在立刻返回任务 id，完成后写会话备注 +
+            // 发系统通知，进度用 listMediaExports 查。
             guard let urlString = args["url"] as? String, let url = URL(string: urlString),
                   url.scheme == "http" || url.scheme == "https" else {
                 return "Invalid url (http/https only)"
             }
-            let hint = args["fileName"] as? String
+            let jobID = MediaExportStore.shared.start(
+                url: url,
+                referer: webView.url,
+                userAgent: webView.customUserAgent,
+                fileNameHint: args["fileName"] as? String
+            )
+            return """
+            Export started in the background (job \(jobID.uuidString.prefix(8))). It keeps running while \
+            you continue working — do NOT wait for it and do not retry it. The file lands in \
+            ~/Downloads; the user is notified when it finishes, and listMediaExports reports progress.
+            """
+
+        case "findAdCandidates":
+            // 广告候选：返回带理由的候选清单（**不删任何东西**），由模型挑。
+            let script = UserScriptLoader.load("ad-candidates")
+            guard !script.isEmpty else { return "ad-candidates script missing" }
             do {
-                let result = try await MediaExporter.download(
-                    url: url,
-                    referer: webView.url,
-                    userAgent: webView.customUserAgent,
-                    fileNameHint: hint
-                ) { _, _ in
-                    // Per-segment progress hook (no UI sink yet — the tool
-                    // call itself surfaces as currentAction in the panel).
+                let raw = try await webView.callAsyncJavaScript(
+                    script,
+                    arguments: ["maxItems": 25],
+                    in: nil,
+                    contentWorld: .page
+                ) as? String
+                guard let raw, let data = raw.data(using: .utf8),
+                      let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let candidates = payload["candidates"] as? [[String: Any]] else {
+                    return "No candidates could be read from this page."
                 }
-                var report = "Saved to ~/Downloads/\(result.fileURL.lastPathComponent) — \(result.segmentCount) segment(s), \(result.displayBytes)"
-                result.warnings.forEach { report += "\n⚠️ \($0)" }
-                return report
-            } catch is CancellationError {
-                return "[Cancelled by user]"
-            } catch let error as URLError where error.code == .cancelled {
-                return "[Cancelled by user]"
+                if candidates.isEmpty {
+                    return "No ad-like elements found on this page (scanned \(payload["scanned"] ?? 0) elements)."
+                }
+                var lines: [String] = ["\(candidates.count) ad candidate(s) — pick the ones to block, then call blockElements with their selectors:"]
+                for (index, item) in candidates.enumerated() {
+                    let reasons = (item["reasons"] as? [String] ?? []).joined(separator: ",")
+                    let text = (item["text"] as? String ?? "").replacingOccurrences(of: "\n", with: " ")
+                    let src = item["src"] as? String ?? ""
+                    lines.append("[\(index + 1)] \(item["tag"] ?? "?") \(item["width"] ?? 0)x\(item["height"] ?? 0) — \(reasons)"
+                                 + "\n    selector: \(item["selector"] ?? "")"
+                                 + (text.isEmpty ? "" : "\n    text: \(text.prefix(60))")
+                                 + (src.isEmpty ? "" : "\n    src: \(src)"))
+                }
+                return lines.joined(separator: "\n")
             } catch {
-                return "Download failed: \(error.localizedDescription)"
+                return "Failed to scan for ads: \(error.localizedDescription)"
             }
+
+        case "blockElements":
+            // 批量屏蔽：写进 ElementBlockStore（按 host 生效、下次导航自动注入），
+            // 同时立刻把隐藏 CSS 注进当前页面（用户当场就能看到效果）。
+            guard let selectors = args["selectors"] as? [String], !selectors.isEmpty else {
+                return "Missing selectors array (use findAdCandidates first, then pass the selectors you want to hide)"
+            }
+            let host = webView.url?.host ?? ""
+            let pattern = (args["urlPattern"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let urlPattern = (pattern?.isEmpty == false ? pattern! : (host.isEmpty ? "*" : host))
+            var applied: [String] = []
+            var skipped: [String] = []
+            for selector in selectors.prefix(40) {
+                let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                if surface.elementBlockStore.rules.contains(where: { $0.cssSelector == trimmed && $0.urlPattern == urlPattern }) {
+                    skipped.append(trimmed)
+                    continue
+                }
+                surface.elementBlockStore.add(cssSelector: trimmed, urlPattern: urlPattern)
+                applied.append(trimmed)
+            }
+            if !applied.isEmpty {
+                let css = applied.map { "\($0) { display: none !important; }" }.joined()
+                let escaped = css
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                    .replacingOccurrences(of: "\n", with: " ")
+                _ = try? await webView.callAsyncJavaScript("""
+                (function() {
+                    var style = document.getElementById('desire-blocked-selectors') || document.createElement('style');
+                    style.id = 'desire-blocked-selectors';
+                    style.textContent = (style.textContent || '') + '\(escaped)';
+                    if (!style.parentNode) document.head.appendChild(style);
+                    return 'ok';
+                })();
+                """, arguments: [:], in: nil, contentWorld: .page)
+            }
+            // 可选的网络层拦截（广告域名/路径）。
+            var blockedRequests: [String] = []
+            if let requests = args["blockRequests"] as? [String] {
+                for filter in requests.prefix(20) where !filter.trimmingCharacters(in: .whitespaces).isEmpty {
+                    InterceptStore.shared.add(urlFilter: filter, kind: .block, payload: nil)
+                    blockedRequests.append(filter)
+                }
+            }
+            var report = applied.isEmpty
+                ? "Nothing new to block"
+                : "Blocked \(applied.count) element(s) on \(urlPattern) (hidden now and on every future load of this host)"
+            if !skipped.isEmpty { report += "; \(skipped.count) already blocked" }
+            if !blockedRequests.isEmpty { report += "; \(blockedRequests.count) request filter(s) added" }
+            return report
+
+        case "listMediaExports":
+            let jobs = MediaExportStore.shared.jobs
+            guard !jobs.isEmpty else { return "No media exports have been started." }
+            return jobs.suffix(10).map { job -> String in
+                var line = "\(job.state.rawValue) \(job.title)"
+                if let summary = job.summary { line += " — \(summary)" }
+                return line
+            }.joined(separator: "\n")
 
         case "updatePlan":
             // Visible task checklist: the model maintains the step list and

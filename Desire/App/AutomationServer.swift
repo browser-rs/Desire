@@ -364,6 +364,12 @@ final class AutomationServer {
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("GET", "/ads/rules", "Saved element-block rules (optional host filter)", params: ["host?:string"], example: "…/ads/rules")
+        ep("POST", "/ads/rules/clear", "Remove element-block rules (host, or all)", params: ["host?:string"], example: "-d '{}'")
+        ep("GET", "/ads/candidates", "Ad-like elements on the tab, with the reason each matched (same scan the agent runs)", params: ["index?:int"], example: "…/ads/candidates")
+        ep("POST", "/ads/block", "Hide elements on this host now and on future loads (+ optional request blocks)", params: ["selectors:[string]", "urlPattern?:string", "requests?:[string]", "index?:int"], example: #"-d '{"selectors":["[id=\"banner\"]"]}'"#)
+        ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
+        ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
@@ -1026,6 +1032,23 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("GET", "/ads/rules"):
+                return try Self.json(Self.adRules(host: Self.string(body, "host") ?? Self.string(query, "host")))
+            case ("POST", "/ads/rules/clear"):
+                return try Self.json(Self.adRulesClear(host: Self.string(body, "host")))
+            case ("GET", "/ads/candidates"):
+                return try await Self.json(Self.adCandidates(index: Self.index(query)))
+            case ("POST", "/ads/block"):
+                return try await Self.json(Self.adBlock(
+                    selectors: (body["selectors"] as? [String]) ?? [],
+                    urlPattern: Self.string(body, "urlPattern"),
+                    requests: (body["requests"] as? [String]) ?? [],
+                    index: Self.index(body)
+                ))
+            case ("GET", "/media/exports"):
+                return try Self.json(Self.mediaExports())
+            case ("POST", "/media/exports/cancel"):
+                return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
@@ -2577,6 +2600,127 @@ final class AutomationServer {
             ]
         }
         return ["windows": windows]
+    }
+
+    /// 已保存的元素屏蔽规则（按 host 过滤可选）。
+    private static func adRules(host: String?) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let host = host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rules = app.elementBlockStore.rules.filter { rule in
+            guard let host, !host.isEmpty else { return true }
+            return rule.urlPattern == host
+        }
+        return [
+            "total": app.elementBlockStore.rules.count,
+            "rules": rules.map { ["id": $0.id.uuidString, "urlPattern": $0.urlPattern, "cssSelector": $0.cssSelector] },
+        ]
+    }
+
+    /// 撤掉某 host 的元素屏蔽规则（不传 host = 清空全部）。
+    private static func adRulesClear(host: String?) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let host = host?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let doomed = app.elementBlockStore.rules.filter { rule in
+            guard let host, !host.isEmpty else { return true }
+            return rule.urlPattern == host
+        }
+        for rule in doomed { app.elementBlockStore.remove(id: rule.id) }
+        return ["ok": true, "removed": doomed.count, "total": app.elementBlockStore.rules.count]
+    }
+
+    /// 广告候选（给 AI 识别广告用）：跑同一份 `ad-candidates.js`，
+    /// 面板/工具都没有额外逻辑，桥拿到的就是模型拿到的东西。
+    private static func adCandidates(index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        let script = UserScriptLoader.load("ad-candidates")
+        guard !script.isEmpty else { return ["error": "ad-candidates script missing"] }
+        do {
+            let raw = try await tab.browser.webView.callAsyncJavaScript(
+                script,
+                arguments: ["maxItems": 25],
+                in: nil,
+                contentWorld: .page
+            ) as? String
+            guard let raw, let data = raw.data(using: .utf8),
+                  let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return ["error": "could not read candidates"]
+            }
+            return payload
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
+    /// 批量屏蔽元素（与 `blockElements` 工具同一条路径）：写 ElementBlockStore
+    /// 规则 + 立刻把隐藏 CSS 注进当前页面；`requests` 额外加网络拦截规则。
+    private static func adBlock(selectors: [String], urlPattern: String?, requests: [String], index: Int?) async throws -> [String: Any] {
+        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !selectors.isEmpty else { return ["error": "selectors required"] }
+        let host = tab.browser.webView.url?.host ?? ""
+        let pattern = (urlPattern?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? urlPattern! : (host.isEmpty ? "*" : host))
+        var applied: [String] = []
+        for selector in selectors.prefix(40) {
+            let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard !app.elementBlockStore.rules.contains(where: { $0.cssSelector == trimmed && $0.urlPattern == pattern }) else { continue }
+            app.elementBlockStore.add(cssSelector: trimmed, urlPattern: pattern)
+            applied.append(trimmed)
+        }
+        if !applied.isEmpty {
+            let css = applied.map { "\($0) { display: none !important; }" }.joined()
+            let escaped = css
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+                .replacingOccurrences(of: "\n", with: " ")
+            _ = try? await tab.browser.webView.callAsyncJavaScript("""
+            (function() {
+                var style = document.getElementById('desire-blocked-selectors') || document.createElement('style');
+                style.id = 'desire-blocked-selectors';
+                style.textContent = (style.textContent || '') + '\(escaped)';
+                if (!style.parentNode) document.head.appendChild(style);
+                return 'ok';
+            })();
+            """, arguments: [:], in: nil, contentWorld: .page)
+        }
+        var blocked: [String] = []
+        for filter in requests.prefix(20) where !filter.trimmingCharacters(in: .whitespaces).isEmpty {
+            InterceptStore.shared.add(urlFilter: filter, kind: .block, payload: nil)
+            blocked.append(filter)
+        }
+        return [
+            "ok": true,
+            "applied": applied,
+            "urlPattern": pattern,
+            "blockedRequests": blocked,
+            "rulesTotal": app.elementBlockStore.rules.count,
+        ]
+    }
+
+    /// 后台媒体导出（downloadMedia）的任务列表与取消。
+    private static func mediaExports() -> [String: Any] {
+        let jobs = MediaExportStore.shared.jobs
+        return [
+            "active": MediaExportStore.shared.activeCount,
+            "jobs": jobs.suffix(20).map { job -> [String: Any] in
+                var row: [String: Any] = [
+                    "id": job.id.uuidString,
+                    "title": job.title,
+                    "state": job.state.rawValue,
+                    "url": job.url.absoluteString,
+                    "startedAt": ISO8601DateFormatter().string(from: job.startedAt),
+                ]
+                if let summary = job.summary { row["summary"] = summary }
+                if let finished = job.finishedAt { row["finishedAt"] = ISO8601DateFormatter().string(from: finished) }
+                return row
+            },
+        ]
+    }
+
+    private static func mediaExportCancel(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        MediaExportStore.shared.cancel(id: uuid)
+        return ["ok": true]
     }
 
     /// 停掉正在跑的一轮（等价于面板里的 Esc / Stop）。

@@ -399,6 +399,21 @@ private struct ReasoningBlock: View {
     @State private var expanded = false
     @State private var userToggled = false
 
+    private var reasoningText: some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.secondary.opacity(0.07))
+            )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button {
@@ -427,18 +442,22 @@ private struct ReasoningBlock: View {
             .help(String(localized: "Show the model's thinking"))
 
             if expanded {
-                Text(text)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.secondary.opacity(0.07))
-                    )
+                if isLive {
+                    // 流式思考时**固定高度 + 内部滚动**：否则每来一段文字都会推着
+                    // 整条会话重新排版，叠上自动跟随就是用户看到的"上下抖动得厉害"。
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            reasoningText
+                                .id("reasoning-tail")
+                        }
+                        .frame(height: 150)
+                        .onChange(of: text) { _, _ in
+                            proxy.scrollTo("reasoning-tail", anchor: .bottom)
+                        }
+                    }
+                } else {
+                    reasoningText
+                }
             }
         }
         .onAppear {

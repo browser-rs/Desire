@@ -385,11 +385,14 @@ struct AgentPanel: View {
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
-            // 内容增长时的锚点**只在"跟着尾巴"时才锚到底部**：此前无条件
-            // `.bottom`，于是流式期间每次内容长高都把视口拽回底部——用户上滑看
-            // 历史会被一直打断（实测反馈："无法上滑看上面的消息"）。不跟随时锚在
-            // 顶部 = 新内容追加在下面、视口不动。
-            .defaultScrollAnchor(isPinnedToBottom ? .bottom : .top)
+            // 锚点**固定为 .top**：内容增长本身绝不移动视口。
+            //  - `.bottom`（最初写法）会在每次内容长高时把视口拽回底部——流式期间
+            //    用户没法上滑看历史（实测反馈）。
+            //  - 跟着 `isPinnedToBottom` 在两个锚点之间切（中间版本）会在流式时
+            //    **反复切换**，每次切换都是一次跳动——用户看到的是"上下抖动得厉害"。
+            // 跟随改成显式的 `scrollTo`（只在贴底时触发，见下方 onChange），
+            // 初始位置由 onAppear 的那次滚动兜底。
+            .defaultScrollAnchor(.top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
                 // Mainstream pattern: jump back to the live tail after
@@ -417,13 +420,17 @@ struct AgentPanel: View {
                 }
             }
             .onScrollGeometryChange(for: Bool.self) { geometry in
-                // "Pinned" = the viewport bottom sits within 80pt of the
-                // content bottom. While pinned, streaming output auto-
-                // scrolls; scrolling up to read pauses the following.
+                // "贴底"判定带**迟滞**：进入 60pt 内才算贴上、离开 160pt 才算脱离。
+                // 单一阈值在流式（内容每 80ms 长一截）时会来回翻转，翻一次跳一次
+                // ——实测就是"上下抖动"。迟滞把这种抖动挡在外面。
                 let distance = geometry.contentSize.height
                     - (geometry.contentOffset.y + geometry.containerSize.height)
-                return distance < 80
+                if isPinnedToBottom {
+                    return distance < 160
+                }
+                return distance < 60
             } action: { _, pinned in
+                guard pinned != isPinnedToBottom else { return }
                 withAnimation(.hoverFast) { isPinnedToBottom = pinned }
             }
             .onAppear {

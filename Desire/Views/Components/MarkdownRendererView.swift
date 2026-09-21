@@ -5,6 +5,15 @@ struct MarkdownRendererView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     let text: String
+    /// 这条消息**正在流式输出**（面板把 `isStreamingTail` 传进来）。
+    var isLive: Bool = false
+
+    /// 流式期间块数超过它，就退化成纯文本渲染：块渲染每次刷新要重建上千个子视图
+    /// （每节含标题、段落、列表、表格、代码块），实测 40KB/200+ 块的回答在流式时
+    /// 偶发 0.5s 主线程卡顿（`pending main thread dispatch stuck for 0.51s`），而
+    /// **同一段内容按纯文本渲染零卡顿**（最大 0.145s）。阈值取得宽松——普通长回答
+    /// 只有 20~40 块，不受影响；流一结束立刻恢复 Markdown。
+    private static let liveRenderBlockLimit = 120
 
     /// Parsed blocks, memoized so re-renders don't re-parse the markdown.
     /// Reparsed only when `text` actually changes (i.e. on each streaming
@@ -12,14 +21,40 @@ struct MarkdownRendererView: View {
     /// is the win: before this, every token re-parsed *every* bubble).
     @State private var blocks: [MarkdownBlock] = []
 
+    private var prefersPlainText: Bool {
+        isLive && blocks.count > Self.liveRenderBlockLimit
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(blocks.indices, id: \.self) { index in
-                renderBlock(blocks[index])
+        Group {
+            if prefersPlainText {
+                Text(text)
+                    .font(.system(size: 13))
+                    .lineSpacing(2)
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(blocks.indices, id: \.self) { index in
+                        renderBlock(blocks[index])
+                    }
+                }
             }
         }
+        // **解析必须在主线程之外**：流式输出时这段文本每 ~80ms 变一次，而整段
+        // 重解析（含每块的内联正则）随文本长度增长——放主线程会把 UI 卡住
+        // （实测 40KB 回答：主线程被阻塞 ~0.5s/次，日志里是 WebKit 的
+        // "pending main thread dispatch stuck for 0.51s"，2026-09-21 复现）。
+        // `.task(id:)` 会在文本变化时取消上一个任务，所以中间态天然被合并。
         .task(id: text) {
-            blocks = MarkdownParser.parse(text)
+            let snapshot = text
+            let parsed = await Task.detached(priority: .userInitiated) {
+                MarkdownParser.parse(snapshot)
+            }.value
+            guard !Task.isCancelled else { return }
+            blocks = parsed
         }
     }
 
@@ -129,7 +164,28 @@ struct MarkdownRendererView: View {
         }
     }
 
+    /// 内联渲染结果的缓存：`buildInlineContent` 对每个块跑 5 条正则并重建
+    /// AttributedString，而**每次重绘**都会把整条消息的每个块再走一遍（流式时
+    /// 约 12 次/秒）。按源文本缓存后，只有新出现的块才付这份成本。
+    /// 上限 500 条，超了丢最早的一半（消息滚出屏幕后没人再查）。
+    private static var inlineCache: [String: AttributedString] = [:]
+    private static var inlineCacheOrder: [String] = []
+
     private func inlineContent(_ text: String) -> AttributedString {
+        if let cached = Self.inlineCache[text] { return cached }
+        let attributed = Self.buildInlineContent(text)
+        Self.inlineCache[text] = attributed
+        Self.inlineCacheOrder.append(text)
+        if Self.inlineCacheOrder.count > 500 {
+            for key in Self.inlineCacheOrder.prefix(250) {
+                Self.inlineCache.removeValue(forKey: key)
+            }
+            Self.inlineCacheOrder.removeFirst(250)
+        }
+        return attributed
+    }
+
+    private static func buildInlineContent(_ text: String) -> AttributedString {
         var attributed = AttributedString(text)
         attributed.font = Font.system(size: 13)
 
@@ -220,14 +276,13 @@ private struct CodeBlockView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 4)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-            }
+            Text(code)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .textColor).opacity(0.04))

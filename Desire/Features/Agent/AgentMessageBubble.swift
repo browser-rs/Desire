@@ -138,7 +138,9 @@ private struct AssistantBubble: View {
                 if isError {
                     ErrorBlock(text: message.content ?? "")
                 } else if let text = message.content, !text.isEmpty {
-                    MarkdownRendererView(text: text)
+                    // 流式中的那条把 isLive 传下去：超长回答会退化成纯文本渲染，
+                    // 避免每次刷新重建上千个子视图把主线程卡住（见渲染器注释）。
+                    MarkdownRendererView(text: text, isLive: isStreamingTail)
                 }
 
                 if let tcs = message.toolCalls, !tcs.isEmpty {

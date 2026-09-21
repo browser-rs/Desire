@@ -401,6 +401,18 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **流式 UI 的性能红线（2026-09-21 实测，用户报"流式输出时卡死"）**：三个坑都在
+  Markdown 渲染路径上——① 块解析曾放在 `.task(id: text)` 里 = 主线程，流式时每
+  80ms 重解析越来越长的全文；② 内联渲染（每块 5 条正则 + AttributedString）在
+  **每次重绘**对所有块重跑；③ 块渲染每次刷新重建上千个子视图（长回答含表格/代码块时
+  实测偶发 0.5s 卡顿）。现状：解析在后台且可取消，内联结果按文本缓存（500 条上限），
+  并且**块数 > 120 的流式中消息退化成纯文本**（`MarkdownRendererView.isLive`，由
+  `AgentMessageBubble.isStreamingTail` 传入），流结束立刻恢复 Markdown。
+  **复现/验证手法（可复用）**：假端点加一个 `BIGSTREAM` 模式流式吐 40KB Markdown，
+  用聊天面板打开时 `/state` 的往返延迟当主线程探针，并数
+  `/usr/bin/log show --predicate 'process == "Desire"'` 里的
+  `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
+  取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
 - **SwiftUI 里"隔着另一个 store 读嵌套 ObservableObject"不会重绘**（2026-09-21 实测）：
   `AgentModelMenu` 曾只 `@ObservedObject var store: AgentSessionStore`，却读
   `store.preference.model` / `.profiles`——点选后数据变了、界面纹丝不动（用户报

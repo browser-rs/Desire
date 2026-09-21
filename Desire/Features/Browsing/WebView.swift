@@ -206,6 +206,7 @@ class BrowserState: ObservableObject {
         FilterListStore.shared.apply(to: config)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
+            config.userContentController.addUserScript(videoAdBlocker.documentStartGuardScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
         }
 

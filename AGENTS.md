@@ -429,6 +429,14 @@ Features/Bookmarks/
   看会话 JSON（`~/Library/Application Support/Desire/storage/conversation-*.json`）+
   `/usr/bin/log show --predicate 'process == "Desire"' --info --debug` 里的
   `[me.siwi.Desire:ai] AI request — …` 行，确认请求发没发、返回了什么。
+- **首次点击劫持要"只拦第一次 + 只拦体外链接/浮层"**（2026-09-21，用户反馈视频站
+  播放键首击跳广告）：`UserScripts/first-click-guard.js`，随"拦截视频广告"开关注入，
+  **主框架 + atDocumentStart**（晚于页面自己的处理器就拦不住）。三条边界必须守住：
+  ① 只在存在 `<video>` 的页面生效；② 只处理**第一次**点击（否则会把站点正常交互全毁掉）；
+  ③ 只拦**站外链接**与**覆盖视口 ≥25% 的定位浮层**，站内链接与播放器控件放行。
+  首击期间临时禁 `window.open` 并 1.2s 后恢复（别永久改写）。验证用本地 fixture 三变体：
+  站外锚点覆盖播放器 / 脚本 `window.open` / 站内链接（分别断言 不开新标签页、被拦、正常跳转）。
+  提示条走既有 `videoAdBlocked` 通道（`action: "click-hijack"`）。
 - **长任务不能阻塞 agent 轮次**（2026-09-21，用户实测"下载一直在等待"）：
   `downloadMedia` 曾 await 整个导出（HLS 几分钟）。现在的模式：工具**立刻返回任务 id**，
   工作在 `MediaExportStore` 的后台 Task 里跑，完成时 ① 往会话追加 system 备注

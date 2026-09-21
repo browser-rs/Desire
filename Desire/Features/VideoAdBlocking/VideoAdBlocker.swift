@@ -93,6 +93,17 @@ class VideoAdBlocker: ObservableObject {
         )
     }
 
+    /// 首次点击劫持防护（`UserScripts/first-click-guard.js`）：视频页上"播放键上盖
+    /// 透明层，第一次点击弹广告/跳广告"的通用对策。**主框架、文档开始**注入——必须
+    /// 比页面自己的点击处理器先注册，捕获阶段才拦得住。
+    func documentStartGuardScript() -> WKUserScript {
+        WKUserScript(
+            source: UserScriptLoader.load("first-click-guard"),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+    }
+
     /// JS injection script (added at document end when enabled). Wraps all
     /// per-site page scripts in a host-matching `if` so only the relevant
     /// site executes on each page. Non-video sites bail early (near-zero cost).

@@ -26262,6 +26262,28 @@
           }
         }
       }
+    },
+    "（首次点击防护）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次点击防护）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次点击防护）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次點擊防護）"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

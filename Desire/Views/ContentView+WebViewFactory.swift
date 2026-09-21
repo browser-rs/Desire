@@ -90,6 +90,8 @@ extension ContentView {
                     actionSuffix = String(localized: "（已跳过）")
                 } else if action == "seek" {
                     actionSuffix = String(localized: "（已快进）")
+                } else if action == "click-hijack" {
+                    actionSuffix = String(localized: "（首次点击防护）")
                 } else {
                     actionSuffix = ""
                 }
@@ -137,7 +139,9 @@ extension ContentView {
         case "mgtv": String(localized: "芒果TV")
         case "tiktok": String(localized: "TikTok")
         case "twitter": String(localized: "X")
-        default: String(localized: "视频")
+        // 首次点击防护按域名上报（非内置站点）：直接把域名显示出来，
+        // 用户一眼知道是哪个站拦下的。
+        default: (key?.isEmpty == false ? key! : String(localized: "视频"))
         }
     }
 

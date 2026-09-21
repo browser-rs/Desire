@@ -413,6 +413,16 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **Agent 回合永远不许"静默结束"**（2026-09-21，用户实测"几次工具失败后再发消息没有回复"）：
+  模型返回空内容时此前直接 `return`——不写消息、不报错，用户看到的就是"石沉大海"。
+  现在空回合会写一条可见警告并把该轮标记失败。配套两条：① **OpenAI 兼容服务会把错误塞在
+  流里**（`data: {"error":{…}}`，HTTP 仍是 200），`OpenAICompatSSE` 必须解析并抛出，
+  否则又是一个空回合；② **`executeJS` 的结果必须能字符串化**——DOM 节点/NodeList/循环引用
+  走 `BrowserToolProvider.jsStringifyScript` 包装器，别再让模型看到"返回结果的类型不受支持"
+  （实测模型因此改用 `runCommand` 并超时 120s，把整轮拖垮）。排查这类"没回复"时：
+  看会话 JSON（`~/Library/Application Support/Desire/storage/conversation-*.json`）+
+  `/usr/bin/log show --predicate 'process == "Desire"' --info --debug` 里的
+  `[me.siwi.Desire:ai] AI request — …` 行，确认请求发没发、返回了什么。
 - **长任务不能阻塞 agent 轮次**（2026-09-21，用户实测"下载一直在等待"）：
   `downloadMedia` 曾 await 整个导出（HLS 几分钟）。现在的模式：工具**立刻返回任务 id**，
   工作在 `MediaExportStore` 的后台 Task 里跑，完成时 ① 往会话追加 system 备注

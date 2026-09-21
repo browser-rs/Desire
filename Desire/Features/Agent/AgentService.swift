@@ -77,6 +77,18 @@ enum OpenAICompatSSE {
                             }
                         }
 
+                        // 有些 OpenAI 兼容服务把错误**塞在流里**（`{"error":{…}}`），
+                        // 而不是用非 200 状态码（实测 amd 网关在上下文/上游出错时这样）。
+                        // 以前这种负载没有 choices，被 `continue` 静默丢弃 → 整轮
+                        // 无内容、用户看不到任何反应。
+                        if let error = json["error"] {
+                            let message = (error as? [String: Any])?["message"] as? String
+                                ?? (error as? String)
+                                ?? "\(error)"
+                            continuation.finish(throwing: AgentServiceError.httpStatus(http.statusCode, message))
+                            return
+                        }
+
                         guard let choices = json["choices"] as? [[String: Any]],
                               let choice = choices.first,
                               let delta = choice["delta"] as? [String: Any] else { continue }

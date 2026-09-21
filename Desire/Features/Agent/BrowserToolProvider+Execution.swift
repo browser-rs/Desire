@@ -6,6 +6,46 @@ import WebKit
 /// Split out of `BrowserToolProvider` so the Store class holds only state
 /// + small helpers. The `surface` is guarded at the top of `execute`.
 extension BrowserToolProvider {
+    /// 把任意 JS 结果**转成可返回给模型的字符串**：DOM 节点给 outerHTML、类数组给
+    /// 长度 + 前几项预览、对象走 JSON（失败退 String）。`executeJS` 遇到"返回结果的
+    /// 类型不受支持"时用它重跑——那正是把模型逼去 runCommand（再超时 120s）的源头。
+    static func jsStringifyScript(_ code: String) -> String {
+        """
+        function __desirePreview(value) {
+            if (value === undefined) return 'undefined';
+            if (value === null) return 'null';
+            const type = typeof value;
+            if (type === 'string') return value;
+            if (type === 'number' || type === 'boolean') return String(value);
+            if (value.nodeType === 1) return String(value.outerHTML || value).slice(0, 4000);
+            if (value.nodeType === 3) return String(value.nodeValue || '');
+            if (typeof value.length === 'number' && typeof value !== 'function') {
+                const parts = [];
+                for (let i = 0; i < Math.min(value.length, 20); i++) {
+                    const item = value[i];
+                    if (item && item.nodeType === 1) parts.push('<' + item.tagName.toLowerCase() + '>');
+                    else if (typeof item === 'string') parts.push(JSON.stringify(item.slice(0, 40)));
+                    else parts.push(String(item).slice(0, 40));
+                }
+                return '[' + value.length + ' items] ' + parts.join(', ');
+            }
+            try { const s = JSON.stringify(value); if (s !== undefined && s !== null) return s.slice(0, 4000); } catch (e) {}
+            try { return String(value).slice(0, 4000); } catch (e) { return '[unserializable]'; }
+        }
+        let __desireValue;
+        try {
+            __desireValue = await (async () => { __DESIRE_CODE__ })();
+        } catch (e) {
+            return 'Error: ' + (e && e.message ? e.message : String(e));
+        }
+        if (__desireValue === undefined) {
+            try { __desireValue = await (async () => (__DESIRE_CODE__))(); } catch (e) {}
+        }
+        return __desirePreview(__desireValue);
+        """
+        .replacingOccurrences(of: "__DESIRE_CODE__", with: code)
+    }
+
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         let result = await executeBody(call, in: webView)
         // 页面感知回证（0.3.2）：动作类工具执行后自动截视口快照，
@@ -1274,9 +1314,16 @@ extension BrowserToolProvider {
             guard let code = args["code"] as? String else { return "Missing code" }
             let result = await eval(webView, code)
             if result.hasPrefix("Error: ") {
-                // evaluateJavaScript hides the real exception behind a
-                // generic message. Re-run via callAsyncJavaScript purely
-                // to capture WKJSExceptionMessage (the actual throw).
+                // ① 结果类型不可序列化（DOM 节点 / NodeList / Promise / 循环引用）：
+                // `evaluateJavaScript` 只回一句"返回结果的类型不受支持"，模型看不懂也
+                // 没法继续（实测它因此改用 runCommand，然后超时 120s，把整轮拖垮）。
+                // 用包装器重跑一次，把值转成字符串再返回。
+                if let text = try? await webView.callAsyncJavaScript(
+                    Self.jsStringifyScript(code), arguments: [:], in: nil, contentWorld: .page
+                ) as? String, !text.isEmpty, !text.hasPrefix("Error: ") {
+                    return text
+                }
+                // ② 真的是异常：用 callAsyncJavaScript 拿 WKJavaScriptExceptionMessage。
                 do {
                     _ = try await webView.callAsyncJavaScript(
                         code, arguments: [:], in: nil, contentWorld: .page

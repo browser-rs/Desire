@@ -815,7 +815,17 @@ class AgentSessionStore: ObservableObject {
                 return
             }
 
-            guard hasContent, let msg = assistantMsg else { return }
+            guard hasContent, let msg = assistantMsg else {
+                // **绝不能"什么都不显示"**：模型返回空内容时此前直接 return，
+                // 用户发完消息像石沉大海（实测："经过几次工具失败后再发消息没有
+                // 回复了"）。把空回合变成一条可见的、说清原因的失败。
+                let note = String(localized: "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings.")
+                messages.append(AgentMessage(role: .assistant, content: "⚠️ " + note))
+                turnFailed = true
+                lastTurnErrorText = note
+                streamingVersion += 1
+                return
+            }
 
             if assistantMsg?.content?.isEmpty ?? true {
                 if let idx = messages.firstIndex(where: { $0.id == msg.id }) {

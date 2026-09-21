@@ -52,7 +52,7 @@ events, so even an unattended run can be gated from the outside.
 **Chat UX that survives streaming.** Markdown with cached block parsing on a
 background thread, sticky-bottom follow with hysteresis (content growth never
 moves your viewport), per-conversation input history (↑/↓), and an agent
-panel that stays at 60 fps while a 40 KB answer streams in.
+panel that stays responsive while a 40 KB answer streams in.
 
 ## Also a very capable browser
 

@@ -38,6 +38,8 @@ protocol ModelProvider {
 /// Streaming events emitted by a `ModelProvider` while generating a response.
 enum AgentStreamEvent {
     case text(String)
+    /// 推理模型的思考增量（`reasoning_content` / `reasoning` / `thinking`）。
+    case reasoning(String)
     case toolCall(AgentToolCall)
     /// Provider-reported token usage for this call (best-effort — most
     /// OpenAI-compatible backends send it in the final chunk; Foundation

@@ -97,6 +97,14 @@ enum OpenAICompatSSE {
                             continuation.yield(.text(text))
                         }
 
+                        // 思考过程：DeepSeek / Qwen(vLLM) → reasoning_content；
+                        // OpenRouter 等网关 → reasoning / thinking。字段可能是 null。
+                        if let reasoning = (delta["reasoning_content"] as? String)
+                            ?? (delta["reasoning"] as? String)
+                            ?? (delta["thinking"] as? String), !reasoning.isEmpty {
+                            continuation.yield(.reasoning(reasoning))
+                        }
+
                         if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
                             for tc in toolCalls {
                                 let idx = tc["index"] as? Int ?? 0

@@ -2572,6 +2572,7 @@ final class AutomationServer {
         let messages = session.messages.suffix(12).map { message -> [String: Any] in
             var item: [String: Any] = ["role": message.role.rawValue]
             if let content = message.content { item["content"] = String(content.prefix(2000)) }
+            if let reasoning = message.reasoning { item["reasoning"] = String(reasoning.prefix(600)) }
             if let calls = message.toolCalls { item["toolCalls"] = calls.map(\.function.name) }
             return item
         }

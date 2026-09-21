@@ -413,6 +413,12 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **思考过程（reasoning）三条约定**（2026-09-21）：① 字段名有三种——`reasoning_content`
+  （DeepSeek / Qwen vLLM）、`reasoning`（OpenRouter 等）、`thinking`，解析时都要认；
+  ② **绝不回传**：`encodeMessage` 只发 role/content/tool_calls，把 reasoning 塞回请求会被
+  DeepSeek 这类服务直接拒（400）；③ 展示是**折叠块**，流式思考时自动展开、正文一开始自动
+  收起，用户手动点过之后不再自动切换（`ReasoningBlock`，`isLive = isStreamingTail &&
+  content.isEmpty`）。
 - **Agent 回合永远不许"静默结束"**（2026-09-21，用户实测"几次工具失败后再发消息没有回复"）：
   模型返回空内容时此前直接 `return`——不写消息、不报错，用户看到的就是"石沉大海"。
   现在空回合会写一条可见警告并把该轮标记失败。配套两条：① **OpenAI 兼容服务会把错误塞在

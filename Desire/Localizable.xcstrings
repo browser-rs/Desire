@@ -111,46 +111,90 @@
         }
       }
     },
-    "Download failed" : {
+    "Show the model's thinking" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Download failed"
+            "value" : "Show the model's thinking"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下载失败"
+            "value" : "展开查看模型的思考过程"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下載失敗"
+            "value" : "展開查看模型的思考過程"
           }
         }
       }
     },
-    "Download finished" : {
+    "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Download finished"
+            "value" : "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下载完成"
+            "value" : "模型只输出了思考过程、没有给出答复。可以再问一次，或在设置里换模型/服务。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下載完成"
+            "value" : "模型只輸出了思考過程、沒有給出答覆。可以再問一次，或在設定裡換模型/服務。"
+          }
+        }
+      }
+    },
+    "Thinking" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考过程"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考過程"
+          }
+        }
+      }
+    },
+    "Thinking…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考中…"
           }
         }
       }
@@ -8427,6 +8471,28 @@
         }
       }
     },
+    "Download failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載失敗"
+          }
+        }
+      }
+    },
     "Download Failed" : {
       "comment" : "Download error fallback",
       "localizations" : {
@@ -8446,6 +8512,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載失敗"
+          }
+        }
+      }
+    },
+    "Download finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download finished"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載完成"
           }
         }
       }
@@ -22614,6 +22702,9 @@
           }
         }
       }
+    },
+    "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings." : {
+
     },
     "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test." : {
       "localizations" : {

@@ -762,6 +762,26 @@ class AgentSessionStore: ObservableObject {
                             rateWindowStart = now
                             flushTail()
                         }
+                    case .reasoning(let delta):
+                        // 思考过程：与正文同一条节流路径落进同一条消息（面板里折叠展示）。
+                        // **不算 hasContent**——只回了思考、没有正文，仍然算空回合（会提示）。
+                        if assistantMsg == nil {
+                            assistantMsg = AgentMessage(role: .assistant, content: "")
+                            messages.append(assistantMsg!)
+                            tailIndex = messages.count - 1
+                        }
+                        assistantMsg!.reasoning = (assistantMsg!.reasoning ?? "") + delta
+                        pendingTokenCount += 1
+                        let reasoningNow = Date()
+                        if reasoningNow.timeIntervalSince(lastFlush) >= 0.08 {
+                            lastFlush = reasoningNow
+                            streamingTokenCount += pendingTokenCount
+                            let dt = reasoningNow.timeIntervalSince(rateWindowStart)
+                            if dt > 0 { streamingTokensPerSecond = Double(pendingTokenCount) / dt }
+                            pendingTokenCount = 0
+                            rateWindowStart = reasoningNow
+                            flushTail()
+                        }
                     case .toolCall(let call):
                         if assistantMsg == nil {
                             assistantMsg = AgentMessage(role: .assistant, content: "")
@@ -819,7 +839,10 @@ class AgentSessionStore: ObservableObject {
                 // **绝不能"什么都不显示"**：模型返回空内容时此前直接 return，
                 // 用户发完消息像石沉大海（实测："经过几次工具失败后再发消息没有
                 // 回复了"）。把空回合变成一条可见的、说清原因的失败。
-                let note = String(localized: "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings.")
+                let reasoningOnly = !(assistantMsg?.reasoning?.isEmpty ?? true)
+                let note = reasoningOnly
+                    ? String(localized: "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings.")
+                    : String(localized: "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings.")
                 messages.append(AgentMessage(role: .assistant, content: "⚠️ " + note))
                 turnFailed = true
                 lastTurnErrorText = note
@@ -1075,6 +1098,9 @@ class AgentSessionStore: ObservableObject {
                         assistant.content = (assistant.content ?? "") + delta
                     case .toolCall(let call):
                         assistant.toolCalls = (assistant.toolCalls ?? []) + [call]
+                    case .reasoning(let delta):
+                        // 子代理也收思考过程：跟正文一起进它那条消息（面板里可折叠）。
+                        assistant.reasoning = (assistant.reasoning ?? "") + delta
                     case .usage:
                         break
                     }

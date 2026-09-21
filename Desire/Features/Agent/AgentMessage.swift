@@ -11,13 +11,16 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var toolCalls: [AgentToolCall]?
     var toolCallId: String?
     var toolName: String?
+    /// 推理模型的思考过程（DeepSeek/Qwen 的 `reasoning_content`、部分网关的
+    /// `reasoning`/`thinking`）。面板里折叠展示，不进正文，也不回传给模型。
+    var reasoning: String?
     /// User-attached images as JPEG data URIs (vision models only; stripped
     /// before persistence so conversation files stay small). Optional, so
     /// conversations saved before this field existed still decode.
     var imageDataURIs: [String]?
     let createdAt: Date
 
-    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil) {
+    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
@@ -25,6 +28,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.imageDataURIs = images
+        self.reasoning = reasoning
         self.createdAt = Date()
     }
 }

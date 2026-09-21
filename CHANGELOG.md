@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+### Added
+
+- **思考过程可见、可折叠**（用户需求）：推理模型的 `reasoning_content`（DeepSeek / Qwen
+  vLLM）以及部分网关的 `reasoning` / `thinking` 增量现在会被接收，收敛到该条消息的
+  `reasoning` 字段，在助手气泡上方以**折叠块**展示：
+  - 折叠块标题是"思考中…"（带强调色小图标）或"思考过程 + 字数"；**流式思考时自动展开**，
+    正文一开始就**自动收起**；用户点过标题之后不再自动切换（手动选择优先）。
+  - 思考过程**不与正文混在一起**（正文仍是 Markdown 渲染），也**不会回传给模型**——
+    `encodeMessage` 只发 role/content/tool_calls（DeepSeek 等服务回传 reasoning 会直接
+    报错）。
+  - 只有思考、没有正文时不再算"空回合"警告的普通情形：会明确提示"模型只输出了思考过程、
+    没有给出答复"。
+  - 子代理（spawnSubagent）的思考也照收（同一条消息里可折叠）。
+  - 桥端点 `GET /agent/messages` 的每条消息新增 `reasoning`（截断 600 字符）。
+  - 实测（fixture 端点先流 4 段 reasoning_content 再流正文）：会话里 `reasoning` 与
+    `content` 分别落库，内容互不混淆。折叠交互请看面板（截图没法验证交互）。
+- 新增 4 条三语文案。
+
 ### Fixed
 
 - **"经过几次工具失败后再发消息没有回复"**（用户实测，附真实会话记录）：会话记录显示

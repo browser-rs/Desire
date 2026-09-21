@@ -160,6 +160,9 @@ final class AgentCrewStore: ObservableObject {
                         text += chunk
                     case .toolCall(let call):
                         toolCalls.append(call)
+                    case .reasoning:
+                        // 子任务不需要思考过程（结果里不带它）。
+                        break
                     case .usage:
                         break
                     }

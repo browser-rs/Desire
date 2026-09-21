@@ -135,6 +135,14 @@ private struct AssistantBubble: View {
         HStack(alignment: .top, spacing: 6) {
             roleAvatar
             VStack(alignment: .leading, spacing: 6) {
+                if let reasoning = message.reasoning, !reasoning.isEmpty {
+                    ReasoningBlock(
+                        text: reasoning,
+                        // 只在"还在思考、正文尚未开始"时自动展开；正文一来就自动收起
+                        // （用户手动点过之后不再自动切换）。
+                        isLive: isStreamingTail && (message.content?.isEmpty ?? true)
+                    )
+                }
                 if isError {
                     ErrorBlock(text: message.content ?? "")
                 } else if let text = message.content, !text.isEmpty {
@@ -376,5 +384,69 @@ private struct CopyChip: View {
         }
         .buttonStyle(.plain)
         .help("Copy message")
+    }
+}
+
+// MARK: - Reasoning block
+
+/// 推理模型的思考过程：默认折叠、点标题展开；流式思考时自动展开，正文一开始
+/// 就自动收起（用户手动点过之后不再自动切换）。
+private struct ReasoningBlock: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let text: String
+    let isLive: Bool
+
+    @State private var expanded = false
+    @State private var userToggled = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                userToggled = true
+                withAnimation(.hoverFast) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isLive ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                    Text(isLive ? String(localized: "Thinking…") : String(localized: "Thinking"))
+                        .font(.system(size: 11, weight: .medium))
+                    Text("\(text.count)")
+                        .font(.system(size: 10))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Show the model's thinking"))
+
+            if expanded {
+                Text(text)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.secondary.opacity(0.07))
+                    )
+            }
+        }
+        .onAppear {
+            if isLive, !userToggled { expanded = true }
+        }
+        .onChange(of: isLive) { _, live in
+            guard !userToggled else { return }
+            withAnimation(.hoverFast) { expanded = live }
+        }
     }
 }

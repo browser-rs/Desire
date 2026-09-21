@@ -413,6 +413,10 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **聊天内容是一列同宽（2026-09-21）**：消息、快捷按钮行、重新生成、提问卡、审批条、
+  排队条、输入框**统一 `AgentPanel.contentMaxWidth = 960`**（居中）；头部与状态条通栏。
+  改宽度只改这一个常量。此前消息列单独 760、输入框通栏，面板拖宽后是"上面窄一列、
+  下面铺满"的错位感（用户实测反馈）。
 - **弹性尺寸要挂在 VStack 的直接子视图上**（2026-09-21 实测）：Agent 面板里
   `messageScrollView` 的 `.frame(maxHeight: .infinity)` 原本挂在其内部 ScrollView 上，
   而 VStack 的直接子视图是 `ScrollViewReader`——剩余空间于是漏给了下面那条**横向**

@@ -413,6 +413,14 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **Agent 聊天面板的两条铁律（2026-09-21 用户实测反馈后修）**：① **滚动锚点不能
+  无条件钉在底部**——`ScrollView` 上的 `.defaultScrollAnchor(.bottom)` 会在**内容长高时
+  把视口拽回底部**，流式期间用户根本没法上滑看历史；要按"是否贴底"在 `.bottom` 与
+  `.top` 之间切（`isPinnedToBottom` 由 `onScrollGeometryChange` 维护）。②
+  **`isProcessing` 必须在"答案流完"时就放掉**：`processLoop` 之后还跑生成标题与记忆
+  整理（额外模型调用），此前它们占着 `isProcessing`，用户看到"消息都渲染完了还在流式
+  输出"（输入区也一直忙碌）。现在先置 false 再做收尾。排查这类"忙不完"的问题时，
+  用桥轮询 `GET /agent/messages` 的 `busy` 与正文长度、看两者是否同时收尾。
 - **SwiftUI 里"隔着另一个 store 读嵌套 ObservableObject"不会重绘**（2026-09-21 实测）：
   `AgentModelMenu` 曾只 `@ObservedObject var store: AgentSessionStore`，却读
   `store.preference.model` / `.profiles`——点选后数据变了、界面纹丝不动（用户报

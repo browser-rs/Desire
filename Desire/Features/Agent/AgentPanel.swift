@@ -369,8 +369,11 @@ struct AgentPanel: View {
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)
             }
-            // Start (and reopen) at the latest message, not the top.
-            .defaultScrollAnchor(.bottom)
+            // 内容增长时的锚点**只在"跟着尾巴"时才锚到底部**：此前无条件
+            // `.bottom`，于是流式期间每次内容长高都把视口拽回底部——用户上滑看
+            // 历史会被一直打断（实测反馈："无法上滑看上面的消息"）。不跟随时锚在
+            // 顶部 = 新内容追加在下面、视口不动。
+            .defaultScrollAnchor(isPinnedToBottom ? .bottom : .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
                 // Mainstream pattern: jump back to the live tail after

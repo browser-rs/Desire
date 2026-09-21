@@ -651,6 +651,13 @@ class AgentSessionStore: ObservableObject {
             processingStartedAt = Date()
         }
 
+        // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型
+        // 调用，此前它们跑在 `isProcessing == true` 期间，于是正文早就渲染完了、
+        // 面板却一直显示"流式中"（实测反馈："消息都渲染完了还在流式输出"）。
+        // 收尾仍在同一个 task 里串行跑（不与下一轮抢 memoryProcessedCount）。
+        isProcessing = false
+        currentAction = nil
+
         // Cancelled turns skip the post-work: a title generation would spend
         // one more model call on a conversation the user just walked away from.
         if !isCancelled {

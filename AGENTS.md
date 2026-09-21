@@ -413,6 +413,12 @@ Features/Bookmarks/
   `/usr/bin/log show --predicate 'process == "Desire"'` 里的
   `pending main thread dispatch stuck` 行。**注意两次测量都要在同一实例的第二次运行上
   取**：冷启动首次流式仍有残余尖峰（字体/文本布局缓存未热）。
+- **弹性尺寸要挂在 VStack 的直接子视图上**（2026-09-21 实测）：Agent 面板里
+  `messageScrollView` 的 `.frame(maxHeight: .infinity)` 原本挂在其内部 ScrollView 上，
+  而 VStack 的直接子视图是 `ScrollViewReader`——剩余空间于是漏给了下面那条**横向**
+  ScrollView（快捷按钮行），把它撑成一大块空白，按钮看起来"悬在面板中间"。改法：
+  弹性挂在 reader 上 + 按钮行固定高度。**注意**：给横向 ScrollView 加
+  `fixedSize(vertical:)` 会让内容塌成 0 高（整排按钮消失），要用 `.frame(height:)`。
 - **Agent 聊天面板的两条铁律（2026-09-21 用户实测反馈后修）**：① **滚动锚点不能
   无条件钉在底部**——`ScrollView` 上的 `.defaultScrollAnchor(.bottom)` 会在**内容长高时
   把视口拽回底部**，流式期间用户根本没法上滑看历史；要按"是否贴底"在 `.bottom` 与

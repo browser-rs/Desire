@@ -39,7 +39,12 @@ struct AgentQuickActionBar: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
+        // 横向 ScrollView 在**垂直方向也是贪心的**：不给它高度，它会把消息列表与
+        // 输入框之间的剩余空间全吃掉，按钮行于是"悬在面板中间"（用户实测："应该固定
+        // 放置在输入框上面"）。这里固定 24pt（药丸高度），配合 AgentPanel 里给
+        // `ScrollViewReader` 挂的弹性尺寸——两者缺一，剩余空间都会漏给这一行。
+        // 注意：`fixedSize(vertical:)` 在这里会让内容塌成 0 高（实测整排按钮消失）。
+        .frame(height: 24)
         .padding(.top, 6)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }

@@ -429,6 +429,10 @@ struct AgentPanel: View {
                 scrollToBottom(proxy)
             }
         }
+        // 弹性尺寸必须挂在 **ScrollViewReader**（VStack 的直接子视图）上：
+        // 挂在里面的 ScrollView 上时，VStack 的剩余空间会漏给下面那条横向
+        // ScrollView（快捷按钮行），把按钮行撑成一大块空白（实测）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func isStreamingTail(_ msg: AgentMessage) -> Bool {

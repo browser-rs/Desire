@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+### Fixed
+
+- **聊天窗口里切换模型"不起作用"**（用户实测反馈）：菜单里的模型/服务按钮点了之后
+  数据其实改了（下一轮请求立刻生效），但**界面不重绘**——`AgentModelMenu` 只观察
+  `AgentSessionStore`，而模型/服务/providerKind 都存在 `AgentPreferenceStore` 上，
+  会话 store 不转发它的 `objectWillChange`，于是标签与勾选停在旧值，看上去就是
+  "切不动"。现在菜单直接观察偏好 store。同时把**当前模型**放到候选列表首位：此前
+  自定义服务没有模型清单时，正在用的模型可能根本不在列表里，"切回来"无从下手。
+  线级实测（假端点回显收到的模型名）：`POST /ai/model {"model":"fake-2"}`（与菜单
+  同一条 setter）→ 下一轮请求里模型收到 `model=fake-2`。
+- **桥端点**：`POST /ai/model {"model":"…"}`——切当前模型，与输入栏菜单同一路径，
+  便于回归。
+
 ### Changed
 
 - **Agent 的模型配置重做成"模型服务"（一等公民）**：此前只有 4 个写死的预设

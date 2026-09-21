@@ -401,6 +401,14 @@ Features/Bookmarks/
   发布**，它每条消息都会被调用，无条件写回会让面板跟着日志重绘。
   面板所在标签页由 `DevToolsPanel.onChange(of: tab?.id, initial: true)`
   写进 store（`activeTabID`），`.current` 靠它解析。
+- **SwiftUI 里"隔着另一个 store 读嵌套 ObservableObject"不会重绘**（2026-09-21 实测）：
+  `AgentModelMenu` 曾只 `@ObservedObject var store: AgentSessionStore`，却读
+  `store.preference.model` / `.profiles`——点选后数据变了、界面纹丝不动（用户报
+  "切换模型不起作用"）。嵌套的 ObservableObject **不会**自动转发
+  `objectWillChange`：要么把那个 store 也 `@ObservedObject`（本次做法），要么在持有
+  方 init 里显式 `nested.objectWillChange.sink { self.objectWillChange.send() }`。
+  改完顺手用桥验证"数据链路"（`POST /ai/model` → 假端点回显模型名），UI 重绘由用户
+  过目——两者是不同的问题。
 - **模型配置的单一真相 = `AIProviderProfile`**（2026-09-21 重做）：每个服务自带
   端点、模型、模型清单、额外请求头与**自己的 Keychain 账号**；
   `AgentPreferenceStore.endpoint` / `.model` 只是**当前档案的视图**（providers

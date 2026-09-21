@@ -73,6 +73,17 @@ extension AutomationServer {
         return ["ok": true, "id": profileID.uuidString]
     }
 
+    /// 切当前模型（走 `preference.model` 的 setter——输入栏菜单点一下走的是
+    /// 同一条路径），顺带把 providerKind 固定成 cloud，与菜单行为一致。
+    static func aiSetModel(_ model: String) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !model.isEmpty else { return ["error": "model required"] }
+        let store = app.aiPreference
+        store.model = model
+        store.providerKind = .cloud
+        return ["ok": true, "model": store.model, "profile": store.activeProfile?.name ?? ""]
+    }
+
     static func aiProfileActivate(id raw: String) -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         guard let id = UUID(uuidString: raw) else { return ["error": "bad id"] }

@@ -6,6 +6,11 @@ import SwiftUI
 /// endpoints only — capability toggles are their own inline controls.
 struct AgentModelMenu: View {
     @ObservedObject var store: AgentSessionStore
+    /// **必须单独观察偏好 store**：模型/服务/provider 都是它的状态，而
+    /// `AgentSessionStore` 不会转发 `preference.objectWillChange`——只观察会话
+    /// store 的话，点选模型后数据变了、菜单里的标签与勾选却不会重绘，看起来就是
+    /// "切换不起作用"。
+    @ObservedObject var preference: AgentPreferenceStore
     @Environment(\.openWindow) private var openWindow
     @State private var isRefreshingModels = false
 
@@ -14,12 +19,12 @@ struct AgentModelMenu: View {
             Section("Models") {
                 ForEach(availableModels.prefix(40), id: \.self) { model in
                     Button {
-                        store.preference.model = model
-                        store.preference.providerKind = .cloud
+                        preference.model = model
+                        preference.providerKind = .cloud
                     } label: {
                         Label(
                             model,
-                            systemImage: store.preference.providerKind == .cloud && store.preference.model == model
+                            systemImage: preference.providerKind == .cloud && preference.model == model
                                 ? "checkmark" : "cpu"
                         )
                     }
@@ -37,34 +42,34 @@ struct AgentModelMenu: View {
             }
             Section("Provider") {
                 Button {
-                    store.preference.providerKind = .routing
+                    preference.providerKind = .routing
                 } label: {
                     Label("Auto (cloud + on-device)",
-                          systemImage: store.preference.providerKind == .routing ? "checkmark" : "arrow.triangle.branch")
+                          systemImage: preference.providerKind == .routing ? "checkmark" : "arrow.triangle.branch")
                 }
                 Button {
-                    store.preference.providerKind = .foundationModels
+                    preference.providerKind = .foundationModels
                 } label: {
                     Label("On-device (Foundation Models)",
-                          systemImage: store.preference.providerKind == .foundationModels ? "checkmark" : "iphone.gen3")
+                          systemImage: preference.providerKind == .foundationModels ? "checkmark" : "iphone.gen3")
                 }
                 Button {
-                    store.preference.providerKind = .ollama
+                    preference.providerKind = .ollama
                 } label: {
-                    Label("Ollama (\(store.preference.ollamaModel))",
-                          systemImage: store.preference.providerKind == .ollama ? "checkmark" : "server.rack")
+                    Label("Ollama (\(preference.ollamaModel))",
+                          systemImage: preference.providerKind == .ollama ? "checkmark" : "server.rack")
                 }
             }
             // 服务档案（内置预设 + 自定义服务）：切换 = 换端点 + 换模型 + 换 Key。
             Section("Services") {
-                ForEach(store.preference.profiles) { profile in
+                ForEach(preference.profiles) { profile in
                     Button {
-                        store.preference.activateProfile(id: profile.id)
-                        store.preference.providerKind = .cloud
+                        preference.activateProfile(id: profile.id)
+                        preference.providerKind = .cloud
                     } label: {
                         Label(
                             profile.model.isEmpty ? profile.name : "\(profile.name) — \(profile.model)",
-                            systemImage: store.preference.activeProfileID == profile.id && store.preference.providerKind == .cloud
+                            systemImage: preference.activeProfileID == profile.id && preference.providerKind == .cloud
                                 ? "checkmark" : "globe"
                         )
                     }
@@ -104,16 +109,20 @@ struct AgentModelMenu: View {
     }
 
     private var displayModel: String {
-        let model = store.preference.model
+        let model = preference.model
         return model.isEmpty ? "No model" : model
     }
 
-    /// 当前服务档案的模型候选：档案自己的清单 + 从 /models 拉回的缓存
-    /// （去重、保持档案内的顺序）。
+    /// 当前服务档案的模型候选：**当前模型** + 档案自己的清单 + 从 /models 拉回的
+    /// 缓存（去重、保持顺序）。当前模型永远在列表头部——否则用户看不到自己在用
+    /// 哪个，"切回默认"也无从下手。
     private var availableModels: [String] {
         var seen = Set<String>()
         var models: [String] = []
-        for model in (store.preference.activeProfile?.modelList ?? []) + store.preference.cachedModels {
+        let candidates = [preference.activeProfile?.model ?? ""]
+            + (preference.activeProfile?.modelList ?? [])
+            + preference.cachedModels
+        for model in candidates {
             guard !model.isEmpty, !seen.contains(model) else { continue }
             seen.insert(model)
             models.append(model)
@@ -128,12 +137,12 @@ struct AgentModelMenu: View {
         isRefreshingModels = true
         Task {
             defer { isRefreshingModels = false }
-            let endpoint = store.preference.endpoint
-            let key = store.preference.loadAPIKey() ?? ""
+            let endpoint = preference.endpoint
+            let key = preference.loadAPIKey() ?? ""
             let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
             guard !models.isEmpty else { return }
-            store.preference.cachedModels = models
-            store.preference.applyModelList(models)
+            preference.cachedModels = models
+            preference.applyModelList(models)
         }
     }
 }

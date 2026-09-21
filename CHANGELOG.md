@@ -1,16 +1,11 @@
-## [Unreleased]
+## [v0.3.11] - 2026-09-22
 
-### Changed
-
-- **Agent 输入框底部那排控件统一观感**（用户反馈"这块 UI 想办法和谐一点"）：此前一行里
-  混了四种规格——20pt 胶囊（完全访问/模型）+ 28pt 圆钮（附件/麦克风）+ 三种描边透明度
-  + 两种底色，间距也是 4/6 混用。现在统一为：**26pt 同高**、圆形图标钮与胶囊共用
-  同一描边（`separatorColor` 0.4 / 0.5pt）与底色（`controlBackground` 0.6）、相邻
-  间距一律 6pt；发送按钮保持强调色实心（主操作），禁用态回落到同一底色。
-  另外**模型名不再被强调色染色**（`.tint(.secondary)`）——用户强调色是红/粉时，模型名
-  看着像报错。
-- 输入框内文字**上边距加大**（用户反馈"文字顶在边框上"）：编辑区改为上 8 / 下 6，
-  占位文字同步对齐。
+> 调试面板大扩建 + Agent 流式成熟化。DevTools 四页签补全（Console
+> REPL 与真对象、Network 长连接与拦截动作、Element DOM 树与 CSS 级联、
+> Application 全存储读写）；模型服务重做为一等公民（自定义端点自带
+> Key / 模型清单 / 请求头）；流式输出的性能与滚动稳定性收敛（卡死、
+> 抖动、无法上滑、"流式不完"全部修复）；思考过程折叠块、媒体下载
+> 后台化、AI 识别广告、首击劫持防护、社区过滤列表更新失败三处根因。
 
 ### Added
 
@@ -27,65 +22,6 @@
   - 桥：`GET /agent/messages` 新增 `inputHistory`；`POST /agent/send` 新增
     `recordHistory?:bool`（默认 false，回归用）。
 
-### Fixed
-
-- **`Error: HTTP 200: System message must be at the beginning.`**（用户实测）：上一轮给
-  "下载/导出完成"加的**会话备注是 `system` 角色**，它就留在对话中间——而 OpenAI 兼容
-  服务**要求 system 只能出现在开头**，于是下一轮请求被拒（amd 网关直接在流里回
-  `System message must be at the beginning.`；这个错误能看见，也正是上一轮"流内错误
-  不再被吞"的功劳，否则又是静默失败）。现在 `buildRequestMessages` 把会话里的 system
-  备注**从消息流里摘出来**、并入开头那条组合 system 提示（`## Session notes` 一节）：
-  请求里 system 仍只有开头一条，备注内容照旧送达模型。
-  - 实测（fixture 端点按 OpenAI 规则校验并回显）：`sysCount=1; sysAt=[0];
-    notesInSystem=True` —— 带备注的会话能正常对话，且备注确实在开头那条 system 里。
-  - 桥端点：`POST /agent/note {"text":"…"}`（复现/回归用）。
-
-### Fixed
-
-- **思考时聊天列表上下抖动**（用户反馈）：两个来源叠加，都改掉：
-  - **滚动锚点改回固定 `.top`**：我上一版把它做成"跟随时 `.bottom` / 不跟随时
-    `.top`"，但流式期间内容每 80ms 长一截，判定会在两者之间**反复切换**，而每次切换
-    都是一次跳动。现在锚点固定（内容增长绝不移动视口），跟随只靠显式 `scrollTo`
-    （贴着底部时才触发）。另外"贴底"判定加了**迟滞**（进 60pt 算贴上、离 160pt 才
-    算脱离），避免单一阈值在流式时来回翻转。
-  - **流式中的思考块改成固定高度 + 内部滚动**：展开的思考块每来一段文字都会推着整条
-    会话重新排版，叠上自动跟随就是"抖得厉害"。现在思考流式期间该块固定 150pt 高、
-    内部自己滚到底；思考结束恢复整段展示（不再有内部滚动条）。
-  - 回归：思考流仍然正确落库（reasoning 与 content 分开），列表两次刷新后再次成功。
-
-### Fixed
-
-- **社区过滤列表（EasyList / EasyList China）一直更新失败**（用户反馈"过滤列表更新失败"）：
-  表面症状是面板那句"Compilation failed"，真因有三处，全部是**转换器产出的内容被
-  WebKit 拒绝**（源站、网络都正常——`curl` 拿到的是标准 ABP 文本）：
-  - **`resource-type` 用了 WebKit 不认识的字符串**：`stylesheet` 被映射成 `style`
-    （WebKit 只认 `style-sheet`），另外 `object`/`other`/`websocket` 也无对应类型。
-    报错是 `Invalid string in the trigger flags array`（EasyList 全量因此失败）。
-    现在改成 `style-sheet`，无对应类型的规则**整条丢弃**（宁可少拦，不要把类型限制
-    去掉变成误拦）。
-  - **一个 trigger 里同时给了 `if-domain` 与 `unless-domain`**：WebKit 规定四个域条件
-    （if-domain / unless-domain / if-top-url / unless-top-url）**只能有一个**，而
-    `domain=a|~b` 这类规则两个都产出了（隐藏规则与网络规则都有这个问题）。报错是
-    `A trigger cannot have more than one condition`。现在这类规则直接丢掉。
-  - **生成的 `url-filter` 里含组内 `$`**：ABP 的 `^` 分隔符被译成 `(?:[/?#]|$)`，而
-    **WebKit 的正则引擎不接受组内的 `$`**（实测：`example\.com$` 可以，
-    `example\.com(/|$)` 报 `Invalid or unsupported regular expression`）。这条最致命
-    ——几乎所有 `||host^` 规则都命中，EasyList 全量因此过不了。现在 `^` 只译成
-    `[/?#]`（浏览器请求的 URL 一定带路径，实际不丢覆盖面，也仍能挡住
-    `example.com.evil.com` 这类误匹配）。
-- **编译失败不再整份列表作废（自愈）**：新增二分剔除——编译失败时逐层把列表劈半，
-  能编译的留下、不能的继续二分，最后把少数不支持的规则丢掉并用剩下的重新编译
-  （日志里写明丢了哪些、丢了多少）。实测：EasyList **一次编译通过、零丢弃**（60000 条
-  封顶），EasyList China 仅丢 53 条（`{5,}` 这类正则规则与 `#?#` 扩展隐藏写法）。
-- **桥端点**：`GET /filters`（各列表开关/更新时间/规则数/失败原因）、
-  `POST /filters/refresh {"id"?, "force"?}`、`POST /filters/probe {"abp" | "regexes"}`
-  ——后者把若干条规则真的交给 WebKit 编译并回报逐条错误，是定位"哪条规则让整份列表
-  失败"的探针（本次三处根因就是靠它隔离出来的）。
-- 顺带：编译错误日志此前只打 `localizedDescription`（只剩"WKErrorDomain 错误 6"），
-  现在记完整 `domain/code/userInfo`——真实原因（哪条规则、什么语法）都在 `NSHelpAnchor` 里。
-
-### Added
-
 - **首次点击劫持防护**（用户反馈："很多视频页面播放按钮第一次点击跳转广告"）：影视站
   常见套路是播放键上盖一层透明层（站外 `<a target="_blank">` 或带 click 处理器的浮层），
   第一次点击不播放、先弹/跳广告。新增 `UserScripts/first-click-guard.js`，随"拦截视频
@@ -100,8 +36,6 @@
     （tabs 1→1）且该层被隐藏；② 脚本 `window.open` 弹窗 → 首次点击被拦（tabs 2→2）、
     1.3s 后 `window.open` 恢复可用；③ 站内链接首次点击**正常跳转**（无误伤）。
 - 新增 1 条三语文案。
-
-### Added
 
 - **思考过程可见、可折叠**（用户需求）：推理模型的 `reasoning_content`（DeepSeek / Qwen
   vLLM）以及部分网关的 `reasoning` / `thinking` 增量现在会被接收，收敛到该条消息的
@@ -118,25 +52,6 @@
   - 实测（fixture 端点先流 4 段 reasoning_content 再流正文）：会话里 `reasoning` 与
     `content` 分别落库，内容互不混淆。折叠交互请看面板（截图没法验证交互）。
 - 新增 4 条三语文案。
-
-### Fixed
-
-- **"经过几次工具失败后再发消息没有回复"**（用户实测，附真实会话记录）：会话记录显示
-  `executeJS` 报"返回结果的类型不受支持" → 模型改用 `runCommand` 执行 `definitely-not-a-command` → **超时 120s** → 之后用户发的三条消息（"超时了"/"hello"/"没回复；"）**一条都没有
-  回复**。日志证实请求发出去了、HTTP 200，但**模型那一侧没有返回内容**——而空回合此前是
-  **静默 return**：不写任何消息、不报错，用户只能看到"发完了没反应"。三处一起修：
-  - **空回合必须可见**：模型没有产出任何内容时，往会话里写一条说明原因的警告（"模型没有
-    返回任何内容……通常是上下文过长或服务端异常，可 /new 开新对话或换模型/服务"），并把
-    这轮标记为失败。**"什么都没发生"不再是可能的结局。**
-  - **流内错误不再被吞**：OpenAI 兼容服务常把错误塞在流里（`data: {"error":{…}}`）而不是
-    用非 200 状态码（实测该网关正是如此）。此前这种负载没有 `choices`，被静默跳过 → 空回合；
-    现在解析并抛出，面板上直接显示 `Error: HTTP 200: context length exceeded …`。
-  - **`executeJS` 不再因"结果类型不可序列化"给一句看不懂的错**：DOM 节点/NodeList/Promise/
-    循环引用都会走新的字符串化包装器（元素给 `outerHTML`、列表给 `[N items] <input>, …`、
-    对象走 JSON、循环引用退 String）。这是整条故障链的**源头**——模型当初就是因为这句错
-    才退而去跑命令。
-
-### Added
 
 - **Agent 的媒体下载不再阻塞对话**（用户实测反馈："下载的时候一直在等待，可以改成后台
   异步吗"）：`downloadMedia` 此前**阻塞整轮**直到导出结束——HLS 视频动辄几分钟，面板上
@@ -167,14 +82,346 @@
   - **顺带发现**：class 里带 `ad-` 的元素**内置过滤列表已经隐藏**（fixture 里那个
     `.ad-banner` 实测 0×0），所以 AI 这条链路真正的价值在"规则拦不住的"那类广告。
 
+- **Console 的对象是"真对象"了**：此前参数在捕获时就 `JSON.stringify`，于是
+  `console.log(document.body)` 只显示 `{}`（元素没有可枚举自有属性），对象也没法
+  展开。现在：
+  - 参数按**片段**上报：文本照旧，对象给短预览（`Object {a: 1, …}`、`Array(3)`、
+    `<h1#title>`、`Error: …`）并登记一个**页面侧句柄**；
+  - 点 chip 就地展开一层属性——值是活对象、留在页面里，属性仍是对象时给新句柄可
+    继续展开（句柄表 300 条 FIFO，过期显示"句柄已失效"）；
+  - DOM 元素单独给一组字段（tagName / id / className / childElementCount /
+    textContent / 属性 / 前 10 个子元素各带句柄），因为元素用 `Object.keys` 是空的；
+  - **REPL 便捷绑定**：`$0` = 最后检查的元素、`$_` = 上一次的结果、`$(sel)` /
+    `$$(sel)` 简写（页面自己有 `$` 就不覆盖）。
+  - 实测：`console.log('with object:', {a:1,b:'two',nested:{deep:true},list:[1,2,3]})`
+    → 预览 `Object {a: 1, b: "two", nested: {…}, …}`，展开句柄得 4 个属性（嵌套两项
+    各带新句柄）；`console.log(document.getElementById('title'))` → `<h1#title>`，
+    展开得 tagName/id/textContent/@id；REPL：`$0.tagName`→H1、`1+1`→2、`$_ + 1`→3、
+    `$("#title").textContent`→`console fixture`、`$$("div").length`→1。
+- **桥端点**：`GET /devtools/console/ref?ref=`（展开一个句柄，一层）；
+  `GET /devtools` 的 console 段新增 `objects`（最近消息里的句柄与预览）。新增 2 条
+  三语文案。
+
+- **Application 页签补上 IndexedDB / Cache Storage / Service Worker**（新脚本
+  `page-storage.js`，都在页面侧列举，一次只取一层/带上限）：
+  - **IndexedDB**：`indexedDB.databases()` 列出本站源的库，逐个只读打开（**不带
+    版本号**，避免触发 `upgradeneeded`）列出对象存储与条数；行上给
+    `库名 · vN`，删除按库（该库所有存储一起删）。
+  - **Cache Storage**：按缓存名列出条目（上限 300），行上给缓存名 + 请求 URL；
+    单条删除 / 一键清空。
+  - **Service Worker**：列出注册（scriptURL / scope / state），单个或全部注销。
+  - 实测（本地 fixture 建 1 库 2 存储 3 条、1 缓存 2 条、1 个 SW）：三节分别
+    列出 2 / 2 / 1 条；删除后 0 / 0 / 0；注销返回 `{"unregistered":1}`。
+- **Cookie 可写**：值可改（行内编辑，走 `WKHTTPCookieStore.setCookie`，所以
+  HttpOnly 的也能写——`document.cookie` 那条路写不了），"+"可新增（域默认当前
+  页面主机、路径 `/`）。实测桥写 `desire_probe=42` → Cookie 计数 106 → 107。
+- **Application 的节选择移到独立一行**：7 个节（新增 3 个）与搜索/动作挤一行放
+  不下，现在上一行是节、下一行是搜索 + 全部域 + 新增/重载/清空。
+- **桥端点**：`GET /devtools/application` 增加 `indexedDB` / `cacheStorage` /
+  `serviceWorkers` 三节的计数与样例；`POST /devtools/application/set` 支持
+  `kind:"cookie"`（需 `domain`）；`delete` 支持 `indexedDB`（key = 库名）、
+  `cache`（key = `缓存名<TAB>URL`）、`cacheAll`、`serviceWorker`（无 key = 全部）。
+  新增 10 条三语文案。
+
+- **Element 页签有了 DOM 树**：此前只有"一次一个元素"的检查器，看不到结构。
+  新脚本 `dom-tree.js` 按 **nth-child 链**一次取一层（懒展开，`path` 形如
+  `0/2/1`），行上给 `tag#id.class` + 文本预览 + 子元素数；点行就用它的
+  nth-child 选择器跑既有采集链（详情区不变），换标签页自动重挂。实测：
+  `html` → `head`（4 个子元素）/ `body` → `div.box` → `h1#target`，选择器与
+  DOM 一致；失效路径干净报错。
+- **命中的 CSS 规则（级联排查）**：`element-inspect.js` 顺带走一遍
+  `document.styleSheets`，列出能匹配该元素的选择器与声明（上限 40 条），跨域
+  样式表读不到就计数说明（"N 张跨域样式表无法读取"），详情里单列一节。实测
+  `#target` → `h1 { letter-spacing: 2px }`（外部样式表）+
+  `#target { color: rgb(255, 0, 0) }`（页内 style）。
+- **桥端点**：`GET /devtools/tree?path=`（一层树，与面板懒展开同路径）；
+  `POST /devtools/inspect` 的返回里加了 `cssPath` / `matchingRules` /
+  `crossOriginSheets`。新增 4 条三语文案。
+
+- **Network 页签补上长连接与发起者**：
+  - **WebSocket / SSE**：`network-monitor.js` 包装了两个构造函数，连接本身是一条
+    请求（状态 101 / 200），每条消息是一帧（`phase:"frame"`，方向 in/out/system，
+    每条截断 4KB、每条连接保留 200 帧）。详情里按"消息（N）"列表展示，出站用
+    强调色箭头。实测：页面开一条 WS + 一条 SSE → `GET 101 ws://…`（4 in / 1 out，
+    最后一帧 `in: bye`）、SSE 3 帧 `in: tick-3`。
+  - **发起者（Initiator）**：fetch / XHR / WS / SSE 的调用点（`url:行`）随请求上报，
+    详情里单列一行。实测行号与页面里 `new WebSocket(…)` / `fetch(…)` 的行一致。
+  - **图片预览**：详情里"Preview Image"按需在页面里 fetch 该资源（带 cookie，
+    同源必成、跨域看 CORS，上限 512KB）内联显示；另有 `POST /devtools/preview`
+    把同一路径落盘成 PNG（实测 16×16 fixture → 119 字节文件）。
+- **网络拦截接进面板**：请求详情的菜单里新增"Block This URL / Block This Host /
+  Redirect To…"（行内输入目标，不用模态框）——此前 `InterceptStore` 只有桥能写
+  规则。过滤串由 `InterceptRule.exactFilter/hostFilter` 生成（WebKit 的
+  `url-filter` 是正则，URL 里的 `.` `?` `*` 必须转义）。实测：加规则后重载，
+  该请求变成 `GET 0`（被拦），清空规则后恢复。
+- **桥端点**：`POST /devtools/replay`（重放一条已记录请求，与面板 ↻ 同路径）、
+  `POST /devtools/preview`；`GET /devtools` 的 network 段新增 `streams`（帧数 /
+  出入方向 / 最后一帧 / 发起者），`last` 行带上发起者。
+- 新增 12 条三语文案。
+
+- **调试面板 · 应用页签的存储可读写**（不只是看）：
+  - **localStorage / sessionStorage 可编辑**：点值或铅笔进编辑（回车提交）、
+    单条删除、"新增键"行内新增。写入走页面 JS `setItem`，改完立即重新采集——
+    实测桥写 `regress=ok` 后页面 `localStorage.getItem` 立刻读到。
+  - **新增"扩展存储"子页签**：按插件分组列出各自的 `chrome.storage.local`
+    （就是插件代码里 `browser.storage.local` 看到的那份），可改值 / 新增键 /
+    删除 / 清空；0.2.13 的共享桶单列为一组（有数据才显示）。写入的值能解析成
+    JSON 就按 JSON 存，插件读回的是对象而不是字符串。
+  - 子页签选择移到 store（跨面板重建保持，也便于自动化直接选中某一节）。
+- **桥端点**：`POST /devtools/application/set`（写/新增 localStorage、
+  sessionStorage、插件扩展存储），`/devtools/application/delete` 增加
+  `kind:"extension"`，`GET /devtools/application` 增加 `section` 与 `extensions`
+  （每个插件的键名全量，不只是样例）；`POST /devtools/config` 可切 `applicationSection`。
+- `GET /panel/snapshot` 在截图前给异步加载留渲染节拍（约 0.7s 上限）——面板里
+  localStorage/扩展存储这类 `.task` 异步拉的数据，早先拍出来一律是空态。
+- 新增 7 条三语文案。
+
+- **调试面板第四轮补全**：
+  - **Element 可编辑**：内联样式与属性行都可点值直接改（回车提交）、单条删除、
+    "+" 新增；悬停任一属性/样式行会在页面上给该元素描边。编辑走
+    `el.style.setProperty` / `setAttribute`，改完立即重新采集——实测把 `h1`
+    的 color 改成红色后，页面的 `getComputedStyle` 立刻是 `rgb(255, 0, 0)`。
+  - **Network**：缓存命中徽章（`transferSize === 0` 且已知体积 ⇒ 缓存，来自资源
+    计时）、复制菜单里新增"导出日志…"（JSON，含方法/状态/耗时/字节/缓存标记/
+    响应头）、详情里可**重放请求**（页面内 `fetch` 重发同样方法/头/体，结果与
+    CORS 报错都写进控制台）与"保存响应体到文件"。
+  - **Console**：搜索支持**正则**（写错自动退回普通包含匹配）、**导航时清空**
+    开关（默认关，保留日志便于对比两次加载）。
+  - **桥端点**：`POST /devtools/edit`（改样式/属性，等价于面板里编辑）、
+    `POST /devtools/config`（运行期开关）；`GET /devtools` 增加缓存命中计数与
+    开关状态。新增 14 条三语文案。
+
+- **调试面板新增 Application 页签**（Chrome 同名页签的核心部分）：
+  - **Cookie**：读的是**当前标签页所在的 `WKWebsiteDataStore`**（容器标签、无痕
+    标签各看各的），因此 HttpOnly 的 Cookie 也在（`document.cookie` 看不到）——
+    实测 YouTube 页 27 条（含 `HSID`/`LOGIN_INFO` 的 HttpOnly/Secure 标记）。
+    默认**只列当前站点**（按域名后缀匹配，含父域 Cookie），工具栏有"全部站点"
+    开关切到整个数据存储。
+  - **本地存储 / 会话存储**：走页面 JS 读 localStorage / sessionStorage，
+    带字节数、可搜索、单条复制/删除、一键清空（两步确认，不用模态框）。
+  - 行内显示 HttpOnly / Secure / SameSite / 会话 Cookie 标记与所属域+路径，
+    复制支持 `name=value` 与 `document.cookie` 两种口径（排查登录态最常用）。
+  - 子页签、搜索、刷新、清空按钮与其余页签同一套观感。
+- **桥端点**：`GET /devtools/application`（Cookie 与两种 Web 存储的计数与样例）、
+  `POST /devtools/application/delete`（`kind` + `key`）。新增 12 条三语文案。
+
+- **调试面板再扩展**（第二轮）：
+  - **Network 瀑布条**：Time 列改为"相对起始位置 + 时长"的横条（按当前可见集合
+    最早请求对齐，颜色跟随状态码/失败），右侧仍给毫秒数——一眼看出哪个请求拖了
+    时间线。
+  - **Network 过滤与批量操作**：URL 搜索框、"只看失败"开关、复制全部 URL /
+    全部复制为 cURL。
+  - **耗时分解**：资源计时的分段（排队 / DNS / 连接 / TLS / 首字节 / 下载）进了
+    详情面板，来自 `performance` 的 `PerformanceResourceTiming`；fetch/XHR 钩子用
+    墙钟补 ttfb。
+  - **响应体 JSON 美化**：body 能解析成 JSON 就按缩进展示（接口排查的常见场景），
+    并给"复制"按钮。
+  - **Element 盒模型图**：外边距 / 边框 / 内边距 / 内容 的分层示意，数值取计算样式。
+  - **Element CSS 路径**：新增到根的完整路径（`html>body>ytd-app>div:nth-child(6)`）
+    展示与一键复制（`element-inspect.js` 里按 nth-child 生成）。
+  - **控制台折叠重复**：同级别 + 同文本的消息合并成一行（保留首次位置、显示最新
+    时间、附 ×N），过滤条上有开关。实测三条相同输入 → 一行 ×3。
+  - 新增 18 条三语文案。
+
+- **调试面板功能补全**（不止视觉）：
+  - **控制台 REPL**：面板底部输入行，↵ 执行、↑/↓ 翻历史。按输入形态选路径
+    （表达式 → 直接求值 / DOM 节点 → 给标记 / 语句 → 当函数体跑），异常文本取
+    `WKJavaScriptExceptionMessage`，输入与结果都写进日志（`› …` 前缀）。
+    实测：`1+1`→2、`document.querySelectorAll("a").length`→153、
+    `document.body`→元素标记、`throw new Error("boom")`→Error: boom、
+    `nope.x()`→ReferenceError。
+  - **真实子资源抓取**：新用户脚本 `network-monitor.js` = PerformanceObserver
+    （覆盖所有子资源，含缓存命中）+ fetch/XHR 钩子（补方法/状态/头/截断 body），
+    按 URL 去重、按 jsId 串起 start→complete→body。此前 Network 页签只记录文档
+    级导航；现在一次 YouTube 首页 = 65 条请求 / 2.2 MB，含脚本、图片与
+    `POST accounts.youtube.com/RotateCookies 200`。
+  - Network 页签：新增 **Size 列**、五列全部可点表头排序、过滤条显示
+    `条数 · 总传输量`、详情里可"复制为 cURL"。
+  - Element 页签：**采集链补上**（见下）、复制选择器 / 复制 HTML / 在页面里闪烁
+    定位三个动作、计算样式折叠区（34 项常用属性）。
+  - 控制台：长消息可展开/折叠（右键菜单）、导出日志到 `~/Downloads/desire-console-*.log`
+    并在访达里选中。
+- **桥端点**：`POST /devtools/eval`（走 REPL 路径）、`POST /devtools/inspect`
+  （用内置拾取器填 Element 页签，无需真点页面）、`GET /devtools`（三页签计数与
+  最近条目）。新增 13 条三语文案。
+
 ### Changed
+
+- **Agent 输入框底部那排控件统一观感**（用户反馈"这块 UI 想办法和谐一点"）：此前一行里
+  混了四种规格——20pt 胶囊（完全访问/模型）+ 28pt 圆钮（附件/麦克风）+ 三种描边透明度
+  + 两种底色，间距也是 4/6 混用。现在统一为：**26pt 同高**、圆形图标钮与胶囊共用
+  同一描边（`separatorColor` 0.4 / 0.5pt）与底色（`controlBackground` 0.6）、相邻
+  间距一律 6pt；发送按钮保持强调色实心（主操作），禁用态回落到同一底色。
+  另外**模型名不再被强调色染色**（`.tint(.secondary)`）——用户强调色是红/粉时，模型名
+  看着像报错。
+- 输入框内文字**上边距加大**（用户反馈"文字顶在边框上"）：编辑区改为上 8 / 下 6，
+  占位文字同步对齐。
 
 - **聊天内容的宽度上限统一并调大**（用户实测反馈）：消息列此前单独限 760pt、
   输入框与按钮行却通栏，面板拖宽后是"上面一列窄、下面铺满"的错位感。现在
   **消息、快捷按钮行、重新生成、提问卡、审批条、排队条、输入框统一 960pt 上限并
   居中**（头部与状态条保持通栏）。改宽度只改 `AgentPanel.contentMaxWidth` 一处。
 
+- **Agent 的模型配置重做成"模型服务"（一等公民）**：此前只有 4 个写死的预设
+  （OpenAI / DeepSeek / 智谱 / OpenCode Go），自定义端点只能去蹭某个预设的
+  Keychain 条目——`cloudProviderID` 决定用哪把 Key，而它只能由预设写入；"已保存
+  配置"又只存 name/url/model，换一个网关就得重填。现在：
+  - **每个服务是一条档案**：名字、端点、模型、模型清单、额外请求头、**自己的
+    API Key**。内置 4 个降级为不可删的内置档案（可改、可复制），自定义服务可增删改。
+  - 设置页的 Cloud 区改成服务列表（名字 + 主机·模型 + Key 状态 + 选中态），行内
+    编辑器能改名字/端点/模型/Key、增删**模型清单**（可一键从 `/models` 拉取）、
+    增删**额外请求头**，并能就地测试连接。
+  - 运行时按档案装配请求：端点/模型/Key 都取自当前服务，**额外请求头会真的发出去**
+    （`Authorization` / `Content-Type` 不允许被覆盖）。输入栏的模型菜单列的是当前
+    服务的模型，并能直接切换服务。
+  - **迁移透明**：老的 `aiCloudProviderID` / `aiEndpoint` / `aiModel` 与
+    `savedEndpoints` 自动变成档案（各带原来那把 Key），单键 `ai-api-key` 迁进内置
+    OpenAI 档案——升级后不用重新输入。
+  - **端到端实测**（用一个假的 OpenAI 兼容端点回显收到的头）：新建自定义服务
+    `{name:"Local Fake", endpoint:"http://127.0.0.1:8880/v1/chat/completions",
+    model:"fake-1", key:"sk-probe-42", headers:{"X-Tenant":"acme"}}` → 激活 →
+    `POST /agent/send` → 模型回复 `auth=Bearer sk-probe-42; tenant=acme;
+    model=fake-1`：自定义 Key 与自定义请求头确实到了服务端。内置档案删除被拒绝，
+    更新保留模型清单与请求头。
+- **桥端点**：`GET /ai/profiles`、`POST /ai/profiles`（新建/更新，可带 key /
+  models / headers）、`POST /ai/profiles/activate`、`POST /ai/profiles/delete`。
+- 新增 15 条三语文案；`SavedAIEndpoint` 与 `cloudProviderID` 退役（只用于迁移）。
+
+- **调试面板（Console / Network / Element）视觉重做**（与下载面板同一套令牌）：
+  - 头部改成真正的标签条：图标 + 中文名 + 计数（>0 才显示，错误/失败红字），
+    选中态是强调色底 + 强调色文字；"清除/关闭"换成统一的 `HoverIcon`。
+    面板名此前直接用了英文枚举 rawValue（"Console/Network/Element"），现已进
+    字符串目录（三语）。
+  - 过滤条：级别/类型改用自绘图标分段控件（与下载面板同款、选中跟随强调色），
+    搜索框统一 26pt / 圆角 6；总数等宽数字右对齐。
+  - Console 行：等宽消息 + 等宽时间戳 + 来源 URL 三级层次；错误/警告保留极淡
+    底色，分隔线内缩到文字；hover 显示复制图标（整行点按复制保留），URL 截断
+    从中间改成尾部（窄面板下至少保住域名，旧写法只剩 "https"）。
+  - Network：沿用原生 Table，只统一单元格观感——方法名从"白字实底"改为
+    "彩字淡底"药丸、状态/时间等宽；详情区从裸 `GroupBox` 换成面板自己的小节
+    标题（请求头/请求体/响应头/响应体，三语），并给 URL 加复制按钮。
+  - Element：分组同样换成小节样式（消息/属性/CSS/盒模型），空态给出图标 +
+    说明 + "选择元素"引导；面板宽度下限提到 380（四列表格低于此会把 URL 挤成
+    一条缝；宽度仍由 HSplitView 协商）。
+  - 新增 18 条三语文案。
+- **调试面板接入自动化桥**（此前只能点菜单）：`BrowserCommand.toggleDevTools`
+  可由 `POST /command` 触发；`POST /panel {"name":"devtools","tab":"network"}`
+  切页签并显示面板；`GET /panel/snapshot?name=devtools&tab=…` 进程内渲染该
+  页签（面板在主窗分栏里，不是 popover）。
+- 修 `AppAccent.current` 的初值：`Settings.init` 里读取设置不触发 `didSet`，
+  于是插件窗与截图工具条（读该镜像）在用户改过强调色之前一直用默认蓝。
+
+- **下载面板视觉重做**（美学轮，功能与 store API 未动）：
+  - 排版三级：文件名 12.5 medium/primary → 元信息 11 `monospacedDigit`/secondary
+    → 分组标题 10 semibold/secondary；数字全部等宽，进度百分比不再左右跳动。
+  - 状态摘要从两枚饱和胶囊（蓝/橙，比标题还抢眼）换成"小圆点 + 静文字"；
+    吸顶分组条改用 `.ultraThinMaterial`（旧版实心色块在亮色内容上像一块灰板）。
+  - 进度条自绘 4pt 胶囊：跟随强调色（暂停橙色），完成度用 `.easeOut(0.25)` 补间；
+    总大小未知时滑动一段表示进行中，不再显示假百分比。速度改用主文字色——
+    数据靠对比度区分，强调色留给进度条（粉/红系强调色下速度文字原本像告警）。
+  - 行分隔线内缩对齐文字（Finder 列表观感）；归档类型 `.brown` → `.teal`
+    （下载历史以压缩包为主，棕色在深色下整体发灰）。
+  - 失败行降噪：错误一行 + tooltip，`重试` 改为常驻中性胶囊（旧版藏在 hover 里
+    且与错误红抢注意力）；hover 时仍在行尾显示 暂停/取消/打开 等操作。
+  - 空状态：`EmptyState` + 说明文案 + "打开下载文件夹"胶囊按钮（三语文案已入
+    字符串目录：新增 "Files you download show up here." 及三个分组方式 tooltip）。
+  验证（实机，强调色=用户设置的 pink）：进行中/已暂停/已完成/失败四种行态、
+  hover 态（底色 + 行尾操作）、两组日期分组与吸顶条、搜索行、分组切换选中态
+  逐项截图核对。
+
+- **视频广告拦截规则改为热插拔**（不再需要重新构建/发版才能改规则）：
+  规则解析顺序 **本地覆盖 > 远程规则包 > 内置**，全部由新增的
+  `VideoAdRulesStore` 统一解析，`VideoAdBlocker` 在注入时（每个新 webview）
+  才取规则。
+  - 本地覆盖：`~/Library/Application Support/Desire/VideoAdRules/<site>.css|.js`
+    （site ∈ youtube / bilibili / tencent / iqiyi / youku / mgtv / tiktok /
+    twitter），改完在 设置 ▸ 通用 ▸ 媒体 ▸ 广告拦截规则 点“重新加载”。
+  - 远程包：`…/VideoAdRules/remote/source.txt` 写一行 `rules.json` 的 URL，
+    格式 `{"version":"…","sites":{"youtube":{"css":"…","js":"…"}}}`，缓存于
+    `remote/rules.json`，启动时若超过 24h 自动拉取。**远程 CSS 始终生效；
+    远程 JS 默认不生效**——它会在页面上下文执行，必须在设置里显式打开
+    “信任远程规则脚本”。没有配置源时缓存的包不参与解析（删源即失效）。
+  - 注入改为**代数化**（`data-gen` / `window.__desireRulesGen`）：user script
+    是 webview 创建时定格的，所以导航时（`didCommit` 换 CSS、`didFinish` 重投
+    站点 JS）按当前代数补投，规则改动后**刷新页面即可生效，不必重开标签页**。
+  - 新增设置行（规则状态 / 重新加载 / 打开规则目录 / 信任远程脚本）与桥端点
+    `GET /rules`、`POST /rules/refresh`（可选 `{"trustRemoteJS":true|false}`）。
+  - 已验证（Debug 构建 + 本地 http 规则包）：本地覆盖替换内置且压过远程、
+    远程 CSS 生效、信任关时远程 JS 不跑/打开后跑、删源后缓存包失效、恢复内置
+    后首页 33 格全部有内容且 0 空壳 0 可见广告位。
+
+- 原生窗口全屏（⌃⌘F）收起浏览器 chrome（标签栏/工具栏/进度条/书签栏），
+  内容铺满整屏，与 Safari/Chrome 全屏一致。
+- 新增自动化端点 `GET /diag/geometry`（webview 与各窗口的 frame / styleMask /
+  全屏状态 / 所在屏幕 / 子视图树），用于全屏与面板类几何问题的无截图排查。
+
 ### Fixed
+
+- **`Error: HTTP 200: System message must be at the beginning.`**（用户实测）：上一轮给
+  "下载/导出完成"加的**会话备注是 `system` 角色**，它就留在对话中间——而 OpenAI 兼容
+  服务**要求 system 只能出现在开头**，于是下一轮请求被拒（amd 网关直接在流里回
+  `System message must be at the beginning.`；这个错误能看见，也正是上一轮"流内错误
+  不再被吞"的功劳，否则又是静默失败）。现在 `buildRequestMessages` 把会话里的 system
+  备注**从消息流里摘出来**、并入开头那条组合 system 提示（`## Session notes` 一节）：
+  请求里 system 仍只有开头一条，备注内容照旧送达模型。
+  - 实测（fixture 端点按 OpenAI 规则校验并回显）：`sysCount=1; sysAt=[0];
+    notesInSystem=True` —— 带备注的会话能正常对话，且备注确实在开头那条 system 里。
+  - 桥端点：`POST /agent/note {"text":"…"}`（复现/回归用）。
+
+- **思考时聊天列表上下抖动**（用户反馈）：两个来源叠加，都改掉：
+  - **滚动锚点改回固定 `.top`**：我上一版把它做成"跟随时 `.bottom` / 不跟随时
+    `.top`"，但流式期间内容每 80ms 长一截，判定会在两者之间**反复切换**，而每次切换
+    都是一次跳动。现在锚点固定（内容增长绝不移动视口），跟随只靠显式 `scrollTo`
+    （贴着底部时才触发）。另外"贴底"判定加了**迟滞**（进 60pt 算贴上、离 160pt 才
+    算脱离），避免单一阈值在流式时来回翻转。
+  - **流式中的思考块改成固定高度 + 内部滚动**：展开的思考块每来一段文字都会推着整条
+    会话重新排版，叠上自动跟随就是"抖得厉害"。现在思考流式期间该块固定 150pt 高、
+    内部自己滚到底；思考结束恢复整段展示（不再有内部滚动条）。
+  - 回归：思考流仍然正确落库（reasoning 与 content 分开），列表两次刷新后再次成功。
+
+- **社区过滤列表（EasyList / EasyList China）一直更新失败**（用户反馈"过滤列表更新失败"）：
+  表面症状是面板那句"Compilation failed"，真因有三处，全部是**转换器产出的内容被
+  WebKit 拒绝**（源站、网络都正常——`curl` 拿到的是标准 ABP 文本）：
+  - **`resource-type` 用了 WebKit 不认识的字符串**：`stylesheet` 被映射成 `style`
+    （WebKit 只认 `style-sheet`），另外 `object`/`other`/`websocket` 也无对应类型。
+    报错是 `Invalid string in the trigger flags array`（EasyList 全量因此失败）。
+    现在改成 `style-sheet`，无对应类型的规则**整条丢弃**（宁可少拦，不要把类型限制
+    去掉变成误拦）。
+  - **一个 trigger 里同时给了 `if-domain` 与 `unless-domain`**：WebKit 规定四个域条件
+    （if-domain / unless-domain / if-top-url / unless-top-url）**只能有一个**，而
+    `domain=a|~b` 这类规则两个都产出了（隐藏规则与网络规则都有这个问题）。报错是
+    `A trigger cannot have more than one condition`。现在这类规则直接丢掉。
+  - **生成的 `url-filter` 里含组内 `$`**：ABP 的 `^` 分隔符被译成 `(?:[/?#]|$)`，而
+    **WebKit 的正则引擎不接受组内的 `$`**（实测：`example\.com$` 可以，
+    `example\.com(/|$)` 报 `Invalid or unsupported regular expression`）。这条最致命
+    ——几乎所有 `||host^` 规则都命中，EasyList 全量因此过不了。现在 `^` 只译成
+    `[/?#]`（浏览器请求的 URL 一定带路径，实际不丢覆盖面，也仍能挡住
+    `example.com.evil.com` 这类误匹配）。
+- **编译失败不再整份列表作废（自愈）**：新增二分剔除——编译失败时逐层把列表劈半，
+  能编译的留下、不能的继续二分，最后把少数不支持的规则丢掉并用剩下的重新编译
+  （日志里写明丢了哪些、丢了多少）。实测：EasyList **一次编译通过、零丢弃**（60000 条
+  封顶），EasyList China 仅丢 53 条（`{5,}` 这类正则规则与 `#?#` 扩展隐藏写法）。
+- **桥端点**：`GET /filters`（各列表开关/更新时间/规则数/失败原因）、
+  `POST /filters/refresh {"id"?, "force"?}`、`POST /filters/probe {"abp" | "regexes"}`
+  ——后者把若干条规则真的交给 WebKit 编译并回报逐条错误，是定位"哪条规则让整份列表
+  失败"的探针（本次三处根因就是靠它隔离出来的）。
+- 顺带：编译错误日志此前只打 `localizedDescription`（只剩"WKErrorDomain 错误 6"），
+  现在记完整 `domain/code/userInfo`——真实原因（哪条规则、什么语法）都在 `NSHelpAnchor` 里。
+
+- **"经过几次工具失败后再发消息没有回复"**（用户实测，附真实会话记录）：会话记录显示
+  `executeJS` 报"返回结果的类型不受支持" → 模型改用 `runCommand` 执行 `definitely-not-a-command` → **超时 120s** → 之后用户发的三条消息（"超时了"/"hello"/"没回复；"）**一条都没有
+  回复**。日志证实请求发出去了、HTTP 200，但**模型那一侧没有返回内容**——而空回合此前是
+  **静默 return**：不写任何消息、不报错，用户只能看到"发完了没反应"。三处一起修：
+  - **空回合必须可见**：模型没有产出任何内容时，往会话里写一条说明原因的警告（"模型没有
+    返回任何内容……通常是上下文过长或服务端异常，可 /new 开新对话或换模型/服务"），并把
+    这轮标记为失败。**"什么都没发生"不再是可能的结局。**
+  - **流内错误不再被吞**：OpenAI 兼容服务常把错误塞在流里（`data: {"error":{…}}`）而不是
+    用非 200 状态码（实测该网关正是如此）。此前这种负载没有 `choices`，被静默跳过 → 空回合；
+    现在解析并抛出，面板上直接显示 `Error: HTTP 200: context length exceeded …`。
+  - **`executeJS` 不再因"结果类型不可序列化"给一句看不懂的错**：DOM 节点/NodeList/Promise/
+    循环引用都会走新的字符串化包装器（元素给 `outerHTML`、列表给 `[N items] <input>, …`、
+    对象走 JSON、循环引用退 String）。这是整条故障链的**源头**——模型当初就是因为这句错
+    才退而去跑命令。
 
 - **快捷按钮行"悬在面板中间"**（用户实测："总结那一排按钮位置很奇怪，应该固定放置在
   输入框上面"）：两个布局原因叠加——① 消息列表的弹性尺寸挂在了 `ScrollViewReader`
@@ -227,120 +474,6 @@
 - **桥端点**：`POST /ai/model {"model":"…"}`——切当前模型，与输入栏菜单同一路径，
   便于回归。
 
-### Changed
-
-- **Agent 的模型配置重做成"模型服务"（一等公民）**：此前只有 4 个写死的预设
-  （OpenAI / DeepSeek / 智谱 / OpenCode Go），自定义端点只能去蹭某个预设的
-  Keychain 条目——`cloudProviderID` 决定用哪把 Key，而它只能由预设写入；"已保存
-  配置"又只存 name/url/model，换一个网关就得重填。现在：
-  - **每个服务是一条档案**：名字、端点、模型、模型清单、额外请求头、**自己的
-    API Key**。内置 4 个降级为不可删的内置档案（可改、可复制），自定义服务可增删改。
-  - 设置页的 Cloud 区改成服务列表（名字 + 主机·模型 + Key 状态 + 选中态），行内
-    编辑器能改名字/端点/模型/Key、增删**模型清单**（可一键从 `/models` 拉取）、
-    增删**额外请求头**，并能就地测试连接。
-  - 运行时按档案装配请求：端点/模型/Key 都取自当前服务，**额外请求头会真的发出去**
-    （`Authorization` / `Content-Type` 不允许被覆盖）。输入栏的模型菜单列的是当前
-    服务的模型，并能直接切换服务。
-  - **迁移透明**：老的 `aiCloudProviderID` / `aiEndpoint` / `aiModel` 与
-    `savedEndpoints` 自动变成档案（各带原来那把 Key），单键 `ai-api-key` 迁进内置
-    OpenAI 档案——升级后不用重新输入。
-  - **端到端实测**（用一个假的 OpenAI 兼容端点回显收到的头）：新建自定义服务
-    `{name:"Local Fake", endpoint:"http://127.0.0.1:8880/v1/chat/completions",
-    model:"fake-1", key:"sk-probe-42", headers:{"X-Tenant":"acme"}}` → 激活 →
-    `POST /agent/send` → 模型回复 `auth=Bearer sk-probe-42; tenant=acme;
-    model=fake-1`：自定义 Key 与自定义请求头确实到了服务端。内置档案删除被拒绝，
-    更新保留模型清单与请求头。
-- **桥端点**：`GET /ai/profiles`、`POST /ai/profiles`（新建/更新，可带 key /
-  models / headers）、`POST /ai/profiles/activate`、`POST /ai/profiles/delete`。
-- 新增 15 条三语文案；`SavedAIEndpoint` 与 `cloudProviderID` 退役（只用于迁移）。
-
-### Added
-
-- **Console 的对象是"真对象"了**：此前参数在捕获时就 `JSON.stringify`，于是
-  `console.log(document.body)` 只显示 `{}`（元素没有可枚举自有属性），对象也没法
-  展开。现在：
-  - 参数按**片段**上报：文本照旧，对象给短预览（`Object {a: 1, …}`、`Array(3)`、
-    `<h1#title>`、`Error: …`）并登记一个**页面侧句柄**；
-  - 点 chip 就地展开一层属性——值是活对象、留在页面里，属性仍是对象时给新句柄可
-    继续展开（句柄表 300 条 FIFO，过期显示"句柄已失效"）；
-  - DOM 元素单独给一组字段（tagName / id / className / childElementCount /
-    textContent / 属性 / 前 10 个子元素各带句柄），因为元素用 `Object.keys` 是空的；
-  - **REPL 便捷绑定**：`$0` = 最后检查的元素、`$_` = 上一次的结果、`$(sel)` /
-    `$$(sel)` 简写（页面自己有 `$` 就不覆盖）。
-  - 实测：`console.log('with object:', {a:1,b:'two',nested:{deep:true},list:[1,2,3]})`
-    → 预览 `Object {a: 1, b: "two", nested: {…}, …}`，展开句柄得 4 个属性（嵌套两项
-    各带新句柄）；`console.log(document.getElementById('title'))` → `<h1#title>`，
-    展开得 tagName/id/textContent/@id；REPL：`$0.tagName`→H1、`1+1`→2、`$_ + 1`→3、
-    `$("#title").textContent`→`console fixture`、`$$("div").length`→1。
-- **桥端点**：`GET /devtools/console/ref?ref=`（展开一个句柄，一层）；
-  `GET /devtools` 的 console 段新增 `objects`（最近消息里的句柄与预览）。新增 2 条
-  三语文案。
-
-### Added
-
-- **Application 页签补上 IndexedDB / Cache Storage / Service Worker**（新脚本
-  `page-storage.js`，都在页面侧列举，一次只取一层/带上限）：
-  - **IndexedDB**：`indexedDB.databases()` 列出本站源的库，逐个只读打开（**不带
-    版本号**，避免触发 `upgradeneeded`）列出对象存储与条数；行上给
-    `库名 · vN`，删除按库（该库所有存储一起删）。
-  - **Cache Storage**：按缓存名列出条目（上限 300），行上给缓存名 + 请求 URL；
-    单条删除 / 一键清空。
-  - **Service Worker**：列出注册（scriptURL / scope / state），单个或全部注销。
-  - 实测（本地 fixture 建 1 库 2 存储 3 条、1 缓存 2 条、1 个 SW）：三节分别
-    列出 2 / 2 / 1 条；删除后 0 / 0 / 0；注销返回 `{"unregistered":1}`。
-- **Cookie 可写**：值可改（行内编辑，走 `WKHTTPCookieStore.setCookie`，所以
-  HttpOnly 的也能写——`document.cookie` 那条路写不了），"+"可新增（域默认当前
-  页面主机、路径 `/`）。实测桥写 `desire_probe=42` → Cookie 计数 106 → 107。
-- **Application 的节选择移到独立一行**：7 个节（新增 3 个）与搜索/动作挤一行放
-  不下，现在上一行是节、下一行是搜索 + 全部域 + 新增/重载/清空。
-- **桥端点**：`GET /devtools/application` 增加 `indexedDB` / `cacheStorage` /
-  `serviceWorkers` 三节的计数与样例；`POST /devtools/application/set` 支持
-  `kind:"cookie"`（需 `domain`）；`delete` 支持 `indexedDB`（key = 库名）、
-  `cache`（key = `缓存名<TAB>URL`）、`cacheAll`、`serviceWorker`（无 key = 全部）。
-  新增 10 条三语文案。
-
-### Added
-
-- **Element 页签有了 DOM 树**：此前只有"一次一个元素"的检查器，看不到结构。
-  新脚本 `dom-tree.js` 按 **nth-child 链**一次取一层（懒展开，`path` 形如
-  `0/2/1`），行上给 `tag#id.class` + 文本预览 + 子元素数；点行就用它的
-  nth-child 选择器跑既有采集链（详情区不变），换标签页自动重挂。实测：
-  `html` → `head`（4 个子元素）/ `body` → `div.box` → `h1#target`，选择器与
-  DOM 一致；失效路径干净报错。
-- **命中的 CSS 规则（级联排查）**：`element-inspect.js` 顺带走一遍
-  `document.styleSheets`，列出能匹配该元素的选择器与声明（上限 40 条），跨域
-  样式表读不到就计数说明（"N 张跨域样式表无法读取"），详情里单列一节。实测
-  `#target` → `h1 { letter-spacing: 2px }`（外部样式表）+
-  `#target { color: rgb(255, 0, 0) }`（页内 style）。
-- **桥端点**：`GET /devtools/tree?path=`（一层树，与面板懒展开同路径）；
-  `POST /devtools/inspect` 的返回里加了 `cssPath` / `matchingRules` /
-  `crossOriginSheets`。新增 4 条三语文案。
-
-### Added
-
-- **Network 页签补上长连接与发起者**：
-  - **WebSocket / SSE**：`network-monitor.js` 包装了两个构造函数，连接本身是一条
-    请求（状态 101 / 200），每条消息是一帧（`phase:"frame"`，方向 in/out/system，
-    每条截断 4KB、每条连接保留 200 帧）。详情里按"消息（N）"列表展示，出站用
-    强调色箭头。实测：页面开一条 WS + 一条 SSE → `GET 101 ws://…`（4 in / 1 out，
-    最后一帧 `in: bye`）、SSE 3 帧 `in: tick-3`。
-  - **发起者（Initiator）**：fetch / XHR / WS / SSE 的调用点（`url:行`）随请求上报，
-    详情里单列一行。实测行号与页面里 `new WebSocket(…)` / `fetch(…)` 的行一致。
-  - **图片预览**：详情里"Preview Image"按需在页面里 fetch 该资源（带 cookie，
-    同源必成、跨域看 CORS，上限 512KB）内联显示；另有 `POST /devtools/preview`
-    把同一路径落盘成 PNG（实测 16×16 fixture → 119 字节文件）。
-- **网络拦截接进面板**：请求详情的菜单里新增"Block This URL / Block This Host /
-  Redirect To…"（行内输入目标，不用模态框）——此前 `InterceptStore` 只有桥能写
-  规则。过滤串由 `InterceptRule.exactFilter/hostFilter` 生成（WebKit 的
-  `url-filter` 是正则，URL 里的 `.` `?` `*` 必须转义）。实测：加规则后重载，
-  该请求变成 `GET 0`（被拦），清空规则后恢复。
-- **桥端点**：`POST /devtools/replay`（重放一条已记录请求，与面板 ↻ 同路径）、
-  `POST /devtools/preview`；`GET /devtools` 的 network 段新增 `streams`（帧数 /
-  出入方向 / 最后一帧 / 发起者），`last` 行带上发起者。
-- 新增 12 条三语文案。
-
-### Fixed
-
 - **重放请求（Network 详情的 ↻）此前必然抛语法错**：`callAsyncJavaScript` 把
   `arguments:` 字典的**键当作包装函数的形参名**，而脚本里又写了
   `const url = arguments[0]` → `SyntaxError: Cannot declare a const variable
@@ -367,9 +500,6 @@
   全屏）才收 chrome。实测四种走法：窗口全屏（有标签栏）→ 其中进视频全屏
   （画面整屏）→ 退视频全屏（标签栏回来，仍在窗口全屏）→ 退窗口全屏（恢复原状）。
 
-
-### Fixed
-
 - **插件存储命名空间其实没生效**（本轮的根因）：`webext-api.js` 的 RPC 只发了
   `{id, ns, fn, args}`，没带插件身份，宿主侧的 `ext` 永远是 nil——于是**所有插件
   的 `chrome.storage.local` 都写进同一个共享桶**（0.3.3 声称的按插件隔离只做了
@@ -381,105 +511,6 @@
   `HTTPCookie.sameSitePolicy`（macOS 10.15+，别再退回 KVC）；没显式声明 SameSite
   的 Cookie 不再挂 "None" 徽章（只认显式的 Lax/Strict/None）。
 
-### Added
-
-- **调试面板 · 应用页签的存储可读写**（不只是看）：
-  - **localStorage / sessionStorage 可编辑**：点值或铅笔进编辑（回车提交）、
-    单条删除、"新增键"行内新增。写入走页面 JS `setItem`，改完立即重新采集——
-    实测桥写 `regress=ok` 后页面 `localStorage.getItem` 立刻读到。
-  - **新增"扩展存储"子页签**：按插件分组列出各自的 `chrome.storage.local`
-    （就是插件代码里 `browser.storage.local` 看到的那份），可改值 / 新增键 /
-    删除 / 清空；0.2.13 的共享桶单列为一组（有数据才显示）。写入的值能解析成
-    JSON 就按 JSON 存，插件读回的是对象而不是字符串。
-  - 子页签选择移到 store（跨面板重建保持，也便于自动化直接选中某一节）。
-- **桥端点**：`POST /devtools/application/set`（写/新增 localStorage、
-  sessionStorage、插件扩展存储），`/devtools/application/delete` 增加
-  `kind:"extension"`，`GET /devtools/application` 增加 `section` 与 `extensions`
-  （每个插件的键名全量，不只是样例）；`POST /devtools/config` 可切 `applicationSection`。
-- `GET /panel/snapshot` 在截图前给异步加载留渲染节拍（约 0.7s 上限）——面板里
-  localStorage/扩展存储这类 `.task` 异步拉的数据，早先拍出来一律是空态。
-- 新增 7 条三语文案。
-
-
-### Added
-
-- **调试面板第四轮补全**：
-  - **Element 可编辑**：内联样式与属性行都可点值直接改（回车提交）、单条删除、
-    "+" 新增；悬停任一属性/样式行会在页面上给该元素描边。编辑走
-    `el.style.setProperty` / `setAttribute`，改完立即重新采集——实测把 `h1`
-    的 color 改成红色后，页面的 `getComputedStyle` 立刻是 `rgb(255, 0, 0)`。
-  - **Network**：缓存命中徽章（`transferSize === 0` 且已知体积 ⇒ 缓存，来自资源
-    计时）、复制菜单里新增"导出日志…"（JSON，含方法/状态/耗时/字节/缓存标记/
-    响应头）、详情里可**重放请求**（页面内 `fetch` 重发同样方法/头/体，结果与
-    CORS 报错都写进控制台）与"保存响应体到文件"。
-  - **Console**：搜索支持**正则**（写错自动退回普通包含匹配）、**导航时清空**
-    开关（默认关，保留日志便于对比两次加载）。
-  - **桥端点**：`POST /devtools/edit`（改样式/属性，等价于面板里编辑）、
-    `POST /devtools/config`（运行期开关）；`GET /devtools` 增加缓存命中计数与
-    开关状态。新增 14 条三语文案。
-
-### Added
-
-- **调试面板新增 Application 页签**（Chrome 同名页签的核心部分）：
-  - **Cookie**：读的是**当前标签页所在的 `WKWebsiteDataStore`**（容器标签、无痕
-    标签各看各的），因此 HttpOnly 的 Cookie 也在（`document.cookie` 看不到）——
-    实测 YouTube 页 27 条（含 `HSID`/`LOGIN_INFO` 的 HttpOnly/Secure 标记）。
-    默认**只列当前站点**（按域名后缀匹配，含父域 Cookie），工具栏有"全部站点"
-    开关切到整个数据存储。
-  - **本地存储 / 会话存储**：走页面 JS 读 localStorage / sessionStorage，
-    带字节数、可搜索、单条复制/删除、一键清空（两步确认，不用模态框）。
-  - 行内显示 HttpOnly / Secure / SameSite / 会话 Cookie 标记与所属域+路径，
-    复制支持 `name=value` 与 `document.cookie` 两种口径（排查登录态最常用）。
-  - 子页签、搜索、刷新、清空按钮与其余页签同一套观感。
-- **桥端点**：`GET /devtools/application`（Cookie 与两种 Web 存储的计数与样例）、
-  `POST /devtools/application/delete`（`kind` + `key`）。新增 12 条三语文案。
-
-### Added
-
-- **调试面板再扩展**（第二轮）：
-  - **Network 瀑布条**：Time 列改为"相对起始位置 + 时长"的横条（按当前可见集合
-    最早请求对齐，颜色跟随状态码/失败），右侧仍给毫秒数——一眼看出哪个请求拖了
-    时间线。
-  - **Network 过滤与批量操作**：URL 搜索框、"只看失败"开关、复制全部 URL /
-    全部复制为 cURL。
-  - **耗时分解**：资源计时的分段（排队 / DNS / 连接 / TLS / 首字节 / 下载）进了
-    详情面板，来自 `performance` 的 `PerformanceResourceTiming`；fetch/XHR 钩子用
-    墙钟补 ttfb。
-  - **响应体 JSON 美化**：body 能解析成 JSON 就按缩进展示（接口排查的常见场景），
-    并给"复制"按钮。
-  - **Element 盒模型图**：外边距 / 边框 / 内边距 / 内容 的分层示意，数值取计算样式。
-  - **Element CSS 路径**：新增到根的完整路径（`html>body>ytd-app>div:nth-child(6)`）
-    展示与一键复制（`element-inspect.js` 里按 nth-child 生成）。
-  - **控制台折叠重复**：同级别 + 同文本的消息合并成一行（保留首次位置、显示最新
-    时间、附 ×N），过滤条上有开关。实测三条相同输入 → 一行 ×3。
-  - 新增 18 条三语文案。
-
-### Added
-
-- **调试面板功能补全**（不止视觉）：
-  - **控制台 REPL**：面板底部输入行，↵ 执行、↑/↓ 翻历史。按输入形态选路径
-    （表达式 → 直接求值 / DOM 节点 → 给标记 / 语句 → 当函数体跑），异常文本取
-    `WKJavaScriptExceptionMessage`，输入与结果都写进日志（`› …` 前缀）。
-    实测：`1+1`→2、`document.querySelectorAll("a").length`→153、
-    `document.body`→元素标记、`throw new Error("boom")`→Error: boom、
-    `nope.x()`→ReferenceError。
-  - **真实子资源抓取**：新用户脚本 `network-monitor.js` = PerformanceObserver
-    （覆盖所有子资源，含缓存命中）+ fetch/XHR 钩子（补方法/状态/头/截断 body），
-    按 URL 去重、按 jsId 串起 start→complete→body。此前 Network 页签只记录文档
-    级导航；现在一次 YouTube 首页 = 65 条请求 / 2.2 MB，含脚本、图片与
-    `POST accounts.youtube.com/RotateCookies 200`。
-  - Network 页签：新增 **Size 列**、五列全部可点表头排序、过滤条显示
-    `条数 · 总传输量`、详情里可"复制为 cURL"。
-  - Element 页签：**采集链补上**（见下）、复制选择器 / 复制 HTML / 在页面里闪烁
-    定位三个动作、计算样式折叠区（34 项常用属性）。
-  - 控制台：长消息可展开/折叠（右键菜单）、导出日志到 `~/Downloads/desire-console-*.log`
-    并在访达里选中。
-- **桥端点**：`POST /devtools/eval`（走 REPL 路径）、`POST /devtools/inspect`
-  （用内置拾取器填 Element 页签，无需真点页面）、`GET /devtools`（三页签计数与
-  最近条目）。新增 13 条三语文案。
-
-### Fixed
-
 - **Element 页签从来没被填过**（实测发现）：`onInspectedElement` 这条回调只接了
   线、从无调用点，采集 JS 只存在于 `ElementInspector.swift` 的 `#Preview` 里
   （该文件仅被自己的预览引用）。现在补上 `UserScripts/element-inspect.js`
@@ -488,54 +519,6 @@
   `onAIElementPicked`（该回调常驻非空），于是 Element 页签填不上、**元素屏蔽的
   "Block this element?" 弹窗也永远弹不出来**。改为由"谁启动拾取"声明
   `BrowserState.elementPickIntent`（block / devTools / ai），原生侧按意图分发。
-
-### Changed
-
-- **调试面板（Console / Network / Element）视觉重做**（与下载面板同一套令牌）：
-  - 头部改成真正的标签条：图标 + 中文名 + 计数（>0 才显示，错误/失败红字），
-    选中态是强调色底 + 强调色文字；"清除/关闭"换成统一的 `HoverIcon`。
-    面板名此前直接用了英文枚举 rawValue（"Console/Network/Element"），现已进
-    字符串目录（三语）。
-  - 过滤条：级别/类型改用自绘图标分段控件（与下载面板同款、选中跟随强调色），
-    搜索框统一 26pt / 圆角 6；总数等宽数字右对齐。
-  - Console 行：等宽消息 + 等宽时间戳 + 来源 URL 三级层次；错误/警告保留极淡
-    底色，分隔线内缩到文字；hover 显示复制图标（整行点按复制保留），URL 截断
-    从中间改成尾部（窄面板下至少保住域名，旧写法只剩 "https"）。
-  - Network：沿用原生 Table，只统一单元格观感——方法名从"白字实底"改为
-    "彩字淡底"药丸、状态/时间等宽；详情区从裸 `GroupBox` 换成面板自己的小节
-    标题（请求头/请求体/响应头/响应体，三语），并给 URL 加复制按钮。
-  - Element：分组同样换成小节样式（消息/属性/CSS/盒模型），空态给出图标 +
-    说明 + "选择元素"引导；面板宽度下限提到 380（四列表格低于此会把 URL 挤成
-    一条缝；宽度仍由 HSplitView 协商）。
-  - 新增 18 条三语文案。
-- **调试面板接入自动化桥**（此前只能点菜单）：`BrowserCommand.toggleDevTools`
-  可由 `POST /command` 触发；`POST /panel {"name":"devtools","tab":"network"}`
-  切页签并显示面板；`GET /panel/snapshot?name=devtools&tab=…` 进程内渲染该
-  页签（面板在主窗分栏里，不是 popover）。
-- 修 `AppAccent.current` 的初值：`Settings.init` 里读取设置不触发 `didSet`，
-  于是插件窗与截图工具条（读该镜像）在用户改过强调色之前一直用默认蓝。
-
-### Changed
-
-- **下载面板视觉重做**（美学轮，功能与 store API 未动）：
-  - 排版三级：文件名 12.5 medium/primary → 元信息 11 `monospacedDigit`/secondary
-    → 分组标题 10 semibold/secondary；数字全部等宽，进度百分比不再左右跳动。
-  - 状态摘要从两枚饱和胶囊（蓝/橙，比标题还抢眼）换成"小圆点 + 静文字"；
-    吸顶分组条改用 `.ultraThinMaterial`（旧版实心色块在亮色内容上像一块灰板）。
-  - 进度条自绘 4pt 胶囊：跟随强调色（暂停橙色），完成度用 `.easeOut(0.25)` 补间；
-    总大小未知时滑动一段表示进行中，不再显示假百分比。速度改用主文字色——
-    数据靠对比度区分，强调色留给进度条（粉/红系强调色下速度文字原本像告警）。
-  - 行分隔线内缩对齐文字（Finder 列表观感）；归档类型 `.brown` → `.teal`
-    （下载历史以压缩包为主，棕色在深色下整体发灰）。
-  - 失败行降噪：错误一行 + tooltip，`重试` 改为常驻中性胶囊（旧版藏在 hover 里
-    且与错误红抢注意力）；hover 时仍在行尾显示 暂停/取消/打开 等操作。
-  - 空状态：`EmptyState` + 说明文案 + "打开下载文件夹"胶囊按钮（三语文案已入
-    字符串目录：新增 "Files you download show up here." 及三个分组方式 tooltip）。
-  验证（实机，强调色=用户设置的 pink）：进行中/已暂停/已完成/失败四种行态、
-  hover 态（底色 + 行尾操作）、两组日期分组与吸顶条、搜索行、分组切换选中态
-  逐项截图核对。
-
-### Fixed
 
 - **强调色不生效于标签栏等自绘 chrome**（用户报"主题颜色 tab 栏好像没应用"）：
   根因是这些视图用的是 `Color.accentColor` —— 实测它既不跟随 macOS 系统强调色
@@ -558,31 +541,6 @@
   实测（purple）：下载面板快照 紫 531 / 蓝 0；设置窗选中态与 Picker 值均为紫；
   主窗（标签栏/工具栏）紫 444（蓝 194 为网页内容本身）。未实测：标签概览
   （需 ≥2 个标签）、Agent 浮窗、截图工具条。
-
-### Changed
-
-- **视频广告拦截规则改为热插拔**（不再需要重新构建/发版才能改规则）：
-  规则解析顺序 **本地覆盖 > 远程规则包 > 内置**，全部由新增的
-  `VideoAdRulesStore` 统一解析，`VideoAdBlocker` 在注入时（每个新 webview）
-  才取规则。
-  - 本地覆盖：`~/Library/Application Support/Desire/VideoAdRules/<site>.css|.js`
-    （site ∈ youtube / bilibili / tencent / iqiyi / youku / mgtv / tiktok /
-    twitter），改完在 设置 ▸ 通用 ▸ 媒体 ▸ 广告拦截规则 点“重新加载”。
-  - 远程包：`…/VideoAdRules/remote/source.txt` 写一行 `rules.json` 的 URL，
-    格式 `{"version":"…","sites":{"youtube":{"css":"…","js":"…"}}}`，缓存于
-    `remote/rules.json`，启动时若超过 24h 自动拉取。**远程 CSS 始终生效；
-    远程 JS 默认不生效**——它会在页面上下文执行，必须在设置里显式打开
-    “信任远程规则脚本”。没有配置源时缓存的包不参与解析（删源即失效）。
-  - 注入改为**代数化**（`data-gen` / `window.__desireRulesGen`）：user script
-    是 webview 创建时定格的，所以导航时（`didCommit` 换 CSS、`didFinish` 重投
-    站点 JS）按当前代数补投，规则改动后**刷新页面即可生效，不必重开标签页**。
-  - 新增设置行（规则状态 / 重新加载 / 打开规则目录 / 信任远程脚本）与桥端点
-    `GET /rules`、`POST /rules/refresh`（可选 `{"trustRemoteJS":true|false}`）。
-  - 已验证（Debug 构建 + 本地 http 规则包）：本地覆盖替换内置且压过远程、
-    远程 CSS 生效、信任关时远程 JS 不跑/打开后跑、删源后缓存包失效、恢复内置
-    后首页 33 格全部有内容且 0 空壳 0 可见广告位。
-
-### Fixed
 
 - **视频广告拦截在列表页失败 + 误删正常视频**（YouTube 列表页"赞助商广告太多"
   的真因）：
@@ -626,15 +584,6 @@
   ← `VKCImageAnalysisBaseView.updateCurrentDisplayedViewContentsRect`）直接
   杀进程。已用 `systemTextExtractionEnabled = false` 关闭（Desire 没有 Live
   Text UI），同时消掉 `checkRichAnalysisAvailability XPC failed` 噪音。
-
-### Changed
-
-- 原生窗口全屏（⌃⌘F）收起浏览器 chrome（标签栏/工具栏/进度条/书签栏），
-  内容铺满整屏，与 Safari/Chrome 全屏一致。
-- 新增自动化端点 `GET /diag/geometry`（webview 与各窗口的 frame / styleMask /
-  全屏状态 / 所在屏幕 / 子视图树），用于全屏与面板类几何问题的无截图排查。
-
-
 ## [v0.3.10] - 2026-09-20
 
 > 分栏拖拽终局：HSplitView 原生分栏。v0.3.9 链路（系统 `.inspector`

@@ -61,6 +61,23 @@ class FilterListStore: ObservableObject {
         return URLSession(configuration: config)
     }()
 
+    /// 规则列表 store。
+    ///
+    /// `WKContentRuleListStore.default()` 在个别环境下会返回 nil——表现是**所有**
+    /// 列表都得到"Compilation failed"，而日志里没有任何编译错误（两个 compile 分支
+    /// 都不会被走到）。兜底用基于目录的 store：编译只依赖它的缓存目录，编译出来的
+    /// `WKContentRuleList` 是内存对象，注册到 controller 与 store 是谁无关。
+    private static func ruleListStore() -> WKContentRuleListStore? {
+        if let store = WKContentRuleListStore.default() { return store }
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dir = base.appendingPathComponent("Desire", isDirectory: true)
+            .appendingPathComponent("ContentRuleLists", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        Log.contentBlocking.error("default content-rule store unavailable — falling back to a directory store at \(dir.path, privacy: .public)")
+        return WKContentRuleListStore(url: dir)
+    }
+
     private init() {
         metas = DiskStore.load([String: ListMeta].self, key: metaKey) ?? [:]
         lists = definitions.map { def in
@@ -78,7 +95,10 @@ class FilterListStore: ObservableObject {
     /// Loads rule lists WebKit persisted from previous runs; enabled lists
     /// with no cached compilation are fetched in the background.
     private func loadCachedCompilations() {
-        guard let store = WKContentRuleListStore.default() else { return }
+        guard let store = Self.ruleListStore() else {
+            Log.contentBlocking.error("no content-rule store available — filter lists cannot load")
+            return
+        }
         for list in lists where list.isEnabled {
             let id = list.id
             Task { [weak self] in
@@ -205,7 +225,7 @@ class FilterListStore: ObservableObject {
     /// WKContentRuleListStore's removal has no async import on this SDK —
     /// wrap the completion handler.
     private func removeStoredList(_ identifier: String) async {
-        guard let store = WKContentRuleListStore.default() else { return }
+        guard let store = Self.ruleListStore() else { return }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             store.removeContentRuleList(forIdentifier: identifier) { _ in
                 continuation.resume()
@@ -213,27 +233,84 @@ class FilterListStore: ObservableObject {
         }
     }
 
-    private func compile(id: String, abp: String) async -> WKContentRuleList? {
-        guard let store = WKContentRuleListStore.default() else { return nil }
-        let identifier = Self.ruleListIdentifier(id)
-        await removeStoredList(identifier)
-        let full = ABPRuleConverter.convert(abp, includeHiding: true)
+    /// 一次转换 + 编译（带完整错误日志）。
+    private func attempt(store: WKContentRuleListStore, identifier: String, abp: String, includeHiding: Bool) async -> WKContentRuleList? {
+        let converted = ABPRuleConverter.convert(abp, includeHiding: includeHiding)
+        guard converted.ruleCount > 0 else { return nil }
         do {
-            return try await store.compileContentRuleList(forIdentifier: identifier,
-                                                          encodedContentRuleList: full.json)
+            return try await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: converted.json)
         } catch {
-            // `try?` 在这里会吞掉失败原因（大小超限 vs JSON 非法无从区分）。
-            Log.contentBlocking.error("filter list \(id, privacy: .public) full compile failed: \(error.localizedDescription, privacy: .public) — json \(full.json.count, privacy: .public)B, retrying blocking-only")
-        }
-        await removeStoredList(identifier)
-        let blockingOnly = ABPRuleConverter.convert(abp, includeHiding: false)
-        do {
-            return try await store.compileContentRuleList(forIdentifier: identifier,
-                                                          encodedContentRuleList: blockingOnly.json)
-        } catch {
-            Log.contentBlocking.error("filter list \(id, privacy: .public) blocking-only compile failed: \(error.localizedDescription, privacy: .public) — json \(blockingOnly.json.count, privacy: .public)B")
+            let ns = error as NSError
+            Log.contentBlocking.error("filter list compile failed (\(includeHiding ? "full" : "blocking-only", privacy: .public)): \(ns.domain, privacy: .public)/\(ns.code, privacy: .public) — \(ns.userInfo, privacy: .public) — json \(converted.json.count, privacy: .public)B")
             return nil
         }
+    }
+
+    /// 编译失败时的**自愈**：二分找出 WebKit 不接受的规则丢掉，用剩下的重新编译。
+    ///
+    /// 列表里只要有一条正则/写法 WebKit 不认，整份列表就编译失败（实测 EasyList
+    /// 全量因此一直"更新失败"）。逐层二分把坏行定位到很小的块再丢；代价只发生在
+    /// 失败路径上（成功路径仍然只编译一次）。
+    private func sanitize(store: WKContentRuleListStore, identifier: String, text: String, depth: Int = 0) async -> (kept: String, dropped: [String]) {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard lines.count > 1, depth < 14 else {
+            let meaningful = lines.filter { !$0.isEmpty && !$0.hasPrefix("!") && !$0.hasPrefix("[Adblock") }
+            return ("", meaningful)
+        }
+        let mid = lines.count / 2
+        var kept: [String] = []
+        var dropped: [String] = []
+        for chunk in [Array(lines[..<mid]), Array(lines[mid...])] {
+            let chunkText = chunk.joined(separator: "\n")
+            let converted = ABPRuleConverter.convert(chunkText, includeHiding: true)
+            if converted.ruleCount == 0 { continue }   // 整块都是注释/不支持的行
+            let probeID = identifier + "-probe"
+            await removeStoredList(probeID)
+            let ok: Bool
+            do {
+                _ = try await store.compileContentRuleList(forIdentifier: probeID, encodedContentRuleList: converted.json)
+                ok = true
+            } catch {
+                ok = false
+            }
+            if ok {
+                kept.append(contentsOf: chunk)
+            } else {
+                let (good, bad) = await sanitize(store: store, identifier: identifier, text: chunkText, depth: depth + 1)
+                if !good.isEmpty {
+                    kept.append(contentsOf: good.split(separator: "\n", omittingEmptySubsequences: false).map(String.init))
+                }
+                dropped.append(contentsOf: bad)
+            }
+        }
+        return (kept.joined(separator: "\n"), dropped)
+    }
+
+    private func compile(id: String, abp: String) async -> WKContentRuleList? {
+        guard let store = Self.ruleListStore() else {
+            Log.contentBlocking.error("filter list \(id, privacy: .public) compile skipped: no content-rule store")
+            return nil
+        }
+        let identifier = Self.ruleListIdentifier(id)
+        await removeStoredList(identifier)
+        if let list = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: true) {
+            return list
+        }
+        await removeStoredList(identifier)
+        if let list = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: false) {
+            return list
+        }
+        // 两条路都失败：二分剔除 WebKit 不接受的规则，把剩下的编译出来（自愈）。
+        await removeStoredList(identifier)
+        let (kept, dropped) = await sanitize(store: store, identifier: identifier, text: abp)
+        guard !dropped.isEmpty else { return nil }
+        Log.contentBlocking.error("filter list \(id, privacy: .public) dropped \(dropped.count, privacy: .public) unsupported rule(s); first: \(dropped.prefix(3).joined(separator: " | "), privacy: .public)")
+        await removeStoredList(identifier)
+        guard let list = await attempt(store: store, identifier: identifier, abp: kept, includeHiding: true) else {
+            Log.contentBlocking.error("filter list \(id, privacy: .public) still fails after dropping \(dropped.count, privacy: .public) rule(s)")
+            return nil
+        }
+        return list
     }
 
     // MARK: - Controller distribution

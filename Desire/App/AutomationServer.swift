@@ -364,6 +364,9 @@ final class AutomationServer {
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
+        ep("POST", "/filters/probe", "Convert ABP lines to content-blocker JSON and compile them, reporting per-line errors", params: ["abp:string (one rule per line)", "includeHiding?:bool"], example: #"-d '{"abp":"/web_ads/*$image"}'"#)
+        ep("POST", "/filters/refresh", "Re-download + compile filter lists", params: ["id?:string", "force?:bool"], example: "-d '{}'")
         ep("GET", "/ads/rules", "Saved element-block rules (optional host filter)", params: ["host?:string"], example: "…/ads/rules")
         ep("POST", "/ads/rules/clear", "Remove element-block rules (host, or all)", params: ["host?:string"], example: "-d '{}'")
         ep("GET", "/ads/candidates", "Ad-like elements on the tab, with the reason each matched (same scan the agent runs)", params: ["index?:int"], example: "…/ads/candidates")
@@ -1044,6 +1047,21 @@ final class AutomationServer {
                     urlPattern: Self.string(body, "urlPattern"),
                     requests: (body["requests"] as? [String]) ?? [],
                     index: Self.index(body)
+                ))
+            case ("GET", "/filters"):
+                return try Self.json(Self.filterLists())
+            case ("POST", "/filters/probe"):
+                if let regexes = body["regexes"] as? [String] {
+                    return try await Self.json(Self.filterProbeRegexes(regexes))
+                }
+                return try await Self.json(Self.filterProbe(
+                    abp: Self.string(body, "abp") ?? "",
+                    includeHiding: (body["includeHiding"] as? Bool) ?? true
+                ))
+            case ("POST", "/filters/refresh"):
+                return try Self.json(Self.filterListsRefresh(
+                    id: Self.string(body, "id"),
+                    force: (body["force"] as? Bool) ?? true
                 ))
             case ("GET", "/media/exports"):
                 return try Self.json(Self.mediaExports())
@@ -2696,6 +2714,87 @@ final class AutomationServer {
             "blockedRequests": blocked,
             "rulesTotal": app.elementBlockStore.rules.count,
         ]
+    }
+
+    /// 社区过滤列表（EasyList / EasyList China）的状态：开关、上次更新时间、
+    /// 规则数、以及**失败原因**（面板上那句"更新失败"背后的原始错误）。
+    private static func filterLists() -> [String: Any] {
+        let store = FilterListStore.shared
+        return [
+            "lists": store.lists.map { list -> [String: Any] in
+                var row: [String: Any] = [
+                    "id": list.id,
+                    "name": list.name,
+                    "enabled": list.isEnabled,
+                    "updating": list.isUpdating,
+                    "source": list.sourceURL.absoluteString,
+                ]
+                if let last = list.lastUpdated { row["lastUpdated"] = ISO8601DateFormatter().string(from: last) }
+                if let count = list.ruleCount { row["ruleCount"] = count }
+                if let error = list.errorText { row["error"] = error }
+                return row
+            },
+        ]
+    }
+
+    /// 直接编译若干条 url-filter 正则（隔离试验用：到底哪种构造 WebKit 不收）。
+    private static func filterProbeRegexes(_ regexes: [String]) async -> [String: Any] {
+        guard let store = WKContentRuleListStore.default() else { return ["error": "no store"] }
+        var results: [[String: Any]] = []
+        for (index, regex) in regexes.enumerated() {
+            let rule: [[String: Any]] = [["trigger": ["url-filter": regex], "action": ["type": "block"]]]
+            guard let data = try? JSONSerialization.data(withJSONObject: rule),
+                  let json = String(data: data, encoding: .utf8) else { continue }
+            let identifier = "probe-r-\(index)-" + UUID().uuidString.prefix(6)
+            var row: [String: Any] = ["regex": regex]
+            do {
+                _ = try await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: json)
+                row["ok"] = true
+            } catch {
+                row["ok"] = false
+                row["error"] = ((error as NSError).userInfo["NSHelpAnchor"] as? String) ?? error.localizedDescription
+            }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                store.removeContentRuleList(forIdentifier: identifier) { _ in continuation.resume() }
+            }
+            results.append(row)
+        }
+        return ["results": results]
+    }
+
+    /// 把若干条 ABP 规则转成 content-blocker JSON 并真的交给 WebKit 编译，
+    /// 回report 每条的结果与错误。用来定位"哪条规则让整份列表编译失败"。
+    private static func filterProbe(abp: String, includeHiding: Bool) async -> [String: Any] {
+        let lines = abp.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return ["error": "abp required"] }
+        guard let store = WKContentRuleListStore.default() else { return ["error": "no store"] }
+        var results: [[String: Any]] = []
+        for (index, line) in lines.enumerated() {
+            let converted = ABPRuleConverter.convert(line, includeHiding: includeHiding)
+            var row: [String: Any] = ["line": line, "rules": converted.ruleCount, "json": String(converted.json.prefix(300))]
+            let identifier = "probe-\(index)-" + UUID().uuidString.prefix(6)
+            do {
+                _ = try await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: converted.json)
+                row["ok"] = true
+            } catch {
+                row["ok"] = false
+                row["error"] = ((error as NSError).userInfo["NSHelpAnchor"] as? String) ?? error.localizedDescription
+            }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                store.removeContentRuleList(forIdentifier: identifier) { _ in continuation.resume() }
+            }
+            results.append(row)
+        }
+        return ["results": results]
+    }
+
+    private static func filterListsRefresh(id: String?, force: Bool) -> [String: Any] {
+        let store = FilterListStore.shared
+        let targets = id.map { [$0] } ?? store.lists.map(\.id)
+        for target in targets {
+            store.refresh(id: target, force: force)
+        }
+        return ["ok": true, "refreshed": targets]
     }
 
     /// 后台媒体导出（downloadMedia）的任务列表与取消。

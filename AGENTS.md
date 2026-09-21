@@ -429,6 +429,20 @@ Features/Bookmarks/
   看会话 JSON（`~/Library/Application Support/Desire/storage/conversation-*.json`）+
   `/usr/bin/log show --predicate 'process == "Desire"' --info --debug` 里的
   `[me.siwi.Desire:ai] AI request — …` 行，确认请求发没发、返回了什么。
+- **WebKit content-blocker 的三条硬约束（2026-09-21，过滤列表"更新失败"的真因）**：
+  ① `resource-type` 只认 `document / image / style-sheet / script / font / media /
+  svg-document / raw / popup`——**`style`、`other`、`websocket` 写了就整份列表编译失败**
+  （`Invalid string in the trigger flags array`）；② 一个 trigger 的四个域条件
+  （if-domain / unless-domain / if-top-url / unless-top-url）**只能有一个**，`domain=a|~b`
+  这种正负都有的规则必须整条丢掉（`A trigger cannot have more than one condition`）；
+  ③ **url-filter 的正则里不能有组内 `$`**——`(?:[/?#]|$)` 会让所有 `||host^` 规则失效
+  （`Invalid or unsupported regular expression`），`^` 只能译成 `[/?#]`；裸的尾部 `$`
+  是允许的。
+  排查手法（本次三处根因就是这么找到的）：`POST /filters/probe {"abp": "…"}` 或
+  `{"regexes": [...]}` 把规则真交给 WebKit 编译并读逐条错误；`GET /filters` 看各列表
+  状态与失败原因；**注意独立小程序里的 `WKContentRuleListStore` 编译比应用内宽松**
+  （同样内容小程序通过、应用报错），别拿它当判据。过滤器编译失败会走**二分自愈**
+  （`FilterListStore.sanitize`）只丢坏规则，日志里能看到丢了哪些。
 - **首次点击劫持要"只拦第一次 + 只拦体外链接/浮层"**（2026-09-21，用户反馈视频站
   播放键首击跳广告）：`UserScripts/first-click-guard.js`，随"拦截视频广告"开关注入，
   **主框架 + atDocumentStart**（晚于页面自己的处理器就拦不住）。三条边界必须守住：

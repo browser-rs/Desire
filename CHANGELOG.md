@@ -1,5 +1,36 @@
 ## [Unreleased]
 
+### Fixed
+
+- **社区过滤列表（EasyList / EasyList China）一直更新失败**（用户反馈"过滤列表更新失败"）：
+  表面症状是面板那句"Compilation failed"，真因有三处，全部是**转换器产出的内容被
+  WebKit 拒绝**（源站、网络都正常——`curl` 拿到的是标准 ABP 文本）：
+  - **`resource-type` 用了 WebKit 不认识的字符串**：`stylesheet` 被映射成 `style`
+    （WebKit 只认 `style-sheet`），另外 `object`/`other`/`websocket` 也无对应类型。
+    报错是 `Invalid string in the trigger flags array`（EasyList 全量因此失败）。
+    现在改成 `style-sheet`，无对应类型的规则**整条丢弃**（宁可少拦，不要把类型限制
+    去掉变成误拦）。
+  - **一个 trigger 里同时给了 `if-domain` 与 `unless-domain`**：WebKit 规定四个域条件
+    （if-domain / unless-domain / if-top-url / unless-top-url）**只能有一个**，而
+    `domain=a|~b` 这类规则两个都产出了（隐藏规则与网络规则都有这个问题）。报错是
+    `A trigger cannot have more than one condition`。现在这类规则直接丢掉。
+  - **生成的 `url-filter` 里含组内 `$`**：ABP 的 `^` 分隔符被译成 `(?:[/?#]|$)`，而
+    **WebKit 的正则引擎不接受组内的 `$`**（实测：`example\.com$` 可以，
+    `example\.com(/|$)` 报 `Invalid or unsupported regular expression`）。这条最致命
+    ——几乎所有 `||host^` 规则都命中，EasyList 全量因此过不了。现在 `^` 只译成
+    `[/?#]`（浏览器请求的 URL 一定带路径，实际不丢覆盖面，也仍能挡住
+    `example.com.evil.com` 这类误匹配）。
+- **编译失败不再整份列表作废（自愈）**：新增二分剔除——编译失败时逐层把列表劈半，
+  能编译的留下、不能的继续二分，最后把少数不支持的规则丢掉并用剩下的重新编译
+  （日志里写明丢了哪些、丢了多少）。实测：EasyList **一次编译通过、零丢弃**（60000 条
+  封顶），EasyList China 仅丢 53 条（`{5,}` 这类正则规则与 `#?#` 扩展隐藏写法）。
+- **桥端点**：`GET /filters`（各列表开关/更新时间/规则数/失败原因）、
+  `POST /filters/refresh {"id"?, "force"?}`、`POST /filters/probe {"abp" | "regexes"}`
+  ——后者把若干条规则真的交给 WebKit 编译并回报逐条错误，是定位"哪条规则让整份列表
+  失败"的探针（本次三处根因就是靠它隔离出来的）。
+- 顺带：编译错误日志此前只打 `localizedDescription`（只剩"WKErrorDomain 错误 6"），
+  现在记完整 `domain/code/userInfo`——真实原因（哪条规则、什么语法）都在 `NSHelpAnchor` 里。
+
 ### Added
 
 - **首次点击劫持防护**（用户反馈："很多视频页面播放按钮第一次点击跳转广告"）：影视站

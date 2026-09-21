@@ -49,6 +49,9 @@ enum ABPRuleConverter {
                 if !domains.isEmpty {
                     let include = domains.filter { !$0.hasPrefix("~") }.map { "*" + $0 }
                     let exclude = domains.filter { $0.hasPrefix("~") }.map { "*" + $0.dropFirst() }
+                    // 同网络规则：WebKit 的 trigger 只允许一个"域条件"，
+                    // 正负都有的隐藏规则无法表达 → 丢掉（宁可少藏，不要误藏）。
+                    if !include.isEmpty && !exclude.isEmpty { continue }
                     if !include.isEmpty { trigger["if-domain"] = include }
                     if !exclude.isEmpty { trigger["unless-domain"] = exclude }
                 }
@@ -97,15 +100,21 @@ enum ABPRuleConverter {
             switch option {
             case "third-party": loadTypes = ["third-party"]
             case "~third-party": loadTypes = ["first-party"]
+            // WebKit 认的 resource-type 只有：document / image / style-sheet / script /
+            // font / media / svg-document / raw / popup。**写错一个字符串整份列表编译
+            // 就失败**（WKErrorDomain 6 "Invalid string in the trigger flags array"，
+            // 实测 EasyList 全量因此一直更新失败）。
             case "image": append(&resourceTypes, "image")
             case "script": append(&resourceTypes, "script")
-            case "stylesheet": append(&resourceTypes, "style")
+            case "stylesheet": append(&resourceTypes, "style-sheet")
             case "xmlhttprequest": append(&resourceTypes, "raw")
             case "media": append(&resourceTypes, "media")
             case "font": append(&resourceTypes, "font")
-            case "object", "other": append(&resourceTypes, "other")
             case "subdocument": append(&resourceTypes, "document")
-            case "websocket": append(&resourceTypes, "websocket")
+            case "object", "other", "websocket", "ping", "beacon", "csp_report":
+                // WebKit 没有对应类型。**丢规则而不是丢类型限制**——去掉限制等于把
+                // 这条规则放大到所有请求，宁可少拦也不要误拦。
+                return nil
             case "important": break // no equivalent — keep the block anyway
             case "popup", "document", "csp", "generichide", "elemhide", "ghide", "ehide", "inline-script":
                 return nil // not expressible — drop the rule
@@ -124,6 +133,14 @@ enum ABPRuleConverter {
                 }
             }
         }
+
+        // WebKit 规定一个 trigger 里**只能有一个"域条件"**（if-domain / unless-domain /
+        // if-top-url / unless-top-url）：`domain=a|~b` 这种正负都有的规则没法表达，
+        // 直接丢掉（实测 EasyList China 因此一直更新失败："A trigger cannot have more
+        // than one condition"）。只有单侧时照常输出。
+        let hasInclude = !(ifDomains ?? []).isEmpty
+        let hasExclude = !(unlessDomains ?? []).isEmpty
+        if hasInclude && hasExclude { return nil }
 
         var trigger: [String: Any] = ["url-filter": addressRegex(address)]
         if let loadTypes { trigger["load-type"] = loadTypes }
@@ -165,7 +182,12 @@ enum ABPRuleConverter {
         for ch in s {
             switch ch {
             case "*": out += ".*"
-            case "^": out += "(?:[/?#]|$)"
+            // ABP 的 `^` = "分隔符或地址结尾"。**WebKit 的正则引擎不接受组内的
+            // `$`**（`(?:[/?#]|$)` 会让整份列表编译失败——实测这是 EasyList 全量
+            // "更新失败"的真凶，靠二分自愈会误丢 5 万多条）。浏览器请求的 URL 一定
+            // 带路径（`https://host` 会规范成 `https://host/`），所以只用分隔符类
+            // 即可，实际不丢覆盖面，也避免 `example.com.evil.com` 被误匹配。
+            case "^": out += "[/?#]"
             case ".": out += "\\."
             case "+": out += "\\+"
             case "?": out += "\\?"

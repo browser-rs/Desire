@@ -2,6 +2,19 @@
 
 ### Fixed
 
+- **`Error: HTTP 200: System message must be at the beginning.`**（用户实测）：上一轮给
+  "下载/导出完成"加的**会话备注是 `system` 角色**，它就留在对话中间——而 OpenAI 兼容
+  服务**要求 system 只能出现在开头**，于是下一轮请求被拒（amd 网关直接在流里回
+  `System message must be at the beginning.`；这个错误能看见，也正是上一轮"流内错误
+  不再被吞"的功劳，否则又是静默失败）。现在 `buildRequestMessages` 把会话里的 system
+  备注**从消息流里摘出来**、并入开头那条组合 system 提示（`## Session notes` 一节）：
+  请求里 system 仍只有开头一条，备注内容照旧送达模型。
+  - 实测（fixture 端点按 OpenAI 规则校验并回显）：`sysCount=1; sysAt=[0];
+    notesInSystem=True` —— 带备注的会话能正常对话，且备注确实在开头那条 system 里。
+  - 桥端点：`POST /agent/note {"text":"…"}`（复现/回归用）。
+
+### Fixed
+
 - **思考时聊天列表上下抖动**（用户反馈）：两个来源叠加，都改掉：
   - **滚动锚点改回固定 `.top`**：我上一版把它做成"跟随时 `.bottom` / 不跟随时
     `.top`"，但流式期间内容每 80ms 长一截，判定会在两者之间**反复切换**，而每次切换

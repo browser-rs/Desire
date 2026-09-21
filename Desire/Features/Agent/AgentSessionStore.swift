@@ -595,6 +595,14 @@ class AgentSessionStore: ObservableObject {
     private func buildRequestMessages() async -> [AgentMessage] {
         var request = Self.compactForContext(messages)
 
+        // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
+        // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，
+        // 夹在对话中间会被直接拒绝（实测 amd 网关：`System message must be at the
+        // beginning`）。所以把它们从消息流里摘出来，并入开头那条组合 system 提示。
+        let notes = request.compactMap { $0.role == .system ? $0.content : nil }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        request.removeAll { $0.role == .system }
+
         // One composed system prompt with ordered layers — identity (the
         // user's editable prompt), L0-L2 memory, the skills list, the
         // workspace path, and a FRESH per-iteration page summary. Injected
@@ -620,7 +628,10 @@ class AgentSessionStore: ObservableObject {
             workspacePath: SystemCommandStore.shared.workingDirectory.path,
             pageContext: pageContext
         ))
-        request.insert(AgentMessage(role: .system, content: composed), at: 0)
+        let notesBlock = notes.isEmpty
+            ? ""
+            : "\n\n## Session notes\n" + notes.map { "- \($0)" }.joined(separator: "\n")
+        request.insert(AgentMessage(role: .system, content: composed + notesBlock), at: 0)
         return request
     }
 

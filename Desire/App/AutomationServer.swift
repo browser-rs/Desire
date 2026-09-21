@@ -373,6 +373,7 @@ final class AutomationServer {
         ep("POST", "/ads/block", "Hide elements on this host now and on future loads (+ optional request blocks)", params: ["selectors:[string]", "urlPattern?:string", "requests?:[string]", "index?:int"], example: #"-d '{"selectors":["[id=\"banner\"]"]}'"#)
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
@@ -1067,6 +1068,11 @@ final class AutomationServer {
                 return try Self.json(Self.mediaExports())
             case ("POST", "/media/exports/cancel"):
                 return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/agent/note"):
+                return try Self.json(Self.agentNote(
+                    text: Self.string(body, "text") ?? "",
+                    window: Self.string(body, "window")
+                ))
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
@@ -2820,6 +2826,16 @@ final class AutomationServer {
     private static func mediaExportCancel(id: String) -> [String: Any] {
         guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
         MediaExportStore.shared.cancel(id: uuid)
+        return ["ok": true]
+    }
+
+    /// 往会话追加一条 system 备注（后台任务完成等）。面板不渲染 system 消息，
+    /// 但下一轮请求会把它并进开头的 system 提示（**不能留在对话中间**：OpenAI
+    /// 兼容服务要求 system 只能在开头）。
+    private static func agentNote(text: String, window: String?) throws -> [String: Any] {
+        guard !text.isEmpty else { return ["error": "missing text"] }
+        guard let session = resolveSession(window) else { return ["error": "no live agent session"] }
+        session.appendExternalNote(text)
         return ["ok": true]
     }
 

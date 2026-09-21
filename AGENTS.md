@@ -419,6 +419,13 @@ Features/Bookmarks/
   DeepSeek 这类服务直接拒（400）；③ 展示是**折叠块**，流式思考时自动展开、正文一开始自动
   收起，用户手动点过之后不再自动切换（`ReasoningBlock`，`isLive = isStreamingTail &&
   content.isEmpty`）。
+- **请求里 system 只能有一条、且必须在开头**（2026-09-21 实测）：OpenAI 兼容服务
+  （amd 网关实测）拒绝夹在对话中间的 system 消息，报 `System message must be at the
+  beginning.`。所以**带外备注（`appendExternalNote`，下载完成之类的 system 消息）不能
+  留在 `messages` 里直接发出去**——`buildRequestMessages` 会把它们摘出来并进开头那条
+  组合提示的 `## Session notes` 一节。新增"往会话里塞 system 消息"的功能时照此处理。
+  回归：`POST /agent/note` 写一条备注，再发一条消息，用回显端点确认
+  `sysCount=1 / sysAt=[0] / notesInSystem=true`。
 - **Agent 回合永远不许"静默结束"**（2026-09-21，用户实测"几次工具失败后再发消息没有回复"）：
   模型返回空内容时此前直接 `return`——不写消息、不报错，用户看到的就是"石沉大海"。
   现在空回合会写一条可见警告并把该轮标记失败。配套两条：① **OpenAI 兼容服务会把错误塞在

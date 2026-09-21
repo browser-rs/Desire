@@ -32,6 +32,11 @@ struct AgentPanel: View {
     @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
+    /// 会话内容的统一宽度上限（消息、快捷按钮、输入框同一列，居中）。
+    /// 面板可拖到 1200 宽，不给上限时满行文字很难扫读——但**所有内容行必须用同一个
+    /// 值**，否则会出现"上面一列窄、下面输入框通栏"的错位感（用户实测反馈）。
+    static let contentMaxWidth: CGFloat = 960
+
     /// Memo box for the per-render derived collections (tool result lookup
     /// + tool-call chip ids). Rebuilt only when the message count, the tail
     /// message id, or the tail's tool-call count changes — streaming text
@@ -195,6 +200,8 @@ struct AgentPanel: View {
                 AgentQuickActionBar(isProcessing: store.isProcessing) { action in
                     store.performQuickAction(action)
                 }
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
 
             if canRegenerate {
@@ -210,6 +217,8 @@ struct AgentPanel: View {
                     .help("Re-run the last message")
                     Spacer()
                 }
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
             }
@@ -218,6 +227,8 @@ struct AgentPanel: View {
                 AgentQuestionCard(question: question.question) { answer in
                     promptCenter.answer(answer)
                 }
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
 
             if let approval = store.pendingApproval {
@@ -227,6 +238,8 @@ struct AgentPanel: View {
                     onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
                     onDeny: { store.resolveApproval(.deny) }
                 )
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
 
             // Input typed mid-turn, sent automatically when the running
@@ -261,6 +274,8 @@ struct AgentPanel: View {
                 .background(
                     Capsule().fill(Color.secondary.opacity(0.10))
                 )
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
             }
@@ -287,6 +302,8 @@ struct AgentPanel: View {
                 modelMenu: AnyView(AgentModelMenu(store: store, preference: store.preference)),
                 fullAccessPill: AnyView(AgentFullAccessPill(store: store))
             )
+            .frame(maxWidth: Self.contentMaxWidth)
+            .frame(maxWidth: .infinity)
             .onChange(of: voiceManager.transcribedText) { _, newText in
                 inputText = newText
             }
@@ -364,9 +381,8 @@ struct AgentPanel: View {
                         .id("__bottom__")
                 }
                 .padding(.vertical, 12)
-                // Readability cap: the floating panel can be resized wide;
-                // full-bleed text lines get hard to scan.
-                .frame(maxWidth: 760)
+                // 可读性上限：面板能拖很宽，满行的文字不好扫读。
+                .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
             // 内容增长时的锚点**只在"跟着尾巴"时才锚到底部**：此前无条件

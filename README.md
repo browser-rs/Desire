@@ -117,12 +117,25 @@ curl -sN $B/events                                          # watch what happens
 ## Download
 
 Grab the latest unsigned build from
-[GitHub Releases](https://github.com/browser-rs/Desire/releases) (Apple
-Silicon, macOS 26.5+). One-time, after unzipping:
+[GitHub Releases](https://github.com/browser-rs/Desire/releases) — Apple
+Silicon (arm64), macOS 26.5+.
+
+1. **Unzip** `Desire-vX.Y.Z-macos-arm64.zip` (double-click it, or
+   `ditto -x -k Desire-vX.Y.Z-macos-arm64.zip .`).
+2. **Install**: drag the unzipped **`Desire.app` into `/Applications`**.
+3. **Clear the quarantine flag once** (required for unsigned builds). Point it
+   at the path where you put the app:
 
 ```bash
-xattr -cr Desire.app
+xattr -cr /Applications/Desire.app
 ```
+
+4. **Open** `Desire.app`. Gatekeeper checks it once on the first launch; after
+   step 3 it opens normally.
+
+> `xattr: No such file: Desire.app` means there is no unzipped app in the
+> current directory — use the full path (`/Applications/Desire.app`) or `cd`
+> into the folder that holds it.
 
 ## Build
 

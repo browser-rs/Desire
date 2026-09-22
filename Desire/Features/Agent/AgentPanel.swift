@@ -33,6 +33,10 @@ struct AgentPanel: View {
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
+    /// 用户此刻是否在**自己滚动**（拖拽/惯性）。贴底状态只在它为真时才由几何变化
+    /// 改写：内容增长同样会触发 `onScrollGeometryChange`，把它当成"用户上滑了"
+    /// 会在输出到一半时停掉跟随（见下面两处的注释）。
+    @State private var isUserScrolling = false
     @StateObject private var voiceManager = VoiceInputManager()
     @FocusState private var isInputFocused: Bool
 
@@ -449,12 +453,22 @@ struct AgentPanel: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
+            .onScrollPhaseChange { _, phase, _ in
+                // **只有用户在自己滚**时才允许几何变化改贴底状态。
+                // 内容增长（流式每 80ms 长一截、工具卡片/代码块一次长出一大块）
+                // 同样会触发下面的 geometry 回调；单次增长超过 160pt 的迟滞阈值时，
+                // 旧写法会把它判成"用户上滑了"→ 跟随从此停住 → 用户看到的就是
+                // "消息输出到一半被输入框挡住"（尾部留在可视区外）。
+                isUserScrolling = phase != .idle
+            }
             .onScrollGeometryChange(for: Bool.self) { geometry in
-                // "贴底"判定带**迟滞**：进入 60pt 内才算贴上、离开 160pt 才算脱离。
-                // 单一阈值在流式（内容每 80ms 长一截）时会来回翻转，翻一次跳一次
-                // ——实测就是"上下抖动"。迟滞把这种抖动挡在外面。
+                // 视口没动、是内容长高了 —— 保持跟随，不改状态。
+                guard isUserScrolling else { return isPinnedToBottom }
                 let distance = geometry.contentSize.height
                     - (geometry.contentOffset.y + geometry.containerSize.height)
+                // "贴底"判定带**迟滞**：进入 60pt 内才算贴上、离开 160pt 才算脱离。
+                // 单一阈值在流式时会来回翻转，翻一次跳一次——实测就是"上下抖动"。
+                // （判定只在用户自己滚动时发生，所以迟滞只需挡住手抖，不必再挡内容增长。）
                 if isPinnedToBottom {
                     return distance < 160
                 }
@@ -521,6 +535,9 @@ struct AgentPanel: View {
         // Instant reposition: per-token animated scrolls fight the user and
         // can desync under LazyVStack.
         proxy.scrollTo("__bottom__", anchor: .bottom)
+        // 强制跟随（用户刚发消息 / 点"回到最新"）顺手恢复贴底状态：状态现在只由
+        // 用户滚动改，程序化滚动得自己认领，否则"回到最新"按钮会一直挂着。
+        if force { isPinnedToBottom = true }
     }
 
     private func exportMarkdown() {

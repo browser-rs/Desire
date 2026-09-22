@@ -488,6 +488,12 @@ struct AgentSettingsSection: View {
     @ViewBuilder
     private func serviceRow(_ profile: AIProviderProfile) -> some View {
         let isActive = store.activeProfileID == profile.id && store.providerKind == .cloud
+        // Keychain 读是**阻塞的系统调用**（走 securityd IPC），而这一行每次重绘都会
+        // 求值：只读一次给状态徽章用。此前这里写了两遍
+        // `store.loadAPIKey(profileID:)`，等于每行每帧两次主线程 Keychain 调用
+        // （Xcode 的 Performance Diagnostics 会报 "This method should not be called
+        // on the main thread as it may lead to UI unresponsiveness"）。
+        let hasKey = store.loadAPIKey(profileID: profile.id) != nil
         HStack(spacing: 8) {
             Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 12))
@@ -517,10 +523,10 @@ struct AgentSettingsSection: View {
             Spacer(minLength: 6)
 
             StatusPill(
-                text: store.loadAPIKey(profileID: profile.id) == nil
-                    ? String(localized: "No key")
-                    : String(localized: "Key saved"),
-                kind: store.loadAPIKey(profileID: profile.id) == nil ? .warning : .success
+                text: hasKey
+                    ? String(localized: "Key saved")
+                    : String(localized: "No key"),
+                kind: hasKey ? .success : .warning
             )
 
             HStack(spacing: 2) {

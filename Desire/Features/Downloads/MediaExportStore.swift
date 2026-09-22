@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// 后台媒体导出：`downloadMedia` 工具的执行体。
 ///
@@ -114,16 +114,17 @@ final class MediaExportStore: ObservableObject {
     // MARK: - 系统通知（懒请求授权）
 
     private func postNotification(title: String, body: String) {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
+        // 不把 `UNUserNotificationCenter`（非 Sendable）捕获进 @Sendable 回调里——
+        // 这几层闭包都在别的队列上跑，需要时各自取一次 `.current()`。
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional:
-                Self.post(center: center, title: title, body: body)
+                Self.post(title: title, body: body)
             case .notDetermined:
                 // 只在第一次真正要通知时请求（TCC 懒请求约定）。
-                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
                     guard granted else { return }
-                    Self.post(center: center, title: title, body: body)
+                    Self.post(title: title, body: body)
                 }
             default:
                 break
@@ -131,7 +132,8 @@ final class MediaExportStore: ObservableObject {
         }
     }
 
-    private nonisolated static func post(center: UNUserNotificationCenter, title: String, body: String) {
+    private nonisolated static func post(title: String, body: String) {
+        let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

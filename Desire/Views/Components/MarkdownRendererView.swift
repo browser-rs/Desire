@@ -508,7 +508,9 @@ private enum MarkdownParser {
         return blocks
     }
 
-    private static func parseHeading(_ line: String) -> MarkdownBlock? {
+    // 下面四个辅助函数都标 `nonisolated`：`parse` 是 nonisolated 的（要在 detached
+    // 任务里跑），模块默认 MainActor 隔离下它们不标就调不了。
+    private nonisolated static func parseHeading(_ line: String) -> MarkdownBlock? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("#") else { return nil }
         var level = 0
@@ -524,14 +526,14 @@ private enum MarkdownParser {
 
     // MARK: - Table helpers
 
-    private static func isTableRow(_ line: String) -> Bool {
+    private nonisolated static func isTableRow(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         return trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.contains("| ")
     }
 
     /// `| a | b |` / `|---|:--:|` → cells. The separator variant is
     /// recognized by its dashes/colons before splitting.
-    private static func isTableSeparator(_ line: String) -> Bool {
+    private nonisolated static func isTableSeparator(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("|") else { return false }
         let body = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "|"))
@@ -541,7 +543,7 @@ private enum MarkdownParser {
         }
     }
 
-    private static func tableCells(_ line: String) -> [String] {
+    private nonisolated static func tableCells(_ line: String) -> [String] {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
             .trimmingCharacters(in: CharacterSet(charactersIn: "|"))
         return trimmed.split(separator: "|", omittingEmptySubsequences: false)

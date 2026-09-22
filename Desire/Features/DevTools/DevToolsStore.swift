@@ -654,14 +654,15 @@ class DevToolsStore: ObservableObject {
     /// SameSite 徽章：`HTTPCookie.sameSitePolicy` 是公开 API（macOS 10.15+）。
     /// 没用 KVC 猜私有键——`value(forKey: "_sameSitePolicy")` 会抛
     /// NSUnknownKeyException 直接 abort（2026-09-20 23:01 崩溃报告）。
-    /// 没显式声明 SameSite 的 Cookie 也会得到 `.none`，那种情况不挂徽章
-    /// （Chrome 也是空单元格），只认显式的 Lax/Strict/None。
+    ///
+    /// **只认显式声明过 SameSite 的 Cookie**：没声明时 `sameSitePolicy` 照样返回值，
+    /// 而 `HTTPCookieStringPolicy` 是个 struct（没有 `.none` 这个成员）——写
+    /// `policy == .none` 实际是在跟 `Optional.none` 比、**恒为 false**（编译器警告），
+    /// 于是"看 properties 里有没有 samesite 键"那段成了死代码。判定只能靠 properties：
+    /// 有键才挂徽章（Chrome 也是空单元格）。
     private static func sameSiteLabel(_ cookie: HTTPCookie) -> String? {
-        guard let policy = cookie.sameSitePolicy else { return nil }
-        if policy == .none {
-            let declared = cookie.properties?.keys.contains { $0.rawValue.lowercased().contains("samesite") } ?? false
-            return declared ? policy.rawValue : nil
-        }
+        let declared = cookie.properties?.keys.contains { $0.rawValue.lowercased().contains("samesite") } ?? false
+        guard declared, let policy = cookie.sameSitePolicy else { return nil }
         return policy.rawValue
     }
 

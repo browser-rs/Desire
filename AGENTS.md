@@ -621,6 +621,30 @@ Features/Bookmarks/
     fixture 用 ffmpeg 自己切（`-hls_time 2 -hls_playlist_type vod`，要 `-g 50` 才有
     2 秒切片），音轨分离用 `#EXT-X-MEDIA:TYPE=AUDIO` + `AUDIO="grp"` 手写 master。
 
+- **视图回调里不许直接改 store：`.onKeyPress` 尤其**（2026-09-23，用户贴出的
+  "Publishing changes from within view updates" 警告）：SwiftUI 的 `.onKeyPress`
+  处理器在**更新事务内**执行，同步调 `store.sendMessage()` / `cancel()` 会让每一条
+  `@Published` 写入都报这个警告（用户实测：**一次回车刷出 59 条**，全在同一线程、
+  同一 activity、36ms 的突发里）。凡是从这类回调触发的 store 写都要跳一帧：
+  `Task { @MainActor in … }`。已修：`AgentInputBar` 的回车提交、`AgentPanel` 的
+  ⌘↩/Esc、语音结束后的自动发送。**注意别再"顺手"去改这些**：实测
+  `.onReceive(CommandBus.shared.publisher)`（菜单/桥命令）与
+  `.onChange(…, initial: true)`（DevTools 面板写 store）都**不**触发这个警告，
+  没有证据就别动。
+- **排查 SwiftUI 运行时警告看统一日志**（这些警告也确实会进日志，不必开着 Xcode）：
+  `/usr/bin/log show --last 10m --info --debug --predicate 'subsystem == "com.apple.runtime-issues"' --style json`。
+  记录里带 `threadID` / `activityIdentifier` / `backtrace`（frames 只有 imageUUID +
+  imageOffset）——**按突发聚类**（本次 59 条挤在 36ms 内 = 一个动作里连环发布，不是
+  用户点了 59 次），再和同一时刻 app 的其他日志对照：本次紧跟在
+  `com.apple.inputAnalytics.client … LegacyTextInputActions signal:DidAction`（键盘输入）
+  之后、`SecItemCopyMatching` + MCP 连接（回合启动）之前 → 一目了然是"回车发送"。
+  注意：**附带的 backtrace 全是系统框架帧**（发布点在 SwiftUI 内部），别指望靠它定位。
+- **视图 body 里不许读 Keychain**：`SecItemCopyMatching` 是阻塞的系统调用，Xcode 的
+  Performance Diagnostics 会报 "This method should not be called on the main thread
+  as it may lead to UI unresponsiveness"。设置页的服务档案行曾在**每次重绘读两次**
+  （同一个 `StatusPill` 的两个分支各一次），已改为一次；新增需要"有没有 Key"的地方
+  优先用 store 里发布好的 `hasAPIKey`，别在 body 里现读。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

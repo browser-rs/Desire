@@ -331,7 +331,9 @@ struct AgentPanel: View {
                 if !recording, !inputText.trimmingCharacters(in: .whitespaces).isEmpty {
                     let text = inputText
                     inputText = ""
-                    store.sendMessage(text)
+                    // 同一个坑：onChange 回调可能在 SwiftUI 更新事务里执行，直接发
+                    // 会让 store 在更新中发布（见 AgentInputBar 回车那段的注释）。
+                    Task { @MainActor in store.sendMessage(text) }
                 }
             }
             .onDrop(of: ["public.image"], isTargeted: $isDroppingImage) { providers in
@@ -352,8 +354,17 @@ struct AgentPanel: View {
             }
         }
         .onKeyPress { press in
-            if press.key == .return && press.modifiers.contains(.command) { submit(); return .handled }
-            if press.key == .escape && store.isProcessing { store.cancel(); return .handled }
+            // `.onKeyPress` 的处理器在 SwiftUI 更新事务里跑：凡是会写 `@Published`
+            // 的动作都要跳一帧（见 AgentInputBar 回车那段的注释，用户实测一次提交
+            // 刷 59 条 "Publishing changes from within view updates"）。
+            if press.key == .return && press.modifiers.contains(.command) {
+                Task { @MainActor in submit() }
+                return .handled
+            }
+            if press.key == .escape && store.isProcessing {
+                Task { @MainActor in store.cancel() }
+                return .handled
+            }
             return .ignored
         }
         .contextMenu {

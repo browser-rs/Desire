@@ -37,6 +37,35 @@
 
 ### Fixed
 
+- **聊天面板里按回车不再刷 "Publishing changes from within view updates"**（用户贴出的
+  Xcode 运行时警告，一次回车 59 条）：`.onKeyPress` 的处理器在 SwiftUI 的**更新事务内**
+  执行，而提交消息会写十几处 `@Published`，于是每条写入都报一次。现在回车、⌘↩、Esc 取消
+  以及"语音结束后自动发送"这几条路径都跳到下一个主线程回合再动 store——行为不变，
+  只是不再在视图更新中发布。
+  - 定位手法（可复用）：这些警告**也会进统一日志**
+    （`subsystem == "com.apple.runtime-issues"`，`--style json` 还带线程/activity/调用栈）。
+    本次 59 条挤在 36ms 内、同一线程同一 activity ——说明是**一个动作连环发布**而非用户点了
+    59 次；再看同一时刻的 app 日志，紧跟在 `LegacyTextInputActions signal:DidAction`
+    （键盘输入）之后、`SecItemCopyMatching`+MCP（回合启动）之前，对上被标记的
+    `sendMessage` 写入行，触发点就锁定了。
+  - 顺带确认（有证据、别再瞎改）：`.onReceive(CommandBus)`（菜单/桥命令）与
+    `.onChange(initial: true)` 这两条路径**不**触发该警告。
+- **Xcode 编译警告清零**（用户贴出的清单，逐条修）：
+  - `DevToolsPanel`：DOM 树分支里 `if let root = …` 的 `root` 从未使用 → 改成
+    `if treeRoot != nil`。
+  - `DevToolsStore.sameSiteLabel`：`HTTPCookieStringPolicy` 是 struct，写
+    `policy == .none` 实际在跟 `Optional.none` 比、**恒为 false**，导致"看 properties
+    里有没有 samesite 键"那段成了死代码（没显式声明 SameSite 的 Cookie 也会被挂上徽章）
+    → 判定完全改走 properties。
+  - `MediaExportStore`：`@preconcurrency import UserNotifications`，并且不再把
+    `UNUserNotificationCenter`（非 Sendable）捕获进 @Sendable 回调，改为各自取
+    `.current()`。
+  - `MarkdownRendererView`：`parse` 标了 `nonisolated`（要在 detached 任务里跑），
+    但它的四个辅助函数还是 MainActor 隔离 → 一并标 `nonisolated`。
+- **设置页服务档案行每次重绘读两次 Keychain**：`SecItemCopyMatching` 是阻塞系统调用，
+  Xcode 的 Performance Diagnostics 会报 "This method should not be called on the main
+  thread as it may lead to UI unresponsiveness"（同一次运行里 12 条）。同一个 `StatusPill`
+  的两个分支各读一次 → 现在只读一次复用。
 - **一个段都没下到时不再"假装成功"**：内置下载器在全部段失败时会留下一个 0 字节
   的 `.ts` 并报完成（用户点开是空的）。现在会删掉残件并报
   `Every segment failed to download — nothing was saved`；与 ffmpeg 的失败原因合并成

@@ -2380,7 +2380,7 @@ private struct ElementPanel: View {
 
     private var treeSection: some View {
         PanelSection(title: String(localized: "DOM Tree")) {
-            if let root = treeRoot {
+            if treeRoot != nil {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(visibleTreeRows) { row in
                         treeRow(row.node, depth: row.depth)

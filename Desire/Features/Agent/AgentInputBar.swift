@@ -177,7 +177,11 @@ struct AgentInputBar: View {
                             || press.modifiers.contains(.command) {
                             return .ignored
                         }
-                        onSubmit()
+                        // **不能直接同步提交**：SwiftUI 的 `.onKeyPress` 处理器在更新
+                        // 事务里执行，而提交会写一堆 `@Published`，于是每条写入都报
+                        // "Publishing changes from within view updates"（用户实测：
+                        // 一次回车刷出 59 条）。跳到下一个主线程回合再发。
+                        Task { @MainActor in onSubmit() }
                         return .handled
                     }
             }

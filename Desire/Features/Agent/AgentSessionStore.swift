@@ -648,7 +648,11 @@ class AgentSessionStore: ObservableObject {
             identity: identity,
             memoryBlock: memoryBlock,
             skills: skills,
+            tools: BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs),
             workspacePath: SystemCommandStore.shared.workingDirectory.path,
+            downloadsPath: AgentPromptBuilder.downloadsPath,
+            ffmpegAvailable: FFmpegExporter.isAvailable,
+            ffmpegPath: FFmpegExporter.locate()?.path,
             pageContext: pageContext
         ))
         let notesBlock = notes.isEmpty
@@ -1095,7 +1099,11 @@ class AgentSessionStore: ObservableObject {
             identity: Self.subagentIdentity,
             memoryBlock: nil,
             skills: SkillStore.shared.skills.map { ($0.name, $0.description) },
+            tools: BrowserToolProvider.promptInventory(for: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs),
             workspacePath: SystemCommandStore.shared.workingDirectory.path,
+            downloadsPath: AgentPromptBuilder.downloadsPath,
+            ffmpegAvailable: FFmpegExporter.isAvailable,
+            ffmpegPath: FFmpegExporter.locate()?.path,
             pageContext: pageContext
         ))
         var subMessages: [AgentMessage] = [

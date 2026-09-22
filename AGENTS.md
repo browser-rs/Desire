@@ -657,6 +657,27 @@ Features/Bookmarks/
   （同一个 `StatusPill` 的两个分支各一次），已改为一次；新增需要"有没有 Key"的地方
   优先用 store 里发布好的 `hasAPIKey`，别在 body 里现读。
 
+- **系统提示词是分层拼的，别在身份段里手写工具清单**（2026-09-23）：
+  `AgentPromptBuilder.compose` 依次拼 `<identity>`（用户在设置里可编辑的提示词，默认值
+  `AgentPreferenceStore.defaultPrompt`）→ `<user_memory>` → `<skills>` → **`<tools>`（生成）**
+  → `<environment>` → `<page_context>`，合成**一条** system 消息插在请求第 0 位
+  （调用点 `AgentSessionStore.buildRequestMessages`；子代理走另一处，用它自己的工具子集）。
+  实测教训：默认提示词里手写的"可用工具速查"只有 30 个而实际有 **106** 个（缺
+  `executeJS`/`switchTab`/`goBack`/`readTab`/`getNetworkLog`/`crewDispatch`…）——工具索引必须
+  **从 `BrowserToolProvider.toolDefs` 生成**（`promptInventory(for:)`），手写的一定会漂移；
+  新增工具只要写进 `toolDefs`，提示词自动跟上。
+- **验证组装后的系统提示词：假 OpenAI 端点抓请求体**（可复用）：起一个 python SSE 服务，
+  `POST /ai/profiles {"id":…,"endpoint":"http://127.0.0.1:8899/v1/chat/completions","model":"x"}`
+  把某个 profile 临时指过去（**先记下原值，验完立刻还原并核对**）→ 开面板 +
+  `POST /agent/send` 发一句话 → 服务端把请求体落盘。可断言：`tools` 参数条数 == `<tools>`
+  索引行数（零差异）、对话里 system 只有 1 条且在第 0 位、六个分层段落齐全、`<environment>`
+  带出工作目录/下载目录/ffmpeg 状态。注意一次发送会来 **3 个请求**（正文、标题生成、收尾），
+  按体积挑最大的那个。
+- **CHANGELOG 的 `[Unreleased]` 会被发版改名**：`0.x.y: release —` 那一步把 `[Unreleased]`
+  直接改成 `## [vX.Y.Z] - 日期`。发版**之后**的改动必须**另起**一段 `[Unreleased]`，不要
+  接着往已发布的段里加（2026-09-23 踩：流式跟随的修复条目落进了已发布的 v0.3.12 段，而
+  GitHub 上那版 release 正文是发版当时生成的、并不包含它 → 两边不一致）。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

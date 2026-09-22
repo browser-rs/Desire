@@ -631,4 +631,20 @@ extension BrowserToolProvider {
             )),
                 ]
     }()
+
+    /// 系统提示词里的工具索引：**每个工具一行**（名字 + 描述首句，过长截断）。
+    ///
+    /// 以前这段索引是手写在默认提示词里的，只有 30 个、而实际有 106 个——
+    /// 缺的里面还有 `executeJS` / `switchTab` / `goBack` / `readTab` / `getNetworkLog` /
+    /// `crewDispatch` 这种高频能力（2026-09-23 对账发现）。改成从工具表**生成**，
+    /// 以后增删工具自动跟上。
+    static func promptInventory(for defs: [AgentToolDef], limit: Int = 150) -> [(name: String, summary: String)] {
+        defs.map { def in
+            let text = def.function.description
+            // 取第一句（中英文句号都认），再按长度截断。
+            let firstSentence = text.split(whereSeparator: { $0 == "。" || $0 == "." || $0 == "\n" }).first.map(String.init) ?? text
+            let summary = firstSentence.count > limit ? String(firstSentence.prefix(limit)) + "…" : firstSentence
+            return (def.function.name, summary)
+        }
+    }
 }

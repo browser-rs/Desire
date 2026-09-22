@@ -1,10 +1,46 @@
 ## [Unreleased]
 
-> 修掉 Agent 消息渲染的崩溃与死循环：Markdown 内联样式用失效索引原地打补丁，
-> 并且块解析在一行 `"1. "` 上永远不推进。
+> 视频下载：装了 ffmpeg 就直接下载 HLS 并转封装成 MP4（音轨分离站点也不再丢声音），
+> 没装/直播/失败则回退内置下载器；另外修掉 Agent 消息渲染的崩溃与死循环。
+
+### Added
+
+- **HLS 下载优先走系统 ffmpeg，直出 MP4**（用户提议："如果系统安装了 ffmpeg 是否
+  考虑直接使用 ffmpeg 来下载 m3u8 并且直接转为 mp4"）：新增
+  `Features/Downloads/FFmpegExporter.swift`，导出前探测 ffmpeg（`/opt/homebrew/bin`、
+  `/usr/local/bin`、`/opt/local/bin`、`/usr/bin`——GUI 进程的 PATH 不含 Homebrew，
+  必须显式探测）。**不内置 ffmpeg**（GPL/LGPL 的独立项目，不该打进 app 包）。
+  - 判定顺序：HLS 且 `EXT-X-ENDLIST`（VOD）→ ffmpeg 直连；没装 ffmpeg / 直播 /
+    ffmpeg 失败 → 原来的内置下载器，行为不变；内置路径产出 `.ts` 时若机器上有
+    ffmpeg，再本地转封装成 MP4（**直播因此也能拿到 mp4**）。
+  - **音轨分离（`EXT-X-MEDIA`）站点不再丢声音**：这类站点的媒体播放列表里只有视频，
+    只有把 **master** 交给 ffmpeg 才会把 `AUDIO="…"` 的音轨接上（实测 master →
+    h264+aac，只给 variant → 只有 h264；内置下载器正是后者，属于原有缺陷）。
+  - 码率上限（桥的 `maxBandwidth`）用 `-map 0:p:N` 选第 N 个 variant（program 顺序
+    = 播放列表**文件顺序**，不是按码率排序的），并连带它的音频组；不限速时交给
+    ffmpeg 自己挑（实测它选最高码率）。
+  - 防盗链走 `-referer` / `-user_agent`；`-progress pipe:1 -nostats` 解析
+    `out_time_us` 换算进度（总时长取播放列表 `EXTINF` 之和）。
+  - **实测定下的几条硬约束**（`FFmpegExporter` 里逐条有注释）：① `-map` 是输出
+    选项，放在 `-i` 之前会被 ffmpeg 拒收（退出码 234）；② 站点常用没有 `.m3u8`
+    后缀的播放列表、`.bin` 分片、**完全无扩展名**的分片，ffmpeg ≥7.1 默认的
+    `-extension_picky` 一律拒收——要 `-f hls -allowed_segment_extensions ALL
+    -extension_picky 0`，且老版本不认这些选项（"Unrecognized option"）时自动退回
+    只给 `-f hls` 重试；③ **live 播放列表绝不能交给 ffmpeg**：它没有新分片就一直
+    等，`-t` 也拦不住（实测 40s 不退出）；④ 取消走 SIGTERM（实测 0.00s 退出、不留
+    残件），仍会兜底删文件。
+  - 验证（app 内、经桥 `/media/download` 的真实路径，端到端 9 例全过）：音轨分离
+    master → mp4 640x360 **video+audio**、`maxBandwidth` 400k→640x360 / 5M→960x540、
+    音轨分离+上限 → audio+video、直播 → 内置+转封装出 mp4（带 live 提示）、
+    无后缀播放列表 / `.bin` 分片 / 无扩展名分片 → 均由 ffmpeg 出 mp4、
+    段全 404 → 失败且**不留空文件**。产物用 `ffprobe` 核对容器、流与分辨率。
 
 ### Fixed
 
+- **一个段都没下到时不再"假装成功"**：内置下载器在全部段失败时会留下一个 0 字节
+  的 `.ts` 并报完成（用户点开是空的）。现在会删掉残件并报
+  `Every segment failed to download — nothing was saved`；与 ffmpeg 的失败原因合并成
+  一条错误（`fallbackFailed`），两条信息都不丢。
 - **Agent 消息渲染的死循环已修复**（块解析器不推进）：`MarkdownParser.parse` 的有序列表
   分支里**入口条件用原始行、循环条件用 trim 后的行**，于是 `"1. "` 这种行（首字符是数字、
   以 ". " 结尾）能通过入口，进循环后却匹配不上（尾空格被 trim 掉，". " 不复存在），三个

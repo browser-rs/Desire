@@ -183,7 +183,7 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "downloadMedia", description: "Start a BACKGROUND export of a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists (m3u8: fetches all segments with the page's Referer, decrypts AES-128, concatenates into one playable file). Returns a job id immediately — do NOT wait for it; the user is notified when it finishes and listMediaExports reports progress. Pair with listPageVideos: extract, confirm with the user which one, then start it.",
+                name: "downloadMedia", description: "Start a BACKGROUND export of a media resource to the user's Downloads folder. Handles DIRECT files (mp4/webm/mp3/…) and HLS playlists. For HLS it uses the installed ffmpeg when there is one (downloads the playlist and remuxes straight to MP4, keeping split AUDIO renditions) and otherwise falls back to the built-in segment downloader (AES-128 decryption, MPEG-TS output which is then remuxed to MP4 if ffmpeg turns out to be available). Returns a job id immediately — do NOT wait for it; the user is notified when it finishes and listMediaExports reports progress. Pair with listPageVideos: extract, confirm with the user which one, then start it.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),
                     "fileName": AgentJSONSchemaValue(type: "string", description: "Optional file name without extension"),

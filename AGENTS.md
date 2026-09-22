@@ -592,6 +592,35 @@ Features/Bookmarks/
   message id 找回**（`firstIndex(where: { $0.id == msg.id })`），别用 append 时记下的
   下标——会话中途被清空/切换时它会指向别的消息。
 
+- **视频下载：装了 ffmpeg 就用它直连 HLS → MP4**（2026-09-23，用户提议后落地）：
+  `MediaExporter.download` 的判定顺序 = **VOD HLS + 有 ffmpeg → `FFmpegExporter`
+  直连**；否则回退内置下载器（原行为），内置出 `.ts` 且机器有 ffmpeg 时再转封装。
+  实测定下的几条（改这块之前先读，都是踩过的）：
+  - **必须把 master 播放列表交给 ffmpeg**，不能只给 variant URL：音轨分离
+    （`EXT-X-MEDIA`）的站点媒体播放列表里只有视频，给 variant 会**丢音轨**
+    （内置下载器一直有这个缺陷）。`-map 0:p:N` 的 N 是 variant 的**文件顺序**
+    下标（= program 号），不是按码率排序后的下标——`listVariants` 的 `index` 字段
+    就是干这个的。
+  - **`-map` 是输出选项**，要排在 `-i` 之后；放前面 ffmpeg 直接拒收（退出码 234）。
+  - **`-extension_picky`（ffmpeg ≥7.1 默认开）会拒收异形分片**：没有 `.m3u8` 后缀
+    的播放列表、`.bin` 分片、无扩展名分片全都被挡。要
+    `-f hls -allowed_segment_extensions ALL -extension_picky 0`；老版本不认这些
+    选项（报 "Unrecognized option"）→ 退回只给 `-f hls` 重试一次。
+  - **live 播放列表（无 `EXT-X-ENDLIST`）绝不能交给 ffmpeg**：它会一直等新分片，
+    `-t` 拦不住（实测 40s 不退出）。live 走内置下载器（有"导出当前可用分片"的
+    既有语义），再由 ffmpeg 转封装成 mp4。
+  - 防盗链用 **`-referer` / `-user_agent`**（`-headers` 里写字面 `\r\n` 会被当成
+    表头值的一部分传上去）；取消用 SIGTERM（实测立即退出、不留残件）；进度读
+    `-progress pipe:1` 的 `out_time_us`（注意 `out_time_ms` 也是微秒，是 ffmpeg
+    的笔误），百分比靠播放列表 `EXTINF` 之和换算。
+  - **不内置 ffmpeg**（GPL/LGPL 的独立项目 + 体积），只探测
+    `/opt/homebrew/bin`、`/usr/local/bin`、`/opt/local/bin`、`/usr/bin`——GUI 进程
+    PATH 里没有 Homebrew（同 `SystemCommandStore.searchPaths`）。
+  - E2E 全在应用内跑：桥 `POST /media/download {"url":…,"filename":…,"maxBandwidth":…}`
+    （注意字段名是 `filename`），产物用 `ffprobe` 核对容器/流/分辨率；本地 HLS
+    fixture 用 ffmpeg 自己切（`-hls_time 2 -hls_playlist_type vod`，要 `-g 50` 才有
+    2 秒切片），音轨分离用 `#EXT-X-MEDIA:TYPE=AUDIO` + `AUDIO="grp"` 手写 master。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

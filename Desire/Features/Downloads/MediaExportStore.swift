@@ -77,7 +77,7 @@ final class MediaExportStore: ObservableObject {
 
     private func finish(id: UUID, result: MediaExporter.Result) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        var summary = "\(result.fileURL.lastPathComponent) — \(result.segmentCount) segment(s), \(result.displayBytes)"
+        var summary = "\(result.fileURL.lastPathComponent) — \(result.displayDetail), \(result.displayBytes)"
         if !result.warnings.isEmpty {
             summary += "\n⚠️ " + result.warnings.joined(separator: "\n⚠️ ")
         }

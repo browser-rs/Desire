@@ -255,9 +255,12 @@ final class SkillStore: ObservableObject {
         5. 报告输出路径与大小。
 
         ## 失败自愈
-        - 下载失败/超时：换 listPageVideos 列表里的下一个源（通常有降清晰度
-          备选）；m3u8 失败可试 ffmpeg 直连（runCommand ffmpeg -y -i <url> …）。
-        - ffmpeg 未安装：告诉用户 runCommand brew install ffmpeg。
+        - 下载失败/超时：换 listPageVideos 列表里的下一个源（通常有降清晰度备选）。
+        - **HLS 不需要手动跑 ffmpeg**：downloadMedia 自己判定——装了 ffmpeg 就直接
+          下载并转封装成 MP4（含音轨分离的站点）；没装 / 是直播 / ffmpeg 失败则回退
+          内置下载器，内置路径产出 TS 时若机器上有 ffmpeg 还会自动转成 MP4。
+        - 产物是 `.ts` 才说明这台机器没装 ffmpeg：建议用户
+          `runCommand brew install ffmpeg`，装完重下即可拿到 MP4。
         - 平台限速/风控：提示用户登录后重试。
         """),
         ("mux-audio-video",

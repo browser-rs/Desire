@@ -37,8 +37,11 @@ struct MarkdownRendererView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(blocks.indices, id: \.self) { index in
-                        renderBlock(blocks[index])
+                    // 快照枚举，不用 `blocks.indices` + `blocks[index]`：块数在流式期间
+                    // 会**减少**（围栏一开吞掉后面几块、列表合并），而下标当 id 时
+                    // SwiftUI 可能在缩容的那次更新里拿旧下标去取新数组 → Index out of range。
+                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                        renderBlock(block)
                     }
                 }
             }
@@ -50,9 +53,16 @@ struct MarkdownRendererView: View {
         // `.task(id:)` 会在文本变化时取消上一个任务，所以中间态天然被合并。
         .task(id: text) {
             let snapshot = text
-            let parsed = await Task.detached(priority: .userInitiated) {
-                MarkdownParser.parse(snapshot)
-            }.value
+            let work = Task.detached(priority: .userInitiated) {
+                MarkdownParser.parse(snapshot, isCancelled: { Task.isCancelled })
+            }
+            // 文本一变，SwiftUI 取消的是**这个** task；解析在 detached 任务里跑，
+            // 取消不会自动传下去，所以要显式带一脚，否则旧解析会一直空转到跑完。
+            let parsed = await withTaskCancellationHandler {
+                await work.value
+            } onCancel: {
+                work.cancel()
+            }
             guard !Task.isCancelled else { return }
             blocks = parsed
         }
@@ -76,11 +86,11 @@ struct MarkdownRendererView: View {
                 .fixedSize(horizontal: false, vertical: true)
         case .unorderedList(let items):
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(items.indices, id: \.self) { i in
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .top, spacing: 6) {
                         Text("•")
                             .font(.system(size: 13))
-                        Text(inlineContent(items[i]))
+                        Text(inlineContent(item))
                             .font(.system(size: 13))
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -89,12 +99,12 @@ struct MarkdownRendererView: View {
             }
         case .orderedList(let items):
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(items.indices, id: \.self) { i in
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     HStack(alignment: .top, spacing: 6) {
-                        Text("\(i + 1).")
+                        Text("\(index + 1).")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
-                        Text(inlineContent(items[i]))
+                        Text(inlineContent(item))
                             .font(.system(size: 13))
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -104,8 +114,8 @@ struct MarkdownRendererView: View {
         case .table(let header, let rows):
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 0) {
-                    ForEach(header.indices, id: \.self) { col in
-                        Text(inlineContent(header[col]))
+                    ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
+                        Text(inlineContent(cell))
                             .font(.system(size: 12, weight: .semibold))
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -114,10 +124,10 @@ struct MarkdownRendererView: View {
                     }
                 }
                 Divider()
-                ForEach(rows.indices, id: \.self) { row in
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
                     HStack(alignment: .top, spacing: 0) {
-                        ForEach(rows[row].indices, id: \.self) { col in
-                            Text(inlineContent(rows[row][col]))
+                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                            Text(inlineContent(cell))
                                 .font(.system(size: 12))
                                 .lineLimit(nil)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -125,7 +135,7 @@ struct MarkdownRendererView: View {
                                 .padding(6)
                         }
                     }
-                    if row < rows.count - 1 {
+                    if rowIndex < rows.count - 1 {
                         Divider().opacity(0.5)
                     }
                 }
@@ -360,12 +370,23 @@ private enum InlinePatterns {
 }
 
 private enum MarkdownParser {
-    static func parse(_ text: String) -> [MarkdownBlock] {
+    /// `isCancelled` 让解析能被中断：它在 detached 任务里跑，文本一变旧任务就该
+    /// 立刻收手，而不是把整段（可能 40KB）解析完再被丢弃。`nonisolated` 是因为
+    /// 调用点在 detached 任务里（模块默认 MainActor 隔离）。
+    nonisolated static func parse(_ text: String, isCancelled: () -> Bool = { false }) -> [MarkdownBlock] {
         let lines = text.components(separatedBy: .newlines)
         var blocks: [MarkdownBlock] = []
         var i = 0
 
         while i < lines.count {
+            // **每一轮都必须推进 i**：下面的 defer 兜底。任何分支忘了 +1 都会变成
+            // 死循环（2026-09-23 实测：`parse("1. ")` 无限循环，跟踪里同一行刷了
+            // 几百次——流式写有序列表的中间态正好是 "1. "）。defer 在 continue 时
+            // 同样执行，所以这条保证是结构性的，不依赖各分支自己收尾。
+            let iterationStart = i
+            defer { if i == iterationStart { i += 1 } }
+            if isCancelled() { return blocks }
+
             let line = lines[i]
 
             // Code block
@@ -442,7 +463,13 @@ private enum MarkdownParser {
             }
 
             // Ordered list
-            if line.first?.isNumber == true, line.contains(". ") {
+            //
+            // 入口条件必须和循环里用**同一个**字符串（都取 trim 后的版本）：
+            // 曾经入口判的是原始行，循环判的是 trim 后的行，于是 `"1. "` 能进
+            // 入口、循环里却匹配不上（尾空格被 trim 掉，". " 不复存在），
+            // i 一动不动 → 死循环（详见循环顶部的兜底注释）。
+            let orderedLine = line.trimmingCharacters(in: .whitespaces)
+            if orderedLine.first?.isNumber == true, orderedLine.contains(". ") {
                 var items: [String] = []
                 while i < lines.count {
                     let trimmed = lines[i].trimmingCharacters(in: .whitespaces)

@@ -88,8 +88,10 @@ struct AgentInputBar: View {
     private var attachmentStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(attachments.indices, id: \.self) { idx in
-                    attachmentThumb(uri: attachments[idx], index: idx)
+                // 快照枚举：删除附件会让数组变短，`attachments.indices` 当 id 时
+                // SwiftUI 可能拿旧下标去取新数组（Index out of range）。
+                ForEach(Array(attachments.enumerated()), id: \.offset) { idx, uri in
+                    attachmentThumb(uri: uri, index: idx)
                 }
             }
             .padding(.horizontal, 2)

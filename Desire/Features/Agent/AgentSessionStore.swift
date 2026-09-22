@@ -766,11 +766,14 @@ class AgentSessionStore: ObservableObject {
                 // UI flush state: per-token array writes + view
                 // invalidations dominate long streams, so the tail message
                 // is published at ~12 fps instead of per token.
-                var tailIndex: Int?
                 var lastFlush = Date.distantPast
                 func flushTail() {
-                    if let idx = tailIndex, idx < messages.count, assistantMsg != nil {
-                        messages[idx] = assistantMsg!
+                    // 按 **id** 找回尾部消息，不用 append 时记下的下标：流式中途
+                    // 会话被清空/切换时，那个下标会指向别的消息（把 token 写进
+                    // 无关消息），数组变短后还可能越界。
+                    if let msg = assistantMsg,
+                       let idx = messages.firstIndex(where: { $0.id == msg.id }) {
+                        messages[idx] = msg
                     }
                     streamingVersion += 1
                 }
@@ -781,7 +784,6 @@ class AgentSessionStore: ObservableObject {
                         if assistantMsg == nil {
                             assistantMsg = AgentMessage(role: .assistant, content: "")
                             messages.append(assistantMsg!)
-                            tailIndex = messages.count - 1
                         }
                         assistantMsg!.content = (assistantMsg!.content ?? "") + delta
                         hasContent = true
@@ -802,7 +804,6 @@ class AgentSessionStore: ObservableObject {
                         if assistantMsg == nil {
                             assistantMsg = AgentMessage(role: .assistant, content: "")
                             messages.append(assistantMsg!)
-                            tailIndex = messages.count - 1
                         }
                         assistantMsg!.reasoning = (assistantMsg!.reasoning ?? "") + delta
                         pendingTokenCount += 1

@@ -574,6 +574,23 @@ Features/Bookmarks/
   `[a](b)**粗***斜体*`（纯 ASCII 的 `[](u)**a***b*` 不复现——需要多字节参与）。
   注意这类崩溃常发生在**流式的中间状态**，已落盘的消息文本往往复现不出来：
   按崩溃栈定位，别因为"历史消息跑不出崩溃"就否定修复。
+- **循环必须"结构性推进"，入口条件和循环条件要用同一个字符串**（2026-09-23，和上面
+  那条崩溃一起查出来的第二个 bug）：`MarkdownParser` 的有序列表分支入口看原始行
+  （`line.contains(". ")`）、内层循环看 trim 后的行，于是 `"1. "` 能进循环但一个分支
+  都不匹配 → `break` 出去而 `i` 没动 → 外层 `continue` 回到同一行 → **死循环**。修法：
+  ① 两处条件统一（用 trim 后的行）；② 循环顶部 `defer { if i == iterationStart { i += 1 } }`
+  兜底，任何分支忘了推进都会被补上。**这类输入的触发面几乎总在流式中间态**（模型写
+  有序列表时就是 `"1. "`），350 条历史消息全跑也不复现。
+- **`.task(id:)` 的取消不会传给 `Task.detached`**：Markdown 解析放在 detached 任务里，
+  文本一变化只取消外层 task，旧解析会继续空转到底（死循环时就是**永久泄漏一个满核
+  任务**）。要显式转发：持有 `Task.detached` 的句柄，用 `withTaskCancellationHandler`
+  在 `onCancel` 里 `work.cancel()`，解析循环里再查 `isCancelled`。
+- **`ForEach(x.indices, id: \.self)` + `x[i]` 是越界形态**：流式渲染里数量会**减少**
+  （围栏一开吞掉后面几块、列表合并、附件被删），下标当 id 时 SwiftUI 可能在缩容那次
+  更新里拿旧下标取新数组 → `Index out of range`。一律用
+  `ForEach(Array(x.enumerated()), id: \.offset)` 只碰快照值。同理**流式尾部写回要按
+  message id 找回**（`firstIndex(where: { $0.id == msg.id })`），别用 append 时记下的
+  下标——会话中途被清空/切换时它会指向别的消息。
 
 ## 端点扩展模式
 

@@ -47,7 +47,10 @@ private struct UserBubble: View {
             VStack(alignment: .trailing, spacing: 4) {
                 if !imageDataURIs.isEmpty {
                     HStack(spacing: 5) {
-                        ForEach(imageDataURIs, id: \.self) { uri in
+                        // 用下标做 id，不用 `id: \.self`：同一张图贴两次就是两个
+                        // 一模一样的 data URI → 重复 id，而且每次 diff 都要哈希
+                        // 几十 KB 的字符串。
+                        ForEach(Array(imageDataURIs.enumerated()), id: \.offset) { _, uri in
                             attachmentPreview(uri)
                         }
                     }

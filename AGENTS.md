@@ -564,6 +564,16 @@ Features/Bookmarks/
 - **桌面 UA 是反爬基线**：`BrowserState._desktopSafariUA` 刻意不带
   Desire 产品 token（Cloudflare 按 UA 判非 Genuine Safari 会拦站）。
   修改 UA 逻辑前先读 WebView.swift 内注释。
+- **绝不用"原文的 range"去改已经变过的 `AttributedString`**（2026-09-23 崩溃报告）：
+  `Range(_:in:)` 只按偏移映射，**不认字符串已被改短**——`MarkdownRendererView`
+  曾按 `link → bareURL → code → bold → italic` 顺序在同一个 `AttributedString`
+  上做五次 `replaceSubrange`，后一趟拿原文本的 `String.Index` 打上去，碰上多字节
+  字符就落在 scalars 中间，`CollectionsInternal/BigString+Chunk+UnicodeScalar.swift`
+  断言 + SIGTRAP。**正确姿势：先按原文本收集片段（span），排序后一次性拼接**，
+  全程只对原文切片、不产生失效索引。最小复现（同一函数、`-Onone`）：
+  `[a](b)**粗***斜体*`（纯 ASCII 的 `[](u)**a***b*` 不复现——需要多字节参与）。
+  注意这类崩溃常发生在**流式的中间状态**，已落盘的消息文本往往复现不出来：
+  按崩溃栈定位，别因为"历史消息跑不出崩溃"就否定修复。
 
 ## 端点扩展模式
 

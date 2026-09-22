@@ -1,3 +1,29 @@
+## [Unreleased]
+
+> 修掉 Agent 消息渲染的崩溃：Markdown 内联样式用失效索引原地打补丁。
+
+### Fixed
+
+- **Agent 消息渲染崩溃（EXC_BREAKPOINT / SIGTRAP）已修复**（用户报告："看一下智能体最近
+  的聊天记录 导致崩溃了"）：`MarkdownRendererView.buildInlineContent` 原来在**同一个**
+  `AttributedString` 上按 `link → bareURL → code → bold → italic` 顺序做五次
+  `replaceSubrange`，但每一趟的 range 都是按**原文本**匹配出来的，而 `Range(_:in:)` 只做
+  偏移映射、并不知道字符串已经被前一趟改短了。偏移一对不上，替换边界就会落在多字节字符
+  中间，接着在 `AttributedString.Guts.replaceSubrange` 内部触发
+  `CollectionsInternal/BigString+Chunk+UnicodeScalar.swift:137` 断言，进程直接 SIGTRAP
+  （崩溃报告 `Desire-2026-09-23-002707.ips`：EXC_BREAKPOINT ← CollectionsInternal ←
+  `buildInlineContent`，触发点是列表项里的粗体一趟）。
+  - **最小复现**（同一个函数、`-Onone`）：`[a](b)**粗***斜体*` — 链接那趟先把字符串缩短
+    了，粗体、斜体两趟却还拿着旧偏移继续替换。纯 ASCII 的 `[](u)**a***b*` 不复现，必须有
+    多字节字符参与才会命中 scalars 中间；19 条历史对话的 373 个内联块（含每块 8 个流式
+    前缀共 2984 次渲染）在**已落盘文本**上也都不复现——崩溃发生在流式的中间状态，所以是
+    按崩溃栈定位的根因。
+  - **改法**：**先收集片段、再一次性拼接**。按原文本匹配出所有 span（重叠时先占先得：
+    链接 > 裸链接 > 行内代码 > 粗体 > 斜体，与旧顺序语义一致），按位置排序后逐段切原文
+    拼进结果。全程不再对已经变过长度的 `AttributedString` 使用旧索引，这类失效索引在
+    结构上不再可能出现。样式与旧实现完全对齐（链接用强调色 + 下划线、行内代码等宽 +
+    底色、粗体/斜体各自字重字型）。
+
 ## [v0.3.11] - 2026-09-22
 
 > 调试面板大扩建 + Agent 流式成熟化。DevTools 四页签补全（Console

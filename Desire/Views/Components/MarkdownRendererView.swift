@@ -185,79 +185,95 @@ struct MarkdownRendererView: View {
         return attributed
     }
 
+    /// 内联样式解析：**先收集片段、再拼接**。
+    ///
+    /// 绝不在遍历中对同一个 `AttributedString` 反复 `replaceSubrange`：每替换一次长度
+    /// 就变，而后续 range 是按**原文本**索引算出来的（`Range(_:in:)` 只按偏移映射），
+    /// 于是范围错位，最终在 `AttributedString.Guts.replaceSubrange` 里断言崩溃
+    /// （2026-09-23 崩溃报告：EXC_BREAKPOINT ← Collections ← buildInlineContent）。
+    /// 拼接模型不产生失效索引。
     private static func buildInlineContent(_ text: String) -> AttributedString {
-        var attributed = AttributedString(text)
-        attributed.font = Font.system(size: 13)
+        struct Span {
+            /// 在原文本里占据的范围（决定排序与重叠取舍）。
+            let range: Range<String.Index>
+            /// 输出的文本：链接给 label、`code`/`**bold**` 给内部文本（标记字符随之消失）。
+            let output: String
+            let style: Style
+            var link: URL?
 
-        // Markdown links: [label](url) — rendered tappable.
-        let nsRangeLinks = NSRange(text.startIndex..., in: text)
-        for match in InlinePatterns.link.matches(in: text, range: nsRangeLinks).reversed() {
-            guard let labelRange = Range(match.range(at: 1), in: text),
+            enum Style { case link, code, bold, italic }
+        }
+
+        func matches(_ regex: NSRegularExpression, group: Int) -> [(full: Range<String.Index>, inner: Range<String.Index>)] {
+            let whole = NSRange(text.startIndex..., in: text)
+            return regex.matches(in: text, range: whole).compactMap { match in
+                guard let full = Range(match.range, in: text),
+                      let inner = Range(match.range(at: group), in: text) else { return nil }
+                return (full, inner)
+            }
+        }
+
+        var spans: [Span] = []
+        /// 先占先得：与已收下的片段重叠就跳过（链接 > 裸链接 > 行内代码 > 粗体 > 斜体）。
+        func take(_ span: Span) {
+            guard !spans.contains(where: { $0.range.overlaps(span.range) }) else { return }
+            spans.append(span)
+        }
+
+        // 链接要同时拿 label（group 1）与 URL（group 2），所以单独走一遍匹配。
+        let whole = NSRange(text.startIndex..., in: text)
+        for match in InlinePatterns.link.matches(in: text, range: whole) {
+            guard let full = Range(match.range, in: text),
+                  let label = Range(match.range(at: 1), in: text),
                   let urlRange = Range(match.range(at: 2), in: text),
                   let url = URL(string: String(text[urlRange])) else { continue }
-            let fullRange = Range(match.range(at: 0), in: text)!
-            var linkAttr = AttributedString(String(text[labelRange]))
-            linkAttr.link = url
-            linkAttr.foregroundColor = .accentColor
-            linkAttr.underlineStyle = .single
-            if let aRange = Range(fullRange, in: attributed) {
-                attributed.replaceSubrange(aRange, with: linkAttr)
-            }
+            take(Span(range: full, output: String(text[label]), style: .link, link: url))
+        }
+        for match in matches(InlinePatterns.bareURL, group: 0) {
+            guard let url = URL(string: String(text[match.inner])) else { continue }
+            take(Span(range: match.full, output: String(text[match.inner]), style: .link, link: url))
+        }
+        for match in matches(InlinePatterns.code, group: 1) {
+            take(Span(range: match.full, output: String(text[match.inner]), style: .code))
+        }
+        for match in matches(InlinePatterns.bold, group: 1) {
+            take(Span(range: match.full, output: String(text[match.inner]), style: .bold))
+        }
+        for match in matches(InlinePatterns.italic, group: 1) {
+            take(Span(range: match.full, output: String(text[match.inner]), style: .italic))
         }
 
-        // Bare URLs: autolink anything not already inside markdown syntax.
-        let nsRangeBare = NSRange(text.startIndex..., in: text)
-        for match in InlinePatterns.bareURL.matches(in: text, range: nsRangeBare).reversed() {
-            guard let range = Range(match.range, in: text),
-                  let url = URL(string: String(text[range])) else { continue }
-            var linkAttr = AttributedString(String(text[range]))
-            linkAttr.link = url
-            linkAttr.foregroundColor = .accentColor
-            linkAttr.underlineStyle = .single
-            if let aRange = Range(range, in: attributed) {
-                attributed.replaceSubrange(aRange, with: linkAttr)
-            }
+        var result = AttributedString()
+        var cursor = text.startIndex
+        func appendPlain(_ slice: Substring) {
+            guard !slice.isEmpty else { return }
+            var piece = AttributedString(String(slice))
+            piece.font = Font.system(size: 13)
+            result += piece
         }
-
-        // Inline code: `code`
-        let nsRange = NSRange(text.startIndex..., in: text)
-        for match in InlinePatterns.code.matches(in: text, range: nsRange).reversed() {
-            guard let range = Range(match.range(at: 1), in: text) else { continue }
-            let fullRange = Range(match.range(at: 0), in: text)!
-            let codeStr = String(text[range])
-            var codeAttr = AttributedString(codeStr)
-            codeAttr.font = Font.system(size: 12, design: .monospaced)
-            codeAttr.backgroundColor = Color(nsColor: .separatorColor).opacity(0.15)
-            if let aRange = Range(fullRange, in: attributed) {
-                attributed.replaceSubrange(aRange, with: codeAttr)
+        for span in spans.sorted(by: { $0.range.lowerBound < $1.range.lowerBound }) {
+            guard span.range.lowerBound >= cursor else { continue }   // 防御：重叠已被拦，这里只兜底
+            appendPlain(text[cursor..<span.range.lowerBound])
+            var piece = AttributedString(span.output)
+            switch span.style {
+            case .link:
+                piece.font = Font.system(size: 13)
+                piece.link = span.link
+                piece.foregroundColor = AppAccent.current
+                piece.underlineStyle = .single
+            case .code:
+                piece.font = Font.system(size: 12, design: .monospaced)
+                piece.backgroundColor = Color(nsColor: .separatorColor).opacity(0.15)
+            case .bold:
+                piece.font = Font.system(size: 13).weight(.bold)
+            case .italic:
+                piece.font = Font.system(size: 13).italic()
             }
+            result += piece
+            cursor = span.range.upperBound
         }
-
-        // Bold: **text**
-        let nsRange2 = NSRange(text.startIndex..., in: text)
-        for match in InlinePatterns.bold.matches(in: text, range: nsRange2).reversed() {
-            guard let range = Range(match.range(at: 1), in: text) else { continue }
-            let fullRange = Range(match.range(at: 0), in: text)!
-            var boldAttr = AttributedString(String(text[range]))
-            boldAttr.font = Font.system(size: 13).weight(.bold)
-            if let aRange = Range(fullRange, in: attributed) {
-                attributed.replaceSubrange(aRange, with: boldAttr)
-            }
-        }
-
-        // Italic: *text*
-        let nsRange3 = NSRange(text.startIndex..., in: text)
-        for match in InlinePatterns.italic.matches(in: text, range: nsRange3).reversed() {
-            guard let range = Range(match.range(at: 1), in: text) else { continue }
-            let fullRange = Range(match.range(at: 0), in: text)!
-            var italicAttr = AttributedString(String(text[range]))
-            italicAttr.font = Font.system(size: 13).italic()
-            if let aRange = Range(fullRange, in: attributed) {
-                attributed.replaceSubrange(aRange, with: italicAttr)
-            }
-        }
-
-        return attributed
+        if cursor < text.endIndex { appendPlain(text[cursor...]) }
+        return result
     }
 }
 

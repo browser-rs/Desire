@@ -220,6 +220,12 @@ Features/Bookmarks/
 
 ## 测试与自动化：只用 CLI 桥，禁用 UI 自动化
 
+- **查编译警告只有一种正确姿势：`xcodebuild … clean build 2>&1 | grep -E "warning:"`**
+  （2026-09-23 踩，代价是 v0.3.12 带着 6 条警告发了出去，用户从 Xcode 里贴回来才发现）：
+  ① xcodebuild 输出里**路径在 `warning:` 之前**（`<path>.swift:12:3: warning: …`），
+  惯用的 `warning:.*\.swift` 一条都匹配不到，据此报"零警告"是假的；
+  ② **增量构建只重编改动的文件**，没碰过的文件里的警告根本不会出现——要下结论
+  必须 `clean build`。另：`appintentsmetadataprocessor` 那行不是代码警告，可忽略。
 - 应用以 `--automation` 启动后，`127.0.0.1:8799` 提供完整 JSON 接口
   （见 `Desire/App/AutomationServer.swift` 头注释）。
 - **禁止** System Events 键盘注入 / 坐标点击：多全屏 Space 环境下会

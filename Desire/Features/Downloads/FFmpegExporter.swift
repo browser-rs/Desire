@@ -255,7 +255,13 @@ enum FFmpegExporter {
     }
 
     /// 读取回调在任意线程上跑，这里只做加锁累加。
-    private final class Collector: @unchecked Sendable {
+    ///
+    /// **`nonisolated` 不能省**：模块默认 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`，
+    /// 嵌套在这个 enum 里的类会被推断成 MainActor 隔离，而它是在 `readabilityHandler`
+    /// 的回调线程上被调用的——不标就会报一堆 "main actor-isolated … cannot be called
+    /// from outside of the actor"（2026-09-23 用户贴出的警告清单）。线程安全靠
+    /// `NSLock` + `@unchecked Sendable`，与 actor 无关。
+    private nonisolated final class Collector: @unchecked Sendable {
         private let lock = NSLock()
         private var lineBuffer = ""
         private var diagnostics = ""

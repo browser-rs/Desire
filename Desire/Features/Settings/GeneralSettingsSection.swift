@@ -766,61 +766,34 @@ private struct FolderPathRow: View {
     var secondaryAction: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
-                .background(
-                    Circle().fill(Color.secondary.opacity(0.08))
-                )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(path)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 220, alignment: .trailing)
-
+        // 复用 `SettingsRow` 的骨架（图标圆片 / 标题 / 副标题 / 尾部），并让
+        // 标题与按钮走 `localizedSettingText`——此前这里是 `Text(变量)`，那是
+        // **verbatim** 渲染、不查字符串目录，中文界面下这几行一直是英文。
+        SettingsRow(title, subtitle: subtitle, systemImage: systemImage) {
             HStack(spacing: 6) {
+                Text(path)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 220, alignment: .trailing)
+
                 if let secondaryButtonTitle, let secondaryAction {
-                    Button(secondaryButtonTitle, action: secondaryAction)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.secondary.opacity(0.10)))
-                        .foregroundStyle(.primary)
+                    SettingsCapsuleButton(secondaryButtonTitle, style: .secondary, action: secondaryAction)
                 }
-                Button(buttonTitle, action: action)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12, weight: .medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(.tint.opacity(0.18)))
-                    .foregroundStyle(.tint)
+                SettingsCapsuleButton(buttonTitle, action: action)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(minHeight: 44)
     }
 }
 
 // MARK: - System (default browser)
 
+/// 系统卡片：默认浏览器 / 检查更新 / 诊断。
+///
+/// 这三行原来是手搓的 HStack + 自绘胶囊按钮，和设置里其它地方（`SettingsRow` +
+/// `SettingsCapsuleButton` + `SettingsRowDivider`）不是一套语言：图标圆片底色不同、
+/// 行间没有分隔线、按钮底色有四五种近似值。现在统一走共用组件。
 private struct SystemSection: View {
     @State private var isDefault = false
 
@@ -830,90 +803,25 @@ private struct SystemSection: View {
             subtitle: "Whether Desire is the default handler for http(s) links.",
             icon: "gear.badge"
         ) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: isDefault ? "checkmark.seal.fill" : "globe.badge.chevron.backward")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isDefault ? .green : .secondary)
-                    .frame(width: 22, height: 22)
-                    .background(
-                        Circle().fill((isDefault ? Color.green : .secondary).opacity(0.10))
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Default Browser")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(isDefault
-                         ? "Desire is your default browser."
-                         : "Set Desire as your default browser to open http and https links.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-
+            SettingsRow(
+                "Default Browser",
+                subtitle: isDefault
+                    ? "Desire is your default browser."
+                    : "Set Desire as your default browser to open http and https links.",
+                systemImage: "globe"
+            ) {
                 if isDefault {
                     StatusPill(text: "Default", kind: .success)
                 } else {
-                    Button {
-                        setAsDefaultBrowser()
-                    } label: {
-                        Text("Set as Default…")
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(Capsule().fill(.tint.opacity(0.18)))
-                            .foregroundStyle(.tint)
-                    }
-                    .buttonStyle(.plain)
+                    SettingsCapsuleButton("Set as Default…") { setAsDefaultBrowser() }
                 }
             }
+            SettingsRowDivider()
             CheckUpdatesRow(checker: UpdateChecker.shared)
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Diagnostics")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Crash and performance reports collected via MetricKit.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    if let archive = MetricsManager.shared.exportDiagnosticsArchive() {
-                        NSWorkspace.shared.activateFileViewerSelecting([archive])
-                    } else {
-                        MetricsManager.shared.revealDiagnosticsFolder()
-                    }
-                } label: {
-                    Text("Export…")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.secondary.opacity(0.18)))
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-                Button {
-                    MetricsManager.shared.revealDiagnosticsFolder()
-                } label: {
-                    Text("Show in Finder")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.secondary.opacity(0.18)))
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-            }
+            SettingsRowDivider()
+            DiagnosticsRow()
         }
         .onAppear(perform: checkDefaultBrowser)
-    }
-
-    private func checkDefaultBrowser() {
-        let scheme = URL(string: "https://")!
-        if let appURL = NSWorkspace.shared.urlForApplication(toOpen: scheme) {
-            isDefault = appURL == Bundle.main.bundleURL
-        }
     }
 
     private func setAsDefaultBrowser() {
@@ -926,7 +834,49 @@ private struct SystemSection: View {
             }
         }
     }
+    private func checkDefaultBrowser() {
+        let scheme = URL(string: "https://")!
+        if let appURL = NSWorkspace.shared.urlForApplication(toOpen: scheme) {
+            isDefault = appURL == Bundle.main.bundleURL
+        }
+    }
 }
+
+/// 诊断行：显示 MetricKit 收集到的报告。**没有报告时不给 Export 按钮**（只留
+/// "在访达中显示"）——此前 Export 在没有报告时会静默变成"打开文件夹"，用户以为导出了。
+private struct DiagnosticsRow: View {
+    @State private var reportCount = 0
+
+    private var hasReports: Bool { reportCount > 0 }
+
+    var body: some View {
+        SettingsRow(
+            "Diagnostics",
+            subtitle: "Crash and performance reports collected via MetricKit.",
+            systemImage: "stethoscope"
+        ) {
+            HStack(spacing: 6) {
+                if hasReports {
+                    StatusPill(text: "\(reportCount)", kind: .neutral)
+                }
+                CapsuleButton(
+                    systemName: "folder",
+                    action: { MetricsManager.shared.revealDiagnosticsFolder() },
+                    help: "Show in Finder"
+                )
+                if hasReports {
+                    SettingsCapsuleButton("Export…") {
+                        if let archive = MetricsManager.shared.exportDiagnosticsArchive() {
+                            NSWorkspace.shared.activateFileViewerSelecting([archive])
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear { reportCount = MetricsManager.shared.reportCount }
+    }
+}
+
 
 // MARK: - Custom Search Engines
 

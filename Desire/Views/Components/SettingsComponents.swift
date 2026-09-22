@@ -268,8 +268,6 @@ struct SettingsPickerRow<Item: Hashable>: View {
 // MARK: - Action Row
 
 struct SettingsActionRow: View {
-    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
-    @Environment(\.appAccent) private var appAccent: Color
     let title: String
     let subtitle: String?
     let systemImage: String?
@@ -298,22 +296,87 @@ struct SettingsActionRow: View {
 
     var body: some View {
         SettingsRow(title, subtitle: subtitle, systemImage: systemImage) {
-            Button(action: action) {
-                Text(localizedSettingText(buttonTitle))
-                    .font(.system(size: 12, weight: .medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(isDestructive
-                                  ? Color.red.opacity(0.12)
-                                  : appAccent.opacity(0.14))
-                    )
-                    .foregroundStyle(isDestructive ? Color.red : appAccent)
-            }
-            .buttonStyle(.plain)
-            .disabled(isDisabled)
+            SettingsCapsuleButton(
+                buttonTitle,
+                style: isDestructive ? .destructive : .prominent,
+                isDisabled: isDisabled,
+                action: action
+            )
         }
+    }
+}
+
+// MARK: - Capsule Button
+
+/// 设置里唯一的胶囊按钮规格（12pt medium / 水平 12 垂直 5 / 圆角胶囊）。
+///
+/// 此前各行自己手搓按钮底色，同一个页面里出现过 5 种近似色（`.tint` 0.18、
+/// accent 0.18、secondary 0.18 / 0.10、accent 0.14），看起来像不同人做的。
+/// 需要"次要"按钮就用 `.secondary`，需要危险操作用 `.destructive`。
+struct SettingsCapsuleButton: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
+
+    enum Style {
+        case prominent
+        case secondary
+        case destructive
+    }
+
+    let title: String
+    var systemImage: String? = nil
+    var style: Style = .prominent
+    var isDisabled: Bool = false
+    let action: () -> Void
+
+    private var foreground: Color {
+        switch style {
+        case .prominent: appAccent
+        case .secondary: .primary
+        case .destructive: .red
+        }
+    }
+
+    private var fill: Color {
+        switch style {
+        case .prominent: appAccent.opacity(0.14)
+        case .secondary: Color.secondary.opacity(0.10)
+        case .destructive: Color.red.opacity(0.12)
+        }
+    }
+
+    init(
+        _ title: String,
+        systemImage: String? = nil,
+        style: Style = .prominent,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.style = style
+        self.isDisabled = isDisabled
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .medium))
+                }
+                Text(localizedSettingText(title))
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(fill))
+            .foregroundStyle(foreground)
+            .opacity(isDisabled ? 0.45 : 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
     }
 }
 

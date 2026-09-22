@@ -90,56 +90,72 @@ struct UpdateBannerView: View {
     }
 }
 
-/// Settings ▸ System ▸ "Check for Updates" row: manual trigger with
-/// inline result feedback.
+/// Settings ▸ System ▸ "Check for Updates" 行。
+///
+/// 用统一的 `SettingsRow` + `SettingsCapsuleButton`（此前自己搓了一套 HStack +
+/// 胶囊按钮，和同一卡片里其它行不一致）。三个行为上的改动：
+/// - 有新版时**给出可点的动作**：装在 /Applications 就能一键更新，否则给"查看发布页"
+///   ——此前只报"有新版本"，用户在这儿无事可做；
+/// - 状态行带上当前版本号；
+/// - 检查中不再把按钮换成固定 60pt 的转圈（宽度会跳），阶段改由状态文字表达，
+///   按钮保持原宽禁用。
 struct CheckUpdatesRow: View {
-    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
-    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var checker: UpdateChecker
 
+    private var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
+    private var hasUpdate: Bool {
+        if case .available = checker.lastCheckResult { return true }
+        return false
+    }
+
+    private var busy: Bool {
+        checker.isChecking || checker.installState == .downloading || checker.installState == .installing
+    }
+
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Check for Updates")
-                    .font(.system(size: 13, weight: .medium))
-                switch checker.lastCheckResult {
-                case .available(let tag):
-                    Text(String(localized: "\(tag) is available"))
-                        .font(.system(size: 11))
-                        .foregroundStyle(appAccent)
-                case .upToDate:
-                    Text(String(localized: "You're up to date."))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                case .failed(let error):
-                    Text(error)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                case nil:
-                    Text(String(localized: "Check GitHub Releases for the latest build."))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+        SettingsRow("Check for Updates", subtitle: statusText, systemImage: "arrow.triangle.2.circlepath") {
+            HStack(spacing: 8) {
+                if hasUpdate {
+                    if checker.canSelfUpdate {
+                        SettingsCapsuleButton(installButtonTitle, isDisabled: busy) {
+                            checker.installNow()
+                        }
+                    } else {
+                        SettingsCapsuleButton("View Release") {
+                            NSWorkspace.shared.open(checker.releasePageURL ?? UpdateChecker.releasesURL)
+                        }
+                    }
+                }
+                // 版本号用胶囊展示（不翻译）
+                StatusPill(text: "v\(currentVersion)", kind: .neutral)
+                SettingsCapsuleButton("Check Now", style: .secondary, isDisabled: busy) {
+                    checker.startCheck()
                 }
             }
-            Spacer()
-            Button {
-                checker.startCheck()
-            } label: {
-                if checker.isChecking {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 60, height: 18)
-                } else {
-                    Text("Check Now")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(appAccent.opacity(0.18)))
-                        .foregroundStyle(appAccent)
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(checker.isChecking)
+        }
+    }
+
+    private var installButtonTitle: String {
+        checker.installState == .readyToRelaunch
+            ? String(localized: "Restart to Update")
+            : String(localized: "Install Update")
+    }
+
+    private var statusText: String {
+        if checker.isChecking { return String(localized: "Checking…") }
+        if case .failed(let message) = checker.installState { return message }
+        switch checker.lastCheckResult {
+        case .available(let tag):
+            return String(localized: "\(tag) is available")
+        case .upToDate:
+            return String(localized: "You're up to date.")
+        case .failed(let error):
+            return error
+        case nil:
+            return String(localized: "Check GitHub Releases for the latest build.")
         }
     }
 }

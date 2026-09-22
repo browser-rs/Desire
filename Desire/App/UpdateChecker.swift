@@ -153,7 +153,8 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     private static let seenTagKey = "update.seenTag"
-    private static let releasesURL = URL(string: "https://github.com/browser-rs/Desire/releases/latest")!
+    /// 发布页（设置里的“查看发布页”按钮也要用，所以不是 private）。
+    static let releasesURL = URL(string: "https://github.com/browser-rs/Desire/releases/latest")!
     private static let apiURL = URL(string: "https://api.github.com/repos/browser-rs/Desire/releases/latest")!
 
     private static let log = Log.app

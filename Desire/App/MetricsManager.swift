@@ -34,6 +34,12 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         NSWorkspace.shared.activateFileViewerSelecting([DiagnosticsStore.directory])
     }
 
+    /// 诊断目录里的报告数。设置页用它显示"已收集 N 份"、并在为 0 时把 Export 置灰——
+    /// 此前没有报告时 Export 会静默改成"打开文件夹"，用户以为导出了。
+    var reportCount: Int {
+        (try? FileManager.default.contentsOfDirectory(atPath: DiagnosticsStore.directory.path))?.count ?? 0
+    }
+
     /// Zips the diagnostics folder into `~/Downloads/desire-diagnostics-<stamp>.zip`
     /// and returns the archive URL (nil when the folder is empty/missing or
     /// ditto failed). The app runs unsandboxed, so spawning `/usr/bin/ditto`

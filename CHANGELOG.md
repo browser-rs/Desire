@@ -24,6 +24,28 @@
     `/Users/…/Downloads` 与 `/opt/homebrew/bin/ffmpeg`。用户没有自定义过提示词（plist 里
     没有 `aiSystemPrompt`），新默认值立即生效。
 
+### Changed
+
+- **设置页 System 卡片（默认浏览器 / 检查更新 / 诊断）UI 统一**（用户反馈："设置里面
+  检查更新 诊断 那一块 UI 需要完善一下"）：这三行原来是手搓的 HStack + 自绘胶囊按钮，
+  和设置里其它地方不是同一套语言——图标圆片底色不同、行间**没有分隔线**、按钮底色有
+  四五种近似值（`.tint` 0.18 / accent 0.18 / accent 0.14 / secondary 0.18 / secondary 0.10）。
+  - 全部改用共用组件：`SettingsRow` + 新增的 `SettingsCapsuleButton`（唯一胶囊规格：
+    12pt medium / 水平 12 垂直 5 / prominent·secondary·destructive 三档）+ `SettingsRowDivider`；
+    `SettingsActionRow` 也一并收敛到同一个按钮定义。
+  - **检查更新行**：有新版时给出**可点的动作**——装在 `/Applications` 就能一键「安装更新」
+    （下载 / 安装 / 待重启各阶段都有状态反馈），否则给「查看发布页」；此前只报"有新版本"，
+    用户在这一行无事可做。另外检查中不再把按钮换成固定 60pt 的转圈（宽度会跳），
+    状态改由副标题表达，版本号用不翻译的胶囊标出。
+  - **诊断行**：显示已收集的报告数；**没有报告时不给 Export 按钮**（只留"在访达中显示"）
+    ——此前 Export 在没有报告时会静默变成"打开文件夹"，用户以为导出成功了。
+  - **顺带修的本地化 bug**：`FolderPathRow`（下载位置 / 截图保存位置两行）此前用
+    `Text(变量)` 渲染标题与按钮，那是 **verbatim** 渲染、不查字符串目录，中文界面下
+    这两行一直是英文；改走共用组件后正常显示中文。
+  - 字符串目录：补上 3 个"半成品"空条目（`Filter by Type` / `More` / 模型空响应提示）
+    的三语翻译，并新增 3 个键（`Checking…` / `Install Update` / `Restart to Update`）
+    —— 现在 1175 键、三语零缺口。
+
 ### Fixed
 
 - **下载器回调的隔离警告**：`FFmpegExporter` 里的 `Collector`（进度行解析、stderr 累积）

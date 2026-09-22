@@ -4783,6 +4783,72 @@
         }
       }
     },
+    "Checking…" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Checking…"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "检查中…"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "檢查中…"
+      }
+        }
+      }
+    },
+    "Install Update" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Install Update"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "安装更新"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "安裝更新"
+      }
+        }
+      }
+    },
+    "Restart to Update" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Restart to Update"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "重启以完成更新"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "重新啟動以完成更新"
+      }
+        }
+      }
+    },
     "Choose" : {
       "localizations" : {
         "en" : {
@@ -10174,7 +10240,26 @@
       }
     },
     "Filter by Type" : {
-
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Filter by Type"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "按类型筛选"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "依類型篩選"
+      }
+        }
+      }
     },
     "Filter Lists" : {
       "extractionState" : "stale",
@@ -13597,7 +13682,26 @@
       }
     },
     "More" : {
-
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "More"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "更多"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "更多"
+      }
+        }
+      }
     },
     "Mosaic" : {
       "comment" : "Screenshot tool: mosaic blur annotation",
@@ -22704,7 +22808,26 @@
       }
     },
     "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings." : {
-
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "模型返回了空响应——没有生成任何内容。通常是上下文对该服务来说太长，或上游端点出了错。可以用 /new 开一个新对话，或在设置里切换模型/服务。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "模型回傳了空回應——沒有產生任何內容。通常是上下文對該服務來說太長，或上游端點發生錯誤。可以用 /new 開一個新對話，或在設定裡切換模型／服務。"
+      }
+        }
+      }
     },
     "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test." : {
       "localizations" : {

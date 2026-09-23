@@ -434,7 +434,8 @@ struct AgentPanel: View {
                             AgentMessageBubble(
                                 message: msg,
                                 toolResults: toolResults,
-                                isStreamingTail: isStreamingTail(msg)
+                                isStreamingTail: isStreamingTail(msg),
+                                onFeedback: { vote in store.setFeedback(vote, for: msg.id) }
                             )
                             .id(msg.id)
                         }

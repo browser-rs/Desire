@@ -365,6 +365,7 @@ final class AutomationServer {
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("POST", "/agent/feedback", "Rate an assistant message (thumbs up/down); persisted with the conversation", params: ["messageId:string", "vote:up|down|none"], example: #"-d '{"messageId":"…","vote":"up"}'"#)
         ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
         ep("POST", "/filters/probe", "Convert ABP lines to content-blocker JSON and compile them, reporting per-line errors", params: ["abp:string (one rule per line)", "includeHiding?:bool"], example: #"-d '{"abp":"/web_ads/*$image"}'"#)
         ep("POST", "/filters/refresh", "Re-download + compile filter lists", params: ["id?:string", "force?:bool"], example: "-d '{}'")
@@ -1078,6 +1079,10 @@ final class AutomationServer {
                     text: Self.string(body, "text") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("POST", "/agent/feedback"):
+                return try Self.json(Self.setAgentFeedback(
+                    messageId: Self.string(body, "messageId") ?? "",
+                    vote: Self.string(body, "vote") ?? ""))
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
@@ -2612,16 +2617,47 @@ final class AutomationServer {
         return ["ok": true, "resolved": decision]
     }
 
+    /// 给某条助手消息投票（👍/👎），用于自动化的评价采集。
+    @MainActor
+    private static func setAgentFeedback(messageId: String, vote: String) -> [String: Any] {
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            return ["error": "no live agent session"]
+        }
+        guard let id = UUID(uuidString: messageId) else {
+            return ["error": "messageId must be a UUID (see /agent/messages)"]
+        }
+        let normalized: String? = (vote == "up" || vote == "down") ? vote : nil
+        // 先在活动会话里找（UI 走的就是这条）；找不到就落到**已存盘的会话**——
+        // 否则对一个已关闭的会话投票会静默无效，而端点却报 ok。
+        if session.setFeedback(normalized, for: id) {
+            return ["ok": true, "messageId": messageId, "vote": normalized ?? "none", "scope": "live"]
+        }
+        let store = ConversationStore()
+        guard let conversation = store.conversations.first(where: { conv in
+            conv.messages.contains { $0.id == id }
+        }) else {
+            return ["error": "no message with that id (live session or saved conversations)"]
+        }
+        var updated = conversation
+        guard let index = updated.messages.firstIndex(where: { $0.id == id }) else {
+            return ["error": "message vanished"]
+        }
+        updated.messages[index].feedback = normalized
+        store.save(updated)
+        return ["ok": true, "messageId": messageId, "vote": normalized ?? "none", "scope": "saved"]
+    }
+
     private static func agentMessages(window: String? = nil) throws -> [String: Any] {
         guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
         let messages = session.messages.suffix(12).map { message -> [String: Any] in
-            var item: [String: Any] = ["role": message.role.rawValue]
+            var item: [String: Any] = ["id": message.id.uuidString, "role": message.role.rawValue]
             if let content = message.content { item["content"] = String(content.prefix(2000)) }
             if let reasoning = message.reasoning { item["reasoning"] = String(reasoning.prefix(600)) }
             if let critique = message.critique { item["critique"] = String(critique.prefix(600)) }
             if let note = message.verificationNote { item["verificationNote"] = String(note.prefix(600)) }
+            if let feedback = message.feedback { item["feedback"] = feedback }
             if let calls = message.toolCalls { item["toolCalls"] = calls.map(\.function.name) }
             return item
         }

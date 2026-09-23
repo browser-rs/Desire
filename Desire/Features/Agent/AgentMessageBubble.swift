@@ -10,6 +10,9 @@ struct AgentMessageBubble: View {
     /// Whether this is the most recent assistant message that is still
     /// being streamed. Controls the trailing typing indicator.
     var isStreamingTail: Bool = false
+    /// 评价回调（👍/👎）。用回调下传而不是 `@EnvironmentObject`：面板是显式传参持有
+    /// store 的，环境里并没有它——用 EnvironmentObject 会直接崩。
+    var onFeedback: ((String?) -> Void)? = nil
 
     var body: some View {
         switch message.role {
@@ -22,7 +25,8 @@ struct AgentMessageBubble: View {
             AssistantBubble(
                 message: message,
                 isStreamingTail: isStreamingTail,
-                toolResults: toolResults
+                toolResults: toolResults,
+                onFeedback: onFeedback
             )
         case .tool:
             ToolBubble(content: message.content ?? "", toolName: message.toolName)
@@ -122,6 +126,7 @@ private struct AssistantBubble: View {
     let message: AgentMessage
     let isStreamingTail: Bool
     var toolResults: [String: String] = [:]
+    var onFeedback: ((String?) -> Void)?
     @State private var isHovering = false
 
     private var isError: Bool {
@@ -211,9 +216,14 @@ private struct AssistantBubble: View {
                     .stroke(borderColor, lineWidth: 0.5)
             )
             .overlay(alignment: .topTrailing) {
-                if isHovering, let text = message.content, !text.isEmpty, !isError {
-                    CopyChip(text: text)
-                        .offset(x: 6, y: -6)
+                if let text = message.content, !text.isEmpty, !isError {
+                    HStack(spacing: 4) {
+                        if isHovering {
+                            FeedbackChips(feedback: message.feedback, onVote: onFeedback)
+                        }
+                        CopyChip(text: text)
+                    }
+                    .offset(x: 6, y: -6)
                 }
             }
             .textSelection(.enabled)
@@ -262,6 +272,44 @@ private struct AssistantBubble: View {
 }
 
 // MARK: - Tool bubble
+
+/// 回答质量反馈（👍/👎）：**最便宜、最真实的评估信号**——投票随会话文件落盘，
+/// 以后能直接导成评估集。默认只在 hover 时出现（与复制按钮同规格、同一排），
+/// 投过票时按钮保持高亮，所以刷新/重启后仍看得出自己评过。
+private struct FeedbackChips: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let feedback: String?
+    var onVote: ((String?) -> Void)?
+
+    var body: some View {
+        HStack(spacing: 2) {
+            chip("hand.thumbsup", vote: "up", tint: appAccent)
+            chip("hand.thumbsdown", vote: "down", tint: .orange)
+        }
+    }
+
+    private func chip(_ symbol: String, vote: String, tint: Color) -> some View {
+        let active = feedback == vote
+        return Button {
+            onVote?(active ? nil : vote)
+        } label: {
+            Image(systemName: active ? "\(symbol).fill" : symbol)
+                .font(.system(size: 10))
+                .foregroundStyle(active ? AnyShapeStyle(tint) : AnyShapeStyle(.secondary))
+                .frame(width: 20, height: 18)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(active ? tint.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(vote == "up" ? String(localized: "Good answer") : String(localized: "Bad answer"))
+    }
+}
 
 /// 回合自评（reflection）：默认折叠，避免给正常对话添加噪音。
 /// 只在"多步/高风险"回合才会由 `runSelfReviewIfNeeded` 写入 `message.critique`。

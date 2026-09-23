@@ -16,6 +16,9 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var reasoning: String?
     /// 回合收尾时模型对自己的**自评**（可选）：只挂在有工具动作的回合上，面板里折叠展示。
     var critique: String?
+    /// 用户对该条回答的评价："up" / "down"（可选）。这是**最便宜也最真实的回答质量标签**，
+    /// 随会话文件落盘，将来用来攒评估集。
+    var feedback: String?
     /// 回合收尾的**机械核验**结论（可选，0 次模型调用）：只讲客观事实，例如"本轮所有工具
     /// 调用都失败却给出了结论"。面板里以橙色折叠块提示用户——不阻塞、不重试。
     var verificationNote: String?
@@ -25,7 +28,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var imageDataURIs: [String]?
     let createdAt: Date
 
-    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil) {
+    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
@@ -36,6 +39,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
         self.reasoning = reasoning
         self.critique = critique
         self.verificationNote = verificationNote
+        self.feedback = feedback
         self.createdAt = Date()
     }
 }

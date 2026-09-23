@@ -1341,6 +1341,20 @@ class AgentSessionStore: ObservableObject {
         return false
     }
 
+    /// 用户对某条回答的评价（面板里 👍/👎）。传 nil 清除。按 id 定位，落盘。
+    /// 返回**是否命中当前会话**——调用方（桥端点）据此决定要不要去改已存盘的会话，
+    /// 免得对已关闭的会话投票时静默无效却报成功。
+    @discardableResult
+    func setFeedback(_ vote: String?, for messageID: UUID) -> Bool {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return false }
+        let normalized = (vote == "up" || vote == "down") ? vote : nil
+        guard messages[index].feedback != normalized else { return true }
+        messages[index].feedback = normalized
+        streamingVersion += 1
+        saveCurrentConversation()
+        return true
+    }
+
     /// 回合收尾的**机械核验**：0 次模型调用，只看客观事实——专门抓"连自评都可能漏掉"
     /// 的情况。当前两条：
     /// ① 本轮**所有**工具调用都失败/被拒，却给出了最终回答（结论背后没有验证）；

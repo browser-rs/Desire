@@ -339,7 +339,7 @@ struct SelectedTabContent: View {
         // 坐标空间：Toolbar 里量地址栏、这里摆下拉，两边同一参照系。
         .coordinateSpace(name: Self.urlFieldSpace)
         .id(tab.id)
-        .overlay(alignment: .top) {
+        .overlay(alignment: .topLeading) {
             if content.isUrlFocused, content.urlFieldFrame.width > 1 {
                 AddressSuggestionsView(
                     maxWidth: nil,
@@ -359,8 +359,11 @@ struct SelectedTabContent: View {
                         actions.navigateToURL(url, for: tab)
                     }
                 )
-                .padding(.horizontal, 12)
-                .padding(.top, 2)
+                // 与地址栏**同宽同起点**、紧贴其下沿：frame 由 Toolbar 里那个
+                // 胶囊实测后经命名坐标空间传过来，所以不会比输入栏宽。
+                .frame(width: content.urlFieldFrame.width, alignment: .leading)
+                .padding(.top, content.urlFieldFrame.maxY)
+                .padding(.leading, content.urlFieldFrame.minX)
                 .transition(.opacity)
             }
         }

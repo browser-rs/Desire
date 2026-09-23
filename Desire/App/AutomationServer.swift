@@ -2147,6 +2147,11 @@ final class AutomationServer {
         host.frame = NSRect(origin: .zero, size: size)
         // 新宿主默认浅色外观，和 app 里的深色不一致。
         host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+        // 先跑一小段 runloop：这一页的**热力图要量宽度再回写状态重排一次**（见
+        // AgentStatsView.heatmap），不转一下 runloop 就会拍到"量之前"的那一版。
+        host.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        host.layoutSubtreeIfNeeded()
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
             return ["error": "bitmap alloc failed"]
         }

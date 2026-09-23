@@ -764,11 +764,17 @@ Features/Bookmarks/
   面板宽度从 380 到 2000pt 以上都可能（用户会拖），三种做法配套用：
   ① **内容限宽居中**（`AgentStatsView.contentMaxWidth = 1100`）——限宽后再 `.frame(maxWidth:
   .infinity, alignment: .center)`；不限宽的话"最多 53 周"的热力图在 2000pt 下右边会空一大半；
-  ② **每个区块自己换档**：用 `ViewThatFits(in: .horizontal)` 列几档，每档是**固定尺寸**的
-  内容（热力图 = 周数×格子大小，头条 = 列数），**每档要 `.fixedSize()`** 让理想宽度等于真实
-  宽度，`ViewThatFits` 才能按宽度挑；档与档之间别差太多（第一版 18→26 周之间空了一块，
-  补 22 周就够）；③ **别用 GeometryReader 干这件事**：它拿不到内容高度，在 ScrollView 里
-  会让"由宽度决定高度"的网格没法排（固定档位就没有这个问题）。
+  ② **离散内容换档**：`ViewThatFits(in: .horizontal)` 列几档固定尺寸的内容（头条指标条 =
+  列数 6/4/3/2），**每档要 `.fixedSize()`** 让理想宽度等于真实宽度，它才能按宽度挑；
+  ③ **连续内容要"量宽度现算"**：档位表对"能拉伸的元素"是错的——档与档之间必然留空
+  （热力图 700pt 面板挑中 34 周 @13pt=508pt，右边空 136pt，用户一眼就看出来了）。
+  做法：`GeometryReader { Color.clear.preference(键, value: geo.size.width) }` 挂在
+  `.background` 上 + `.onPreferenceChange` 回写 `@State`，**下一次布局**再按这个宽度
+  现算格子边长（`(宽 - 间隙)/列数` → 正好铺满）；高度自然由内容决定，所以**不要**用
+  `GeometryReader` 直接包内容（拿不到内容高度）。注意这条链路要**两次布局**：
+  **桥的离屏快照必须在 `cacheDisplay` 前转一小段 runloop**，否则拍到的是"量之前"那版
+  （已在 `agentStatsSnapshot` 里处理）。
+  圆形/圆角这类随尺寸变的装饰也跟着算：热力图圆角 = `min(5, max(2, 边长 × 0.24))`。
   另外两条与图表有关：`chartForegroundStyleScale(domain:range:)` 的 domain **只放画出来的
   序列**（放全量会让图例多出没画线的模型）；列表类内容在宽面板下**要铺满**（名字靠左、
   百分比靠右），限个 420pt 宽再留白会长出一块空洞。

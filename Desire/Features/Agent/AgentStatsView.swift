@@ -1,6 +1,12 @@
 import Charts
 import SwiftUI
 
+/// 热力图宽度上报（量完回写状态用；`onPreferenceChange` 在布局之后回调，不在视图更新中）。
+private struct HeatWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// Token 使用统计面板：头条指标 + 活动热力图 + 每日趋势 + 模型用量。
 ///
 /// 数据全部**从已存盘的会话派生**（`UsageStats`），与轨迹页同一个原则——不另存计数，
@@ -23,6 +29,10 @@ struct AgentStatsView: View {
     /// 右边会空掉一大半（比对称留白更难看）。
     static let contentMaxWidth: CGFloat = 1100
 
+    /// 热力图：格子间距、格子最小边长（再小就减少显示的周数）。
+    private static let heatGap: CGFloat = 2
+    private static let heatMinCell: CGFloat = 11
+
     /// 趋势图的窗口（天）。热力图固定看最近若干周，不受它影响。
     private enum Range: Int, CaseIterable, Identifiable {
         case week = 7, month = 30
@@ -37,6 +47,8 @@ struct AgentStatsView: View {
 
     @State private var stats: UsageStats
     @State private var range: Range = .week
+    /// 热力图可用宽度（量出来的，见 `heatmap`）。
+    @State private var heatWidth: CGFloat = 0
 
     /// 数据在 **init 里就备好**：`.onAppear` 只挂在真实窗口上，离屏宿主（桥的
     /// `/panel/snapshot`）不触发它——那种情况下页面会是空的，看着像功能坏了。
@@ -266,27 +278,18 @@ struct AgentStatsView: View {
         }
     }
 
-    /// GitHub 风格格子：列 = 周、行 = 周一…周日。**按可用宽度换档**（格子 11→18、
-    /// 周数 53→10），窄面板也填得满、宽面板也不会只在左边一小块。每档高度固定，
-    /// 所以不需要测量（`ViewThatFits` 按理想宽度挑第一档放得下的）。
+    /// GitHub 风格格子：列 = 周、行 = 周一…周日。
+    ///
+    /// **格子边长按实测宽度现算、永远铺满**（用户："方块要加点圆角 要撑满宽度啊 自动调整"）：
+    /// 先用"格子不小于 `heatMinCell`"反推这里能放多少周（上限 53 周 = 一年），再把剩下的
+    /// 宽度平分给这些周——所以任何宽度下右边都不会留一条空档。上一版用"档位表"
+    /// （53/44/34…周 × 11…18pt）做不到这点：档与档之间必然落差几十到上百点。
+    ///
+    /// 宽度靠 `GeometryReader` + `PreferenceKey` **量**出来（量完再回写状态、重排一次），
+    /// 因为高度要跟着格子边长走——用 `GeometryReader` 直接包内容的话拿不到内容高度。
     private var heatmap: some View {
-        ViewThatFits(in: .horizontal) {
-            heatGrid(weeks: 53, cell: 18)
-            heatGrid(weeks: 53, cell: 15)
-            heatGrid(weeks: 44, cell: 14)
-            heatGrid(weeks: 34, cell: 13)
-            heatGrid(weeks: 30, cell: 12)
-            heatGrid(weeks: 26, cell: 12)
-            heatGrid(weeks: 22, cell: 12)
-            heatGrid(weeks: 18, cell: 11)
-            heatGrid(weeks: 14, cell: 11)
-            heatGrid(weeks: 10, cell: 11)
-        }
-    }
-
-    private func heatGrid(weeks: Int, cell: CGFloat) -> some View {
-        let gap: CGFloat = 2
-        let days = trailingWeeks(weeks)
+        let gap = Self.heatGap
+        let days = trailingWeeks(heatWeeks)
         let maxTokens = max(1, days.map(\.tokens).max() ?? 1)
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .top, spacing: gap) {
@@ -295,22 +298,46 @@ struct AgentStatsView: View {
                         ForEach(0..<7, id: \.self) { row in
                             let index = start + row
                             if index < days.count {
-                                cellView(days[index], maxTokens: maxTokens, size: cell)
+                                cellView(days[index], maxTokens: maxTokens,
+                                         size: heatCell, radius: heatCornerRadius)
                             } else {
-                                Color.clear.frame(width: cell, height: cell)
+                                Color.clear.frame(width: heatCell, height: heatCell)
                             }
                         }
                     }
                 }
             }
-            monthLabels(days: days, cell: cell, gap: gap)
+            monthLabels(days: days, cell: heatCell, gap: gap)
         }
-        // 关键：理想宽度 = 网格真实宽度，`ViewThatFits` 才能按宽度挑档。
-        .fixedSize()
+        .background(
+            GeometryReader { geometry in
+                Color.clear.preference(key: HeatWidthKey.self, value: geometry.size.width)
+            }
+        )
+        .onPreferenceChange(HeatWidthKey.self) { width in
+            if abs(width - heatWidth) > 0.5 { heatWidth = width }
+        }
     }
 
-    private func cellView(_ day: UsageDayStat, maxTokens: Int, size: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+    /// 能放下多少周：格子不小于 `heatMinCell`，最多一年（53 周）。
+    private var heatWeeks: Int {
+        guard heatWidth > 0 else { return 12 }   // 量到宽度前先给个不刺眼的兜底
+        let fits = Int((heatWidth + Self.heatGap) / (Self.heatMinCell + Self.heatGap))
+        return min(53, max(8, fits))
+    }
+
+    /// 格子边长：**把宽度平分给这些周**（所以正好铺满）。
+    private var heatCell: CGFloat {
+        guard heatWidth > 0 else { return Self.heatMinCell }
+        let weeks = CGFloat(heatWeeks)
+        return (heatWidth - (weeks - 1) * Self.heatGap) / weeks
+    }
+
+    /// 圆角跟着格子边长走：小格子用 2pt 不至于变成圆点，大格子用 24% 边长看起来才"有圆角"。
+    private var heatCornerRadius: CGFloat { min(5, max(2, heatCell * 0.24)) }
+
+    private func cellView(_ day: UsageDayStat, maxTokens: Int, size: CGFloat, radius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
             .fill(heatColor(tokens: day.tokens, maxTokens: maxTokens))
             .frame(width: size, height: size)
             .help(heatHelp(day))

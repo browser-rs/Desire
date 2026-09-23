@@ -322,6 +322,37 @@ struct AgentPanel: View {
                 .padding(.bottom, 2)
             }
 
+            if store.hasUnansweredPrompt && !store.isProcessing {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("上一条提问还没有收到回答")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button {
+                        store.resumeLastPrompt()
+                    } label: {
+                        Text("继续回答")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Resume the unanswered prompt")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(appAccent.opacity(0.06))
+                )
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+            }
+
             AgentInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,

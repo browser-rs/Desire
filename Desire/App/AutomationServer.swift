@@ -381,6 +381,7 @@ final class AutomationServer {
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
+        ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
@@ -1106,6 +1107,8 @@ final class AutomationServer {
                 return try Self.json(Self.setAgentFeedback(
                     messageId: Self.string(body, "messageId") ?? "",
                     vote: Self.string(body, "vote") ?? ""))
+            case ("POST", "/agent/resume"):
+                return try Self.json(Self.agentResume(window: Self.string(body, "window")))
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
@@ -2819,6 +2822,16 @@ final class AutomationServer {
         updated.messages[index].feedback = normalized
         store.save(updated)
         return ["ok": true, "messageId": messageId, "vote": normalized ?? "none", "scope": "saved"]
+    }
+
+    /// 恢复：为会话末尾**未获回答的用户提问**直接开一轮（不重复入列）。
+    @MainActor
+    private static func agentResume(window: String?) -> [String: Any] {
+        guard let session = resolveSession(window) else { return ["error": "no live agent session"] }
+        guard !session.isProcessing else { return ["error": "a turn is already running"] }
+        let resumed = session.resumeLastPrompt()
+        return resumed ? ["ok": true, "resumed": true]
+                       : ["ok": false, "reason": "the trailing message is not an unanswered user prompt"]
     }
 
     private static func agentMessages(window: String? = nil) throws -> [String: Any] {

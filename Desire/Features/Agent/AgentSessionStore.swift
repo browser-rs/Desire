@@ -384,6 +384,30 @@ class AgentSessionStore: ObservableObject {
         loopTask = Task { await processLoop() }
     }
 
+    /// 会话是否以**未获回答的用户提问**结尾 —— 工具执行中途被杀的典型残留
+    /// （提问已落盘、回答没有）。恢复后据此显示"重发"入口。
+    var hasUnansweredPrompt: Bool {
+        messages.last?.role == .user
+    }
+
+    /// 为**已有**的那条未回答提问直接开一轮：不重复 append、不重复记历史 ——
+    /// 重发会让同一问题在对话里出现两次，模型看到的上下文也乱。
+    @discardableResult
+    func resumeLastPrompt() -> Bool {
+        guard !isProcessing, !isCancelled,
+              let last = messages.last, last.role == .user,
+              let text = last.content?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return false }
+        isProcessing = true
+        isCancelled = false
+        refreshContextLabel()
+        streamingTokenCount = 0
+        streamingTokensPerSecond = 0
+        processingStartedAt = Date()
+        loopTask = Task { await processLoop() }
+        return true
+    }
+
     /// Removes everything waiting in the send queue (queue strip ✕ button).
     func clearQueuedMessages() {
         queuedMessages.removeAll()

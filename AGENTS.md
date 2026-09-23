@@ -764,6 +764,13 @@ Features/Bookmarks/
   以前只有 `executeJS` 写 `Error:`，readFile 失败这类完全不可见（实测：机械核验对
   "读不存在的文件"毫无反应）。**新增工具的失败路径必须走这个约定**。
 
+- **纯逻辑单测：`tests/run.sh`**（2026-09-23 起）：解析/压缩/脱敏/用量折算/轨迹派生这类
+  **纯 Foundation 逻辑**有一套不依赖 Xcode 的 swiftc 测试（`tests/main.swift` + `run.sh`，
+  CI 在构建前跑）。**新增纯逻辑或改它们之前先跑一遍**；新增受测文件就往 `run.sh` 的
+  SOURCES 里加一行。约束：受测文件只能 import Foundation（AppKit/SwiftUI 依赖的文件
+  进不了这个 harness）—— 把纯函数抽到独立文件（如 `ContextCompaction.swift`）既可测、
+  也顺带让实现更清晰。**项目仍无 Xcode 测试 target**，UI/WebKit 层维持手测。
+
 - **可观测性：轨迹是"派生"的，不是另存的一份**（2026-09-23）：`AgentTrace` 把会话编译成
   一行一个回合的 JSONL（`GET /agent/trace` ✓），字段含 goal / steps（动作、参数、观察、
   耗时、`denied`/`threwError`）/ answer / critique / verificationNote / **用户 👍👎**。

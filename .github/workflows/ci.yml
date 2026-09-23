@@ -25,6 +25,9 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
+      - name: Pure-logic unit tests (swiftc harness)
+        run: bash tests/run.sh
+
       - name: Build (Release, unsigned)
         run: |
           xcodebuild \

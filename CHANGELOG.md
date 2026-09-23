@@ -2,6 +2,15 @@
 
 ### Added
 
+- **纯逻辑单测 harness（`tests/run.sh`）**（优化清单 P0）：解析/压缩/脱敏/用量折算/轨迹派生
+  这些**纯 Foundation 逻辑**现在有一套不依赖 Xcode 的测试 —— `swiftc` 直接编译受测文件 +
+  用例入口，CI 在构建前跑 ✓。首批 36 项：脱敏（含**多形态命中 + CJK 混排**的越界回归用例、
+  PEM、已知 Key、无命中原样返回）、金额格式化边界（`< $0.0001` / `$0`）、用量汇总（混价
+  不给总额）、统计派生（连续天数 / 峰值 / 分模型 / 逐日连续）、上下文压缩（裁最老整轮、
+  最终块保留、工具配对不拆散、单轮超预算宁可超发）、轨迹派生（answer / 失败标记）✓。
+  顺带把 `compactForContext` 从 `AgentSessionStore` 抽到 `ContextCompaction.swift`
+  （纯 Foundation 文件才进得了这个 harness）✓。
+
 - **工具失败统一约定：所有工具失败一律返回 `Error: ` 前缀**（优化清单 P0）：此前只有
   `executeJS` 写 `Error:`，其余失败（"File not found"、"Missing path"、runCommand 非零退出、
   MCP 报错、子代理流失败…）都是普通文本 —— 机械核验看不见、轨迹的 `threwError` 统计低估、
@@ -275,6 +284,11 @@
     —— 现在 1175 键、三语零缺口。
 
 ### Fixed
+
+- **Agent 面板输入框自动聚焦**（优化清单 P0；用户此前反馈过"必须先点一下输入框"）：
+  打开面板或从子页回来时，焦点自动交给输入框（跳一帧 + 400ms 延迟 —— `@FocusState`
+  在 onAppear 事务里直接置真走不进 AppKit 的 first responder，AGENTS 记录在案）；
+  停在子页（轨迹/统计等）时不抢焦点 ✓。
 
 - **地址栏：输入被立刻清空 / 候选闪一下 / 有网址时不出候选**（用户反馈）：三个症状是**同一个 bug** ——
   聚焦时那次"把缓冲播种成当前 URL"的写入（`Toolbar.swift` 的 `.onChange(of: isUrlFocused)` 分支）✓。

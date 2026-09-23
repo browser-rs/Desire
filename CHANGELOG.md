@@ -48,6 +48,14 @@
 
 ### Fixed
 
+- **地址栏聚焦时刷的 3 条运行时警告修掉了**（用户贴出）：`AddressSuggestionsModel:125/126`
+  的 "Publishing changes…" 与 `URLBarField:156` 的 "Modifying state during view update"
+  其实是**同一条链**——`updateNSView` 里同步 `stringValue`、`becomeFirstResponder()` 会
+  **同步**回调 NSTextField 的 delegate（`controlTextDidChange` / `controlTextDidBeginEditing`），
+  而 `updateNSView` 本身跑在 SwiftUI 的更新事务里，于是改 `@State`、发 `@Published` 全在
+  更新中发生。按 AGENTS 的规则分两种处理：**自己引发的变化用标志挡掉**（不需要重建候选），
+  **系统发的编辑通知跳一帧**。
+
 - **地址栏（顶部输入栏）的候选下拉修好了**（用户反馈："顶部的输入栏 目前没有搜索建议的功能"）：
   下拉视图、按键处理、模型其实都在，坏在一个隐蔽的点——**`isUrlFocused` 用的是
   `@FocusState`**，而地址栏是 `NSViewRepresentable`、自己调 `becomeFirstResponder()`，

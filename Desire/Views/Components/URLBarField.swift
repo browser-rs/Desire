@@ -53,7 +53,9 @@ struct URLBarField: NSViewRepresentable {
         // that would destroy the marked pinyin range mid-typing.
         let composing = editor?.hasMarkedText() ?? false
         if !composing, nsView.stringValue != text {
+            context.coordinator.isSyncingFromSwiftUI = true
             nsView.stringValue = text
+            context.coordinator.isSyncingFromSwiftUI = false
         }
         // Focus only on the false→true transition. Calling becomeFirstResponder
         // on every render (the old behavior) fought the field editor while typing.
@@ -79,6 +81,12 @@ struct URLBarField: NSViewRepresentable {
         weak var textField: NSTextField?
         /// Last SwiftUI-side focus state, to detect transitions.
         var wasFocused = false
+        /// 我们在 `updateNSView` 里同步 `stringValue` 时，AppKit 会**同步**回调
+        /// `controlTextDidChange`——那是在 SwiftUI 的更新事务内部，写 @State / 发布
+        /// @Published 会报 "Modifying state during view update" /
+        /// "Publishing changes from within view updates"（实测一次聚焦三条）。
+        /// 用这个标志把"自己引发的变化"挡掉：它不需要重建候选。
+        var isSyncingFromSwiftUI = false
         var observer: NSObjectProtocol?
 
         required init(_ parent: URLBarField) {
@@ -109,11 +117,13 @@ struct URLBarField: NSViewRepresentable {
         }
 
         func controlTextDidBeginEditing(_ obj: Notification) {
-            if !parent.isFocused { parent.isFocused = true }
+            // 这个通知是 `updateNSView` 里 `becomeFirstResponder()` **同步**发出来的，
+            // 所以在 SwiftUI 更新事务里 → 跳一帧再改状态。
+            Task { @MainActor in if !parent.isFocused { parent.isFocused = true } }
         }
 
         func controlTextDidEndEditing(_ obj: Notification) {
-            if parent.isFocused { parent.isFocused = false }
+            Task { @MainActor in if parent.isFocused { parent.isFocused = false } }
         }
 
         @objc func submit() {
@@ -151,6 +161,8 @@ struct URLBarField: NSViewRepresentable {
         }
 
         func controlTextDidChange(_ obj: Notification) {
+            // 自己同步 stringValue 引发的变化：忽略（见 isSyncingFromSwiftUI）
+            guard !isSyncingFromSwiftUI else { return }
             guard let field = obj.object as? NSTextField else { return }
             let newValue = field.stringValue
             parent.text = newValue

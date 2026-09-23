@@ -633,6 +633,14 @@ Features/Bookmarks/
     fixture 用 ffmpeg 自己切（`-hls_time 2 -hls_playlist_type vod`，要 `-g 50` 才有
     2 秒切片），音轨分离用 `#EXT-X-MEDIA:TYPE=AUDIO` + `AUDIO="grp"` 手写 master。
 
+- **NSViewRepresentable 里"自己引发的回调"同样在更新事务内**（2026-09-23，地址栏聚焦时
+  实测一次三条警告）：`updateNSView` 里同步 `stringValue` 会**同步**回调
+  `controlTextDidChange`，`becomeFirstResponder()` 会**同步**回调 `controlTextDidBeginEditing`
+  ——两者都在 SwiftUI 的更新事务里，于是 `@State` 写入与 `@Published` 发布分别报
+  "Modifying state during view update" / "Publishing changes from within view updates"。
+  两把对症工具：① **自己引发的变化用标志挡掉**（同步前后置位 `isSyncingFromSwiftUI`，
+  回调里提前 return——它本来也不该重建候选）；② **系统发的通知跳一帧**
+  （`Task { @MainActor in … }`）。别把①用在②上（会吞掉状态更新），也别用②去掩盖①。
 - **视图回调里不许直接改 store：`.onKeyPress` 尤其**（2026-09-23，用户贴出的
   "Publishing changes from within view updates" 警告）：SwiftUI 的 `.onKeyPress`
   处理器在**更新事务内**执行，同步调 `store.sendMessage()` / `cancel()` 会让每一条

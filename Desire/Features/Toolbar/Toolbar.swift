@@ -146,17 +146,17 @@ struct Toolbar: View {
             PasswordPanel(passwordStore: passwordStore)
         }
         .onChange(of: isUrlFocused) { _, focused in
-            if focused {
-                // Entering edit mode: seed the buffer with what's currently
-                // displayed so the user edits the visible URL.
-                editingURL = displayedURL
-            } else {
-                suggestionModel.reset()
-                // Leaving edit mode: revert to the page URL. Submit/escape
-                // handlers already committed or reverted as needed; this
-                // covers the click-away case.
-                editingURL = displayedURL
-            }
+            // **聚焦时不要播种缓冲**：未聚焦期间 `.onChange(of: displayedURL)` 已经把它
+            // 同步成当前 URL，所以播种本来是多余的；而聚焦通知是**晚一帧**到的
+            // （NSViewRepresentable 里同步置位会报 "Publishing changes from within view
+            // updates"，见 URLBarField），于是"点进来马上一打字"时，这一帧的播种会把刚
+            // 打的字覆盖回 URL —— 用户实测到的就是"输入马上被清空 / 建议闪一下"。
+            guard !focused else { return }
+            suggestionModel.reset()
+            // Leaving edit mode: revert to the page URL. Submit/escape
+            // handlers already committed or reverted as needed; this
+            // covers the click-away case.
+            editingURL = displayedURL
         }
         .onAppear {
             editingURL = displayedURL

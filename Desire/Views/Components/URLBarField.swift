@@ -123,7 +123,14 @@ struct URLBarField: NSViewRepresentable {
         }
 
         func controlTextDidEndEditing(_ obj: Notification) {
-            Task { @MainActor in if parent.isFocused { parent.isFocused = false } }
+            Task { @MainActor in
+                // 跳一帧之后**再看一眼真实状态**：这个通知可能是瞬态（下拉出现、重新聚焦）
+                // 带来的余波，等到这一帧时用户往往已经在打字了 —— 那时误报"失焦"会把输入
+                // 重置回 URL（用户实测："输入马上被清空"）。还有 field editor 就说明
+                // 仍在编辑中，别报失焦。
+                let stillEditing = (obj.object as? NSTextField)?.currentEditor() != nil
+                if !stillEditing, parent.isFocused { parent.isFocused = false }
+            }
         }
 
         @objc func submit() {

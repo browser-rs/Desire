@@ -235,12 +235,12 @@ struct Toolbar: View {
                         actions.navigate(str)
                     }
                 },
-                onMoveSelection: { delta in
-                    // Consume up/down only while there is a list to move
-                    // through; otherwise the caret moves normally.
-                    guard !suggestionModel.isEmpty else { return false }
-                    suggestionModel.moveSelection(by: delta)
-                    return true
+                onMoveSelection: { _ in
+                    // 地址栏**不显示候选下拉**（下拉只在新标签页的搜索框里），所以方向键
+                    // 一律交还文本域移动光标。此前这里会静默移动一个**看不见的**高亮，
+                    // 接着按回车就会打开"看不见的那一条"（书签/历史，而不是输入的网址）。
+                    // 要让地址栏也有下拉，得先把列表视图挂到这个位置。
+                    false
                 },
                 onEscape: {
                     suggestionModel.reset()

@@ -678,6 +678,20 @@ Features/Bookmarks/
   接着往已发布的段里加（2026-09-23 踩：流式跟随的修复条目落进了已发布的 v0.3.12 段，而
   GitHub 上那版 release 正文是发版当时生成的、并不包含它 → 两边不一致）。
 
+- **SwiftUI 的 `.onKeyPress` 在 macOS `TextField` 上能收到方向键**（2026-09-23 最小宿主
+  实测；当时要确认"新标签页搜索框接 ↑/↓ 到底能不能收到"）。宿主 = 一个 TextField +
+  `.onKeyPress(.upArrow/.downArrow)`，用 `CGEvent.postToPid` 注入按键，宿主里打出
+  "UP fired"/"DOWN fired" —— 所以方向键**不会**被字段编辑器先吃掉，可以放心用它做
+  列表选择。两个配套要点：
+  ① **`@FocusState` 在 `onAppear` 里直接置真往往不生效**，要 `Task` 里延迟 ~400ms 再置
+  （宿主与 Agent 面板都踩过；不聚焦的话注入的按键会被窗口丢弃，看起来像"注入失败"）；
+  ② 键盘事件用 `postToPid` 注入是可靠的（鼠标事件才需要处理坐标/翻转），
+  `CGEventSource(stateID: .combinedSessionState)` + 按下/抬起各一发即可。
+- **地址栏没有候选下拉，别在那里处理 ↑/↓**：`Toolbar` 的 URL 输入框只把 `suggestionModel`
+  用于"回车打开第 0 行"，列表视图只挂在新标签页的搜索框上（`AddressSuggestionsView`）。
+  在那里接方向键会移动一个看不见的高亮 → 回车打开看不见的条目（2026-09-23 修掉）。
+  要给地址栏也加下拉，得先把列表视图挂到工具栏上。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

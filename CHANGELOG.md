@@ -48,6 +48,21 @@
 
 ### Fixed
 
+- **新标签页的搜索建议可以用键盘上下选择了**（用户反馈："网址搜索推荐 不能使用键盘 上下
+  选择"）：候选列表的模型（`selectedIndex` / 循环移动 / 取选中项）和列表高亮本来都是齐的，
+  **只是搜索框一个按键处理都没接**——上下键被文本域吃掉，高亮永远停在第一行。
+  - 搜索框现在接上 ↑/↓ 选、Esc 收起列表、回车打开**高亮的那一条**。回车向后兼容：
+    第 0 行就是"搜索 / 前往 输入的内容"，桥的 `/suggest` 实测确认（`q=s` → `searchDefault`、
+    `q=github.com` → `navigate`），所以没动过高亮时行为与以前完全一致。
+  - 按 AGENTS 的规则，`.onKeyPress` 里写 model 统一跳一帧（否则会刷
+    "Publishing changes from within view updates"，见本版上面那条）。
+  - 顺手排掉一个隐患：地址栏（URL 输入框）**并不显示候选下拉**，却接了 ↑/↓ 去移动一个
+    **看不见的**高亮——按一下 ↓ 再回车会打开"看不见的那一条"（书签/历史，而不是输入的
+    网址）。现在地址栏里方向键一律交还文本域移动光标。
+  - 机制验证：最小 SwiftUI 宿主（TextField + `.onKeyPress` + 聚焦延迟 400ms 生效）+
+    `CGEvent.postToPid` 注入 ↑/↓，确认 `.onKeyPress` 对 macOS `TextField` 的方向键**会触发**
+    ——不是"接了却收不到"。
+
 - **下载器回调的隔离警告**：`FFmpegExporter` 里的 `Collector`（进度行解析、stderr 累积）
   嵌套在默认 MainActor 隔离的 enum 里，被推断成 MainActor，却是在 `readabilityHandler` 的
   后台回调线程上被调用——6 条 "main actor-isolated … cannot be called from outside of the

@@ -111,94 +111,6 @@
         }
       }
     },
-    "Show the model's thinking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show the model's thinking"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展开查看模型的思考过程"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開查看模型的思考過程"
-          }
-        }
-      }
-    },
-    "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型只输出了思考过程、没有给出答复。可以再问一次，或在设置里换模型/服务。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型只輸出了思考過程、沒有給出答覆。可以再問一次，或在設定裡換模型/服務。"
-          }
-        }
-      }
-    },
-    "Thinking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thinking"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考过程"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考過程"
-          }
-        }
-      }
-    },
-    "Thinking…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thinking…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考中…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考中…"
-          }
-        }
-      }
-    },
     "·" : {
       "localizations" : {
         "en" : {
@@ -327,6 +239,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（已跳過）"
+          }
+        }
+      }
+    },
+    "（首次点击防护）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次点击防护）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次点击防护）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（首次點擊防護）"
           }
         }
       }
@@ -4718,6 +4652,7 @@
       }
     },
     "Check for Updates" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4762,6 +4697,7 @@
       }
     },
     "Check Now" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4786,66 +4722,22 @@
     "Checking…" : {
       "localizations" : {
         "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "Checking…"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
         },
         "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "检查中…"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查中…"
+          }
         },
         "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "檢查中…"
-      }
-        }
-      }
-    },
-    "Install Update" : {
-      "localizations" : {
-        "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "Install Update"
-      }
-        },
-        "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "安装更新"
-      }
-        },
-        "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "安裝更新"
-      }
-        }
-      }
-    },
-    "Restart to Update" : {
-      "localizations" : {
-        "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "Restart to Update"
-      }
-        },
-        "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "重启以完成更新"
-      }
-        },
-        "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "重新啟動以完成更新"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查中…"
+          }
         }
       }
     },
@@ -6895,6 +6787,7 @@
       }
     },
     "Crash and performance reports collected via MetricKit." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7504,6 +7397,7 @@
       }
     },
     "Default Browser" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8023,6 +7917,7 @@
       }
     },
     "Desire is your default browser." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8156,6 +8051,7 @@
       }
     },
     "Diagnostics" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9769,6 +9665,7 @@
       }
     },
     "Export…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10242,22 +10139,22 @@
     "Filter by Type" : {
       "localizations" : {
         "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "Filter by Type"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter by Type"
+          }
         },
         "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "按类型筛选"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按类型筛选"
+          }
         },
         "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "依類型篩選"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依類型篩選"
+          }
         }
       }
     },
@@ -12292,6 +12189,28 @@
         }
       }
     },
+    "Install Update" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Update"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装更新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝更新"
+          }
+        }
+      }
+    },
     "Installing…" : {
       "localizations" : {
         "en" : {
@@ -13684,22 +13603,22 @@
     "More" : {
       "localizations" : {
         "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "More"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
         },
         "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "更多"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多"
+          }
         },
         "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "更多"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多"
+          }
         }
       }
     },
@@ -18894,6 +18813,28 @@
         }
       }
     },
+    "Restart to Update" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart to Update"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重启以完成更新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新啟動以完成更新"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "en" : {
@@ -21028,6 +20969,7 @@
       }
     },
     "Set as Default…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21050,6 +20992,7 @@
       }
     },
     "Set Desire as your default browser to open http and https links." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21522,6 +21465,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "滑鼠懸停連結時在底部顯示目標網址"
+          }
+        }
+      }
+    },
+    "Show the model's thinking" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the model's thinking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开查看模型的思考过程"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開查看模型的思考過程"
           }
         }
       }
@@ -22807,25 +22772,47 @@
         }
       }
     },
+    "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型只输出了思考过程、没有给出答复。可以再问一次，或在设置里换模型/服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型只輸出了思考過程、沒有給出答覆。可以再問一次，或在設定裡換模型/服務。"
+          }
+        }
+      }
+    },
     "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings." : {
       "localizations" : {
         "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings."
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings."
+          }
         },
         "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "模型返回了空响应——没有生成任何内容。通常是上下文对该服务来说太长，或上游端点出了错。可以用 /new 开一个新对话，或在设置里切换模型/服务。"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型返回了空响应——没有生成任何内容。通常是上下文对该服务来说太长，或上游端点出了错。可以用 /new 开一个新对话，或在设置里切换模型/服务。"
+          }
         },
         "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "模型回傳了空回應——沒有產生任何內容。通常是上下文對該服務來說太長，或上游端點發生錯誤。可以用 /new 開一個新對話，或在設定裡切換模型／服務。"
-      }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型回傳了空回應——沒有產生任何內容。通常是上下文對該服務來說太長，或上游端點發生錯誤。可以用 /new 開一個新對話，或在設定裡切換模型／服務。"
+          }
         }
       }
     },
@@ -23005,6 +22992,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "細"
+          }
+        }
+      }
+    },
+    "Thinking" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考过程"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考過程"
+          }
+        }
+      }
+    },
+    "Thinking…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考中…"
           }
         }
       }
@@ -26382,28 +26413,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "長對話結束後會自動生成摘要，用於跨會話回憶。"
-          }
-        }
-      }
-    },
-    "（首次点击防护）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（首次点击防护）"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（首次点击防护）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（首次點擊防護）"
           }
         }
       }

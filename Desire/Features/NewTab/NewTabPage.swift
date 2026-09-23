@@ -77,6 +77,18 @@ struct NewTabPage: View {
                 .font(.system(size: 15))
                 .focused($searchFocused)
                 .onSubmit { submitSearch() }
+                // ↑/↓ 在候选列表里选、Esc 收起列表。此前**完全没有键盘处理**
+                // （模型和列表都支持高亮，只是没人调用），用户报"不能用键盘上下选择"。
+                // 注：`.onKeyPress` 的回调在 SwiftUI 更新事务里执行，直接改 model 会报
+                // "Publishing changes from within view updates"（见 AGENTS.md），
+                // 所以这里跳一帧再写。
+                .onKeyPress(.upArrow) { moveSelection(-1) }
+                .onKeyPress(.downArrow) { moveSelection(1) }
+                .onKeyPress(.escape) {
+                    guard !suggestionModel.isEmpty else { return .ignored }
+                    Task { @MainActor in suggestionModel.reset() }
+                    return .handled
+                }
                 .onChange(of: searchText) { _, newValue in
                     if newValue.isEmpty {
                         suggestionModel.reset()
@@ -224,7 +236,24 @@ struct NewTabPage: View {
 
     // MARK: - Actions
 
+    /// 候选列表内的键盘选择。返回 `.handled` 才不让方向键去动光标；
+    /// 列表为空时交还给文本域（跟地址栏那边的约定一致）。
+    private func moveSelection(_ delta: Int) -> KeyPress.Result {
+        guard !suggestionModel.isEmpty else { return .ignored }
+        Task { @MainActor in suggestionModel.moveSelection(by: delta) }
+        return .handled
+    }
+
     private func submitSearch() {
+        // 回车优先打开**键盘高亮的候选**。第 0 行就是"搜索 / 前往 输入的内容"，
+        // 所以没动过高亮时（刚输入完直接回车）行为与以前完全一致；
+        // 用 ↑/↓ 选到书签、历史、其它建议时，回车就打开那一条。
+        if let selected = suggestionModel.selected() {
+            suggestionModel.reset()
+            searchText = ""
+            onNavigate(selected.url)
+            return
+        }
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         suggestionModel.reset()

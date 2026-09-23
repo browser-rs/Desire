@@ -57,12 +57,16 @@ struct URLBarField: NSViewRepresentable {
             nsView.stringValue = text
             context.coordinator.isSyncingFromSwiftUI = false
         }
-        // Focus only on the false→true transition. Calling becomeFirstResponder
-        // on every render (the old behavior) fought the field editor while typing.
+        // Focus only on the false→true transition — and **跳一帧再做**（见
+        // `Coordinator.focusField()`）：`becomeFirstResponder()` 会同步进输入法 IPC 并同步
+        // 发出 editing 通知，在更新事务里做这两件事正是那三条运行时警告的来源。
         if isFocused, !context.coordinator.wasFocused {
-            nsView.becomeFirstResponder()
+            context.coordinator.wasFocused = true
+            context.coordinator.focusField()
         }
-        context.coordinator.wasFocused = isFocused
+        if !isFocused {
+            context.coordinator.wasFocused = false
+        }
     }
 
     static func dismantleNSView(_ nsView: NSTextField, coordinator: Coordinator) {
@@ -81,6 +85,25 @@ struct URLBarField: NSViewRepresentable {
         weak var textField: NSTextField?
         /// Last SwiftUI-side focus state, to detect transitions.
         var wasFocused = false
+
+        /// 跳一帧再聚焦。`becomeFirstResponder()` 会在**当前这一帧里同步**做两件在 SwiftUI
+        /// 更新事务中不该发生的事：
+        /// ① 进输入法/文本系统做同步 IPC —— Xcode 的 Performance Diagnostics 报
+        ///    "Hang Risk: User-interactive QoS 线程等待 Default QoS 线程"（URLBarField.swift:208）；
+        /// ② 装好 field editor、把控件内容灌进去时会**同步**发 `controlTextDidChange` ——
+        ///    于是 `parent.text = newValue`（:175）与随之而来的候选重建（`AddressSuggestions
+        ///    Model.build` 里的两次 publish，:125/:126）都落在更新事务内部，报
+        ///    "Modifying state during view update" / "Publishing changes from within view updates"。
+        /// 延后一帧后这些都发生在事务之外，顺带修掉那三条警告（用户 2026-09-23 贴出）。
+        func focusField() {
+            Task { @MainActor [weak textField] in
+                guard let field = textField, field.window != nil else { return }
+                // 已经有 field editor 就说明正在编辑，别重复夺焦（重复调用会打断输入）。
+                if field.currentEditor() == nil {
+                    field.becomeFirstResponder()
+                }
+            }
+        }
         /// 我们在 `updateNSView` 里同步 `stringValue` 时，AppKit 会**同步**回调
         /// `controlTextDidChange`——那是在 SwiftUI 的更新事务内部，写 @State / 发布
         /// @Published 会报 "Modifying state during view update" /

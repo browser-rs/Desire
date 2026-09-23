@@ -549,6 +549,17 @@ Features/Bookmarks/
   "切换模型不起作用"）。嵌套的 ObservableObject **不会**自动转发
   `objectWillChange`：要么把那个 store 也 `@ObservedObject`（本次做法），要么在持有
   方 init 里显式 `nested.objectWillChange.sink { self.objectWillChange.send() }`。
+- **`updateNSView` 里同步 `becomeFirstResponder()` 会一次性触发一串"更新中写状态"**
+  （2026-09-23 用户两次贴出运行时问题才挖到）：它①装好 field editor、把控件内容灌进去时
+  **同步**发 `controlTextDidChange`（**不在**任何"自己引发的变化"标志覆盖范围内，因为那不是
+  你显式赋值那一次），②同步进输入法 IPC（Xcode 报 Hang Risk：User-interactive QoS 等
+  Default QoS 线程）。表现是三条一起出现：`parent.text = …` 的 "Modifying state during view
+  update" + 模型 publish 的 "Publishing changes from within view updates" + 一条 Hang Risk。
+  **规矩**：这类"要 AppKit 真做点什么"的调用（夺焦、弹面板、启动拖拽）一律**跳一帧**再做；
+  而且**别只在 delegate 那一侧挡** —— 先把"更新事务里到底谁写了状态"定位清楚，再决定在哪挡。
+  另：这类警告走 Xcode 的运行时问题通道，**统一日志里没有**（`log show` 查不到，别拿它当判据）；
+  想程序化验证只能在调试器下跑（`lldb -p` 附着后 `continue`，注意它在 continue 期间不读 stdin）。
+
 - **"跳一帧"的写入不要碰用户正在编辑的缓冲**（2026-09-23 地址栏实测）：`URLBarField` 里
   "聚焦通知"是晚一帧到的（AppKit 的 begin/end editing 在 SwiftUI 更新事务里同步触发，
   同步置位会报 "Publishing changes from within view updates"）—— 于是任何**依赖聚焦状态**去

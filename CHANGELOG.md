@@ -319,13 +319,21 @@
   频繁重绘（布局/滚动/task）会**不断重启动画**，看起来就是"闪动"。
   现在**只有真的在忙时才脉动**（绿色/灰色状态点是静态的），并且脉动改由 `TimelineView`
   按**时间**算——纯时间函数，重绘打断不了；不忙时那个分支根本不存在（连计时器都没有）。
-- **地址栏聚焦时刷的 3 条运行时警告修掉了**（用户贴出）：`AddressSuggestionsModel:125/126`
-  的 "Publishing changes…" 与 `URLBarField:156` 的 "Modifying state during view update"
-  其实是**同一条链**——`updateNSView` 里同步 `stringValue`、`becomeFirstResponder()` 会
-  **同步**回调 NSTextField 的 delegate（`controlTextDidChange` / `controlTextDidBeginEditing`），
-  而 `updateNSView` 本身跑在 SwiftUI 的更新事务里，于是改 `@State`、发 `@Published` 全在
-  更新中发生。按 AGENTS 的规则分两种处理：**自己引发的变化用标志挡掉**（不需要重建候选），
-  **系统发的编辑通知跳一帧**。
+- **地址栏聚焦时刷的 3 条运行时警告 —— 这次真修掉了**（用户第一次贴出后我修过一版，
+  **没修对**，第二次贴出才挖到根因）：`AddressSuggestionsModel:125/126` 的 "Publishing changes…"
+  与 `URLBarField` 的 "Modifying state during view update" 是**同一条链**，根因不是 delegate，
+  而是 `updateNSView` 里**同步**调用 `becomeFirstResponder()`：
+  ① 它装好 field editor 并把控件内容灌进去时会**同步**发 `controlTextDidChange` —— 这个通知
+  **不在** `isSyncingFromSwiftUI` 标志的覆盖范围里（那只挡得住显式 `stringValue` 赋值那一次），
+  于是 `parent.text = newValue` 与随之而来的 `AddressSuggestionsModel.build`（两次 publish）
+  全落在更新事务内部；② 同一调用还会同步进输入法/文本系统的 IPC，Xcode 的 Performance
+  Diagnostics 因此报 **"Hang Risk: User-interactive QoS 线程等待 Default QoS 线程"**
+  （`URLBarField.swift` 的 `becomeFirstResponder` 那行）。
+  **修法**：把这次聚焦**跳一帧**再做（`Coordinator.focusField()`，并校验"已有 field editor
+  就别重复夺焦"）—— 三条警告 + 一条 Hang Risk 一起消失 ✓。第一版只把"系统发的编辑通知"
+  跳帧、却没动这个同步调用，所以警告照旧（教训：**先定位"谁在更新事务里写状态"，再谈怎么挡**）。
+  另：这三条是 Xcode 的运行时问题通道（统一日志里没有，`log show` 查不到），验证要靠 Xcode 的
+  issue 列表 ✓。
 
 - **地址栏（顶部输入栏）的候选下拉修好了**（用户反馈："顶部的输入栏 目前没有搜索建议的功能"）：
   下拉视图、按键处理、模型其实都在，坏在一个隐蔽的点——**`isUrlFocused` 用的是

@@ -24,8 +24,10 @@ import os
 /// 宽度协商只经子视图的 minWidth/idealWidth/maxWidth 接口（容器所有），
 /// 面板内部不得再设固定 `.frame(width:)`。
 struct SelectedTabContent: View {
-    /// 地址栏与候选下拉共用的命名坐标空间。
-    static let urlFieldSpace = "tabContentSpace"
+
+    /// 本容器（工具栏 + 内容）的全局原点：把地址栏的全局 frame 折算成相对偏移用。
+    @State private var containerGlobalX: CGFloat = 0
+    @State private var containerGlobalY: CGFloat = 0
 
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
@@ -335,9 +337,16 @@ struct SelectedTabContent: View {
                 }
             }
         }
-        // 地址栏候选下拉要用「地址栏在内容里的 frame」来对齐，所以这里声明一个命名
-        // 坐标空间：Toolbar 里量地址栏、这里摆下拉，两边同一参照系。
-        .coordinateSpace(name: Self.urlFieldSpace)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            // 本容器自身的全局 frame：下拉的相对偏移 = 地址栏全局 frame - 本容器全局原点。
+            proxy.frame(in: .global)
+        } action: { frame in
+            // 比较整个 origin：只比 minY 的话，"只有 X 变了"时 X 不会更新。
+            if frame.minX != containerGlobalX || frame.minY != containerGlobalY {
+                containerGlobalX = frame.minX
+                containerGlobalY = frame.minY
+            }
+        }
         .id(tab.id)
         .overlay(alignment: .topLeading) {
             if content.isUrlFocused, content.urlFieldFrame.width > 1 {
@@ -359,11 +368,11 @@ struct SelectedTabContent: View {
                         actions.navigateToURL(url, for: tab)
                     }
                 )
-                // 与地址栏**同宽同起点**、紧贴其下沿：frame 由 Toolbar 里那个
-                // 胶囊实测后经命名坐标空间传过来，所以不会比输入栏宽。
+                // 与地址栏**同宽同起点**、紧贴其下沿。两者都按全局坐标测，这里取差值
+                // ——不依赖命名坐标空间是否解析成功，所以不会多出/少掉一段偏移。
                 .frame(width: content.urlFieldFrame.width, alignment: .leading)
-                .padding(.top, content.urlFieldFrame.maxY)
-                .padding(.leading, content.urlFieldFrame.minX)
+                .padding(.top, max(0, content.urlFieldFrame.maxY - containerGlobalY))
+                .padding(.leading, max(0, content.urlFieldFrame.minX - containerGlobalX))
                 .transition(.opacity)
             }
         }

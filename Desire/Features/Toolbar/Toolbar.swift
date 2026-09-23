@@ -55,7 +55,7 @@ struct Toolbar: View {
     /// from a chatty page would re-render the toolbar.
     let isDevModeEnabled: Bool
     @Binding var isUrlFocused: Bool
-    /// 地址栏在 `SelectedTabContent.urlFieldSpace` 里的 frame —— 候选下拉按它对齐。
+    /// 地址栏的**全局** frame —— 候选下拉按它对齐（与容器全局原点相减得相对偏移）。
     @Binding var urlFieldFrame: CGRect
     let actions: Actions
     @Binding var showHistory: Bool
@@ -281,7 +281,9 @@ struct Toolbar: View {
         // 量的是**这个胶囊**（用户眼里的"输入栏"）而不是里面那个 16pt 高的文本框，
         // 候选下拉据此对齐：同宽、同起点、紧贴下沿。
         .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(SelectedTabContent.urlFieldSpace))
+            // 用**全局**坐标测，再在 SelectedTabContent 里减去容器自身的全局原点：
+            // 差值不依赖"命名坐标空间是否解析成功"，比直接测相对偏移稳。
+            proxy.frame(in: .global)
         } action: { frame in
             if frame != urlFieldFrame { urlFieldFrame = frame }
         }

@@ -25,7 +25,9 @@ struct NewTabPage: View {
     /// 居中后两边各内缩 20pt（用户截图："列表比输入框窄一圈"）；102 也会随书签栏
     /// 开关漂移。
     @State private var searchFieldFrame: CGRect = .zero
-    private static let space = "newTabPageSpace"
+    /// 本页根视图的全局原点（差值用，见下）。
+    @State private var rootGlobalX: CGFloat = 0
+    @State private var rootGlobalY: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 130, maximum: 160), spacing: 20)]
     private let contentMaxWidth: CGFloat = 980
@@ -53,10 +55,21 @@ struct NewTabPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundGradient)
-        .coordinateSpace(name: Self.space)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            if frame.minX != rootGlobalX || frame.minY != rootGlobalY {
+                rootGlobalX = frame.minX
+                rootGlobalY = frame.minY
+            }
+        }
         .overlay(alignment: .topLeading) {
             if searchFocused, !isUrlBarEditing, !suggestionModel.isEmpty, searchFieldFrame.width > 1 {
                 AddressSuggestionsView(
+                    // `maxWidth: nil` 是关键：视图内部默认把卡片卡在 520，不给它去掉，
+                    // 卡片就会在下面那个"搜索框宽"的容器里左对齐、右边短一截
+                    // （用户截图："很奇怪啊 这个要跟输入栏等宽"）。
+                    maxWidth: nil,
                     model: suggestionModel,
                     engineName: settings.effectiveEngineName
                 ) { sug in
@@ -65,9 +78,11 @@ struct NewTabPage: View {
                     onNavigate(sug.url)
                 }
                 // 与搜索框**同宽同起点**、紧贴其下沿（frame 实测，和地址栏一致）
+                // 两者都按全局坐标测、这里取差值：不受"命名空间是否解析"影响，
+                // 不会多出/少掉一段偏移（地址栏那处同理）。
                 .frame(width: searchFieldFrame.width, alignment: .leading)
-                .padding(.top, searchFieldFrame.maxY)
-                .padding(.leading, searchFieldFrame.minX)
+                .padding(.top, max(0, searchFieldFrame.maxY - rootGlobalY))
+                .padding(.leading, max(0, searchFieldFrame.minX - rootGlobalX))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -115,7 +130,7 @@ struct NewTabPage: View {
         .padding(.vertical, 12)
         .frame(maxWidth: 560)
         .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(Self.space))
+            proxy.frame(in: .global)
         } action: { frame in
             if frame != searchFieldFrame { searchFieldFrame = frame }
         }

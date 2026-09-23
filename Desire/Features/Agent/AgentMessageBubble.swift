@@ -235,14 +235,14 @@ private struct AssistantBubble: View {
 
     /// 消息操作行（👍/👎 + 复制）：**在气泡下方**，不再叠在正文上。
     ///
-    /// 三处刻意：① 位置**一直占着**（用 `opacity` 切换而不是 `if`）——鼠标扫过时下面的消息
-    /// 不会跳；② 投票按钮的**宽度**也一直占着，否则复制按钮会在 hover 时左右横移；
-    /// ③ 只在有正文且非报错时才出现（报错气泡没有可复制/可评价的答案）。
+    /// 三处刻意：① **贴着气泡的左缘**（不是面板右缘——撑满行会让按钮和消息"分两侧"，
+    /// 用户实拍反馈过）；② 显隐用 `opacity`、宽度一直占着——鼠标扫过时下面的消息不跳、
+    /// 同排的复制按钮也不左右横移；③ 只在有正文且非报错时出现（报错气泡没有可复制/
+    /// 可评价的答案）。
     @ViewBuilder
     private var actionRow: some View {
         if let text = message.content, !text.isEmpty, !isError {
             HStack(spacing: 4) {
-                Spacer(minLength: 0)
                 if let onFeedback {
                     FeedbackChips(feedback: message.feedback, onVote: onFeedback)
                         .opacity(isHovering ? 1 : 0)

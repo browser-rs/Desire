@@ -263,6 +263,13 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
+- **清理测试数据别按"含测试字样"搜出来就删**（2026-09-23 我删掉了用户一个会话）：
+  `POST /conversations/delete` 的 ids 来自 `conversations/search?q=<测试词>`，但命中的那条
+  会话**可能原本就是用户的**——测试消息只是被追加进去的（它同时含有用户自己的提问与工具轨迹）。
+  规矩：只删**这次自己全新创建**的会话（内容自己清楚）；拿不准就留着，并在汇报里说明留了什么。
+  另外 `POST /conversations/delete` 的响应里 `liveConversationDeleted: true` 表示那是**面板里
+  正在显示**的会话——它的消息还在内存里、下一回合落盘会写回文件，光删文件不解决问题。
+
 ## 已知半成品 / 未支持完整的功能
 
 修功能前先查此清单，避免重复踩坑或误判"这是新 bug"：
@@ -499,7 +506,9 @@ Features/Bookmarks/
   曾经用 `.overlay(alignment: .topTrailing)` 叠在气泡上，短消息时压住正文第一行。规矩：
   ① **不要 overlay 在内容上**——放进"气泡 + 操作行"的 VStack 里，行在气泡下方；
   ② 显隐用 **`opacity` + `allowsHitTesting`**（不是 `if`），并且**宽度也一直占着**——否则
-  hover 时下面的消息会跳、同排的复制按钮会左右横移；③ 只在有正文且非报错时出现。
+  hover 时下面的消息会跳、同排的复制按钮会左右横移；③ **贴着气泡的左缘**：行里**不要**放
+  `Spacer` 把它撑满——撑满会把按钮推到面板右缘，看起来与消息"分两侧"（用户第二轮反馈）；
+  ④ 只在有正文且非报错时出现。
   同一位置还有一条相关约定：判断 hover 是否生效时记得**应用必须在前台**（tracking area 在
   非 key window 不激活），而且**别去抢用户的鼠标**——warp 光标测 hover 会被真人的手一动就
   失效，静态布局照完剩下的交给用户看。

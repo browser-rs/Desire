@@ -97,6 +97,17 @@ struct AgentPanel: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            // 面板出现（打开/从子页回来）时把焦点交给输入框 —— 否则必须先用鼠标
+            // 点一下输入框才能打字（用户反馈过的 UX 缺陷）。@FocusState 在 onAppear
+            // 的事务里直接置真**不生效**（走不进 AppKit 的 first responder），
+            // 要跳一帧并给足时间（~400ms，实测能成的值，AGENTS 记录在案）。
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                let onSubpage = showMemory || showStats || showTrace || showCapabilities || showHistory
+                if !onSubpage { isInputFocused = true }
+            }
+        }
     }
 
     // MARK: - Main content

@@ -4828,6 +4828,72 @@
         }
       }
     },
+    "Self-review" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Self-review"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "自评"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "自評"
+      }
+        }
+      }
+    },
+    "Self-review After Tool Runs" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Self-review After Tool Runs"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "工具任务后自动自评"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "工具任務後自動自評"
+      }
+        }
+      }
+    },
+    "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "当一轮跑了 3 个以上工具（或含高风险动作）时，让模型回头审查自己的做法：声称的结论是否验证过、有没有失败被吞掉。评语折叠显示在回答下方。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "當一輪跑了 3 個以上工具（或含高風險動作）時，讓模型回頭審查自己的做法：聲稱的結論是否驗證過、有沒有失敗被吞掉。評語摺疊顯示在回答下方。"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

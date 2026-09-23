@@ -414,6 +414,12 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "reflect", description: "Ask yourself to REVIEW this turn before answering: what did you claim without verifying, what failed or was skipped silently, what could be simpler, what did the user ask that you missed. Returns the critique to YOU — fix the answer or add the missing verification, then reply. Use it after multi-step work or anything risky; it costs one extra model call.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "question": AgentJSONSchemaValue(type: "string", description: "Optional: what to focus the review on"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "searchConversations", description: "Search the user's PAST saved conversations (title + full message text, case-insensitive) and return the closest matches with a snippet each. Use it for \"我们上次说的那个…\" / \"earlier we discussed…\" — the CURRENT conversation is already in your context and is excluded. Follow up with readConversation(id) when a snippet is not enough.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "query": AgentJSONSchemaValue(type: "string", description: "Keywords to look for (at least 2 characters)"),

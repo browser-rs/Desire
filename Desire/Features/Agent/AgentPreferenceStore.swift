@@ -43,6 +43,10 @@ class AgentPreferenceStore: ObservableObject {
     @Published var systemPrompt: String {
         didSet { UserDefaults.standard.set(systemPrompt, forKey: "aiSystemPrompt") }
     }
+    /// 回合结束后是否自动自评（只在"≥3 次工具调用或含高风险动作"的回合跑）。
+    @Published var selfReviewEnabled: Bool {
+        didSet { UserDefaults.standard.set(selfReviewEnabled, forKey: "agentSelfReview") }
+    }
     @Published var maxTokens: Int {
         didSet { UserDefaults.standard.set(maxTokens, forKey: "aiMaxTokens") }
     }
@@ -245,6 +249,7 @@ class AgentPreferenceStore: ObservableObject {
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
+        selfReviewEnabled = UserDefaults.standard.object(forKey: "agentSelfReview") as? Bool ?? true
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {

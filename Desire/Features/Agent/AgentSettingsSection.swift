@@ -306,6 +306,13 @@ struct AgentSettingsSection: View {
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(
+                    "Self-review After Tool Runs",
+                    subtitle: String(localized: "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply."),
+                    systemImage: "checkmark.seal",
+                    isOn: $store.selfReviewEnabled
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
                     "Memory Learning",
                     subtitle: String(localized: "After agent turns, extract durable user preferences and conversation summaries into long-term memory. Inspect and delete anything in the panel's memory view."),
                     systemImage: "brain.head.profile",

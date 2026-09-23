@@ -302,6 +302,13 @@ extension BrowserToolProvider {
             guard !all.isEmpty else { return "No bookmarks" }
             return all.map { "\($0.title) — \($0.url ?? "[folder]")" }.joined(separator: "\n")
 
+        case "reflect":
+            // 让**模型自己**回头审一遍这一轮：评语返回给它，它据此修正或补验证。
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                return "No live agent session to review."
+            }
+            return await session.reflectForTool(question: (args["question"] as? String) ?? "")
+
         // --- Past conversations ---
         case "searchConversations":
             let query = (args["query"] as? String) ?? ""

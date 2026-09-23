@@ -203,6 +203,18 @@ class AgentSessionStore: ObservableObject {
     private var contextFractionStamp = ""
     /// 上下文预算，与 `compactForContext` 的默认值一致（改一处即可）。
     static let contextBudget = 160_000
+
+    /// 自评（reflection）提示词：只**审查**轨迹，不许执行工具、不许续写任务。
+    /// 工具 `reflect` 与回合收尾的自动自评共用它。
+    static let critiquePrompt = """
+    你是这次任务的自评者（reviewer）。下面给你目标和它**实际**的执行轨迹（工具调用与观察）。
+    不要执行任何工具，也不要继续完成任务——只做审查，按下面四问回答：
+    1) 有没有"没验证就宣布完成"的结论？证据是什么？
+    2) 有没有失败、被跳过或被吞掉的步骤没告诉用户？
+    3) 有没有更简单或更可靠的做法？
+    4) 有没有漏掉用户明确提出的要求？
+    最多 4 行，一行一条；确实没问题就只回一句"未发现问题"。
+    """
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
     private var memoryProcessedCount = 0
@@ -743,6 +755,11 @@ class AgentSessionStore: ObservableObject {
         if !isCancelled {
             await runMemoryHousekeeping()
         }
+
+        // 自动自评（同上：在"忙碌"交还界面之后跑；失败静默，不影响回合结论）。
+        if !isCancelled {
+            await runSelfReviewIfNeeded()
+        }
     }
 
     /// One model→tools→model turn. Returns when the model stops calling
@@ -1242,6 +1259,86 @@ class AgentSessionStore: ObservableObject {
 
     /// Replaces the truncated-first-message title with a proper generated
     /// one, once per conversation.
+    // MARK: - 自评（Reflection）
+
+    /// 把"最近一轮"（最后一条 user 消息之后）整理成自评用的紧凑轨迹。
+    /// 从已有消息派生，不在热路径上额外记账。
+    private func currentTurnTrace() -> (goal: String, trace: String, toolCount: Int, dangerous: Bool) {
+        guard let start = messages.lastIndex(where: { $0.role == .user }) else {
+            return ("", "", 0, false)
+        }
+        let goal = messages[start].content ?? ""
+        var lines: [String] = []
+        var toolCount = 0
+        var dangerous = false
+        for message in messages[start...] {
+            switch message.role {
+            case .assistant:
+                for call in message.toolCalls ?? [] {
+                    toolCount += 1
+                    if ToolRisk.classify(call.function.name) == .dangerous { dangerous = true }
+                    lines.append("▶ \(call.function.name)(\(call.function.arguments.prefix(160)))")
+                }
+                if let text = message.content, !text.isEmpty {
+                    lines.append("答: \(text.prefix(400))")
+                }
+            case .tool:
+                lines.append("◀ \(message.toolName ?? "result"): \((message.content ?? "").prefix(240))")
+            default:
+                break
+            }
+        }
+        return (goal, lines.joined(separator: "\n"), toolCount, dangerous)
+    }
+
+    /// 一次自评调用：**同一个模型、不带工具、只看轨迹**。失败或取消返回 nil
+    /// （自评永远不能把一轮正常回合变成失败）。
+    func runCritique(goal: String, trace: String) async -> String? {
+        guard !goal.isEmpty, !trace.isEmpty else { return nil }
+        let request: [AgentMessage] = [
+            AgentMessage(role: .system, content: Self.critiquePrompt),
+            AgentMessage(role: .user, content: "目标：\n\(goal)\n\n执行轨迹：\n\(trace)"),
+        ]
+        var text = ""
+        do {
+            let active = makeActiveProvider()
+            for try await event in active.provider.stream(messages: request, tools: [], prefs: preference) {
+                if isCancelled { return nil }
+                if case .text(let delta) = event { text += delta }
+            }
+        } catch {
+            Log.agent.info("self-review call failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 工具 `reflect` 的入口：模型按需回头审一遍这一轮，评语**返回给它自己**
+    /// （它可据此修正答案或补验证）。
+    func reflectForTool(question: String) async -> String {
+        let turn = currentTurnTrace()
+        guard !turn.trace.isEmpty else { return "Nothing to review yet — no actions taken in this turn." }
+        let goal = question.isEmpty ? turn.goal : "\(turn.goal)\n（额外关注：\(question)）"
+        guard let critique = await runCritique(goal: goal, trace: turn.trace) else {
+            return "Self-review unavailable (the model returned nothing)."
+        }
+        return critique
+    }
+
+    /// 回合收尾的**自动**自评：只在"≥3 次工具调用或含高风险动作"的回合跑——普通闲聊
+    /// 不打扰、也不多花一次模型调用。结果折叠挂在最后一条助手消息上。
+    private func runSelfReviewIfNeeded() async {
+        guard preference.selfReviewEnabled else { return }
+        let turn = currentTurnTrace()
+        guard turn.toolCount >= 3 || turn.dangerous else { return }
+        guard let critique = await runCritique(goal: turn.goal, trace: turn.trace) else { return }
+        guard let index = messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        messages[index].critique = critique
+        streamingVersion += 1
+        saveCurrentConversation()
+    }
+
     private func generateTitleIfNeeded() async {
         guard !titleGenerated, messages.count >= 2,
               messages.contains(where: { $0.role == .user }) else { return }

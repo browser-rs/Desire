@@ -158,6 +158,10 @@ private struct AssistantBubble: View {
                     ToolCallList(toolCalls: tcs, results: toolResults)
                 }
 
+                if let critique = message.critique, !critique.isEmpty {
+                    CritiqueBlock(text: critique)
+                }
+
                 if !hasVisibleContent {
                     AgentTypingIndicator()
                         .padding(.vertical, 4)
@@ -238,6 +242,57 @@ private struct AssistantBubble: View {
 }
 
 // MARK: - Tool bubble
+
+/// 回合自评（reflection）：默认折叠，避免给正常对话添加噪音。
+/// 只在"多步/高风险"回合才会由 `runSelfReviewIfNeeded` 写入 `message.critique`。
+private struct CritiqueBlock: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let text: String
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.hoverFast) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 10))
+                        .foregroundStyle(AnyShapeStyle(appAccent))
+                    Text("Self-review")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("\(text.count)")
+                        .font(.system(size: 10))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Self-review"))
+
+            if expanded {
+                Text(text)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.secondary.opacity(0.07))
+                    )
+            }
+        }
+    }
+}
 
 private struct ToolBubble: View {
     let content: String

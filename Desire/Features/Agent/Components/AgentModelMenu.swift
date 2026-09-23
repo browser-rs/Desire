@@ -160,9 +160,12 @@ struct AgentModelMenu: View {
         preference.activeProfile.map(models(for:)) ?? []
     }
 
+    /// 复用已有的 "Models" 键（中文显示"模型"），前面缀上服务名——这样区名既是
+    /// 本地化的，又能一眼看出这批模型属于哪个服务。
     private var activeSectionTitle: String {
-        guard let name = preference.activeProfile?.name, !name.isEmpty else { return "Models" }
-        return "\(name) — Models"
+        let modelsLabel = String(localized: "Models")
+        guard let name = preference.activeProfile?.name, !name.isEmpty else { return modelsLabel }
+        return "\(name) — \(modelsLabel)"
     }
 
     private func isActive(_ profile: AIProviderProfile) -> Bool {

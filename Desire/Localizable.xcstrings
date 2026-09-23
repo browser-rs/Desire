@@ -4806,6 +4806,50 @@
         }
       }
     },
+    "No models for this service yet — refresh below" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "No models for this service yet — refresh below"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "该服务暂无模型，可在下面刷新"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "此服務尚無模型，可在下方重新整理"
+      }
+        }
+      }
+    },
+    "No models yet — refresh below" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "No models yet — refresh below"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "暂无模型，可在下面刷新"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "尚無模型，可在下方重新整理"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -305,6 +305,20 @@ struct AgentSettingsSection: View {
                     isOn: $store.completionSound
                 )
                 SettingsRowDivider()
+                SettingsPickerRow(
+                    "Reviewer",
+                    subtitle: String(localized: "Which service reviews the agent's work (reflect / self-review). A different model catches what the one being reviewed cannot — pick another service, or leave it on the chat's own."),
+                    systemImage: "person.badge.shield.checkmark",
+                    selection: $store.criticProfileID,
+                    options: [nil] + store.profiles.map { Optional($0.id) },
+                    label: { id in
+                        guard let id, let profile = store.profiles.first(where: { $0.id == id }) else {
+                            return String(localized: "Same as the chat")
+                        }
+                        return profile.name
+                    }
+                )
+                SettingsRowDivider()
                 SettingsToggleRow(
                     "Self-review After Tool Runs",
                     subtitle: String(localized: "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply."),

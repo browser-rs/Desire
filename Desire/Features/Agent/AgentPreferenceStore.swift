@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Security
+import os
 
 @MainActor
 class AgentPreferenceStore: ObservableObject {
@@ -43,6 +44,18 @@ class AgentPreferenceStore: ObservableObject {
     @Published var systemPrompt: String {
         didSet { UserDefaults.standard.set(systemPrompt, forKey: "aiSystemPrompt") }
     }
+    /// 独立评审档案：自评（reflect / 收尾自动自评）走这个服务时，评审者与被评审者
+    /// **不是同一个模型**——自己评自己的盲点是看不到的。nil = 用当前档案（同模型自评）。
+    @Published var criticProfileID: UUID? {
+        didSet {
+            if let criticProfileID {
+                UserDefaults.standard.set(criticProfileID.uuidString, forKey: "agentCriticProfile")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "agentCriticProfile")
+            }
+        }
+    }
+
     /// 回合结束后是否自动自评（只在"≥3 次工具调用或含高风险动作"的回合跑）。
     @Published var selfReviewEnabled: Bool {
         didSet { UserDefaults.standard.set(selfReviewEnabled, forKey: "agentSelfReview") }
@@ -213,6 +226,26 @@ class AgentPreferenceStore: ObservableObject {
     /// "via ..." label. `AgentSessionStore` builds its own `RoutingProvider`
     /// with a callback via `activeProvider` so the UI can show which model
     /// each call used.
+    /// 评审用的偏好视图：配置了独立档案时返回一个**指向该档案**的轻量实例
+    /// （provider 是无状态的、只读传入的 prefs，所以另建一份既不影响当前会话的模型，
+    /// 也不会有竞态）；没配置就返回 nil = 用当前档案自评。
+    func criticPreferences() -> AgentPreferenceStore? {
+        guard let id = criticProfileID,
+              profiles.contains(where: { $0.id == id }) else { return nil }
+        let store = AgentPreferenceStore()          // 读的是同一份落盘档案
+        guard store.profiles.contains(where: { $0.id == id }) else { return nil }
+        // 评审档案**得真的能用**（有 Key）才用它：否则自评会因为 "API Key not configured"
+        // 静默失败，用户看到的只是"自评不工作了"。这种情况退回当前档案——降级评审
+        // （同模型）也比完全不评好，同时留一条 error 日志说明原因。
+        guard (store.loadAPIKey(profileID: id) ?? "").isEmpty == false else {
+            Log.agent.error("critic profile has no API key — falling back to the chat's model for self-review")
+            return nil
+        }
+        store.activateProfile(id: id)
+        store.providerKind = .cloud                 // 评审走服务，不走端上/本地
+        return store
+    }
+
     var provider: any ModelProvider {
         switch providerKind {
         case .cloud:            return CloudOpenAIProvider()
@@ -250,6 +283,9 @@ class AgentPreferenceStore: ObservableObject {
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
         selfReviewEnabled = UserDefaults.standard.object(forKey: "agentSelfReview") as? Bool ?? true
+        if let raw = UserDefaults.standard.string(forKey: "agentCriticProfile") {
+            criticProfileID = UUID(uuidString: raw)
+        }
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {

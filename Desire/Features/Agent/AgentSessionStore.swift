@@ -1307,10 +1307,12 @@ class AgentSessionStore: ObservableObject {
             AgentMessage(role: .system, content: Self.critiquePrompt),
             AgentMessage(role: .user, content: "目标：\n\(goal)\n\n执行轨迹：\n\(trace)"),
         ]
+        // 配了独立评审档案就走它（评审者 ≠ 被评审者）；否则用当前档案自评。
+        let reviewingPrefs = preference.criticPreferences() ?? preference
+        let reviewer = reviewingPrefs.provider
         var text = ""
         do {
-            let active = makeActiveProvider()
-            for try await event in active.provider.stream(messages: request, tools: [], prefs: preference) {
+            for try await event in reviewer.stream(messages: request, tools: [], prefs: reviewingPrefs) {
                 if isCancelled { return nil }
                 if case .text(let delta) = event { text += delta }
             }

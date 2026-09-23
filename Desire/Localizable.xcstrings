@@ -5180,6 +5180,72 @@
         }
       }
     },
+    "Reviewer" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Reviewer"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "评审者"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "評審者"
+      }
+        }
+      }
+    },
+    "Same as the chat" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Same as the chat"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "与当前对话同一服务"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "與目前對話同一服務"
+      }
+        }
+      }
+    },
+    "Which service reviews the agent's work (reflect / self-review). A different model catches what the one being reviewed cannot — pick another service, or leave it on the chat's own." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Which service reviews the agent's work (reflect / self-review). A different model catches what the one being reviewed cannot — pick another service, or leave it on the chat's own."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "用哪个服务审查智能体的工作（reflect / 自评）。换一个模型才能看到被评审者自己看不到的问题——可以选另一个服务，也可以保持与当前对话同一服务。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "用哪個服務審查智能體的工作（reflect / 自評）。換一個模型才能看到被評審者自己看不到的問題——可以選另一個服務，也可以保持與目前對話同一服務。"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

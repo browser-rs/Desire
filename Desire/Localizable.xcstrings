@@ -5004,6 +5004,182 @@
         }
       }
     },
+    "Trace" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Trace"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "轨迹"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "軌跡"
+      }
+        }
+      }
+    },
+    "Overview" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Overview"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "总览"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "總覽"
+      }
+        }
+      }
+    },
+    "Turns" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Turns"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "回合"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "回合"
+      }
+        }
+      }
+    },
+    "Tool calls" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Tool calls"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "工具调用"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "工具呼叫"
+      }
+        }
+      }
+    },
+    "Avg tool" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Avg tool"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "平均耗时"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "平均耗時"
+      }
+        }
+      }
+    },
+    "Unverified" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Unverified"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "未验证"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "未驗证"
+      }
+        }
+      }
+    },
+    "Answer" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Answer"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "回答"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "回答"
+      }
+        }
+      }
+    },
+    "No trace yet — this conversation has no turns." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "No trace yet — this conversation has no turns."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "还没有轨迹——这个对话还没有回合。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "還沒有軌跡——這個對話還沒有回合。"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

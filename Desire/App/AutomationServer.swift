@@ -2635,10 +2635,14 @@ final class AutomationServer {
         guard let target else {
             return ["error": "no such conversation (pass ?conversation=<uuid> from /conversations/search)"]
         }
-        let jsonl = AgentTrace.jsonl(of: target, limit: limit)
-        let lines = jsonl.isEmpty ? [] : jsonl.components(separatedBy: "\n")
+        let turns = AgentTrace.turns(of: target)
+        let scoped = limit.map { $0 > 0 ? Array(turns.suffix($0)) : turns } ?? turns
+        let jsonl = scoped.compactMap { turn -> String? in
+            guard let data = try? JSONSerialization.data(withJSONObject: turn, options: [.sortedKeys]) else { return nil }
+            return String(data: data, encoding: .utf8)
+        }.joined(separator: "\n")
         return ["conversation": target.id.uuidString, "title": target.title,
-                "turns": lines.count, "jsonl": jsonl]
+                "turns": scoped.count, "stats": AgentTrace.stats(of: turns), "jsonl": jsonl]
     }
 
     /// 给某条助手消息投票（👍/👎），用于自动化的评价采集。

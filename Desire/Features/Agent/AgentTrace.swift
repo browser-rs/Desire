@@ -91,6 +91,74 @@ enum AgentTrace {
         return out
     }
 
+    /// 聚合统计：**从同一份轨迹派生**，UI 与桥共用一份口径。这就是"失败模式"要看的东西
+    /// ——工具失败/被拒、慢工具、未验证提示、用户评价，全都不需要额外埋点。
+    static func stats(of turns: [[String: Any]]) -> [String: Any] {
+        var toolCalls = 0
+        var denied = 0
+        var threwError = 0
+        var timedCalls = 0
+        var totalMs = 0.0
+        var perTool: [String: (calls: Int, failed: Int, totalMs: Double)] = [:]
+        var unverified = 0
+        var votesUp = 0
+        var votesDown = 0
+
+        for turn in turns {
+            for step in (turn["steps"] as? [[String: Any]]) ?? [] {
+                guard let action = step["action"] as? String else { continue }
+                toolCalls += 1
+                let isDenied = step["denied"] as? Bool ?? false
+                let isError = step["threwError"] as? Bool ?? false
+                if isDenied { denied += 1 }
+                if isError { threwError += 1 }
+                var entry = perTool[action] ?? (0, 0, 0)
+                entry.calls += 1
+                if isDenied || isError { entry.failed += 1 }
+                if let ms = step["ms"] as? Double {
+                    timedCalls += 1
+                    totalMs += ms
+                    entry.totalMs += ms
+                } else if let ms = step["ms"] as? Int {
+                    timedCalls += 1
+                    totalMs += Double(ms)
+                    entry.totalMs += Double(ms)
+                }
+                perTool[action] = entry
+            }
+            if let note = turn["verificationNote"] as? String, !note.isEmpty { unverified += 1 }
+            switch turn["feedback"] as? String {
+            case "up": votesUp += 1
+            case "down": votesDown += 1
+            default: break
+            }
+        }
+
+        let slowest = perTool.compactMap { name, entry -> [String: Any]? in
+            guard entry.calls > 0, entry.totalMs > 0 else { return nil }
+            return ["tool": name, "calls": entry.calls, "failed": entry.failed,
+                    "avgMs": (entry.totalMs / Double(entry.calls) * 10).rounded() / 10]
+        }.sorted { ($0["avgMs"] as? Double ?? 0) > ($1["avgMs"] as? Double ?? 0) }
+
+        let flakiest = perTool.compactMap { name, entry -> [String: Any]? in
+            guard entry.failed > 0 else { return nil }
+            return ["tool": name, "calls": entry.calls, "failed": entry.failed]
+        }.sorted { ($0["failed"] as? Int ?? 0) > ($1["failed"] as? Int ?? 0) }
+
+        return [
+            "turns": turns.count,
+            "toolCalls": toolCalls,
+            "denied": denied,
+            "threwError": threwError,
+            "avgToolMs": timedCalls > 0 ? (totalMs / Double(timedCalls) * 10).rounded() / 10 : 0,
+            "unverifiedTurns": unverified,
+            "votesUp": votesUp,
+            "votesDown": votesDown,
+            "slowestTools": Array(slowest.prefix(5)),
+            "flakiestTools": Array(flakiest.prefix(5)),
+        ]
+    }
+
     /// 一行一个回合；解析不了的字段（如耗时缺失）写 null，不省略键，方便下游直接用。
     static func jsonl(of conversation: Conversation, limit: Int? = nil) -> String {
         var turns = turns(of: conversation)

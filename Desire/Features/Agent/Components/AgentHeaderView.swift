@@ -11,6 +11,7 @@ struct AgentHeaderView: View {
     let hasHistory: Bool
     var onShowHistory: () -> Void
     var onShowCapabilities: (() -> Void)?
+    var onShowTrace: (() -> Void)?
     var onShowMemory: (() -> Void)?
     var onNewChat: (() -> Void)?
 
@@ -68,6 +69,13 @@ struct AgentHeaderView: View {
                 )
             }
 
+            if let onShowTrace {
+                HoverIcon(
+                    systemName: "point.topleft.down.to.point.bottomright.curvepath",
+                    action: onShowTrace,
+                    help: "Trace — what the agent actually did, with timings"
+                )
+            }
             if let onShowMemory {
                 HoverIcon(
                     systemName: "brain.head.profile",

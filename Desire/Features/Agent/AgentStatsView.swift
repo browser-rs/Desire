@@ -6,6 +6,11 @@ import SwiftUI
 /// 数据全部**从已存盘的会话派生**（`UsageStats`），与轨迹页同一个原则——不另存计数，
 /// 所以统计和聊天记录永远对得上。两条必须说清的前提（写在页脚）：只有服务端上报过用量
 /// 的调用才有数字，且**更早的历史对话没有记录**。
+///
+/// 布局要能应付**从 380pt 到 2000pt+ 的面板宽度**（用户："还要考虑窗口是可以拉宽的"）：
+/// ① 内容限宽居中（`contentMaxWidth`）——不限宽的话热力图/图表会被拉到几千点、右边空一大片；
+/// ② 每个区块自己按可用宽度换档：头条指标条换列数、热力图换格子大小与周数、
+///    模型列表铺满剩余宽度（不再限宽）。
 struct AgentStatsView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
@@ -13,6 +18,10 @@ struct AgentStatsView: View {
     /// 单价表：有配的话额外汇总一个金额（没配就只有 token，不显示 $0）。
     @ObservedObject var preference: AgentPreferenceStore
     var onBack: () -> Void
+
+    /// 内容最大宽度：超过就居中留白。**不限宽不行**——热力图最多 53 周，拉到 2000pt 时
+    /// 右边会空掉一大半（比对称留白更难看）。
+    static let contentMaxWidth: CGFloat = 1100
 
     /// 趋势图的窗口（天）。热力图固定看最近若干周，不受它影响。
     private enum Range: Int, CaseIterable, Identifiable {
@@ -43,23 +52,29 @@ struct AgentStatsView: View {
             price: preference.usagePrice(for:)))
     }
 
-    /// 会用到的模型（按 token 降序），超过 5 个时只画前 5 条线，其余在图例里合并。
+    /// 会用到的模型（按 token 降序），超过 5 个时只画前 5 条线。
     private var seriesModels: [UsageModelStat] { Array(stats.models.prefix(5)) }
-    private var otherTokens: Int { stats.models.dropFirst(5).reduce(0) { $0 + $1.tokens } }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    headlineSection
-                    activitySection
-                    trendSection
-                    modelsSection
+                VStack(alignment: .leading, spacing: 12) {
+                    if stats.isEmpty {
+                        emptyCard
+                    } else {
+                        headlineCard
+                        activityCard
+                        trendCard
+                        modelsCard
+                    }
                     footnote
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: Self.contentMaxWidth, alignment: .leading)
+                // 限宽后再居中：面板很宽时内容居中、两边留白对称（而不是全挤在左边）。
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -85,84 +100,217 @@ struct AgentStatsView: View {
         .overlay(alignment: .bottom) { Divider().opacity(0.6) }
     }
 
+    // MARK: - Cards
+
+    /// 统一卡片：淡底 + 发丝描边 + 12pt 圆角（比轨迹页的回合卡略大，仪表盘用）。
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.secondary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.22), lineWidth: 0.5)
+            )
+    }
+
+    /// 卡片内的标题行（图标 + 标题 + 右侧控件），参照仪表盘的分区头。
+    private func cardHeader<Trailing: View>(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+    ) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.tertiary)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            trailing()
+        }
+    }
+
     // MARK: - Headline
 
-    private var headlineSection: some View {
-        FlowRow(spacing: 6) {
-            headline("Total tokens", AgentUsage.formatTokens(stats.totalTokens))
-            headline("Peak day", stats.peakDayTokens > 0
-                     ? AgentUsage.formatTokens(stats.peakDayTokens) : "—")
-            headline("Longest chat", durationText(stats.longestConversation))
-            headline("Current streak", daysText(stats.currentStreak))
-            headline("Longest streak", daysText(stats.longestStreak))
-            if let cost = stats.cost {
-                headline("Cost", AgentUsage.formatUSD(cost), tint: appAccent)
-            }
-            if stats.totalTokens > 0, stats.cost == nil, stats.unpricedTokens > 0 {
-                headline("Cost", String(localized: "price not set"), tint: .secondary)
+    private struct StatItem {
+        let title: LocalizedStringKey
+        let value: String
+        var tint: Color = .primary
+        var help: String?
+    }
+
+    private var statItems: [StatItem] {
+        var items: [StatItem] = [
+            StatItem(title: "Total tokens", value: AgentUsage.formatTokens(stats.totalTokens)),
+            StatItem(title: "Peak day", value: stats.peakDayTokens > 0
+                     ? AgentUsage.formatTokens(stats.peakDayTokens) : "—"),
+            StatItem(title: "Longest chat", value: durationText(stats.longestConversation)),
+            StatItem(title: "Current streak", value: daysText(stats.currentStreak)),
+            StatItem(title: "Longest streak", value: daysText(stats.longestStreak)),
+        ]
+        if let cost = stats.cost {
+            items.append(StatItem(title: "Cost", value: AgentUsage.formatUSD(cost), tint: appAccent))
+        } else if stats.unpricedTokens > 0 {
+            items.append(StatItem(
+                title: "Cost",
+                value: String(localized: "price not set"),
+                tint: .secondary,
+                help: String(localized: "Token prices are not filled in yet — set them in Settings → Agent → Cost to see what this costs.")))
+        }
+        return items
+    }
+
+    /// 头条指标条：**一条卡片里按列数排开、列间竖分隔线**（参照仪表盘的观感）。
+    /// 列数由可用宽度决定，所以宽面板是一行六格、窄面板自动变两行。
+    private var headlineCard: some View {
+        card {
+            ViewThatFits(in: .horizontal) {
+                statBar(columns: 6)
+                statBar(columns: 4)
+                statBar(columns: 3)
+                statBar(columns: 2)
             }
         }
     }
 
-    private func headline(_ title: LocalizedStringKey, _ value: String, tint: Color = .primary) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(tint)
-            Text(title)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+    private func statBar(columns: Int) -> some View {
+        let items = statItems
+        let rows = stride(from: 0, to: items.count, by: columns).map { start in
+            Array(items[start..<min(start + columns, items.count)])
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minWidth: 96, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color.secondary.opacity(0.06)))
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(rows.indices, id: \.self) { rowIndex in
+                HStack(spacing: 0) {
+                    ForEach(rows[rowIndex].indices, id: \.self) { index in
+                        if index > 0 {
+                            Divider().frame(height: 30)
+                        }
+                        statCell(rows[rowIndex][index])
+                    }
+                }
+                if rowIndex < rows.count - 1 {
+                    Divider().padding(.vertical, 10)
+                }
+            }
+        }
+        // 让 ViewThatFits 有"理想宽度"可比：每列至少 150pt 宽。
+        .frame(minWidth: CGFloat(columns) * 150, alignment: .leading)
+    }
+
+    private func statCell(_ item: StatItem) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(item.value)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(item.tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(item.title)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(item.help ?? "")
+    }
+
+    // MARK: - Empty state
+
+    /// 一条用量都还没有时（本功能上线前的历史对话全是 0），别给用户看一张空仪表盘。
+    private var emptyCard: some View {
+        card {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(appAccent.opacity(0.85))
+                    .frame(width: 26, height: 26)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No token usage recorded yet.")
+                        .font(.system(size: 12.5, weight: .medium))
+                    Text("Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if stats.turns > 0 {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                            Text(verbatim: "\(stats.turns)")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .monospacedDigit()
+                            Text("turns saved so far")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
 
     // MARK: - Activity heatmap
 
-    private var activitySection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionTitle("Token activity")
-            heatmap
+    private var activityCard: some View {
+        card {
+            cardHeader("Token activity", systemImage: "square.grid.3x3.fill")
+            heatmap.padding(.top, 10)
         }
     }
 
-    /// GitHub 风格格子：**列 = 周、行 = 周一…周日**，颜色深浅按当天 token。
-    /// 格子宽固定（11pt），能显示几周由可用宽度决定——面板可拖宽拖窄，格子跟着变会
-    /// 一直在抖，所以宁可变"看多少周"。
+    /// GitHub 风格格子：列 = 周、行 = 周一…周日。**按可用宽度换档**（格子 11→18、
+    /// 周数 53→10），窄面板也填得满、宽面板也不会只在左边一小块。每档高度固定，
+    /// 所以不需要测量（`ViewThatFits` 按理想宽度挑第一档放得下的）。
     private var heatmap: some View {
-        GeometryReader { geometry in
-            let cell: CGFloat = 11
-            let gap: CGFloat = 2
-            let weeks = min(53, max(8, Int((geometry.size.width + gap) / (cell + gap))))
-            let days = trailingWeeks(weeks)
-            let maxTokens = max(1, days.map(\.tokens).max() ?? 1)
+        ViewThatFits(in: .horizontal) {
+            heatGrid(weeks: 53, cell: 18)
+            heatGrid(weeks: 53, cell: 15)
+            heatGrid(weeks: 44, cell: 14)
+            heatGrid(weeks: 34, cell: 13)
+            heatGrid(weeks: 30, cell: 12)
+            heatGrid(weeks: 26, cell: 12)
+            heatGrid(weeks: 22, cell: 12)
+            heatGrid(weeks: 18, cell: 11)
+            heatGrid(weeks: 14, cell: 11)
+            heatGrid(weeks: 10, cell: 11)
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .top, spacing: gap) {
-                    ForEach(Array(stride(from: 0, to: days.count, by: 7)), id: \.self) { start in
-                        VStack(spacing: gap) {
-                            ForEach(0..<7, id: \.self) { row in
-                                let index = start + row
-                                if index < days.count {
-                                    cellView(days[index], maxTokens: maxTokens, size: cell)
-                                } else {
-                                    Color.clear.frame(width: cell, height: cell)
-                                }
+    private func heatGrid(weeks: Int, cell: CGFloat) -> some View {
+        let gap: CGFloat = 2
+        let days = trailingWeeks(weeks)
+        let maxTokens = max(1, days.map(\.tokens).max() ?? 1)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .top, spacing: gap) {
+                ForEach(Array(stride(from: 0, to: days.count, by: 7)), id: \.self) { start in
+                    VStack(spacing: gap) {
+                        ForEach(0..<7, id: \.self) { row in
+                            let index = start + row
+                            if index < days.count {
+                                cellView(days[index], maxTokens: maxTokens, size: cell)
+                            } else {
+                                Color.clear.frame(width: cell, height: cell)
                             }
                         }
                     }
                 }
-                monthLabels(days: days, cell: cell, gap: gap)
             }
+            monthLabels(days: days, cell: cell, gap: gap)
         }
-        .frame(height: 7 * 11 + 6 * 2 + 16)
+        // 关键：理想宽度 = 网格真实宽度，`ViewThatFits` 才能按宽度挑档。
+        .fixedSize()
     }
 
     private func cellView(_ day: UsageDayStat, maxTokens: Int, size: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
+        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
             .fill(heatColor(tokens: day.tokens, maxTokens: maxTokens))
             .frame(width: size, height: size)
             .help(heatHelp(day))
@@ -199,7 +347,8 @@ struct AgentStatsView: View {
         var lastMonth = -1
         for (index, day) in days.enumerated() where index % 7 == 0 {
             let month = Calendar.current.component(.month, from: day.id)
-            if month != lastMonth {
+            // 与上一个标签至少隔 3 列：月初恰好落在相邻两列时标签会撞在一起（"5月6月"）。
+            if month != lastMonth, labels.last.map({ index / 7 - $0.index >= 3 }) ?? true {
                 labels.append((index / 7, formatter.string(from: day.id)))
                 lastMonth = month
             }
@@ -221,7 +370,6 @@ struct AgentStatsView: View {
     private func trailingWeeks(_ weeks: Int) -> [UsageDayStat] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        // 找到本周的周一（firstWeekday 依地区不同，按 ISO 用周一 → 行序稳定）
         let weekday = (calendar.component(.weekday, from: today) + 5) % 7  // 周一 = 0
         let weekStart = calendar.date(byAdding: .day, value: -weekday, to: today) ?? today
         let start = calendar.date(byAdding: .day, value: -(weeks - 1) * 7, to: weekStart) ?? weekStart
@@ -230,18 +378,16 @@ struct AgentStatsView: View {
 
     // MARK: - Trend
 
-    private var trendSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                sectionTitle("Daily tokens")
-                Spacer()
+    private var trendCard: some View {
+        card {
+            cardHeader("Daily tokens", systemImage: "chart.xyaxis.line") {
                 HStack(spacing: 2) {
                     ForEach(Range.allCases) { option in
                         rangeButton(option)
                     }
                 }
             }
-            trendChart
+            trendChart.padding(.top, 6)
         }
     }
 
@@ -262,8 +408,8 @@ struct AgentStatsView: View {
         .buttonStyle(.plain)
     }
 
-    /// 每天一条线（按模型分色）。只画前 5 个模型，其余在图注里写明还有多少——
-    /// 线太多就分不清了，而完整明细在下面的模型用量里。
+    /// 每天一条线（按模型分色）。只画前 5 个模型——线太多就分不清了，
+    /// 完整明细在下面的模型用量里。
     private var trendChart: some View {
         let days = stats.recentDays(range.rawValue)
         let points = trendPoints(days: days)
@@ -275,10 +421,12 @@ struct AgentStatsView: View {
                 )
                 .foregroundStyle(by: .value("Model", point.label))
                 .interpolationMethod(.monotone)
-                .lineStyle(StrokeStyle(lineWidth: 1.6))
+                .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round))
             }
         }
-        .chartForegroundStyleScale(domain: styleDomain, range: styleColors)
+        // 图例只列**画出来的**模型：Charts 是按 domain 出图例的，把全部模型都塞进
+        // domain 会列出没画线的模型（第一版就是这样，7 个图例 5 条线）。
+        .chartForegroundStyleScale(domain: trendDomain, range: trendColors)
         .chartLegend(position: .top, alignment: .leading, spacing: 8)
         .chartYAxis {
             AxisMarks(position: .leading) { value in
@@ -299,7 +447,7 @@ struct AgentStatsView: View {
                 }
             }
         }
-        .frame(height: 160)
+        .frame(height: 170)
     }
 
     private struct TrendPoint: Identifiable {
@@ -313,11 +461,10 @@ struct AgentStatsView: View {
         var out: [TrendPoint] = []
         for day in days {
             for model in seriesModels {
-                let tokens = day.byModel[model.id] ?? 0
                 out.append(TrendPoint(id: "\(day.id.timeIntervalSince1970)-\(model.id)",
                                       date: day.id,
                                       label: displayName(for: model.id),
-                                      tokens: tokens))
+                                      tokens: day.byModel[model.id] ?? 0))
             }
         }
         return out
@@ -325,26 +472,27 @@ struct AgentStatsView: View {
 
     // MARK: - Models
 
-    private var modelsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionTitle("Models")
+    private var modelsCard: some View {
+        card {
+            cardHeader("Models", systemImage: "chart.pie.fill")
             if stats.models.isEmpty {
                 Text("No token usage recorded yet.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .padding(.top, 8)
             } else {
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .center, spacing: 16) {
-                        donut.frame(width: 170, height: 170)
-                        // 列表别跟着面板一起拉满：宽面板下名字和百分比会被拉成天各一方。
-                        modelList.frame(maxWidth: 420, alignment: .leading)
-                        Spacer(minLength: 0)
+                    HStack(alignment: .center, spacing: 22) {
+                        donut.frame(width: 186, height: 186)
+                        // 列表**铺满剩余宽度**（参照仪表盘：名字靠左、百分比靠右）。
+                        modelList.frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        donut.frame(width: 170, height: 170)
+                    VStack(alignment: .leading, spacing: 14) {
+                        donut.frame(width: 186, height: 186)
                         modelList
                     }
                 }
+                .padding(.top, 12)
             }
         }
     }
@@ -354,10 +502,10 @@ struct AgentStatsView: View {
             ForEach(stats.models) { model in
                 SectorMark(
                     angle: .value("Tokens", model.tokens),
-                    innerRadius: .ratio(0.62),
-                    angularInset: 1
+                    innerRadius: .ratio(0.64),
+                    angularInset: 1.5
                 )
-                .cornerRadius(2)
+                .cornerRadius(3)
                 .foregroundStyle(by: .value("Model", displayName(for: model.id)))
             }
         }
@@ -366,7 +514,8 @@ struct AgentStatsView: View {
         .overlay {
             VStack(spacing: 1) {
                 Text(AgentUsage.formatTokens(stats.totalTokens))
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
                 Text("tokens")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
@@ -375,25 +524,27 @@ struct AgentStatsView: View {
     }
 
     private var modelList: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(stats.models) { model in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 7) {
                         Circle()
                             .fill(seriesColor(for: model.id))
-                            .frame(width: 7, height: 7)
+                            .frame(width: 8, height: 8)
                         Text(displayName(for: model.id))
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 11.5, weight: .medium))
                             .lineLimit(1)
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 10)
                         Text(percentText(model))
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
                     Text(tokenDetail(model))
                         .font(.system(size: 10))
+                        .monospacedDigit()
                         .foregroundStyle(.tertiary)
-                        .padding(.leading, 13)
+                        .padding(.leading, 15)
                 }
             }
         }
@@ -413,29 +564,27 @@ struct AgentStatsView: View {
 
     // MARK: - Helpers
 
+    /// 折线、环形图、列表圆点必须用**同一套固定配色**（Charts 默认按出现顺序自动配色，
+    /// 会和列表里我们自己画的圆点对不上，所以显式给 domain/range 映射）。
+    /// 环形图给全量（它画所有模型），折线图只给前 5 个（它只画前 5 条）。
+    private var styleDomain: [String] { stats.models.map { displayName(for: $0.id) } }
+    private var styleColors: [Color] { stats.models.map { seriesColor(for: $0.id) } }
+    private var trendDomain: [String] { seriesModels.map { displayName(for: $0.id) } }
+    private var trendColors: [Color] { seriesModels.map { seriesColor(for: $0.id) } }
+
     private var footnote: some View {
         Text("Derived from saved conversations. Only calls that reported usage count — conversations from before this was recorded show 0.")
             .font(.system(size: 10))
             .foregroundStyle(.tertiary)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 折线、环形图、列表圆点必须用**同一套固定配色**（Charts 默认按出现顺序自动配色，
-    /// 会和列表里我们自己画的圆点对不上，所以显式给 domain/range 映射）。
-    private var styleDomain: [String] { stats.models.map { displayName(for: $0.id) } }
-    private var styleColors: [Color] { stats.models.map { seriesColor(for: $0.id) } }
-
-    private func sectionTitle(_ key: LocalizedStringKey) -> some View {
-        Text(key)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .padding(.horizontal, 2)
     }
 
     private func displayName(for key: String) -> String {
         key == UsageStats.subagentModelKey ? String(localized: "Subagent") : key
     }
 
-    /// 图例/列表里的圆点颜色与 Charts 的自动配色必须一致，所以自己定义一份调色板
+    /// 图例/列表里的圆点颜色与 Charts 的配色必须一致，所以自己定义一份调色板
     /// （按 `stats.models` 的顺序取）。
     private func seriesColor(for key: String) -> Color {
         let palette: [Color] = [.blue, .green, .purple, .orange, .pink, .teal, .yellow]

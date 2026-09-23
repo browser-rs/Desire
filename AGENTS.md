@@ -760,6 +760,19 @@ Features/Bookmarks/
   `.chartForegroundStyleScale(domain:range:)`，否则 Charts 的自动配色会和列表里自己画的
   圆点对不上。热力图格子**固定宽度、按可用宽度决定显示多少周**（面板可拖拽，格子跟着变会一直抖）。
 
+- **面板里的仪表盘要"按宽度换档"，而不是自适应拉伸**（2026-09-23 统计页第二轮）：
+  面板宽度从 380 到 2000pt 以上都可能（用户会拖），三种做法配套用：
+  ① **内容限宽居中**（`AgentStatsView.contentMaxWidth = 1100`）——限宽后再 `.frame(maxWidth:
+  .infinity, alignment: .center)`；不限宽的话"最多 53 周"的热力图在 2000pt 下右边会空一大半；
+  ② **每个区块自己换档**：用 `ViewThatFits(in: .horizontal)` 列几档，每档是**固定尺寸**的
+  内容（热力图 = 周数×格子大小，头条 = 列数），**每档要 `.fixedSize()`** 让理想宽度等于真实
+  宽度，`ViewThatFits` 才能按宽度挑；档与档之间别差太多（第一版 18→26 周之间空了一块，
+  补 22 周就够）；③ **别用 GeometryReader 干这件事**：它拿不到内容高度，在 ScrollView 里
+  会让"由宽度决定高度"的网格没法排（固定档位就没有这个问题）。
+  另外两条与图表有关：`chartForegroundStyleScale(domain:range:)` 的 domain **只放画出来的
+  序列**（放全量会让图例多出没画线的模型）；列表类内容在宽面板下**要铺满**（名字靠左、
+  百分比靠右），限个 420pt 宽再留白会长出一块空洞。
+
 - **离屏渲染（`/panel/snapshot`）要拍得出来，数据就得在 `init` 里备好**（2026-09-23）：
   离屏 `NSHostingView` **不触发 `onAppear`/`.task`**（无窗口即无 appear），所以"在 onAppear 里
   加载"的页面快照出来是空的——看着像功能坏了。把初始状态放进 init

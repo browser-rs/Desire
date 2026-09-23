@@ -549,6 +549,15 @@ Features/Bookmarks/
   "切换模型不起作用"）。嵌套的 ObservableObject **不会**自动转发
   `objectWillChange`：要么把那个 store 也 `@ObservedObject`（本次做法），要么在持有
   方 init 里显式 `nested.objectWillChange.sink { self.objectWillChange.send() }`。
+- **"跳一帧"的写入不要碰用户正在编辑的缓冲**（2026-09-23 地址栏实测）：`URLBarField` 里
+  "聚焦通知"是晚一帧到的（AppKit 的 begin/end editing 在 SwiftUI 更新事务里同步触发，
+  同步置位会报 "Publishing changes from within view updates"）—— 于是任何**依赖聚焦状态**去
+  写输入缓冲的逻辑，都可能在用户**已经开始打字之后**才执行，把刚打的字覆盖掉 ✓。
+  规矩：① 这类"聚焦时播种"的优化先确认**是否多余**（地址栏本来就有未聚焦期间的同步逻辑，
+  播种纯属重复）—— 多余就删掉，别保留；② 必须写的话先校验真实状态（`field.currentEditor() != nil`
+  = 还在编辑中就跳过）；③ 症状组合很典型：**输入被清空 + 浮层闪一下 + "有内容时反而不出候选"**，
+  三个一起出现基本就是"缓冲被重置"。
+
   改完顺手用桥验证"数据链路"（`POST /ai/model` → 假端点回显模型名），UI 重绘由用户
   过目——两者是不同的问题。
   **同一条又踩过一次（2026-09-23，成本 chip）**：`AgentHeaderView` 只观察

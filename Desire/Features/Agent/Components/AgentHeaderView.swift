@@ -153,20 +153,52 @@ struct AgentHeaderView: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if store.usagePromptTokens > 0 || store.usageCompletionTokens > 0 {
-                Text(tokenUsageText)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .help("Token usage for this conversation (provider-reported)")
+            // 回合进行中显示已用时：长工具跑起来时，"在动"和"卡住"的区别就在这。
+            // TimelineView 只包裹这一小块文字，不会带动整块面板重绘。
+            if store.isProcessing, let started = store.processingStartedAt {
+                TimelineView(.periodic(from: started, by: 1)) { context in
+                    let seconds = max(0, Int(context.date.timeIntervalSince(started)))
+                    Text(verbatim: "· \(seconds)s")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            // 上下文占用：口径与 `compactForContext` 相同，所以它变红时就是
+            // "快要压缩 / 快要开始丢上下文"的时候（累计 token 数对用户没有行动意义）。
+            if store.contextFraction >= 0.02 {
+                HStack(spacing: 3) {
+                    Image(systemName: contextSymbol)
+                        .font(.system(size: 9))
+                    Text(verbatim: "\(Int((store.contextFraction * 100).rounded()))%")
+                        .font(.system(size: 10, design: .monospaced))
+                }
+                .foregroundStyle(contextColor)
+                .help(contextHelp)
             }
         }
     }
 
-    /// Compact cumulative usage, e.g. "↑3.2k ↓8.9k".
-    private var tokenUsageText: String {
-        String(format: "↑%.1fk ↓%.1fk",
-               Double(store.usagePromptTokens) / 1000,
-               Double(store.usageCompletionTokens) / 1000)
+    /// 上下文占用的颜色分级：60% 起提醒、85% 起警告（此时 /new 更划算）。
+    private var contextColor: Color {
+        if store.contextFraction >= 0.85 { return .red }
+        if store.contextFraction >= 0.6 { return .orange }
+        return .secondary
+    }
+
+    private var contextSymbol: String {
+        store.contextFraction >= 0.6 ? "exclamationmark.triangle.fill" : "gauge.medium"
+    }
+
+    /// 提示里带上"最近一次请求的 prompt token"，但主信号是百分比。
+    private var contextHelp: String {
+        var text = String(localized: "Context") + String(format: " %d%%", Int((store.contextFraction * 100).rounded()))
+        if store.lastPromptTokens > 0 {
+            text += String(format: " · ≈%.1fk tokens", Double(store.lastPromptTokens) / 1000)
+        }
+        if store.contextFraction >= 0.6 {
+            text += " · " + String(localized: "Context is getting long — /new starts a fresh conversation")
+        }
+        return text
     }
 
     private var fullAccessBadge: some View {

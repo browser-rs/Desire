@@ -16,6 +16,8 @@ struct AgentPanel: View {
     @ObservedObject var conversationStore: ConversationStore
 
     @State private var inputText = ""
+    /// 每个对话的输入草稿：切走再切回不丢正在打的字（放在内存里，会话级）。
+    @State private var drafts: [UUID: String] = [:]
     /// 输入历史翻阅位置（nil = 不在翻阅）。历史本身在 store 里、按对话保存。
     @State private var historyIndex: Int?
     /// 上一次的文本变化来自历史回填（据此区分"用户手打" → 退出翻阅）。
@@ -236,35 +238,59 @@ struct AgentPanel: View {
 
             // Input typed mid-turn, sent automatically when the running
             // turn finishes.
-            if let first = store.queuedMessages.first {
-                HStack(spacing: 6) {
-                    Image(systemName: "hourglass")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                    Text(first.text)
-                        .font(.system(size: 11))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    if store.queuedMessages.count > 1 {
-                        Text("+\(store.queuedMessages.count - 1)")
-                            .font(.system(size: 10, weight: .semibold))
+            if !store.queuedMessages.isEmpty {
+                // 排队中的消息**逐条列出**（此前只显示第一条 +N，想退掉第二条只能全清）。
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "hourglass")
+                            .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Button {
-                        store.clearQueuedMessages()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                        Text("\(store.queuedMessages.count) queued")
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Button {
+                            store.clearQueuedMessages()
+                        } label: {
+                            Text("Clear all")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear queued messages")
                     }
-                    .buttonStyle(.plain)
-                    .help("Clear queued messages")
+                    ForEach(store.queuedMessages.prefix(4)) { item in
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.turn.down.right")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                            Text(item.text)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Spacer(minLength: 0)
+                            Button {
+                                store.removeQueued(id: item.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove from queue")
+                        }
+                    }
+                    if store.queuedMessages.count > 4 {
+                        Text("+\(store.queuedMessages.count - 4) more")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.vertical, 6)
                 .background(
-                    Capsule().fill(Color.secondary.opacity(0.10))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.secondary.opacity(0.10))
                 )
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)
@@ -324,8 +350,11 @@ struct AgentPanel: View {
                     historyIndex = nil
                 }
             }
-            .onChange(of: store.conversationId) { _, _ in
+            .onChange(of: store.conversationId) { old, new in
                 historyIndex = nil      // 换了对话：历史也跟着换
+                // 草稿按对话存取：切走时存下、切回时取回（以前切一次就丢）。
+                if let old { drafts[old] = inputText }
+                inputText = new.flatMap { drafts[$0] } ?? ""
             }
             .onChange(of: voiceManager.transcribedText) { _, newText in
                 inputText = newText

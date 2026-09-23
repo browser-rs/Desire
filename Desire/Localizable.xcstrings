@@ -886,6 +886,28 @@
         }
       }
     },
+    "%lld selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已选 %lld 项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選 %lld 項"
+          }
+        }
+      }
+    },
     "%lld shortcut%@." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4696,156 +4718,112 @@
         }
       }
     },
-    "Rename" : {
+    "Context" : {
       "localizations" : {
         "en" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "Rename"
+        "value" : "Context"
       }
         },
         "zh-Hans" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "重命名"
+        "value" : "上下文"
       }
         },
         "zh-Hant" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "重新命名"
+        "value" : "上下文"
       }
         }
       }
     },
-    "Deselect" : {
+    "Context is getting long — /new starts a fresh conversation" : {
       "localizations" : {
         "en" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "Deselect"
+        "value" : "Context is getting long — /new starts a fresh conversation"
       }
         },
         "zh-Hans" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "取消选择"
+        "value" : "上下文快满了 —— 用 /new 开一个新对话更划算"
       }
         },
         "zh-Hant" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "取消選取"
+        "value" : "上下文快滿了 —— 用 /new 開一個新對話更划算"
       }
         }
       }
     },
-    "Delete Conversations" : {
+    "Clear all" : {
       "localizations" : {
         "en" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "Delete Conversations"
+        "value" : "Clear all"
       }
         },
         "zh-Hans" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "删除多个对话"
+        "value" : "全部清空"
       }
         },
         "zh-Hant" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "刪除多個對話"
+        "value" : "全部清空"
       }
         }
       }
     },
-    "This cannot be undone." : {
+    "Remove from queue" : {
       "localizations" : {
         "en" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "This cannot be undone."
+        "value" : "Remove from queue"
       }
         },
         "zh-Hans" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "此操作无法撤销。"
+        "value" : "从队列中移除"
       }
         },
         "zh-Hant" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "此操作無法復原。"
+        "value" : "從佇列中移除"
       }
         }
       }
     },
-    "%lld selected" : {
+    "%lld queued" : {
       "localizations" : {
         "en" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "%lld selected"
+        "value" : "%lld queued"
       }
         },
         "zh-Hans" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "已选 %lld 项"
+        "value" : "排队中 %lld 条"
       }
         },
         "zh-Hant" : {
       "stringUnit" : {
         "state" : "translated",
-        "value" : "已選 %lld 項"
-      }
-        }
-      }
-    },
-    "No models for this service yet — refresh below" : {
-      "localizations" : {
-        "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "No models for this service yet — refresh below"
-      }
-        },
-        "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "该服务暂无模型，可在下面刷新"
-      }
-        },
-        "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "此服務尚無模型，可在下方重新整理"
-      }
-        }
-      }
-    },
-    "No models yet — refresh below" : {
-      "localizations" : {
-        "en" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "No models yet — refresh below"
-      }
-        },
-        "zh-Hans" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "暂无模型，可在下面刷新"
-      }
-        },
-        "zh-Hant" : {
-      "stringUnit" : {
-        "state" : "translated",
-        "value" : "尚無模型，可在下方重新整理"
+        "value" : "排隊中 %lld 條"
       }
         }
       }
@@ -7711,6 +7689,7 @@
       }
     },
     "Delete conversation" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7750,6 +7729,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除對話"
+          }
+        }
+      }
+    },
+    "Delete Conversations" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除多个对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除多個對話"
           }
         }
       }
@@ -7977,6 +7978,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "描述"
+          }
+        }
+      }
+    },
+    "Deselect" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消选择"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消選取"
           }
         }
       }
@@ -15147,6 +15170,28 @@
         }
       }
     },
+    "No models for this service yet — refresh below" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No models for this service yet — refresh below"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该服务暂无模型，可在下面刷新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此服務尚無模型，可在下方重新整理"
+          }
+        }
+      }
+    },
     "No models yet — fetch them or add names below" : {
       "localizations" : {
         "en" : {
@@ -15169,7 +15214,30 @@
         }
       }
     },
+    "No models yet — refresh below" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No models yet — refresh below"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无模型，可在下面刷新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無模型，可在下方重新整理"
+          }
+        }
+      }
+    },
     "No models yet — refresh, or add one in Settings → Agent" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18512,6 +18580,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除按鍵"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名"
           }
         }
       }
@@ -22411,6 +22501,7 @@
       }
     },
     "Switch model / provider" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23190,6 +23281,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "思考中…"
+          }
+        }
+      }
+    },
+    "This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作无法撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作無法復原。"
           }
         }
       }

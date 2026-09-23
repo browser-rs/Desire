@@ -121,6 +121,20 @@ class AgentSessionStore: ObservableObject {
 
     /// Input typed mid-turn, flushed by `processLoop` when the turn ends
     /// cleanly. The panel renders a queue strip from this.
+    /// 更新"上下文占用比例"。口径与 `compactForContext` 相同（字符数 / 预算）；
+    /// 按 (条数, 末条长度) 记忆，流式期间每 80ms 只多一次 O(n) 轻扫。
+    private func updateContextFraction() {
+        let key = "\(messages.count)-\(messages.last?.content?.count ?? 0)"
+        guard key != contextFractionStamp else { return }
+        contextFractionStamp = key
+        var total = 0
+        for m in messages {
+            total += m.content?.count ?? 0
+            for tc in m.toolCalls ?? [] { total += tc.function.arguments.count + tc.function.name.count }
+        }
+        contextFraction = min(1.0, Double(total) / Double(Self.contextBudget))
+    }
+
     @Published private(set) var queuedMessages: [QueuedMessage] = []
     /// Set when a turn's model stream failed — gates queue flushing so a
     /// broken provider can't rapid-fire the whole queue into errors.
@@ -181,6 +195,14 @@ class AgentSessionStore: ObservableObject {
     /// reported where available; Foundation Models reports nothing).
     @Published private(set) var usagePromptTokens = 0
     @Published private(set) var usageCompletionTokens = 0
+    /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
+    @Published private(set) var lastPromptTokens = 0
+    /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
+    /// 模型开始返回空、或自动压缩要生效之前，用户至少能看到它在逼近上限。
+    @Published private(set) var contextFraction: Double = 0
+    private var contextFractionStamp = ""
+    /// 上下文预算，与 `compactForContext` 的默认值一致（改一处即可）。
+    static let contextBudget = 160_000
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
     private var memoryProcessedCount = 0
@@ -317,6 +339,11 @@ class AgentSessionStore: ObservableObject {
     /// Removes everything waiting in the send queue (queue strip ✕ button).
     func clearQueuedMessages() {
         queuedMessages.removeAll()
+    }
+
+    /// 移除队列里的某一条（队列条每行右侧的 ✕）。此前只能整条清空。
+    func removeQueued(id: UUID) {
+        queuedMessages.removeAll { $0.id == id }
     }
 
     func performQuickAction(_ action: AgentQuickAction) {
@@ -772,6 +799,7 @@ class AgentSessionStore: ObservableObject {
                 // is published at ~12 fps instead of per token.
                 var lastFlush = Date.distantPast
                 func flushTail() {
+                    updateContextFraction()
                     // 按 **id** 找回尾部消息，不用 append 时记下的下标：流式中途
                     // 会话被清空/切换时，那个下标会指向别的消息（把 token 写进
                     // 无关消息），数组变短后还可能越界。
@@ -835,6 +863,7 @@ class AgentSessionStore: ObservableObject {
                     case .usage(let prompt, let completion):
                         usagePromptTokens += prompt
                         usageCompletionTokens += completion
+                        if prompt > 0 { lastPromptTokens = prompt }
                     }
                 }
                 // Publish the tail the throttle may have held back.

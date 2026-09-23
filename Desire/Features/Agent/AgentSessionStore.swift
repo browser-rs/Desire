@@ -737,6 +737,19 @@ class AgentSessionStore: ObservableObject {
             processingStartedAt = Date()
         }
 
+        // 输出护栏（最后一道）：把本轮助手文本里出现的凭据屏蔽掉。工具结果在入会话时已经
+        // 过了一遍，这里是兜底——模型仍可能从别处复述出凭据。**必须先脱敏再落盘**：后面
+        // 的标题生成与记忆整理都是额外的模型调用（要跑好几秒），先保存的话，带原文的回答
+        // 会在这段时间里躺在会话文件里。
+        redactTurnSecrets()
+
+        // **回合结束必须落盘**：`runTurn` 在"模型给出最终回答"（本轮没有工具调用）时是
+        // 直接 return 的，此前那条回答只在内存里——直到用户再发一条消息才被顺带写下。
+        // 症状：会话文件里最后一条回答缺失、轨迹（读盘渲染）里 `answer` 永远为空、
+        // 强杀进程即丢。这里无条件保存一次，覆盖 `runTurn` 的**每一条**退出路径
+        // （最终回答 / 报错 / 迭代上限 / 取消）。
+        saveCurrentConversation()
+
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型
         // 调用，此前它们跑在 `isProcessing == true` 期间，于是正文早就渲染完了、
         // 面板却一直显示"流式中"（实测反馈："消息都渲染完了还在流式输出"）。
@@ -982,7 +995,10 @@ class AgentSessionStore: ObservableObject {
                 }
                 messages.append(AgentMessage(
                     role: .tool,
-                    content: result,
+                    // **入会话之前**先脱敏：工具最容易把凭据带出来（cat 配置、curl -v 打印
+                    // 请求头…），一旦进了对话就会被落盘、还会被发往模型服务。模型看不到，
+                    // 也就无从复述。
+                    content: SecretRedactor.redact(result, knownKeys: preference.secretsForRedaction()),
                     toolCallId: tc.id,
                     toolName: tc.function.name,
                     // 耗时记在这条工具消息上：轨迹导出要用，而它是唯一派不出来的一项。
@@ -1334,6 +1350,34 @@ class AgentSessionStore: ObservableObject {
             return "Self-review unavailable (the model returned nothing)."
         }
         return critique
+    }
+
+    /// 把**本轮**（最后一条 user 之后）助手文本里的凭据屏蔽掉。只处理助手消息：
+    /// 工具消息在追加时就已经脱敏过了。
+    private func redactTurnSecrets() {
+        guard let start = messages.lastIndex(where: { $0.role == .user }) else { return }
+        let keys = preference.secretsForRedaction()
+        var changed = false
+        for index in messages.indices where index > start && messages[index].role == .assistant {
+            guard let text = messages[index].content, !text.isEmpty else { continue }
+            let redacted = SecretRedactor.redact(text, knownKeys: keys)
+            if redacted != text {
+                messages[index].content = redacted
+                changed = true
+            }
+            if let reasoning = messages[index].reasoning, !reasoning.isEmpty {
+                let clean = SecretRedactor.redact(reasoning, knownKeys: keys)
+                if clean != reasoning {
+                    messages[index].reasoning = clean
+                    changed = true
+                }
+            }
+        }
+        if changed {
+            streamingVersion += 1
+            saveCurrentConversation()
+            Log.agent.error("redacted credentials from the assistant's turn text before saving")
+        }
     }
 
     /// 工具返回"看起来不像成功"的保守判据（用于软提示）。只认几种最典型的前缀；

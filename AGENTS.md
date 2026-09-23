@@ -708,7 +708,37 @@ Features/Bookmarks/
   `Error:`），与机械核验同一口径——**普通工具失败没有统一约定，别用关键词猜**（会误报，
   实测 `executeJS` 参数写错时返回的是 `Missing code` ✗ 不是 `Error:`）。
   新加"以后要分析"的字段时照这个模式：能从消息派生就别新增状态；实在派生不出来（如耗时）
-  就挂在消息上随会话落盘。
+  就挂在消息上随会话落盘。**轨迹读的是盘上的会话**（`ConversationStore()`），所以它同时是
+  "落盘完整性"的探针：`answer` 空 = 那条回答没落盘（见下面两条）。
+
+- **回合收尾必须落盘（`runTurn` 的每个 `return` 都要有人保存）**（2026-09-23）：`runTurn`
+  有 4 条退出路径（最终回答 / 报错 / 迭代上限 / 取消），"最终回答"那条是
+  `guard … else { return }` **裸返回**——保存只挂在别的分支上，于是**回答只活在内存里**，
+  直到用户再发一条消息才被顺带写下。症状：会话文件缺最后一条回答、轨迹 `answer` 永远为空、
+  强杀即丢。现在由 `processLoop` 在回合序列结束后**无条件保存一次**兜底 ✓。
+  两条配套规矩：① 新增任何"回合收尾"步骤（写字段、生成标题、记忆整理）都要确认之后有人
+  落盘；② **改写正文的收尾（脱敏）必须排在保存之前**——标题生成/记忆整理是额外模型调用
+  （几秒），先保存的话带原文的回答会在这段时间里躺在会话文件里。
+
+- **ObjC 异常穿进 Swift async 帧会把主 actor 变成"僵尸"——必须避免陈旧 NSRange**
+  （2026-09-23，本日**第二例**同类 bug）：`NSRegularExpression` 的 `firstMatch(in:range:)`
+  拿到**越界**的 range 会抛 `NSRangeException`；这个 ObjC 异常沿 Swift async 帧上行时被
+  HIServices 吞掉，**主 actor 的执行器就此损坏**：此后所有 `@MainActor` 任务只是排队、
+  永不执行。表现极具迷惑性——**窗口照常渲染、事件循环照常、`osascript quit` 还能优雅退出，
+  但桥端点全部无响应、数据文件停摆、没有任何崩溃报告**。踩法与规矩：
+  - 踩法（`SecretRedactor`）：range 在循环**外**算一次，循环里却改写文本
+    （`[redacted]` 比任何命中都短 → 串必然变短），下一轮就带着旧长度越界。
+  - 规矩：**任何 NSRange 都现算现用，绝不跨"可能改写字符串"的调用缓存**；
+    同理适用于 `AttributedString` 的失效索引（同日第一例，`MarkdownRendererView`）。
+    复现很快：独立脚本喂两段命中文本，旧写法报
+    `NSRangeException: … Range or index out of bounds`。
+  - **诊断手法（可复用）**：① `/usr/bin/log show --last 30m --debug --predicate 'process == "Desire"'`
+    里搜 `NSRangeException`——抛出点带着 Swift 堆栈（本次直接指到 `SecretRedactor.redact`
+    被 `AgentSessionStore.runTurn` 调用）；② `sample <pid> 3` 看主线程——**空闲在 run loop**
+    而不是卡在业务代码里；③ lldb 投一个主 actor 探针
+    （`expr -l swift -- Task { @MainActor in NSLog("DSP-PING") }`）——返回里
+    `flags:suspended|enqueued` 而日志里始终没有 PING = 执行器已死；④ 别被"界面正常"骗了：
+    僵尸态与"卡死"的区别就在这里，**它还能优雅退出**。
 
 ## 端点扩展模式
 

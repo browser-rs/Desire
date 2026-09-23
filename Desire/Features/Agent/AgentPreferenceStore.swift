@@ -226,6 +226,20 @@ class AgentPreferenceStore: ObservableObject {
     /// "via ..." label. `AgentSessionStore` builds its own `RoutingProvider`
     /// with a callback via `activeProvider` so the UI can show which model
     /// each call used.
+    /// 输出脱敏用的"已知密钥"（所有档案的 Key）。**懒加载 + 写时失效**：不在启动时读
+    /// Keychain（每个档案一次 IPC ✗），也不放进 `@Published`（密钥不该触发界面重绘 ✗）。
+    private var knownSecretsCache: [String]?
+
+    func invalidateSecretCache() { knownSecretsCache = nil }
+
+    /// 所有已配置档案的 Key，供 `SecretRedactor` 精确屏蔽。
+    func secretsForRedaction() -> [String] {
+        if let knownSecretsCache { return knownSecretsCache }
+        let keys = profiles.compactMap { loadAPIKey(profileID: $0.id) }.filter { $0.count >= 8 }
+        knownSecretsCache = keys
+        return keys
+    }
+
     /// 评审用的偏好视图：配置了独立档案时返回一个**指向该档案**的轻量实例
     /// （provider 是无状态的、只读传入的 prefs，所以另建一份既不影响当前会话的模型，
     /// 也不会有竞态）；没配置就返回 nil = 用当前档案自评。
@@ -348,12 +362,14 @@ class AgentPreferenceStore: ObservableObject {
     func saveAPIKey(_ key: String, profileID: UUID? = nil) {
         guard let account = account(for: profileID), let data = key.data(using: .utf8) else { return }
         keychainWrite(data: data, account: account)
+        knownSecretsCache = nil          // 脱敏缓存要跟着 Key 变
         refreshKeyState()
     }
 
     func deleteAPIKey(profileID: UUID? = nil) {
         guard let account = account(for: profileID) else { return }
         keychainDelete(account: account)
+        knownSecretsCache = nil          // 脱敏缓存要跟着 Key 变
         refreshKeyState()
     }
 

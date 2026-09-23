@@ -971,6 +971,7 @@ class AgentSessionStore: ObservableObject {
                 }
 
                 currentAction = tc.function.name
+                let startedAt = Date()
                 let result: String
                 if tc.function.name == "spawnSubagent" {
                     // Subagents run here, not in BrowserToolProvider — they
@@ -983,7 +984,9 @@ class AgentSessionStore: ObservableObject {
                     role: .tool,
                     content: result,
                     toolCallId: tc.id,
-                    toolName: tc.function.name
+                    toolName: tc.function.name,
+                    // 耗时记在这条工具消息上：轨迹导出要用，而它是唯一派不出来的一项。
+                    toolDurationMs: Date().timeIntervalSince(startedAt) * 1000
                 ))
             }
             currentAction = nil

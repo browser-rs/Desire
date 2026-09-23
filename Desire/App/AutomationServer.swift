@@ -281,6 +281,7 @@ final class AutomationServer {
         ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
         ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
+        ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
@@ -693,6 +694,10 @@ final class AutomationServer {
                 return try Self.json(Self.deleteQuickDial(url: Self.string(body, "url") ?? ""))
             case ("GET", "/suggest"):
                 return try Self.json(Self.suggest(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/agent/trace"):
+                return try Self.json(Self.agentTrace(
+                    conversation: Self.string(query, "conversation"),
+                    limit: Int(Self.string(query, "limit") ?? "")))
             case ("GET", "/conversations/search"):
                 return try Self.json(Self.searchConversations(
                     query: Self.string(query, "q") ?? "",
@@ -2615,6 +2620,25 @@ final class AutomationServer {
             decision: decision, source: "bridge")
         session.resolveApproval(outcome)
         return ["ok": true, "resolved": decision]
+    }
+
+    /// 轨迹导出：一行一个回合的 JSONL（从会话派生，含每个工具的耗时）。
+    @MainActor
+    private static func agentTrace(conversation: String?, limit: Int?) -> [String: Any] {
+        let store = ConversationStore()
+        var target: Conversation?
+        if let conversation, let id = UUID(uuidString: conversation) {
+            target = store.conversations.first { $0.id == id }
+        } else if let id = AgentScheduler.shared.deliveryTarget?.conversationId {
+            target = store.conversations.first { $0.id == id }
+        }
+        guard let target else {
+            return ["error": "no such conversation (pass ?conversation=<uuid> from /conversations/search)"]
+        }
+        let jsonl = AgentTrace.jsonl(of: target, limit: limit)
+        let lines = jsonl.isEmpty ? [] : jsonl.components(separatedBy: "\n")
+        return ["conversation": target.id.uuidString, "title": target.title,
+                "turns": lines.count, "jsonl": jsonl]
     }
 
     /// 给某条助手消息投票（👍/👎），用于自动化的评价采集。

@@ -47,11 +47,13 @@ private struct InlineResultImage: View {
 struct ToolCallList: View {
     let toolCalls: [AgentToolCall]
     var results: [String: String] = [:]
+    /// toolCallId → 耗时（毫秒）。用来在聊天里直接看出"哪个工具慢"。
+    var durations: [String: Double] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(toolCalls) { call in
-                ToolCallChip(toolCall: call, result: results[call.id])
+                ToolCallChip(toolCall: call, result: results[call.id], durationMs: durations[call.id])
             }
         }
         .padding(.top, 2)
@@ -63,6 +65,7 @@ private struct ToolCallChip: View {
     @Environment(\.appAccent) private var appAccent: Color
     let toolCall: AgentToolCall
     var result: String?
+    var durationMs: Double?
     @State private var isExpanded = false
     @State private var isHovering = false
 
@@ -112,6 +115,14 @@ private struct ToolCallChip: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 4)
+                if let durationMs {
+                    Text(verbatim: durationMs >= 1000
+                         ? String(format: "%.1fs", durationMs / 1000)
+                         : String(format: "%.0fms", durationMs))
+                        .font(.system(size: 9))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                }
                 if result != nil {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 9))

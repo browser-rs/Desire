@@ -13,6 +13,8 @@ struct AgentMessageBubble: View {
     /// 评价回调（👍/👎）。用回调下传而不是 `@EnvironmentObject`：面板是显式传参持有
     /// store 的，环境里并没有它——用 EnvironmentObject 会直接崩。
     var onFeedback: ((String?) -> Void)? = nil
+    /// toolCallId → 耗时（毫秒）：工具卡片上直接显示"哪个工具慢"。
+    var toolDurations: [String: Double] = [:]
 
     var body: some View {
         switch message.role {
@@ -26,7 +28,8 @@ struct AgentMessageBubble: View {
                 message: message,
                 isStreamingTail: isStreamingTail,
                 toolResults: toolResults,
-                onFeedback: onFeedback
+                onFeedback: onFeedback,
+                toolDurations: toolDurations
             )
         case .tool:
             ToolBubble(content: message.content ?? "", toolName: message.toolName)
@@ -127,6 +130,7 @@ private struct AssistantBubble: View {
     let isStreamingTail: Bool
     var toolResults: [String: String] = [:]
     var onFeedback: ((String?) -> Void)?
+    var toolDurations: [String: Double] = [:]
     @State private var isHovering = false
 
     private var isError: Bool {
@@ -160,7 +164,7 @@ private struct AssistantBubble: View {
                 }
 
                 if let tcs = message.toolCalls, !tcs.isEmpty {
-                    ToolCallList(toolCalls: tcs, results: toolResults)
+                    ToolCallList(toolCalls: tcs, results: toolResults, durations: toolDurations)
                 }
 
                 if let critique = message.critique, !critique.isEmpty {

@@ -16,6 +16,9 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var reasoning: String?
     /// 回合收尾时模型对自己的**自评**（可选）：只挂在有工具动作的回合上，面板里折叠展示。
     var critique: String?
+    /// 工具执行的墙钟耗时（毫秒）。轨迹里唯一**无法从消息派生**的一项，所以记在工具消息上、
+    /// 随会话落盘——这样历史回合导出的轨迹也带耗时。
+    var toolDurationMs: Double?
     /// 用户对该条回答的评价："up" / "down"（可选）。这是**最便宜也最真实的回答质量标签**，
     /// 随会话文件落盘，将来用来攒评估集。
     var feedback: String?
@@ -28,7 +31,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var imageDataURIs: [String]?
     let createdAt: Date
 
-    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil) {
+    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil, toolDurationMs: Double? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
@@ -40,6 +43,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
         self.critique = critique
         self.verificationNote = verificationNote
         self.feedback = feedback
+        self.toolDurationMs = toolDurationMs
         self.createdAt = Date()
     }
 }

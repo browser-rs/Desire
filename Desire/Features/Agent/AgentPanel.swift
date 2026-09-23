@@ -60,6 +60,8 @@ struct AgentPanel: View {
         var tailCalls = -1
         var results: [String: String] = [:]
         var chips: Set<String> = []
+        /// toolCallId → 耗时（毫秒），工具卡片上直接显示。
+        var durations: [String: Double] = [:]
     }
     @State private var derived = DerivedBox()
 
@@ -425,6 +427,7 @@ struct AgentPanel: View {
                     let derivedData = refreshDerivedCache()
                     let toolResults = derivedData.results
                     let chipToolIds = derivedData.chips
+                    let toolDurations = derivedData.durations
                     ForEach(store.messages) { msg in
                         if msg.role == .tool,
                            let id = msg.toolCallId,
@@ -435,7 +438,8 @@ struct AgentPanel: View {
                                 message: msg,
                                 toolResults: toolResults,
                                 isStreamingTail: isStreamingTail(msg),
-                                onFeedback: { vote in store.setFeedback(vote, for: msg.id) }
+                                onFeedback: { vote in store.setFeedback(vote, for: msg.id) },
+                                toolDurations: toolDurations
                             )
                             .id(msg.id)
                         }
@@ -539,7 +543,7 @@ struct AgentPanel: View {
 
     /// Memoized derived collections (see `DerivedBox`). Rebuilt only when
     /// the message count, tail id, or tail tool-call count changed.
-    private func refreshDerivedCache() -> (results: [String: String], chips: Set<String>) {
+    private func refreshDerivedCache() -> (results: [String: String], chips: Set<String>, durations: [String: Double]) {
         let tail = store.messages.last
         if derived.count != store.messages.count
             || derived.tailID != tail?.id
@@ -550,6 +554,13 @@ struct AgentPanel: View {
                 },
                 uniquingKeysWith: { current, _ in current }
             )
+            derived.durations = Dictionary(
+                store.messages.compactMap { m in
+                    guard let id = m.toolCallId, let ms = m.toolDurationMs else { return nil }
+                    return (id, ms)
+                },
+                uniquingKeysWith: { current, _ in current }
+            )
             derived.chips = Set(store.messages.flatMap { m in
                 m.role == .assistant ? (m.toolCalls?.map(\.id) ?? []) : []
             })
@@ -557,7 +568,7 @@ struct AgentPanel: View {
             derived.tailID = tail?.id
             derived.tailCalls = tail?.toolCalls?.count ?? -1
         }
-        return (derived.results, derived.chips)
+        return (derived.results, derived.chips, derived.durations)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, force: Bool = false) {

@@ -66,12 +66,10 @@ class AgentPreferenceStore: ObservableObject {
     @Published var temperature: Double {
         didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
     }
-    /// Model IDs fetched from the active endpoint's /models — feeds the
-    /// input-bar model dropdown. Persisted so the menu has content on
-    /// relaunch; refreshed from the dropdown.
-    @Published var cachedModels: [String] {
-        didSet { UserDefaults.standard.set(cachedModels, forKey: "aiCachedModels") }
-    }
+    // 说明：曾有一个跨服务共用的 `cachedModels`（UserDefaults `aiCachedModels`）给
+    // 输入栏的模型下拉当缓存——但它不区分服务，切过服务之后上一个服务的模型会留在
+    // 列表里（用户："不同 Provider 模型混在一起不合理"）。现在模型清单只认
+    // `AIProviderProfile.modelList`（每个服务自己的），这个字段已删除。
     /// Soft cap on agent loop iterations per turn (runaway guard, not a
     /// strict budget). Clamped 5...200.
     @Published var maxLoopIterations: Int {
@@ -146,13 +144,30 @@ class AgentPreferenceStore: ObservableObject {
     /// 把从 `/models` 拉到的模型并进**当前档案**的清单（去重，保留原顺序，
     /// 新模型追加）——每个服务记自己的模型，换服务时列表跟着换。
     func applyModelList(_ models: [String]) {
-        mutateActiveProfile { profile in
-            var seen = Set(profile.modelList)
-            for model in models where !model.isEmpty && !seen.contains(model) {
-                seen.insert(model)
-                profile.modelList.append(model)
-            }
+        guard let id = activeProfile?.id else { return }
+        applyModelList(models, to: id)
+    }
+
+    /// 同上，但写进指定档案（下拉里对某个服务单独"刷新模型列表"时用——
+    /// 以前那版永远拿当前服务的端点去拉，刷新别人的服务就会写错地方）。
+    func applyModelList(_ models: [String], to profileID: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        var seen = Set(profiles[index].modelList)
+        for model in models where !model.isEmpty && !seen.contains(model) {
+            seen.insert(model)
+            profiles[index].modelList.append(model)
         }
+    }
+
+    /// **两级联动**：选中"某个服务下的某个模型" = 切到该服务 + 把它的当前模型设成这个。
+    /// （以前这两件事是分开的：换服务只能连模型一起换，想用别的服务的别的模型做不到。）
+    func select(profileID: UUID, model: String) {
+        guard profiles.contains(where: { $0.id == profileID }) else { return }
+        activateProfile(id: profileID)
+        if let index = profiles.firstIndex(where: { $0.id == profileID }) {
+            profiles[index].model = model
+        }
+        providerKind = .cloud
     }
 
     private func account(for profileID: UUID?) -> String? {
@@ -230,7 +245,6 @@ class AgentPreferenceStore: ObservableObject {
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
-        cachedModels = UserDefaults.standard.stringArray(forKey: "aiCachedModels") ?? []
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {

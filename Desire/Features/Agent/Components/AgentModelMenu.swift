@@ -12,15 +12,18 @@ struct AgentModelMenu: View {
     /// "切换不起作用"。
     @ObservedObject var preference: AgentPreferenceStore
     @Environment(\.openWindow) private var openWindow
-    @State private var isRefreshingModels = false
+    @State private var refreshingProfileIDs = Set<UUID>()
 
     var body: some View {
         Menu {
-            Section("Models") {
-                ForEach(availableModels.prefix(40), id: \.self) { model in
+            // 顶层只列**当前服务**的模型（区名里写明是哪个服务），不再把各服务的
+            // 模型拼在一个列表里。其它服务见下面各自的子菜单。
+            Section(activeSectionTitle) {
+                ForEach(activeModels.prefix(40), id: \.self) { model in
                     Button {
-                        preference.model = model
-                        preference.providerKind = .cloud
+                        if let id = preference.activeProfile?.id {
+                            preference.select(profileID: id, model: model)
+                        }
                     } label: {
                         Label(
                             model,
@@ -29,16 +32,18 @@ struct AgentModelMenu: View {
                         )
                     }
                 }
-                if availableModels.isEmpty {
-                    Text("No models yet — refresh, or add one in Settings → Agent")
+                if activeModels.isEmpty {
+                    Text("No models for this service yet — refresh below")
                 }
-                Button {
-                    refreshModels()
-                } label: {
-                    Label(isRefreshingModels ? "Refreshing…" : "Refresh Model List",
-                          systemImage: "arrow.clockwise")
+                if let profile = preference.activeProfile {
+                    Button {
+                        refreshModels(for: profile)
+                    } label: {
+                        Label(refreshingProfileIDs.contains(profile.id) ? "Refreshing…" : "Refresh Model List",
+                              systemImage: "arrow.clockwise")
+                    }
+                    .disabled(refreshingProfileIDs.contains(profile.id))
                 }
-                .disabled(isRefreshingModels)
             }
             Section("Provider") {
                 Button {
@@ -60,17 +65,39 @@ struct AgentModelMenu: View {
                           systemImage: preference.providerKind == .ollama ? "checkmark" : "server.rack")
                 }
             }
-            // 服务档案（内置预设 + 自定义服务）：切换 = 换端点 + 换模型 + 换 Key。
+            // **两级联动**：服务 → 该服务自己的模型。选中某服务的某个模型 =
+            // 切到该服务 + 设成这个模型（`select(profileID:model:)`）。
             Section("Services") {
                 ForEach(preference.profiles) { profile in
-                    Button {
-                        preference.activateProfile(id: profile.id)
-                        preference.providerKind = .cloud
+                    Menu {
+                        let models = models(for: profile)
+                        if models.isEmpty {
+                            Text("No models yet — refresh below")
+                        }
+                        ForEach(models.prefix(40), id: \.self) { model in
+                            Button {
+                                preference.select(profileID: profile.id, model: model)
+                            } label: {
+                                Label(
+                                    model,
+                                    systemImage: isPicked(profile: profile, model: model) ? "checkmark" : "cpu"
+                                )
+                            }
+                        }
+                        Divider()
+                        Button {
+                            refreshModels(for: profile)
+                        } label: {
+                            Label(refreshingProfileIDs.contains(profile.id) ? "Refreshing…" : "Refresh Model List",
+                                  systemImage: "arrow.clockwise")
+                        }
+                        .disabled(refreshingProfileIDs.contains(profile.id))
                     } label: {
                         Label(
-                            profile.model.isEmpty ? profile.name : "\(profile.name) — \(profile.model)",
-                            systemImage: preference.activeProfileID == profile.id && preference.providerKind == .cloud
-                                ? "checkmark" : "globe"
+                            profile.name,
+                            systemImage: isActive(profile)
+                                ? "checkmark"
+                                : (profile.model.isEmpty ? "globe" : "globe.badge.chevron.backward")
                         )
                     }
                 }
@@ -108,7 +135,7 @@ struct AgentModelMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Switch model / provider")
+        .help(preference.activeProfile.map { "\($0.name) · \(displayModel)" } ?? displayModel)
     }
 
     private var displayModel: String {
@@ -116,36 +143,47 @@ struct AgentModelMenu: View {
         return model.isEmpty ? "No model" : model
     }
 
-    /// 当前服务档案的模型候选：**当前模型** + 档案自己的清单 + 从 /models 拉回的
-    /// 缓存（去重、保持顺序）。当前模型永远在列表头部——否则用户看不到自己在用
-    /// 哪个，"切回默认"也无从下手。
-    private var availableModels: [String] {
+    /// 某个服务自己的模型候选：**它的当前模型** + 它的 `modelList`（去重、保持顺序）。
+    /// 当前模型永远在头部——否则用户看不到自己在用哪个。
+    /// **不再掺任何跨服务的缓存**：模型归属谁，就只出现在谁的子菜单里。
+    private func models(for profile: AIProviderProfile) -> [String] {
         var seen = Set<String>()
-        var models: [String] = []
-        let candidates = [preference.activeProfile?.model ?? ""]
-            + (preference.activeProfile?.modelList ?? [])
-            + preference.cachedModels
-        for model in candidates {
-            guard !model.isEmpty, !seen.contains(model) else { continue }
+        var out: [String] = []
+        for model in [profile.model] + profile.modelList where !model.isEmpty && !seen.contains(model) {
             seen.insert(model)
-            models.append(model)
+            out.append(model)
         }
-        return models
+        return out
     }
 
-    /// 从当前服务的 /models 拉取模型列表：写进该档案（换服务时各看各的），
-    /// 同时更新 input bar 的缓存。
-    private func refreshModels() {
-        guard !isRefreshingModels else { return }
-        isRefreshingModels = true
-        Task {
-            defer { isRefreshingModels = false }
-            let endpoint = preference.endpoint
-            let key = preference.loadAPIKey() ?? ""
-            let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
+    private var activeModels: [String] {
+        preference.activeProfile.map(models(for:)) ?? []
+    }
+
+    private var activeSectionTitle: String {
+        guard let name = preference.activeProfile?.name, !name.isEmpty else { return "Models" }
+        return "\(name) — Models"
+    }
+
+    private func isActive(_ profile: AIProviderProfile) -> Bool {
+        preference.activeProfileID == profile.id && preference.providerKind == .cloud
+    }
+
+    private func isPicked(profile: AIProviderProfile, model: String) -> Bool {
+        isActive(profile) && preference.model == model
+    }
+
+    /// 从**这个服务自己的**端点 + Key 拉取模型列表，并写进**它自己**的档案。
+    /// （以前无论刷新谁都拿当前服务的端点，刷新别的服务就会写错地方。）
+    private func refreshModels(for profile: AIProviderProfile) {
+        guard !refreshingProfileIDs.contains(profile.id) else { return }
+        refreshingProfileIDs.insert(profile.id)
+        Task { @MainActor in
+            defer { refreshingProfileIDs.remove(profile.id) }
+            let key = preference.loadAPIKey(profileID: profile.id) ?? ""
+            let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key)) ?? []
             guard !models.isEmpty else { return }
-            preference.cachedModels = models
-            preference.applyModelList(models)
+            preference.applyModelList(models, to: profile.id)
         }
     }
 }

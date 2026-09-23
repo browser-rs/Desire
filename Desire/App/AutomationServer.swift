@@ -2147,10 +2147,13 @@ final class AutomationServer {
         host.frame = NSRect(origin: .zero, size: size)
         // 新宿主默认浅色外观，和 app 里的深色不一致。
         host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
-        // 先跑一小段 runloop：这一页的**热力图要量宽度再回写状态重排一次**（见
-        // AgentStatsView.heatmap），不转一下 runloop 就会拍到"量之前"的那一版。
+        // 先让出一小段时间：这一页的**热力图要量宽度再回写状态重排一次**（见
+        // AgentStatsView.heatmap），不等这一拍就会拍到"量之前"的那一版。
+        // 用 `Task.sleep` 而不是 `RunLoop.current.run`：后者在 async 上下文里会**阻塞
+        // 协作线程池**（Release 构建会报 "unavailable from asynchronous contexts"，
+        // 且 Swift 6 语言模式下是错误）；await 让出主 actor 时 runloop 照常转，效果一样。
         host.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        try? await Task.sleep(for: .milliseconds(200))
         host.layoutSubtreeIfNeeded()
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
             return ["error": "bitmap alloc failed"]

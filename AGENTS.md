@@ -784,8 +784,11 @@ Features/Bookmarks/
   `.background` 上 + `.onPreferenceChange` 回写 `@State`，**下一次布局**再按这个宽度
   现算格子边长（`(宽 - 间隙)/列数` → 正好铺满）；高度自然由内容决定，所以**不要**用
   `GeometryReader` 直接包内容（拿不到内容高度）。注意这条链路要**两次布局**：
-  **桥的离屏快照必须在 `cacheDisplay` 前转一小段 runloop**，否则拍到的是"量之前"那版
-  （已在 `agentStatsSnapshot` 里处理）。
+  **桥的离屏快照必须在 `cacheDisplay` 前等一小段**，否则拍到的是"量之前"那版
+  （已在 `agentStatsSnapshot` 里处理）。等法是 `try? await Task.sleep(for: .milliseconds(200))`
+  —— **不要写 `RunLoop.current.run(until:)`**：在 async 上下文里它阻塞协作线程池，
+  Debug 增量构建看不出来、Release（WMO）会报两条 "unavailable from asynchronous contexts"
+  （而且 Swift 6 语言模式下是错误）。`await` 让出主 actor 时 runloop 照常转，效果一样。
   圆形/圆角这类随尺寸变的装饰也跟着算：热力图圆角 = `min(5, max(2, 边长 × 0.24))`。
   另外两条与图表有关：`chartForegroundStyleScale(domain:range:)` 的 domain **只放画出来的
   序列**（放全量会让图例多出没画线的模型）；列表类内容在宽面板下**要铺满**（名字靠左、

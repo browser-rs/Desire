@@ -19,6 +19,7 @@ struct AgentPanel: View {
     /// 每个对话的输入草稿：切走再切回不丢正在打的字（放在内存里，会话级）。
     @State private var drafts: [UUID: String] = [:]
     @State private var showTrace = false
+    @State private var showStats = false
     /// 输入历史翻阅位置（nil = 不在翻阅）。历史本身在 store 里、按对话保存。
     @State private var historyIndex: Int?
     /// 上一次的文本变化来自历史回填（据此区分"用户手打" → 退出翻阅）。
@@ -82,6 +83,9 @@ struct AgentPanel: View {
                     },
                     onBack: { showHistory = false }
                 )
+            } else if showStats {
+                AgentStatsView(conversationStore: conversationStore, preference: store.preference,
+                               onBack: { showStats = false })
             } else if showTrace {
                 AgentTraceView(conversationStore: conversationStore, preference: store.preference,
                                onBack: { showTrace = false })
@@ -106,6 +110,7 @@ struct AgentPanel: View {
                 onShowHistory: { showHistory = true },
                 onShowCapabilities: { showCapabilities = true },
                 onShowTrace: { showTrace = true },
+                onShowStats: { showStats = true },
                 onShowMemory: { showMemory = true },
                 onNewChat: { store.clear() }
             )

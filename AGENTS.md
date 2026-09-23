@@ -731,6 +731,25 @@ Features/Bookmarks/
   **多标签 crew / 自评 critic / 标题 / 记忆整理这些旁路调用不计入对话成本**。改这块时注意
   视图侧的观察依赖（见"隔着 store 读嵌套 ObservableObject"那条，2026-09-23 又踩一次）。
 
+- **使用统计页与 `GET /agent/stats` 同源**（2026-09-23，用户："token 统计面板也要加"）：
+  `UsageStats.derive(from: conversationStore.conversations, price:)` 从**已存盘的会话**派生出
+  累计/峰值/最长对话/连续天数、逐日（含分模型）与分模型累计；页面（`AgentStatsView`）与桥端点
+  都调它，禁止在视图里另算一套，否则同一屏会出现两个数。两条前提**必须留在页脚**：只有服务端
+  上报过用量的调用才计入；**该功能上线前的历史对话一律为 0**（用户既有对话实测就是 0，
+  不说清会被当成 bug）。没有模型归属的用量进 `UsageStats.subagentModelKey`（界面上写"子代理"）。
+  金额沿用下面"成本"那条规矩：有一笔没定价就不给总额。
+  页面用 Swift Charts（折线/环形）+ 手搓格子热力图；**配色必须显式给**
+  `.chartForegroundStyleScale(domain:range:)`，否则 Charts 的自动配色会和列表里自己画的
+  圆点对不上。热力图格子**固定宽度、按可用宽度决定显示多少周**（面板可拖拽，格子跟着变会一直抖）。
+
+- **离屏渲染（`/panel/snapshot`）要拍得出来，数据就得在 `init` 里备好**（2026-09-23）：
+  离屏 `NSHostingView` **不触发 `onAppear`/`.task`**（无窗口即无 appear），所以"在 onAppear 里
+  加载"的页面快照出来是空的——看着像功能坏了。把初始状态放进 init
+  （`_stats = State(initialValue: UsageStats.derive(...))`）既让快照可拍，也顺带去掉了真实
+  使用中的首帧空闪。新增快照支持：`GET /panel/snapshot?name=agentstats&w=&h=`（尺寸可指定——
+  **窄面板是最容易挤坏的情况**，380/420/900 各拍一张再交付）。快照三坑（浅色外观、透明背景、
+  缺 `.appAccent`）照旧见 [[desire-devtools-panel]] 那条。
+
 - **回合收尾必须落盘（`runTurn` 的每个 `return` 都要有人保存）**（2026-09-23）：`runTurn`
   有 4 条退出路径（最终回答 / 报错 / 迭代上限 / 取消），"最终回答"那条是
   `guard … else { return }` **裸返回**——保存只挂在别的分支上，于是**回答只活在内存里**，

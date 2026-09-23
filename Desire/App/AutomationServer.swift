@@ -283,11 +283,12 @@ final class AutomationServer {
         ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
         ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
         ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
+        ep("GET", "/agent/stats", "Token usage statistics derived from saved conversations (same code as the panel's Usage page)", params: ["days?:int (include the daily series)"], example: "…/agent/stats?days=30")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
         ep("POST", "/panel", "Open/close an app panel (downloads, devtools+tab)", params: ["name:string", "show?:bool", "tab?:string"], example: #"-d '{"name":"devtools","tab":"network"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string", "tab?:string (devtools)"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -697,6 +698,9 @@ final class AutomationServer {
                 return try Self.json(Self.deleteQuickDial(url: Self.string(body, "url") ?? ""))
             case ("GET", "/suggest"):
                 return try Self.json(Self.suggest(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/agent/stats"):
+                return try Self.json(Self.usageStats(
+                    days: Int(Self.string(query, "days") ?? "")))
             case ("GET", "/agent/trace"):
                 return try Self.json(Self.agentTrace(
                     conversation: Self.string(query, "conversation"),
@@ -951,7 +955,9 @@ final class AutomationServer {
             case ("GET", "/panel/snapshot"):
                 return try await Self.json(Self.panelSnapshot(
                     name: query["name"] ?? "downloads",
-                    tab: query["tab"]
+                    tab: query["tab"],
+                    width: Self.string(query, "w").flatMap { Double($0) }.map { CGFloat($0) },
+                    height: Self.string(query, "h").flatMap { Double($0) }.map { CGFloat($0) }
                 ))
             case ("GET", "/bookmarks"):
                 return try Self.json(Self.bookmarks())
@@ -2083,12 +2089,17 @@ final class AutomationServer {
     /// Renders an open panel's content view to PNG **in-process** via
     /// `dataWithPDF` — unlike `screencapture -l` this works while the
     /// display is occluded, on another Space, or capture-shielded.
-    private static func panelSnapshot(name: String, tab: String?) async throws -> [String: Any] {
+    private static func panelSnapshot(name: String, tab: String?, width: CGFloat?, height: CGFloat?) async throws -> [String: Any] {
         // 调试面板：`?name=devtools&tab=console|network|element` —— 用当场渲染的
         // NSHostingView 拍照。面板不在 popover 里（主窗分栏），走 ImageRenderer 路径，
         // 且需要临时切一下 live store 的 activePanel（渲染完立刻还原）。
         if name == "devtools" {
             return try await devToolsSnapshot(tab: tab)
+        }
+        if name == "agentstats" {
+            // Agent 面板的"使用统计"页：同样当场渲染（面板在主窗分栏里）。尺寸可指定——
+            // 这一页在**窄面板**下最容易挤坏，要能按 420/900 两种宽度各拍一张。
+            return try await agentStatsSnapshot(width: width ?? 420, height: height ?? 900)
         }
         guard name == "downloads" else { return ["error": "unknown panel"] }
         // SwiftUI presents .popover content in an NSPopover-backed window.
@@ -2114,6 +2125,36 @@ final class AutomationServer {
             return ["error": "encode failed"]
         }
         let path = NSHomeDirectory() + "/desire_panel.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// Agent"使用统计"页的快照：面板在主窗分栏里（不是 popover），所以同样当场建
+    /// NSHostingView 渲染。`w`/`h` 由调用方给——窄面板是最容易挤坏的情况。
+    private static func agentStatsSnapshot(width: CGFloat, height: CGFloat) async throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let size = NSSize(width: max(240, width), height: max(320, height))
+        let host = NSHostingView(
+            rootView: AgentStatsView(conversationStore: app.conversationStore,
+                                     preference: app.aiPreference,
+                                     onBack: {})
+                .appAccent(AppAccent.current)
+                // 面板在 app 里贴在窗口背景上；宿主默认透明，不铺底色会拍成
+                // 浅底 + 浅字（看着像外观错乱）。
+                .background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: size.width, height: size.height)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        // 新宿主默认浅色外观，和 app 里的深色不一致。
+        host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = NSHomeDirectory() + "/desire_agentstats.png"
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
     }
@@ -2466,6 +2507,48 @@ final class AutomationServer {
             result["liveConversationDeleted"] = true
         }
         return result
+    }
+
+    /// Token 使用统计（面板的统计页与这里共用 `UsageStats` 派生，同一份会话数据）。
+    /// `days=N` 时附带最近 N 天的逐日序列（画图/对账用）。
+    @MainActor
+    private static func usageStats(days: Int?) -> [String: Any] {
+        // 查询用**读盘的新实例**（与 /conversations/search、/agent/trace 同一约定）。
+        let store = ConversationStore()
+        let preference = AppState.live?.aiPreference
+        let stats = UsageStats.derive(from: store.conversations,
+                                      price: { preference?.usagePrice(for: $0) })
+        var payload: [String: Any] = [
+            "totalTokens": stats.totalTokens,
+            "promptTokens": stats.promptTokens,
+            "completionTokens": stats.completionTokens,
+            "turns": stats.turns,
+            "conversations": stats.conversations,
+            "peakDayTokens": stats.peakDayTokens,
+            "longestConversationSeconds": (stats.longestConversation * 10).rounded() / 10,
+            "currentStreak": stats.currentStreak,
+            "longestStreak": stats.longestStreak,
+            "unpricedTokens": stats.unpricedTokens,
+            "models": stats.models.map { model -> [String: Any] in
+                ["model": model.id,
+                 "tokens": model.tokens,
+                 "promptTokens": model.promptTokens,
+                 "completionTokens": model.completionTokens,
+                 "cost": model.cost as Any]
+            },
+        ]
+        payload["cost"] = stats.cost as Any
+        if let peak = stats.peakDay {
+            payload["peakDay"] = ISO8601DateFormatter().string(from: peak)
+        }
+        if let days, days > 0 {
+            let iso = ISO8601DateFormatter()
+            payload["days"] = stats.recentDays(min(days, 366)).map { day -> [String: Any] in
+                ["date": iso.string(from: day.id), "tokens": day.tokens, "turns": day.turns,
+                 "byModel": day.byModel]
+            }
+        }
+        return payload
     }
 
     private static func suggest(query: String) throws -> [String: Any] {

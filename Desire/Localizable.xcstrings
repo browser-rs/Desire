@@ -4894,6 +4894,72 @@
         }
       }
     },
+    "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "本轮所有工具调用都被拒或报错——上面这条回答背后没有任何真正执行过的东西。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "本輪所有工具呼叫都被拒或報錯——上面這則回覆背後沒有任何真正執行過的東西。"
+      }
+        }
+      }
+    },
+    "The same call was denied or errored twice with identical arguments — repeating it rarely helps; a different approach does." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "The same call was denied or errored twice with identical arguments — repeating it rarely helps; a different approach does."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "同一个调用以相同参数被拒或报错两次——重复它通常没用，换个办法才有用。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "同一個呼叫以相同參數被拒或報錯兩次——重複它通常沒用，換個辣法才有用。"
+      }
+        }
+      }
+    },
+    "None of this turn's tool calls returned anything that looks like success — treat the reply above as unverified." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "None of this turn's tool calls returned anything that looks like success — treat the reply above as unverified."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "本轮工具调用里没有一条看得出是成功的——上面的回答请当作未经验证。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "本輪工具呼叫裡沒有一條看得出是成功的——上面的回答請當作未經驗證。"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

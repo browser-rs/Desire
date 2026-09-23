@@ -162,6 +162,26 @@ private struct AssistantBubble: View {
                     CritiqueBlock(text: critique)
                 }
 
+                if let note = message.verificationNote, !note.isEmpty {
+                    // 机械核验结论：**不折叠**——警告被折叠起来就等于没有。
+                    HStack(alignment: .top, spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                        Text(note)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.orange.opacity(0.10))
+                    )
+                }
+
                 if !hasVisibleContent {
                     AgentTypingIndicator()
                         .padding(.vertical, 4)

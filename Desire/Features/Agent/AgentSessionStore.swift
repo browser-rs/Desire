@@ -756,6 +756,11 @@ class AgentSessionStore: ObservableObject {
             await runMemoryHousekeeping()
         }
 
+        // 机械核验（0 次模型调用，先跑：它是客观事实，且立刻能被用户看到）。
+        if !isCancelled {
+            runMechanicalVerification()
+        }
+
         // 自动自评（同上：在"忙碌"交还界面之后跑；失败静默，不影响回合结论）。
         if !isCancelled {
             await runSelfReviewIfNeeded()
@@ -1324,6 +1329,71 @@ class AgentSessionStore: ObservableObject {
             return "Self-review unavailable (the model returned nothing)."
         }
         return critique
+    }
+
+    /// 工具返回"看起来不像成功"的保守判据（用于软提示）。只认几种最典型的前缀；
+    /// 命中只影响一句措辞保守的提示，不会阻止任何事。
+    private static func looksLikeToolFailure(_ text: String) -> Bool {
+        for prefix in ["Missing", "Not found", "No such", "Failed", "Unknown", "Invalid",
+                       "Cannot", "Could not", "Unable", "Unsupported", "No "] where text.hasPrefix(prefix) {
+            return true
+        }
+        return false
+    }
+
+    /// 回合收尾的**机械核验**：0 次模型调用，只看客观事实——专门抓"连自评都可能漏掉"
+    /// 的情况。当前两条：
+    /// ① 本轮**所有**工具调用都失败/被拒，却给出了最终回答（结论背后没有验证）；
+    /// ② 同一个工具用**相同参数**失败 ≥2 次（在绕路，提示"换策略"）。
+    /// 结果写成给**用户**看的橙色提示，不阻塞、不重试、不回传给模型。
+    private func runMechanicalVerification() {
+        guard let start = messages.lastIndex(where: { $0.role == .user }) else { return }
+        // 失败判定只认应用自己写的两个标记：拒绝执行 [User denied…] 与 JS 异常 Error:。
+        // 其它工具失败都是普通文本、没有统一约定，靠关键词猜会误报，而全部失败这种
+        // 结论必须可证、不能猜。
+        var totalCalls = 0
+        var markedFailures = 0
+        var successfulLooking = 0
+        var failedSignatures: [String: Int] = [:]
+        var lastCallSignature: String?
+        for message in messages[start...] {
+            switch message.role {
+            case .assistant:
+                for call in message.toolCalls ?? [] {
+                    totalCalls += 1
+                    lastCallSignature = "\(call.function.name)|\(call.function.arguments)"
+                }
+            case .tool:
+                let text = (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.hasPrefix("Error:") || text.hasPrefix("[User denied") {
+                    markedFailures += 1
+                    if let signature = lastCallSignature { failedSignatures[signature, default: 0] += 1 }
+                } else if !text.isEmpty, !Self.looksLikeToolFailure(text) {
+                    successfulLooking += 1
+                }
+            default:
+                break
+            }
+        }
+        var notes: [String] = []
+        // 软提示：没有任何一条结果**看起来**是成功的。措辞刻意保守（"看不出成功"），
+        // 因为普通工具失败没有统一约定，这里不冒充确证——但"全都没成功却给了结论"
+        // 值得让用户瞥一眼。
+        if totalCalls > 0, markedFailures < totalCalls, successfulLooking == 0 {
+            notes.append(String(localized: "None of this turn's tool calls returned anything that looks like success — treat the reply above as unverified."))
+        }
+        if totalCalls > 0, markedFailures == totalCalls {
+            notes.append(String(localized: "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran."))
+        }
+        let repeated = failedSignatures.values.filter { $0 >= 2 }.count
+        if repeated > 0 {
+            notes.append(String(localized: "The same call was denied or errored twice with identical arguments — repeating it rarely helps; a different approach does."))
+        }
+        guard !notes.isEmpty,
+              let index = messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        messages[index].verificationNote = notes.joined(separator: "\n")
+        streamingVersion += 1
+        saveCurrentConversation()
     }
 
     /// 回合收尾的**自动**自评：只在"≥3 次工具调用或含高风险动作"的回合跑——普通闲聊

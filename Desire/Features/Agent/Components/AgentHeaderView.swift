@@ -14,7 +14,6 @@ struct AgentHeaderView: View {
     var onShowMemory: (() -> Void)?
     var onNewChat: (() -> Void)?
 
-    @State private var isDotPulsing = false
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -108,10 +107,6 @@ struct AgentHeaderView: View {
             Divider()
                 .opacity(0.6)
         }
-        .onAppear { isDotPulsing = true }
-        .onChange(of: store.isProcessing) { _, newValue in
-            isDotPulsing = newValue
-        }
     }
 
     // MARK: - Sub-views
@@ -139,16 +134,25 @@ struct AgentHeaderView: View {
 
     private var statusLine: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-                .scaleEffect(isDotPulsing ? 1.0 : 0.6)
-                .animation(
-                    isDotPulsing
-                        ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
-                        : .default,
-                    value: isDotPulsing
-                )
+            // 状态点：**只有真的在忙时才脉动**。此前 `onAppear` 无条件置 `isDotPulsing = true`，
+            // 于是 Ready 状态下绿灯也在闪；而 `.animation(repeatForever, value:)` 在面板
+            // 频繁重绘（打开面板时的布局/滚动/task）会不断重启动画，看起来就是"闪动"。
+            // 脉动改成按**时间**算（TimelineView）：纯时间函数，重绘不会打断它，不忙时连
+            // 这个分支都不存在。
+            if store.isProcessing {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let phase = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 1.6) / 1.6
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(0.62 + 0.38 * (0.5 + 0.5 * cos(phase * 2 * .pi)))
+                }
+            } else {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+            }
             Text(statusText)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)

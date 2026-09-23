@@ -117,6 +117,12 @@
 
 ### Fixed
 
+- **侧边栏打开 Agent 时绿灯一直闪**（用户反馈："侧边栏打开 agent 这绿点 闪动"）：两处叠加
+  ——① `AgentHeaderView` 在 `.onAppear` 里**无条件**把 `isDotPulsing` 置真，于是 `Ready`
+  状态下绿灯也在脉动；② 脉动用 `.animation(.repeatForever, value:)` 实现，而打开面板时的
+  频繁重绘（布局/滚动/task）会**不断重启动画**，看起来就是"闪动"。
+  现在**只有真的在忙时才脉动**（绿色/灰色状态点是静态的），并且脉动改由 `TimelineView`
+  按**时间**算——纯时间函数，重绘打断不了；不忙时那个分支根本不存在（连计时器都没有）。
 - **地址栏聚焦时刷的 3 条运行时警告修掉了**（用户贴出）：`AddressSuggestionsModel:125/126`
   的 "Publishing changes…" 与 `URLBarField:156` 的 "Modifying state during view update"
   其实是**同一条链**——`updateNSView` 里同步 `stringValue`、`becomeFirstResponder()` 会

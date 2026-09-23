@@ -250,8 +250,6 @@ struct AgentHistoryListView: View {
                             conversation: conv,
                             isCurrent: conv.id == sessionStore.conversationId,
                             isRenaming: renamingID == conv.id,
-                            onSelect: { onSelect(conv.id) },
-                            onDelete: { confirmDelete(conv) },
                             onRename: { newTitle in
                                 conversationStore.rename(conv.id, to: newTitle)
                                 if renamingID == conv.id { renamingID = nil }
@@ -370,13 +368,10 @@ private struct ConversationRow: View {
     let isCurrent: Bool
     /// 是否处于行内重命名（由滑动/右键/双击触发，状态在父视图里，才能被这些入口设置）。
     let isRenaming: Bool
-    let onSelect: () -> Void
-    let onDelete: () -> Void
     let onRename: (String) -> Void
     let onBeginRename: () -> Void
     let onEndRename: () -> Void
 
-    @State private var isHovering = false
     @State private var isEditing = false
     @State private var editTitle = ""
     @FocusState private var isEditFocused: Bool
@@ -422,27 +417,11 @@ private struct ConversationRow: View {
             }
 
             Spacer(minLength: 4)
-
-            if isHovering {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 22)
-                        .background(
-                            Circle().fill(Color.red.opacity(0.10))
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Delete conversation")
-                .transition(.opacity.combined(with: .scale(scale: 0.85)))
-            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        // 不在行里自绘底色：原生 List 自己画选中/悬停高亮，自绘会叠成两层。
-        .onHover { isHovering = $0 }
-        .animation(.hoverFast, value: isHovering)
+        // 不在行里自绘底色、也不放 hover 按钮：原生 List 画高亮，
+        // 删除走滑动 / 右键 / Delete 键（用户："hover 的删除按钮可以去掉了"）。
         .onDisappear { cancelRename() }
         // nsui gesture for double-click (NSView-style)
         .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity, pressing: { _ in }, perform: {})

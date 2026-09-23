@@ -764,6 +764,13 @@ Features/Bookmarks/
   以前只有 `executeJS` 写 `Error:`，readFile 失败这类完全不可见（实测：机械核验对
   "读不存在的文件"毫无反应）。**新增工具的失败路径必须走这个约定**。
 
+- **crew 用量记账（2026-09-23，P1）**：worker 的 token 按 crew 累计在 `AgentCrewStore.usage`，
+  落定时由 `onCrewSettled` 写成**带 `promptTokens`/`completionTokens` 字段的系统备注**进会话
+  —— 统计（`UsageStats`/`AgentUsage.of` 对任何带 token 的消息计数，不分 role）与成本因此把
+  crew 算进去。**注意**：① 落账后要 `resetUsage()` 清零（setter 是 private）；② crew 可能被
+  重复 settle（settleIfDone 没有"已结算"闸），但备注只 append 一次、对账无重复；
+  ③ 领队消化子任务报告的那一**轮**有自己的用量，正常计入。
+
 - **Agent 评估脚本：`tests/agent-eval.py`**（2026-09-23，P1）：固定 prompt 集 → 假端点 →
   断言轨迹与消息（系统提示契约、失败约定、脱敏、超限重试），全部确定性、不需要真模型。
   前置：应用以 --automation 跑、桥可达；fixture 自动启停。**清理只删脚本自己记录的

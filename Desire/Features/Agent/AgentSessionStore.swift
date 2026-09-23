@@ -329,6 +329,26 @@ class AgentSessionStore: ObservableObject {
 
             Aggregate these subtask reports into the final answer for the user now.
             """
+            // crew 用量进会话：token 记在这条 system 消息上 —— 此前 crew 的 token
+            // 无处记账，成本与统计都会低估（一次 crew 可能比主循环本身还贵）。
+            // 字段不进模型请求（encodeMessage 只发 role/content/tool_calls），
+            // 但统计与成本按消息折算时会算上它。
+            let usage = AgentCrewStore.shared.usage
+            if !usage.isEmpty {
+                var note = AgentMessage(role: .system, content: String(
+                    format: "【Tab Crew】%d/%d 个子任务完成，消耗 %@ tokens（in %@ / out %@）",
+                    crew.completedCount, crew.tasks.count,
+                    AgentUsage.formatTokens(usage.total),
+                    AgentUsage.formatTokens(usage.promptTokens),
+                    AgentUsage.formatTokens(usage.completionTokens)))
+                note.promptTokens = usage.promptTokens
+                note.completionTokens = usage.completionTokens
+                messages.append(note)
+                streamingVersion += 1
+                saveCurrentConversation()
+            }
+            AgentCrewStore.shared.resetUsage()
+
             if !isProcessing {
                 sendMessage(prompt)
             } else {

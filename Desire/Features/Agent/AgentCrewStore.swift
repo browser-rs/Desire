@@ -17,6 +17,19 @@ final class AgentCrewStore: ObservableObject {
     /// 进行中的作业组（v1：全局一个活跃组）。
     @Published private(set) var crew: Crew?
 
+    /// 本次 crew 的 token 用量累计（worker 跑在各自标签页里，此前**无处记账**）。
+    /// 落定时由会话写成一条带 token 字段的系统备注 —— 成本与统计才把 crew 算进去。
+    struct TokenUsage {
+        var promptTokens = 0
+        var completionTokens = 0
+        var total: Int { promptTokens + completionTokens }
+        var isEmpty: Bool { total == 0 }
+    }
+    private(set) var usage = TokenUsage()
+
+    /// 会话侧把用量落成系统备注后调用（清零，下一次 crew 从零累计）。
+    func resetUsage() { usage = TokenUsage() }
+
     struct Crew: Identifiable {
         let id = UUID()
         var objective: String
@@ -78,6 +91,7 @@ final class AgentCrewStore: ObservableObject {
         guard let manager = surface.tabManager else { return "No tab manager" }
 
         let jsEnabled = surface.settings.isJavaScriptEnabled
+        usage = TokenUsage()   // 新 crew 从零累计
         var workers: [WorkerTask] = []
         for (i, t) in tasks.enumerated() {
             // 每个子任务一个专属后台标签（不抢选中态）。
@@ -163,11 +177,9 @@ final class AgentCrewStore: ObservableObject {
                     case .reasoning:
                         // 子任务不需要思考过程（结果里不带它）。
                         break
-                    case .usage:
-                        // 多标签 crew 的 worker 跑在自己的标签页与 transcript 里，用量不属于
-                        // 主会话的消息，因此**不进对话成本**（已知缺口：crew 的 token 目前
-                        // 无处记账，见 CHANGELOG 的"成本估算"一条）。
-                        break
+                    case .usage(let prompt, let completion):
+                        usage.promptTokens += prompt
+                        usage.completionTokens += completion
                     case .model:
                         break
                     }
@@ -225,6 +237,11 @@ final class AgentCrewStore: ObservableObject {
     // MARK: - Status / Cancel（crew 工具 + 桥共用）
 
     func statusReport() -> String {
+        var usageLine = ""
+        if !usage.isEmpty {
+            usageLine = String(format: "\n[usage] %d prompt / %d completion tokens",
+                               usage.promptTokens, usage.completionTokens)
+        }
         guard let c = crew else { return "No crew has been dispatched" }
         let lines = c.tasks.map { t -> String in
             var line = "[\(t.index)] \(t.state.rawValue.uppercased()) — \(t.instruction.prefix(70))"
@@ -233,7 +250,7 @@ final class AgentCrewStore: ObservableObject {
         }
         let head = "Crew \"\(c.objective)\": \(c.completedCount)/\(c.tasks.count) done" +
             (c.failedCount > 0 ? ", \(c.failedCount) failed" : "") +
-            (c.isSettled ? " (settled — aggregate now)" : "")
+            (c.isSettled ? " (settled — aggregate now)" : "") + usageLine
         return head + "\n" + lines.joined(separator: "\n")
     }
 

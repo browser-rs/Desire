@@ -140,7 +140,7 @@ func sizedTurn(_ text: String, withTool: Bool = false) -> [AgentMessage] {
 
 let big = String(repeating: "x", count: 2_000)
 var turns: [AgentMessage] = []
-for i in 0..<5 { turns.append(contentsOf: sizedTurn(big + " \(i)")) }
+for i in 0..<5 { turns.append(contentsOf: sizedTurn("\(i) 轮：" + big)) }
 turns.append(msg(.user, "最后一条"))
 turns.append(msg(.assistant, "最终回答"))
 
@@ -150,6 +150,17 @@ check("压缩：保留最终块", compacted.last?.content == "最终回答")
 check("压缩：至少剩最后一轮", compacted.count >= 2)
 eq("压缩：预算内原样返回", ContextCompaction.compact([msg(.user, "短")]).count, 1)
 eq("压缩：只有一轮且超预算 → 不能丢（宁可超发）", ContextCompaction.compact([msg(.user, big)], budget: 10).count, 1)
+
+// 压缩 + 摘要顶替：被裁轮次的要点要出现在摘要里（模型据此知道前文聊过什么）
+let (kept2, digest) = ContextCompaction.compactWithDigest(turns, budget: 4_000)
+check("摘要：确实发生了压缩", kept2.count < turns.count)
+check("摘要：包含最早一轮的编号（0 轮）", (digest ?? "").contains("0 轮"))
+check("摘要：格式为编号列表", (digest ?? "").contains("1. 用户："))
+check("摘要：报了被裁轮数", (digest ?? "").contains("已被上下文裁剪"))
+let keptTexts = kept2.compactMap { $0.content }.joined()
+check("摘要：不等于把被裁内容留在 kept 里", digest != nil)
+eq("摘要：预算内 digest 为 nil", ContextCompaction.compactWithDigest([msg(.user, "短")]).digest ?? "", "")
+check("摘要：digest 不含被裁轮次之外的正文", !((digest ?? "").contains("最终回答")))
 
 // 工具配对完整性：被保留的轮次里 assistant(toolCalls) 与 tool 结果必须成对出现
 let withTool = sizedTurn(big, withTool: true) + [msg(.user, "final"), msg(.assistant, "done")]

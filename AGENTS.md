@@ -764,6 +764,14 @@ Features/Bookmarks/
   以前只有 `executeJS` 写 `Error:`，readFile 失败这类完全不可见（实测：机械核验对
   "读不存在的文件"毫无反应）。**新增工具的失败路径必须走这个约定**。
 
+- **上下文压缩与超限重试（2026-09-23）**：压缩收口在 `ContextCompaction`
+  （`compactWithDigest` 返回 kept + 被裁轮次的机械摘要；摘要并入开头 system 提示，
+  模型据此知道前文要点 —— 被裁轮次不再无声消失）。**服务端报超限**（关键词归一识别，
+  `isContextOverflowError`）时 `runTurn` 会把压缩预算减半重试一次，成功后把
+  `compactionBudgetOverride` 记在会话里供后续回合沿用 —— **别把超限错误当瞬态错误重试**
+  （原样重发必再失败）；面板"上下文占用%"用的是**生效预算**（`effectiveContextBudget`），
+  改压缩预算时两处口径要一起看。
+
 - **纯逻辑单测：`tests/run.sh`**（2026-09-23 起）：解析/压缩/脱敏/用量折算/轨迹派生这类
   **纯 Foundation 逻辑**有一套不依赖 Xcode 的 swiftc 测试（`tests/main.swift` + `run.sh`，
   CI 在构建前跑）。**新增纯逻辑或改它们之前先跑一遍**；新增受测文件就往 `run.sh` 的

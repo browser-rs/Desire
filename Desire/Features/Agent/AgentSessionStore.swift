@@ -132,7 +132,7 @@ class AgentSessionStore: ObservableObject {
             total += m.content?.count ?? 0
             for tc in m.toolCalls ?? [] { total += tc.function.arguments.count + tc.function.name.count }
         }
-        contextFraction = min(1.0, Double(total) / Double(Self.contextBudget))
+        contextFraction = min(1.0, Double(total) / Double(effectiveContextBudget))
     }
 
     @Published private(set) var queuedMessages: [QueuedMessage] = []
@@ -204,8 +204,13 @@ class AgentSessionStore: ObservableObject {
     /// 子代理用量"待认领桶"：子代理的消息不进会话，token 由 `runSubagentLoop` 累到这里，
     /// 主循环在追加 `spawnSubagent` 的工具结果时把它记到那条消息上（成本才算得全）。
     private var subagentUsage = AgentUsage()
-    /// 上下文预算，与 `compactForContext` 的默认值一致（改一处即可）。
+    /// 上下文预算，与 `ContextCompaction.compact` 的默认值一致（改一处即可）。
+    /// 预算按**字符**（端上没有分词器）；服务端报"超限"时会自动减半并**记住**
+    /// （`compactionBudgetOverride`），相当于按这家服务的真实窗口做了校准。非持久化。
     static let contextBudget = 160_000
+    private var compactionBudgetOverride: Int?
+    /// 实际生效的预算（覆盖值优先）——占用表与压缩都用它，口径永远一致。
+    var effectiveContextBudget: Int { compactionBudgetOverride ?? Self.contextBudget }
 
     /// 当前对话的 token 用量与折算成本（面板状态行用）。
     ///
@@ -589,6 +594,19 @@ class AgentSessionStore: ObservableObject {
 
     /// Transient provider failures worth one automatic retry: rate limits,
     /// server errors, and dropped/timed-out connections.
+    /// 服务端报"上下文/输入过长"——各家的措辞不一，按常见关键词归一识别。
+    /// 这类错误重试原样请求没有意义，正确动作是**压缩后重试**（见 runTurn）。
+    static func isContextOverflowError(_ error: Error) -> Bool {
+        var text = String(describing: error)
+        if let localized = (error as? LocalizedError)?.errorDescription {
+            text += " " + localized
+        }
+        let lowered = text.lowercased()
+        return ["context length", "context window", "maximum context", "context too long",
+                "prompt is too long", "input too long", "too many tokens", "exceeds the length"]
+            .contains { lowered.contains($0) }
+    }
+
     private static func isTransientStreamError(_ error: Error) -> Bool {
         switch error {
         case AgentServiceError.httpStatus(let code, _):
@@ -638,7 +656,10 @@ class AgentSessionStore: ObservableObject {
     /// compacted to fit the context budget, plus the fresh page context.
     /// Neither transformation is persisted — `messages` stays intact.
     private func buildRequestMessages() async -> [AgentMessage] {
-        var request = ContextCompaction.compact(messages)
+        // 压缩并取回被裁轮次的机械摘要 —— 摘要并入开头 system 提示（"## Earlier
+        // conversation (compacted)" 一节），模型仍知道前文聊过什么。
+        let (kept, digest) = ContextCompaction.compactWithDigest(messages, budget: effectiveContextBudget)
+        var request = kept
 
         // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
         // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，
@@ -680,7 +701,8 @@ class AgentSessionStore: ObservableObject {
         let notesBlock = notes.isEmpty
             ? ""
             : "\n\n## Session notes\n" + notes.map { "- \($0)" }.joined(separator: "\n")
-        request.insert(AgentMessage(role: .system, content: composed + notesBlock), at: 0)
+        let digestBlock = digest.map { "\n\n## Earlier conversation (compacted)\n\($0)" } ?? ""
+        request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
     }
 
@@ -799,6 +821,9 @@ class AgentSessionStore: ObservableObject {
             var hasContent = false
             var pendingTokenCount = 0
             var rateWindowStart = Date()
+            /// 上下文超限的减半重试只做一次（预算记在 `compactionBudgetOverride`，
+            /// 后续回合沿用 —— 相当于按真实窗口校准过）。
+            var contextRetried = false
             /// 请求时选的模型与服务端自报的模型（成本查价用，见 flushTail）。
             var requestedModel = ""
             var reportedModel: String?
@@ -920,6 +945,26 @@ class AgentSessionStore: ObservableObject {
 
             do {
                 try await runStream()
+            } catch let error where assistantMsg == nil && !contextRetried
+                                    && Self.isContextOverflowError(error) {
+                // 上下文超限：压缩预算减半后重试一次。被裁轮次由机械摘要顶替（见
+                // ContextCompaction），所以重试不是"失忆重发"；成功后预算被记住，
+                // 后续回合沿用 —— 相当于按这家服务的真实窗口做了校准。
+                contextRetried = true
+                let previous = compactionBudgetOverride ?? Self.contextBudget
+                let reduced = max(20_000, previous / 2)
+                guard reduced < previous else {
+                    fail(error)
+                    return
+                }
+                compactionBudgetOverride = reduced
+                updateContextFraction()
+                do {
+                    try await runStream()
+                } catch {
+                    fail(error)
+                    return
+                }
             } catch let error where assistantMsg == nil && Self.isTransientStreamError(error) {
                 // ONE automatic retry for transient failures (rate limit,
                 // 5xx, dropped/timed-out connection) — allowed only when

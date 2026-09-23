@@ -302,6 +302,37 @@ extension BrowserToolProvider {
             guard !all.isEmpty else { return "No bookmarks" }
             return all.map { "\($0.title) — \($0.url ?? "[folder]")" }.joined(separator: "\n")
 
+        // --- Past conversations ---
+        case "searchConversations":
+            let query = (args["query"] as? String) ?? ""
+            guard query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else {
+                return "Give me at least 2 characters to search for."
+            }
+            let limit = min(20, max(1, (args["limit"] as? Int) ?? 5))
+            // 排除当前对话：它已经在模型的上下文里，搜它只是浪费 token。
+            let current = AgentScheduler.shared.deliveryTarget?.conversationId
+            let hits = surface.conversationStore.search(query, limit: limit, excluding: current)
+            guard !hits.isEmpty else {
+                return "No past conversations matched \"\(query)\" (searched \(surface.conversationStore.conversations.count) saved chats)."
+            }
+            let iso = ISO8601DateFormatter()
+            let payload = hits.map { hit -> [String: Any] in
+                ["id": hit.id.uuidString, "title": hit.title, "updatedAt": iso.string(from: hit.updatedAt),
+                 "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
+            }
+            return (try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "search failed"
+
+        case "readConversation":
+            guard let rawID = args["id"] as? String, let id = UUID(uuidString: rawID) else {
+                return "Need a conversation id from searchConversations."
+            }
+            let maxChars = min(40_000, max(500, (args["maxChars"] as? Int) ?? 12_000))
+            guard let text = surface.conversationStore.transcript(id: id, maxChars: maxChars) else {
+                return "No saved conversation with id \(rawID)."
+            }
+            return text
+
         case "removeBookmark":
             guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return "Bookmark not found" }
             surface.bookmarkStore.remove(bm)

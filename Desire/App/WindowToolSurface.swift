@@ -38,5 +38,6 @@ final class WindowToolSurface: BrowserToolSurface {
     var tabGroupStore: TabGroupStore { app.tabGroupStore }
     var quickDialStore: QuickDialStore { app.quickDialStore }
     var agentPreference: AgentPreferenceStore { app.aiPreference }
+    var conversationStore: ConversationStore { app.conversationStore }
     var passwordStore: PasswordStore { app.passwordStore }
 }

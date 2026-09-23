@@ -31,4 +31,6 @@ protocol BrowserToolSurface: AnyObject {
     var quickDialStore: QuickDialStore { get }
     var agentPreference: AgentPreferenceStore { get }
     var passwordStore: PasswordStore { get }
+    /// 已保存的历史对话（`searchConversations` / `readConversation` 工具的数据源）。
+    var conversationStore: ConversationStore { get }
 }

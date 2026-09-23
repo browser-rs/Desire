@@ -89,6 +89,8 @@ enum ToolRisk: Int, Comparable {
         "wait", "waitForElement", "findInPage",
         // Media (PiP is a local view action, reversible)
         "togglePictureInPicture",
+        // Past-conversation search / reading (local files, read-only)
+        "searchConversations", "readConversation",
     ]
 
     /// Tools that execute arbitrary code or are otherwise unbounded in

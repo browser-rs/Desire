@@ -60,6 +60,83 @@ class ConversationStore: ObservableObject {
         conversations.sort { $0.updatedAt > $1.updatedAt }
     }
 
+    // MARK: - 检索（`searchConversations` / `readConversation` 工具用）
+
+    struct SearchHit {
+        let id: UUID
+        let title: String
+        let updatedAt: Date
+        let messageCount: Int
+        /// 命中处前后的一小段原文（给模型足够上下文，但不撑爆它的窗口）。
+        let snippet: String
+        let matchedIn: String
+    }
+
+    /// 关键词检索历史对话（标题 + 正文，大小写不敏感）——与历史面板里的搜索同一口径。
+    /// 供 Agent 工具与桥端点共用；`excluding` 用来排除当前对话（它已在模型上下文里）。
+    func search(_ query: String, limit: Int = 5, excluding excludedID: UUID? = nil) -> [SearchHit] {
+        let key = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard key.count >= 2 else { return [] }
+        var hits: [SearchHit] = []
+        for conv in conversations where conv.id != excludedID {
+            let titleHit = conv.title.localizedCaseInsensitiveContains(key)
+            let bodyHit = conv.messages.contains { $0.content?.localizedCaseInsensitiveContains(key) == true }
+            guard titleHit || bodyHit else { continue }
+            hits.append(SearchHit(
+                id: conv.id,
+                title: conv.title,
+                updatedAt: conv.updatedAt,
+                messageCount: conv.messages.count,
+                snippet: snippet(in: conv, key: key),
+                matchedIn: titleHit ? "title" : "message"
+            ))
+            if hits.count >= limit { break }
+        }
+        return hits
+    }
+
+    /// 命中处前后各留 `radius` 个字符。
+    private func snippet(in conv: Conversation, key: String, radius: Int = 140) -> String {
+        guard let message = conv.messages.first(where: { $0.content?.localizedCaseInsensitiveContains(key) == true }),
+              let text = message.content,
+              let range = text.range(of: key, options: .caseInsensitive) else {
+            return String(conv.title.prefix(120))
+        }
+        let start = text.index(range.lowerBound, offsetBy: -radius, limitedBy: text.startIndex) ?? text.startIndex
+        let end = text.index(range.upperBound, offsetBy: radius, limitedBy: text.endIndex) ?? text.endIndex
+        let prefix = start > text.startIndex ? "…" : ""
+        let suffix = end < text.endIndex ? "…" : ""
+        return prefix + text[start..<end].replacingOccurrences(of: "\n", with: " ") + suffix
+    }
+
+    /// 把一条对话序列化成紧凑的、带角色标记的文本（长对话按 `maxChars` 截断）。
+    func transcript(id: UUID, maxChars: Int = 12_000) -> String? {
+        guard let conv = conversations.first(where: { $0.id == id }) else { return nil }
+        var lines: [String] = ["# \(conv.title)"]
+        var used = 0
+        for message in conv.messages {
+            let role: String
+            switch message.role {
+            case .user: role = "User"
+            case .assistant: role = "Assistant"
+            case .tool: role = "Tool"
+            case .system: continue
+            }
+            var body = message.content ?? ""
+            if let calls = message.toolCalls, !calls.isEmpty {
+                body += (body.isEmpty ? "" : " ") + calls.map { "[\($0.function.name)]" }.joined(separator: " ")
+            }
+            guard !body.isEmpty else { continue }
+            if used + body.count > maxChars {
+                lines.append("… (\(conv.messages.count) messages total, truncated)")
+                break
+            }
+            used += body.count
+            lines.append("\(role): \(body)")
+        }
+        return lines.joined(separator: "\n\n")
+    }
+
     func delete(_ id: UUID) {
         delete([id])
     }

@@ -280,6 +280,7 @@ final class AutomationServer {
         ep("GET", "/page/timing", "Navigation timing (ttfb/load/protocol)", params: ["index?:int"], example: "…/page/timing")
         ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
+        ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
@@ -691,6 +692,10 @@ final class AutomationServer {
                 return try Self.json(Self.deleteQuickDial(url: Self.string(body, "url") ?? ""))
             case ("GET", "/suggest"):
                 return try Self.json(Self.suggest(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/conversations/search"):
+                return try Self.json(Self.searchConversations(
+                    query: Self.string(query, "q") ?? "",
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 5))
             case ("POST", "/bookmarks/add"):
                 return try Self.json(Self.addBookmark(
                     title: Self.string(body, "title") ?? "",
@@ -2398,6 +2403,20 @@ final class AutomationServer {
     /// Address-bar suggestions for a query (local rows: navigate/search +
     /// bookmark/history matches, deduped). Network suggestions are
     /// deliberately NOT awaited — they arrive async and hit the network.
+    /// 历史对话检索（工具 `searchConversations` 与这个端点共用 ConversationStore 的实现）。
+    @MainActor
+    private static func searchConversations(query: String, limit: Int) -> [String: Any] {
+        // 查询用**新实例读盘**（与 `/bookmarks` 同一约定），不碰 UI 持有的那份。
+        let store = ConversationStore()
+        let hits = store.search(query, limit: min(20, max(1, limit)))
+        let iso = ISO8601DateFormatter()
+        return ["query": query, "count": hits.count, "hits": hits.map { hit in
+            ["id": hit.id.uuidString, "title": hit.title,
+             "updatedAt": iso.string(from: hit.updatedAt),
+             "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
+        }]
+    }
+
     private static func suggest(query: String) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let model = AddressSuggestionsModel()

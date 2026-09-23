@@ -414,6 +414,20 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchConversations", description: "Search the user's PAST saved conversations (title + full message text, case-insensitive) and return the closest matches with a snippet each. Use it for \"我们上次说的那个…\" / \"earlier we discussed…\" — the CURRENT conversation is already in your context and is excluded. Follow up with readConversation(id) when a snippet is not enough.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Keywords to look for (at least 2 characters)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max hits (default 5, max 20)"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readConversation", description: "Read one saved conversation by id (from searchConversations) as compact role-tagged text. Long conversations are truncated at maxChars.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Conversation id from searchConversations"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Truncate the transcript at this many characters (default 12000)"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listDownloads", description: "List all downloads with filenames and status",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

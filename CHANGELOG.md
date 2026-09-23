@@ -5,6 +5,20 @@
 
 ### Added
 
+- **Agent 对话历史列表换成原生 `List`**（用户需求："要支持批量操作 要支持左右滑动操作
+  原生 list 那种"）：此前是 `ScrollView` + 自绘卡片的列表，批量与滑动一个都没有。
+  - **批量操作**：⌘/⇧ 点击多选（`List(selection:)` 原生行为）；选中 1 条＝打开该会话
+    （Mail 式语义），选中多条＝进入批量模式——顶部出现操作条（`N 已选` / 全选 / 删除 /
+    取消选择），删除只确认一次；`ConversationStore` 增加批量 `delete(_ ids:)`。
+  - **左右滑动操作**：尾部滑动＝删除，头部滑动＝重命名（触控板双指横滑；鼠标用户走右键
+    菜单或行内垃圾桶）。
+  - **原生交互**：右键菜单（打开 / 重命名 / 删除）、键盘 Delete 删除选中项
+    （`.onDeleteCommand`）、按日期分组的 `Section` 标题。
+  - 行内不再自绘底色/高亮——原生 List 自己画选中与悬停，自绘会叠成两层；重命名状态提到
+    父视图（`renamingID`），滑动/右键/双击三个入口共用它。
+  - 新增 5 条三语文案（Rename / Deselect / Delete Conversations / This cannot be undone. /
+    %lld selected），目录 1180 键、三语零缺口。
+
 - **系统提示词补全**（用户要求："系统提示词 查看下是否完备"）：默认提示词里那份手写的
   "可用工具速查"只有 **30 个**，而实际有 **106 个**工具——缺的里面包括 `executeJS`、
   `switchTab`、`goBack/goForward`、`readTab`、`getNetworkLog`、`crewDispatch`、

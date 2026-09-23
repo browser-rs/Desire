@@ -10,6 +10,11 @@ struct AgentHistoryListView: View {
     var onBack: () -> Void
 
     @State private var searchText: String = ""
+    /// 列表多选（`List(selection:)`，⌘/⇧ 点击原生支持）。选中 1 条 = 打开该会话，
+    /// 选中多条 = 进入批量模式（顶部出现操作条）。
+    @State private var selection = Set<UUID>()
+    /// 正在行内重命名的会话（由滑动/右键触发）。
+    @State private var renamingID: UUID?
     /// 防抖后的搜索词:过滤对每条会话每条消息做全文扫描,直接跟键
     /// 会随每次按键全量重扫。结果缓存盒按 (词, 会话数, 更新时间) 失效。
     @State private var debouncedQuery: String = ""
@@ -24,8 +29,18 @@ struct AgentHistoryListView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            searchField
+            if selection.count > 1 {
+                batchBar
+            } else {
+                searchField
+            }
             content
+        }
+        .onChange(of: selection) { _, newValue in
+            // 原生语义：单选 = 打开；多选 = 批量模式（不打开）。
+            if newValue.count == 1, let id = newValue.first, id != sessionStore.conversationId {
+                onSelect(id)
+            }
         }
     }
 
@@ -98,6 +113,54 @@ struct AgentHistoryListView: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Batch bar
+
+    /// 多选时顶部的操作条：批量删除 / 取消选择。删除前统一确认一次。
+    private var batchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(appAccent)
+            Text("\(selection.count) selected")
+                .font(.system(size: 12, weight: .medium))
+            Spacer()
+            Button {
+                // 全选当前列表里的（含分组里的全部）
+                selection = Set(filteredGrouped.flatMap { $0.items.map(\.id) })
+            } label: {
+                Text("Select All").font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+
+            Button {
+                confirmDelete(ids: selection)
+            } label: {
+                Text("Delete")
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.red.opacity(0.12)))
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                selection.removeAll()
+            } label: {
+                Text("Deselect").font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+    }
+
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
+
     // MARK: - Content
 
     @ViewBuilder
@@ -152,64 +215,85 @@ struct AgentHistoryListView: View {
     }
 
     private func confirmDelete(_ conv: Conversation) {
+        confirmDelete(ids: [conv.id])
+    }
+
+    /// 删除确认（单条与批量共用）。多选时只确认一次。
+    private func confirmDelete(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Delete Conversation")
-        alert.informativeText = "Are you sure you want to delete \"\(conv.title)\"? This cannot be undone."
+        if ids.count == 1, let id = ids.first,
+           let conv = conversationStore.conversations.first(where: { $0.id == id }) {
+            alert.messageText = String(localized: "Delete Conversation")
+            alert.informativeText = "Are you sure you want to delete \"\(conv.title)\"? This cannot be undone."
+        } else {
+            alert.messageText = String(localized: "Delete Conversations")
+            alert.informativeText = String(localized: "This cannot be undone.")
+        }
         alert.alertStyle = .warning
         alert.addButton(withTitle: String(localized: "Delete"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
-            conversationStore.delete(conv.id)
+            conversationStore.delete(ids)
+            selection.removeAll()
         }
     }
 
+    /// 原生 `List`：多选（⌘/⇧ 点击）、行内左右滑动操作、右键菜单、Delete 键删除
+    /// 全部由系统提供——此前是 ScrollView + 自绘卡片，这些一个都没有。
     private func listBody(grouped: [HistoryGroup]) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                ForEach(grouped) { group in
-                    section(title: group.title, items: group.items)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 6)
-            .padding(.bottom, 12)
-        }
-    }
-
-    private func section(title: String, items: [Conversation]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 2)
-
-            VStack(spacing: 0) {
-                ForEach(items) { conv in
-                    ConversationRow(
-                        conversation: conv,
-                        isCurrent: conv.id == sessionStore.conversationId,
-                        onSelect: { onSelect(conv.id) },
-                        onDelete: { confirmDelete(conv) },
-                        onRename: { newTitle in conversationStore.rename(conv.id, to: newTitle) }
-                    )
-                    if conv.id != items.last?.id {
-                        Divider()
-                            .padding(.leading, 36)
-                            .opacity(0.5)
+        List(selection: $selection) {
+            ForEach(grouped) { group in
+                Section {
+                    ForEach(group.items) { conv in
+                        ConversationRow(
+                            conversation: conv,
+                            isCurrent: conv.id == sessionStore.conversationId,
+                            isRenaming: renamingID == conv.id,
+                            onSelect: { onSelect(conv.id) },
+                            onDelete: { confirmDelete(conv) },
+                            onRename: { newTitle in
+                                conversationStore.rename(conv.id, to: newTitle)
+                                if renamingID == conv.id { renamingID = nil }
+                            },
+                            onBeginRename: { renamingID = conv.id },
+                            onEndRename: { if renamingID == conv.id { renamingID = nil } }
+                        )
+                        .tag(conv.id)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                confirmDelete(conv)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                renamingID = conv.id
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            .tint(appAccent)
+                        }
+                        .contextMenu {
+                            Button("Open") { onSelect(conv.id) }
+                            Button("Rename") { renamingID = conv.id }
+                            Divider()
+                            Button("Delete", role: .destructive) { confirmDelete(conv) }
+                        }
                     }
+                } header: {
+                    Text(group.title)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.5)
-            )
+        }
+        .listStyle(.inset)
+        .onDeleteCommand {
+            // 键盘 Delete：有选中就删选中的，否则删当前高亮的（List 会选中它）
+            if !selection.isEmpty { confirmDelete(ids: selection) }
         }
     }
 
@@ -284,9 +368,13 @@ private struct ConversationRow: View {
     @Environment(\.appAccent) private var appAccent: Color
     let conversation: Conversation
     let isCurrent: Bool
+    /// 是否处于行内重命名（由滑动/右键/双击触发，状态在父视图里，才能被这些入口设置）。
+    let isRenaming: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
     let onRename: (String) -> Void
+    let onBeginRename: () -> Void
+    let onEndRename: () -> Void
 
     @State private var isHovering = false
     @State private var isEditing = false
@@ -350,24 +438,23 @@ private struct ConversationRow: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.85)))
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(rowFill)
-        )
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        // 不在行里自绘底色：原生 List 自己画选中/悬停高亮，自绘会叠成两层。
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
         .onDisappear { cancelRename() }
         // nsui gesture for double-click (NSView-style)
         .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity, pressing: { _ in }, perform: {})
         .background(
-            DoubleClickHandler { beginRename() }
+            DoubleClickHandler { onBeginRename() }
         )
         .onChange(of: isEditFocused) { _, focused in
             if !focused && isEditing { commitRename() }
+        }
+        .onChange(of: isRenaming) { _, wanted in
+            // 滑动/右键/双击都只是把 isRenaming 置真，这里统一进入编辑态。
+            if wanted, !isEditing { beginRename() }
         }
     }
 
@@ -380,6 +467,7 @@ private struct ConversationRow: View {
     private func commitRename() {
         guard isEditing else { return }
         isEditing = false
+        onEndRename()
         let trimmed = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty, trimmed != conversation.title {
             onRename(trimmed)
@@ -389,6 +477,7 @@ private struct ConversationRow: View {
     private func cancelRename() {
         isEditing = false
         editTitle = ""
+        onEndRename()
     }
 
     private var messageCountText: String {
@@ -407,11 +496,6 @@ private struct ConversationRow: View {
         isCurrent ? appAccent : Color.secondary
     }
 
-    private var rowFill: Color {
-        if isCurrent { return appAccent.opacity(0.08) }
-        if isHovering { return Color(nsColor: .controlBackgroundColor).opacity(0.6) }
-        return Color.clear
-    }
 }
 
 // MARK: - DoubleClickHandler (NSViewRepresentable)

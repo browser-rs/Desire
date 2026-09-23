@@ -4696,6 +4696,116 @@
         }
       }
     },
+    "Rename" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Rename"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "重命名"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "重新命名"
+      }
+        }
+      }
+    },
+    "Deselect" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Deselect"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "取消选择"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "取消選取"
+      }
+        }
+      }
+    },
+    "Delete Conversations" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "Delete Conversations"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "删除多个对话"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "刪除多個對話"
+      }
+        }
+      }
+    },
+    "This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "This cannot be undone."
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "此操作无法撤销。"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "此操作無法復原。"
+      }
+        }
+      }
+    },
+    "%lld selected" : {
+      "localizations" : {
+        "en" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "%lld selected"
+      }
+        },
+        "zh-Hans" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "已选 %lld 项"
+      }
+        },
+        "zh-Hant" : {
+      "stringUnit" : {
+        "state" : "translated",
+        "value" : "已選 %lld 項"
+      }
+        }
+      }
+    },
     "Check Now" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -61,8 +61,16 @@ class ConversationStore: ObservableObject {
     }
 
     func delete(_ id: UUID) {
-        DiskStore.remove(key: "conversation-\(id.uuidString)")
-        conversations.removeAll { $0.id == id }
+        delete([id])
+    }
+
+    /// 批量删除（历史列表多选后用）。
+    func delete(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for id in ids {
+            DiskStore.remove(key: "conversation-\(id.uuidString)")
+        }
+        conversations.removeAll { ids.contains($0.id) }
     }
 
     func rename(_ id: UUID, to title: String) {

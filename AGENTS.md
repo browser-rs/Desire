@@ -263,6 +263,18 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
+- **测试用假端点：登记 + 按模式全清，并且一定要放掉端口**（2026-09-23 真踩）：
+  我用来验证脱敏的 `/tmp/fake_leak.py` 监听在 **127.0.0.1:8889 —— 那正是用户 `amd` 档案的
+  端点**；收尾时我只按文件名清了 `fake_openai.py`（`pgrep -f fake_openai.py`），这个假端点
+  活了下来，几小时后用户发任何消息都得到同一句回复（假端点对任何输入都固定回一个
+  `readFile leak.txt`），看起来就是"聊天坏了"。规矩：
+  ① 收尾用 **`pgrep -fl "fake_"` 这种模式扫**，别只按你记得的那个文件名；
+  ② **占的端口要确认释放**（`lsof -nP -iTCP:<port>`），尤其别占用**用户真实服务**的端口——
+  假端点优先另开端口（我用 8880 的 fixture 就没这个问题）+ 用**临时档案**指向它；
+  ③ 配套的假凭据文件（如 `~/Documents/DesireAgent/leak.txt`）放在 agent 工作目录里，
+  别留在项目根目录（会被顺手提交）。
+  诊断这类"行为不对"的入口：`AI request — endpoint: …` 这行 info 日志（见 CHANGELOG）。
+
 - **清理测试数据别按"含测试字样"搜出来就删**（2026-09-23 我删掉了用户一个会话）：
   `POST /conversations/delete` 的 ids 来自 `conversations/search?q=<测试词>`，但命中的那条
   会话**可能原本就是用户的**——测试消息只是被追加进去的（它同时含有用户自己的提问与工具轨迹）。

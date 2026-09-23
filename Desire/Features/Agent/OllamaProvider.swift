@@ -53,7 +53,7 @@ struct OllamaProvider: ModelProvider {
                 )
 
                 #if DEBUG
-                CloudOpenAIProvider.debugLogRequest(url: url, model: prefs.ollamaModel, messages: messages, tools: tools, body: req.httpBody)
+                CloudOpenAIProvider.logRequest(url: url, model: prefs.ollamaModel, messages: messages, tools: tools, body: req.httpBody)
                 #endif
 
                 let sse = OpenAICompatSSE.stream(for: req)

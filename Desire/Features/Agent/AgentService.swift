@@ -291,7 +291,7 @@ struct CloudOpenAIProvider: ModelProvider {
                 req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature)
 
                 #if DEBUG
-                Self.debugLogRequest(url: url, model: prefs.model, messages: messages, tools: tools, body: req.httpBody)
+                Self.logRequest(url: url, model: prefs.model, messages: messages, tools: tools, body: req.httpBody)
                 #endif
 
                 let sse = OpenAICompatSSE.stream(for: req)
@@ -326,15 +326,20 @@ struct CloudOpenAIProvider: ModelProvider {
         return try? JSONSerialization.data(withJSONObject: body)
     }
 
-    #if DEBUG
-    static func debugLogRequest(url: URL, model: String, messages: [AgentMessage], tools: [AgentToolDef], body: Data?) {
-        Log.ai.debug("AI request — endpoint: \(url.absoluteString, privacy: .public), model: \(model, privacy: .public), messages: \(messages.count), tools: \(tools.count)")
+    /// 每个请求一行 **info**（持久化，事后能从统一日志里查）——诊断"聊天行为不对"时，
+    /// 第一件要确认的就是"请求到底打到了哪个端点、哪个模型"。
+    /// 踩过（2026-09-23）：测试用的假端点占着用户网关的端口，任何输入都得到同一句回复；
+    /// 而请求行当时只在 `#if DEBUG` 里且是 debug 级（统一日志默认不持久化 debug）、
+    /// 事后查不到，只能靠翻会话文件与进程列表反推。正文 dump 仍留在 DEBUG 里。
+    static func logRequest(url: URL, model: String, messages: [AgentMessage], tools: [AgentToolDef], body: Data?) {
+        Log.ai.info("AI request — endpoint: \(url.absoluteString, privacy: .public), model: \(model, privacy: .public), messages: \(messages.count), tools: \(tools.count)")
+        #if DEBUG
         if let data = body,
            let obj = try? JSONSerialization.jsonObject(with: data),
            let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
            let s = String(data: pretty, encoding: .utf8) {
             Log.ai.debug("AI request body: \(s)")
         }
+        #endif
     }
-    #endif
 }

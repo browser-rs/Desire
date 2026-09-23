@@ -83,7 +83,8 @@ struct AgentPanel: View {
                     onBack: { showHistory = false }
                 )
             } else if showTrace {
-                AgentTraceView(conversationStore: conversationStore, onBack: { showTrace = false })
+                AgentTraceView(conversationStore: conversationStore, preference: store.preference,
+                               onBack: { showTrace = false })
             } else if showCapabilities {
                 AgentCapabilitiesView(onBack: { showCapabilities = false })
             } else {
@@ -100,6 +101,7 @@ struct AgentPanel: View {
         VStack(spacing: 0) {
             AgentHeaderView(
                 store: store,
+                preference: store.preference,
                 hasHistory: !conversationStore.conversations.isEmpty,
                 onShowHistory: { showHistory = true },
                 onShowCapabilities: { showCapabilities = true },

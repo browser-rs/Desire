@@ -19,6 +19,13 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     /// 工具执行的墙钟耗时（毫秒）。轨迹里唯一**无法从消息派生**的一项，所以记在工具消息上、
     /// 随会话落盘——这样历史回合导出的轨迹也带耗时。
     var toolDurationMs: Double?
+    /// 这次模型调用的 token 用量（服务端在最后一个 chunk 上报；不是所有服务都给）。
+    /// 同样记在消息上、随会话落盘——成本要从**历史**会话里算出来，而它派不出来。
+    var promptTokens: Int?
+    var completionTokens: Int?
+    /// 这次回答实际用的模型 id（优先取响应里的 `model`，服务端没给才用请求时所选）。
+    /// 成本按它查单价——会话中途换模型、routing 挑模型的场景因此也算得对。
+    var model: String?
     /// 用户对该条回答的评价："up" / "down"（可选）。这是**最便宜也最真实的回答质量标签**，
     /// 随会话文件落盘，将来用来攒评估集。
     var feedback: String?
@@ -31,7 +38,7 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     var imageDataURIs: [String]?
     let createdAt: Date
 
-    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil, toolDurationMs: Double? = nil) {
+    init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil, toolDurationMs: Double? = nil, promptTokens: Int? = nil, completionTokens: Int? = nil, model: String? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
@@ -44,6 +51,9 @@ struct AgentMessage: Identifiable, Codable, Sendable {
         self.verificationNote = verificationNote
         self.feedback = feedback
         self.toolDurationMs = toolDurationMs
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.model = model
         self.createdAt = Date()
     }
 }

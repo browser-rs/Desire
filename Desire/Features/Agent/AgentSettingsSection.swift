@@ -57,6 +57,8 @@ struct AgentSettingsSection: View {
     @State private var draftModels: [String] = []
     @State private var draftHeaders: [HeaderDraft] = []
     @State private var newModelName = ""
+    /// 成本段"添加模型"输入框的内容。
+    @State private var newPriceModel = ""
 
     struct HeaderDraft: Identifiable, Equatable {
         let id = UUID()
@@ -107,6 +109,10 @@ struct AgentSettingsSection: View {
             if store.providerKind == .ollama {
                 ollamaSection
             }
+
+            // MARK: - Cost
+
+            costSection
 
             // MARK: - Generation params (shared)
 
@@ -419,6 +425,69 @@ struct AgentSettingsSection: View {
                 }
             }
         }
+    }
+
+    // MARK: - Cost section
+
+    /// 模型单价表：把 token 用量折算成金额。**不内置价格表**（服务商改价是常事，
+    /// 内置一份只会很快变成错的信息），**也不做前缀匹配**（`gpt-4o` 会顺手套到
+    /// `gpt-4o-mini` 头上，差 10 倍）——填了才算，没填就只显示 token。
+    private var costSection: some View {
+        SettingsSection(
+            title: String(localized: "Cost"),
+            subtitle: String(localized: "Price per million tokens in USD, used to show what a conversation costs. Left blank = unknown: that model shows tokens only, never \"$0\"."),
+            icon: "dollarsign.circle"
+        ) {
+            VStack(spacing: 0) {
+                ForEach(Array(store.priceableModels.enumerated()), id: \.element) { index, model in
+                    if index > 0 { SettingsRowDivider() }
+                    SettingsRow(model, systemImage: nil) {
+                        HStack(spacing: 6) {
+                            priceField(model: model, keyPath: \.inputPerMTok, placeholder: "in")
+                            Text(verbatim: "$/M")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            priceField(model: model, keyPath: \.outputPerMTok, placeholder: "out")
+                            Text(verbatim: "$/M")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                SettingsRowDivider()
+                SettingsRow(String(localized: "Add a model"), subtitle: String(localized: "For models that are not in the current service's list."), systemImage: "plus") {
+                    HStack(spacing: 6) {
+                        SettingsTextField(placeholder: "model id", text: $newPriceModel, width: 150)
+                        SettingsCapsuleButton(String(localized: "Add"), style: .secondary) {
+                            let model = newPriceModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !model.isEmpty else { return }
+                            if store.modelPrices[model] == nil { store.modelPrices[model] = ModelPrice() }
+                            newPriceModel = ""
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 单价输入框：空 = 0（未知）。用 `%g` 回显，免得 `2.5000000001` 这种浮点尾巴。
+    private func priceField(model: String, keyPath: WritableKeyPath<ModelPrice, Double>, placeholder: String) -> some View {
+        SettingsTextField(
+            placeholder: placeholder,
+            text: Binding(
+                get: {
+                    let value = (store.modelPrices[model] ?? ModelPrice())[keyPath: keyPath]
+                    return value > 0 ? String(format: "%g", value) : ""
+                },
+                set: { text in
+                    var price = store.modelPrices[model] ?? ModelPrice()
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    price[keyPath: keyPath] = max(0, Double(trimmed) ?? 0)
+                    store.modelPrices[model] = price
+                }
+            ),
+            width: 64
+        )
     }
 
     // MARK: - Foundation Models section

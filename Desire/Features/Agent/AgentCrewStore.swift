@@ -164,6 +164,11 @@ final class AgentCrewStore: ObservableObject {
                         // 子任务不需要思考过程（结果里不带它）。
                         break
                     case .usage:
+                        // 多标签 crew 的 worker 跑在自己的标签页与 transcript 里，用量不属于
+                        // 主会话的消息，因此**不进对话成本**（已知缺口：crew 的 token 目前
+                        // 无处记账，见 CHANGELOG 的"成本估算"一条）。
+                        break
+                    case .model:
                         break
                     }
                 }

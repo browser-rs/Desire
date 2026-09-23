@@ -139,4 +139,37 @@ extension AutomationServer {
         let removed = app.aiPreference.deleteProfile(id: id)
         return removed ? ["ok": true] : ["error": "profile is built-in or missing"]
     }
+
+    /// 模型单价表（成本折算用）。`models` 里给出**每个模型**的 in/out 单价
+    /// （美元 / 每百万 token）；值传 0 或省略 = 未知 → 那个模型不显示金额。
+    /// `remove` 里的模型直接删掉条目。
+    static func aiPrices(models: [String: [String: Double]]?, remove: [String]?) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        if let models {
+            for (model, fields) in models where !model.isEmpty {
+                store.modelPrices[model] = ModelPrice(inputPerMTok: fields["input"] ?? 0,
+                                                      outputPerMTok: fields["output"] ?? 0)
+            }
+        }
+        for model in remove ?? [] { store.modelPrices.removeValue(forKey: model) }
+        return ["ok": true, "prices": aiPriceRows(store)]
+    }
+
+    /// 单价表的只读视图：带上"这个模型有没有历史用量的口径"给脚本对账用。
+    static func aiPriceList() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        return ["prices": aiPriceRows(store), "models": store.priceableModels]
+    }
+
+    private static func aiPriceRows(_ store: AgentPreferenceStore) -> [[String: Any]] {
+        store.modelPrices.keys.sorted().map { model in
+            let price = store.modelPrices[model] ?? ModelPrice()
+            return ["model": model,
+                    "input": price.inputPerMTok,
+                    "output": price.outputPerMTok,
+                    "known": price.isKnown]
+        }
+    }
 }

@@ -100,6 +100,47 @@ class AgentPreferenceStore: ObservableObject {
     /// 系统调用，不放进每次渲染都求值的计算属性）。
     @Published private(set) var hasAPIKey: Bool = false
 
+    /// 模型单价表（`模型 id → 单价`），用来把 token 用量折算成金额。
+    ///
+    /// **只做精确匹配**（见 `price(forModel:)`）：网关常带回日期/版本后缀的
+    /// 真实模型名（`gpt-4o-2024-08-06`），前缀匹配看着贴心，却会把
+    /// `gpt-4o-mini` 也算成 `gpt-4o` 的价（差 10 倍）——**错的成本比没成本更糟**。
+    /// 没填单价 = 不显示金额。
+    @Published var modelPrices: [String: ModelPrice] {
+        didSet { DiskStore.save(modelPrices, key: "aiModelPrices") }
+    }
+
+    /// 查一个模型的单价。精确匹配；nil/空 → nil（旧会话没记模型，调用方再兜底）。
+    func price(forModel model: String?) -> ModelPrice? {
+        guard let model, !model.isEmpty else { return nil }
+        guard let price = modelPrices[model], price.isKnown else { return nil }
+        return price
+    }
+
+    /// 轨迹/面板/桥**统一的查价入口**：消息没记模型（本功能之前落盘的会话）就按当前
+    /// 档案的模型兜底。集中一处，免得三个调用点各写一遍兜底规则、哪天改漏一个。
+    func usagePrice(for model: String?) -> ModelPrice? {
+        price(forModel: model ?? self.model)
+    }
+
+    /// 设置页里要展示的模型清单：**当前档案的模型** + 已填过单价的（后者保证换了档案、
+    /// 或从别处加过的模型不会丢）。只列"现在用的"而不是所有档案的全部模型——十几个
+    /// 服务叠起来会变成几十行没人看得完的表；别的模型用下面的"添加模型"补。
+    var priceableModels: [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        var candidates: [String] = []
+        if let active = activeProfile {
+            candidates.append(active.model)
+            candidates.append(contentsOf: active.modelList)
+        }
+        candidates.append(contentsOf: modelPrices.keys.sorted())
+        for model in candidates where !model.isEmpty {
+            if seen.insert(model).inserted { out.append(model) }
+        }
+        return out
+    }
+
     /// Which model backend the agent loop talks to. Persisted so the user's
     /// choice survives relaunch. See `ModelProviderKind` for the options.
     @Published var providerKind: ModelProviderKind {
@@ -311,6 +352,7 @@ class AgentPreferenceStore: ObservableObject {
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
+        modelPrices = DiskStore.load([String: ModelPrice].self, key: "aiModelPrices") ?? [:]
 
         // 服务档案：首次运行（或从旧版本升级）时构建，并立即落盘。
         let storedProfiles = DiskStore.load([AIProviderProfile].self, key: "aiProfiles") ?? []

@@ -521,6 +521,12 @@ Features/Bookmarks/
   方 init 里显式 `nested.objectWillChange.sink { self.objectWillChange.send() }`。
   改完顺手用桥验证"数据链路"（`POST /ai/model` → 假端点回显模型名），UI 重绘由用户
   过目——两者是不同的问题。
+  **同一条又踩过一次（2026-09-23，成本 chip）**：`AgentHeaderView` 只观察
+  `store: AgentSessionStore`，成本却是从 `store.preference.modelPrices` 算的——
+  单价改完 chip 一直不出现（截图才看出来）。修法同上：给头部加
+  `@ObservedObject var preference: AgentPreferenceStore` 并由面板传入。**判断口径**：
+  view 里凡是"读到另一个 store 的字段"，那个 store 就必须是它自己的 `@ObservedObject`
+  （或由持有方转发 `objectWillChange`）——`store.a.b` 这种链式读取一律不算依赖。
 - **模型配置的单一真相 = `AIProviderProfile`**（2026-09-21 重做）：每个服务自带
   端点、模型、模型清单、额外请求头与**自己的 Keychain 账号**；
   `AgentPreferenceStore.endpoint` / `.model` 只是**当前档案的视图**（providers
@@ -710,6 +716,20 @@ Features/Bookmarks/
   新加"以后要分析"的字段时照这个模式：能从消息派生就别新增状态；实在派生不出来（如耗时）
   就挂在消息上随会话落盘。**轨迹读的是盘上的会话**（`ConversationStore()`），所以它同时是
   "落盘完整性"的探针：`answer` 空 = 那条回答没落盘（见下面两条）。
+
+- **成本 = "用户填的单价 × 消息上的 token"，没有内置价格表**（2026-09-23）：单价存
+  `AgentPreferenceStore.modelPrices`（`模型 id → {input, output}`，美元/百万 token；桥
+  `GET|POST /ai/prices`），**精确匹配、绝不做前缀**（`gpt-4o` 会顺手套到 `gpt-4o-mini`
+  头上，差 10 倍）。三条诚实性规矩：① 没填单价 → 只显示 token，**不显示 `$0`**（会被读成
+  "免费"）；② 一段对话里只要有一笔没定价，总额就不给（改标 `≥`）；③ 比 4 位小数还小的非零
+  值写 `< $0.0001`。算法只有一处：`AgentUsage.of(messages, price: preference.usagePrice(for:))`
+  ——**面板状态行、轨迹页、桥端点都走它**，否则同一个数会出现两个版本。
+  token 与模型记在**消息**上（`promptTokens` / `completionTokens` / `model`；`model` 优先取
+  响应里的，网关会路由/改写，成本得按真跑的那个算）——这是第二处"派生不出来就挂消息上"的
+  字段（第一处是 `toolDurationMs`），所以历史会话也能重新定价重算。**子代理的用量由主循环
+  认领到 `spawnSubagent` 的工具消息上**（它跑在自己的消息数组里，不认领就少报）；已知缺口：
+  **多标签 crew / 自评 critic / 标题 / 记忆整理这些旁路调用不计入对话成本**。改这块时注意
+  视图侧的观察依赖（见"隔着 store 读嵌套 ObservableObject"那条，2026-09-23 又踩一次）。
 
 - **回合收尾必须落盘（`runTurn` 的每个 `return` 都要有人保存）**（2026-09-23）：`runTurn`
   有 4 条退出路径（最终回答 / 报错 / 迭代上限 / 取消），"最终回答"那条是

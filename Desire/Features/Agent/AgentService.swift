@@ -40,6 +40,8 @@ enum OpenAICompatSSE {
                     // flush them all in first-seen order.
                     var partials: [Int: (id: String, name: String, arguments: String)] = [:]
                     var order: [Int] = []
+                    /// 只上报一次服务端自报的模型（每个 chunk 都带 `model`）。
+                    var sawModel = false
 
                     func flushToolCalls() {
                         for idx in order {
@@ -75,6 +77,12 @@ enum OpenAICompatSSE {
                             if prompt > 0 || completion > 0 {
                                 continuation.yield(.usage(promptTokens: prompt, completionTokens: completion))
                             }
+                        }
+
+                        // 服务端自报的模型：一次流里报一次就够（成本按它查单价）。
+                        if !sawModel, let reported = json["model"] as? String, !reported.isEmpty {
+                            sawModel = true
+                            continuation.yield(.model(reported))
                         }
 
                         // 有些 OpenAI 兼容服务把错误**塞在流里**（`{"error":{…}}`），

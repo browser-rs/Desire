@@ -366,6 +366,8 @@ final class AutomationServer {
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
+        ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
         ep("POST", "/agent/feedback", "Rate an assistant message (thumbs up/down); persisted with the conversation", params: ["messageId:string", "vote:up|down|none"], example: #"-d '{"messageId":"…","vote":"up"}'"#)
         ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
@@ -817,6 +819,13 @@ final class AutomationServer {
                 return try Self.json(Self.aiProfileActivate(id: Self.string(body, "id") ?? ""))
             case ("POST", "/ai/profiles/delete"):
                 return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/ai/prices"):
+                return try Self.json(Self.aiPriceList())
+            case ("POST", "/ai/prices"):
+                return try Self.json(Self.aiPrices(
+                    models: body["models"] as? [String: [String: Double]],
+                    remove: body["remove"] as? [String]
+                ))
             case ("GET", "/devtools/console/ref"):
                 return try await Self.json(Self.devToolsConsoleRef(
                     ref: query["ref"] ?? "",
@@ -2448,9 +2457,15 @@ final class AutomationServer {
         let known = Set(store.conversations.map { $0.id })
         let hit = ids.intersection(known)
         store.delete(hit)
-        return ["ok": true, "deleted": hit.map { $0.uuidString }.sorted(),
-                "missing": ids.subtracting(known).map { $0.uuidString }.sorted(),
-                "scope": live != nil ? "live" : (AppState.live != nil ? "app" : "saved")]
+        var result: [String: Any] = ["ok": true, "deleted": hit.map { $0.uuidString }.sorted(),
+                                     "missing": ids.subtracting(known).map { $0.uuidString }.sorted(),
+                                     "scope": live != nil ? "live" : (AppState.live != nil ? "app" : "saved")]
+        // 删掉的是**正在面板里显示的**那个会话时如实说明：面板内存里还留着那些消息，
+        // 下一回合收尾落盘会把文件写回来（与历史列表里删当前会话的行为一致）。
+        if let liveID = live?.conversationId, hit.contains(liveID) {
+            result["liveConversationDeleted"] = true
+        }
+        return result
     }
 
     private static func suggest(query: String) throws -> [String: Any] {
@@ -2661,14 +2676,28 @@ final class AutomationServer {
         guard let target else {
             return ["error": "no such conversation (pass ?conversation=<uuid> from /conversations/search)"]
         }
-        let turns = AgentTrace.turns(of: target)
+        // 成本：单价来自设置里的模型单价表；**没填价就只有 token、没有金额**。
+        let preference = AppState.live?.aiPreference
+        let price: (String?) -> ModelPrice? = { model in preference?.usagePrice(for: model) }
+        let turns = AgentTrace.turns(of: target, price: price)
         let scoped = limit.map { $0 > 0 ? Array(turns.suffix($0)) : turns } ?? turns
         let jsonl = scoped.compactMap { turn -> String? in
             guard let data = try? JSONSerialization.data(withJSONObject: turn, options: [.sortedKeys]) else { return nil }
             return String(data: data, encoding: .utf8)
         }.joined(separator: "\n")
-        return ["conversation": target.id.uuidString, "title": target.title,
-                "turns": scoped.count, "stats": AgentTrace.stats(of: turns), "jsonl": jsonl]
+        var payload: [String: Any] = ["conversation": target.id.uuidString, "title": target.title,
+                                      "turns": scoped.count, "stats": AgentTrace.stats(of: turns),
+                                      "jsonl": jsonl]
+        // 每条消息各自的用量（面板状态行同一套算法），方便脚本按消息对账。
+        let usage = AgentUsage.of(target.messages, price: price)
+        if !usage.isEmpty {
+            payload["usage"] = ["promptTokens": usage.promptTokens,
+                                "completionTokens": usage.completionTokens,
+                                "totalTokens": usage.totalTokens,
+                                "cost": usage.usd as Any,
+                                "costIncomplete": usage.hasUnpriced]
+        }
+        return payload
     }
 
     /// 给某条助手消息投票（👍/👎），用于自动化的评价采集。

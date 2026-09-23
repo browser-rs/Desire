@@ -10,7 +10,11 @@ import Foundation
 /// 同一口径——**不猜**普通文本失败，字段名也如实叫 `denied` / `threwError`。
 enum AgentTrace {
     /// 一个回合 = 从一条 user 消息到「下一条 user 之前」的全部内容。
-    static func turns(of conversation: Conversation) -> [[String: Any]] {
+    ///
+    /// `price` 把模型 id 换成单价（成本要用它把 token 折算成金额）。不传就只有 token
+    /// 没有金额——**这一点是刻意的**：查不到价就不显示钱，而不是显示 0。
+    static func turns(of conversation: Conversation,
+                      price: ((String?) -> ModelPrice?)? = nil) -> [[String: Any]] {
         let messages = conversation.messages
         let starts = messages.indices.filter { messages[$0].role == .user }
         guard !starts.isEmpty else { return [] }
@@ -83,6 +87,19 @@ enum AgentTrace {
                 "answer": String(answer.prefix(2000)),
                 "toolCalls": steps.count,
             ]
+            // token 用量与成本：与面板状态行同一套 `AgentUsage`，口径一致。
+            let usage = AgentUsage.of(Array(slice), price: price ?? { _ in nil })
+            if !usage.isEmpty {
+                turn["tokens"] = ["prompt": usage.promptTokens,
+                                  "completion": usage.completionTokens,
+                                  "total": usage.totalTokens]
+                if let usd = usage.usd { turn["cost"] = (usd * 1_000_000).rounded() / 1_000_000 }
+                if usage.hasUnpriced { turn["costIncomplete"] = true }
+            }
+            // 这一回合实际用的模型（一轮里换过就记最后一个——它给出了最终回答）。
+            if let model = slice.last(where: { $0.role == .assistant })?.model, !model.isEmpty {
+                turn["model"] = model
+            }
             if let critique { turn["critique"] = String(critique.prefix(600)) }
             if let verification { turn["verificationNote"] = String(verification.prefix(600)) }
             if let feedback { turn["feedback"] = feedback }
@@ -103,6 +120,11 @@ enum AgentTrace {
         var unverified = 0
         var votesUp = 0
         var votesDown = 0
+        var promptTokens = 0
+        var completionTokens = 0
+        var cost = 0.0
+        var costTurns = 0
+        var unpricedTurns = 0
 
         for turn in turns {
             for step in (turn["steps"] as? [[String: Any]]) ?? [] {
@@ -127,6 +149,15 @@ enum AgentTrace {
                 perTool[action] = entry
             }
             if let note = turn["verificationNote"] as? String, !note.isEmpty { unverified += 1 }
+            if let tokens = turn["tokens"] as? [String: Any] {
+                promptTokens += tokens["prompt"] as? Int ?? 0
+                completionTokens += tokens["completion"] as? Int ?? 0
+            }
+            if let turnCost = turn["cost"] as? Double {
+                cost += turnCost
+                costTurns += 1
+            }
+            if turn["costIncomplete"] != nil { unpricedTurns += 1 }
             switch turn["feedback"] as? String {
             case "up": votesUp += 1
             case "down": votesDown += 1
@@ -154,14 +185,21 @@ enum AgentTrace {
             "unverifiedTurns": unverified,
             "votesUp": votesUp,
             "votesDown": votesDown,
+            "promptTokens": promptTokens,
+            "completionTokens": completionTokens,
+            // 金额只在**每一笔都已定价**时给（等于一个真总额）；只要有一笔没定价就不给，
+            // 改用 `costIncomplete` 说明——否则那个数会被当成总额。
+            "cost": (costTurns > 0 && unpricedTurns == 0) ? (cost * 1_000_000).rounded() / 1_000_000 : NSNull(),
+            "costIncomplete": unpricedTurns > 0,
             "slowestTools": Array(slowest.prefix(5)),
             "flakiestTools": Array(flakiest.prefix(5)),
         ]
     }
 
     /// 一行一个回合；解析不了的字段（如耗时缺失）写 null，不省略键，方便下游直接用。
-    static func jsonl(of conversation: Conversation, limit: Int? = nil) -> String {
-        var turns = turns(of: conversation)
+    static func jsonl(of conversation: Conversation, limit: Int? = nil,
+                      price: ((String?) -> ModelPrice?)? = nil) -> String {
+        var turns = turns(of: conversation, price: price)
         if let limit, limit > 0, turns.count > limit { turns = Array(turns.suffix(limit)) }
         let encoder = JSONSerialization.self
         return turns.compactMap { turn -> String? in

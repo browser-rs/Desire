@@ -201,8 +201,19 @@ class AgentSessionStore: ObservableObject {
     /// 模型开始返回空、或自动压缩要生效之前，用户至少能看到它在逼近上限。
     @Published private(set) var contextFraction: Double = 0
     private var contextFractionStamp = ""
+    /// 子代理用量"待认领桶"：子代理的消息不进会话，token 由 `runSubagentLoop` 累到这里，
+    /// 主循环在追加 `spawnSubagent` 的工具结果时把它记到那条消息上（成本才算得全）。
+    private var subagentUsage = AgentUsage()
     /// 上下文预算，与 `compactForContext` 的默认值一致（改一处即可）。
     static let contextBudget = 160_000
+
+    /// 当前对话的 token 用量与折算成本（面板状态行用）。
+    ///
+    /// 与轨迹页/桥端点**同一套算法**（`AgentUsage.of`），所以"面板上显示的"和
+    /// "导出的轨迹里的"永远不会是两个数。没填单价 → 只有 token、没有金额。
+    var conversationUsage: AgentUsage {
+        AgentUsage.of(messages, price: preference.usagePrice(for:))
+    }
 
     /// 自评（reflection）提示词：只**审查**轨迹，不许执行工具、不许续写任务。
     /// 工具 `reflect` 与回合收尾的自动自评共用它。
@@ -816,13 +827,18 @@ class AgentSessionStore: ObservableObject {
             var hasContent = false
             var pendingTokenCount = 0
             var rateWindowStart = Date()
-
+            /// 请求时选的模型与服务端自报的模型（成本查价用，见 flushTail）。
+            var requestedModel = ""
+            var reportedModel: String?
             // Consumes one model stream into the conversation. Nested func so
             // the transient-error retry below can re-run it on a fresh stream
             // without duplicating the event handling.
             func runStream() async throws {
                 let active = makeActiveProvider()
                 lastProviderUsed = active.viaLabel
+                // 成本归属：优先服务端自报的模型（网关会改写/路由），没有才退回请求时选的。
+                requestedModel = preference.model
+                reportedModel = nil
                 let request = await buildRequestMessages()
                 let stream = active.provider.stream(
                     messages: request,
@@ -835,6 +851,10 @@ class AgentSessionStore: ObservableObject {
                 var lastFlush = Date.distantPast
                 func flushTail() {
                     updateContextFraction()
+                    // 模型名在这里落（而不是在 .model 事件里直接写）：事件可能早于
+                    // 助手消息出现（首个 chunk 就带 model、而正文还没到），统一在
+                    // 每次 flush 时按当前已知值盖章，谁先到都不会漏。
+                    assistantMsg?.model = reportedModel ?? (requestedModel.isEmpty ? nil : requestedModel)
                     // 按 **id** 找回尾部消息，不用 append 时记下的下标：流式中途
                     // 会话被清空/切换时，那个下标会指向别的消息（把 token 写进
                     // 无关消息），数组变短后还可能越界。
@@ -899,6 +919,14 @@ class AgentSessionStore: ObservableObject {
                         usagePromptTokens += prompt
                         usageCompletionTokens += completion
                         if prompt > 0 { lastPromptTokens = prompt }
+                        // 也记在这次调用的助手消息上（随会话落盘）——成本要从**历史**
+                        // 会话里算出来，而这条用量派生不出来。累加与上面的会话计数器同口径。
+                        if assistantMsg != nil {
+                            assistantMsg!.promptTokens = (assistantMsg!.promptTokens ?? 0) + prompt
+                            assistantMsg!.completionTokens = (assistantMsg!.completionTokens ?? 0) + completion
+                        }
+                    case .model(let name):
+                        reportedModel = name
                     }
                 }
                 // Publish the tail the throttle may have held back.
@@ -993,6 +1021,11 @@ class AgentSessionStore: ObservableObject {
                 } else {
                     result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
                 }
+                // 子代理刚跑完 → 认领它的用量（记在这条工具消息上，成本才算得全）。
+                // 并行 crew 时同期兄弟的用量会合并到先来的一条上：对话/回合总额是对的，
+                // 单条消息的归属可能合并（这点已知，见 CHANGELOG）。
+                let subUsage = subagentUsage
+                subagentUsage = AgentUsage()
                 messages.append(AgentMessage(
                     role: .tool,
                     // **入会话之前**先脱敏：工具最容易把凭据带出来（cat 配置、curl -v 打印
@@ -1002,7 +1035,11 @@ class AgentSessionStore: ObservableObject {
                     toolCallId: tc.id,
                     toolName: tc.function.name,
                     // 耗时记在这条工具消息上：轨迹导出要用，而它是唯一派不出来的一项。
-                    toolDurationMs: Date().timeIntervalSince(startedAt) * 1000
+                    toolDurationMs: Date().timeIntervalSince(startedAt) * 1000,
+                    // 子代理的 token 同理（它的消息不进会话）——没记模型，
+                    // 查价时由 `usagePrice` 按当前档案兜底。
+                    promptTokens: subUsage.isEmpty ? nil : subUsage.promptTokens,
+                    completionTokens: subUsage.isEmpty ? nil : subUsage.completionTokens
                 ))
             }
             currentAction = nil
@@ -1214,8 +1251,18 @@ class AgentSessionStore: ObservableObject {
                     case .reasoning(let delta):
                         // 子代理也收思考过程：跟正文一起进它那条消息（面板里可折叠）。
                         assistant.reasoning = (assistant.reasoning ?? "") + delta
-                    case .usage:
-                        break
+                    case .usage(let prompt, let completion):
+                        // 子代理跑在**自己的消息数组**里（不进会话），所以它的 token 不会
+                        // 自动出现在对话的用量里。先累到会话计数器 + 一个"待认领桶"，主循环
+                        // 随后把它记到 `spawnSubagent` 的工具消息上——否则对话成本会明显少报
+                        // （一次 crew 可能比主循环本身还贵）。
+                        usagePromptTokens += prompt
+                        usageCompletionTokens += completion
+                        subagentUsage.promptTokens += prompt
+                        subagentUsage.completionTokens += completion
+                        if prompt > 0 { lastPromptTokens = prompt }
+                    case .model(let name):
+                        assistant.model = name
                     }
                 }
             } catch {

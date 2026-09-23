@@ -8,6 +8,10 @@ struct AgentHeaderView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AgentSessionStore
+    /// 单价表的**独立观察**：状态行的成本是从 `preference.modelPrices` 算出来的，
+    /// 而 `store.preference` 只是 store 的一个 `let` —— SwiftUI 不会因此建立依赖，
+    /// 改价（或在设置里填价）后头部不会重绘，chip 会一直不出现（实测踩到）。
+    @ObservedObject var preference: AgentPreferenceStore
     let hasHistory: Bool
     var onShowHistory: () -> Void
     var onShowCapabilities: (() -> Void)?
@@ -187,7 +191,39 @@ struct AgentHeaderView: View {
                 .foregroundStyle(contextColor)
                 .help(contextHelp)
             }
+            // 本对话累计成本：只在**填过单价**时出现（没填 = 显示不出来，不显示 $0）。
+            // 金额小、要能一眼扫过，所以固定等宽 + tertiary。
+            if let cost = costText {
+                Text(verbatim: cost)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .help(usageHelp)
+            }
         }
+    }
+
+    /// 本对话成本（nil = 没有可用的单价，或还没有任何 token 记录）。
+    private var costText: String? {
+        let usage = store.conversationUsage
+        guard !usage.isEmpty else { return nil }
+        return usage.formattedUSD
+    }
+
+    /// 悬停说明：把"这个数是怎么来的"说清——哪来的 token、按谁的单价、有没有没算进去的。
+    private var usageHelp: String {
+        let usage = store.conversationUsage
+        var text = String(localized: "This conversation")
+            + String(format: " · %@ tokens", AgentUsage.formatTokens(usage.totalTokens))
+            + String(format: " (%@ in / %@ out)",
+                     AgentUsage.formatTokens(usage.promptTokens),
+                     AgentUsage.formatTokens(usage.completionTokens))
+        if let cost = usage.formattedUSD {
+            text += String(format: " · %@", cost)
+        }
+        if usage.hasUnpriced {
+            text += " · " + String(localized: "Some calls have no price set — the amount would be incomplete")
+        }
+        return text
     }
 
     /// 上下文占用的颜色分级：60% 起提醒、85% 起警告（此时 /new 更划算）。

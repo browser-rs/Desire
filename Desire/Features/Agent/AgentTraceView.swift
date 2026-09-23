@@ -9,6 +9,8 @@ struct AgentTraceView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var conversationStore: ConversationStore
+    /// 单价表在这里查（成本 = token × 单价）；没填单价的模型只显示 token，不显示 $0。
+    @ObservedObject var preference: AgentPreferenceStore
     var onBack: () -> Void
 
     @State private var selectedID: UUID?
@@ -85,8 +87,24 @@ struct AgentTraceView: View {
                          tint: value("unverifiedTurns") > 0 ? .orange : .secondary)
                 statChip("👍", text("votesUp"), tint: value("votesUp") > 0 ? appAccent : .secondary)
                 statChip("👎", text("votesDown"), tint: value("votesDown") > 0 ? .orange : .secondary)
+                // 用量与成本：只在有数据时出现。金额带 "≥" 前缀表示有调用没填单价
+                // （那笔算不进去），绝不把下界当总额。
+                let tokens = value("promptTokens") + value("completionTokens")
+                if tokens > 0 {
+                    statChip("Tokens", AgentUsage.formatTokens(tokens))
+                }
+                if let cost = costText {
+                    statChip("Cost", cost)
+                }
             }
         }
+    }
+
+    /// 会话成本文案：每笔都已定价 → `$0.031`；有没定价的 → `≥ $0.031`。
+    private var costText: String? {
+        guard let value = stats["cost"] as? Double else { return nil }
+        let text = AgentUsage.formatUSD(value)
+        return stats["costIncomplete"] as? Bool == true ? "≥ " + text : text
     }
 
     @ViewBuilder
@@ -178,7 +196,7 @@ struct AgentTraceView: View {
             stats = [:]
             return
         }
-        let derived = AgentTrace.turns(of: conversation)
+        let derived = AgentTrace.turns(of: conversation, price: preference.usagePrice(for:))
         turns = derived
         stats = AgentTrace.stats(of: derived)
     }
@@ -203,6 +221,14 @@ private struct TurnTraceCard: View {
         let ms = steps.compactMap { ($0["ms"] as? Double) }.reduce(0, +)
         var parts = ["\(steps.count) steps"]
         if ms > 0 { parts.append(ms >= 1000 ? String(format: "%.1fs", ms / 1000) : String(format: "%.0fms", ms)) }
+        // 用量与成本：没填单价的回合只显示 token（`≥` 表示金额只是下界）。
+        if let tokens = turn["tokens"] as? [String: Any], let total = tokens["total"] as? Int, total > 0 {
+            parts.append(AgentUsage.formatTokens(total) + " tok")
+            if let cost = turn["cost"] as? Double {
+                let text = AgentUsage.formatUSD(cost)
+                parts.append(turn["costIncomplete"] != nil ? "≥ " + text : text)
+            }
+        }
         if let vote = turn["feedback"] as? String { parts.append(vote == "up" ? "👍" : "👎") }
         if let note = turn["verificationNote"] as? String, !note.isEmpty { parts.append("⚠") }
         return parts.joined(separator: " · ")
@@ -241,6 +267,9 @@ private struct TurnTraceCard: View {
                     }
                     if let answer = turn["answer"] as? String, !answer.isEmpty {
                         labelled("Answer", answer)
+                    }
+                    if let model = turn["model"] as? String, !model.isEmpty {
+                        labelled("Model", model)
                     }
                     if let critique = turn["critique"] as? String, !critique.isEmpty {
                         labelled("Self-review", critique)

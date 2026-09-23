@@ -756,6 +756,14 @@ Features/Bookmarks/
   在那里接方向键会移动一个看不见的高亮 → 回车打开看不见的条目（2026-09-23 修掉）。
   要给地址栏也加下拉，得先把列表视图挂到工具栏上。
 
+- **工具失败的统一约定：`Error: ` 前缀**（2026-09-23，P0）：所有工具执行失败（参数缺失/
+  非法、目标不存在、前置不满足、操作出错、runCommand 非零退出/超时、MCP 报错、子代理流失败）
+  一律返回 `Error: ` 开头的文本（收口在 `BrowserToolProvider.fail`；跨文件的 MCP/子代理就地拼前缀）。
+  **查询成功但结果为空**（"No bookmarks"、"No history entries"）**不是失败**，保持原样。
+  谁在消费：机械核验的"全部失败"硬判据、轨迹的 `threwError`、模型自己的重试决策 ——
+  以前只有 `executeJS` 写 `Error:`，readFile 失败这类完全不可见（实测：机械核验对
+  "读不存在的文件"毫无反应）。**新增工具的失败路径必须走这个约定**。
+
 - **可观测性：轨迹是"派生"的，不是另存的一份**（2026-09-23）：`AgentTrace` 把会话编译成
   一行一个回合的 JSONL（`GET /agent/trace` ✓），字段含 goal / steps（动作、参数、观察、
   耗时、`denied`/`threwError`）/ answer / critique / verificationNote / **用户 👍👎**。

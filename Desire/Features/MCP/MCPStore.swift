@@ -162,7 +162,9 @@ class MCPStore: ObservableObject {
     /// Executes an agent tool call bridged to an MCP server.
     func callTool(defName: String, argumentsJSON: String) async -> String {
         guard let route = toolRoutes[defName], var connection = connections[route.serverID] else {
-            return "MCP tool unavailable — server disconnected"
+            // 失败约定与 BrowserToolProvider.fail 一致（Error: 前缀）：
+            // 模型与机械核验都靠它识别"这次调用没有成功"。
+            return "Error: MCP tool unavailable — server disconnected"
         }
         let arguments = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8))) as? [String: Any] ?? [:]
         do {
@@ -171,7 +173,7 @@ class MCPStore: ObservableObject {
             return text
         } catch {
             connections[route.serverID] = connection
-            return "MCP tool error: \(error.localizedDescription)"
+            return "Error: MCP tool error: \(error.localizedDescription)"
         }
     }
 }

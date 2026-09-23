@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### Added
+
+- **工具失败统一约定：所有工具失败一律返回 `Error: ` 前缀**（优化清单 P0）：此前只有
+  `executeJS` 写 `Error:`，其余失败（"File not found"、"Missing path"、runCommand 非零退出、
+  MCP 报错、子代理流失败…）都是普通文本 —— 机械核验看不见、轨迹的 `threwError` 统计低估、
+  模型也难以可靠识别失败。现在约 120 处失败返回全部收口（`BrowserToolProvider.fail`），
+  且 **runCommand 的非零退出/超时**与 **MCP / 子代理失败**一并进约定 ✓（输出原样保留，
+  模型仍能看到 stdout/stderr）。**查询成功但结果为空不是失败**（"No bookmarks" 等），
+  避免把正常空答案误标成错误 ✓。
+  - **实测**（假端点强制 `readFile` 一个不存在的文件）：工具结果 = `Error: File not found: …` ✓；
+    **机械核验第一次对这类失败触发了硬提示**（"本轮所有工具调用都被拒或报错"）✓；
+    轨迹 `threwError = true`、`stats.threwError = 1` ✓；模型实际收到的工具消息同样以
+    `Error:` 开头 ✓。
+# [Unreleased]
+
 ## [v0.3.13] - 2026-09-23
 
 > Agent 补上闭环的后半段：独立评审档案、对话轨迹（页面 + JSONL）、回答质量反馈、

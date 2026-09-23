@@ -1266,13 +1266,13 @@ class AgentSessionStore: ObservableObject {
                     }
                 }
             } catch {
-                return "Subagent stream failed: \(error.localizedDescription)"
+                return "Error: Subagent stream failed: \(error.localizedDescription)"
             }
             subMessages.append(assistant)
 
             guard let tcs = assistant.toolCalls, !tcs.isEmpty else {
                 let report = (assistant.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                return report.isEmpty ? "Subagent finished without a report." : String(report.prefix(4000))
+                return report.isEmpty ? "Error: Subagent finished without a report." : String(report.prefix(4000))
             }
 
             for tc in tcs {

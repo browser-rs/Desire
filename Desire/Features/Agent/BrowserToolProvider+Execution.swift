@@ -46,6 +46,15 @@ extension BrowserToolProvider {
         .replacingOccurrences(of: "__DESIRE_CODE__", with: code)
     }
 
+    /// 工具失败的**统一约定**：失败一律返回 `Error: ` 前缀的文本。
+    ///
+    /// 谁在消费它：① `runMechanicalVerification` 的"本轮所有工具都失败"硬判据；
+    /// ② 轨迹里每步的 `threwError` 标记；③ 模型自己（`Error:` 是它识别失败、换路
+    /// 重试的信号）。**口径**：动作没能执行（参数缺失/非法、目标不存在、前置不满足、
+    /// 操作出错）才算失败；**查询成功但结果为空**（"No bookmarks"、"No history
+    /// entries"…）不是失败 —— 那是工具给出的正常答案。
+    static func fail(_ message: String) -> String { "Error: " + message }
+
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         let result = await executeBody(call, in: webView)
         // 页面感知回证（0.3.2）：动作类工具执行后自动截视口快照，
@@ -62,7 +71,7 @@ extension BrowserToolProvider {
         // attached yet, only the pure-webview tools (which don't touch a
         // store) would work — fail fast for the rest with a clear message.
         guard let surface else {
-            return "Tool surface not configured"
+            return Self.fail("Tool surface not configured")
         }
         switch call.function.name {
         // --- Page reading ---
@@ -78,11 +87,11 @@ extension BrowserToolProvider {
             guard let index = args["index"] as? Int,
                   let tabs = surface.tabManager?.tabs,
                   tabs.indices.contains(index) else {
-                return "Invalid tab index (use listTabs)"
+                return Self.fail("Invalid tab index (use listTabs)")
             }
             let target = tabs[index]
             guard !target.isSuspended else {
-                return "Tab \(index) is suspended — switchTab to it first, then readTab"
+                return Self.fail("Tab \(index) is suspended — switchTab to it first, then readTab")
             }
             let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
                                            args: ["maxChars": 6000, "maxElements": 25])
@@ -117,14 +126,14 @@ extension BrowserToolProvider {
             let ref = args["ref"] as? String
             let text = args["text"] as? String
             guard sel != nil || ref != nil || text != nil else {
-                return "Provide one of: ref, text, or selector"
+                return Self.fail("Provide one of: ref, text, or selector")
             }
             guard let rectData = await callAsync(webView, function: "__desireElementRect",
                     args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""]).data(using: .utf8),
                   let obj = (try? JSONSerialization.jsonObject(with: rectData)) as? [String: Double],
                   let x = obj["x"], let y = obj["y"],
                   let w = obj["w"], let h = obj["h"], w > 1, h > 1 else {
-                return "Element not found"
+                return Self.fail("Element not found")
             }
             // getBoundingClientRect is viewport CSS px; the snapshot rect is
             // view coordinates — pageZoom scales between them. Clamp to the
@@ -143,11 +152,11 @@ extension BrowserToolProvider {
             do {
                 let image = try await webView.takeSnapshot(configuration: snapConfig)
                 guard let uri = ImageAttachment.dataURI(from: image) else {
-                    return "Capture failed"
+                    return Self.fail("Capture failed")
                 }
                 return uri
             } catch {
-                return "Capture failed: \(error.localizedDescription)"
+                return Self.fail("Capture failed: \(error.localizedDescription)")
             }
 
         case "getTables":
@@ -162,7 +171,7 @@ extension BrowserToolProvider {
             let sel = args["selector"] as? String
             let ref = args["ref"] as? String
             let text = args["text"] as? String
-            guard sel != nil || ref != nil || text != nil else { return "Provide ref, text, or selector" }
+            guard sel != nil || ref != nil || text != nil else { return Self.fail("Provide ref, text, or selector") }
             return await callAsync(webView, function: "__desireGetElementHTML",
                                    args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? "",
                                           "maxLength": args["maxLength"] as? Int ?? 6000])
@@ -176,7 +185,7 @@ extension BrowserToolProvider {
 
         // --- Navigation ---
         case "navigate":
-            guard let url = args["url"] as? String, let u = URL(string: url) else { return "Invalid URL" }
+            guard let url = args["url"] as? String, let u = URL(string: url) else { return Self.fail("Invalid URL") }
             // Mirror BrowsingActions.navigateToURL's state sync. `load` alone
             // is invisible when the tab sits on an overlay: isOnNewTabPage
             // is STORED state (the NewTabPage keeps covering the webview),
@@ -191,11 +200,11 @@ extension BrowserToolProvider {
             webView.load(URLRequest(url: u))
             return "Navigated to \(url)"
         case "goBack":
-            guard webView.canGoBack else { return "Cannot go back" }
+            guard webView.canGoBack else { return Self.fail("Cannot go back") }
             webView.goBack()
             return "Going back"
         case "goForward":
-            guard webView.canGoForward else { return "Cannot go forward" }
+            guard webView.canGoForward else { return Self.fail("Cannot go forward") }
             webView.goForward()
             return "Going forward"
 
@@ -210,7 +219,7 @@ extension BrowserToolProvider {
                     $0.name.lowercased() == containerName.lowercased()
                 }) else {
                     let names = ContainerStore.shared.containers.map(\.name).joined(separator: ", ")
-                    return "Container not found: \(containerName). Available: \(names.isEmpty ? "(none)" : names)"
+                    return Self.fail("Container not found: \(containerName). Available: \(names.isEmpty ? "(none)" : names)")
                 }
                 containerID = container.id
                 containerNote = " in container \(container.name)"
@@ -220,7 +229,7 @@ extension BrowserToolProvider {
 
         case "listContainers":
             let containers = ContainerStore.shared.containers
-            guard !containers.isEmpty else { return "No containers configured" }
+            guard !containers.isEmpty else { return Self.fail("No containers configured") }
             return containers.map { "\($0.name) (\($0.colorName))" }.joined(separator: "\n")
 
         case "closeTab":
@@ -259,20 +268,20 @@ extension BrowserToolProvider {
 
         case "switchTab":
             guard let index = args["index"] as? Int,
-                  index >= 0, index < (surface.tabManager?.tabs.count ?? 0) else { return "Invalid tab index" }
+                  index >= 0, index < (surface.tabManager?.tabs.count ?? 0) else { return Self.fail("Invalid tab index") }
             surface.tabManager?.selectTab(at: index)
             return "Switched to tab \(index)"
 
         case "closeOtherTabs":
             // Keep the selected tab, close the rest of THIS window.
-            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return "No tabs open" }
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
             let keep = manager.selectedIndex
             let before = manager.tabs.count
             manager.closeOthers(keeping: keep)
             return "Closed \(before - manager.tabs.count) other tabs"
 
         case "reopenLastClosedTab":
-            guard let manager = surface.tabManager else { return "No window" }
+            guard let manager = surface.tabManager else { return Self.fail("No window") }
             let reopened = manager.reopenLastClosedTab(
                 javaScriptEnabled: surface.settings.isJavaScriptEnabled,
                 contentBlocker: surface.contentBlocker,
@@ -281,7 +290,7 @@ extension BrowserToolProvider {
             return reopened ? "Reopened last closed tab" : "No recently closed tab"
 
         case "duplicateTab":
-            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return "No tabs open" }
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
             manager.duplicateTab(
                 at: manager.selectedIndex,
                 javaScriptEnabled: surface.settings.isJavaScriptEnabled,
@@ -292,7 +301,7 @@ extension BrowserToolProvider {
 
         // --- Bookmarks ---
         case "addBookmark":
-            guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return "No page to bookmark" }
+            guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return Self.fail("No page to bookmark") }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
             surface.bookmarkStore.add(title: title, url: url)
             return "Bookmarked: \(title)"
@@ -305,7 +314,7 @@ extension BrowserToolProvider {
         case "reflect":
             // 让**模型自己**回头审一遍这一轮：评语返回给它，它据此修正或补验证。
             guard let session = AgentScheduler.shared.deliveryTarget else {
-                return "No live agent session to review."
+                return Self.fail("No live agent session to review.")
             }
             return await session.reflectForTool(question: (args["question"] as? String) ?? "")
 
@@ -313,7 +322,7 @@ extension BrowserToolProvider {
         case "searchConversations":
             let query = (args["query"] as? String) ?? ""
             guard query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else {
-                return "Give me at least 2 characters to search for."
+                return Self.fail("Give me at least 2 characters to search for.")
             }
             let limit = min(20, max(1, (args["limit"] as? Int) ?? 5))
             // 排除当前对话：它已经在模型的上下文里，搜它只是浪费 token。
@@ -332,16 +341,16 @@ extension BrowserToolProvider {
 
         case "readConversation":
             guard let rawID = args["id"] as? String, let id = UUID(uuidString: rawID) else {
-                return "Need a conversation id from searchConversations."
+                return Self.fail("Need a conversation id from searchConversations.")
             }
             let maxChars = min(40_000, max(500, (args["maxChars"] as? Int) ?? 12_000))
             guard let text = surface.conversationStore.transcript(id: id, maxChars: maxChars) else {
-                return "No saved conversation with id \(rawID)."
+                return Self.fail("No saved conversation with id \(rawID).")
             }
             return text
 
         case "removeBookmark":
-            guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return "Bookmark not found" }
+            guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return Self.fail("Bookmark not found") }
             surface.bookmarkStore.remove(bm)
             return "Removed bookmark: \(url)"
 
@@ -358,7 +367,7 @@ extension BrowserToolProvider {
 
         // --- Page controls ---
         case "findInPage":
-            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing search text" }
+            guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing search text") }
             return await withCheckedContinuation { continuation in
                 let config = WKFindConfiguration()
                 webView.find(text, configuration: config) { result in
@@ -371,7 +380,7 @@ extension BrowserToolProvider {
             }
 
         case "toggleDarkMode":
-            guard let host = webView.url?.host else { return "No page loaded" }
+            guard let host = webView.url?.host else { return Self.fail("No page loaded") }
             let enabled = !surface.siteSettingsStore.darkModeEnabled(for: host)
             surface.siteSettingsStore.setDarkMode(enabled, for: host)
             let js = """
@@ -438,7 +447,7 @@ extension BrowserToolProvider {
 
         // --- Reading list ---
         case "addToReadingList":
-            guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return "No page to add" }
+            guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return Self.fail("No page to add") }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
             surface.readingListStore.add(title: title, url: url)
             return "Added to reading list: \(title)"
@@ -469,7 +478,7 @@ extension BrowserToolProvider {
         case "togglePlugin":
             guard let name = args["name"] as? String,
                   let enabled = args["enabled"] as? Bool,
-                  let plugin = surface.pluginStore.plugins.first(where: { $0.name == name }) else { return "Plugin not found" }
+                  let plugin = surface.pluginStore.plugins.first(where: { $0.name == name }) else { return Self.fail("Plugin not found") }
             var updated = plugin
             updated.isEnabled = enabled
             surface.pluginStore.update(updated)
@@ -483,13 +492,13 @@ extension BrowserToolProvider {
 
         case "unblockElement":
             guard let selector = args["selector"] as? String,
-                  let rule = surface.elementBlockStore.rules.first(where: { $0.cssSelector == selector }) else { return "Rule not found" }
+                  let rule = surface.elementBlockStore.rules.first(where: { $0.cssSelector == selector }) else { return Self.fail("Rule not found") }
             surface.elementBlockStore.remove(id: rule.id)
             return "Unblocked: \(selector)"
 
         // --- Responsive design ---
         case "toggleResponsiveMode":
-            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
+            guard let tab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
             tab.responsiveConfig.isEnabled.toggle()
             if let deviceName = args["device"] as? String,
                let preset = devicePresets.first(where: { $0.name.lowercased() == deviceName.lowercased() }) {
@@ -526,8 +535,8 @@ extension BrowserToolProvider {
             }.joined(separator: "\n")
 
         case "addTabToGroup":
-            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
-            guard let groupName = args["groupName"] as? String else { return "Missing group name" }
+            guard let tab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            guard let groupName = args["groupName"] as? String else { return Self.fail("Missing group name") }
             if let existing = surface.tabGroupStore.groups.first(where: { $0.name == groupName }) {
                 surface.tabGroupStore.removeTabFromAll(tab.id)
                 surface.tabGroupStore.addTab(tab.id, to: existing.id)
@@ -539,7 +548,7 @@ extension BrowserToolProvider {
             return "Created and added to group: \(groupName)"
 
         case "removeTabFromGroup":
-            guard let tab = surface.tabManager?.selectedTab else { return "No active tab" }
+            guard let tab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
             surface.tabGroupStore.removeTabFromAll(tab.id)
             return "Removed from tab group"
 
@@ -583,19 +592,19 @@ extension BrowserToolProvider {
             return dials.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
 
         case "addQuickDial":
-            guard let title = args["title"] as? String, let url = args["url"] as? String else { return "Missing title or url" }
+            guard let title = args["title"] as? String, let url = args["url"] as? String else { return Self.fail("Missing title or url") }
             surface.quickDialStore.add(title: title, url: url)
             return "Added quick dial: \(title)"
 
         case "removeQuickDial":
             guard let title = args["title"] as? String,
-                  let dial = surface.quickDialStore.dials.first(where: { $0.title == title }) else { return "Quick dial not found" }
+                  let dial = surface.quickDialStore.dials.first(where: { $0.title == title }) else { return Self.fail("Quick dial not found") }
             surface.quickDialStore.delete(id: dial.id)
             return "Removed quick dial: \(title)"
 
         // --- Search engine ---
         case "setSearchEngine":
-            guard let name = args["engine"] as? String else { return "Missing engine name" }
+            guard let name = args["engine"] as? String else { return Self.fail("Missing engine name") }
             // Built-ins first, then custom engines by (case-insensitive) name.
             if let engine = SearchEngine.allCases.first(where: { $0.rawValue.lowercased() == name.lowercased() }) {
                 surface.settings.searchEngine = engine
@@ -609,7 +618,7 @@ extension BrowserToolProvider {
                 return "Search engine changed to custom engine \(custom.name)"
             }
             let options = (SearchEngine.allCases.map(\.rawValue) + surface.settings.customEngines.map(\.name)).joined(separator: ", ")
-            return "Invalid engine. Options: \(options)"
+            return Self.fail("Invalid engine. Options: \(options)")
 
         // --- Sidebar ---
         case "toggleSidebar":
@@ -629,7 +638,7 @@ extension BrowserToolProvider {
             let ref = args["ref"] as? String
             let text = args["text"] as? String
             guard sel != nil || ref != nil || text != nil else {
-                return "Provide one of: ref (from getPageSnapshot), text (visible label), or selector"
+                return Self.fail("Provide one of: ref (from getPageSnapshot), text (visible label), or selector")
             }
             // Prefer a real (isTrusted=true) mouse click through the AppKit
             // event pipeline — untrusted `element.click()` is a bot signal
@@ -649,10 +658,10 @@ extension BrowserToolProvider {
             // CSS pixels of the viewport (the coordinate space getPageSnapshot
             // reports), dispatched as a REAL mouse event.
             guard let x = args["x"] as? Double, let y = args["y"] as? Double else {
-                return "Missing x or y (viewport CSS pixels)"
+                return Self.fail("Missing x or y (viewport CSS pixels)")
             }
             guard webView.window != nil else {
-                return "No window attached — coordinate clicks need a visible webview"
+                return Self.fail("No window attached — coordinate clicks need a visible webview")
             }
             let point = windowPoint(fromViewportX: x, y: y, in: webView)
             await SyntheticInput.click(at: point, in: webView)
@@ -666,7 +675,7 @@ extension BrowserToolProvider {
             let ref = args["ref"] as? String
             let text = args["text"] as? String
             guard sel != nil || ref != nil || text != nil else {
-                return "Provide one of: ref, text, or selector"
+                return Self.fail("Provide one of: ref, text, or selector")
             }
             let result = await callAsync(webView, function: "__desireHighlight",
                                          args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
@@ -734,7 +743,7 @@ extension BrowserToolProvider {
             // 发系统通知，进度用 listMediaExports 查。
             guard let urlString = args["url"] as? String, let url = URL(string: urlString),
                   url.scheme == "http" || url.scheme == "https" else {
-                return "Invalid url (http/https only)"
+                return Self.fail("Invalid url (http/https only)")
             }
             let jobID = MediaExportStore.shared.start(
                 url: url,
@@ -751,7 +760,7 @@ extension BrowserToolProvider {
         case "findAdCandidates":
             // 广告候选：返回带理由的候选清单（**不删任何东西**），由模型挑。
             let script = UserScriptLoader.load("ad-candidates")
-            guard !script.isEmpty else { return "ad-candidates script missing" }
+            guard !script.isEmpty else { return Self.fail("ad-candidates script missing") }
             do {
                 let raw = try await webView.callAsyncJavaScript(
                     script,
@@ -779,14 +788,14 @@ extension BrowserToolProvider {
                 }
                 return lines.joined(separator: "\n")
             } catch {
-                return "Failed to scan for ads: \(error.localizedDescription)"
+                return Self.fail("Failed to scan for ads: \(error.localizedDescription)")
             }
 
         case "blockElements":
             // 批量屏蔽：写进 ElementBlockStore（按 host 生效、下次导航自动注入），
             // 同时立刻把隐藏 CSS 注进当前页面（用户当场就能看到效果）。
             guard let selectors = args["selectors"] as? [String], !selectors.isEmpty else {
-                return "Missing selectors array (use findAdCandidates first, then pass the selectors you want to hide)"
+                return Self.fail("Missing selectors array (use findAdCandidates first, then pass the selectors you want to hide)")
             }
             let host = webView.url?.host ?? ""
             let pattern = (args["urlPattern"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -847,7 +856,7 @@ extension BrowserToolProvider {
             // Visible task checklist: the model maintains the step list and
             // the panel renders it live (Claude-TodoWrite style).
             guard let items = args["steps"] as? [[String: Any]] else {
-                return "Missing steps array"
+                return Self.fail("Missing steps array")
             }
             var steps: [AgentPlanStep] = []
             for item in items.prefix(12) {
@@ -856,7 +865,7 @@ extension BrowserToolProvider {
                 if !["pending", "in_progress", "done"].contains(status) { status = "pending" }
                 steps.append(AgentPlanStep(content: String(content.prefix(120)), status: status))
             }
-            guard !steps.isEmpty else { return "No valid steps" }
+            guard !steps.isEmpty else { return Self.fail("No valid steps") }
             AgentPlanStore.shared.set(steps)
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
@@ -870,12 +879,12 @@ extension BrowserToolProvider {
                 return "Upload intent cleared"
             }
             guard let rawPath = args["path"] as? String, !rawPath.isEmpty else {
-                return "Missing path (or clear=true to disarm)"
+                return Self.fail("Missing path (or clear=true to disarm)")
             }
             let expanded = (rawPath as NSString).expandingTildeInPath
             let fileURL = URL(fileURLWithPath: expanded)
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                return "File not found: \(fileURL.path)"
+                return Self.fail("File not found: \(fileURL.path)")
             }
             UploadIntent.shared.arm([fileURL])
             let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int64) ?? nil
@@ -885,7 +894,7 @@ extension BrowserToolProvider {
         case "renderDiagram":
             // Built-in canvas: render Mermaid (mindmap/flowchart/sequence/…)
             // on a canvas page served by the preview server.
-            guard let source = args["source"] as? String, !source.isEmpty else { return "Missing source (Mermaid syntax)" }
+            guard let source = args["source"] as? String, !source.isEmpty else { return Self.fail("Missing source (Mermaid syntax)") }
             let title = args["title"] as? String ?? "Diagram"
             let safeSource = source.replacingOccurrences(of: "</script>", with: "<\\/script>")
             let safeTitle = title.replacingOccurrences(of: "<", with: "&lt;")
@@ -958,7 +967,7 @@ extension BrowserToolProvider {
             // Mid-task clarification: pauses the loop until the user answers
             // in the panel. The question card IS the interaction (readonly).
             guard let question = args["question"] as? String, !question.isEmpty else {
-                return "Missing question"
+                return Self.fail("Missing question")
             }
             let answer = await UserPromptCenter.shared.ask(question)
             return answer
@@ -966,7 +975,7 @@ extension BrowserToolProvider {
         case "writeFile":
             // Save agent-produced content to a local file. Restricted to the
             // user's folders (Downloads/Documents/Desktop) + app support.
-            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return "Missing path" }
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return Self.fail("Missing path") }
             let content = args["content"] as? String ?? ""
             switch AgentWorkspace.shared.resolve(rawPath, write: true) {
             case .denied(let reason):
@@ -978,23 +987,23 @@ extension BrowserToolProvider {
                     try content.write(to: fileURL, atomically: true, encoding: .utf8)
                     return "Wrote \(content.count) chars → \(fileURL.path)"
                 } catch {
-                    return "Write failed: \(error.localizedDescription)"
+                    return Self.fail("Write failed: \(error.localizedDescription)")
                 }
             }
 
         case "readFile":
             // Text file read from the workspace / user folders. Binary
             // files are reported instead of dumped.
-            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return "Missing path" }
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else { return Self.fail("Missing path") }
             switch AgentWorkspace.shared.resolve(rawPath, write: false) {
             case .denied(let reason):
                 return reason
             case .granted(let fileURL):
                 guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                    return "File not found: \(fileURL.path)"
+                    return Self.fail("File not found: \(fileURL.path)")
                 }
                 guard let data = FileManager.default.contents(atPath: fileURL.path) else {
-                    return "Could not read \(fileURL.path)"
+                    return Self.fail("Could not read \(fileURL.path)")
                 }
                 if data.contains(0) {
                     return "Binary file (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))) — not shown as text"
@@ -1015,7 +1024,7 @@ extension BrowserToolProvider {
             guard let entries = try? FileManager.default.contentsOfDirectory(
                 at: target, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                 options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]) else {
-                return "Could not list \(target.path)"
+                return Self.fail("Could not list \(target.path)")
             }
             var lines: [String] = ["\(target.path)"]
             for entry in entries.prefix(200) {
@@ -1032,18 +1041,18 @@ extension BrowserToolProvider {
             // Records THIS window (the whole browser window, chat included —
             // perfect for "watch me work" demos). First call triggers the
             // macOS Screen Recording permission dialog.
-            guard let window = webView.window else { return "No window attached" }
+            guard let window = webView.window else { return Self.fail("No window attached") }
             do {
                 let url = try await WindowRecorder.shared.start(window: window)
                 return "Recording started → \(url.lastPathComponent). Perform the steps now; call stopRecording when finished."
             } catch {
-                return "Could not start recording: \(error.localizedDescription)"
+                return Self.fail("Could not start recording: \(error.localizedDescription)")
             }
 
         case "stopRecording":
-            guard WindowRecorder.shared.isRecording else { return "Not recording" }
+            guard WindowRecorder.shared.isRecording else { return Self.fail("Not recording") }
             guard let url = await WindowRecorder.shared.stop() else {
-                return "Recording stopped but the file could not be finalized"
+                return Self.fail("Recording stopped but the file could not be finalized")
             }
             let duration: String
             if let started = WindowRecorder.shared.startedAt {
@@ -1059,7 +1068,7 @@ extension BrowserToolProvider {
             // DANGEROUS: every call prompts with the exact command line
             // unless the user enabled FULL ACCESS.
             guard let tool = args["tool"] as? String, !tool.isEmpty else {
-                return "Missing tool (allowlisted: \(SystemCommandStore.shared.allowedBinaries.sorted().joined(separator: ", ")))"
+                return Self.fail("Missing tool (allowlisted: \(SystemCommandStore.shared.allowedBinaries.sorted().joined(separator: ", ")))")
             }
             let commandArgs = args["args"] as? [String] ?? []
             let timeout = args["timeoutSec"] as? Double ?? 120
@@ -1067,16 +1076,19 @@ extension BrowserToolProvider {
                 tool: tool, args: commandArgs, timeout: timeout,
                 workDirectory: AgentWorkspace.shared.directory
             )
-            return "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
+            // 非零退出 / 超时是最常见的一类工具失败，必须进统一约定：
+            // 否则机械核验与模型都看不出这条命令没成功（grep 无匹配的 exit 1 也算）。
+            let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
+            return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
         case "useSkill":
             // Progressive disclosure: the name+description list rides in the
             // prompt; this loads the FULL instructions into the conversation.
             guard let name = args["name"] as? String, !name.isEmpty else {
-                return "Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))"
+                return Self.fail("Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
             guard let body = SkillStore.shared.body(for: name) else {
-                return "Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))"
+                return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
             return "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
 
@@ -1090,11 +1102,11 @@ extension BrowserToolProvider {
             // pause/resume; fires downloadStarted/Completed bridge events.
             guard let urlText = args["url"] as? String, !urlText.isEmpty,
                   let url = URL(string: urlText), url.scheme != nil else {
-                return "Missing or invalid url"
+                return Self.fail("Missing or invalid url")
             }
             let filename = (args["filename"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? url.lastPathComponent
-            guard let store = DownloadStore.live else { return "Downloads store unavailable" }
+            guard let store = DownloadStore.live else { return Self.fail("Downloads store unavailable") }
             store.startURLSessionDownload(sourceURL: url, filename: filename)
             return "Download started: \(filename) — tracked in the downloads panel."
 
@@ -1103,14 +1115,14 @@ extension BrowserToolProvider {
             // the app is open; overdue tasks catch up once on launch.
             guard let name = args["name"] as? String, !name.isEmpty,
                   let prompt = args["prompt"] as? String, !prompt.isEmpty else {
-                return "Missing name or prompt"
+                return Self.fail("Missing name or prompt")
             }
             let recurrence: AgentScheduler.ScheduledTask.Recurrence
             if let dailyAt = args["dailyAt"] as? String {
                 let parts = dailyAt.split(separator: ":")
                 guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]),
                       (0...23).contains(hour), (0...59).contains(minute) else {
-                    return "Invalid dailyAt — expected \"HH:MM\" (24h), got: \(dailyAt)"
+                    return Self.fail("Invalid dailyAt — expected \"HH:MM\" (24h), got: \(dailyAt)")
                 }
                 recurrence = .daily(hour: hour, minute: minute)
             } else if let rawMinutes = args["everyMinutes"] as? String, let minutes = Int(rawMinutes) {
@@ -1118,12 +1130,12 @@ extension BrowserToolProvider {
             } else if let minutes = args["everyMinutes"] as? Int {
                 recurrence = .everyMinutes(max(5, minutes))
             } else {
-                return "Provide everyMinutes (>= 5) or dailyAt (\"HH:MM\")"
+                return Self.fail("Provide everyMinutes (>= 5) or dailyAt (\"HH:MM\")")
             }
             if let task = AgentScheduler.shared.add(name: name, prompt: prompt, recurrence: recurrence) {
                 return "Scheduled '\(task.name)' (\(task.recurrenceText)). It runs while the app is open; manage tasks in Settings → Agent → Scheduled Tasks."
             }
-            return "Failed to schedule '\(name)' (empty fields?)"
+            return Self.fail("Failed to schedule '\(name)' (empty fields?)")
 
         case "listScheduledTasks":
             let tasks = AgentScheduler.shared.tasks
@@ -1142,13 +1154,13 @@ extension BrowserToolProvider {
             }.joined(separator: "\n")
 
         case "cancelScheduledTask":
-            guard let name = args["name"] as? String else { return "Missing name" }
+            guard let name = args["name"] as? String else { return Self.fail("Missing name") }
             return AgentScheduler.shared.remove(named: name)
                 ? "Cancelled '\(name)'"
                 : "No scheduled task named '\(name)'. Use listScheduledTasks."
 
         case "copyToClipboard":
-            guard let text = args["text"] as? String else { return "Missing text" }
+            guard let text = args["text"] as? String else { return Self.fail("Missing text") }
             await MainActor.run {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
@@ -1167,18 +1179,18 @@ extension BrowserToolProvider {
                 : text
 
         case "fill":
-            guard let val = args["value"] as? String else { return "Missing value" }
+            guard let val = args["value"] as? String else { return Self.fail("Missing value") }
             let sel = args["selector"] as? String
             let ref = args["ref"] as? String
-            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            guard sel != nil || ref != nil else { return Self.fail("Provide selector or ref") }
             return await callAsync(webView, function: "__desireFill",
                                    args: ["selector": sel ?? "", "value": val, "ref": ref ?? ""])
 
         case "select":
-            guard let val = args["value"] as? String else { return "Missing value" }
+            guard let val = args["value"] as? String else { return Self.fail("Missing value") }
             let sel = args["selector"] as? String
             let ref = args["ref"] as? String
-            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            guard sel != nil || ref != nil else { return Self.fail("Provide selector or ref") }
             return await callAsync(webView, function: "__desireSelect",
                                    args: ["selector": sel ?? "", "value": val, "ref": ref ?? ""])
 
@@ -1192,7 +1204,7 @@ extension BrowserToolProvider {
             let ref = args["ref"] as? String
             let text = args["text"] as? String
             guard sel != nil || ref != nil || text != nil else {
-                return "Provide one of: ref, text, or selector"
+                return Self.fail("Provide one of: ref, text, or selector")
             }
             // Trusted mouse-moved stream, same rationale as `click`.
             if let point = await clickablePoint(selector: sel, ref: ref, text: text, in: webView) {
@@ -1205,7 +1217,7 @@ extension BrowserToolProvider {
         case "focus":
             let sel = args["selector"] as? String
             let ref = args["ref"] as? String
-            guard sel != nil || ref != nil else { return "Provide selector or ref" }
+            guard sel != nil || ref != nil else { return Self.fail("Provide selector or ref") }
             return await callAsync(webView, function: "__desireFocus",
                                    args: ["selector": sel ?? "", "ref": ref ?? ""])
 
@@ -1214,7 +1226,7 @@ extension BrowserToolProvider {
             // becomes first responder for the duration). Covers Enter-on-
             // search, Escape-on-modal, arrow/tab navigation, ⌘A-style combos.
             guard let key = args["key"] as? String, !key.isEmpty else {
-                return "Missing key. Supported: \(SyntheticInput.supportedKeys)"
+                return Self.fail("Missing key. Supported: \(SyntheticInput.supportedKeys)")
             }
             var flags: NSEvent.ModifierFlags = []
             if let mods = args["modifiers"] as? [String] {
@@ -1234,7 +1246,7 @@ extension BrowserToolProvider {
             // Trusted per-character typing into the FOCUSED element. Unlike
             // fill (prototype setter), real key events fire — autocomplete,
             // search-as-you-type, and keydown-driven widgets respond.
-            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing text") }
             // Optional focus target first; typing lands in the page either way.
             if let sel = args["selector"] as? String, !sel.isEmpty {
                 _ = await callAsync(webView, function: "__desireFocus",
@@ -1247,7 +1259,7 @@ extension BrowserToolProvider {
 
         case "waitForText":
             // Wait until visible text appears (e.g. search results render).
-            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing text") }
             let timeout = args["timeout"] as? Int ?? 8000
             return await callAsync(webView, function: "__desireWaitForText",
                                    args: ["text": text, "timeout": timeout])
@@ -1263,7 +1275,7 @@ extension BrowserToolProvider {
             // types through the framework-compatible editing path, then
             // submits — trusted click on the 发送/发表/Send button when one
             // exists (rect comes back from the page), otherwise Enter.
-            guard let text = args["text"] as? String, !text.isEmpty else { return "Missing text" }
+            guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing text") }
             let submit = args["submit"] as? Bool ?? true
             let raw = await callAsync(webView, function: "__desirePostComment",
                                       args: ["text": text, "submit": submit])
@@ -1283,11 +1295,11 @@ extension BrowserToolProvider {
             return status + " — submitted"
 
         case "extract":
-            guard let sel = args["selector"] as? String else { return "Missing selector" }
+            guard let sel = args["selector"] as? String else { return Self.fail("Missing selector") }
             return await callAsync(webView, function: "__desireExtract", args: ["selector": sel])
 
         case "findElements":
-            guard let sel = args["selector"] as? String else { return "Missing selector" }
+            guard let sel = args["selector"] as? String else { return Self.fail("Missing selector") }
             return await callAsync(webView, function: "__desireFindElements", args: ["selector": sel])
 
         // --- Utilities ---
@@ -1382,7 +1394,7 @@ extension BrowserToolProvider {
                 return await MCPStore.shared.callTool(defName: call.function.name,
                                                       argumentsJSON: call.function.arguments)
             }
-            return "Unknown tool: \(call.function.name)"
+            return Self.fail("Unknown tool: \(call.function.name)")
         }
     }
 

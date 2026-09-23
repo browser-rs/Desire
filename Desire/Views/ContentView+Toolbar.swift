@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
+import os
 
 extension ContentView {
     /// Navigation toolbar + address bar. Extracted from `body` (L1-1).
@@ -40,6 +41,7 @@ extension ContentView {
             passwordStore: passwordStore,
             isDevModeEnabled: devToolsStore.isDevModeEnabled,
             isUrlFocused: $isUrlFocused,
+            urlFieldFrame: $urlFieldFrame,
             actions: Toolbar.Actions(
                 goBack: { tab.browser.webView.goBack() },
                 goForward: { tab.browser.webView.goForward() },

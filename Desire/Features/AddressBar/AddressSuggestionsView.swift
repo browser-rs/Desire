@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct AddressSuggestionsView: View {
+    /// 列表宽度上限：`nil` = 随容器（地址栏用，跟输入框一样接近整宽）；
+    /// 新标签页那份用默认的 520（居中的搜索框下面）。
+    var maxWidth: CGFloat? = 520
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var model: AddressSuggestionsModel
@@ -40,7 +43,7 @@ struct AddressSuggestionsView: View {
                     }
                 }
             }
-            .frame(maxWidth: 520, alignment: .leading)
+            .frame(maxWidth: maxWidth, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: .radiusPopover))
             .shadowElevated()

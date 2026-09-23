@@ -33,7 +33,12 @@ struct ContentView: View {
     /// acts on the window the chat lives in — not on whichever window was
     /// last key. Preferences and conversation history stay shared.
     @StateObject var aiSession: AgentSessionStore
-    @FocusState var isUrlFocused: Bool
+    /// 地址栏是否正在编辑。**不用 `@FocusState`**：地址栏是 NSViewRepresentable
+    /// 自己 becomeFirstResponder，SwiftUI 的 FocusState 不认，值永远停在 false
+    /// （见 URLBarField 里的说明）。
+    @State var isUrlFocused = false
+    /// 地址栏的位置尺寸（Toolbar 实测、候选下拉按它对齐）。
+    @State var urlFieldFrame: CGRect = .zero
     @FocusState var isFindFocused: Bool
     @State var showTranslateBar = false
     @Environment(\.scenePhase) var scenePhase

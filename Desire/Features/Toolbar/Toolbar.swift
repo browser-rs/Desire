@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import os
 
 struct Toolbar: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
@@ -53,7 +54,9 @@ struct Toolbar: View {
     /// whole DevToolsStore — otherwise every console message / network event
     /// from a chatty page would re-render the toolbar.
     let isDevModeEnabled: Bool
-    var isUrlFocused: FocusState<Bool>.Binding
+    @Binding var isUrlFocused: Bool
+    /// 地址栏在 `SelectedTabContent.urlFieldSpace` 里的 frame —— 候选下拉按它对齐。
+    @Binding var urlFieldFrame: CGRect
     let actions: Actions
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
@@ -142,7 +145,7 @@ struct Toolbar: View {
         .popover(isPresented: $showPasswords) {
             PasswordPanel(passwordStore: passwordStore)
         }
-        .onChange(of: isUrlFocused.wrappedValue) { _, focused in
+        .onChange(of: isUrlFocused) { _, focused in
             if focused {
                 // Entering edit mode: seed the buffer with what's currently
                 // displayed so the user edits the visible URL.
@@ -161,7 +164,7 @@ struct Toolbar: View {
         // When the page navigates (and the field is not focused), keep the
         // address field in sync with the new URL.
         .onChange(of: displayedURL) { _, value in
-            if !isUrlFocused.wrappedValue { editingURL = value }
+            if !isUrlFocused { editingURL = value }
         }
     }
 
@@ -214,7 +217,7 @@ struct Toolbar: View {
 
             URLBarField(
                 text: $editingURL,
-                isFocused: isUrlFocused,
+                isFocused: $isUrlFocused,
                 onSubmit: {
                     // Enter commits the keyboard-highlighted suggestion. Row
                     // 0 IS the typed-text action ("go to X" / "search for
@@ -235,16 +238,16 @@ struct Toolbar: View {
                         actions.navigate(str)
                     }
                 },
-                onMoveSelection: { _ in
-                    // 地址栏**不显示候选下拉**（下拉只在新标签页的搜索框里），所以方向键
-                    // 一律交还文本域移动光标。此前这里会静默移动一个**看不见的**高亮，
-                    // 接着按回车就会打开"看不见的那一条"（书签/历史，而不是输入的网址）。
-                    // 要让地址栏也有下拉，得先把列表视图挂到这个位置。
-                    false
+                onMoveSelection: { delta in
+                    // 列表非空时把 ↑/↓ 交给候选下拉（`isUrlFocused` 修好后它真的会显示，
+                    // 见 URLBarField 的注释）；为空则交还文本域移动光标。
+                    guard !suggestionModel.isEmpty else { return false }
+                    suggestionModel.moveSelection(by: delta)
+                    return true
                 },
                 onEscape: {
                     suggestionModel.reset()
-                    isUrlFocused.wrappedValue = false
+                    isUrlFocused = false
                     // Restore the field to the current page URL on escape.
                     editingURL = displayedURL
                 },
@@ -265,16 +268,23 @@ struct Toolbar: View {
         .frame(height: 30)
         .background(
             Capsule()
-                .fill(isUrlFocused.wrappedValue ? appAccent.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                .fill(isUrlFocused ? appAccent.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
                 .overlay(
                     Capsule()
                         .strokeBorder(
-                            isUrlFocused.wrappedValue ? appAccent.opacity(0.4) :
+                            isUrlFocused ? appAccent.opacity(0.4) :
                             tab.isIncognito ? Color.purple.opacity(0.3) :
                             Color.clear, lineWidth: 0.5)
                 )
-                .animation(.transitionNormal, value: isUrlFocused.wrappedValue)
+                .animation(.transitionNormal, value: isUrlFocused)
         )
+        // 量的是**这个胶囊**（用户眼里的"输入栏"）而不是里面那个 16pt 高的文本框，
+        // 候选下拉据此对齐：同宽、同起点、紧贴下沿。
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(SelectedTabContent.urlFieldSpace))
+        } action: { frame in
+            if frame != urlFieldFrame { urlFieldFrame = frame }
+        }
         .layoutPriority(1)
     }
 

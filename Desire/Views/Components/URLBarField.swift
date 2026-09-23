@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import os
 
 struct URLBarField: NSViewRepresentable {
     /// Posted (object: nil) to make the focused URL field select its whole
@@ -8,7 +9,12 @@ struct URLBarField: NSViewRepresentable {
     static let selectAllNotification = Notification.Name("URLBarField.selectAll")
 
     @Binding var text: String
-    var isFocused: FocusState<Bool>.Binding
+    /// 由 NSTextField 的**真实编辑事件**维护（见 Coordinator 的
+    /// controlTextDidBegin/EndEditing）。此前这里是 `FocusState<Bool>.Binding`，
+    /// 但地址栏是 NSViewRepresentable、自己调 `becomeFirstResponder()`——
+    /// SwiftUI 的 FocusState 不认这种焦点，于是它**永远是 false**：
+    /// 候补下拉不显示、聚焦高亮不亮、聚焦时播种 URL/失焦重置也都失效。
+    @Binding var isFocused: Bool
     var onSubmit: () -> Void
     var onPasteAndGo: () -> Void
     /// Consumes a suggestion-list arrow move. Return `true` when handled
@@ -51,10 +57,10 @@ struct URLBarField: NSViewRepresentable {
         }
         // Focus only on the false→true transition. Calling becomeFirstResponder
         // on every render (the old behavior) fought the field editor while typing.
-        if isFocused.wrappedValue, !context.coordinator.wasFocused {
+        if isFocused, !context.coordinator.wasFocused {
             nsView.becomeFirstResponder()
         }
-        context.coordinator.wasFocused = isFocused.wrappedValue
+        context.coordinator.wasFocused = isFocused
     }
 
     static func dismantleNSView(_ nsView: NSTextField, coordinator: Coordinator) {
@@ -100,6 +106,14 @@ struct URLBarField: NSViewRepresentable {
             let selectAll = NSMenuItem(title: String(localized: "Select All"), action: #selector(selectAllAction), keyEquivalent: "a")
             selectAll.target = self
             menu.addItem(selectAll)
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            if !parent.isFocused { parent.isFocused = true }
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            if parent.isFocused { parent.isFocused = false }
         }
 
         @objc func submit() {

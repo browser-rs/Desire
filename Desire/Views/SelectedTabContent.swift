@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
+import os
 
 // MARK: - SelectedTabContent
 
@@ -23,6 +24,9 @@ import WebKit
 /// 宽度协商只经子视图的 minWidth/idealWidth/maxWidth 接口（容器所有），
 /// 面板内部不得再设固定 `.frame(width:)`。
 struct SelectedTabContent: View {
+    /// 地址栏与候选下拉共用的命名坐标空间。
+    static let urlFieldSpace = "tabContentSpace"
+
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var tab: Tab
@@ -47,29 +51,31 @@ struct SelectedTabContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !isFullScreen {
-                GeometryReader { geo in
-                    Capsule()
-                        .fill(appAccent.opacity(0.15))
-                        .frame(height: 2)
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(appAccent)
-                                .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
-                        }
-                }
-                .frame(height: 2)
-                .opacity(tab.isLoading ? 1 : 0)
-                .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
-                .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
+            Group {
+                if !isFullScreen {
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(appAccent.opacity(0.15))
+                            .frame(height: 2)
+                            .overlay(alignment: .leading) {
+                                Capsule()
+                                    .fill(appAccent)
+                                    .frame(width: geo.size.width * CGFloat(tab.browser.estimatedProgress))
+                            }
+                    }
+                    .frame(height: 2)
+                    .opacity(tab.isLoading ? 1 : 0)
+                    .animation(.smooth(duration: 0.15), value: tab.browser.estimatedProgress)
+                    .animation(.easeInOut(duration: 0.2), value: tab.isLoading)
 
-                // Toolbar spans full width above the content area (matches
-                // original ContentView.body layout before SelectedTabContent
-                // extraction).
-                content.toolbarSection(for: tab)
-                content.bookmarksBarSection(for: tab)
+                    // Toolbar spans full width above the content area (matches
+                    // original ContentView.body layout before SelectedTabContent
+                    // extraction).
+                    content.toolbarSection(for: tab)
+                    content.bookmarksBarSection(for: tab)
+                }
+                content.noticeBars(for: tab)
             }
-            content.noticeBars(for: tab)
 
             HStack(spacing: 0) {
                 if showSidebar {
@@ -211,7 +217,7 @@ struct SelectedTabContent: View {
                     set: { tab.urlString = $0 }
                 ), onNavigate: { input in
                     actions.navigateToURL(input, for: tab)
-                }, suggestionModel: content.newTabSuggestionModel, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
+                }, suggestionModel: content.newTabSuggestionModel, isUrlBarEditing: content.isUrlFocused, bookmarkStore: content.bookmarkStore, historyStore: content.historyStore, settings: content.settings)
             } else if content.showTabOverview {
                 // 标签概览正挂载本标签的 webview——同一 NSView
                 // 不能双宿主，主区让位（概览关闭后自动还原）。
@@ -329,10 +335,14 @@ struct SelectedTabContent: View {
                 }
             }
         }
+        // 地址栏候选下拉要用「地址栏在内容里的 frame」来对齐，所以这里声明一个命名
+        // 坐标空间：Toolbar 里量地址栏、这里摆下拉，两边同一参照系。
+        .coordinateSpace(name: Self.urlFieldSpace)
         .id(tab.id)
         .overlay(alignment: .top) {
-            if content.isUrlFocused {
+            if content.isUrlFocused, content.urlFieldFrame.width > 1 {
                 AddressSuggestionsView(
+                    maxWidth: nil,
                     model: content.suggestionModel,
                     engineName: content.settings.effectiveEngineName,
                     searchHistoryStore: content.searchHistoryStore,

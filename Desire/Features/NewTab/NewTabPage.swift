@@ -9,6 +9,9 @@ struct NewTabPage: View {
     @Binding var urlString: String
     var onNavigate: (String) -> Void
     @ObservedObject var suggestionModel: AddressSuggestionsModel
+    /// 地址栏正在编辑时，本页的候补下拉让位——两份列表同时出现是用户报的
+    /// "这两块不应该同时触发"。
+    var isUrlBarEditing: Bool = false
     @ObservedObject var bookmarkStore: BookmarkStore
     @ObservedObject var historyStore: HistoryStore
     var settings: Settings
@@ -45,7 +48,7 @@ struct NewTabPage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundGradient)
         .overlay(alignment: .top) {
-            if searchFocused && !suggestionModel.isEmpty {
+            if searchFocused && !isUrlBarEditing && !suggestionModel.isEmpty {
                 AddressSuggestionsView(
                     model: suggestionModel,
                     engineName: settings.effectiveEngineName

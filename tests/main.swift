@@ -192,7 +192,28 @@ let step0 = steps.first ?? [:]
 eq("轨迹：动作名", step0["action"] as? String ?? "", "readFile")
 eq("轨迹：失败标记（Error: 约定）", step0["threwError"] as? Bool ?? true, true)
 
-// ---------- 汇总 ----------
+// 轨迹：并行批的**按 id 配对**（位置配对在并发完成时张冠李戴）
+let pairCalls: [AgentMessage] = [
+    msg(.user, "并行读取"),
+    {
+        var a = AgentMessage(role: .assistant, content: "")
+        a.toolCalls = [
+            AgentToolCall(id: "call_A", type: "function",
+                          function: .init(name: "readFile", arguments: "{\"path\":\"a\"}")),
+            AgentToolCall(id: "call_B", type: "function",
+                          function: .init(name: "readFile", arguments: "{\"path\":\"b\"}")),
+        ]
+        return a
+    }(),
+    msg(.tool, "结果A", toolCallId: "call_A", toolName: "readFile"),
+    msg(.tool, "结果B", toolCallId: "call_B", toolName: "readFile"),
+]
+let pairTurns = AgentTrace.turns(of: conv("pair", pairCalls))
+let pairSteps = (pairTurns[0]["steps"] as? [[String: Any]]) ?? []
+eq("轨迹：并行批按 id 配对（步骤 0 = 结果A）", (pairSteps.first?["result"] as? String) ?? "", "结果A")
+eq("轨迹：并行批按 id 配对（步骤 1 = 结果B）", (pairSteps.last?["result"] as? String) ?? "", "结果B")
+
+// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

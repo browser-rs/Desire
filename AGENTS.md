@@ -786,6 +786,13 @@ Features/Bookmarks/
   （原样重发必再失败）；面板"上下文占用%"用的是**生效预算**（`effectiveContextBudget`），
   改压缩预算时两处口径要一起看。
 
+- **只读工具并行批 + 结果认领必须按 id**（2026-09-23，P2）：`runTurn` 里连续的
+  `.readonly` 工具整段并发（`runReadonlyBatch`），gate 仍逐个过、结果按原顺序追加；
+  **别把有副作用的工具混进批**（navigate/click 之间顺序就是语义）。轨迹的步骤-结果
+  认领因此必须按 **toolCallId**（`AgentTrace` 的步骤带 `callId`）——位置配对
+  （`lastIndex(result == nil)`）在并行批下把结果张冠李戴（实测 3 个并行 readFile
+  全部错位）；单测 `tests/main.swift` 的"并行批按 id 配对"就是回归用例。
+
 - **纯逻辑单测：`tests/run.sh`**（2026-09-23 起）：解析/压缩/脱敏/用量折算/轨迹派生这类
   **纯 Foundation 逻辑**有一套不依赖 Xcode 的 swiftc 测试（`tests/main.swift` + `run.sh`，
   CI 在构建前跑）。**新增纯逻辑或改它们之前先跑一遍**；新增受测文件就往 `run.sh` 的

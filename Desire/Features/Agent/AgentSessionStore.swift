@@ -1028,9 +1028,27 @@ class AgentSessionStore: ObservableObject {
 
             // Execute tool calls with risk-gated approval. Each call may
             // pause the loop (via a continuation) until the user decides.
-            for tc in tcs {
+            var ti = 0
+            while ti < tcs.count {
                 if isCancelled { return }
                 await waitWhilePaused()
+
+                // **只读段并行**：从当前位置起连续的 .readonly 工具互不改状态、也从不
+                // 弹审批 —— 并发执行、按原顺序落结果，多读类回合的墙钟立刻减半。
+                var batchEnd = ti
+                while batchEnd < tcs.count,
+                      ToolRisk.classify(tcs[batchEnd].function.name) == .readonly,
+                      tcs[batchEnd].function.name != "spawnSubagent" {
+                    batchEnd += 1
+                }
+                if batchEnd - ti >= 2 {
+                    await runReadonlyBatch(Array(tcs[ti..<batchEnd]))
+                    ti = batchEnd
+                    continue
+                }
+
+                let tc = tcs[ti]
+                ti += 1
                 let risk = ToolRisk.classify(tc.function.name)
 
                 let decision = await gate(toolCall: tc, risk: risk)
@@ -1597,6 +1615,70 @@ class AgentSessionStore: ObservableObject {
     /// Decides whether a tool call may run. Returns the outcome — the loop
     /// then either executes the tool, appends a denial, or (if cancelled)
     /// returns. `.readonly` tools and whitelisted tools bypass the prompt.
+    /// 并行执行一段**连续的 .readonly** 工具调用。
+    ///
+    /// 只读工具互不改状态、也从不弹审批，所以可以整段并发：gate 仍逐个过
+    /// （readonly 直接放行、取消即拒），结果按**原顺序**追加 —— toolCallId 配对
+    /// 不受执行顺序影响。耗时落在真正的 I/O 上（webview 的 JS 往返、网络），
+    /// 这类等待互相重叠，多读回合的墙钟就是省在这里。
+    private func runReadonlyBatch(_ calls: [AgentToolCall]) async {
+        var denied: [AgentMessage] = []
+        var pending: [(call: AgentToolCall, startedAt: Date)] = []
+        for call in calls {
+            let decision = await gate(toolCall: call, risk: .readonly)
+            if isCancelled { return }
+            switch decision {
+            case .denied:
+                denied.append(AgentMessage(
+                    role: .tool,
+                    content: "[User denied this action (\(call.function.name)).]",
+                    toolCallId: call.id,
+                    toolName: call.function.name
+                ))
+            case .allowedOnce, .allowedAlways:
+                pending.append((call, Date()))
+            }
+        }
+        guard !pending.isEmpty else {
+            messages.append(contentsOf: denied)
+            streamingVersion += 1
+            return
+        }
+        if pending.count > 1 {
+            currentAction = "parallel ×\(pending.count)"
+        } else if let only = pending.first {
+            currentAction = only.call.function.name
+        }
+
+        let webView = activeWebView ?? WKWebView()
+        let provider = toolProvider
+        let results = await withTaskGroup(of: (Int, String).self) { group in
+            for (offset, entry) in pending.enumerated() {
+                group.addTask {
+                    let result = await provider.execute(entry.call, in: webView)
+                    return (offset, result)
+                }
+            }
+            var out: [(Int, String)] = []
+            for await pair in group { out.append(pair) }
+            return out.sorted { $0.0 < $1.0 }
+        }
+
+        for (offset, result) in results {
+            let entry = pending[offset]
+            messages.append(AgentMessage(
+                role: .tool,
+                content: SecretRedactor.redact(result, knownKeys: preference.secretsForRedaction()),
+                toolCallId: entry.call.id,
+                toolName: entry.call.function.name,
+                toolDurationMs: Date().timeIntervalSince(entry.startedAt) * 1000
+            ))
+        }
+        denied.forEach { messages.append($0) }
+        streamingVersion += 1
+        currentAction = nil
+    }
+
     private func gate(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
         if isCancelled { return .denied }
 

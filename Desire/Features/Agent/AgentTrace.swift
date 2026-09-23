@@ -40,10 +40,13 @@ enum AgentTrace {
                     continue
                 case .assistant:
                     for call in message.toolCalls ?? [] {
+                        // callId 用于结果认领：并行批之后，工具消息虽然按调用顺序落盘，
+                        // 位置配对（lastIndex）也会把结果张冠李戴 —— 必须按 id 精确配对。
                         pendingCallID = call.id
                         steps.append([
                             "action": call.function.name,
                             "args": String(call.function.arguments.prefix(600)),
+                            "callId": call.id,
                         ])
                     }
                     if let reasoning = message.reasoning, !reasoning.isEmpty,
@@ -64,8 +67,19 @@ enum AgentTrace {
                         "threwError": text.hasPrefix("Error:"),
                         "ms": message.toolDurationMs.map { ($0 * 10).rounded() / 10 } as Any,
                     ]
-                    // 认领最近一个还没观察的调用（顺序与执行顺序一致）。
-                    if let index = steps.lastIndex(where: { $0["result"] == nil }) {
+                    // 认领：**按 toolCallId 精确配对**。并行批之后，"最近一个没观察的
+                    // 步骤"这种位置配对会把结果张冠李戴（实测 3 个并行 readFile 的
+                    // 结果全部错位）；旧会话没有 id 的步骤退回位置配对。
+                    let claimIndex: Int?
+                    if let callID = message.toolCallId,
+                       let exact = steps.firstIndex(where: {
+                           ($0["callId"] as? String) == callID && $0["result"] == nil
+                       }) {
+                        claimIndex = exact
+                    } else {
+                        claimIndex = steps.lastIndex(where: { $0["result"] == nil })
+                    }
+                    if let index = claimIndex {
                         steps[index].merge(observation) { _, new in new }
                     } else {
                         steps.append(observation)

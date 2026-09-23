@@ -281,6 +281,7 @@ final class AutomationServer {
         ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
         ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
+        ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
         ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
@@ -1084,6 +1085,8 @@ final class AutomationServer {
                     text: Self.string(body, "text") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("POST", "/conversations/delete"):
+                return try Self.json(Self.deleteConversations(body))
             case ("POST", "/agent/feedback"):
                 return try Self.json(Self.setAgentFeedback(
                     messageId: Self.string(body, "messageId") ?? "",
@@ -2425,6 +2428,29 @@ final class AutomationServer {
              "updatedAt": iso.string(from: hit.updatedAt),
              "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
         }]
+    }
+
+    /// 删除会话（E2E 收尾清掉测试遗留；历史列表的批量删除同一个实现）。
+    /// **写操作必须走 UI 持有的那份 store**（[[AGENTS]] 端点扩展模式）：用新实例删只会
+    /// 删掉盘上的文件，正在显示的列表还留着那一行，"删除"看起来没生效。
+    @MainActor
+    private static func deleteConversations(_ body: [String: Any]) -> [String: Any] {
+        var raw: [String] = []
+        if let single = body["id"] as? String { raw.append(single) }
+        if let many = body["ids"] as? [String] { raw.append(contentsOf: many) }
+        let ids = Set(raw.compactMap { UUID(uuidString: $0) })
+        guard !ids.isEmpty else { return ["error": "pass id or ids (UUID strings)"] }
+
+        // 活会话（面板开着）走它；否则用 AppState 里那份——**和 UI 显示的是同一个对象**，
+        // 删完列表立刻少一行。都没有（无头启动）才退回读盘的新实例。
+        let live = AgentScheduler.shared.deliveryTarget
+        let store = live?.conversationStore ?? AppState.live?.conversationStore ?? ConversationStore()
+        let known = Set(store.conversations.map { $0.id })
+        let hit = ids.intersection(known)
+        store.delete(hit)
+        return ["ok": true, "deleted": hit.map { $0.uuidString }.sorted(),
+                "missing": ids.subtracting(known).map { $0.uuidString }.sorted(),
+                "scope": live != nil ? "live" : (AppState.live != nil ? "app" : "saved")]
     }
 
     private static func suggest(query: String) throws -> [String: Any] {

@@ -146,97 +146,114 @@ private struct AssistantBubble: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             roleAvatar
-            VStack(alignment: .leading, spacing: 6) {
-                if let reasoning = message.reasoning, !reasoning.isEmpty {
-                    ReasoningBlock(
-                        text: reasoning,
-                        // 只在"还在思考、正文尚未开始"时自动展开；正文一来就自动收起
-                        // （用户手动点过之后不再自动切换）。
-                        isLive: isStreamingTail && (message.content?.isEmpty ?? true)
-                    )
-                }
-                if isError {
-                    ErrorBlock(text: message.content ?? "")
-                } else if let text = message.content, !text.isEmpty {
-                    // 流式中的那条把 isLive 传下去：超长回答会退化成纯文本渲染，
-                    // 避免每次刷新重建上千个子视图把主线程卡住（见渲染器注释）。
-                    MarkdownRendererView(text: text, isLive: isStreamingTail)
-                }
-
-                if let tcs = message.toolCalls, !tcs.isEmpty {
-                    ToolCallList(toolCalls: tcs, results: toolResults, durations: toolDurations)
-                }
-
-                if let critique = message.critique, !critique.isEmpty {
-                    CritiqueBlock(text: critique)
-                }
-
-                if let note = message.verificationNote, !note.isEmpty {
-                    // 机械核验结论：**不折叠**——警告被折叠起来就等于没有。
-                    HStack(alignment: .top, spacing: 5) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
-                        Text(note)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
+            // 气泡本体 + **下方**的操作行：操作按钮曾经叠在气泡的 topTrailing 上，
+            // 短消息时正好压住正文第一行（用户实拍：这几个按钮应该放在消息下面，挡着字了）。
+            VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let reasoning = message.reasoning, !reasoning.isEmpty {
+                        ReasoningBlock(
+                            text: reasoning,
+                            // 只在"还在思考、正文尚未开始"时自动展开；正文一来就自动收起
+                            // （用户手动点过之后不再自动切换）。
+                            isLive: isStreamingTail && (message.content?.isEmpty ?? true)
+                        )
                     }
-                    .padding(7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.orange.opacity(0.10))
-                    )
-                }
-
-                if !hasVisibleContent {
-                    AgentTypingIndicator()
-                        .padding(.vertical, 4)
-                } else if isStreamingTail {
-                    // Trailing caret pulse while the stream is still open
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(appAccent)
-                            .frame(width: 5, height: 5)
-                            .opacity(0.85)
-                        Text("streaming")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                    if isError {
+                        ErrorBlock(text: message.content ?? "")
+                    } else if let text = message.content, !text.isEmpty {
+                        // 流式中的那条把 isLive 传下去：超长回答会退化成纯文本渲染，
+                        // 避免每次刷新重建上千个子视图把主线程卡住（见渲染器注释）。
+                        MarkdownRendererView(text: text, isLive: isStreamingTail)
                     }
-                    .padding(.top, 2)
-                }
 
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(bubbleFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(borderColor, lineWidth: 0.5)
-            )
-            .overlay(alignment: .topTrailing) {
-                if let text = message.content, !text.isEmpty, !isError {
-                    HStack(spacing: 4) {
-                        if isHovering {
-                            FeedbackChips(feedback: message.feedback, onVote: onFeedback)
+                    if let tcs = message.toolCalls, !tcs.isEmpty {
+                        ToolCallList(toolCalls: tcs, results: toolResults, durations: toolDurations)
+                    }
+
+                    if let critique = message.critique, !critique.isEmpty {
+                        CritiqueBlock(text: critique)
+                    }
+
+                    if let note = message.verificationNote, !note.isEmpty {
+                        // 机械核验结论：**不折叠**——警告被折叠起来就等于没有。
+                        HStack(alignment: .top, spacing: 5) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
+                            Text(note)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        CopyChip(text: text)
+                        .padding(7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.orange.opacity(0.10))
+                        )
                     }
-                    .offset(x: 6, y: -6)
+
+                    if !hasVisibleContent {
+                        AgentTypingIndicator()
+                            .padding(.vertical, 4)
+                    } else if isStreamingTail {
+                        // Trailing caret pulse while the stream is still open
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(appAccent)
+                                .frame(width: 5, height: 5)
+                                .opacity(0.85)
+                            Text("streaming")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.top, 2)
+                    }
+
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(bubbleFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(borderColor, lineWidth: 0.5)
+                )
+                .textSelection(.enabled)
+                actionRow
             }
-            .textSelection(.enabled)
 
             Spacer(minLength: 40)
         }
         .padding(.horizontal, 12)
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
+    }
+
+    /// 消息操作行（👍/👎 + 复制）：**在气泡下方**，不再叠在正文上。
+    ///
+    /// 三处刻意：① 位置**一直占着**（用 `opacity` 切换而不是 `if`）——鼠标扫过时下面的消息
+    /// 不会跳；② 投票按钮的**宽度**也一直占着，否则复制按钮会在 hover 时左右横移；
+    /// ③ 只在有正文且非报错时才出现（报错气泡没有可复制/可评价的答案）。
+    @ViewBuilder
+    private var actionRow: some View {
+        if let text = message.content, !text.isEmpty, !isError {
+            HStack(spacing: 4) {
+                Spacer(minLength: 0)
+                if let onFeedback {
+                    FeedbackChips(feedback: message.feedback, onVote: onFeedback)
+                        .opacity(isHovering ? 1 : 0)
+                        .allowsHitTesting(isHovering)
+                }
+                CopyChip(text: text)
+                    .opacity(isHovering ? 1 : 0)
+                    .allowsHitTesting(isHovering)
+            }
+            .frame(height: 18)
+        }
     }
 
     private var roleAvatar: some View {

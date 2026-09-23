@@ -213,7 +213,33 @@ let pairSteps = (pairTurns[0]["steps"] as? [[String: Any]]) ?? []
 eq("轨迹：并行批按 id 配对（步骤 0 = 结果A）", (pairSteps.first?["result"] as? String) ?? "", "结果A")
 eq("轨迹：并行批按 id 配对（步骤 1 = 结果B）", (pairSteps.last?["result"] as? String) ?? "", "结果B")
 
-// ---------- 汇总 ----------// ---------- 汇总 ----------
+// 悬空 tool_calls：应用在工具执行中途被杀的崩溃形态 —— 悬空调用必须剥掉，
+// 否则之后每一轮请求都被服务端拒绝（会话报废）。
+let dangling: [AgentMessage] = [
+    msg(.user, "悬空测试"),
+    {
+        var a = AgentMessage(role: .assistant, content: "")
+        a.toolCalls = [AgentToolCall(id: "call_dangling", type: "function",
+                                     function: .init(name: "readFile", arguments: "{\"path\":\"x\"}"))]
+        return a
+    }(),
+]
+let sanitized = ContextCompaction.droppingDanglingToolCalls(dangling)
+check("悬空：剥掉 toolCalls", (sanitized.last?.toolCalls ?? []).isEmpty)
+eq("悬空：正文保留则不丢消息", sanitized.count, 1)
+
+let emptyAssistant = msg(.assistant, "", p: 0)
+let stripped = ContextCompaction.droppingDanglingToolCalls([
+    msg(.user, "q"),
+    { var a = AgentMessage(role: .assistant, content: ""); a.toolCalls = [AgentToolCall(id: "d", type: "function", function: .init(name: "x", arguments: ""))]; return a }(),
+])
+eq("悬空：正文为空 → 整条丢弃", stripped.count, 1)
+check("悬空：正常会话不受影响", ContextCompaction.droppingDanglingToolCalls([
+    msg(.user, "q"),
+    msg(.assistant, "a", model: "m", p: 10, c: 1),
+]).count == 2)
+
+// ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

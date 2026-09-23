@@ -20,6 +20,7 @@ enum ContextCompaction {
     /// 轮次不再是无声消失 —— 模型仍能从前文知道聊过什么（长对话"越聊越忘"的主因）。
     static func compactWithDigest(_ messages: [AgentMessage], budget: Int = 160_000,
                                   digestLimit: Int = 1_500) -> (kept: [AgentMessage], digest: String?) {
+        var messages = Self.droppingDanglingToolCalls(messages)
         func size(_ m: AgentMessage) -> Int {
             (m.content?.count ?? 0)
                 + (m.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
@@ -44,6 +45,21 @@ enum ContextCompaction {
         let kept = Array(messages[keepStart...])
         let digest = Self.digest(for: Array(messages[..<keepStart]), limit: digestLimit)
         return (kept, digest.isEmpty ? nil : digest)
+    }
+
+    /// **悬空 tool_calls 清理**：应用在工具执行中途被杀时，最后一条 assistant 的
+    /// tool_calls 没有等到结果 —— 原样发给 OpenAI 兼容服务会被直接拒绝
+    /// （"assistant message with tool_calls must be followed by tool messages"），
+    /// 且之后每一轮都会如此，会话等于报废。这里把**末尾**悬空的调用剥掉（正文保留；
+    /// 正文也为空则整条丢弃）。中间的悬空（理论上的坏存储）不动 —— 只处理崩溃形态，
+    /// 不猜更多。
+    static func droppingDanglingToolCalls(_ messages: [AgentMessage]) -> [AgentMessage] {
+        guard var last = messages.last, last.role == .assistant,
+              !(last.toolCalls ?? []).isEmpty else { return messages }
+        last.toolCalls = nil
+        var out = Array(messages.dropLast())
+        if !(last.content ?? "").isEmpty { out.append(last) }
+        return out
     }
 
     /// 被裁轮次的机械摘要：每轮一行"用户目标｜结论"。摘要有上限，更早的只留轮数 ——

@@ -20,6 +20,12 @@ struct NewTabPage: View {
     @State private var editTitle = ""
     @State private var editURL = ""
     @FocusState private var searchFocused: Bool
+    /// 搜索框在 `space` 里的 frame：候选列表按它对齐（同宽、同起点、紧贴下沿）。
+    /// 之前是写死的 `maxWidth: 520` + `.padding(.top, 102)`——框宽 560、列表 520，
+    /// 居中后两边各内缩 20pt（用户截图："列表比输入框窄一圈"）；102 也会随书签栏
+    /// 开关漂移。
+    @State private var searchFieldFrame: CGRect = .zero
+    private static let space = "newTabPageSpace"
 
     private let columns = [GridItem(.adaptive(minimum: 130, maximum: 160), spacing: 20)]
     private let contentMaxWidth: CGFloat = 980
@@ -47,8 +53,9 @@ struct NewTabPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundGradient)
-        .overlay(alignment: .top) {
-            if searchFocused && !isUrlBarEditing && !suggestionModel.isEmpty {
+        .coordinateSpace(name: Self.space)
+        .overlay(alignment: .topLeading) {
+            if searchFocused, !isUrlBarEditing, !suggestionModel.isEmpty, searchFieldFrame.width > 1 {
                 AddressSuggestionsView(
                     model: suggestionModel,
                     engineName: settings.effectiveEngineName
@@ -57,9 +64,10 @@ struct NewTabPage: View {
                     searchText = ""
                     onNavigate(sug.url)
                 }
-                .frame(maxWidth: 520)
-                .padding(.horizontal, 12)
-                .padding(.top, 102)
+                // 与搜索框**同宽同起点**、紧贴其下沿（frame 实测，和地址栏一致）
+                .frame(width: searchFieldFrame.width, alignment: .leading)
+                .padding(.top, searchFieldFrame.maxY)
+                .padding(.leading, searchFieldFrame.minX)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -106,6 +114,11 @@ struct NewTabPage: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: 560)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(Self.space))
+        } action: { frame in
+            if frame != searchFieldFrame { searchFieldFrame = frame }
+        }
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))

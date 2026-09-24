@@ -372,6 +372,7 @@ final class AutomationServer {
         ep("POST", "/sync/register", "Create account + sign in", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
         ep("POST", "/sync/logout", "Sign out on this device (server tokens revoked)", example: "-d '{}'")
         ep("POST", "/sync/server", "Point the sync client at a server base URL (persisted)", params: ["baseURL:string"], example: #"-d '{"baseURL":"http://127.0.0.1:18090"}'"#)
+        ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
         ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
         ep("POST", "/search-history/clear", "Clear search history", example: "-d '{}'")
@@ -796,6 +797,8 @@ final class AutomationServer {
                 return try Self.json(Self.syncLogout())
             case ("POST", "/sync/server"):
                 return try Self.json(Self.syncSetServer(Self.string(body, "baseURL") ?? ""))
+            case ("POST", "/sync/setting"):
+                return try Self.json(Self.syncSetSetting(body))
             case ("GET", "/search-history"):
                 return try Self.json(Self.searchHistory(count: Int(query["count"] ?? "10") ?? 10))
             case ("POST", "/search-history/add"):
@@ -2571,9 +2574,30 @@ final class AutomationServer {
     }
 
     private static func syncSetServer(_ baseURL: String) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
         guard !baseURL.isEmpty else { return ["error": "missing baseURL"] }
-        UserDefaults.standard.set(baseURL, forKey: "sync.serverBaseURL")
-        return ["ok": true, "baseURL": baseURL]
+        app.syncStore.setServerBaseURL(baseURL)
+        return ["ok": true, "baseURL": app.syncStore.serverBaseURL]
+    }
+
+    /// 写一个可同步设置项（catalog 白名单内）；下个同步周期自然上推。
+    private static func syncSetSetting(_ body: [String: Any]) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let key = Self.string(body, "key") else { return ["error": "missing key"] }
+        let value: SettingsSyncValue
+        if let bool = body["bool"] as? Bool {
+            value = .bool(bool)
+        } else if let number = body["number"] as? Double {
+            value = .number(number)
+        } else if let string = body["string"] as? String {
+            value = .string(string)
+        } else {
+            return ["error": "missing value (string|bool|number)"]
+        }
+        guard app.syncStore.applyExternalSetting(key: key, value: value) else {
+            return ["error": "unknown key or invalid value"]
+        }
+        return ["ok": true, "key": key]
     }
 
     private static func addQuickDial(title: String, url: String) throws -> [String: Any] {

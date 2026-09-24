@@ -10,6 +10,8 @@ struct SyncSettingsSection: View {
     @State private var password = ""
     @State private var isWorking = false
     @State private var formError: String?
+    @State private var serverURL = ""
+    @State private var serverSaved = false
 
     var body: some View {
         SettingsContainer {
@@ -19,6 +21,10 @@ struct SyncSettingsSection: View {
             case .signedIn(let account):
                 signedIn(account)
             }
+            serverSection
+        }
+        .onAppear {
+            serverURL = store.serverBaseURL
         }
     }
 
@@ -109,6 +115,34 @@ struct SyncSettingsSection: View {
 
     private var canSubmit: Bool {
         !username.trimmingCharacters(in: .whitespaces).isEmpty && password.count >= 6
+    }
+
+    // MARK: - 服务器地址
+
+    @ViewBuilder
+    private var serverSection: some View {
+        SettingsSection(
+            title: "Sync Server",
+            subtitle: "Where your sync account lives.",
+            icon: "server.rack"
+        ) {
+            VStack(spacing: 0) {
+                SettingsRow("Server", subtitle: store.serverBaseURL) {
+                    SettingsTextField(
+                        placeholder: "http://127.0.0.1:18090",
+                        text: $serverURL,
+                        width: 240
+                    )
+                }
+                SettingsRowDivider()
+                SettingsRow("Apply", subtitle: serverSaved ? localizedSettingText("Saved") : nil) {
+                    SettingsCapsuleButton("Apply", style: .secondary) {
+                        store.setServerBaseURL(serverURL)
+                        serverSaved = true
+                    }
+                }
+            }
+        }
     }
 
     private var lastSyncText: String {

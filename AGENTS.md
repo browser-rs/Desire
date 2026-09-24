@@ -1026,10 +1026,17 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   （ReadingListStore.clearAll）。快捷键域无删除语义（重置 = isCustomized=false 更新）。
   syncStore 挂 AppState（横跨 Browsing/System 两容器）。
 - **桥同步端点**：`GET /sync/status`（auth/syncing/lastSyncAt/lastError/各域游标/
-  待删计数）、`POST /sync/now|login|register|logout|server`——同步链路全程 curl 可验，
-  E2E 手法：注册 → mysql 核对 sync_items 四域行数 → 第二设备 curl 直推 → 桥
-  /sync/now → /bookmarks（**注意返回键是 `entries` 不是 `bookmarks`**）→ 删除后
+  待删计数）、`POST /sync/now|login|register|logout|server|setting`——同步链路全程
+  curl 可验，E2E 手法：注册 → mysql 核对 sync_items 四域行数 → 第二设备 curl 直推 →
+  桥 /sync/now → /bookmarks（**注意返回键是 `entries` 不是 `bookmarks`**）→ 删除后
   服务端 tombstone 行 payload 已置 NULL（按 deleted_at 查，别按 payload LIKE）。
+- **settings KV 域（2026-09-25，第五域）**：目录白名单 `SettingsSync.catalog`
+  （23 键，刻意排除 screenshotFolder/selectedCustomEngineId 这类机器相关项）。
+  设置没有 per-key updatedAt——SyncStore 用"**快照 diff 检测本地变更 → 变更盖新戳**"，
+  stamps/snapshot 存 UserDefaults（`sync.settings.stamps/snapshot`）。桥
+  `POST /sync/setting {key, string|bool|number}` 即时写入并盖戳（E2E 方向 B 用）。
+  **测试提醒**：curl 推设置若得 conflict 是 LWW 正常行为——秒级 `date` 时间戳会输给
+  应用侧微秒戳，要用 python 生成带微秒/更晚的时间戳。
   下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法

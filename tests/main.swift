@@ -443,6 +443,21 @@ do {
     check("阅读列表 新增带时间戳", freshMerged[0].updatedAt != nil)
 }
 
+// ---------- 云同步：设置 KV 载荷编解码 ----------
+
+do {
+    let values: [SettingsSyncValue] = [.string("https://example.com"), .bool(true), .number(1.25)]
+    let data = try SyncJSON.makeEncoder().encode(values)
+    let back = try SyncJSON.makeDecoder().decode([SettingsSyncValue].self, from: data)
+    eq("设置值 roundtrip", back, values)
+    // 类型标签保持：bool 不被吃成 number
+    let raw = #"{"b":true}"#
+    let one = try SyncJSON.makeDecoder().decode(SettingsSyncValue.self, from: Data(raw.utf8))
+    eq("设置值 bool 标签", one, .bool(true))
+    let bad = try? SyncJSON.makeDecoder().decode(SettingsSyncValue.self, from: Data(#"{"x":1}"#.utf8))
+    check("设置值 未知类型报错", bad == nil)
+}
+
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

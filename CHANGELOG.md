@@ -2,6 +2,15 @@
 
 ### Added
 
+- **云同步收官：settings KV 域 + 服务器地址设置**：23 个功能偏好（搜索引擎/主页/外观/
+  强调色/书签栏/下载/SponsorBlock/缩放/自动播放等）全量入同步；载荷 = 带类型标签的
+  `SettingsSyncValue`（string/bool/number），目录白名单 `SettingsSync.catalog` 刻意排除
+  机器相关项（截图文件夹路径、自定义搜索引擎引用）。设置没有 per-key 时间戳——由
+  SyncStore 维护"快照 diff 检测本地变更 → 变更盖新戳"，其余交给服务端 LWW。设置页
+  Sync 区块新增服务器地址行（即时生效），桥补 `/sync/setting`（写一个可同步设置项）。
+  E2E 双向验证：远端推 homePage → 应用偏好落盘；桥写偏好 → 服务端行 `{"b":true}` 带
+  新戳。**注意**：设置推送若被远端拒（conflict）是 LWW 正常行为——测试时远端时间戳
+  要真的更新（秒级 now 会输给应用侧微秒戳）。
 - **云同步扩展到四域 + 自动化桥端点**：快拨/阅读列表/快捷键接入 SyncEngine（`FlatSyncMerge`
   通用平铺合并核心，与书签同一套 LWW 规则；`QuickDial` 增加 `sort` 字段、每次结构变更
   重编号并盖戳——位移不改戳会被远端 LWW 拒收导致跨设备顺序分叉；阅读列表**清空 = 逐条

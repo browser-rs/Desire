@@ -22,6 +22,8 @@ final class SyncStore: ObservableObject {
     @Published private(set) var lastSyncAt: Date?
     /// 最近一次同步/登录失败的展示文本；成功后清空。
     @Published private(set) var lastError: String?
+    /// 同步服务器地址（设置页/桥可改，立即生效）。
+    @Published private(set) var serverBaseURL: String
 
     static let defaultServerBaseURL = "http://127.0.0.1:18090"
 
@@ -29,6 +31,7 @@ final class SyncStore: ObservableObject {
     private let quickDialStore: QuickDialStore
     private let readingListStore: ReadingListStore
     private let shortcutStore: KeyboardShortcutStore
+    private let settings: Settings
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -37,6 +40,9 @@ final class SyncStore: ObservableObject {
     private let serverKey = "sync.serverBaseURL"
     private let deviceIDKey = "sync.deviceID"
     private let lastSyncKey = "sync.lastSyncAt"
+    // 设置 KV 域的 LWW 戳与"上次已知值"快照（本地变更靠 diff 检测）
+    private let settingsStampsKey = "sync.settings.stamps"
+    private let settingsSnapshotKey = "sync.settings.snapshot"
 
     // Keychain（service = bundle id，account 前缀 sync-）
     private let keychainService = "me.siwi.Desire"
@@ -50,12 +56,16 @@ final class SyncStore: ObservableObject {
         bookmarkStore: BookmarkStore,
         quickDialStore: QuickDialStore,
         readingListStore: ReadingListStore,
-        shortcutStore: KeyboardShortcutStore
+        shortcutStore: KeyboardShortcutStore,
+        settings: Settings
     ) {
         self.bookmarkStore = bookmarkStore
         self.quickDialStore = quickDialStore
         self.readingListStore = readingListStore
         self.shortcutStore = shortcutStore
+        self.settings = settings
+        let storedServer = defaults.string(forKey: serverKey) ?? ""
+        serverBaseURL = storedServer.isEmpty ? Self.defaultServerBaseURL : storedServer
         if let username = defaults.string(forKey: usernameKey),
            keychainRead(accessAccount) != nil || keychainRead(refreshAccount) != nil {
             authState = .signedIn(username: username)
@@ -63,9 +73,11 @@ final class SyncStore: ObservableObject {
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date
     }
 
-    var serverBaseURL: String {
-        let stored = defaults.string(forKey: serverKey) ?? ""
-        return stored.isEmpty ? Self.defaultServerBaseURL : stored
+    func setServerBaseURL(_ url: String) {
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        defaults.set(trimmed, forKey: serverKey)
+        serverBaseURL = trimmed
     }
 
     /// 启动后的首次同步 + 定时器。AppState.init 末尾调用（自己内部再延迟，
@@ -172,6 +184,10 @@ final class SyncStore: ObservableObject {
         try await runDomainSync(.keyboardShortcuts, token: token,
                                 collectPush: collectShortcuts,
                                 applyRemote: applyShortcuts,
+                                clearApplied: { _ in })
+        try await runDomainSync(.settings, token: token,
+                                collectPush: collectSettings,
+                                applyRemote: applySettings,
                                 clearApplied: { _ in })
         lastSyncAt = Date()
         defaults.set(lastSyncAt, forKey: lastSyncKey)
@@ -280,6 +296,80 @@ final class SyncStore: ObservableObject {
         shortcutStore.replaceForSync(
             ShortcutSync.merge(base: shortcutStore.shortcuts, remote: items)
         )
+    }
+
+    // MARK: - 设置 KV 域
+
+    /// 设置没有 per-key updatedAt：本地变更靠"当前值 vs 上次同步快照"diff 检测，
+    /// 变了就盖新戳（= 本机最新意图），没变沿用旧戳交给服务端 LWW 仲裁。
+    private func collectSettings() -> [SyncWireItem<SettingsSyncValue>] {
+        let snapshot = loadSettingsSnapshot()
+        var stamps = loadSettingsStamps()
+        let now = Date()
+        var items: [SyncWireItem<SettingsSyncValue>] = []
+        for entry in SettingsSync.catalog {
+            guard let value = entry.read(settings) else { continue }
+            let stamp: Date
+            if snapshot[entry.key] != value {
+                stamp = now
+                stamps[entry.key] = now
+            } else {
+                stamp = stamps[entry.key] ?? now
+            }
+            items.append(SyncWireItem(
+                clientId: entry.key, clientUpdatedAt: stamp,
+                deleted: false, payload: value, updatedAt: nil
+            ))
+        }
+        saveSettingsStamps(stamps)
+        return items
+    }
+
+    private func applySettings(_ items: [SyncWireItem<SettingsSyncValue>]) {
+        var stamps = loadSettingsStamps()
+        var snapshot = loadSettingsSnapshot()
+        for item in items {
+            guard let payload = item.payload,
+                  let entry = SettingsSync.entry(forKey: item.clientId),
+                  entry.apply(settings, payload) else { continue }
+            stamps[item.clientId] = item.clientUpdatedAt
+            snapshot[item.clientId] = payload
+        }
+        saveSettingsStamps(stamps)
+        saveSettingsSnapshot(snapshot)
+    }
+
+    /// 本机即时写入（桥/测试用）：应用 + 盖戳 + 记快照，下个周期自然上推。
+    func applyExternalSetting(key: String, value: SettingsSyncValue) -> Bool {
+        guard let entry = SettingsSync.entry(forKey: key), entry.apply(settings, value) else {
+            return false
+        }
+        let now = Date()
+        var stamps = loadSettingsStamps()
+        stamps[key] = now
+        saveSettingsStamps(stamps)
+        var snapshot = loadSettingsSnapshot()
+        snapshot[key] = value
+        saveSettingsSnapshot(snapshot)
+        return true
+    }
+
+    private func loadSettingsStamps() -> [String: Date] {
+        guard let data = defaults.data(forKey: settingsStampsKey) else { return [:] }
+        return (try? SyncJSON.makeDecoder().decode([String: Date].self, from: data)) ?? [:]
+    }
+
+    private func saveSettingsStamps(_ stamps: [String: Date]) {
+        defaults.set(try? SyncJSON.makeEncoder().encode(stamps), forKey: settingsStampsKey)
+    }
+
+    private func loadSettingsSnapshot() -> [String: SettingsSyncValue] {
+        guard let data = defaults.data(forKey: settingsSnapshotKey) else { return [:] }
+        return (try? SyncJSON.makeDecoder().decode([String: SettingsSyncValue].self, from: data)) ?? [:]
+    }
+
+    private func saveSettingsSnapshot(_ snapshot: [String: SettingsSyncValue]) {
+        defaults.set(try? SyncJSON.makeEncoder().encode(snapshot), forKey: settingsSnapshotKey)
     }
 
     // MARK: - 令牌 / 设备 / Keychain

@@ -147,6 +147,36 @@ struct SyncPushResponse<Payload: Codable>: Codable {
     var results: [SyncPushResult<Payload>]
 }
 
+/// 设置 KV 域的载荷 = 值本体（带类型标签：string/bool/number）。
+/// client_id = UserDefaults 键名；目录（可同步哪些键）见 SettingsSync。
+enum SettingsSyncValue: Codable, Equatable {
+    case string(String)
+    case bool(Bool)
+    case number(Double)
+
+    private enum CodingKeys: String, CodingKey { case s, b, n }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let v = try? container.decode(String.self, forKey: .s) { self = .string(v); return }
+        if let v = try? container.decode(Bool.self, forKey: .b) { self = .bool(v); return }
+        if let v = try? container.decode(Double.self, forKey: .n) { self = .number(v); return }
+        throw DecodingError.dataCorrupted(DecodingError.Context(
+            codingPath: decoder.codingPath,
+            debugDescription: "未知设置值类型"
+        ))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .string(let v): try container.encode(v, forKey: .s)
+        case .bool(let v): try container.encode(v, forKey: .b)
+        case .number(let v): try container.encode(v, forKey: .n)
+        }
+    }
+}
+
 /// 响应信封：成功 code=0；错误 code=HTTP 语义值、message 可直接展示。
 /// nonisolated：被非隔离的 SyncAPIClient 直接访问成员。
 nonisolated struct SyncEnvelope<Data: Codable>: Codable {

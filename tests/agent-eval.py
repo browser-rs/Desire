@@ -49,7 +49,7 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-PORT = 8880
+PORT = int(os.environ.get("EVAL_PORT") or 8880)
 # 三个文件路径由 agent-eval.py 通过环境变量注入（临时目录，跑完即删）。
 SECRET_PATH = os.environ.get("EVAL_SECRET_PATH")
 SECRET2_PATH = os.environ.get("EVAL_SECRET2_PATH")
@@ -399,11 +399,20 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    port_file = os.environ.get("EVAL_PORT_FILE")
+    if port_file:
+        with open(port_file, "w") as fh:
+            fh.write(str(server.server_address[1]))
+    server.serve_forever()
 
 '''
 FIXTURE_PORT = 8880
-FIXTURE_ENDPOINT = f"http://127.0.0.1:{FIXTURE_PORT}/v1/chat/completions"
+# 显式禁代理：urllib 默认读 http(s)_proxy 环境变量，127.0.0.1 也会被送进代理
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+# 端点不能再是模块级常量——端口改临时后要等 ensure_workdir 握手完才知道
+def fixture_endpoint() -> str:
+    return f"http://127.0.0.1:{FIXTURE_PORT}/v1/chat/completions"
 POLL_TIMEOUT = 90
 
 
@@ -447,22 +456,36 @@ def ensure_workdir():
     (workdir / "secret2.txt").write_text("second target for the parallel-read batch\n")
     script = workdir / "fixture.py"
     script.write_text(FIXTURE_SOURCE)
+    port_file = workdir / "port"
     child_env = {**os.environ,
+                 "EVAL_PORT": "0",          # 临时端口：8880 被占也不受影响
+                 "EVAL_PORT_FILE": str(port_file),
                  "EVAL_SECRET_PATH": str(secret),
                  "EVAL_SECRET2_PATH": str(workdir / "secret2.txt"),
                  "EVAL_MISSING_PATH": str(workdir / "missing.txt")}
     global fixture_proc
+    err_file = open(workdir / "fixture.err", "wb")
     fixture_proc = subprocess.Popen(
         [sys.executable, str(script)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=child_env)
-    deadline = time.time() + 30
+        stdout=subprocess.DEVNULL, stderr=err_file, env=child_env)
+    deadline = time.time() + 60
     while time.time() < deadline:
-        try:
-            fixture_bridge("GET", "/reset")
-            return
-        except Exception:
-            time.sleep(0.3)
-    raise RuntimeError("fixture endpoint did not come up on port 8880")
+        if fixture_proc.poll() is not None:
+            err_file.close()
+            tail = (workdir / "fixture.err").read_text(errors="replace")[-2000:]
+            raise RuntimeError(f"fixture 进程启动即退（exit={fixture_proc.returncode}）：\n{tail}")
+        if port_file.exists():
+            global FIXTURE_PORT
+            FIXTURE_PORT = int(port_file.read_text().strip())
+            try:
+                fixture_bridge("GET", "/reset")
+                return
+            except Exception:
+                pass
+        time.sleep(0.3)
+    err_file.close()
+    tail = (workdir / "fixture.err").read_text(errors="replace")[-2000:]
+    raise RuntimeError(f"fixture endpoint did not come up on port 8880（exit={fixture_proc.poll()}）\n{tail}")
 
 
 def stop_fixture():
@@ -480,7 +503,7 @@ def install_profile():
     previous_active = profiles.get("active")
     created = bridge("POST", "/ai/profiles", body={
         "name": "eval-fixture",
-        "endpoint": FIXTURE_ENDPOINT,
+        "endpoint": fixture_endpoint(),
         "model": "fake-1",
         "key": "eval-key-1234567890",
     })

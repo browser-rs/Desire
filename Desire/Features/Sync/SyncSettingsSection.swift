@@ -12,6 +12,11 @@ struct SyncSettingsSection: View {
     @State private var formError: String?
     @State private var serverURL = ""
     @State private var serverSaved = false
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var pwWorking = false
+    @State private var pwError: String?
+    @State private var pwSaved = false
 
     var body: some View {
         SettingsContainer {
@@ -67,49 +72,114 @@ struct SyncSettingsSection: View {
 
     @ViewBuilder
     private func signedIn(_ account: String) -> some View {
-        SettingsSection(
-            title: "Sync",
-            subtitle: "Bookmarks sync automatically every 5 minutes and at launch.",
-            icon: "arrow.triangle.2.circlepath"
-        ) {
-            VStack(spacing: 0) {
-                SettingsRow("Account", subtitle: account) {
-                    if store.isSyncing {
-                        StatusPill(text: localizedSettingText("Syncing…"), kind: .info)
-                    } else {
-                        StatusPill(text: localizedSettingText("Signed in"), kind: .success)
-                    }
-                }
-                SettingsRowDivider()
-                SettingsRow("Last Sync", subtitle: lastSyncText) {
-                    SettingsCapsuleButton(
-                        "Sync Now",
-                        isDisabled: store.isSyncing
-                    ) {
-                        isWorking = true
-                        Task {
-                            await store.syncNow()
-                            isWorking = false
+        SettingsContainer {
+            SettingsSection(
+                title: "Sync",
+                subtitle: "Bookmarks sync automatically every 5 minutes and at launch.",
+                icon: "arrow.triangle.2.circlepath"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsRow("Account", subtitle: account) {
+                        if store.isSyncing {
+                            StatusPill(text: localizedSettingText("Syncing…"), kind: .info)
+                        } else {
+                            StatusPill(text: localizedSettingText("Signed in"), kind: .success)
                         }
                     }
-                }
-                if let error = store.lastError {
                     SettingsRowDivider()
-                    SettingsRow("Sync Error", subtitle: error) {
-                        EmptyView()
+                    SettingsRow("Last Sync", subtitle: lastSyncText) {
+                        SettingsCapsuleButton(
+                            "Sync Now",
+                            isDisabled: store.isSyncing
+                        ) {
+                            isWorking = true
+                            Task {
+                                await store.syncNow()
+                                isWorking = false
+                            }
+                        }
+                    }
+                    if let error = store.lastError {
+                        SettingsRowDivider()
+                        SettingsRow("Sync Error", subtitle: error) {
+                            EmptyView()
+                        }
+                    }
+                    SettingsRowDivider()
+                    SettingsActionRow(
+                        "Device",
+                        subtitle: "Sign out on this Mac. Synced data stays on the server.",
+                        buttonTitle: "Sign Out",
+                        isDestructive: true
+                    ) {
+                        store.logout()
+                        password = ""
+                        currentPassword = ""
+                        newPassword = ""
+                        pwSaved = false
                     }
                 }
+            }
+            passwordSection
+            serverSection
+        }
+    }
+
+    // MARK: - 修改密码
+
+    @ViewBuilder
+    private var passwordSection: some View {
+        SettingsSection(title: "Change Password", icon: "key") {
+            VStack(spacing: 0) {
+                SettingsRow("Current Password") {
+                    SettingsTextField(
+                        placeholder: "••••••••",
+                        text: $currentPassword,
+                        isSecure: true,
+                        width: 200
+                    )
+                }
                 SettingsRowDivider()
-                SettingsActionRow(
-                    "Device",
-                    subtitle: "Sign out on this Mac. Synced data stays on the server.",
-                    buttonTitle: "Sign Out",
-                    isDestructive: true
+                SettingsRow("New Password") {
+                    SettingsTextField(
+                        placeholder: "≥ 6 characters",
+                        text: $newPassword,
+                        isSecure: true,
+                        width: 200
+                    )
+                }
+                SettingsRowDivider()
+                SettingsRow(
+                    "Change Password",
+                    subtitle: pwError ?? (pwSaved ? localizedSettingText("Saved") : nil)
                 ) {
-                    store.logout()
-                    password = ""
+                    SettingsCapsuleButton(
+                        "Change Password",
+                        isDisabled: !canChangePassword || pwWorking
+                    ) { submitPasswordChange() }
                 }
             }
+        }
+    }
+
+    private var canChangePassword: Bool {
+        !currentPassword.isEmpty && newPassword.count >= 6
+    }
+
+    private func submitPasswordChange() {
+        pwWorking = true
+        pwError = nil
+        pwSaved = false
+        Task { @MainActor in
+            do {
+                try await store.changePassword(current: currentPassword, new: newPassword)
+                pwSaved = true
+                currentPassword = ""
+                newPassword = ""
+            } catch {
+                pwError = error.localizedDescription
+            }
+            pwWorking = false
         }
     }
 

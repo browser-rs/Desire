@@ -3208,6 +3208,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已儲存" } }
       }
     },
+    "≥ 6 characters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "≥ 6 characters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "至少 6 个字符" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "至少 6 個字元" } }
+      }
+    },
     "Apply" : {
       "localizations" : {
         "en" : {
@@ -4806,6 +4813,13 @@
             "value" : "無法載入頁面"
           }
         }
+      }
+    },
+    "Change Password" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Change Password" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修改密码" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "修改密碼" } }
       }
     },
     "Change Working Directory…" : {
@@ -7458,6 +7472,13 @@
             "value" : "自訂"
           }
         }
+      }
+    },
+    "Current Password" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current Password" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前密码" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前密碼" } }
       }
     },
     "Custom Search Engines" : {
@@ -14809,6 +14830,13 @@
         }
       }
     },
+    "New Password" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New Password" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新密码" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新密碼" } }
+      }
+    },
     "New Tab" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -17538,6 +17566,13 @@
             "value" : "密碼"
           }
         }
+      }
+    },
+    "Password must be 6-72 characters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Password must be 6-72 characters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码长度须为 6-72 个字符" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "密碼長度須為 6-72 個字元" } }
       }
     },
     "Password Generator" : {

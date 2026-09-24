@@ -240,3 +240,13 @@ struct SyncLogoutBody: Codable {
         case refreshToken = "refresh_token"
     }
 }
+
+struct SetPasswordReq: Codable {
+    var oldPassword: String
+    var newPassword: String
+
+    enum CodingKeys: String, CodingKey {
+        case oldPassword = "old_password"
+        case newPassword = "new_password"
+    }
+}

@@ -138,8 +138,37 @@ final class SyncStore: ObservableObject {
         keychainDelete(accessAccount)
         keychainDelete(refreshAccount)
         defaults.removeObject(forKey: usernameKey)
+        clearSyncState()
         authState = .signedOut
         lastError = nil
+    }
+
+    /// 清空账号相关的本地同步状态。游标是**按账号语义**存的（每设备每域的
+    /// 拉取位置）——换账号登录若沿用旧账号游标，旧游标之后的增量对新账号
+    /// 永久丢失。清掉后重新登录走全量 pull，即"以本机现状 + 服务端全量重建"。
+    /// settings 的戳/快照同理清空：新账号首轮 sync 会以本机当前值全量上推。
+    private func clearSyncState() {
+        for domain in SyncDomain.allCases {
+            defaults.removeObject(forKey: cursorKey(domain))
+        }
+        defaults.removeObject(forKey: settingsStampsKey)
+        defaults.removeObject(forKey: settingsSnapshotKey)
+    }
+
+    /// 修改密码（登录态）。成功后现有令牌仍有效，无需重新登录。
+    func changePassword(current: String, new: String) async throws {
+        guard case .signedIn = authState else {
+            throw SyncAPIError.unauthorized
+        }
+        let trimmedNew = new.trimmingCharacters(in: .whitespaces)
+        guard trimmedNew.count >= 6, trimmedNew.count <= 72 else {
+            throw SyncAPIError.server(String(localized: "Password must be 6-72 characters"))
+        }
+        try await SyncAPIClient.changePassword(
+            baseURL: serverBaseURL,
+            accessToken: validAccessToken(),
+            body: SetPasswordReq(oldPassword: current, newPassword: trimmedNew)
+        )
     }
 
     // MARK: - 同步

@@ -42,6 +42,16 @@ nonisolated enum SyncAPIClient {
         )
     }
 
+    /// 修改密码（登录态）。成功后现有令牌仍有效。
+    static func changePassword(
+        baseURL: String, accessToken: String, body: SetPasswordReq
+    ) async throws {
+        _ = try await rawRequest(
+            "PUT", baseURL, "/auth/password",
+            body: encode(body), token: accessToken
+        )
+    }
+
     /// 增量拉取。`since` 传上次响应里末条 `updatedAt` 原文（nil = 全量）。
     static func pull<P: Codable>(
         baseURL: String, domain: String, since: String?, accessToken: String

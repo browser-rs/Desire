@@ -50,29 +50,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.ref_name }}"
-          cat > install-note.md <<'EOF'
-
-          ---
-
-          ## 安装
-
-          未签名构建（CI 无 Developer ID 证书），仅支持 Apple Silicon（arm64，macOS 26.5+）。
-
-          1. **解压** `Desire-__TAG__-macos-arm64.zip`（双击，或
-             `ditto -x -k Desire-__TAG__-macos-arm64.zip .`）。
-          2. **安装**：把解压出来的 **`Desire.app` 拖进 `/Applications`**。
-          3. **移除一次隔离标记**（未签名构建必需），路径写**你放 app 的那个**：
-
-          ```
-          xattr -cr /Applications/Desire.app
-          ```
-
-          4. **打开** `Desire.app`。首次启动 Gatekeeper 会检查一次；做过第 3 步就能正常打开。
-
-          > 报 `xattr: No such file: Desire.app` 说明当前目录里没有解压好的 app——
-          > 命令要写完整路径（如 `/Applications/Desire.app`），或先 `cd` 到它所在目录。
-          EOF
-          sed -i '' "s|__TAG__|${TAG}|g" install-note.md
+          # 安装说明的单一真相在 scripts/install-note.template.md（release.sh 同源）
+          sed "s|__TAG__|${TAG}|g" scripts/install-note.template.md > install-note.md
           # Body: the tag's section from CHANGELOG.md + install note; fall
           # back to generated notes when the changelog lacks the section.
           # -F is required: [v0.1.5] would otherwise be a regex char class.

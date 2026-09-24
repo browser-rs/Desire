@@ -924,6 +924,33 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
+## 发布流程（scripts/release.sh，2026-09-24 起）
+
+**发布 = `scripts/release.sh <版本号>`**，别再手工按记忆走六步——v0.3.14 就是
+手工发的，工作流禁晚了被 tag 触发只能取消、gh 用错 repo 名 404、CI 红着就打了
+tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更早）真实踩过的坑当闸门：
+
+1. **prep**：要求 CHANGELOG 已有 `## [vX.Y.Z]` 段（先写好发布说明）；tag/远端
+   release 查重；版本号写入 pbxproj（构建号自增）；确认后提交推送。
+2. **ci**：等 HEAD 的 CI run 全绿才继续——**红着不能发版**（v0.3.14 是红着发的，
+   评估套件坏了没人发现）。
+3. **build**：每次删掉 DerivedData **clean build**（增量构建测不出全部警告），
+   零警告闸门（`warning:` 前面是路径，只有 appintentsmetadataprocessor 可豁免），
+   产物版本用 PlistBuddy 核对。
+4. **smoke**：把产物拷到**非 DerivedData 路径**再启动——Keychain 条目 ACL 对
+   adhoc 构建按 cdhash/路径认，只在换路径启动时才暴露"授权窗永不渲染"这类问题；
+   桥 + `/agent/stats` + `/ai/profiles` 探活。
+5. **package**：zip + SHASUMS256.txt（/tmp 下，不进仓库）。
+6. **publish**：**第一步先 `gh workflow disable Release`**（它由 v* tag 触发、
+   会自己构建发布抢 Latest——必须在推 tag 之前）；推 tag；正文 = CHANGELOG 段 +
+   安装说明，`--repo` 从 git remote 推导（mankong/Desire 会 404）。
+7. **verify**：**从 release 重新下载**验校验和、版本、启动（发布铁律），最后恢复
+   Release 工作流。
+
+失败续跑：`--from <阶段>`（如 build 过了 smoke 挂了 → `--from smoke`）；急救闸门
+`--skip-ci-check` 别轻易用；发布前想预览正文用 `body <tag>`（与 CI 的 release.yml
+共用 `scripts/install-note.template.md`，改安装说明只改这一个文件）。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

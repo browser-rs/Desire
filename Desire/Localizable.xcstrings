@@ -12952,6 +12952,13 @@
         }
       }
     },
+    "Invalid sync key format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Invalid sync key format" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥格式无效" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰格式無效" } }
+      }
+    },
     "Invalid Certificate" : {
       "comment" : "Certificate alert title",
       "localizations" : {
@@ -13129,6 +13136,13 @@
             "value" : "已儲存金鑰"
           }
         }
+      }
+    },
+    "Key Fingerprint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key Fingerprint" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密钥指纹" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "金鑰指紋" } }
       }
     },
     "Keyboard Shortcuts" : {
@@ -23771,6 +23785,62 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Categories" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步类目" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步類別" } }
+      }
+    },
+    "Set a sync key first — sync stays local until then." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set a sync key first — sync stays local until then." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先设置同步密钥，在此之前数据仅保留在本地。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請先設定同步金鑰，在此之前資料僅保留在本機。" } }
+      }
+    },
+    "Sync key does not match the server data" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync key does not match the server data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥与服务器数据不匹配" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰與伺服器資料不符" } }
+      }
+    },
+    "Sync key does not match this data" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync key does not match this data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥与该数据不匹配" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰與該資料不符" } }
+      }
+    },
+    "Import Key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入密钥" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入金鑰" } }
+      }
+    },
+    "Generate New Key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Generate New Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生成新密钥" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "產生新金鑰" } }
+      }
+    },
+    "Copy Sync Key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Sync Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制同步密钥" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "複製同步金鑰" } }
+      }
+    },
+    "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "端到端加密：数据在离开这台 Mac 前会用该密钥加密，服务器无法读取。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "端對端加密：資料在離開這台 Mac 前會用該金鑰加密，伺服器無法讀取。" } }
+      }
+    },
+    "Sync Key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰" } }
       }
     },
     "Switch model / provider" : {

@@ -231,6 +231,47 @@ pub fn last_cursor(items: &[SyncItemDto]) -> Option<(NaiveDateTime, i64)> {
   items.last().map(|item| (item.updated_at, item.id))
 }
 
+// MARK: - E2E 密钥指纹
+
+/// 指纹须为 64 位 hex(HMAC-SHA256)。
+fn validate_check_format(check: &str) -> Result<(), AppError> {
+  let ok = check.len() == 64 && check.bytes().all(|b| b.is_ascii_hexdigit());
+  if ok {
+    Ok(())
+  } else {
+    Err(AppError::Validation("key check 须为 64 位 hex".into()))
+  }
+}
+
+pub async fn key_check_get(state: &AppState, user_id: i64) -> Result<Option<String>, AppError> {
+  let check: Option<String> = sqlx::query_scalar("SELECT sync_key_check FROM users WHERE id = ?")
+    .bind(user_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .flatten();
+  Ok(check.filter(|c| !c.is_empty()))
+}
+
+pub async fn key_check_set(state: &AppState, user_id: i64, check: &str) -> Result<(), AppError> {
+  validate_check_format(check)?;
+  let existing = key_check_get(state, user_id).await?;
+  match existing {
+    None => {
+      sqlx::query("UPDATE users SET sync_key_check = ? WHERE id = ?")
+        .bind(check)
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+      Ok(())
+    }
+    // 已有指纹:相同 → 幂等 ok;不同 → 拿错密钥,拒绝(防止新密钥覆盖旧密文)
+    Some(existing) if existing == check => Ok(()),
+    Some(_) => Err(AppError::Conflict(
+      "sync key does not match existing data".into(),
+    )),
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::{clamp_client_stamp, parse_since, parse_since_id};

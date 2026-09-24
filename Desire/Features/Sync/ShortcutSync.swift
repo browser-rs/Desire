@@ -7,6 +7,8 @@ import Foundation
 /// 域语义：无删除（重置 = isCustomized=false 的更新）；每次全量 push 全部映射，
 /// 远端"新增的默认命令 id"合并后追加在表尾。
 struct ShortcutSyncPayload: Codable, Equatable {
+    /// 真实命令 id(线上 client_id 是它的 HMAC)
+    var id: String
     var commandName: String
     var keyEquivalent: String
     var modifierFlags: UInt
@@ -17,6 +19,7 @@ struct ShortcutSyncPayload: Codable, Equatable {
 enum ShortcutSync {
     static func payload(_ mapping: ShortcutMapping) -> ShortcutSyncPayload {
         ShortcutSyncPayload(
+            id: mapping.id,
             commandName: mapping.commandName,
             keyEquivalent: mapping.keyEquivalent,
             modifierFlags: mapping.modifierFlags,
@@ -37,12 +40,12 @@ enum ShortcutSync {
             remote: remote,
             idOf: { $0.id },
             updatedAtOf: { $0.updatedAt },
-            make: { id, payload, at in
+            make: { _, payload, at in
                 guard let category = ShortcutMapping.Category(rawValue: payload.category) else {
                     return nil
                 }
                 return ShortcutMapping(
-                    id: id,
+                    id: payload.id,
                     commandName: payload.commandName,
                     keyEquivalent: payload.keyEquivalent,
                     modifierFlags: payload.modifierFlags,

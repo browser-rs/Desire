@@ -52,6 +52,22 @@ nonisolated enum SyncAPIClient {
         )
     }
 
+    /// 读取账号的密钥指纹;check = nil 表示该账号还没有任何密文(第一台设备)。
+    static func keyCheck(baseURL: String, accessToken: String) async throws -> KeyCheckResp {
+        try await send("GET", baseURL, "/sync/key-check", token: accessToken)
+    }
+
+    /// 上报本机密钥指纹。与服务器已有指纹不一致时服务端返回 409
+    /// (拿错密钥,防止新密钥把旧密文全量覆盖)。
+    static func setKeyCheck(
+        baseURL: String, fingerprint: String, accessToken: String
+    ) async throws {
+        _ = try await rawRequest(
+            "PUT", baseURL, "/sync/key-check",
+            body: encode(KeyCheckBody(check: fingerprint)), token: accessToken
+        )
+    }
+
     /// 增量拉取。`since`/`sinceID` 组成复合游标（上次响应末条的
     /// `updatedAt` 原文 + 行 `id`；sinceID 为 nil = 旧版 ts-only 语义）。
     /// 均为 nil = 全量。

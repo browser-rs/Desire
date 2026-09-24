@@ -1044,6 +1044,17 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   服务端 tombstone 行 payload 已置 NULL（按 deleted_at 查，别按 payload LIKE）。
   **`/sync/now` 后立刻查 `/bookmarks` 可能读到旧盘**——该端点按"查询读盘"惯例新建
   store 走 DiskStore（500ms 防抖），断言前 `sleep 1`。
+- **E2E 加密（2026-09-25）**：`Features/Sync/SyncCrypto.swift`（CryptoKit）——主密钥
+  256 位随机、只在客户端 Keychain（account `sync-master-key`）；每域 HKDF-SHA256
+  派生载荷密钥（AES-256-GCM 信封 `{v,ct}`）与 client_id 密钥（**HMAC**，确定性，
+  服务器保唯一性读不出真实 id）；真实 id/设置键名在密文内部。指纹校验：显示用 16 位
+  （`fingerprint`）、**服务端存储/比对用全量 64 位（`keyCheckHex`）——两者别混用**
+  （曾因上传 16 位版被服务端 64 位校验拒绝）。流程：`runSyncCycle` 先
+  `uploadKeyCheck()`（服务端已有指纹且不同 → 拒同步，防拿错密钥覆盖旧密文）；无密钥
+  → sync 阻止并提示。桥 `POST /sync/key`（generate 返回一次性 base64 / key 导入）。
+  **base64 坑**：`ct` 用 URL-safe base64（`-_/`），解码必须先还原标准字母表+补 `=`，
+  直接 `Data(base64Encoded:)` 会静默 nil。已知明文元数据：用户 id、域名、行数、
+  时间戳、删除标记（文档口径）。密钥丢失 = 该账号密文不可恢复（按设计）。
 - **settings KV 域（2026-09-25，第五域）**：目录白名单 `SettingsSync.catalog`
   （23 键，刻意排除 screenshotFolder/selectedCustomEngineId 这类机器相关项）。
   设置没有 per-key updatedAt——SyncStore 用"**快照 diff 检测本地变更 → 变更盖新戳**"，

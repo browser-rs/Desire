@@ -13,15 +13,18 @@ enum SyncDomain: String, CaseIterable {
     case settings
 }
 
-/// 书签域的 payload（服务端不解读，结构由客户端约定）。
-/// 一个节点一条：树结构由 parentID + sort 表达，children 不进 payload。
+/// 书签域的 payload(密文内部结构,服务器不解读)。
+/// 一个节点一条:树结构由 parentID + sort 表达,children 不进 payload;
+/// `id` = 真实节点 UUID(线上 client_id 是它的 HMAC,解密后以这里为准)。
 struct BookmarkSyncPayload: Codable, Equatable {
+    var id: UUID
     var parentID: UUID?
     var title: String
     var url: String?
     var sort: Int
 
     enum CodingKeys: String, CodingKey {
+        case id
         case parentID = "parent_id"
         case title
         case url
@@ -96,6 +99,14 @@ nonisolated enum SyncJSON {
     }
 }
 
+/// `/sync/{domain}` 的载荷信封（E2E）：v = 格式版本，ct = AES-256-GCM
+/// combined（nonce+密文+tag）的 base64。明文结构由客户端定义（含真实 id），
+/// 服务器只透传。见 SyncCrypto。
+struct SyncEncryptedPayload: Codable, Equatable {
+    var v: Int
+    var ct: String
+}
+
 /// `/sync/{domain}` 的线路条目。payload 泛型（每域一个类型）；
 /// `id` 是服务端行 id（pull 响应携带，复合游标第二分量）；
 /// `updatedAt` 是服务端写入时间**原文**——客户端把它当拉取游标原样回传，
@@ -150,8 +161,14 @@ struct SyncPushResponse<Payload: Codable>: Codable {
     var results: [SyncPushResult<Payload>]
 }
 
-/// 设置 KV 域的载荷 = 值本体（带类型标签：string/bool/number）。
-/// client_id = UserDefaults 键名；目录（可同步哪些键）见 SettingsSync。
+/// 设置 KV 域的载荷(密文内部):key = 设置键名(敏感,线上只见其 HMAC),
+/// value = 值本体(带类型标签:string/bool/number)。
+struct SettingsSyncEntryPayload: Codable, Equatable {
+    var key: String
+    var value: SettingsSyncValue
+}
+
+/// 值本体(带类型标签的 JSON)。
 enum SettingsSyncValue: Codable, Equatable {
     case string(String)
     case bool(Bool)
@@ -252,4 +269,13 @@ struct SetPasswordReq: Codable {
         case oldPassword = "old_password"
         case newPassword = "new_password"
     }
+}
+
+struct KeyCheckResp: Codable {
+    /// nil = 该账号还没有设置密钥（第一台设备）
+    var check: String?
+}
+
+struct KeyCheckBody: Codable {
+    var check: String
 }

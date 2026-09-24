@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// 设置 → Sync：登录/注册 + 同步状态 + 立即同步/退出。
@@ -17,6 +18,10 @@ struct SyncSettingsSection: View {
     @State private var pwWorking = false
     @State private var pwError: String?
     @State private var pwSaved = false
+    @State private var importedKey = ""
+    @State private var keyWorking = false
+    @State private var keyError: String?
+    @State private var keyCopied = false
 
     var body: some View {
         SettingsContainer {
@@ -120,9 +125,83 @@ struct SyncSettingsSection: View {
                     }
                 }
             }
+            keySection
             passwordSection
             categoriesSection
             serverSection
+        }
+    }
+
+    // MARK: - 同步密钥（E2E 加密）
+
+    @ViewBuilder
+    private var keySection: some View {
+        SettingsSection(
+            title: "Sync Key",
+            subtitle: "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it.",
+            icon: "key.fill"
+        ) {
+            VStack(spacing: 0) {
+                if store.hasSyncKey {
+                    SettingsRow("Key Fingerprint", subtitle: store.syncKeyFingerprint) {
+                        SettingsCapsuleButton("Copy Sync Key", style: .secondary) {
+                            if let key = store.revealSyncKey() {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(key, forType: .string)
+                                keyCopied = true
+                            }
+                        }
+                    }
+                    SettingsRowDivider()
+                    SettingsRow("Copy Sync Key", subtitle: keyCopied ? localizedSettingText("Copied") : nil) {
+                        EmptyView()
+                    }
+                } else {
+                    SettingsRow("Sync Key") {
+                        SettingsTextField(
+                            placeholder: "Paste the base64 key from another device.",
+                            text: $importedKey,
+                            width: 240
+                        )
+                    }
+                    SettingsRowDivider()
+                    SettingsRow("Sync Key", subtitle: keyError) {
+                        HStack(spacing: 8) {
+                            SettingsCapsuleButton(
+                                "Generate New Key",
+                                isDisabled: keyWorking
+                            ) { runKeyFlow(importText: nil) }
+                            SettingsCapsuleButton(
+                                "Import Key",
+                                style: .secondary,
+                                isDisabled: importedKey.trimmingCharacters(in: .whitespaces).isEmpty || keyWorking
+                            ) { runKeyFlow(importText: importedKey) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func runKeyFlow(importText: String?) {
+        keyWorking = true
+        keyError = nil
+        keyCopied = false
+        Task { @MainActor in
+            do {
+                if let importText {
+                    try store.importSyncKey(importText)
+                } else {
+                    let key = try store.generateSyncKey()
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(key, forType: .string)
+                    keyCopied = true
+                }
+                try await store.uploadKeyCheck()
+            } catch {
+                keyError = error.localizedDescription
+            }
+            keyWorking = false
         }
     }
 

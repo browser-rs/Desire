@@ -269,7 +269,7 @@ do {
     let now = Date()
     let mergedInsert = BookmarkSync.merge(
         base: [bm("Folder", id: folderID)],
-        remote: [wire(leafID, now, payload: .init(parentID: folderID, title: "New", url: "https://n", sort: 0))]
+        remote: [wire(leafID, now, payload: .init(id: leafID, parentID: folderID, title: "New", url: "https://n", sort: 0))]
     )
     eq("merge 插入到父下", mergedInsert[0].children.count, 1)
     eq("merge 插入标题", mergedInsert[0].children[0].title, "New")
@@ -278,13 +278,13 @@ do {
     // LWW：本地更新 → 忽略远端旧改动
     let local = [bm("Local", url: "https://l", id: leafID, at: now)]
     let older = wire(leafID, now.addingTimeInterval(-10),
-                     payload: .init(parentID: nil, title: "Remote-old", url: nil, sort: 0))
+                     payload: .init(id: leafID, parentID: nil, title: "Remote-old", url: nil, sort: 0))
     eq("LWW 本地新 → 忽略", BookmarkSync.merge(base: local, remote: [older])[0].title, "Local")
 
     // LWW：远端更新 → 盖写标题/URL/时间戳
     let newerAt = now.addingTimeInterval(10)
     let newer = wire(leafID, newerAt,
-                     payload: .init(parentID: nil, title: "Remote-new", url: "https://r", sort: 0))
+                     payload: .init(id: leafID, parentID: nil, title: "Remote-new", url: "https://r", sort: 0))
     let wonOver = BookmarkSync.merge(base: local, remote: [newer])
     eq("LWW 远端新 → 盖写", wonOver[0].title, "Remote-new")
     eq("LWW 采纳远端时间戳", wonOver[0].updatedAt ?? .distantPast, newerAt)
@@ -309,7 +309,7 @@ do {
     let move = BookmarkSync.merge(
         base: twoFolders,
         remote: [wire(leafID, newerAt,
-                      payload: .init(parentID: f2, title: "L", url: "u", sort: 0))])
+                      payload: .init(id: leafID, parentID: f2, title: "L", url: "u", sort: 0))])
     check("reparent 原父空了", move[0].children.isEmpty)
     eq("reparent 新父收到", move[1].children.first?.id ?? UUID(), leafID)
 
@@ -317,7 +317,7 @@ do {
     let cycle = BookmarkSync.merge(
         base: [bm("F", id: f1, children: [bm("C", id: leafID, at: now)])],
         remote: [wire(leafID, newerAt,
-                      payload: .init(parentID: leafID, title: "C2", url: nil, sort: 0))])
+                      payload: .init(id: leafID, parentID: leafID, title: "C2", url: nil, sort: 0))])
     eq("环守卫 结构不变", cycle[0].children.count, 1)
     eq("环守卫 字段仍更新", cycle[0].children[0].title, "C2")
 
@@ -326,7 +326,7 @@ do {
     let orphan = BookmarkSync.merge(
         base: [],
         remote: [wire(leafID, now,
-                      payload: .init(parentID: unknownParent, title: "Orphan", url: nil, sort: 0))])
+                      payload: .init(id: leafID, parentID: unknownParent, title: "Orphan", url: nil, sort: 0))])
     eq("父缺失 → 落根", orphan.count, 1)
     check("父缺失 → 根节点可辨", orphan[0].id == leafID)
 
@@ -336,9 +336,9 @@ do {
         base: [],
         remote: [
             wire(earlyChild, now,
-                 payload: .init(parentID: lateParent, title: "C", url: nil, sort: 0)),
+                 payload: .init(id: earlyChild, parentID: lateParent, title: "C", url: nil, sort: 0)),
             wire(lateParent, now.addingTimeInterval(1),
-                 payload: .init(parentID: nil, title: "P", url: nil, sort: 0)),
+                 payload: .init(id: lateParent, parentID: nil, title: "P", url: nil, sort: 0)),
         ])
     eq("孤儿归位 根上只有父", reordered.count, 1)
     eq("孤儿归位 父的 id", reordered[0].id, lateParent)
@@ -359,7 +359,7 @@ do {
     check("parse 无小数位", SyncDate.parse("2026-09-24T12:00:00") != nil)
     check("parse 拒绝非时间", SyncDate.parse("yesterday") == nil)
 
-    let json = #"{"id":123,"client_id":"X","client_updated_at":"2026-09-24T12:00:00.123456","deleted":false,"payload":{"parent_id":null,"title":"t","url":null,"sort":2},"updated_at":"2026-09-24T12:00:00.5"}"#
+    let json = #"{"id":123,"client_id":"X","client_updated_at":"2026-09-24T12:00:00.123456","deleted":false,"payload":{"id":"11111111-2222-3333-4444-555555555555","parent_id":null,"title":"t","url":null,"sort":2},"updated_at":"2026-09-24T12:00:00.5"}"#
     let item = try? SyncJSON.makeDecoder().decode(
         SyncWireItem<BookmarkSyncPayload>.self, from: Data(json.utf8))
     check("wire 解码", item != nil)
@@ -373,7 +373,7 @@ do {
         check("wire 编码含 snake_case 键", text.contains("\"client_id\"") && text.contains("\"client_updated_at\""))
     }
     // updatedAt = nil（push 请求形态）编码时必须整个键省略
-    let pushShape = wire(UUID(), Date(), payload: .init(parentID: nil, title: "t", url: nil, sort: 0))
+    let pushShape = wire(UUID(), Date(), payload: .init(id: UUID(), parentID: nil, title: "t", url: nil, sort: 0))
     if let data = try? SyncJSON.makeEncoder().encode(pushShape),
        let text = String(data: data, encoding: .utf8) {
         check("wire 编码 nil updated_at 省略", !text.contains("\"updated_at\""))
@@ -391,7 +391,8 @@ do {
     let base = [Row(id: "a", name: "local", updatedAt: now)]
     let older = SyncWireItem<QuickDialSyncPayload>.init(
         clientId: "a", clientUpdatedAt: now.addingTimeInterval(-5), deleted: false,
-        payload: QuickDialSyncPayload(title: "t", url: "u", icon: "i", sort: 0), updatedAt: nil)
+        payload: QuickDialSyncPayload(id: UUID(), title: "t", url: "u", icon: "i", sort: 0),
+        updatedAt: nil)
     let mergedOlder = FlatSyncMerge.merge(
         base: base, remote: [older],
         idOf: { $0.id }, updatedAtOf: { $0.updatedAt },
@@ -401,7 +402,8 @@ do {
 
     let newer = SyncWireItem<QuickDialSyncPayload>.init(
         clientId: "a", clientUpdatedAt: now.addingTimeInterval(5), deleted: false,
-        payload: QuickDialSyncPayload(title: "remote", url: "u", icon: "i", sort: 0), updatedAt: nil)
+        payload: QuickDialSyncPayload(id: UUID(), title: "remote", url: "u", icon: "i", sort: 0),
+        updatedAt: nil)
     let mergedNewer = FlatSyncMerge.merge(
         base: base, remote: [newer],
         idOf: { $0.id }, updatedAtOf: { $0.updatedAt },
@@ -423,10 +425,10 @@ do {
     let remoteDials = [
         SyncWireItem<QuickDialSyncPayload>.init(
             clientId: dialB.uuidString, clientUpdatedAt: remoteAt, deleted: false,
-            payload: QuickDialSyncPayload(title: "B", url: "b", icon: "i", sort: 0), updatedAt: nil),
+            payload: QuickDialSyncPayload(id: dialB, title: "B", url: "b", icon: "i", sort: 0), updatedAt: nil),
         SyncWireItem<QuickDialSyncPayload>.init(
             clientId: dialA.uuidString, clientUpdatedAt: remoteAt, deleted: false,
-            payload: QuickDialSyncPayload(title: "A", url: "a", icon: "i", sort: 1), updatedAt: nil),
+            payload: QuickDialSyncPayload(id: dialA, title: "A", url: "a", icon: "i", sort: 1), updatedAt: nil),
     ]
     let dialMerged = QuickDialSync.merge(base: dials, remote: remoteDials)
     eq("快拨 数量", dialMerged.count, 2)
@@ -440,7 +442,7 @@ do {
                                  isRead: false, updatedAt: now)]
     let remoteItem = SyncWireItem<ReadingListSyncPayload>.init(
         clientId: itemID.uuidString, clientUpdatedAt: now.addingTimeInterval(5), deleted: false,
-        payload: ReadingListSyncPayload(title: "T2", url: "u", savedDate: savedAt, isRead: true),
+        payload: ReadingListSyncPayload(id: itemID, title: "T2", url: "u", savedDate: savedAt, isRead: true),
         updatedAt: nil)
     let itemMerged = ReadingListSync.merge(base: items, remote: [remoteItem])
     eq("阅读列表 标题盖写", itemMerged[0].title, "T2")
@@ -451,7 +453,7 @@ do {
     let freshID = UUID()
     let fresh = SyncWireItem<ReadingListSyncPayload>.init(
         clientId: freshID.uuidString, clientUpdatedAt: now, deleted: false,
-        payload: ReadingListSyncPayload(title: "Fresh", url: "f", savedDate: now, isRead: false),
+        payload: ReadingListSyncPayload(id: freshID, title: "Fresh", url: "f", savedDate: now, isRead: false),
         updatedAt: nil)
     let freshMerged = ReadingListSync.merge(base: [], remote: [fresh])
     eq("阅读列表 新增", freshMerged.count, 1)
@@ -471,6 +473,58 @@ do {
     eq("设置值 bool 标签", one, .bool(true))
     let bad = try? SyncJSON.makeDecoder().decode(SettingsSyncValue.self, from: Data(#"{"x":1}"#.utf8))
     check("设置值 未知类型报错", bad == nil)
+}
+
+// ---------- 云同步：E2E 加密（SyncCrypto） ----------
+
+do {
+    let master = SyncCrypto.generateMasterKey()
+    check("主密钥 base64 可解析且 32 字节", SyncCrypto.isValidMasterKeyBase64(master))
+    check("拒绝非 base64", !SyncCrypto.isValidMasterKeyBase64("not-base64!!"))
+    check("拒绝错误长度", !SyncCrypto.isValidMasterKeyBase64(Data(repeating: 1, count: 16).base64EncodedString()))
+
+    let fingerprint: String
+    do {
+        fingerprint = try SyncCrypto.fingerprint(masterKeyBase64: master)
+    } catch {
+        print("fingerprint 抛错: \(error)")
+        throw error
+    }
+    eq("指纹 16 位 hex", fingerprint.count, 16)
+    eq("指纹确定", try SyncCrypto.fingerprint(masterKeyBase64: master), fingerprint)
+    check("不同密钥指纹不同",
+          try SyncCrypto.fingerprint(masterKeyBase64: SyncCrypto.generateMasterKey()) != fingerprint)
+
+    // 载荷加解密 roundtrip(书签:含真实 id)
+    let nodeID = UUID()
+    let payload = BookmarkSyncPayload(id: nodeID, parentID: nil, title: "秘密书签", url: "https://s", sort: 3)
+    let envelope: SyncEncryptedPayload
+    do {
+        envelope = try SyncCrypto.encrypt(payload, domain: .bookmarks, masterKeyBase64: master)
+    } catch {
+        print("encrypt 抛错: \(error)")
+        throw error
+    }
+    eq("信封版本", envelope.v, 1)
+    check("密文不含明文", !envelope.ct.contains("秘密书签"))
+    let roundtrip = try SyncCrypto.decrypt(envelope, domain: .bookmarks, masterKeyBase64: master, as: BookmarkSyncPayload.self)
+    eq("解密回环", roundtrip, payload)
+    // 换域密钥解密 → 认证失败
+    check("跨域解密被拒", (try? SyncCrypto.decrypt(envelope, domain: .quickDials, masterKeyBase64: master, as: BookmarkSyncPayload.self)) == nil)
+    // 换主密钥解密 → 认证失败
+    let other = SyncCrypto.generateMasterKey()
+    check("错密钥解密被拒", (try? SyncCrypto.decrypt(envelope, domain: .bookmarks, masterKeyBase64: other, as: BookmarkSyncPayload.self)) == nil)
+
+    // client_id HMAC:确定性、跨设备一致、跨域不同、不可反推但可重算匹配
+    let realID = "0F0E3D2C-1111-2222-3333-445566778899"
+    let hmac1 = SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
+    let hmac2 = SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
+    eq("client_id HMAC 确定", hmac1, hmac2)
+    check("client_id HMAC ≤64 字符(服务端列上限)", hmac1.count <= 64)
+    check("client_id 跨域不同",
+          SyncCrypto.hmacClientID(realID, domain: .settings, masterKeyBase64: master) != hmac1)
+    check("不同真实 id 不同 HMAC",
+          SyncCrypto.hmacClientID(UUID().uuidString, domain: .bookmarks, masterKeyBase64: master) != hmac1)
 }
 
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------

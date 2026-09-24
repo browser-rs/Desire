@@ -27,6 +27,7 @@ enum BookmarkSync {
                 id: node.id,
                 updatedAt: node.updatedAt ?? .distantPast,
                 payload: BookmarkSyncPayload(
+                    id: node.id,
                     parentID: parent,
                     title: node.title,
                     url: node.url,
@@ -212,6 +213,7 @@ func syncWire<P>(
 }
 
 struct QuickDialSyncPayload: Codable, Equatable {
+    var id: UUID
     var title: String
     var url: String
     var icon: String
@@ -220,10 +222,12 @@ struct QuickDialSyncPayload: Codable, Equatable {
 
 enum QuickDialSync {
     static func payload(_ dial: QuickDial) -> QuickDialSyncPayload {
-        QuickDialSyncPayload(title: dial.title, url: dial.url, icon: dial.icon, sort: dial.sort)
+        QuickDialSyncPayload(id: dial.id, title: dial.title, url: dial.url, icon: dial.icon,
+                             sort: dial.sort)
     }
 
     /// 合并后按 sort 重排（列表序 = payload.sort，与 Store 的重编号约定一致）。
+    /// 线上 client_id 是 HMAC,真实 id 以 payload.id 为准。
     static func merge(
         base: [QuickDial], remote: [SyncWireItem<QuickDialSyncPayload>]
     ) -> [QuickDial] {
@@ -232,10 +236,9 @@ enum QuickDialSync {
             remote: remote,
             idOf: { $0.id.uuidString },
             updatedAtOf: { $0.updatedAt },
-            make: { (id: String, payload: QuickDialSyncPayload, at: Date) -> QuickDial? in
-                guard let uuid = UUID(uuidString: id) else { return nil }
-                return QuickDial(id: uuid, title: payload.title, url: payload.url,
-                                 icon: payload.icon, sort: payload.sort, updatedAt: at)
+            make: { _, payload, at in
+                QuickDial(id: payload.id, title: payload.title, url: payload.url,
+                          icon: payload.icon, sort: payload.sort, updatedAt: at)
             },
             update: { dial, payload, at in
                 dial.title = payload.title
@@ -250,6 +253,7 @@ enum QuickDialSync {
 }
 
 struct ReadingListSyncPayload: Codable, Equatable {
+    var id: UUID
     var title: String
     var url: String
     /// naive UTC（SyncDate 编解码）
@@ -259,8 +263,8 @@ struct ReadingListSyncPayload: Codable, Equatable {
 
 enum ReadingListSync {
     static func payload(_ item: ReadingListItem) -> ReadingListSyncPayload {
-        ReadingListSyncPayload(title: item.title, url: item.url, savedDate: item.savedDate,
-                               isRead: item.isRead)
+        ReadingListSyncPayload(id: item.id, title: item.title, url: item.url,
+                               savedDate: item.savedDate, isRead: item.isRead)
     }
 
     static func merge(
@@ -271,11 +275,10 @@ enum ReadingListSync {
             remote: remote,
             idOf: { $0.id.uuidString },
             updatedAtOf: { $0.updatedAt },
-            make: { (id: String, payload: ReadingListSyncPayload, at: Date) -> ReadingListItem? in
-                guard let uuid = UUID(uuidString: id) else { return nil }
-                return ReadingListItem(id: uuid, title: payload.title, url: payload.url,
-                                       savedDate: payload.savedDate, isRead: payload.isRead,
-                                       updatedAt: at)
+            make: { _, payload, at in
+                ReadingListItem(id: payload.id, title: payload.title, url: payload.url,
+                                savedDate: payload.savedDate, isRead: payload.isRead,
+                                updatedAt: at)
             },
             update: { item, payload, at in
                 item.title = payload.title

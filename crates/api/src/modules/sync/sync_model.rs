@@ -105,3 +105,17 @@ pub const MAX_PUSH_ITEMS: usize = 500;
 pub const MAX_PAYLOAD_BYTES: usize = 256 * 1024;
 /// 拉取单批上限;客户端把游标推进到末条的 (updated_at, id)
 pub const PULL_LIMIT: i64 = 1000;
+
+// MARK: - E2E 密钥指纹
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct KeyCheckResp {
+  /// None = 该账号还没有设置密钥(第一台设备)
+  pub check: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct KeyCheckBody {
+  /// HMAC-SHA256(主密钥, "fingerprint") 的 64 位 hex
+  pub check: String,
+}

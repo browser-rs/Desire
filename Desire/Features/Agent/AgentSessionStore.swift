@@ -989,6 +989,10 @@ class AgentSessionStore: ObservableObject {
                 streamingVersion += 1
             }
 
+            // 空回合自动重试一次：模型偶发返回空内容（上游抖动、网关抽风），
+    //         直接甩可见警告之前先自己再试一回；再空就如实警告（只试一次）。
+            var emptyRetryAttempts = 0
+            repeat {
             do {
                 try await runStream()
             } catch let error where assistantMsg == nil && !contextRetried
@@ -1028,6 +1032,15 @@ class AgentSessionStore: ObservableObject {
                 fail(error)
                 return
             }
+
+
+                // 空回合判定：自动重试一次；再空就交给可见警告。
+                if hasContent { break }
+                emptyRetryAttempts += 1
+                if emptyRetryAttempts >= 2 { break }
+                assistantMsg = nil
+                hasContent = false
+            } while !hasContent && emptyRetryAttempts < 2
 
             guard hasContent, let msg = assistantMsg else {
                 // **绝不能"什么都不显示"**：模型返回空内容时此前直接 return，

@@ -16573,6 +16573,28 @@
         }
       }
     },
+    "Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只统计服务端上报了 Token 用量的调用 —— 记录功能上线之前的对话不会补记，显示 0。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只統計服務端上報了 Token 用量的呼叫 —— 記錄功能上線之前的對話不會補記，顯示 0。"
+          }
+        }
+      }
+    },
     "Only Failures" : {
       "localizations" : {
         "en" : {
@@ -19980,6 +20002,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部繼續"
+          }
+        }
+      }
+    },
+    "Resume the unanswered prompt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume the unanswered prompt"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复未回答的提问"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復未回答的提問"
           }
         }
       }
@@ -24638,6 +24682,28 @@
         }
       }
     },
+    "Token prices are not filled in yet — set them in Settings → Agent → Cost to see what this costs." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token prices are not filled in yet — set them in Settings → Agent → Cost to see what this costs."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有填 Token 单价 —— 在设置 → Agent → 成本里填上就能看到花费。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有填 Token 單價 —— 在設定 → Agent → 成本裡填上就能看到花費。"
+          }
+        }
+      }
+    },
     "Token usage for this conversation (provider-reported)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -25111,6 +25177,28 @@
         }
       }
     },
+    "turns saved so far" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "turns saved so far"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轮对话已保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輪對話已儲存"
+          }
+        }
+      }
+    },
     "Type a command…" : {
       "localizations" : {
         "en" : {
@@ -25510,72 +25598,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用統計"
-          }
-        }
-      }
-    },
-    "turns saved so far" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "turns saved so far"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轮对话已保存"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輪對話已儲存"
-          }
-        }
-      }
-    },
-    "Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只统计服务端上报了 Token 用量的调用 —— 记录功能上线之前的对话不会补记，显示 0。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只統計服務端上報了 Token 用量的呼叫 —— 記錄功能上線之前的對話不會補記，顯示 0。"
-          }
-        }
-      }
-    },
-    "Token prices are not filled in yet — set them in Settings → Agent → Cost to see what this costs." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Token prices are not filled in yet — set them in Settings → Agent → Cost to see what this costs."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有填 Token 单价 —— 在设置 → Agent → 成本里填上就能看到花费。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有填 Token 單價 —— 在設定 → Agent → 成本裡填上就能看到花費。"
           }
         }
       }
@@ -26776,6 +26798,28 @@
         }
       }
     },
+    "上一条提问还没有收到回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一条提问还没有收到回答"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一条提問還沒有收到回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一條提問還沒有收到回答"
+          }
+        }
+      }
+    },
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
       "localizations" : {
         "en" : {
@@ -27520,6 +27564,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即更新全部"
+          }
+        }
+      }
+    },
+    "继续回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续回答"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續回答"
           }
         }
       }

@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import LocalAuthentication
 import Security
 import os
 
@@ -273,10 +274,13 @@ class AgentPreferenceStore: ObservableObject {
 
     func invalidateSecretCache() { knownSecretsCache = nil }
 
-    /// 所有已配置档案的 Key，供 `SecretRedactor` 精确屏蔽。
+    /// 所有已配置档案的 Key，供 `SecretRedactor` 精确屏蔽。**非交互读**：这里在
+    /// 回合中执行（桥驱动的回合根本没有用户在场），ACL 失配 + 交互读 = 主线程
+    /// 卡死在看不见的授权窗上（同 init 那次的教训）；读不到就不进脱敏词表，
+    /// 用户在设置里重新保存一次 Key 即恢复。
     func secretsForRedaction() -> [String] {
         if let knownSecretsCache { return knownSecretsCache }
-        let keys = profiles.compactMap { loadAPIKey(profileID: $0.id) }.filter { $0.count >= 8 }
+        let keys = profiles.compactMap { loadAPIKey(profileID: $0.id, interactive: false) }.filter { $0.count >= 8 }
         knownSecretsCache = keys
         return keys
     }
@@ -292,7 +296,7 @@ class AgentPreferenceStore: ObservableObject {
         // 评审档案**得真的能用**（有 Key）才用它：否则自评会因为 "API Key not configured"
         // 静默失败，用户看到的只是"自评不工作了"。这种情况退回当前档案——降级评审
         // （同模型）也比完全不评好，同时留一条 error 日志说明原因。
-        guard (store.loadAPIKey(profileID: id) ?? "").isEmpty == false else {
+        guard (store.loadAPIKey(profileID: id, interactive: false) ?? "").isEmpty == false else {
             Log.agent.error("critic profile has no API key — falling back to the chat's model for self-review")
             return nil
         }
@@ -364,7 +368,7 @@ class AgentPreferenceStore: ObservableObject {
             )
             // 旧的"已保存配置"只有 name/url/model，共用当时那把 Key——迁移成
             // 各自独立的档案，并把 Key 带过去，升级后不用重新输入。
-            let legacyKey = keychainRead(account: "ai-key-" + (UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"))
+            let legacyKey = keychainRead(account: "ai-key-" + (UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"), interactive: false)
             for saved in DiskStore.load([SavedAIEndpoint].self, key: "aiSavedEndpoints") ?? [] {
                 guard !saved.url.isEmpty,
                       !built.contains(where: { $0.endpoint == saved.url && $0.model == saved.model }) else { continue }
@@ -379,8 +383,8 @@ class AgentPreferenceStore: ObservableObject {
             activeProfileID = built.first { $0.endpoint == legacyEndpoint }?.id ?? built.first?.id
             DiskStore.save(profiles, key: "aiProfiles")
             // 老的单键 `ai-api-key` → 内置 OpenAI 档案（若还没有它自己的 Key）。
-            if keychainRead(account: "ai-key-openai") == nil,
-               let legacy = keychainRead(account: legacyKeychainAccount),
+            if keychainRead(account: "ai-key-openai", interactive: false) == nil,
+               let legacy = keychainRead(account: legacyKeychainAccount, interactive: false),
                let data = legacy.data(using: .utf8) {
                 keychainWrite(data: data, account: "ai-key-openai")
                 keychainDelete(account: legacyKeychainAccount)
@@ -391,14 +395,21 @@ class AgentPreferenceStore: ObservableObject {
                 .flatMap { UUID(uuidString: $0) }
         }
 
-        // 全部初始化完成——可以调用 self 方法了。
-        refreshKeyState()
+        // 全部初始化完成——可以调用 self 方法了。**非交互**：init 跑在
+        // applicationWillFinishLaunching 的主线程上，这里若同步等一个显示不出来的
+        // 授权窗，整个应用就死在启动里（2026-09-24）。
+        refreshKeyState(interactive: false)
     }
 
     /// 读当前档案（或指定档案）的 API Key。
-    func loadAPIKey(profileID: UUID? = nil) -> String? {
+    /// `interactive`：Keychain 条目的 ACL 不认当前构建（adhoc 重建 = 新 cdhash）时，
+    /// 读取会向 SecurityAgent 申请授权。用户在场的路径（设置页）保持交互；**启动、
+    /// 脱敏这类不在用户点击现场的路径必须非交互**——授权窗可能永远不显示（隐窗
+    /// 排队，2026-09-24 实测：`SecItemCopyMatching` 同步等它 = 主线程启动即卡死，
+    /// v0.3.13 同样中招），宁可让这次读失败也不等 UI。
+    func loadAPIKey(profileID: UUID? = nil, interactive: Bool = true) -> String? {
         guard let account = account(for: profileID) else { return nil }
-        return keychainRead(account: account)
+        return keychainRead(account: account, interactive: interactive)
     }
 
     func saveAPIKey(_ key: String, profileID: UUID? = nil) {
@@ -417,20 +428,28 @@ class AgentPreferenceStore: ObservableObject {
 
     /// 刷新 `hasAPIKey`（当前档案是否有 Key）。Keychain 读是系统调用，不放在
     /// 计算属性里每次渲染都读——只在切换/读写 Key 时更新一次。
-    func refreshKeyState() {
-        hasAPIKey = loadAPIKey() != nil
+    /// `interactive: false` 用于启动路径：ACL 失配时失败成"无 Key"而不是卡死启动。
+    func refreshKeyState(interactive: Bool = true) {
+        hasAPIKey = loadAPIKey(interactive: interactive) != nil
     }
 
     // MARK: - Keychain primitives
 
-    private func keychainRead(account: String) -> String? {
-        let query: [String: Any] = [
+    private func keychainRead(account: String, interactive: Bool = true) -> String? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrServer as String: keychainService,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+        if !interactive {
+            // kSecUseAuthenticationUI 的现代替代：interactionNotAllowed 的 LAContext
+            // 让失配的 ACL 直接失败而不是弹授权申请。
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+        }
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data,

@@ -20,7 +20,7 @@ enum ContextCompaction {
     /// 轮次不再是无声消失 —— 模型仍能从前文知道聊过什么（长对话"越聊越忘"的主因）。
     static func compactWithDigest(_ messages: [AgentMessage], budget: Int = 160_000,
                                   digestLimit: Int = 1_500) -> (kept: [AgentMessage], digest: String?) {
-        var messages = Self.droppingDanglingToolCalls(messages)
+        let messages = Self.droppingDanglingToolCalls(messages)
         func size(_ m: AgentMessage) -> Int {
             (m.content?.count ?? 0)
                 + (m.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)

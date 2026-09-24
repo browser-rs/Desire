@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import LocalAuthentication
 import Security
 
 /// A save/update-password prompt awaiting a decision. The prompt presents as
@@ -236,7 +237,7 @@ class PasswordStore: ObservableObject {
     }
 
     private func loadAll() {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             // Scope to OUR service name — an unfiltered kSecMatchLimitAll
             // query sweeps OTHER apps' internet passwords (and floods the
@@ -246,6 +247,13 @@ class PasswordStore: ObservableObject {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
         ]
+        // init 在启动路径上跑：条目 ACL 失配（adhoc 重建换路径/换 cdhash）时，
+        // 交互读会向 SecurityAgent 申请授权，而那个授权窗可能永远不渲染——
+        // 同步等它 = 应用死在启动里（2026-09-24，agent API key 同款教训）。
+        // 非交互失败 = 面板显示为空，用户重新保存/授权一次即恢复。
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let items = result as? [[String: Any]] else { return }

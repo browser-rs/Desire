@@ -9,8 +9,12 @@ enum SyncDomain: String, CaseIterable {
     case quickDials = "quickdials"
     case readingList = "reading_list"
     case keyboardShortcuts = "keyboard_shortcuts"
-    /// 设置 KV（client_id = 设置键名）；客户端尚未接 adapter，预留。
+    /// 设置 KV（client_id = 设置键名）
     case settings
+    /// Agent 记忆（事实/摘要/画像；对话本身按用户决定永久留本地）
+    case agentMemory = "agent_memory"
+    /// Agent 自定义系统提示词
+    case agentPrefs = "agent_prefs"
 }
 
 /// 书签域的 payload(密文内部结构,服务器不解读)。
@@ -166,6 +170,11 @@ struct SyncPushResponse<Payload: Codable>: Codable {
 struct SettingsSyncEntryPayload: Codable, Equatable {
     var key: String
     var value: SettingsSyncValue
+}
+
+/// Agent 偏好域的载荷（密文内部）：自定义系统提示词。
+struct AgentPrefsSyncPayload: Codable, Equatable {
+    var systemPrompt: String
 }
 
 /// 值本体(带类型标签的 JSON)。

@@ -84,6 +84,8 @@ struct ConversationSummary: Codable, Identifiable, Equatable {
 /// per-entry files.
 struct MemoryArchive: Codable {
     var profile = UserProfile()
+    /// 画像的 LWW 戳（云同步仲裁用；optional = 旧文件缺键解码 nil 不清数据）
+    var profileUpdatedAt: Date? = nil
     var facts: [MemoryFact] = []
     var summaries: [ConversationSummary] = []
     var onboardingCompleted = false

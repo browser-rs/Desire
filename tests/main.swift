@@ -527,6 +527,63 @@ do {
           SyncCrypto.hmacClientID(UUID().uuidString, domain: .bookmarks, masterKeyBase64: master) != hmac1)
 }
 
+// ---------- 云同步：Agent 记忆域（AgentMemorySync） ----------
+
+do {
+    let now = Date()
+    var profile = UserProfile()
+    profile.name = "测试者"
+    var fact = MemoryFact(content: "偏好简洁回复", category: "preference")
+    fact.updatedAt = now
+    let summary = ConversationSummary(conversationId: UUID(), summary: "一段摘要")
+
+    // 事实插入 + 画像 LWW
+    let base = AgentMemorySnapshot(profile: profile, profileUpdatedAt: now,
+                                   facts: [], summaries: [])
+    let applied = AgentMemorySync.apply(base: base, changes: [
+        AgentMemoryChange(realID: fact.id.uuidString, clientUpdatedAt: now,
+                          deleted: false, item: .fact(fact)),
+        AgentMemoryChange(realID: "profile", clientUpdatedAt: now.addingTimeInterval(5),
+                          deleted: false,
+                          item: .profile(UserProfile(name: "新名字", language: "zh"))),
+    ])
+    eq("记忆 事实插入", applied.facts.count, 1)
+    eq("记忆 画像盖写", applied.profile.name, "新名字")
+    eq("记忆 画像戳推进", applied.profileUpdatedAt, now.addingTimeInterval(5))
+
+    // 事实 LWW：旧改动忽略
+    let stale = AgentMemorySync.apply(base: applied, changes: [
+        AgentMemoryChange(realID: fact.id.uuidString,
+                          clientUpdatedAt: now.addingTimeInterval(-5),
+                          deleted: true, item: nil),
+    ])
+    eq("记忆 旧删除被忽略", stale.facts.count, 1)
+
+    // 新删除生效（tombstone）
+    let deleted = AgentMemorySync.apply(base: applied, changes: [
+        AgentMemoryChange(realID: fact.id.uuidString,
+                          clientUpdatedAt: now.addingTimeInterval(10),
+                          deleted: true, item: nil),
+    ])
+    eq("记忆 新删除生效", deleted.facts.count, 0)
+
+    // 摘要插入 + LWW 覆盖
+    let sumID = UUID()
+    let withSummary = AgentMemorySync.apply(base: deleted, changes: [
+        AgentMemoryChange(realID: sumID.uuidString, clientUpdatedAt: now,
+                          deleted: false,
+                          item: .summary(ConversationSummary(conversationId: summary.conversationId,
+                                                             summary: "旧摘要"))),
+    ])
+    let overwritten = AgentMemorySync.apply(base: withSummary, changes: [
+        AgentMemoryChange(realID: sumID.uuidString, clientUpdatedAt: now.addingTimeInterval(9),
+                          deleted: false,
+                          item: .summary(ConversationSummary(conversationId: summary.conversationId,
+                                                             summary: "新摘要"))),
+    ])
+    eq("记忆 摘要盖写", overwritten.summaries[0].summary, "新摘要")
+}
+
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

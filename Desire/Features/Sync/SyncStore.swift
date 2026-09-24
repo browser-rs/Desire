@@ -43,6 +43,8 @@ final class SyncStore: ObservableObject {
     private let readingListStore: ReadingListStore
     private let shortcutStore: KeyboardShortcutStore
     private let settings: Settings
+    private let agentPreferenceStore: AgentPreferenceStore
+    private let agentMemoryStore = AgentMemoryStore.shared
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -69,13 +71,15 @@ final class SyncStore: ObservableObject {
         quickDialStore: QuickDialStore,
         readingListStore: ReadingListStore,
         shortcutStore: KeyboardShortcutStore,
-        settings: Settings
+        settings: Settings,
+        agentPreferenceStore: AgentPreferenceStore
     ) {
         self.bookmarkStore = bookmarkStore
         self.quickDialStore = quickDialStore
         self.readingListStore = readingListStore
         self.shortcutStore = shortcutStore
         self.settings = settings
+        self.agentPreferenceStore = agentPreferenceStore
         let storedServer = defaults.string(forKey: serverKey) ?? ""
         serverBaseURL = storedServer.isEmpty ? Self.defaultServerBaseURL : storedServer
         for domain in SyncDomain.allCases {
@@ -330,6 +334,18 @@ final class SyncStore: ObservableObject {
                                     applyRemote: applySettings,
                                     clearApplied: { _, _ in })
         }
+        if isEnabled(.agentMemory) {
+            try await runDomainSync(.agentMemory, token: token, master: master,
+                                    collectPush: collectAgentMemory,
+                                    applyRemote: applyAgentMemory,
+                                    clearApplied: clearAgentMemoryPending)
+        }
+        if isEnabled(.agentPrefs) {
+            try await runDomainSync(.agentPrefs, token: token, master: master,
+                                    collectPush: collectAgentPrefs,
+                                    applyRemote: applyAgentPrefs,
+                                    clearApplied: { _, _ in })
+        }
         lastSyncAt = Date()
         defaults.set(lastSyncAt, forKey: lastSyncKey)
     }
@@ -560,6 +576,146 @@ final class SyncStore: ObservableObject {
                   entry.apply(settings, payload.value) else { continue }
             stamps[payload.key] = item.clientUpdatedAt
             snapshot[payload.key] = payload.value
+        }
+        saveSettingsStamps(stamps)
+        saveSettingsSnapshot(snapshot)
+    }
+
+    // MARK: - Agent 记忆域（画像 / 事实 / 摘要；对话本身留本地）
+
+    private func collectAgentMemory(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        // 画像
+        items.append(encryptedWire(
+            domain: .agentMemory, realID: "profile",
+            clientUpdatedAt: agentMemoryStore.archive.profileUpdatedAt,
+            deleted: false, payload: agentMemoryStore.archive.profile, master: master))
+        // 事实
+        for fact in agentMemoryStore.archive.facts {
+            items.append(encryptedWire(
+                domain: .agentMemory, realID: fact.id.uuidString,
+                clientUpdatedAt: fact.updatedAt, deleted: false,
+                payload: AgentMemoryItem.fact(fact), master: master))
+        }
+        // 摘要
+        for summary in agentMemoryStore.archive.summaries {
+            items.append(encryptedWire(
+                domain: .agentMemory, realID: summary.id.uuidString,
+                clientUpdatedAt: summary.createdAt, deleted: false,
+                payload: AgentMemoryItem.summary(summary), master: master))
+        }
+        // 待删 tombstone
+        for (id, deletedAt) in agentMemoryStore.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .agentMemory, realID: id, clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyAgentMemory(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        let snapshot = AgentMemorySnapshot(
+            profile: agentMemoryStore.archive.profile,
+            profileUpdatedAt: agentMemoryStore.archive.profileUpdatedAt,
+            facts: agentMemoryStore.archive.facts,
+            summaries: agentMemoryStore.archive.summaries)
+        // 本机条目的 HMAC 反查表:远端 tombstone 只有 HMAC,靠它找到本机真实 id
+        var factHMAC: [String: UUID] = [:]
+        var summaryHMAC: [String: UUID] = [:]
+        for fact in snapshot.facts {
+            factHMAC[SyncCrypto.hmacClientID(fact.id.uuidString, domain: .agentMemory, masterKeyBase64: master)] = fact.id
+        }
+        for summary in snapshot.summaries {
+            summaryHMAC[SyncCrypto.hmacClientID(summary.id.uuidString, domain: .agentMemory, masterKeyBase64: master)] = summary.id
+        }
+        let profileID = SyncCrypto.hmacClientID("profile", domain: .agentMemory, masterKeyBase64: master)
+
+        var changes: [AgentMemoryChange] = []
+        changes.reserveCapacity(items.count)
+        for item in items {
+            let stamp = item.clientUpdatedAt
+            if item.clientId == profileID {
+                guard item.deleted != true, let envelope = item.payload else { continue }
+                guard let profile = try? SyncCrypto.decrypt(
+                    envelope, domain: .agentMemory, masterKeyBase64: master,
+                    as: UserProfile.self) else { continue }
+                changes.append(AgentMemoryChange(
+                    realID: "profile", clientUpdatedAt: stamp, deleted: false,
+                    item: .profile(profile)))
+                continue
+            }
+            if item.deleted == true {
+                if let factID = factHMAC[item.clientId] {
+                    changes.append(AgentMemoryChange(
+                        realID: factID.uuidString, clientUpdatedAt: stamp, deleted: true, item: nil))
+                } else if let summaryID = summaryHMAC[item.clientId] {
+                    changes.append(AgentMemoryChange(
+                        realID: summaryID.uuidString, clientUpdatedAt: stamp, deleted: true, item: nil))
+                }
+                continue
+            }
+            guard let envelope = item.payload else { continue }
+            guard let payload = try? SyncCrypto.decrypt(
+                envelope, domain: .agentMemory, masterKeyBase64: master,
+                as: AgentMemoryItem.self) else { continue }
+            let realID: String
+            switch payload {
+            case .fact(let fact): realID = fact.id.uuidString
+            case .summary(let summary): realID = summary.id.uuidString
+            case .profile: realID = "profile"
+            }
+            changes.append(AgentMemoryChange(
+                realID: realID, clientUpdatedAt: stamp, deleted: false, item: payload))
+        }
+        let merged = AgentMemorySync.apply(base: snapshot, changes: changes)
+        var archive = agentMemoryStore.archive
+        archive.profile = merged.profile
+        archive.profileUpdatedAt = merged.profileUpdatedAt
+        archive.facts = merged.facts
+        archive.summaries = merged.summaries
+        agentMemoryStore.replaceForSync(archive)
+    }
+
+    private func clearAgentMemoryPending(_ serverIDs: Set<String>, master: String) {
+        agentMemoryStore.clearPendingDeletions(serverIDs) { realID in
+            SyncCrypto.hmacClientID(realID, domain: .agentMemory, masterKeyBase64: master)
+        }
+    }
+
+    // MARK: - Agent 偏好域（自定义系统提示词）
+
+    private static let agentPromptKey = "system-prompt"
+
+    private func collectAgentPrefs(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        let key = Self.agentPromptKey
+        let snapshot = loadSettingsSnapshot()
+        var stamps = loadSettingsStamps()
+        let now = Date()
+        let value = agentPreferenceStore.systemPrompt
+        let stamp: Date
+        if snapshot[key] != .string(value) {
+            stamp = now
+            stamps[key] = now
+            saveSettingsStamps(stamps)
+        } else {
+            stamp = stamps[key] ?? now
+        }
+        let payload = AgentPrefsSyncPayload(systemPrompt: value)
+        return [encryptedWire(domain: .agentPrefs, realID: key,
+                              clientUpdatedAt: stamp, deleted: false,
+                              payload: payload, master: master)]
+    }
+
+    private func applyAgentPrefs(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        var stamps = loadSettingsStamps()
+        var snapshot = loadSettingsSnapshot()
+        for item in items {
+            guard item.deleted != true, let envelope = item.payload else { continue }
+            guard let payload = try? SyncCrypto.decrypt(
+                envelope, domain: .agentPrefs, masterKeyBase64: master,
+                as: AgentPrefsSyncPayload.self) else { continue }
+            agentPreferenceStore.systemPrompt = payload.systemPrompt
+            stamps[Self.agentPromptKey] = item.clientUpdatedAt
+            snapshot[Self.agentPromptKey] = .string(payload.systemPrompt)
         }
         saveSettingsStamps(stamps)
         saveSettingsSnapshot(snapshot)

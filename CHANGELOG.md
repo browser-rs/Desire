@@ -2,6 +2,12 @@
 
 ### Added
 
+- **Agent 内容纳入同步类目（用户可选）**：新增 `agent_memory`（Agent 记忆：画像/
+  事实/摘要，逐条 LWW 合并 + tombstone，能力衰减/容量淘汰/一键清空均下推删除）
+  与 `agent_prefs`（自定义系统提示词，快照 diff 盖戳）两个类目，设置 → Sync 的
+  类目列表自动出现开关。`AgentMemoryStore` 补同步支持（replaceForSync、待删清单、
+  pin/内容修改盖戳）；对话本身仍按此前决定永久留本地。`AgentMemorySync.apply`
+  合并语义进纯逻辑单测（117 项）。
 - **同步数据端到端加密（E2E）**：主密钥（256 位随机）只在客户端 Keychain、永不上传；
   每域 HKDF-SHA256 派生独立密钥做 AES-256-GCM 载荷加密（信封 `{v,ct}`），真实 id/
   设置键名在密文内部；线上 client_id = 独立派生密钥的 **HMAC**（服务器只见不透明

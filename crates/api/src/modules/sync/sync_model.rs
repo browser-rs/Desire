@@ -4,13 +4,18 @@ use utoipa::ToSchema;
 /// 开放同步的域(白名单)。约定:
 /// - bookmarks/quickdials/reading_list/keyboard_shortcuts:client_id = 客户端生成的
 ///   稳定 UUID,payload = 条目本体(含排序/父子关系等,服务端不解读);
-/// - settings:client_id = 设置键名,payload = 值本体。
+/// - settings:client_id = 设置键名,payload = 值本体;
+/// - agent_memory:client_id = HMAC(事实/摘要 id 或 "profile"),payload = 条目本体;
+/// - agent_prefs:client_id = 偏好键名,payload = 值本体。
+/// E2E 开启后以上 client_id 与 payload 在库里均为不透明形态(HMAC/密文)。
 pub const DOMAINS: &[&str] = &[
   "bookmarks",
   "quickdials",
   "reading_list",
   "keyboard_shortcuts",
   "settings",
+  "agent_memory",
+  "agent_prefs",
 ];
 
 pub fn is_valid_domain(domain: &str) -> bool {

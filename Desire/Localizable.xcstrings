@@ -2484,6 +2484,20 @@
         }
       }
     },
+    "Agent Prompt" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Agent Prompt" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 提示词" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Agent 提示詞" } }
+      }
+    },
+    "Agent Memory" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Agent Memory" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 记忆" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Agent 記憶" } }
+      }
+    },
     "Agent capabilities & tools" : {
       "extractionState" : "stale",
       "localizations" : {

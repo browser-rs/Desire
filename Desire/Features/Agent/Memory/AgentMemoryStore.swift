@@ -19,8 +19,19 @@ final class AgentMemoryStore: ObservableObject {
 
     @Published private(set) var archive: MemoryArchive
 
+    /// 云同步待删清单（tombstone）：事实与摘要共用（id 空间不重叠），
+    /// 模式同 BookmarkStore.pendingDeletions。
+    @Published private(set) var pendingDeletions: [String: Date] = [:]
+    private static let deletionsKey = "agent-memory.deletions"
+
     private init() {
-        archive = DiskStore.load(MemoryArchive.self, key: Self.key) ?? MemoryArchive()
+        var loaded = DiskStore.load(MemoryArchive.self, key: Self.key) ?? MemoryArchive()
+        if loaded.profileUpdatedAt == nil { loaded.profileUpdatedAt = Date() }
+        for i in loaded.facts.indices where loaded.facts[i].updatedAt == .distantPast {
+            loaded.facts[i].updatedAt = Date()
+        }
+        archive = loaded
+        pendingDeletions = DiskStore.load([String: Date].self, key: Self.deletionsKey) ?? [:]
     }
 
     /// Convenience for view branching (onboarding shows until completed).
@@ -30,10 +41,32 @@ final class AgentMemoryStore: ObservableObject {
         DiskStore.save(archive, key: Self.key)
     }
 
+    // MARK: - 云同步（SyncStore 驱动）
+
+    /// 同步合并结果整体替换（LWW 仲裁已在合并层完成）。
+    func replaceForSync(_ replaced: MemoryArchive) {
+        archive = replaced
+        save()
+    }
+
+    /// push 成功后从待删清单移除（serverIDs = HMAC 形态的服务端条目 id）。
+    func clearPendingDeletions(_ serverIDs: Set<String>, hmacOf realID: (String) -> String) {
+        let hits = pendingDeletions.keys.filter { serverIDs.contains(realID($0)) }
+        guard !hits.isEmpty else { return }
+        for id in hits { pendingDeletions.removeValue(forKey: id) }
+        DiskStore.save(pendingDeletions, key: Self.deletionsKey)
+    }
+
+    private func recordDeletion(_ id: String) {
+        pendingDeletions[id] = Date()
+        DiskStore.save(pendingDeletions, key: Self.deletionsKey)
+    }
+
     // MARK: - Profile & onboarding
 
     func updateProfile(_ mutate: (inout UserProfile) -> Void) {
         mutate(&archive.profile)
+        archive.profileUpdatedAt = Date()
         save()
     }
 
@@ -58,8 +91,10 @@ final class AgentMemoryStore: ObservableObject {
         if archive.facts.count > 200 {
             // Drop unpinned oldest first.
             if let oldest = archive.facts.lastIndex(where: { !$0.pinned }) {
+                recordDeletion(archive.facts[oldest].id.uuidString)
                 archive.facts.remove(at: oldest)
             } else {
+                recordDeletion(archive.facts.last!.id.uuidString)
                 archive.facts.removeLast()
             }
         }
@@ -81,11 +116,13 @@ final class AgentMemoryStore: ObservableObject {
     func togglePin(_ id: UUID) {
         guard let idx = archive.facts.firstIndex(where: { $0.id == id }) else { return }
         archive.facts[idx].pinned.toggle()
+        archive.facts[idx].updatedAt = Date()
         save()
     }
 
     func removeFact(_ id: UUID) {
         archive.facts.removeAll { $0.id == id }
+        recordDeletion(id.uuidString)
         save()
     }
 
@@ -108,6 +145,7 @@ final class AgentMemoryStore: ObservableObject {
 
     func removeSummary(_ id: UUID) {
         archive.summaries.removeAll { $0.id == id }
+        recordDeletion(id.uuidString)
         save()
     }
 
@@ -115,8 +153,12 @@ final class AgentMemoryStore: ObservableObject {
     /// The L0 profile survives — it's the user's self-description, not
     /// something the agent inferred.
     func clearLearnedMemory() {
+        let now = Date()
+        for fact in archive.facts { pendingDeletions[fact.id.uuidString] = now }
+        for summary in archive.summaries { pendingDeletions[summary.id.uuidString] = now }
         archive.facts.removeAll()
         archive.summaries.removeAll()
+        DiskStore.save(pendingDeletions, key: Self.deletionsKey)
         save()
     }
 

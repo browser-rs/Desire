@@ -19,6 +19,7 @@ SOURCES=(
   Desire/Features/NewTab/QuickDial.swift
   Desire/Features/ReadingList/ReadingListItem.swift
   Desire/Features/Sync/SyncModels.swift
+  Desire/Features/Agent/Memory/MemoryModels.swift
   Desire/Features/Sync/SyncCrypto.swift
   Desire/Features/Sync/SyncMerge.swift
   tests/main.swift

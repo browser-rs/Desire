@@ -51,7 +51,8 @@ class AppState: ObservableObject {
             quickDialStore: browsing.quickDialStore,
             readingListStore: browsing.readingListStore,
             shortcutStore: system.keyboardShortcutStore,
-            settings: system.settings
+            settings: system.settings,
+            agentPreferenceStore: ai.preference
         )
         Self.live = self
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在

@@ -236,6 +236,8 @@ struct SyncSettingsSection: View {
         case .readingList: "Reading List"
         case .keyboardShortcuts: "Keyboard Shortcuts"
         case .settings: "Settings"
+        case .agentMemory: "Agent Memory"
+        case .agentPrefs: "Agent Prompt"
         }
     }
 

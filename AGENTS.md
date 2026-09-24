@@ -1055,6 +1055,14 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   **base64 坑**：`ct` 用 URL-safe base64（`-_/`），解码必须先还原标准字母表+补 `=`，
   直接 `Data(base64Encoded:)` 会静默 nil。已知明文元数据：用户 id、域名、行数、
   时间戳、删除标记（文档口径）。密钥丢失 = 该账号密文不可恢复（按设计）。
+- **Agent 内容同步（2026-09-25）**：`agent_memory`（画像 1 条 + 事实/摘要逐条，
+  `AgentMemoryItem` 三选一枚举作为密文内部结构；tombstone 靠 SyncStore 里的
+  **本机 HMAC 反查表**解析真实 id）与 `agent_prefs`（systemPrompt 单条，走 settings
+  同款快照 diff 盖戳，快照键 `system-prompt` 存在共享的 settingsStamps/Snapshot 里）。
+  `AgentMemoryStore` 是单例（`.shared`），SyncStore 直接引用；delete/衰减/容量淘汰/
+  一键清空都会记 tombstone；事实与摘要共用一个待删清单（id 空间不重叠）。
+  `AgentMemorySync.apply` 合并语义在 tests/run.sh（删除同样走 LWW）。
+  **对话（conversation-*.json）依旧不同步**——用户 2026-09-24 的明确决定不因本功能改变。
 - **settings KV 域（2026-09-25，第五域）**：目录白名单 `SettingsSync.catalog`
   （23 键，刻意排除 screenshotFolder/selectedCustomEngineId 这类机器相关项）。
   设置没有 per-key updatedAt——SyncStore 用"**快照 diff 检测本地变更 → 变更盖新戳**"，

@@ -239,6 +239,134 @@ check("悬空：正常会话不受影响", ContextCompaction.droppingDanglingToo
     msg(.assistant, "a", model: "m", p: 10, c: 1),
 ]).count == 2)
 
+// ---------- 云同步：书签展平/合并（BookmarkSync） ----------
+
+func bm(_ title: String, url: String? = nil, id: UUID = UUID(), at: Date? = Date(),
+        children: [Bookmark] = []) -> Bookmark {
+    var node = Bookmark(id: id, title: title, url: url, children: children)
+    node.updatedAt = at
+    return node
+}
+
+func wire(_ id: UUID, _ at: Date, deleted: Bool = false,
+          payload: BookmarkSyncPayload? = nil) -> SyncWireItem<BookmarkSyncPayload> {
+    SyncWireItem(clientId: id.uuidString, clientUpdatedAt: at, deleted: deleted,
+                 payload: payload, updatedAt: nil)
+}
+
+do {
+    let folderID = UUID()
+    let leafID = UUID()
+    // flatten：结构 → parentID + sort
+    let tree = [bm("Folder", id: folderID, children: [bm("GH", url: "https://g", id: leafID)])]
+    let flat = BookmarkSync.flatten(tree)
+    eq("flatten 数量", flat.count, 2)
+    check("flatten 根无父", flat[0].payload.parentID == nil)
+    eq("flatten 子的父", flat[1].payload.parentID, folderID)
+    eq("flatten 子的 sort", flat[1].payload.sort, 0)
+
+    // merge：新节点插入（父存在）
+    let now = Date()
+    let mergedInsert = BookmarkSync.merge(
+        base: [bm("Folder", id: folderID)],
+        remote: [wire(leafID, now, payload: .init(parentID: folderID, title: "New", url: "https://n", sort: 0))]
+    )
+    eq("merge 插入到父下", mergedInsert[0].children.count, 1)
+    eq("merge 插入标题", mergedInsert[0].children[0].title, "New")
+    check("merge 插入带时间戳", mergedInsert[0].children[0].updatedAt != nil)
+
+    // LWW：本地更新 → 忽略远端旧改动
+    let local = [bm("Local", url: "https://l", id: leafID, at: now)]
+    let older = wire(leafID, now.addingTimeInterval(-10),
+                     payload: .init(parentID: nil, title: "Remote-old", url: nil, sort: 0))
+    eq("LWW 本地新 → 忽略", BookmarkSync.merge(base: local, remote: [older])[0].title, "Local")
+
+    // LWW：远端更新 → 盖写标题/URL/时间戳
+    let newerAt = now.addingTimeInterval(10)
+    let newer = wire(leafID, newerAt,
+                     payload: .init(parentID: nil, title: "Remote-new", url: "https://r", sort: 0))
+    let wonOver = BookmarkSync.merge(base: local, remote: [newer])
+    eq("LWW 远端新 → 盖写", wonOver[0].title, "Remote-new")
+    eq("LWW 采纳远端时间戳", wonOver[0].updatedAt ?? .distantPast, newerAt)
+
+    // tombstone：新删除 → 移除；同刻删除 → 移除（收敛）；旧删除 → 保留
+    let newerDeleted = BookmarkSync.merge(
+        base: local, remote: [wire(leafID, newerAt, deleted: true)])
+    check("tombstone 新删除 → 节点消失", BookmarkSync.flatten(newerDeleted).isEmpty)
+    let equalDeleted = BookmarkSync.merge(
+        base: local, remote: [wire(leafID, now, deleted: true)])
+    check("tombstone 同刻删除 → 也移除（收敛）", BookmarkSync.flatten(equalDeleted).isEmpty)
+    let olderDeleted = BookmarkSync.merge(
+        base: local, remote: [wire(leafID, now.addingTimeInterval(-10), deleted: true)])
+    eq("tombstone 旧删除 → 保留", BookmarkSync.flatten(olderDeleted).count, 1)
+
+    // reparent：从 F1 移到 F2
+    let f1 = UUID(), f2 = UUID()
+    let twoFolders = [
+        bm("F1", id: f1, children: [bm("L", url: "u", id: leafID, at: now)]),
+        bm("F2", id: f2),
+    ]
+    let move = BookmarkSync.merge(
+        base: twoFolders,
+        remote: [wire(leafID, newerAt,
+                      payload: .init(parentID: f2, title: "L", url: "u", sort: 0))])
+    check("reparent 原父空了", move[0].children.isEmpty)
+    eq("reparent 新父收到", move[1].children.first?.id ?? UUID(), leafID)
+
+    // 环守卫：payload.parentID 指向自身 → 只更新字段，结构不变
+    let cycle = BookmarkSync.merge(
+        base: [bm("F", id: f1, children: [bm("C", id: leafID, at: now)])],
+        remote: [wire(leafID, newerAt,
+                      payload: .init(parentID: leafID, title: "C2", url: nil, sort: 0))])
+    eq("环守卫 结构不变", cycle[0].children.count, 1)
+    eq("环守卫 字段仍更新", cycle[0].children[0].title, "C2")
+
+    // 父缺失兜底：远端节点挂在未知父下 → 落根
+    let unknownParent = UUID()
+    let orphan = BookmarkSync.merge(
+        base: [],
+        remote: [wire(leafID, now,
+                      payload: .init(parentID: unknownParent, title: "Orphan", url: nil, sort: 0))])
+    eq("父缺失 → 落根", orphan.count, 1)
+    check("父缺失 → 根节点可辨", orphan[0].id == leafID)
+}
+
+// ---------- 云同步：时间编解码 + 线路 DTO ----------
+
+do {
+    let date = Date(timeIntervalSince1970: 1_790_256_000.123456)
+    let encoded = SyncDate.encode(date)
+    check("encode 固定 6 位小数", encoded.hasSuffix(".123456"))
+    if let back = SyncDate.parse(encoded) {
+        check("parse 回环 ≤1µs", abs(back.timeIntervalSince(date)) < 0.000_001)
+    } else {
+        check("parse 回环", false)
+    }
+    check("parse 无小数位", SyncDate.parse("2026-09-24T12:00:00") != nil)
+    check("parse 拒绝非时间", SyncDate.parse("yesterday") == nil)
+
+    let json = #"{"client_id":"X","client_updated_at":"2026-09-24T12:00:00.123456","deleted":false,"payload":{"parent_id":null,"title":"t","url":null,"sort":2},"updated_at":"2026-09-24T12:00:00.5"}"#
+    let item = try? SyncJSON.makeDecoder().decode(
+        SyncWireItem<BookmarkSyncPayload>.self, from: Data(json.utf8))
+    check("wire 解码", item != nil)
+    eq("wire payload sort", item?.payload?.sort, 2)
+    check("wire 时间解析（6 位小数）", item?.clientUpdatedAt != nil)
+    check("wire 游标原文保留", item?.updatedAt == "2026-09-24T12:00:00.5")
+    if let item {
+        let data = try? SyncJSON.makeEncoder().encode(item)
+        let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        check("wire 编码含 snake_case 键", text.contains("\"client_id\"") && text.contains("\"client_updated_at\""))
+    }
+    // updatedAt = nil（push 请求形态）编码时必须整个键省略
+    let pushShape = wire(UUID(), Date(), payload: .init(parentID: nil, title: "t", url: nil, sort: 0))
+    if let data = try? SyncJSON.makeEncoder().encode(pushShape),
+       let text = String(data: data, encoding: .utf8) {
+        check("wire 编码 nil updated_at 省略", !text.contains("\"updated_at\""))
+    } else {
+        check("wire 编码 nil updated_at 省略", false)
+    }
+}
+
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

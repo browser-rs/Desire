@@ -5,6 +5,9 @@ struct Bookmark: Identifiable, Codable, Equatable {
     var title: String
     var url: String?
     var children: [Bookmark]
+    /// 云同步的 LWW 仲裁戳（每次本地改动由 BookmarkStore 盖戳）。
+    /// Optional + 合成 Codable = 旧文件缺键解码为 nil，不会清空数据。
+    var updatedAt: Date? = nil
 
     var isFolder: Bool { url == nil }
     var isLeaf: Bool { url != nil }

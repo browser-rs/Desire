@@ -1003,6 +1003,20 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   冒烟 `tools/api-sync-smoke.sh`（9 步：applied / conflict 回胜者 / 覆盖 / tombstone /
   增量游标 / KV / 未知域 404）。**已知边界**：tombstone 永久保留（GC 需按设备记游标，
   留给后续）；服务端不解读 payload，书签树结构/排序全在 payload 里由客户端裁决。
+- **客户端 SyncEngine 已落地（2026-09-24，首域 = 书签）**：`Features/Sync/`——
+  `SyncStore`（登录态、Keychain 令牌**非交互读写**、每域游标、启动后 3s + 每 5 分钟
+  自动同步，AppState.init 末尾 startAutoSync）、`SyncAPIClient`（**nonisolated enum**，
+  信封解码、401 → 刷新令牌整体重试一次）、`SyncModels`/`SyncMerge`（Foundation-only，
+  合并语义在 tests/run.sh：LWW/同刻 tombstone 收敛/环守卫/父缺失落根/naive 时间
+  变长小数）。约定：`Bookmark.updatedAt` 是 **optional + 合成 Codable**（旧文件缺键
+  → nil，不清数据；BookmarkStore 加载时归一化盖戳）；`BookmarkStore.pendingDeletions`
+  = 本地删除 tombstone 待删清单（**删除必须显式推 tombstone**，否则全量 push 不含该
+  节点、其他设备会把已删节点救活；push applied 后清除）；合并回写走
+  `replaceForSync`（不再二次盖戳）。设置页新增 Sync 区块（SyncSettingsSection，
+  SettingsView.Section.sync）。**已知边界**：双端都有书签时首绑 = 并集（UUID 不同
+  不去重）；同步当前活跃 Profile 的桶（游标全局不分桶）；服务器地址默认
+  `http://127.0.0.1:18090`（UserDefaults `sync.serverBaseURL` 覆盖，暂无 UI）。
+  线路时间 = naive UTC 可变小数（SyncDate 统一解析），游标用服务端原文回传不解析。
   下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法

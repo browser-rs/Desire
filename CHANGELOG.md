@@ -2,6 +2,15 @@
 
 ### Added
 
+- **云同步客户端（首域 = 书签）**：新增 `Features/Sync/`——`SyncStore`（登录态/Keychain
+  令牌非交互读写/游标/启动后 + 每 5 分钟自动同步）、`SyncAPIClient`（信封解码、401
+  刷新令牌单次重试）、`SyncModels` + `SyncMerge`（树 ↔ 条目展平/合并，LWW 仲裁与
+  tombstone 收敛有纯逻辑单测覆盖）。`Bookmark` 增加 `updatedAt`（optional + 合成
+  Codable，旧文件缺键解码为 nil 不清数据）；`BookmarkStore` 本地删除进 `pendingDeletions`
+  待删清单（显式推 tombstone，push 成功后清除，防止其他设备把已删节点"救活"）。设置页
+  新增 Sync 区块（登录/注册/状态/立即同步/退出），i18n 补 21 键三语。已知边界：双端都
+  有书签时首绑为并集（UUID 不同不去重）；同步当前活跃 Profile 的桶；服务器地址默认
+  `http://127.0.0.1:18090`（`sync.serverBaseURL` 可覆盖）。
 - **云服务后端 M1（同步引擎，`crates/`）**：通用"域 + 文档"同步——`0002_sync_items.sql`
   单表按 `(user_id, domain, client_id)` 存 JSON 文档，`GET /sync/{domain}?since=<游标>`
   增量拉（含 tombstone）+ `POST /sync/{domain}` 批量推（单批 ≤500）。仲裁 =

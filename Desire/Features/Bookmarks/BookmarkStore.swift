@@ -17,6 +17,16 @@ class BookmarkStore: ObservableObject {
     /// Legacy UserDefaults key — read once during migration, then deleted.
     private let legacySaveKey = "desire.bookmarks"
 
+    /// 云同步待删清单（tombstone）：本地 remove 时记录，push 成功后被服务端
+    /// 持久化即清除。删除必须显式推 tombstone——否则全量 push 不含该节点，
+    /// 其他设备 pull 不到删除痕迹，会把本地已删的节点"救活"。
+    @Published private(set) var pendingDeletions: [UUID: Date] = [:]
+    private let deletionsKey = "bookmarks.deletions"
+    private var scopedDeletionsKey: String {
+        guard let scopeID else { return deletionsKey }
+        return deletionsKey + "." + scopeID.uuidString
+    }
+
     /// URL index of all leaf bookmarks, maintained incrementally so
     /// `contains(url:)` is O(1) instead of flattening the whole tree on every
     /// call (it ran 3× per Toolbar render, per keystroke in the address bar).
@@ -52,6 +62,7 @@ class BookmarkStore: ObservableObject {
         } else {
             bookmarks.append(bookmark)
         }
+        _ = bookmarks.update(id: bookmark.id) { $0.updatedAt = Date() }
         // Rebuild (not just leafURLs.insert): leafEntries feeds address-bar
         // suggestion matching — without this, a freshly added bookmark only
         // started suggesting after a relaunch.
@@ -66,17 +77,23 @@ class BookmarkStore: ObservableObject {
         } else {
             bookmarks.append(folder)
         }
+        _ = bookmarks.update(id: folder.id) { $0.updatedAt = Date() }
         save()
     }
 
     func remove(_ bookmark: Bookmark) {
         _ = bookmarks.remove(id: bookmark.id)
+        pendingDeletions[bookmark.id] = Date()
+        saveDeletions()
         rebuildURLIndex()
         save()
     }
 
     func update(_ bookmark: Bookmark) {
-        _ = bookmarks.update(id: bookmark.id) { $0 = bookmark }
+        _ = bookmarks.update(id: bookmark.id) {
+            $0 = bookmark
+            $0.updatedAt = Date()
+        }
         rebuildURLIndex()
         save()
     }
@@ -92,14 +109,16 @@ class BookmarkStore: ObservableObject {
     private func load() {
         // Primary: DiskStore (debounced, off-main).
         if let decoded = DiskStore.load([Bookmark].self, key: saveKey) {
-            bookmarks = decoded
+            bookmarks = normalizeTimestamps(decoded)
+            pendingDeletions = DiskStore.load([UUID: Date].self, key: deletionsKey) ?? [:]
             rebuildURLIndex()
             return
         }
         // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: legacySaveKey),
            let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) {
-            bookmarks = decoded
+            bookmarks = normalizeTimestamps(decoded)
+            pendingDeletions = [:]
             rebuildURLIndex()
             save()
             UserDefaults.standard.removeObject(forKey: legacySaveKey)
@@ -115,14 +134,53 @@ class BookmarkStore: ObservableObject {
         guard scopeID != profileID else { return }
         save()
         scopeID = profileID
-        bookmarks = DiskStore.load([Bookmark].self, key: scopedKey) ?? []
+        bookmarks = normalizeTimestamps(DiskStore.load([Bookmark].self, key: scopedKey) ?? [])
+        pendingDeletions = DiskStore.load([UUID: Date].self, key: scopedDeletionsKey) ?? [:]
         rebuildURLIndex()
     }
 
     func saveImported(_ newBookmarks: [Bookmark]) {
-        bookmarks.append(contentsOf: newBookmarks)
+        bookmarks.append(contentsOf: normalizeTimestamps(newBookmarks))
         rebuildURLIndex()
         save()
+    }
+
+    // MARK: - 云同步（SyncStore 驱动）
+
+    /// 同步合并结果整树替换（LWW 仲裁已在 BookmarkSync.merge 完成）。
+    /// 合并进来的节点自带服务端认可的时间戳，不再二次盖戳。
+    func replaceForSync(_ tree: [Bookmark]) {
+        bookmarks = tree
+        rebuildURLIndex()
+        save()
+    }
+
+    /// push 成功后从待删清单移除（clientIDs = 服务端已 applied 的条目）。
+    func clearPendingDeletions(_ clientIDs: Set<String>) {
+        guard !clientIDs.isEmpty, !pendingDeletions.isEmpty else { return }
+        let ids = Set(clientIDs.compactMap(UUID.init(uuidString:)))
+        let hits = pendingDeletions.keys.filter { ids.contains($0) }
+        guard !hits.isEmpty else { return }
+        for id in hits { pendingDeletions.removeValue(forKey: id) }
+        saveDeletions()
+    }
+
+    private func saveDeletions() {
+        DiskStore.save(pendingDeletions, key: scopedDeletionsKey)
+    }
+
+    /// 旧数据/导入内容补盖同步戳（nil → now），维持"树内节点恒有时间戳"不变式。
+    private func normalizeTimestamps(_ tree: [Bookmark]) -> [Bookmark] {
+        let now = Date()
+        func stamp(_ nodes: [Bookmark]) -> [Bookmark] {
+            nodes.map { node in
+                var out = node
+                if out.updatedAt == nil { out.updatedAt = now }
+                out.children = stamp(out.children)
+                return out
+            }
+        }
+        return stamp(tree)
     }
 
     /// Rebuilds `leafURLs` and `leafEntries` from the current tree. Called
@@ -142,13 +200,13 @@ class BookmarkStore: ObservableObject {
     }
 
     private func seedDefaults() {
-        bookmarks = [
+        bookmarks = normalizeTimestamps([
             .folder(title: String(localized: "Common Sites"), children: [
                 .leaf(title: "GitHub", url: "https://github.com"),
                 .leaf(title: "Stack Overflow", url: "https://stackoverflow.com"),
             ]),
             .leaf(title: "Hacker News", url: "https://news.ycombinator.com"),
-        ]
+        ])
         rebuildURLIndex()
         save()
     }

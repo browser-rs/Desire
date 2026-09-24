@@ -54,6 +54,8 @@ class AppState: ObservableObject {
             browsing.historyStore.applyScope(profileID: saved)
             browsing.quickDialStore.applyScope(profileID: saved)
         }
+        // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
+        browsing.syncStore.startAutoSync()
     }
 
     // MARK: - Forwarding accessors
@@ -62,6 +64,7 @@ class AppState: ObservableObject {
 
     // Browsing
     var bookmarkStore: BookmarkStore { browsing.bookmarkStore }
+    var syncStore: SyncStore { browsing.syncStore }
     var historyStore: HistoryStore { browsing.historyStore }
     var downloadStore: DownloadStore { browsing.downloadStore }
     var quickDialStore: QuickDialStore { browsing.quickDialStore }

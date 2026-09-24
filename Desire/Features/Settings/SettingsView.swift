@@ -19,6 +19,7 @@ struct SettingsView: View {
     enum Section: String, CaseIterable, Identifiable {
         case general
         case ai
+        case sync
         case privacy
         case autofill
         case keyboardShortcuts
@@ -29,6 +30,7 @@ struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .ai: "brain.head.profile"
+            case .sync: "arrow.triangle.2.circlepath"
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
@@ -39,6 +41,7 @@ struct SettingsView: View {
             switch self {
             case .general: "General"
             case .ai: "Agent"
+            case .sync: "Sync"
             case .privacy: "Privacy"
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
@@ -48,6 +51,7 @@ struct SettingsView: View {
 
     @ObservedObject var settings: Settings
     @ObservedObject var aiPreference: AgentPreferenceStore
+    @ObservedObject var syncStore: SyncStore
     @ObservedObject var contentBlocker: ContentBlockerStore
     /// 视频站广告拦截（YouTube/哔哩哔哩等的广告位与列表页广告卡片）。
     @ObservedObject var videoAdBlocker: VideoAdBlocker
@@ -95,6 +99,8 @@ struct SettingsView: View {
             )
         case .ai:
             AgentSettingsSection(store: aiPreference)
+        case .sync:
+            SyncSettingsSection(store: syncStore)
         case .privacy:
             PrivacySettingsStoreSection(
                 settings: settings,

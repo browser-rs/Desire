@@ -104,6 +104,7 @@ struct DesireApp: App {
             SettingsView(
                 settings: appState.settings,
                 aiPreference: appState.aiPreference,
+                syncStore: appState.syncStore,
                 contentBlocker: appState.contentBlocker,
                 videoAdBlocker: appState.videoAdBlocker,
                 downloadStore: appState.downloadStore,

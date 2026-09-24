@@ -15,6 +15,9 @@ SOURCES=(
   Desire/Features/Agent/SecretRedactor.swift
   Desire/Features/Agent/ContextCompaction.swift
   Desire/Features/Agent/AgentTrace.swift
+  Desire/Features/Bookmarks/Bookmark.swift
+  Desire/Features/Sync/SyncModels.swift
+  Desire/Features/Sync/SyncMerge.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

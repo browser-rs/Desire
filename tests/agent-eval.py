@@ -9,6 +9,8 @@
   E3 redaction        读凭据文件 → 工具结果与模型所见都是 [redacted]，原文不出现在对话里
   E4 overflow-retry   首次请求报 context length → 应用自动减半预算重试并完成回合
 
+自包含：fixture 端点与凭据文件由脚本在临时目录生成，不依赖仓库外任何路径。
+
 用法：
   前置：应用以 --automation 启动、桥可达（默认 http://127.0.0.1:8799）。
   运行：python3 tests/agent-eval.py [--base URL] [--cleanup] [--keep-fixture]
@@ -20,14 +22,386 @@
 
 import argparse
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
 BRIDGE = "http://127.0.0.1:8799"
-FIXTURE_SCRIPT = "/tmp/desire-fixture/fake_openai.py"
+# 命中 SecretRedactor 的 sk- 形态规则（sk- 后 ≥16 个词字符），脱敏断言因此确定性成立。
+EVAL_FAKE_KEY = "sk-evalfakekey1234567890"
+FIXTURE_SOURCE = r'''
+#!/usr/bin/env python3
+"""Fake OpenAI-compatible chat-completions endpoint (SSE).
+
+把收到的 Authorization 与自定义请求头**回显在回复文本里**，于是"自定义模型服务
+的 Key / 额外请求头真的到了服务端"可以被断言——不需要真的模型。
+
+    POST /v1/chat/completions  →  data: {...chunk with the echo...} / [DONE]
+"""
+import json
+import os
+import sys
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+PORT = 8880
+# 三个文件路径由 agent-eval.py 通过环境变量注入（临时目录，跑完即删）。
+SECRET_PATH = os.environ.get("EVAL_SECRET_PATH")
+SECRET2_PATH = os.environ.get("EVAL_SECRET2_PATH")
+MISSING_PATH = os.environ.get("EVAL_MISSING_PATH")
+# OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
+# 用于验证应用会"压缩预算减半重试"。
+overflow_seen = 0
+# 每次请求前延迟（秒）：用来放大"正文完成后还在跑额外模型调用"的时间差。
+DELAY = float(os.environ.get("FAKE_DELAY", "0"))
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args):
+        pass
+
+    @staticmethod
+    def big_plain():
+        # 单个巨大段落（无代码块/列表/表格）：用来区分"文本量大"与"块多/代码块滚动视图"。
+        return "这是一段很长的纯文本。" * 1200
+
+    @staticmethod
+    def big_markdown():
+        blocks = ["# 压测回答\n\n"]
+        for index in range(40):
+            blocks.append(f"## 小节 {index}\n\n")
+            blocks.append("这是一个**加粗**的段落，带 `inline code`、一个 [链接](https://example.com/x) 和裸地址 https://example.com/" + str(index) + "。" * 6 + "\n\n")
+            blocks.append("- 列表项一\n- 列表项二，带 `code`\n- 列表项三\n\n")
+            blocks.append("| 列 A | 列 B |\n| --- | --- |\n| 值 1 | 值 2 |\n| 值 3 | 值 4 |\n\n")
+            blocks.append("```swift\nfunc f" + str(index) + "() {\n    print(\"hello " + str(index) + "\")\n}\n```\n\n")
+        return "".join(blocks)
+
+    def do_GET(self):
+        # /reset：清空 OVERFLOW 计数（评估脚本用，保证用例确定性）。
+        if self.path.startswith("/reset"):
+            global overflow_seen
+            overflow_seen = 0
+            self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers()
+            self.wfile.write(b"ok"); return
+        # /v1/models：让"Fetch from API"这类路径也能被验证。
+        if self.path.endswith("/models"):
+            body = json.dumps({"object": "list", "data": [
+                {"id": "fake-1", "object": "model"},
+                {"id": "fake-2", "object": "model"},
+                {"id": "fake-3", "object": "model"},
+            ]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_error(404)
+
+    def do_POST(self):
+        sys.stderr.write(f"[fake] POST {self.path}\n"); sys.stderr.flush()
+        if DELAY:
+            time.sleep(DELAY)
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw)
+        except Exception:
+            body = {}
+
+        auth = self.headers.get("Authorization", "")
+        tenant = self.headers.get("X-Tenant", "")
+        model = body.get("model", "?")
+        msgs_all = body.get("messages") or []
+        sys_count = sum(1 for m in msgs_all if m.get("role") == "system")
+        sys_positions = [i for i, m in enumerate(msgs_all) if m.get("role") == "system"]
+        has_notes = any("Session notes" in (m.get("content") or "") for m in msgs_all[:1])
+        text = (f"auth={auth}; tenant={tenant}; model={model}; "
+                f"sysCount={sys_count}; sysAt={sys_positions}; notesInSystem={has_notes}")
+
+        # 分支判据只看最后一条 user 消息 + 本轮（其后）的工具结果。历史轮次里
+        # 的用例关键词绝不能影响本轮分支——否则 E4 的请求体里带着 E2/E3 的
+        # 关键词，会串到别人的分支（2026-09-24，eval 三查三改才定位到这）。
+        last_user_idx = max((i for i, m in enumerate(msgs_all) if m.get("role") == "user"), default=-1)
+        mode_text = (msgs_all[last_user_idx].get("content") or "") if last_user_idx >= 0 else ""
+        round_msgs = msgs_all[last_user_idx + 1:]
+        has_tool = any(m.get("role") == "tool" for m in round_msgs)
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+
+        # 思考流模式：先流式发 reasoning_content，再发正文（验证折叠展示）。
+        if "THINKSTREAM" in mode_text:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            def emit(field, piece):
+                chunk = {"id": "chatcmpl-think", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model, "choices": [{"index": 0, "delta": {field: piece}, "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                self.wfile.flush()
+                time.sleep(0.05)
+            for piece in ["我需要先确认用户的意图。", "问题里提到 THINKSTREAM，", "说明是在测试思考过程的展示。", "那么直接回答即可。"]:
+                emit("reasoning_content", piece)
+            emit("content", "这是正式答复：思考过程已经在上方折叠块里。")
+            done = {"id": "chatcmpl-think", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
+        # 契约校验模式：OpenAI 要求 system 只能出现在开头，出现在中间就报错
+        # （复现 amd 网关的 "System message must be at the beginning."）。
+        msgs = body.get("messages") or []
+        for index, m in enumerate(msgs):
+            if m.get("role") == "system" and index != 0:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                payload = json.dumps({"error": {"message": "System message must be at the beginning.", "type": "invalid_request_error"}})
+                self.wfile.write(f"data: {payload}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                self.close_connection = True
+                return
+
+        # 超限重试模式（OVERFLOWTEST）：第一次报 context length，之后放行。
+        body_text = json.dumps(body)
+        # 提问模式（ASKME）：发一个 askUser 工具调用（验证挂起/超时/自动弹面板）。
+        if "ASKME" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_ask_1", "type": "function",
+                    "function": {"name": "askUser",
+                                 "arguments": json.dumps({"question": "ASKME 要继续吗？"})}}
+            chunk = {"id": "chatcmpl-ask", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-ask", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "ASKME" in mode_text and has_tool:
+            reply = "ASKME-DONE"
+            chunk = {"id": "chatcmpl-ask", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-ask", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        # 并行批模式（PARAREAD）：一次发 3 个 readFile（两个存在、一个不存在），
+        # 用于验证只读工具并行批的配对与顺序。
+        if "PARAREAD" in mode_text and not has_tool:
+            calls = []
+            for i, path in enumerate([SECRET_PATH,
+                                      SECRET2_PATH,
+                                      MISSING_PATH]):
+                calls.append({"index": i, "id": f"call_p{i}", "type": "function",
+                              "function": {"name": "readFile",
+                                           "arguments": json.dumps({"path": path})}})
+            chunk = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "PARAREAD" in mode_text and has_tool:
+            reply = "PARA-DONE（%d 个工具结果已收到）" % len([m for m in msgs if m.get("role") == "tool"])
+            chunk = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        if "READSECRET" in mode_text and not has_tool:
+            body_text_note = json.dumps({"path": SECRET_PATH})
+            call = {"index": 0, "id": "call_read_1", "type": "function",
+                    "function": {"name": "readFile", "arguments": body_text_note}}
+            chunk = {"id": "chatcmpl-read", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-read", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "READSECRET" in mode_text and has_tool:
+            seen = [m.get("content") or "" for m in msgs if m.get("role") == "tool"][-1]
+            reply = "MODEL-SAW>>>" + seen + "<<<END"
+            chunk = {"id": "chatcmpl-read", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-read", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        if "OVERFLOWTEST" in mode_text:
+            global overflow_seen
+            overflow_seen += 1
+            sys.stderr.write(f"[fake] OVERFLOWTEST request #{overflow_seen}\n"); sys.stderr.flush()
+            if overflow_seen == 1:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                payload = json.dumps({"error": {"message": "This model's maximum context length is 4096 tokens, however your messages resulted in 8123 tokens", "type": "invalid_request_error"}})
+                self.wfile.write(f"data: {payload}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                self.close_connection = True
+                return
+            overflow_seen = 0
+
+        # 异常模式：EMPTYSTREAM = 200 但流里没有任何内容；ERRORSTREAM = 流内错误负载。
+        body_text = json.dumps(body)
+
+        # 工具+脱敏模式（TOOLSECRET）：第一轮让模型调 readFile 去读一个含**假密钥**的文件，
+        # 于是工具结果入会话前必经 SecretRedactor；第二轮把**模型实际收到的**工具消息原文
+        # 回显出来——「模型看到的是 [redacted]」因此可以被直接断言。
+        if "TOOLSECRET" in mode_text:
+            tool_msgs = [m for m in round_msgs if m.get("role") == "tool"]
+            if not tool_msgs:
+                call = {"index": 0, "id": "call_secret_1", "type": "function",
+                        "function": {"name": "readFile",
+                                     "arguments": json.dumps({"path": MISSING_PATH})}}
+                chunk = {"id": "chatcmpl-tool", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-tool", "object": "chat.completion.chunk", "created": int(time.time()),
+                        "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                self.close_connection = True
+                return
+            seen = tool_msgs[-1].get("content") or ""
+            reply = "MODEL-SAW>>>" + seen + "<<<END"
+            chunk = {"id": "chatcmpl-tool", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-tool", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.close_connection = True
+            return
+        if "ERRORSTREAM" in mode_text:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            payload = json.dumps({"error": {"message": "context length exceeded (fixture)", "type": "invalid_request_error"}})
+            self.wfile.write(f"data: {payload}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.close_connection = True
+            return
+        if "EMPTYSTREAM" in mode_text:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
+        # 长回答压力模式：提示里含 BIGSTREAM 时流式吐 ~40KB Markdown（含代码块、
+        # 列表、表格），用来复现"流式输出卡死"。
+        if "BIGPLAIN" in mode_text or "BIGSTREAM" in mode_text:
+            text = self.big_plain() if "BIGPLAIN" in mode_text else self.big_markdown()
+            step = 20
+            for index in range(0, len(text), step):
+                piece = text[index:index + step]
+                chunk = {
+                    "id": "chatcmpl-fake",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+                }
+                try:
+                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                    self.wfile.flush()
+                except Exception:
+                    return
+                time.sleep(0.004)
+        else:
+            chunk = {
+                "id": "chatcmpl-fake",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
+            }
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            self.wfile.flush()
+
+        done = {
+            "id": "chatcmpl-fake",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 12000, "completion_tokens": 800, "total_tokens": 12800},
+        }
+        self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
+        # SSE 结束就该关连接：不关的话客户端会一直等（实测把"回合结束"拖后 2.8s）
+        self.close_connection = True
+
+
+if __name__ == "__main__":
+    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+
+'''
 FIXTURE_PORT = 8880
 FIXTURE_ENDPOINT = f"http://127.0.0.1:{FIXTURE_PORT}/v1/chat/completions"
 POLL_TIMEOUT = 90
@@ -53,23 +427,35 @@ def fixture_bridge(method, path):
 fixture_proc = None
 
 
-def ensure_secret_file():
-    """READSECRET 用例读的凭据 fixture（假凭据，不是真 key）。CI 上不存在时自造。"""
-    path = pathlib.Path.home() / "Documents/DesireAgent/leak.txt"
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "gateway token: sk-test-main\n"
-            "aws: AKIAIOSFODNN7EXAMPLE\n"
-            "header: Bearer abcdefghijklmnopqrstuvwxyz\n")
+workdir = None
 
 
-def start_fixture():
+def ensure_workdir():
+    """生成 fixture 端点脚本与凭据文件（临时目录，结束即删）。
+
+    曾经依赖本机 /tmp/desire-fixture/fake_openai.py——CI 上不存在，
+    eval 第一步就 "fixture endpoint did not come up"（2026-09-24）。
+    现在完全自包含：脚本、凭据、路径全部由这里生成，不碰仓库外任何路径。
+    """
+    global workdir
+    workdir = pathlib.Path(tempfile.mkdtemp(prefix="desire-eval-"))
+    secret = workdir / "secret.txt"
+    secret.write_text(
+        f"gateway token: {EVAL_FAKE_KEY}\n"
+        "aws: AKIAIOSFODNN7EXAMPLE\n"
+        "header: Bearer abcdefghijklmnopqrstuvwxyz\n")
+    (workdir / "secret2.txt").write_text("second target for the parallel-read batch\n")
+    script = workdir / "fixture.py"
+    script.write_text(FIXTURE_SOURCE)
+    child_env = {**os.environ,
+                 "EVAL_SECRET_PATH": str(secret),
+                 "EVAL_SECRET2_PATH": str(workdir / "secret2.txt"),
+                 "EVAL_MISSING_PATH": str(workdir / "missing.txt")}
     global fixture_proc
     fixture_proc = subprocess.Popen(
-        [sys.executable, FIXTURE_SCRIPT],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    deadline = time.time() + 10
+        [sys.executable, str(script)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=child_env)
+    deadline = time.time() + 30
     while time.time() < deadline:
         try:
             fixture_bridge("GET", "/reset")
@@ -119,22 +505,28 @@ eval_conversations = []
 
 def run_case(prompt):
     """发一条消息并等回合结束。返回 (messages, last_turn)。"""
-    before = len(bridge("GET", "/agent/messages").get("messages", []))
-    bridge("POST", "/agent/send", body={"text": prompt})
+    before_ids = {m.get("id") for m in bridge("GET", "/agent/messages").get("messages", [])}
+    sent = bridge("POST", "/agent/send", body={"text": prompt})
+    if not sent.get("ok"):
+        # /agent/send 在没有活会话时也回 200 + {"error": …}，不检查就变成 90s 超时假象。
+        raise RuntimeError(f"/agent/send 被拒：{sent}")
     deadline = time.time() + POLL_TIMEOUT
     while time.time() < deadline:
         state = bridge("GET", "/agent/messages")
-        msgs = state.get("messages", [])
-        # 本地假端点的回合可能快于轮询间隔（busy 从未被观察到也算完成）：
-        # 判据 = 出现了新消息且不再忙碌；复核一次防抖。
-        if len(msgs) > before and not state.get("busy"):
+        # 判据 = 出现了**新 id** 的 assistant 消息且不再忙碌；复核一次防抖。
+        # 不能比条数——/agent/messages 只回 suffix(12)，长对话里"条数变多"永远
+        # 不成立，回合明明完成了也被判超时（2026-09-24 第二遍全超时的真因；
+        # 第一遍总能过只是因为对话还短）。
+        def fresh_reply(state):
+            return [m for m in state.get("messages", [])
+                    if m.get("id") not in before_ids and m.get("role") == "assistant"]
+        if fresh_reply(state) and not state.get("busy"):
             time.sleep(0.5)
             state = bridge("GET", "/agent/messages")
-            msgs = state.get("messages", [])
-            if len(msgs) > before and not state.get("busy"):
+            if fresh_reply(state) and not state.get("busy"):
                 trace = bridge("GET", "/agent/trace")
                 eval_conversations.append(trace["conversation"])
-                return msgs
+                return state.get("messages", [])
         time.sleep(0.5)
     raise TimeoutError(f"回合超时未完成：{prompt}")
 
@@ -174,10 +566,10 @@ def case_redaction():
     msgs = run_case("EVAL-READSECRET 读取凭据文件")
     _, assistant, tools = last_exchange(msgs)
     tool_text = "\n".join(m.get("content") or "" for m in tools)
-    check("E3 工具结果无原始密钥", "sk-abcdefghijklmnopqrstuvwx1234" not in tool_text)
+    check("E3 工具结果无原始密钥", EVAL_FAKE_KEY not in tool_text)
     check("E3 工具结果有掩码", "[redacted]" in tool_text)
     seen = assistant.get("content") or ""
-    check("E3 模型所见无原始密钥", "sk-abcdefghijklmnopqrstuvwx1234" not in seen)
+    check("E3 模型所见无原始密钥", EVAL_FAKE_KEY not in seen)
     check("E3 模型所见有掩码", "[redacted]" in seen)
 
 
@@ -215,8 +607,7 @@ def main():
     BRIDGE = args.base
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
-    ensure_secret_file()
-    start_fixture()
+    ensure_workdir()
     install_profile()
     try:
         for name, case in CASES:
@@ -230,13 +621,25 @@ def main():
     finally:
         restore_profile()
         stop_fixture()
+        if fixture_proc:
+            fixture_proc.wait(timeout=10)
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
         if args.cleanup and eval_conversations:
             ids = sorted(set(eval_conversations))
-            bridge("POST", "/conversations/delete", body={"ids": ids})
-            print(f"已删除评估会话：{len(ids)} 个")
+            result = bridge("POST", "/conversations/delete", body={"ids": ids})
+            if result.get("liveConversationDeleted"):
+                # 活会话删了会把实例的投递目标打残（后续 /agent/send 静默失效），
+                # 同一实例的下一次评估就全超时。留着它，换实例再清。
+                print("注：评估会话是活会话，已跳过删除（避免打残实例的投递目标）")
+            else:
+                print(f"已删除评估会话：{len(result.get('deleted') or [])} 个")
 
     print(f"\n评估结果：{sum(1 for _, ok, _ in results if ok)}/{len(results)} 通过")
-    if any(not ok for _, ok, _ in results):
+    failed = [(name, note) for name, ok, note in results if not ok]
+    for name, note in failed:
+        print(f"  ✗ {name}" + (f" — {note}" if note else ""))
+    if failed:
         sys.exit(1)
 
 

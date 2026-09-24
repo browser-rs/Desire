@@ -903,6 +903,27 @@ Features/Bookmarks/
     `flags:suspended|enqueued` 而日志里始终没有 PING = 执行器已死；④ 别被"界面正常"骗了：
     僵尸态与"卡死"的区别就在这里，**它还能优雅退出**。
 
+- **Keychain 隐窗授权能把应用钉死在启动里**（2026-09-24，v0.3.14 发版冒烟抓到，
+  **v0.3.13 同样中招**——与上一条外观相似但根因不同）：本地构建是 **adhoc 签名**
+  （CI 构建是 `CODE_SIGNING_ALLOWED=NO` 同理），每次重建/换路径 cdhash 都变；
+  Keychain 条目的 ACL 认不出当前构建时，`SecItemCopyMatching` 会向 SecurityAgent
+  申请授权，而那个授权窗**可能永远不渲染**（`CGWindowList` 里进程和窗口都在、
+  屏幕截图什么也没有）——启动路径上任何一处**同步** Keychain 读都会永久阻塞
+  （`AgentPreferenceStore.init` 的 `refreshKeyState` 就是现场），且之后每次启动都
+  排在同一个隐窗后面全部挂死：桥无响应、进程活着、无崩溃报告。
+  - **诊断**：① `ps aux | grep SecurityAgent` 有近期生成的进程；② `swift -e`
+    三行 CGWindowList 列 SecurityAgent 窗口；③ 屏幕截图无窗 = 隐窗确证；
+    ④ `sample <pid>` 主线程**卡在 keychainRead 帧**（僵尸态是空闲在 run loop，
+    这是两者的分界）。
+  - **恢复**：`pkill -9 SecurityAgent`（取消排队请求 → 读失败成"无 Key"）+ 重启 app。
+  - **修复（0.3.14 已落地）**：启动/脱敏/密码面板等**用户不在场路径**的 Keychain
+    读全部带 `LAContext(interactionNotAllowed: true)` + `kSecUseAuthenticationContext`
+    （`kSecUseAuthenticationUI` 已废弃，会吃警告）；设置页等在场路径保持交互，
+    授权窗答一次"总是允许"即恢复。规矩：**新增 init/回合中路径的 Keychain 读
+    一律非交互**——宁可显示"未配置 Key"，不许启动等一个看不见的系统弹窗。
+  - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
+    换路径启动时触发，常规 DerivedData 路径测不出来。
+
 ## 端点扩展模式
 
 新自动化能力 = AutomationServer.route 加 case + 一个 static 实现，

@@ -24,6 +24,9 @@ final class SyncStore: ObservableObject {
     @Published private(set) var lastError: String?
     /// 同步服务器地址（设置页/桥可改，立即生效）。
     @Published private(set) var serverBaseURL: String
+    /// 用户选择的同步类目（缺省全开）。关闭 = 跳过该域 push/pull；
+    /// 游标保留，重新打开后自动补齐关闭期间的增量；服务端数据不删。
+    @Published private(set) var enabledDomains: [SyncDomain: Bool] = [:]
 
     static let defaultServerBaseURL = "http://127.0.0.1:18090"
 
@@ -66,6 +69,9 @@ final class SyncStore: ObservableObject {
         self.settings = settings
         let storedServer = defaults.string(forKey: serverKey) ?? ""
         serverBaseURL = storedServer.isEmpty ? Self.defaultServerBaseURL : storedServer
+        for domain in SyncDomain.allCases {
+            enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? true
+        }
         if let username = defaults.string(forKey: usernameKey),
            keychainRead(accessAccount) != nil || keychainRead(refreshAccount) != nil {
             authState = .signedIn(username: username)
@@ -78,6 +84,21 @@ final class SyncStore: ObservableObject {
         guard !trimmed.isEmpty else { return }
         defaults.set(trimmed, forKey: serverKey)
         serverBaseURL = trimmed
+    }
+
+    // MARK: - 类目开关
+
+    private func enabledKey(_ domain: SyncDomain) -> String {
+        "sync.enabled.\(domain.rawValue)"
+    }
+
+    func isEnabled(_ domain: SyncDomain) -> Bool {
+        enabledDomains[domain] ?? true
+    }
+
+    func setEnabled(_ domain: SyncDomain, _ enabled: Bool) {
+        enabledDomains[domain] = enabled
+        defaults.set(enabled, forKey: enabledKey(domain))
     }
 
     /// 启动后的首次同步 + 定时器。AppState.init 末尾调用（自己内部再延迟，
@@ -198,26 +219,36 @@ final class SyncStore: ObservableObject {
 
     private func runSyncCycle() async throws {
         let token = try await validAccessToken()
-        try await runDomainSync(.bookmarks, token: token,
-                                collectPush: collectBookmarks,
-                                applyRemote: applyBookmarks,
-                                clearApplied: { bookmarkStore.clearPendingDeletions($0) })
-        try await runDomainSync(.quickDials, token: token,
-                                collectPush: collectQuickDials,
-                                applyRemote: applyQuickDials,
-                                clearApplied: { quickDialStore.clearPendingDeletions($0) })
-        try await runDomainSync(.readingList, token: token,
-                                collectPush: collectReadingList,
-                                applyRemote: applyReadingList,
-                                clearApplied: { readingListStore.clearPendingDeletions($0) })
-        try await runDomainSync(.keyboardShortcuts, token: token,
-                                collectPush: collectShortcuts,
-                                applyRemote: applyShortcuts,
-                                clearApplied: { _ in })
-        try await runDomainSync(.settings, token: token,
-                                collectPush: collectSettings,
-                                applyRemote: applySettings,
-                                clearApplied: { _ in })
+        if isEnabled(.bookmarks) {
+            try await runDomainSync(.bookmarks, token: token,
+                                    collectPush: collectBookmarks,
+                                    applyRemote: applyBookmarks,
+                                    clearApplied: { bookmarkStore.clearPendingDeletions($0) })
+        }
+        if isEnabled(.quickDials) {
+            try await runDomainSync(.quickDials, token: token,
+                                    collectPush: collectQuickDials,
+                                    applyRemote: applyQuickDials,
+                                    clearApplied: { quickDialStore.clearPendingDeletions($0) })
+        }
+        if isEnabled(.readingList) {
+            try await runDomainSync(.readingList, token: token,
+                                    collectPush: collectReadingList,
+                                    applyRemote: applyReadingList,
+                                    clearApplied: { readingListStore.clearPendingDeletions($0) })
+        }
+        if isEnabled(.keyboardShortcuts) {
+            try await runDomainSync(.keyboardShortcuts, token: token,
+                                    collectPush: collectShortcuts,
+                                    applyRemote: applyShortcuts,
+                                    clearApplied: { _ in })
+        }
+        if isEnabled(.settings) {
+            try await runDomainSync(.settings, token: token,
+                                    collectPush: collectSettings,
+                                    applyRemote: applySettings,
+                                    clearApplied: { _ in })
+        }
         lastSyncAt = Date()
         defaults.set(lastSyncAt, forKey: lastSyncKey)
     }

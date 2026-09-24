@@ -7412,6 +7412,13 @@
         }
       }
     },
+    "Choose what to sync across devices. Turning one off keeps its server data." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose what to sync across devices. Turning one off keeps its server data." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择跨设备同步的内容；关闭的类目，服务器上的数据会保留。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇跨裝置同步的內容；關閉的類別，伺服器上的資料會保留。" } }
+      }
+    },
     "Current Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18709,6 +18716,13 @@
         }
       }
     },
+    "Quick Dial" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Dial" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快拨" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "快撥" } }
+      }
+    },
     "Quick setup — click to fill endpoint + model." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23750,6 +23764,13 @@
             "value" : "背景標籤頁切離後掛起"
           }
         }
+      }
+    },
+    "Sync Categories" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Categories" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步类目" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步類別" } }
       }
     },
     "Switch model / provider" : {

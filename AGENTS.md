@@ -1047,6 +1047,11 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   是 trove 踩过的）。镜像仓默认 `registry.cn-shenzhen.aliyuncs.com/pura`，tag 推
   latest + commit 短 hash。清单与 env 表见 `scripts/README.md`。客户端对接：
   生产必须 HTTPS（ATS），地址在设置 → Sync 可改。
+- **同步类目开关（2026-09-25）**：用户可在设置 → Sync 按域开关（`enabledDomains`，
+  UserDefaults `sync.enabled.<域>`，缺省全开）。语义：关 = 跳过该域 push/pull，
+  **游标保留**（重开后自动补齐关闭期间增量），服务端数据不删；各 Store 的盖戳/
+  tombstone 不受开关影响（关期间的本地删改在重开后照常上推）。桥 `POST /sync/domain`
+  切换、`/sync/status` 的 `enabled` 字段可查。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法
   `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。

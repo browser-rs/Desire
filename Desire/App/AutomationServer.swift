@@ -373,6 +373,7 @@ final class AutomationServer {
         ep("POST", "/sync/logout", "Sign out on this device (server tokens revoked)", example: "-d '{}'")
         ep("POST", "/sync/server", "Point the sync client at a server base URL (persisted)", params: ["baseURL:string"], example: #"-d '{"baseURL":"http://127.0.0.1:18090"}'"#)
         ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
+        ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
         ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
         ep("POST", "/search-history/clear", "Clear search history", example: "-d '{}'")
@@ -799,6 +800,8 @@ final class AutomationServer {
                 return try Self.json(Self.syncSetServer(Self.string(body, "baseURL") ?? ""))
             case ("POST", "/sync/setting"):
                 return try Self.json(Self.syncSetSetting(body))
+            case ("POST", "/sync/domain"):
+                return try Self.json(Self.syncSetDomain(body))
             case ("GET", "/search-history"):
                 return try Self.json(Self.searchHistory(count: Int(query["count"] ?? "10") ?? 10))
             case ("POST", "/search-history/add"):
@@ -2525,6 +2528,7 @@ final class AutomationServer {
             "quickdials": defaults.string(forKey: "sync.cursor.quickdials") ?? "",
             "reading_list": defaults.string(forKey: "sync.cursor.reading_list") ?? "",
             "keyboard_shortcuts": defaults.string(forKey: "sync.cursor.keyboard_shortcuts") ?? "",
+            "settings": defaults.string(forKey: "sync.cursor.settings") ?? "",
         ]
         return [
             "auth": auth,
@@ -2532,6 +2536,9 @@ final class AutomationServer {
             "lastSyncAt": store.lastSyncAt.map { $0.timeIntervalSince1970 } ?? NSNull(),
             "lastError": store.lastError ?? "",
             "server": store.serverBaseURL,
+            "enabled": Dictionary(
+                uniqueKeysWithValues: SyncDomain.allCases.map { ($0.rawValue, app.syncStore.isEnabled($0)) }
+            ),
             "cursors": cursors,
             "pendingDeletions": [
                 "bookmarks": app.bookmarkStore.pendingDeletions.count,
@@ -2598,6 +2605,17 @@ final class AutomationServer {
             return ["error": "unknown key or invalid value"]
         }
         return ["ok": true, "key": key]
+    }
+
+    /// 开/关一个同步类目（即用户在设置 → Sync 里拨的开关）。
+    private static func syncSetDomain(_ body: [String: Any]) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let raw = Self.string(body, "domain"), let domain = SyncDomain(rawValue: raw) else {
+            return ["error": "missing or unknown domain"]
+        }
+        guard let enabled = body["enabled"] as? Bool else { return ["error": "missing enabled"] }
+        app.syncStore.setEnabled(domain, enabled)
+        return syncStatus()
     }
 
     private static func addQuickDial(title: String, url: String) throws -> [String: Any] {

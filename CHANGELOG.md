@@ -2,6 +2,11 @@
 
 ### Added
 
+- **同步类目由用户选择**：设置 → Sync 新增"同步类目"区块，五个域（书签/快拨/阅读
+  列表/快捷键/设置）各有独立开关（默认全开，存 UserDefaults `sync.enabled.<域>`）。
+  关闭 = 跳过该域的 push/pull，**游标保留**——重新打开后自动补齐关闭期间的增量；
+  服务端数据不删除。桥补 `POST /sync/domain`，`/sync/status` 带各域 enabled 态。
+  E2E：关快拨 → 第二设备推送 → 应用拉不到；重开 → 同步后补齐 ✓。
 - **后端部署体系（照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`（多阶段：
   rsproxy 镜像源 + 按架构分 id 的 cargo cache mount；api 非 root 运行、migrate 冷拷
   迁移 SQL）+ `.dockerignore`（Swift 应用/构建产物/秘密不进构建层）+ 五个脚本：

@@ -121,7 +121,42 @@ struct SyncSettingsSection: View {
                 }
             }
             passwordSection
+            categoriesSection
             serverSection
+        }
+    }
+
+    // MARK: - 同步类目
+
+    @ViewBuilder
+    private var categoriesSection: some View {
+        SettingsSection(
+            title: "Sync Categories",
+            subtitle: "Choose what to sync across devices. Turning one off keeps its server data.",
+            icon: "checklist"
+        ) {
+            VStack(spacing: 0) {
+                ForEach(Array(SyncDomain.allCases.enumerated()), id: \.element) { index, domain in
+                    if index > 0 { SettingsRowDivider() }
+                    SettingsToggleRow(
+                        localizedSettingText(domainTitle(domain)),
+                        isOn: Binding(
+                            get: { store.isEnabled(domain) },
+                            set: { store.setEnabled(domain, $0) }
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private func domainTitle(_ domain: SyncDomain) -> String {
+        switch domain {
+        case .bookmarks: "Bookmarks"
+        case .quickDials: "Quick Dial"
+        case .readingList: "Reading List"
+        case .keyboardShortcuts: "Keyboard Shortcuts"
+        case .settings: "Settings"
         }
     }
 

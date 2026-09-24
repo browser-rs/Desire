@@ -1341,6 +1341,9 @@ final class AutomationServer {
             "agentBusy": AgentScheduler.shared.deliveryTarget?.isProcessing ?? false,
             "isActive": NSApp.isActive,
             "hasKeyWindow": NSApp.keyWindow != nil,
+            // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture
+            // 放进它才能免审批被 readFile 读到。
+            "agentWorkspace": SystemCommandStore.shared.workingDirectoryText,
         ]
     }
 

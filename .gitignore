@@ -42,3 +42,7 @@ test_ai_stream.swift
 
 # ZCode agent working files
 .zcode/
+
+# Rust backend
+/target
+.env

@@ -2,6 +2,15 @@
 
 ### Added
 
+- **云服务后端 M0（账号底座，`crates/`）**：仓库新增 Rust workspace（照 trove 的组织方式）——
+  `crates/api`（`desire-api`，axum，默认 `:18090`）+ `crates/common`（增量迁移 +
+  `desire-migrate` 执行器）。功能：注册/登录（bcrypt）、JWT access + refresh token
+  **事务内轮换**（旧 token 重放 401）、设备登记与吊销（客户端稳定 device_id；
+  吊销联动该设备全部 refresh token 失效，重复登录自动恢复）、`/auth/me` 资料/改密码、
+  dev-only `/openapi.json`（utoipa）。迁移基线 `0001_init.sql` = users / devices /
+  user_refresh_tokens。全链路冒烟 `tools/api-smoke.sh` 9 步（含 409/401 反例）在真实
+  MySQL 8.4 上全绿；`cargo test --workspace` 11 用例。组织约定、迁移纪律与运行方式
+  写进 AGENTS.md「后端」章节。
 - **发布流程一键化（`scripts/release.sh`）**：v0.3.14 的发布把每个手工步骤的坑都踩了一遍
   （Release 工作流禁晚了被 tag 触发、`gh` 用错 repo 名 404、CI 红着就打了 tag、冒烟/打包/
   校验全凭记忆排顺序）——现在全部固化成一个脚本：`scripts/release.sh <版本号>`，阶段

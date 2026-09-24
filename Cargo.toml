@@ -1,0 +1,23 @@
+[workspace]
+members = ["crates/api", "crates/common"]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1"
+axum = "0.8"
+bcrypt = "0.19"
+chrono = {version = "0.4", features = ["serde"]}
+dotenvy = "0.15"
+hex = "0.4"
+jsonwebtoken = {version = "11", features = ["rust_crypto"]}
+redis = { version = "1", features = ["tokio-comp", "connection-manager", "aio"] }
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+sha2 = "0.11"
+sqlx = {version = "0.9", features = ["runtime-tokio", "mysql", "mysql-rsa", "chrono", "derive", "json", "migrate"]}
+thiserror = "2"
+tokio = {version = "1", features = ["full"]}
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["json", "env-filter"]}
+uuid = {version = "1", features = ["v4"]}
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }

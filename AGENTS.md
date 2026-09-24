@@ -963,3 +963,37 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
 或 `AgentScheduler.shared.deliveryTarget`（活 Agent 会话）/ 各 Store
 的 `.live` 弱注册（如 DownloadStore.live）。读写分离：查询用新实例
 读盘即可，写操作必须走 UI 持有的同一实例。
+
+## 后端（crates/，2026-09-24 起，rust axum + mysql + redis）
+
+- **Monorepo**：根 `Cargo.toml` workspace（members = crates/*）+ `rustfmt.toml`
+  （edition 2024、2 空格）。Xcode 工程只同步 `Desire/` 目录，rust 代码不进 app
+  target，互不干扰。组织方式**照抄 trove（`~/volumes/code/mankong-rs/trove`）**：
+  `crates/api`（`desire-api`，用户侧 API，默认 `0.0.0.0:18090`）+ `crates/common`
+  （`desire-common`：migrations + `desire-migrate` 执行器 bin）。新增模块 =
+  `modules/<域>/{<域>_controller,<域>_model,<域>_service,mod}.rs` + `routes/<域>.rs`，
+  在 `routes/mod.rs` 的 `protected`（过 `middleware/auth.rs::jwt_auth`）或 root（公开）
+  挂载；响应统一 `{code, message, data}`（`ApiResponse`/`api_ok!`），错误收口
+  `errors::AppError`（sqlx 唯一键冲突自动映射 409）；线上字段一律 snake_case；
+  OpenAPI 注解增量加（`docs.rs` + `#[utoipa::path]`，dev 才暴露 `/openapi.json`）。
+- **运行**（本地 dev）：`DATABASE_URL=mysql://…/desire DESIRE_API_JWT_SECRET=…
+  DESIRE_REDIS_URL=redis://… cargo run -p desire-api`；env 全集见 `.env.api.example`
+  （前缀 `DESIRE_API_*` / `DESIRE_ENV` / `DESIRE_REDIS_URL`）。dev 启动自动跑迁移；
+  prod 由 `cargo run -p desire-common --bin desire-migrate` 单独执行。本机
+  MySQL 8.4.10 / Redis 已就位（连接串问用户），库名 `desire`。
+- **迁移纪律**（trove post-mortem 的教训）：只写增量
+  `crates/common/migrations/NNNN_name.sql`，**已应用的文件永不改**（sqlx 校验
+  SHA-384，改动拒绝启动）；改 schema = 新增 NNNN。
+- **验证**：`cargo build --workspace` / `cargo test --workspace`；接口冒烟 =
+  `tools/api-smoke.sh [BASE_URL]`（9 步全链路：注册 / 重复 409 / 登录 / 错密码 401 /
+  refresh 轮换+重放 401 / me / 改资料 / 改密码 / 设备吊销联动 / logout）。**注意**：
+  脚本里 JSON 一律先入变量再传参——macOS 自带 bash 3.2 对 `$()` 内嵌 `\"` 解析有毛病
+  （症状是 `[: too many arguments`）。
+- **M0 已落地**：账号（username + password + bcrypt）/ 设备（客户端稳定 device_id，
+  重复登录 = 显式行为，解除吊销）/ refresh token 轮换（**事务内 FOR UPDATE**，防
+  并发重放）/ 设备吊销联动该设备全部 refresh token 失效（access ≤2h 自然过期）。
+  下一步 M1 = 同步引擎（书签等小域先行；游标拉增量 + 批量 push LWW；**AI 对话
+  不同步留本地**——用户 2026-09-24 定的）。
+- **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
+  `rustup component add` 报 "up to date"）——修法
+  `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。

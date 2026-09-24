@@ -1,0 +1,14 @@
+[package]
+edition = "2024"
+name = "desire-common"
+version = "0.0.1"
+
+[dependencies]
+anyhow = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[[bin]]
+name = "desire-migrate"
+path = "src/bin/migrate.rs"

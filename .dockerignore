@@ -1,0 +1,62 @@
+# 构建上下文 = 仓库根;Dockerfile 只需要 Cargo.toml/Cargo.lock/crates/docker(config.toml)。
+# 原则:上下文越小构建缓存命中率越高;秘密文件绝不进构建层。
+
+# ---- 秘密与本地配置(绝不进构建上下文)----
+.env
+.env.*
+!.env.*.example
+
+# ---- Rust 构建产物 ----
+target
+**/target
+
+# ---- macOS 应用 / Xcode(后端镜像不需要;Desire/ 含全部 Swift 源与产物)----
+Desire
+Desire.xcodeproj
+build
+DerivedData
+*.ipa
+*.dmg
+*.app
+
+# ---- 文档、工具、运维 ----
+docs
+tools
+scripts
+examples
+tests
+
+# ---- 日志 ----
+*.log
+
+# ---- 打包物与密钥 ----
+*.zip
+*.tar
+*.gz
+*.tgz
+*.pem
+*.key
+*.tmp
+*.swp
+*~
+
+# ---- IDE / 编辑器 / 系统文件 ----
+.idea
+.vscode
+.superpowers
+.trae
+.zcode
+*.xcworkspace
+*.xcodeproj
+**/.DS_Store
+
+# ---- 版本库元数据 ----
+.git
+.gitignore
+.gitattributes
+
+# 显式保留镜像构建所需(防未来误删)
+!Cargo.toml
+!Cargo.lock
+!crates/
+!docker/config.toml

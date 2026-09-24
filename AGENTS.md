@@ -1038,6 +1038,15 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   **测试提醒**：curl 推设置若得 conflict 是 LWW 正常行为——秒级 `date` 时间戳会输给
   应用侧微秒戳，要用 python 生成带微秒/更晚的时间戳。
   下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
+- **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
+  + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
+  `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：
+  先 build-migrate → 一次性容器跑迁移（`run.sh migrate --env-file`）→ 再 build/run api；
+  改迁移只需重建 migrate 镜像。prod 下 api 不自动跑迁移（`DESIRE_MIGRATE_ON_START`
+  可覆盖）。多架构构建的 cache mount 按架构分 id + sharing=locked（并发 cargo 互踩
+  是 trove 踩过的）。镜像仓默认 `registry.cn-shenzhen.aliyuncs.com/pura`，tag 推
+  latest + commit 短 hash。清单与 env 表见 `scripts/README.md`。客户端对接：
+  生产必须 HTTPS（ATS），地址在设置 → Sync 可改。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法
   `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。

@@ -2,6 +2,13 @@
 
 ### Added
 
+- **后端部署体系（照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`（多阶段：
+  rsproxy 镜像源 + 按架构分 id 的 cargo cache mount；api 非 root 运行、migrate 冷拷
+  迁移 SQL）+ `.dockerignore`（Swift 应用/构建产物/秘密不进构建层）+ 五个脚本：
+  `build-api.sh` / `build-migrate.sh`（多架构镜像）、`push.sh`（latest + commit 短
+  hash 双 tag）、`run.sh`（起服务 / 一次性迁移容器）、`migrate.sh`（本地直跑）。
+  **部署顺序铁律**：迁移执行器先行，改迁移不牵连业务镜像；prod 下 api 不自动跑迁移。
+  清单与 env 表见 `scripts/README.md`。
 - **云同步收官：settings KV 域 + 服务器地址设置**：23 个功能偏好（搜索引擎/主页/外观/
   强调色/书签栏/下载/SponsorBlock/缩放/自动播放等）全量入同步；载荷 = 带类型标签的
   `SettingsSyncValue`（string/bool/number），目录白名单 `SettingsSync.catalog` 刻意排除

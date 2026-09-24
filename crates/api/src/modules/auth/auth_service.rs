@@ -131,7 +131,29 @@ pub async fn register(
   headers: &HeaderMap,
   req: RegisterReq,
 ) -> Result<TokenPair, AppError> {
-  if !state.config.allow_registration {
+  // 注册开关:env 显式设置优先,否则读 server_settings(缺省开放;desire-admin 可切)
+  let allowed = match std::env::var("DESIRE_API_ALLOW_REGISTRATION")
+    .ok()
+    .as_deref()
+    .map(str::to_lowercase)
+    .as_deref()
+  {
+    Some("1") | Some("true") | Some("yes") => true,
+    Some(_) => false,
+    None => {
+      let value: Option<String> = sqlx::query_scalar(
+        "SELECT `value` FROM server_settings WHERE `key` = 'allow_registration'",
+      )
+      .fetch_optional(&state.pool)
+      .await?
+      .flatten();
+      match value {
+        Some(v) => v != "0",
+        None => true,
+      }
+    }
+  };
+  if !allowed {
     return Err(AppError::Forbidden(
       "registration is disabled on this server".into(),
     ));
@@ -210,14 +232,17 @@ pub async fn login(
   ) {
     return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
   }
-  let row: Option<(i64, String)> =
-    sqlx::query_as("SELECT id, password_hash FROM users WHERE username = ?")
+  let row: Option<(i64, String, i8)> =
+    sqlx::query_as("SELECT id, password_hash, status FROM users WHERE username = ?")
       .bind(username)
       .fetch_optional(&state.pool)
       .await?;
-  let Some((user_id, hash)) = row else {
+  let Some((user_id, hash, status)) = row else {
     return Err(AppError::Unauthorized("账号或密码错误".into()));
   };
+  if status == 0 {
+    return Err(AppError::Forbidden("account disabled".into()));
+  }
   let ok = bcrypt::verify(&req.password, &hash).unwrap_or(false);
   if !ok {
     return Err(AppError::Unauthorized("账号或密码错误".into()));

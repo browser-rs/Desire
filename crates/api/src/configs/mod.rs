@@ -28,8 +28,6 @@ pub struct Config {
   /// Redis 地址(缓存加速);空 = 不启用,业务直连 DB。
   /// 例 redis://:password@127.0.0.1:6379/0
   pub redis_url: String,
-  /// 是否开放注册(公网部署建议建完自己的账号后关掉)。
-  pub allow_registration: bool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -62,12 +60,6 @@ impl Config {
       ),
       bind_addr: env_or("DESIRE_API_BIND_ADDR", "0.0.0.0:18090"),
       redis_url: env_or("DESIRE_REDIS_URL", ""),
-      allow_registration: matches!(
-        env_or("DESIRE_API_ALLOW_REGISTRATION", "1")
-          .to_lowercase()
-          .as_str(),
-        "1" | "true" | "yes"
-      ),
     })
   }
 }

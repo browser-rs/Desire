@@ -2,6 +2,12 @@
 
 ### Added
 
+- **运维管理 CLI（`desire-admin`）**：账号与注册开关的命令行入口——`user list /
+  reset-password / delete / disable / enable`（重置密码与禁用都会吊销全部刷新令牌，
+  delete 级联清同步数据）、`registration status|on|off`（开关存 server_settings 表
+  立即生效；env `DESIRE_API_ALLOW_REGISTRATION` 显式设置时优先，此时 CLI 拒绝切换并
+  提示）、`stats`（用户数/各域密文行数）。顺带修复：**登录未拦截禁用账号**（此前
+  禁用用户仍可换取新令牌，仅中间件事后 403）——login 现校验 status。
 - **Agent 内容纳入同步类目（用户可选）**：新增 `agent_memory`（Agent 记忆：画像/
   事实/摘要，逐条 LWW 合并 + tombstone，能力衰减/容量淘汰/一键清空均下推删除）
   与 `agent_prefs`（自定义系统提示词，快照 diff 盖戳）两个类目，设置 → Sync 的

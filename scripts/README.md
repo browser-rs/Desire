@@ -11,8 +11,26 @@
 | `push.sh`            | 打 tag 并推送镜像到仓库                 |
 | `run.sh`             | 运行 desire-api 容器 / 一次性迁移容器   |
 | `migrate.sh`         | 本地直接跑迁移（cargo，不起容器）       |
+| （cargo bin）`desire-admin` | 运维 CLI：账号管理与注册开关      |
 | `../tools/api-smoke.sh`     | auth 全链路冒烟（9 步）          |
 | `../tools/api-sync-smoke.sh` | 同步全链路冒烟（9 步）          |
+
+## desire-admin — 运维 CLI
+
+```bash
+DATABASE_URL=mysql://... cargo run -q -p desire-api --bin desire-admin -- user list
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user reset-password <用户名> <新密码>
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user delete <用户名>
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user disable <用户名>
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user enable <用户名>
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- registration status|on|off
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- stats
+```
+
+- `reset-password` / `disable` 会吊销该用户全部刷新令牌（已登录设备 access 过期后需重新登录）。
+- `delete` 级联删除该用户的同步数据、设备与令牌。
+- 注册开关存 DB（server_settings 表，立即生效）；env `DESIRE_API_ALLOW_REGISTRATION`
+  显式设置时优先于 DB（强制封死场景），此时 CLI 的 on/off 会被拒绝并提示。
 
 ## 部署顺序（铁律）
 

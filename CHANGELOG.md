@@ -2,6 +2,14 @@
 
 ### Added
 
+- **云服务后端 M1（同步引擎，`crates/`）**：通用"域 + 文档"同步——`0002_sync_items.sql`
+  单表按 `(user_id, domain, client_id)` 存 JSON 文档，`GET /sync/{domain}?since=<游标>`
+  增量拉（含 tombstone）+ `POST /sync/{domain}` 批量推（单批 ≤500）。仲裁 =
+  `client_updated_at` **LWW**：推送逐条事务内 `SELECT .. FOR UPDATE`，旧改动拒收并回传
+  服务端胜者；删除 = tombstone（`deleted_at` 置位 + payload 置 NULL，已删内容不留库）。
+  首批域：bookmarks / quickdials / reading_list / keyboard_shortcuts / settings（KV）。
+  `tools/api-sync-smoke.sh` 9 步全绿（conflict 回胜者 / 游标增量 / tombstone / 未知域
+  404），auth 冒烟回归通过。
 - **云服务后端 M0（账号底座，`crates/`）**：仓库新增 Rust workspace（照 trove 的组织方式）——
   `crates/api`（`desire-api`，axum，默认 `:18090`）+ `crates/common`（增量迁移 +
   `desire-migrate` 执行器）。功能：注册/登录（bcrypt）、JWT access + refresh token

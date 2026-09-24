@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod sync;
 
 use crate::middleware::auth::jwt_auth;
 use crate::types::AppState;
@@ -14,6 +15,7 @@ async fn health() -> Json<serde_json::Value> {
 pub fn build_router(state: AppState) -> Router {
   let protected = Router::new()
     .merge(auth::protected())
+    .merge(sync::router())
     .layer(middleware::from_fn_with_state(state.clone(), jwt_auth));
 
   let root = Router::new()

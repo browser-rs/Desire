@@ -14,6 +14,8 @@ use utoipa::OpenApi;
     crate::modules::auth::auth_controller::set_password,
     crate::modules::auth::auth_controller::list_devices,
     crate::modules::auth::auth_controller::revoke_device,
+    crate::modules::sync::sync_controller::pull,
+    crate::modules::sync::sync_controller::push,
   ),
   components(schemas(
     crate::modules::auth::auth_model::RegisterReq,
@@ -25,8 +27,15 @@ use utoipa::OpenApi;
     crate::modules::auth::auth_model::MeDto,
     crate::modules::auth::auth_model::RevokeDeviceReq,
     crate::modules::auth::auth_model::DeviceDto,
+    crate::modules::sync::sync_model::SyncPushReq,
+    crate::modules::sync::sync_model::SyncPushItem,
+    crate::modules::sync::sync_model::SyncItemDto,
+    crate::modules::sync::sync_model::SyncPullResp,
+    crate::modules::sync::sync_model::SyncPushResp,
+    crate::modules::sync::sync_model::SyncPushResultItem,
   )),
-  tags((name = "auth", description = "账号 / 设备 / 令牌"))
+  tags((name = "auth", description = "账号 / 设备 / 令牌"),
+       (name = "sync", description = "跨设备同步(按域 push/pull)")),
 )]
 struct ApiDoc;
 

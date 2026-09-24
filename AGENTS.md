@@ -992,8 +992,18 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
 - **M0 已落地**：账号（username + password + bcrypt）/ 设备（客户端稳定 device_id，
   重复登录 = 显式行为，解除吊销）/ refresh token 轮换（**事务内 FOR UPDATE**，防
   并发重放）/ 设备吊销联动该设备全部 refresh token 失效（access ≤2h 自然过期）。
-  下一步 M1 = 同步引擎（书签等小域先行；游标拉增量 + 批量 push LWW；**AI 对话
-  不同步留本地**——用户 2026-09-24 定的）。
+- **M1 已落地（2026-09-24）**：通用同步引擎 `modules/sync`——`0002_sync_items.sql`
+  单表按 `(user_id, domain, client_id)` 存文档，`GET/POST /sync/{domain}`（白名单：
+  bookmarks / quickdials / reading_list / keyboard_shortcuts / settings）。**语义**：
+  push 逐条事务内 `SELECT .. FOR UPDATE` + `client_updated_at` **LWW**（旧的拒收并回传
+  服务端胜者，客户端须采纳）；`deleted=true` = tombstone（`deleted_at` 置位 +
+  **payload 置 NULL**，已删内容不留库）；pull 按服务端 `updated_at` 严格大于游标增量
+  （datetime(6)，客户端把游标推进到末条；naive 格式 `2026-09-24T12:00:00.123456`
+  与序列化一致，原样回传）。settings 域：client_id = 设置键名，payload = 值本体。
+  冒烟 `tools/api-sync-smoke.sh`（9 步：applied / conflict 回胜者 / 覆盖 / tombstone /
+  增量游标 / KV / 未知域 404）。**已知边界**：tombstone 永久保留（GC 需按设备记游标，
+  留给后续）；服务端不解读 payload，书签树结构/排序全在 payload 里由客户端裁决。
+  下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法
   `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。

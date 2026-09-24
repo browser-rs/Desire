@@ -77,6 +77,12 @@ R=$(req POST /sync/bookmarks "$OLD_PUSH" "$TOKEN")
 [ "$(echo "$R" | get data.results.0.item.payload)" = "https://example.com/one" ] || fail "conflict 应回传胜者: $R"
 step "旧改动 push → conflict + 回传胜者"
 
+# ---- 幂等重放:同戳重推 → applied(服务端不写库),不产生永久 conflict 噪音 ----
+R=$(req POST /sync/bookmarks "$PUSH1" "$TOKEN")
+[ "$(echo "$R" | get data.results.0.status)" = "applied" ] || fail "同戳重放应 applied: $R"
+[ "$(echo "$R" | get data.results.1.status)" = "applied" ] || fail "同戳重放(第2条)应 applied: $R"
+step "同戳重放 → applied(幂等)"
+
 # ---- 新时间戳覆盖 ----
 NEW_PUSH="{\"items\":[{\"client_id\":\"bm-1\",\"client_updated_at\":\"2030-01-01T00:00:00\",\"payload\":\"https://example.com/one-v2\"}]}"
 R=$(req POST /sync/bookmarks "$NEW_PUSH" "$TOKEN")

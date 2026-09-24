@@ -39,6 +39,8 @@ pub struct SyncPushReq {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SyncItemDto {
+  /// 服务端行 id——复合拉取游标的第二分量(客户端游标 = `updated_at|id`)
+  pub id: i64,
   pub client_id: String,
   pub client_updated_at: chrono::NaiveDateTime,
   pub deleted: bool,
@@ -88,6 +90,7 @@ impl SyncRowRaw {
       Some(s) => Some(serde_json::from_str::<serde_json::Value>(&s)?),
     };
     Ok(SyncItemDto {
+      id: self.id,
       client_id: self.client_id,
       client_updated_at: self.client_updated_at,
       deleted: self.deleted_at.is_some(),
@@ -98,5 +101,7 @@ impl SyncRowRaw {
 }
 
 pub const MAX_PUSH_ITEMS: usize = 500;
-/// 拉取单批上限;客户端按返回顺序把游标推进到末条 updated_at
+/// 单条 payload 上限(JSON 字节数;书签/快拨等条目实际远小于此)
+pub const MAX_PAYLOAD_BYTES: usize = 256 * 1024;
+/// 拉取单批上限;客户端把游标推进到末条的 (updated_at, id)
 pub const PULL_LIMIT: i64 = 1000;

@@ -14,6 +14,8 @@ pub enum AppError {
   Conflict(String),
   #[error("validation: {0}")]
   Validation(String),
+  #[error("rate limited: {0}")]
+  RateLimited(String),
   #[error(transparent)]
   Sql(sqlx::Error),
   #[error("internal: {0}")]
@@ -49,6 +51,7 @@ impl IntoResponse for AppError {
       AppError::NotFound(_) => (StatusCode::NOT_FOUND, 404),
       AppError::Conflict(_) => (StatusCode::CONFLICT, 409),
       AppError::Validation(_) => (StatusCode::UNPROCESSABLE_ENTITY, 422),
+      AppError::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, 429),
       AppError::Sql(_) | AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, 500),
     };
     // Sql 错误的 Display 可能携带 SQL/表结构细节,只记日志不给客户端

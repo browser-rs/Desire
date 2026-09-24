@@ -24,7 +24,8 @@ fn ensure_domain(domain: &str) -> Result<(), AppError> {
   get, path = "/sync/{domain}", tag = "sync",
   params(
     ("domain" = String, Path, description = "bookmarks/quickdials/reading_list/keyboard_shortcuts/settings"),
-    ("since" = Option<String>, Query, description = "上次拉取的游标(末条 updated_at);缺省 = 全量"),
+    ("since" = Option<String>, Query, description = "上次拉取游标的时间部分(末条 updated_at);缺省 = 全量"),
+    ("since_id" = Option<i64>, Query, description = "复合游标的行 id 部分;与 since 同传,消除同刻行跨页丢失"),
   ),
   responses((status = 200, body = SyncPullResp))
 )]
@@ -39,7 +40,15 @@ pub async fn pull(
     None => None,
     Some(raw) => Some(sync_service::parse_since(raw)?),
   };
-  let resp = sync_service::pull(&state, claims.sub, &domain, since).await?;
+  let since_id = match q
+    .get("since_id")
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty())
+  {
+    None => None,
+    Some(raw) => Some(sync_service::parse_since_id(raw)?),
+  };
+  let resp = sync_service::pull(&state, claims.sub, &domain, since, since_id).await?;
   api_ok!(resp)
 }
 

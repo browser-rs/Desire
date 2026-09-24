@@ -5,6 +5,7 @@ use desire_api::configs::{Config, Env};
 use desire_api::db;
 use desire_api::routes::build_router;
 use desire_api::types::AppState;
+use desire_api::utils::rate_limit::RateLimiter;
 use tracing_subscriber::EnvFilter;
 
 fn init_logging(env: Env) {
@@ -40,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
     pool,
     config: Arc::new(config.clone()),
     redis,
+    rate_limiter: Arc::new(RateLimiter::default()),
   });
   let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
   tracing::info!("env={:?} api listening on {}", config.env, config.bind_addr);

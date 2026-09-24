@@ -268,15 +268,30 @@ final class SyncStore: ObservableObject {
         )
         let winners = results.compactMap { $0.status == "conflict" ? $0.item : nil }
         if !winners.isEmpty { applyRemote(winners) }
-        clearApplied(Set(results.filter { $0.status == "applied" }.map(\.clientId)))
+        // applied 与 conflict 都代表"服务端已权威裁决":applied 是本机赢了,
+        // conflict 是服务端赢了(胜者已落地)。两种情况下待删清单里的旧 tombstone
+        // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
+        clearApplied(Set(results.map(\.clientId)))
 
-        let since = defaults.string(forKey: cursorKey(domain))
+        // pull 增量。游标是复合的 "updated_at|id"——仅凭时间戳时,同刻行恰跨
+        // 分页边界会被 `> since` 永久跳过(静默丢失)。
+        let cursor = defaults.string(forKey: cursorKey(domain))
+        var since: String?
+        var sinceID: Int64?
+        if let cursor, !cursor.isEmpty {
+            let parts = cursor.split(separator: "|", maxSplits: 1).map(String.init)
+            since = parts.first
+            sinceID = parts.count > 1 ? Int64(parts[1]) : nil
+        }
         let response: SyncPullResponse<P> = try await SyncAPIClient.pull(
-            baseURL: base, domain: domain.rawValue, since: since, accessToken: token
+            baseURL: base, domain: domain.rawValue,
+            since: since, sinceID: sinceID, accessToken: token
         )
         if !response.items.isEmpty {
             applyRemote(response.items)
-            defaults.set(response.items.last?.updatedAt, forKey: cursorKey(domain))
+            if let last = response.items.last {
+                defaults.set("\(last.updatedAt ?? "")|\(last.id ?? 0)", forKey: cursorKey(domain))
+            }
         }
     }
 

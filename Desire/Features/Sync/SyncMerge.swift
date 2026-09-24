@@ -42,6 +42,8 @@ enum BookmarkSync {
     /// 处理顺序按 `clientUpdatedAt` 升序（老的先应用，新的覆盖其效果）。
     /// 仲裁：本地更新 → 忽略；本地同刻且非删除 → 忽略（内容相同）；
     /// **同刻删除 → 应用**（收敛：避免"服务端 tombstone vs 本地活节点同戳"死循环）。
+    /// 父节点在本批次中晚于子节点出现（跨设备时钟乱序）时，子节点先进孤儿队列，
+    /// 批次结束后归位——游标已推进，不会再来第二次。
     static func merge(
         base: [Bookmark],
         remote: [SyncWireItem<BookmarkSyncPayload>]
@@ -51,6 +53,7 @@ enum BookmarkSync {
             if a.clientUpdatedAt != b.clientUpdatedAt { return a.clientUpdatedAt < b.clientUpdatedAt }
             return a.clientId < b.clientId
         }
+        var orphans: [(node: Bookmark, parentID: UUID?, sort: Int)] = []
         for item in items {
             guard let id = UUID(uuidString: item.clientId) else { continue }
             let remoteAt = item.clientUpdatedAt
@@ -66,9 +69,12 @@ enum BookmarkSync {
             } else if !(item.deleted ?? false), let payload = item.payload {
                 var node = Bookmark(id: id, title: payload.title, url: payload.url, children: [])
                 node.updatedAt = remoteAt
-                insertNode(node, parentID: payload.parentID, sort: payload.sort, into: &tree)
+                if !insertNode(node, parentID: payload.parentID, sort: payload.sort, into: &tree) {
+                    orphans.append((node, payload.parentID, payload.sort))
+                }
             }
         }
+        placeOrphans(&tree, &orphans)
         return tree
     }
 
@@ -97,9 +103,9 @@ enum BookmarkSync {
         let cyclesIntoSelf = payload.parentID == id
             || (payload.parentID != nil && findNode(node.children, id: payload.parentID!) != nil)
         if cyclesIntoSelf {
-            insertNode(updated, parentID: originalParent, sort: payload.sort, into: &tree)
+            _ = insertNode(updated, parentID: originalParent, sort: payload.sort, into: &tree)
         } else {
-            insertNode(updated, parentID: payload.parentID, sort: payload.sort, into: &tree)
+            _ = insertNode(updated, parentID: payload.parentID, sort: payload.sort, into: &tree)
         }
     }
 
@@ -113,7 +119,7 @@ enum BookmarkSync {
 
     private static func insertNode(
         _ node: Bookmark, parentID: UUID?, sort: Int, into tree: inout [Bookmark]
-    ) {
+    ) -> Bool {
         if let parentID {
             var inserted = false
             _ = tree.update(id: parentID) { parent in
@@ -121,11 +127,32 @@ enum BookmarkSync {
                 parent.children.insert(node, at: index)
                 inserted = true
             }
-            // 父节点缺失（远端乱序/本地尚未拉到）：兜底挂根，下次 pull 修正。
-            if !inserted {
-                tree.insert(node, at: min(max(sort, 0), tree.count))
+            return inserted
+        }
+        tree.insert(node, at: min(max(sort, 0), tree.count))
+        return true
+    }
+
+    /// 孤儿归位：父节点在本批次晚出现时重试挂回；链式依赖（父也是孤儿）用
+    /// 多轮直到无进展；父始终没出现的兜底挂根。
+    private static func placeOrphans(
+        _ tree: inout [Bookmark], _ orphans: inout [(node: Bookmark, parentID: UUID?, sort: Int)]
+    ) {
+        var progress = true
+        while progress && !orphans.isEmpty {
+            progress = false
+            var remaining: [(node: Bookmark, parentID: UUID?, sort: Int)] = []
+            for (node, parentID, sort) in orphans {
+                if let parentID, findNode(tree, id: parentID) != nil {
+                    _ = insertNode(node, parentID: parentID, sort: sort, into: &tree)
+                    progress = true
+                } else {
+                    remaining.append((node, parentID, sort))
+                }
             }
-        } else {
+            orphans = remaining
+        }
+        for (node, _, sort) in orphans {
             tree.insert(node, at: min(max(sort, 0), tree.count))
         }
     }

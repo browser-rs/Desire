@@ -329,6 +329,20 @@ do {
                       payload: .init(parentID: unknownParent, title: "Orphan", url: nil, sort: 0))])
     eq("父缺失 → 落根", orphan.count, 1)
     check("父缺失 → 根节点可辨", orphan[0].id == leafID)
+
+    // 孤儿归位：父在本批次晚于子出现（时钟乱序），批次结束前必须挂回
+    let lateParent = UUID(), earlyChild = UUID()
+    let reordered = BookmarkSync.merge(
+        base: [],
+        remote: [
+            wire(earlyChild, now,
+                 payload: .init(parentID: lateParent, title: "C", url: nil, sort: 0)),
+            wire(lateParent, now.addingTimeInterval(1),
+                 payload: .init(parentID: nil, title: "P", url: nil, sort: 0)),
+        ])
+    eq("孤儿归位 根上只有父", reordered.count, 1)
+    eq("孤儿归位 父的 id", reordered[0].id, lateParent)
+    eq("孤儿归位 子挂回父下", reordered[0].children.first?.id ?? UUID(), earlyChild)
 }
 
 // ---------- 云同步：时间编解码 + 线路 DTO ----------
@@ -345,11 +359,12 @@ do {
     check("parse 无小数位", SyncDate.parse("2026-09-24T12:00:00") != nil)
     check("parse 拒绝非时间", SyncDate.parse("yesterday") == nil)
 
-    let json = #"{"client_id":"X","client_updated_at":"2026-09-24T12:00:00.123456","deleted":false,"payload":{"parent_id":null,"title":"t","url":null,"sort":2},"updated_at":"2026-09-24T12:00:00.5"}"#
+    let json = #"{"id":123,"client_id":"X","client_updated_at":"2026-09-24T12:00:00.123456","deleted":false,"payload":{"parent_id":null,"title":"t","url":null,"sort":2},"updated_at":"2026-09-24T12:00:00.5"}"#
     let item = try? SyncJSON.makeDecoder().decode(
         SyncWireItem<BookmarkSyncPayload>.self, from: Data(json.utf8))
     check("wire 解码", item != nil)
     eq("wire payload sort", item?.payload?.sort, 2)
+    eq("wire 服务端行 id", item?.id, 123)
     check("wire 时间解析（6 位小数）", item?.clientUpdatedAt != nil)
     check("wire 游标原文保留", item?.updatedAt == "2026-09-24T12:00:00.5")
     if let item {

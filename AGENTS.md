@@ -1025,11 +1025,25 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   因时间戳未变被远端 LWW 拒收、跨设备顺序分叉；③ **清空 = 逐条 tombstone**
   （ReadingListStore.clearAll）。快捷键域无删除语义（重置 = isCustomized=false 更新）。
   syncStore 挂 AppState（横跨 Browsing/System 两容器）。
+- **同步审计五修复（2026-09-25）**：① **LWW 同刻 = 幂等 applied**（服务端仲裁改 `>=`，
+  equal 分支不写库直接报 applied——此前"拉取/冲突采纳过的条目戳与服务端相等"，全量
+  push 下每轮必吃 conflict 回包，纯噪音）；② **conflict 也清 pendingDeletions**
+  （applied/conflict 都代表服务端已权威裁决；否则输掉 LWW 的删除每周期重推、永不收敛，
+  客户端 clearApplied 改为全部 results）；③ **复合拉取游标 `updated_at|id`**（服务端
+  `since_id` + `ORDER BY updated_at, id`，消除同刻行恰跨分页边界 `> ts` 永久跳过的
+  静默丢失；客户端游标存 `ts|id`，ts-only 旧语义仍兼容）；④ 书签合并**两段式孤儿归位**
+  （父在本批次晚于子出现时子先入队，批次后多轮重试挂回，链式依赖直至无进展，兜底挂根）；
+  ⑤ 加固：login 双重限流（IP 20/min + 用户名 10/min，`AppError::RateLimited` → 429）、
+  register 按 IP 10/小时 + `DESIRE_API_ALLOW_REGISTRATION` 开关（公网建完号可关）、
+  client_updated_at 钳制 [2000-01-01, 服务器 now+5min]（防 .distantPast 撞 DATETIME
+  下限 / 快钟永久霸占 LWW）、单条 payload ≤256KB。
 - **桥同步端点**：`GET /sync/status`（auth/syncing/lastSyncAt/lastError/各域游标/
   待删计数）、`POST /sync/now|login|register|logout|server|setting`——同步链路全程
   curl 可验，E2E 手法：注册 → mysql 核对 sync_items 四域行数 → 第二设备 curl 直推 →
   桥 /sync/now → /bookmarks（**注意返回键是 `entries` 不是 `bookmarks`**）→ 删除后
   服务端 tombstone 行 payload 已置 NULL（按 deleted_at 查，别按 payload LIKE）。
+  **`/sync/now` 后立刻查 `/bookmarks` 可能读到旧盘**——该端点按"查询读盘"惯例新建
+  store 走 DiskStore（500ms 防抖），断言前 `sleep 1`。
 - **settings KV 域（2026-09-25，第五域）**：目录白名单 `SettingsSync.catalog`
   （23 键，刻意排除 screenshotFolder/selectedCustomEngineId 这类机器相关项）。
   设置没有 per-key updatedAt——SyncStore 用"**快照 diff 检测本地变更 → 变更盖新戳**"，

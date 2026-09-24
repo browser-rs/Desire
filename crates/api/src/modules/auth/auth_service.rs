@@ -1,5 +1,6 @@
 use axum::http::HeaderMap;
 use chrono::Utc;
+use std::time::Duration;
 
 use crate::errors::AppError;
 use crate::types::AppState;
@@ -130,6 +131,19 @@ pub async fn register(
   headers: &HeaderMap,
   req: RegisterReq,
 ) -> Result<TokenPair, AppError> {
+  if !state.config.allow_registration {
+    return Err(AppError::Forbidden(
+      "registration is disabled on this server".into(),
+    ));
+  }
+  // 按来源 IP 限流(防注册滥用);经反代时依赖 x-forwarded-for
+  if !state.rate_limiter.allow(
+    &format!("register:ip:{}", ip(headers)),
+    10,
+    Duration::from_secs(3600),
+  ) {
+    return Err(AppError::RateLimited("注册过于频繁，请稍后再试".into()));
+  }
   let username = req.username.trim();
   if !is_valid_username(username) {
     return Err(AppError::Validation(
@@ -179,6 +193,22 @@ pub async fn login(
   let username = req.username.trim();
   if username.is_empty() || req.password.is_empty() {
     return Err(AppError::Unauthorized("账号或密码错误".into()));
+  }
+  // 双重限流:按 IP(防分布式爆破太贵,单实例先挡住单源)与按用户名(防定点爆破)。
+  // 失败尝试同样计数。
+  if !state.rate_limiter.allow(
+    &format!("login:ip:{}", ip(headers)),
+    20,
+    Duration::from_secs(60),
+  ) {
+    return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
+  }
+  if !state.rate_limiter.allow(
+    &format!("login:user:{username}"),
+    10,
+    Duration::from_secs(60),
+  ) {
+    return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
   }
   let row: Option<(i64, String)> =
     sqlx::query_as("SELECT id, password_hash FROM users WHERE username = ?")

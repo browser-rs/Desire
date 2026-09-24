@@ -97,6 +97,7 @@ nonisolated enum SyncJSON {
 }
 
 /// `/sync/{domain}` 的线路条目。payload 泛型（每域一个类型）；
+/// `id` 是服务端行 id（pull 响应携带，复合游标第二分量）；
 /// `updatedAt` 是服务端写入时间**原文**——客户端把它当拉取游标原样回传，
 /// 不做解析（避免时间精度往返误差）。
 struct SyncWireItem<Payload: Codable>: Codable {
@@ -105,6 +106,7 @@ struct SyncWireItem<Payload: Codable>: Codable {
     /// push 请求必须显式带（服务端 serde default 只在键缺席时兜底）
     var deleted: Bool?
     var payload: Payload?
+    var id: Int64?
     var updatedAt: String?
 
     enum CodingKeys: String, CodingKey {
@@ -112,6 +114,7 @@ struct SyncWireItem<Payload: Codable>: Codable {
         case clientUpdatedAt = "client_updated_at"
         case deleted
         case payload
+        case id
         case updatedAt = "updated_at"
     }
 }

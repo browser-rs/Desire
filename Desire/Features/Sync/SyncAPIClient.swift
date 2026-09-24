@@ -52,14 +52,23 @@ nonisolated enum SyncAPIClient {
         )
     }
 
-    /// 增量拉取。`since` 传上次响应里末条 `updatedAt` 原文（nil = 全量）。
+    /// 增量拉取。`since`/`sinceID` 组成复合游标（上次响应末条的
+    /// `updatedAt` 原文 + 行 `id`；sinceID 为 nil = 旧版 ts-only 语义）。
+    /// 均为 nil = 全量。
     static func pull<P: Codable>(
-        baseURL: String, domain: String, since: String?, accessToken: String
+        baseURL: String, domain: String, since: String?, sinceID: Int64?, accessToken: String
     ) async throws -> SyncPullResponse<P> {
         var path = "/sync/\(domain)"
+        var query: [String] = []
         if let since {
             let escaped = since.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? since
-            path += "?since=\(escaped)"
+            query.append("since=\(escaped)")
+        }
+        if let sinceID {
+            query.append("since_id=\(sinceID)")
+        }
+        if !query.isEmpty {
+            path += "?" + query.joined(separator: "&")
         }
         return try await send("GET", baseURL, path, token: accessToken)
     }

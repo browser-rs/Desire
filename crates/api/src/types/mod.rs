@@ -3,6 +3,7 @@ use sqlx::MySqlPool;
 use std::sync::Arc;
 
 use crate::configs::Config;
+use crate::utils::rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -10,6 +11,8 @@ pub struct AppState {
   pub config: Arc<Config>,
   /// 可选 Redis 缓存(None = 未配置,业务直连数据源;见 cache.rs)
   pub redis: Option<crate::cache::RedisConn>,
+  /// 登录/注册限流(进程内滑动窗口;见 utils/rate_limit.rs)
+  pub rate_limiter: Arc<RateLimiter>,
 }
 
 #[derive(Debug, Serialize)]

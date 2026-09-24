@@ -133,11 +133,61 @@ final class AutomationServer {
         return header.lowercased().contains("bearer \(requiredToken.lowercased())")
     }
 
+    /// 请求是否已收完整：头齐全 + body 字节数 ≥ Content-Length。
+    /// **必须按字节找头尾**——`String(data:)` 会在多字节字符被分段处直接失败，
+    /// 反过来把"不完整"误判成"不该等"。
+    private nonisolated static func requestIsComplete(_ data: Data) -> Bool {
+        let bytes = [UInt8](data)
+        let separator = Array("\r\n\r\n".utf8)
+        guard bytes.count >= separator.count else { return false }
+        var headEnd: Int?
+        for i in 0...(bytes.count - separator.count) {
+            if bytes[i] == separator[0], Array(bytes[i..<(i + separator.count)]) == separator {
+                headEnd = i
+                break
+            }
+        }
+        guard let headEnd else { return false }
+        var contentLength = 0
+        let head = String(decoding: data.prefix(headEnd), as: UTF8.self)
+        for line in head.components(separatedBy: "\r\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            if parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "content-length",
+               let n = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                contentLength = n
+            }
+        }
+        return bytes.count - (headEnd + separator.count) >= contentLength
+    }
+
     private func handle(_ connection: NWConnection) {
         connection.start(queue: .main)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, _, error in
-            guard let self, error == nil, let data,
-                  let request = String(data: data, encoding: .utf8) else {
+        receiveRequest(connection, accumulated: Data())
+    }
+
+    /// **一次 `receive()` 不保证收完整请求**——TCP 想什么时候分段就什么时候分段
+    /// （CI 虚机的网络栈上尤其常见）。曾经单个 receive 直接进 `route`：请求被
+    /// 截断在头部的那些回合，`body` 解析成空字典，`/agent/send` 之类全数报
+    /// "missing text"，而且完全随机、本地几乎复现不出来（2026-09-24，eval 在
+    /// CI 上 E2/E3 稳定失败才现形）。现在按 Content-Length 攒齐再路由。
+    private nonisolated func receiveRequest(_ connection: NWConnection, accumulated: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, isComplete, error in
+            guard let self, error == nil, let data else {
+                connection.cancel()
+                return
+            }
+            let buffer = accumulated + data
+            guard Self.requestIsComplete(buffer) else {
+                if isComplete {
+                    // 对端已关连接但请求仍不完整——没有可路由的东西了。
+                    connection.cancel()
+                    return
+                }
+                self.receiveRequest(connection, accumulated: buffer)
+                return
+            }
+            guard let request = String(data: buffer, encoding: .utf8) else {
                 connection.cancel()
                 return
             }

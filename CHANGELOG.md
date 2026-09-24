@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+### Fixed
+
+- **桥的 HTTP 收包循环会把被 TCP 分段的请求整个丢弃**（CI 上的 agent 评估抓到的，
+  本地几乎复现不出来）：`AutomationServer` 的连接处理只调**一次** `receive()` 就把
+  缓冲当完整请求去路由——TCP 不保证一次 `receive` 收全（CI 虚机的网络栈经常把
+  头和 body 拆成两段交付）。被截断的请求 `body` 解析成空字典：`/agent/send` 报
+  "missing text"、任何带 body 的端点随机失败，且重试也救不了确定性分段的那次。
+  现在按 **Content-Length 攒齐再路由**（按字节找 `\r\n\r\n` 头尾——多字节字符
+  被分段处 `String(data:)` 会直接失败，不能用字符串定位）；对端关闭但仍不完整
+  的连接直接取消。8KB body × 60 次连发压力验证 0 失败。
+
 ## [v0.3.14] - 2026-09-24
 
 ### Added

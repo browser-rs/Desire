@@ -39,9 +39,25 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             build
 
+      - name: Launch app for eval (automation bridge)
+        run: |
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
+          open "$APP" --args --automation
+          OK=no
+          for i in $(seq 1 30); do
+            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
+              OK=yes
+              break
+            fi
+            sleep 1
+          done
+          [ "$OK" = yes ] || { echo "::error::app never came up — eval suite needs the bridge"; exit 1; }
+
       - name: Agent eval suite (fixture endpoint, deterministic)
         run: |
           python3 tests/agent-eval.py --cleanup
+          pkill -x Desire || true
+          sleep 2
 
       - name: Locate app bundle
         id: app

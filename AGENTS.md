@@ -560,6 +560,14 @@ Features/Bookmarks/
   另：这类警告走 Xcode 的运行时问题通道，**统一日志里没有**（`log show` 查不到，别拿它当判据）；
   想程序化验证只能在调试器下跑（`lldb -p` 附着后 `continue`，注意它在 continue 期间不读 stdin）。
 
+- **askUser 的挂起要有兜底**（2026-09-24）：`UserPromptCenter.ask` 用 continuation
+  无限挂起，只有面板里回答/取消才解除 —— **面板没开时用户根本看不见提问**（定时/后台
+  回合的提问卡在看不见的地方）。现在：① 面板未开时经 CommandBus 自动弹出（已开不动 ✓）；
+  ② `agentAskUserTimeout`（默认 600 秒，UserDefaults 可调）无人回答即以标记解除挂起；
+  ③ `resume(with:)` **只恢复一次**（回答/取消/超时三方竞态，续两次会崩溃）✓。
+  另：**记忆去重**（`MemoryModels.normalizeFact/areNearDuplicates`，归一化 + bigram ≥0.8）
+  —— 注释曾说"近似重复"而实现只做精确匹配；语义重复会挤满 200 条上限（实测口径修正）。
+
 - **"跳一帧"的写入不要碰用户正在编辑的缓冲**（2026-09-23 地址栏实测）：`URLBarField` 里
   "聚焦通知"是晚一帧到的（AppKit 的 begin/end editing 在 SwiftUI 更新事务里同步触发，
   同步置位会报 "Publishing changes from within view updates"）—— 于是任何**依赖聚焦状态**去

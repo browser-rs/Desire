@@ -3,10 +3,14 @@ import Foundation
 /// 云同步（crates/api 后端）客户端 Model 层：线路 DTO、时间编解码、
 /// JSON 编解码器工厂。只 import Foundation——纯逻辑单测（tests/run.sh）覆盖。
 
-/// 开放同步的域。服务端白名单还含 quickdials/reading_list/keyboard_shortcuts/
-/// settings，客户端 adapter 落地一个开放一个。
-enum SyncDomain: String {
+/// 开放同步的域（rawValue = 服务端路径段，须与 sync_model::DOMAINS 白名单一致）。
+enum SyncDomain: String, CaseIterable {
     case bookmarks
+    case quickDials = "quickdials"
+    case readingList = "reading_list"
+    case keyboardShortcuts = "keyboard_shortcuts"
+    /// 设置 KV（client_id = 设置键名）；客户端尚未接 adapter，预留。
+    case settings
 }
 
 /// 书签域的 payload（服务端不解读，结构由客户端约定）。

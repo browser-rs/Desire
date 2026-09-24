@@ -56,6 +56,7 @@ class KeyboardShortcutStore: ObservableObject {
 
     func resetAll() {
         shortcuts = ShortcutMapping.defaults
+        normalizeTimestamps()
         save()
     }
 
@@ -63,6 +64,7 @@ class KeyboardShortcutStore: ObservableObject {
         guard let i = shortcuts.firstIndex(where: { $0.id == id }),
               let defaultMapping = ShortcutMapping.defaults.first(where: { $0.id == id }) else { return }
         shortcuts[i] = defaultMapping
+        shortcuts[i].updatedAt = Date()
         save()
     }
 
@@ -70,6 +72,7 @@ class KeyboardShortcutStore: ObservableObject {
         guard let i = shortcuts.firstIndex(where: { $0.id == mapping.id }) else { return }
         shortcuts[i] = mapping
         shortcuts[i].isCustomized = true
+        shortcuts[i].updatedAt = Date()
         save()
     }
 
@@ -77,17 +80,20 @@ class KeyboardShortcutStore: ObservableObject {
         // Primary: DiskStore.
         if let stored = DiskStore.load([ShortcutMapping].self, key: saveKey) {
             shortcuts = Self.mergeOverDefaults(stored)
+            normalizeTimestamps()
             return
         }
         // One-time migration from the legacy UserDefaults blob.
         if let data = UserDefaults.standard.data(forKey: saveKey),
            let custom = try? JSONDecoder().decode([ShortcutMapping].self, from: data) {
             shortcuts = Self.mergeOverDefaults(custom)
+            normalizeTimestamps()
             save()
             UserDefaults.standard.removeObject(forKey: saveKey)
             return
         }
         shortcuts = ShortcutMapping.defaults
+        normalizeTimestamps()
     }
 
     /// Merges stored/custom mappings over the builtin defaults so newly-added
@@ -104,6 +110,22 @@ class KeyboardShortcutStore: ObservableObject {
 
     private func save() {
         DiskStore.save(shortcuts, key: saveKey)
+    }
+
+    // MARK: - 云同步（SyncStore 驱动）
+
+    /// 同步合并结果整表替换。合并后的映射可能包含本机 defaults 里没有的新增
+    /// 命令 id（远端版本更新过的机器），按 category 追加保持可显示。
+    func replaceForSync(_ replaced: [ShortcutMapping]) {
+        shortcuts = replaced
+        save()
+    }
+
+    private func normalizeTimestamps() {
+        let now = Date()
+        for i in shortcuts.indices where shortcuts[i].updatedAt == nil {
+            shortcuts[i].updatedAt = now
+        }
     }
 
     // MARK: - SwiftUI bridge

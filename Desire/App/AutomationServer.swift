@@ -366,6 +366,12 @@ final class AutomationServer {
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
+        ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
+        ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
+        ep("POST", "/sync/register", "Create account + sign in", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
+        ep("POST", "/sync/logout", "Sign out on this device (server tokens revoked)", example: "-d '{}'")
+        ep("POST", "/sync/server", "Point the sync client at a server base URL (persisted)", params: ["baseURL:string"], example: #"-d '{"baseURL":"http://127.0.0.1:18090"}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
         ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
         ep("POST", "/search-history/clear", "Clear search history", example: "-d '{}'")
@@ -778,6 +784,18 @@ final class AutomationServer {
                 ))
             case ("POST", "/reading-list/remove"):
                 return try Self.json(Self.removeReadingItem(url: Self.string(body, "url") ?? ""))
+            case ("GET", "/sync/status"):
+                return try Self.json(Self.syncStatus())
+            case ("POST", "/sync/now"):
+                return try Self.json(await Self.syncNowBridge())
+            case ("POST", "/sync/login"):
+                return try Self.json(await Self.syncAuth(body, register: false))
+            case ("POST", "/sync/register"):
+                return try Self.json(await Self.syncAuth(body, register: true))
+            case ("POST", "/sync/logout"):
+                return try Self.json(Self.syncLogout())
+            case ("POST", "/sync/server"):
+                return try Self.json(Self.syncSetServer(Self.string(body, "baseURL") ?? ""))
             case ("GET", "/search-history"):
                 return try Self.json(Self.searchHistory(count: Int(query["count"] ?? "10") ?? 10))
             case ("POST", "/search-history/add"):
@@ -2486,6 +2504,76 @@ final class AutomationServer {
     private static func quickDial() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["dials": app.quickDialStore.dials.map { ["title": $0.title, "url": $0.url] }]
+    }
+
+    // MARK: - 云同步
+
+    private static func syncStatus() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.syncStore
+        let auth: String
+        switch store.authState {
+        case .signedOut: auth = "signedOut"
+        case .signedIn(let username): auth = username
+        }
+        let defaults = UserDefaults.standard
+        let cursors: [String: String] = [
+            "bookmarks": defaults.string(forKey: "sync.cursor.bookmarks") ?? "",
+            "quickdials": defaults.string(forKey: "sync.cursor.quickdials") ?? "",
+            "reading_list": defaults.string(forKey: "sync.cursor.reading_list") ?? "",
+            "keyboard_shortcuts": defaults.string(forKey: "sync.cursor.keyboard_shortcuts") ?? "",
+        ]
+        return [
+            "auth": auth,
+            "syncing": store.isSyncing,
+            "lastSyncAt": store.lastSyncAt.map { $0.timeIntervalSince1970 } ?? NSNull(),
+            "lastError": store.lastError ?? "",
+            "server": store.serverBaseURL,
+            "cursors": cursors,
+            "pendingDeletions": [
+                "bookmarks": app.bookmarkStore.pendingDeletions.count,
+                "quickdials": app.quickDialStore.pendingDeletions.count,
+                "reading_list": app.readingListStore.pendingDeletions.count,
+            ],
+        ]
+    }
+
+    private static func syncNowBridge() async -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        await app.syncStore.syncNow()
+        return syncStatus()
+    }
+
+    private static func syncAuth(_ body: [String: Any], register: Bool) async -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        do {
+            if register {
+                try await app.syncStore.register(
+                    username: Self.string(body, "username") ?? "",
+                    password: Self.string(body, "password") ?? ""
+                )
+            } else {
+                try await app.syncStore.login(
+                    username: Self.string(body, "username") ?? "",
+                    password: Self.string(body, "password") ?? ""
+                )
+            }
+            return syncStatus()
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
+    private static func syncLogout() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.syncStore.logout()
+        return syncStatus()
+    }
+
+    private static func syncSetServer(_ baseURL: String) -> [String: Any] {
+        guard !baseURL.isEmpty else { return ["error": "missing baseURL"] }
+        UserDefaults.standard.set(baseURL, forKey: "sync.serverBaseURL")
+        return ["ok": true, "baseURL": baseURL]
     }
 
     private static func addQuickDial(title: String, url: String) throws -> [String: Any] {

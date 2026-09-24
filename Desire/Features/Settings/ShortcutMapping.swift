@@ -12,6 +12,9 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
     var modifierFlags: UInt
     var isCustomized: Bool
     var category: Category
+    /// 云同步 LWW 戳（optional + 合成 Codable：旧文件缺键解码为 nil，不清数据）。
+    /// 只有用户动了映射（自定义/重置）才变化，加载归一化时补盖。
+    var updatedAt: Date? = nil
 
     enum Category: String, Codable, CaseIterable {
         case tabs = "Tabs"

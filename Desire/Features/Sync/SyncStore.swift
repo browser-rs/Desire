@@ -4,7 +4,8 @@ import LocalAuthentication
 import Security
 
 /// 云同步会话与编排（Store 层）：登录态（令牌存 Keychain）、每域拉取游标、
-/// 立即/定时同步。首域 = 书签（全量 push + 增量 pull，LWW 仲裁在服务端）。
+/// 立即/定时同步。策略 = 每周期"全量 push + 游标增量 pull"，LWW 仲裁在服务端
+/// （书签树/快拨/阅读列表/快捷键四个域，结构见各 Sync 合并文件）。
 ///
 /// Keychain 读全部 `interactive: false`（LAContext interactionNotAllowed）——
 /// 启动/回合中路径禁止触发隐窗授权（v0.3.14 教训，见 AGENTS）。
@@ -25,6 +26,9 @@ final class SyncStore: ObservableObject {
     static let defaultServerBaseURL = "http://127.0.0.1:18090"
 
     private let bookmarkStore: BookmarkStore
+    private let quickDialStore: QuickDialStore
+    private let readingListStore: ReadingListStore
+    private let shortcutStore: KeyboardShortcutStore
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -32,7 +36,6 @@ final class SyncStore: ObservableObject {
     private let usernameKey = "sync.username"
     private let serverKey = "sync.serverBaseURL"
     private let deviceIDKey = "sync.deviceID"
-    private let bookmarkCursorKey = "sync.cursor.bookmarks"
     private let lastSyncKey = "sync.lastSyncAt"
 
     // Keychain（service = bundle id，account 前缀 sync-）
@@ -40,11 +43,19 @@ final class SyncStore: ObservableObject {
     private let accessAccount = "sync-access-token"
     private let refreshAccount = "sync-refresh-token"
 
-    /// 定时同步间隔（5 分钟；书签量小，全量 push 无压力）。
+    /// 定时同步间隔（5 分钟；各域量小，全量 push 无压力）。
     private let syncInterval: TimeInterval = 300
 
-    init(bookmarkStore: BookmarkStore) {
+    init(
+        bookmarkStore: BookmarkStore,
+        quickDialStore: QuickDialStore,
+        readingListStore: ReadingListStore,
+        shortcutStore: KeyboardShortcutStore
+    ) {
         self.bookmarkStore = bookmarkStore
+        self.quickDialStore = quickDialStore
+        self.readingListStore = readingListStore
+        self.shortcutStore = shortcutStore
         if let username = defaults.string(forKey: usernameKey),
            keychainRead(accessAccount) != nil || keychainRead(refreshAccount) != nil {
             authState = .signedIn(username: username)
@@ -121,8 +132,7 @@ final class SyncStore: ObservableObject {
 
     // MARK: - 同步
 
-    /// push 全量树 + 待删 tombstone → pull 增量合并。已登录且空闲才执行；
-    /// 401 时刷新令牌并整体重试一次。
+    /// 各域 push + pull。已登录且空闲才执行；401 时刷新令牌并整体重试一次。
     func syncNow() async {
         guard case .signedIn = authState, !isSyncing else { return }
         isSyncing = true
@@ -138,19 +148,65 @@ final class SyncStore: ObservableObject {
                 try await runSyncCycle()
                 lastError = nil
             } catch {
-                recordFailure(error)
+                lastError = error.localizedDescription
             }
         } catch {
-            recordFailure(error)
+            lastError = error.localizedDescription
         }
     }
 
     private func runSyncCycle() async throws {
         let token = try await validAccessToken()
-        let base = serverBaseURL
+        try await runDomainSync(.bookmarks, token: token,
+                                collectPush: collectBookmarks,
+                                applyRemote: applyBookmarks,
+                                clearApplied: { bookmarkStore.clearPendingDeletions($0) })
+        try await runDomainSync(.quickDials, token: token,
+                                collectPush: collectQuickDials,
+                                applyRemote: applyQuickDials,
+                                clearApplied: { quickDialStore.clearPendingDeletions($0) })
+        try await runDomainSync(.readingList, token: token,
+                                collectPush: collectReadingList,
+                                applyRemote: applyReadingList,
+                                clearApplied: { readingListStore.clearPendingDeletions($0) })
+        try await runDomainSync(.keyboardShortcuts, token: token,
+                                collectPush: collectShortcuts,
+                                applyRemote: applyShortcuts,
+                                clearApplied: { _ in })
+        lastSyncAt = Date()
+        defaults.set(lastSyncAt, forKey: lastSyncKey)
+    }
 
-        // 1) push：全量树 + 本机待删 tombstone（删除必须显式推 tombstone，
-        //    否则其他设备 pull 回来会把本地已删的节点救活）
+    /// 单域骨架：全量 push → conflict 胜者落地 → 清已 applied 的待删 →
+    /// 游标增量 pull → 合并回写 → 游标推进到末条 updated_at 原文。
+    private func runDomainSync<P: Codable>(
+        _ domain: SyncDomain,
+        token: String,
+        collectPush: () -> [SyncWireItem<P>],
+        applyRemote: ([SyncWireItem<P>]) -> Void,
+        clearApplied: (Set<String>) -> Void
+    ) async throws {
+        let base = serverBaseURL
+        let results = try await SyncAPIClient.push(
+            baseURL: base, domain: domain.rawValue, items: collectPush(), accessToken: token
+        )
+        let winners = results.compactMap { $0.status == "conflict" ? $0.item : nil }
+        if !winners.isEmpty { applyRemote(winners) }
+        clearApplied(Set(results.filter { $0.status == "applied" }.map(\.clientId)))
+
+        let since = defaults.string(forKey: cursorKey(domain))
+        let response: SyncPullResponse<P> = try await SyncAPIClient.pull(
+            baseURL: base, domain: domain.rawValue, since: since, accessToken: token
+        )
+        if !response.items.isEmpty {
+            applyRemote(response.items)
+            defaults.set(response.items.last?.updatedAt, forKey: cursorKey(domain))
+        }
+    }
+
+    // MARK: - 各域 adapter
+
+    private func collectBookmarks() -> [SyncWireItem<BookmarkSyncPayload>] {
         var items = BookmarkSync.flatten(bookmarkStore.bookmarks).map { entry in
             SyncWireItem<BookmarkSyncPayload>(
                 clientId: entry.id.uuidString,
@@ -169,35 +225,67 @@ final class SyncStore: ObservableObject {
                 updatedAt: nil
             ))
         }
-        let results = try await SyncAPIClient.push(
-            baseURL: base, domain: SyncDomain.bookmarks.rawValue, items: items, accessToken: token
-        )
-        // 2) 冲突仲裁：服务端胜者直接落地（push 的 LWW 已保证它比本机推送更新）
-        let winners = results.compactMap { $0.status == "conflict" ? $0.item : nil }
-        if !winners.isEmpty {
-            let merged = BookmarkSync.merge(base: bookmarkStore.bookmarks, remote: winners)
-            bookmarkStore.replaceForSync(merged)
-        }
-        // 推送成功的 tombstone 从本机待删清单移除（服务端已持久化）
-        let appliedClientIDs = Set(results.filter { $0.status == "applied" }.map(\.clientId))
-        bookmarkStore.clearPendingDeletions(appliedClientIDs)
-
-        // 3) pull 增量（游标 = 服务端 updated_at 原文，严格大于）
-        let response: SyncPullResponse<BookmarkSyncPayload> = try await SyncAPIClient.pull(
-            baseURL: base, domain: SyncDomain.bookmarks.rawValue,
-            since: defaults.string(forKey: bookmarkCursorKey), accessToken: token
-        )
-        if !response.items.isEmpty {
-            let merged = BookmarkSync.merge(base: bookmarkStore.bookmarks, remote: response.items)
-            bookmarkStore.replaceForSync(merged)
-            defaults.set(response.items.last?.updatedAt, forKey: bookmarkCursorKey)
-        }
-        lastSyncAt = Date()
-        defaults.set(lastSyncAt, forKey: lastSyncKey)
+        return items
     }
 
-    private func recordFailure(_ error: Error) {
-        lastError = error.localizedDescription
+    private func applyBookmarks(_ items: [SyncWireItem<BookmarkSyncPayload>]) {
+        bookmarkStore.replaceForSync(
+            BookmarkSync.merge(base: bookmarkStore.bookmarks, remote: items)
+        )
+    }
+
+    private func collectQuickDials() -> [SyncWireItem<QuickDialSyncPayload>] {
+        var items = quickDialStore.dials.map {
+            syncWire(id: $0.id.uuidString, updatedAt: $0.updatedAt, payload: QuickDialSync.payload($0))
+        }
+        for (id, deletedAt) in quickDialStore.pendingDeletions {
+            items.append(SyncWireItem(
+                clientId: id.uuidString, clientUpdatedAt: deletedAt,
+                deleted: true, payload: nil, updatedAt: nil
+            ))
+        }
+        return items
+    }
+
+    private func applyQuickDials(_ items: [SyncWireItem<QuickDialSyncPayload>]) {
+        quickDialStore.replaceForSync(
+            QuickDialSync.merge(base: quickDialStore.dials, remote: items)
+        )
+    }
+
+    private func collectReadingList() -> [SyncWireItem<ReadingListSyncPayload>] {
+        var items = readingListStore.items.map {
+            syncWire(id: $0.id.uuidString, updatedAt: $0.updatedAt, payload: ReadingListSync.payload($0))
+        }
+        for (id, deletedAt) in readingListStore.pendingDeletions {
+            items.append(SyncWireItem(
+                clientId: id.uuidString, clientUpdatedAt: deletedAt,
+                deleted: true, payload: nil, updatedAt: nil
+            ))
+        }
+        return items
+    }
+
+    private func applyReadingList(_ items: [SyncWireItem<ReadingListSyncPayload>]) {
+        readingListStore.replaceForSync(
+            ReadingListSync.merge(base: readingListStore.items, remote: items)
+        )
+    }
+
+    private func collectShortcuts() -> [SyncWireItem<ShortcutSyncPayload>] {
+        ShortcutSync.flatten(shortcutStore.shortcuts)
+    }
+
+    private func applyShortcuts(_ items: [SyncWireItem<ShortcutSyncPayload>]) {
+        shortcutStore.replaceForSync(
+            ShortcutSync.merge(base: shortcutStore.shortcuts, remote: items)
+        )
+    }
+
+    // MARK: - 令牌 / 设备 / Keychain
+
+    private func cursorKey(_ domain: SyncDomain) -> String {
+        "sync.cursor.\(domain.rawValue)"
     }
 
     /// access 优先；缺失/被清时用 refresh 换新（服务端轮换：旧的即 revoked）。
@@ -227,8 +315,6 @@ final class SyncStore: ObservableObject {
         let name = Host.current().localizedName ?? "Mac"
         return SyncDeviceBody(deviceID: id, name: name, platform: "macOS")
     }
-
-    // MARK: - Keychain（照 AgentPreferenceStore 的既有范式）
 
     /// 非交互读：ACL 失配时宁可读不到（显示未登录），不许同步等一个看不见的授权窗。
     private func keychainRead(_ account: String) -> String? {

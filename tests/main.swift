@@ -367,6 +367,82 @@ do {
     }
 }
 
+// ---------- 云同步：平铺列表域（FlatSyncMerge + 快拨/阅读列表） ----------
+
+do {
+    let now = Date()
+    // 通用核心：LWW 盖写 / 旧忽略 / 同刻删除收敛 / 新增追加
+    struct Row { var id: String; var name: String; var updatedAt: Date? }
+    let base = [Row(id: "a", name: "local", updatedAt: now)]
+    let older = SyncWireItem<QuickDialSyncPayload>.init(
+        clientId: "a", clientUpdatedAt: now.addingTimeInterval(-5), deleted: false,
+        payload: QuickDialSyncPayload(title: "t", url: "u", icon: "i", sort: 0), updatedAt: nil)
+    let mergedOlder = FlatSyncMerge.merge(
+        base: base, remote: [older],
+        idOf: { $0.id }, updatedAtOf: { $0.updatedAt },
+        make: { _, payload, at in Row(id: "x", name: payload.title, updatedAt: at) },
+        update: { row, payload, at in row.name = payload.title; row.updatedAt = at })
+    eq("平铺 LWW 旧忽略", mergedOlder[0].name, "local")
+
+    let newer = SyncWireItem<QuickDialSyncPayload>.init(
+        clientId: "a", clientUpdatedAt: now.addingTimeInterval(5), deleted: false,
+        payload: QuickDialSyncPayload(title: "remote", url: "u", icon: "i", sort: 0), updatedAt: nil)
+    let mergedNewer = FlatSyncMerge.merge(
+        base: base, remote: [newer],
+        idOf: { $0.id }, updatedAtOf: { $0.updatedAt },
+        make: { _, payload, at in Row(id: "x", name: payload.title, updatedAt: at) },
+        update: { row, payload, at in row.name = payload.title; row.updatedAt = at })
+    eq("平铺 LWW 新盖写", mergedNewer[0].name, "remote")
+
+    let equalDelete = SyncWireItem<QuickDialSyncPayload>.init(
+        clientId: "a", clientUpdatedAt: now, deleted: true, payload: nil, updatedAt: nil)
+    check("平铺 同刻删除收敛", FlatSyncMerge.merge(
+        base: base, remote: [equalDelete],
+        idOf: { $0.id }, updatedAtOf: { $0.updatedAt },
+        make: { _, _, _ in nil }, update: { _, _, _ in }).isEmpty)
+
+    // 快拨：合并 + sort 重排 + 新增落位
+    let dialA = UUID(), dialB = UUID()
+    let dials = [QuickDial(id: dialA, title: "A", url: "a", sort: 0, updatedAt: now)]
+    let remoteAt = now.addingTimeInterval(5)
+    let remoteDials = [
+        SyncWireItem<QuickDialSyncPayload>.init(
+            clientId: dialB.uuidString, clientUpdatedAt: remoteAt, deleted: false,
+            payload: QuickDialSyncPayload(title: "B", url: "b", icon: "i", sort: 0), updatedAt: nil),
+        SyncWireItem<QuickDialSyncPayload>.init(
+            clientId: dialA.uuidString, clientUpdatedAt: remoteAt, deleted: false,
+            payload: QuickDialSyncPayload(title: "A", url: "a", icon: "i", sort: 1), updatedAt: nil),
+    ]
+    let dialMerged = QuickDialSync.merge(base: dials, remote: remoteDials)
+    eq("快拨 数量", dialMerged.count, 2)
+    eq("快拨 sort 重排（B 在 A 前）", dialMerged[0].id, dialB)
+    eq("快拨 A 顺延", dialMerged[1].sort, 1)
+
+    // 阅读列表：合并 + isRead 盖写
+    let itemID = UUID()
+    let savedAt = now.addingTimeInterval(-60)
+    let items = [ReadingListItem(id: itemID, title: "T", url: "u", savedDate: savedAt,
+                                 isRead: false, updatedAt: now)]
+    let remoteItem = SyncWireItem<ReadingListSyncPayload>.init(
+        clientId: itemID.uuidString, clientUpdatedAt: now.addingTimeInterval(5), deleted: false,
+        payload: ReadingListSyncPayload(title: "T2", url: "u", savedDate: savedAt, isRead: true),
+        updatedAt: nil)
+    let itemMerged = ReadingListSync.merge(base: items, remote: [remoteItem])
+    eq("阅读列表 标题盖写", itemMerged[0].title, "T2")
+    eq("阅读列表 已读盖写", itemMerged[0].isRead, true)
+    check("阅读列表 时间戳采纳", itemMerged[0].updatedAt == now.addingTimeInterval(5))
+
+    // 阅读列表：远端新条目（本地空）
+    let freshID = UUID()
+    let fresh = SyncWireItem<ReadingListSyncPayload>.init(
+        clientId: freshID.uuidString, clientUpdatedAt: now, deleted: false,
+        payload: ReadingListSyncPayload(title: "Fresh", url: "f", savedDate: now, isRead: false),
+        updatedAt: nil)
+    let freshMerged = ReadingListSync.merge(base: [], remote: [fresh])
+    eq("阅读列表 新增", freshMerged.count, 1)
+    check("阅读列表 新增带时间戳", freshMerged[0].updatedAt != nil)
+}
+
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

@@ -1017,6 +1017,19 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   不去重）；同步当前活跃 Profile 的桶（游标全局不分桶）；服务器地址默认
   `http://127.0.0.1:18090`（UserDefaults `sync.serverBaseURL` 覆盖，暂无 UI）。
   线路时间 = naive UTC 可变小数（SyncDate 统一解析），游标用服务端原文回传不解析。
+- **客户端同步已扩到四域（2026-09-25）**：快拨/阅读列表/快捷键 + 书签共用
+  `runDomainSync` 骨架（全量 push → conflict 胜者落地 → 清 applied 待删 → 游标增量
+  pull）。三条域级规矩：① `FlatSyncMerge`（Foundation-only，进 tests/run.sh）是
+  平铺域的合并核心，ShortcutMapping 依赖 AppKit 只能闭包适配复用；② **位移必须盖戳**
+  ——`QuickDial.sort` 字段在每次结构变更后重编号 + 对编号变化的条目盖戳，否则新 sort
+  因时间戳未变被远端 LWW 拒收、跨设备顺序分叉；③ **清空 = 逐条 tombstone**
+  （ReadingListStore.clearAll）。快捷键域无删除语义（重置 = isCustomized=false 更新）。
+  syncStore 挂 AppState（横跨 Browsing/System 两容器）。
+- **桥同步端点**：`GET /sync/status`（auth/syncing/lastSyncAt/lastError/各域游标/
+  待删计数）、`POST /sync/now|login|register|logout|server`——同步链路全程 curl 可验，
+  E2E 手法：注册 → mysql 核对 sync_items 四域行数 → 第二设备 curl 直推 → 桥
+  /sync/now → /bookmarks（**注意返回键是 `entries` 不是 `bookmarks`**）→ 删除后
+  服务端 tombstone 行 payload 已置 NULL（按 deleted_at 查，别按 payload LIKE）。
   下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法

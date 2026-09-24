@@ -2,6 +2,13 @@
 
 ### Added
 
+- **云同步扩展到四域 + 自动化桥端点**：快拨/阅读列表/快捷键接入 SyncEngine（`FlatSyncMerge`
+  通用平铺合并核心，与书签同一套 LWW 规则；`QuickDial` 增加 `sort` 字段、每次结构变更
+  重编号并盖戳——位移不改戳会被远端 LWW 拒收导致跨设备顺序分叉；阅读列表**清空 = 逐条
+  tombstone**；快捷键无删除语义，重置即更新）。桥新增 `/sync/status|now|login|register|
+  logout|server`，同步链路可全程 curl 验证。E2E（真机 + 真库）：注册→四域全量入库
+  （书签 5/快捷键 43/快拨 8）→ 第二设备 CLI 推送 → 应用增量拉取可见 → 删除下推
+  tombstone（payload 置 NULL）→ 登出，测试数据已全部清理。
 - **云同步客户端（首域 = 书签）**：新增 `Features/Sync/`——`SyncStore`（登录态/Keychain
   令牌非交互读写/游标/启动后 + 每 5 分钟自动同步）、`SyncAPIClient`（信封解码、401
   刷新令牌单次重试）、`SyncModels` + `SyncMerge`（树 ↔ 条目展平/合并，LWW 仲裁与

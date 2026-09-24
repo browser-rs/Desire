@@ -130,3 +130,133 @@ enum BookmarkSync {
         }
     }
 }
+
+// MARK: - 平铺列表域（快拨 / 阅读列表 / 快捷键）
+
+/// 平铺列表域的合并核心，与书签树同一套 LWW 规则：远端旧 → 忽略；
+/// 同刻且非删除 → 忽略；**同刻删除 → 应用（收敛）**；远端新 → 盖写/追加。
+/// 元素适配走闭包，让核心保持 Foundation-only 可进 tests/run.sh
+/// （ShortcutMapping 依赖 AppKit，经这套闭包间接复用）。
+enum FlatSyncMerge {
+    static func merge<Element, P: Codable>(
+        base: [Element],
+        remote: [SyncWireItem<P>],
+        idOf: (Element) -> String,
+        updatedAtOf: (Element) -> Date?,
+        make: (String, P, Date) -> Element?,
+        update: (inout Element, P, Date) -> Void
+    ) -> [Element] {
+        var items = base
+        let sorted = remote.sorted { a, b in
+            if a.clientUpdatedAt != b.clientUpdatedAt { return a.clientUpdatedAt < b.clientUpdatedAt }
+            return a.clientId < b.clientId
+        }
+        for item in sorted {
+            let remoteAt = item.clientUpdatedAt
+            if let idx = items.firstIndex(where: { idOf($0) == item.clientId }) {
+                let localAt = updatedAtOf(items[idx]) ?? .distantPast
+                if localAt > remoteAt { continue }
+                if localAt == remoteAt && !(item.deleted ?? false) { continue }
+                if item.deleted ?? false {
+                    items.remove(at: idx)
+                } else if let payload = item.payload {
+                    update(&items[idx], payload, remoteAt)
+                }
+            } else if !(item.deleted ?? false), let payload = item.payload,
+                      let created = make(item.clientId, payload, remoteAt) {
+                items.append(created)
+            }
+        }
+        return items
+    }
+}
+
+/// 便捷构造：平铺条目 → 线路条目（id 用客户端稳定字符串；UUID 域传 uuidString）。
+func syncWire<P>(
+    id: String, updatedAt: Date?, deleted: Bool = false, payload: P
+) -> SyncWireItem<P> {
+    SyncWireItem(
+        clientId: id,
+        clientUpdatedAt: updatedAt ?? .distantPast,
+        deleted: deleted,
+        payload: payload,
+        updatedAt: nil
+    )
+}
+
+struct QuickDialSyncPayload: Codable, Equatable {
+    var title: String
+    var url: String
+    var icon: String
+    var sort: Int
+}
+
+enum QuickDialSync {
+    static func payload(_ dial: QuickDial) -> QuickDialSyncPayload {
+        QuickDialSyncPayload(title: dial.title, url: dial.url, icon: dial.icon, sort: dial.sort)
+    }
+
+    /// 合并后按 sort 重排（列表序 = payload.sort，与 Store 的重编号约定一致）。
+    static func merge(
+        base: [QuickDial], remote: [SyncWireItem<QuickDialSyncPayload>]
+    ) -> [QuickDial] {
+        let merged = FlatSyncMerge.merge(
+            base: base,
+            remote: remote,
+            idOf: { $0.id.uuidString },
+            updatedAtOf: { $0.updatedAt },
+            make: { (id: String, payload: QuickDialSyncPayload, at: Date) -> QuickDial? in
+                guard let uuid = UUID(uuidString: id) else { return nil }
+                return QuickDial(id: uuid, title: payload.title, url: payload.url,
+                                 icon: payload.icon, sort: payload.sort, updatedAt: at)
+            },
+            update: { dial, payload, at in
+                dial.title = payload.title
+                dial.url = payload.url
+                dial.icon = payload.icon
+                dial.sort = payload.sort
+                dial.updatedAt = at
+            }
+        )
+        return merged.sorted { $0.sort < $1.sort }
+    }
+}
+
+struct ReadingListSyncPayload: Codable, Equatable {
+    var title: String
+    var url: String
+    /// naive UTC（SyncDate 编解码）
+    var savedDate: Date
+    var isRead: Bool
+}
+
+enum ReadingListSync {
+    static func payload(_ item: ReadingListItem) -> ReadingListSyncPayload {
+        ReadingListSyncPayload(title: item.title, url: item.url, savedDate: item.savedDate,
+                               isRead: item.isRead)
+    }
+
+    static func merge(
+        base: [ReadingListItem], remote: [SyncWireItem<ReadingListSyncPayload>]
+    ) -> [ReadingListItem] {
+        FlatSyncMerge.merge(
+            base: base,
+            remote: remote,
+            idOf: { $0.id.uuidString },
+            updatedAtOf: { $0.updatedAt },
+            make: { (id: String, payload: ReadingListSyncPayload, at: Date) -> ReadingListItem? in
+                guard let uuid = UUID(uuidString: id) else { return nil }
+                return ReadingListItem(id: uuid, title: payload.title, url: payload.url,
+                                       savedDate: payload.savedDate, isRead: payload.isRead,
+                                       updatedAt: at)
+            },
+            update: { item, payload, at in
+                item.title = payload.title
+                item.url = payload.url
+                item.savedDate = payload.savedDate
+                item.isRead = payload.isRead
+                item.updatedAt = at
+            }
+        )
+    }
+}

@@ -27,9 +27,6 @@ class BrowsingState: ObservableObject {
     lazy var tabGroupStore = TabGroupStore()
     lazy var searchHistoryStore = SearchHistoryStore()
 
-    /// 云同步（首域 = 书签）。lazy：需要 bookmarkStore 先就位。
-    lazy var syncStore = SyncStore(bookmarkStore: bookmarkStore)
-
     init() {
         bookmarkStore = BookmarkStore()
         historyStore = HistoryStore()

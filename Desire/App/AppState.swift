@@ -26,6 +26,9 @@ class AppState: ObservableObject {
     let ai: AgentState
     let privacy: PrivacyState
     let system: SystemState
+    /// 云同步（书签/快拨/阅读列表/快捷键）。挂在组合根而非域容器：
+    /// 一个域横跨 BrowsingState（书签等）与 SystemState（快捷键）。
+    let syncStore: SyncStore
 
     /// Whether the downloads popover is open. Lives here (not in Toolbar
     /// local state) so the automation bridge can open the panel to
@@ -43,6 +46,12 @@ class AppState: ObservableObject {
         ai = AgentState()
         privacy = PrivacyState()
         system = SystemState()
+        syncStore = SyncStore(
+            bookmarkStore: browsing.bookmarkStore,
+            quickDialStore: browsing.quickDialStore,
+            readingListStore: browsing.readingListStore,
+            shortcutStore: system.keyboardShortcutStore
+        )
         Self.live = self
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
         // 创建标签时经 profileDataStore 各自恢复）。
@@ -55,7 +64,7 @@ class AppState: ObservableObject {
             browsing.quickDialStore.applyScope(profileID: saved)
         }
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
-        browsing.syncStore.startAutoSync()
+        syncStore.startAutoSync()
     }
 
     // MARK: - Forwarding accessors
@@ -64,7 +73,6 @@ class AppState: ObservableObject {
 
     // Browsing
     var bookmarkStore: BookmarkStore { browsing.bookmarkStore }
-    var syncStore: SyncStore { browsing.syncStore }
     var historyStore: HistoryStore { browsing.historyStore }
     var downloadStore: DownloadStore { browsing.downloadStore }
     var quickDialStore: QuickDialStore { browsing.quickDialStore }

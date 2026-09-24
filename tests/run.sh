@@ -16,6 +16,8 @@ SOURCES=(
   Desire/Features/Agent/ContextCompaction.swift
   Desire/Features/Agent/AgentTrace.swift
   Desire/Features/Bookmarks/Bookmark.swift
+  Desire/Features/NewTab/QuickDial.swift
+  Desire/Features/ReadingList/ReadingListItem.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Sync/SyncMerge.swift
   tests/main.swift

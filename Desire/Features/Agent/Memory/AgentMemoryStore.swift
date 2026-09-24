@@ -49,8 +49,10 @@ final class AgentMemoryStore: ObservableObject {
     func addFact(content: String, category: String, scope: String = "global") {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 4 else { return }
-        let normalized = trimmed.lowercased()
-        if archive.facts.contains(where: { $0.content.lowercased() == normalized }) { return }
+        // 近似重复（归一化 + bigram 相似度）：注释口径与实现此前不符（只做精确匹配），
+        // 语义重复会堆积。已 pin 的事实同样参与去重，不会被绕过。
+        let normalized = MemoryModels.normalizeFact(trimmed)
+        if archive.facts.contains(where: { MemoryModels.areNearDuplicates(MemoryModels.normalizeFact($0.content), normalized) }) { return }
         archive.facts.insert(MemoryFact(content: trimmed, category: category, scope: scope), at: 0)
         archive.factsTotalLearned += 1
         if archive.facts.count > 200 {

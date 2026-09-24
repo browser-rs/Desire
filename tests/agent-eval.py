@@ -53,6 +53,17 @@ def fixture_bridge(method, path):
 fixture_proc = None
 
 
+def ensure_secret_file():
+    """READSECRET 用例读的凭据 fixture（假凭据，不是真 key）。CI 上不存在时自造。"""
+    path = pathlib.Path.home() / "Documents/DesireAgent/leak.txt"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "gateway token: sk-test-main\n"
+            "aws: AKIAIOSFODNN7EXAMPLE\n"
+            "header: Bearer abcdefghijklmnopqrstuvwxyz\n")
+
+
 def start_fixture():
     global fixture_proc
     fixture_proc = subprocess.Popen(
@@ -204,6 +215,7 @@ def main():
     BRIDGE = args.base
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
+    ensure_secret_file()
     start_fixture()
     install_profile()
     try:

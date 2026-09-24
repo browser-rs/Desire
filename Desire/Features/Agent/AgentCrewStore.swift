@@ -22,6 +22,8 @@ final class AgentCrewStore: ObservableObject {
     struct TokenUsage {
         var promptTokens = 0
         var completionTokens = 0
+        /// worker 实际用的模型 id（取第一个上报的；混合模型时留空 —— 归"子代理"桶）。
+        var model: String?
         var total: Int { promptTokens + completionTokens }
         var isEmpty: Bool { total == 0 }
     }
@@ -180,8 +182,8 @@ final class AgentCrewStore: ObservableObject {
                     case .usage(let prompt, let completion):
                         usage.promptTokens += prompt
                         usage.completionTokens += completion
-                    case .model:
-                        break
+                    case .model(let name):
+                        if usage.model == nil { usage.model = name }
                     }
                 }
             } catch {

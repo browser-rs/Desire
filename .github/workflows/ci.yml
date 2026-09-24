@@ -39,6 +39,10 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             build
 
+      - name: Agent eval suite (fixture endpoint, deterministic)
+        run: |
+          python3 tests/agent-eval.py --cleanup
+
       - name: Locate app bundle
         id: app
         run: |

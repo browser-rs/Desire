@@ -392,6 +392,11 @@ struct ContentView: View {
                 isWindowFullScreen = false
             }
         }
+        // Agent 任务中途提问（askUser）时自动弹出面板 —— 提问卡片只存在于面板里，
+        // 面板没开时用户根本看不见，回合会无限挂起（已开则不动，避免误关）。
+        .onReceive(UserPromptCenter.shared.$pending) { pending in
+            if pending != nil, !showAgentPanel { showAgentPanel = true }
+        }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
             // window, not in every open window at once.

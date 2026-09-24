@@ -70,6 +70,10 @@ enum AgentPromptBuilder {
             authoritative for parameters and exact semantics. Use this index for \
             routing (the descriptions here are one-line summaries).
             \(lines)
+
+            Tool failures are returned as text starting with `Error:` — when a \
+            result starts with that prefix the action did NOT happen: fix the \
+            arguments or pick a different approach instead of repeating the call.
             </tools>
             """)
         }

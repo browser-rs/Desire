@@ -343,6 +343,8 @@ class AgentSessionStore: ObservableObject {
                     AgentUsage.formatTokens(usage.completionTokens)))
                 note.promptTokens = usage.promptTokens
                 note.completionTokens = usage.completionTokens
+                // 模型一致才归属（金额才可算）；混合模型的 crew 留空 → 统计里归"子代理"。
+                if let model = usage.model { note.model = model }
                 messages.append(note)
                 streamingVersion += 1
                 saveCurrentConversation()

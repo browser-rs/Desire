@@ -39,6 +39,32 @@ struct MemoryFact: Codable, Identifiable, Equatable {
 
 /// L2 — per-conversation summary so past sessions can inform future ones
 /// without loading their raw transcripts (L3, already in ConversationStore).
+enum MemoryModels {
+    /// 记忆事实的**归一化**：小写、去空白与常见标点 —— 近似重复判定用它。
+    static func normalizeFact(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let skipped = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: "，。、！？：；\"'()（）[]【】…—,.!?;:"))
+        return String(lowered.unicodeScalars.filter { !skipped.contains($0) })
+    }
+
+    /// 近似重复判定：字符 bigram 的 Jaccard 相似度 ≥ 0.8 视为重复。
+    /// （注释曾写"近似重复"而实现只做精确匹配 —— 语义重复会堆积，
+    /// 把 200 条上限挤满。没有端上 embedding，字符 bigram 是够用的下限。）
+    static func areNearDuplicates(_ a: String, _ b: String) -> Bool {
+        func bigrams(_ t: String) -> Set<String> {
+            let chars = Array(t)
+            guard chars.count > 1 else { return [t] }
+            return Set((0...(chars.count - 2)).map { String(chars[$0...$0 + 1]) })
+        }
+        let x = bigrams(a), y = bigrams(b)
+        if x.isEmpty || y.isEmpty { return a == b }
+        let inter = x.intersection(y).count
+        let union = x.union(y).count
+        return Double(inter) / Double(union) >= 0.8
+    }
+}
+
 struct ConversationSummary: Codable, Identifiable, Equatable {
     let id: UUID
     let conversationId: UUID

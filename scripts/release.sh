@@ -4,15 +4,21 @@
 # 用法：
 #   scripts/release.sh <版本号>            # 例：scripts/release.sh 0.3.15
 #   scripts/release.sh <版本号> --from package   # 某一步失败后从该步重跑
-#   scripts/release.sh <版本号> --skip-ci-check  # 跳过"CI 必须绿"闸门（急救用）
+#   scripts/release.sh <版本号> --ci local       # 不用 GitHub CI，本地全套验证
+#   scripts/release.sh <版本号> --skip-ci-check  # 完全跳过 ci 阶段（急救用）
 #   scripts/release.sh body v0.3.14        # 只打印该 tag 的 release 正文（调试用）
 #
-# 阶段：prep → ci → build → smoke → package → publish → verify
+# 阶段：prep → build → ci → smoke → package → publish → verify
+#   （build 在 ci 之前：ci 的 local 模式要拿构建产物跑评估套件）
 #
 # 流程固化的教训（每条都是真踩过的，别删）：
 #   • Release 工作流必须在**推 tag 之前** disable——它由 v* tag 触发、会自己构建
 #     发布，抢 Latest。publish 阶段第一步就是它，verify 结束再 enable。
 #   • CI 必须绿才能打 tag：v0.3.14 是红着 CI 发出去的（评估套件坏了没人看）。
+#   • **GitHub 额度烧完也要能发版**：macOS runner 按 10 倍扣分钟，额度用尽后
+#     Actions 全灭。--ci auto（默认）找不到 HEAD 的 run 就回落到本地全套验证
+#     （单测 + 评估套件），--ci local 强制本地；gh API 本身不走 Actions 分钟数，
+#     推 tag / gh release create 永远可用。
 #   • 冒烟必须从**非 DerivedData 路径**启动：Keychain 条目 ACL 对 adhoc 构建
 #     认路径/cdhash，换路径才暴露"授权窗永不渲染 → 启动挂死"这类问题。
 #   • gh 一律带 --repo（从 git remote 推导）——mankong/Desire 会 404。
@@ -23,16 +29,21 @@ set -euo pipefail
 
 V=""
 FROM="prep"
-SKIP_CI=0
+SKIP_CI_CHECK=0
+CI_MODE="auto"   # auto：GH CI 优先、不可用回落本地；gh：强依赖 GH CI；local：只用本地
 
-usage() { sed -n '2,12p' "$0"; exit 1; }
+usage() {
+  sed -n '/^# 用法：/,/^#$/p' "$0" | sed 's/^# \?//'
+  exit 1
+}
 log()  { printf '\n\033[1;36m═══ %s ═══\033[0m\n' "$*"; }
 die()  { printf '\n\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --from) FROM="$2"; shift 2 ;;
-    --skip-ci-check) SKIP_CI=1; shift ;;
+    --skip-ci-check) SKIP_CI_CHECK=1; shift ;;
+    --ci) CI_MODE="${2:-}"; shift 2 ;;
     body)  # body <tag>：只打印该 tag 的 release 正文
       [ $# -ge 2 ] || usage
       EXEC="body"; BODY_TAG="$2"; shift 2 ;;
@@ -50,6 +61,9 @@ GH_REPO=$(printf '%s' "$ORIGIN_URL" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+
 command -v gh >/dev/null || die "需要 gh CLI"
 gh auth status >/dev/null 2>&1 || die "gh 未登录（gh auth status 查看详情）"
 
+if [ -n "$CI_MODE" ] && [ "$CI_MODE" != "auto" ] && [ "$CI_MODE" != "gh" ] && [ "$CI_MODE" != "local" ]; then
+  die "--ci 只接受 auto | gh | local"
+fi
 if [ "${EXEC:-}" != "body" ]; then
   [ -n "$V" ] || usage
   case "$V" in v*) die "版本号不要带 v 前缀（tag 会自己加）：scripts/release.sh ${V#v}" ;; esac
@@ -127,9 +141,24 @@ stage_prep() {
   echo "已推送 $(git rev-parse --short HEAD)，构建号 → $next_build"
 }
 
+# GitHub CI 不可用（额度烧尽 / 工作流被关）时的本地等价验证：
+# 单测 + 评估套件，正是 ci.yml 在远端跑的那两样。
+run_local_suite() {
+  bash tests/run.sh || die "本地单测未过"
+  echo "── 本地评估套件 ──"
+  pkill -9 -x Desire 2>/dev/null || true; sleep 2
+  open "$APP" --args --automation
+  bridge_wait 30 || die "桥没起来（${APP}"
+  python3 tests/agent-eval.py --cleanup || die "评估套件未过"
+  app_quit
+  echo "本地全套验证 ✓（单测 + 评估 16 项）"
+}
+
 stage_ci() {
-  log "ci：等 HEAD 的 CI 跑完且全绿"
-  if [ "$SKIP_CI_CHECK" = 1 ]; then echo "（--skip-ci-check：跳过）"; return 0; fi
+  log "ci：HEAD 质量闸门（模式：${CI_MODE}"
+  if [ "$SKIP_CI_CHECK" = 1 ]; then echo "（--skip-ci-check：完全跳过）"; return 0; fi
+  if [ "$CI_MODE" = "local" ]; then run_local_suite; return 0; fi
+
   local sha run=""
   sha=$(git rev-parse HEAD)
   for _ in $(seq 1 18); do   # 最多等 3 分钟让 run 出现
@@ -138,10 +167,18 @@ stage_ci() {
     if [ -n "$run" ]; then break; fi
     sleep 10
   done
-  [ -n "$run" ] || die "HEAD ($sha) 没有触发 CI——先确认推送成功"
+  if [ -z "$run" ]; then
+    if [ "$CI_MODE" = "gh" ]; then
+      die "HEAD ($sha) 没有触发 CI（--ci gh 强依赖远端）。先确认推送成功，或改用 --ci local"
+    fi
+    echo "（HEAD 没有 CI run——GitHub Actions 大概率已不可用（额度烧尽/工作流被关）。"
+    echo "  回落到本地全套验证。）"
+    run_local_suite
+    return 0
+  fi
   echo "watching run $run"
   gh run watch "$run" --repo "$GH_REPO" --exit-status --interval 30 \
-    || die "CI 未绿。红着不能发版（v0.3.14 的教训）。修完 push 后重跑：scripts/release.sh $V --from ci"
+    || die "CI 未绿。红着不能发版（v0.3.14 的教训）。修完 push 重跑 $0 $V --from ci；若是额度烧尽导致 run 根本没跑起来，改用 --ci local"
 }
 
 stage_build() {
@@ -231,7 +268,7 @@ fi
 
 # ── 阶段调度 ────────────────────────────────────────────────
 
-ORDER=(prep ci build smoke package publish verify)
+ORDER=(prep build ci smoke package publish verify)
 START=-1
 for i in "${!ORDER[@]}"; do
   if [ "${ORDER[$i]}" = "$FROM" ]; then START=$i; fi

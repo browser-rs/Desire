@@ -932,11 +932,16 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
 
 1. **prep**：要求 CHANGELOG 已有 `## [vX.Y.Z]` 段（先写好发布说明）；tag/远端
    release 查重；版本号写入 pbxproj（构建号自增）；确认后提交推送。
-2. **ci**：等 HEAD 的 CI run 全绿才继续——**红着不能发版**（v0.3.14 是红着发的，
-   评估套件坏了没人发现）。
-3. **build**：每次删掉 DerivedData **clean build**（增量构建测不出全部警告），
+2. **build**：每次删掉 DerivedData **clean build**（增量构建测不出全部警告），
    零警告闸门（`warning:` 前面是路径，只有 appintentsmetadataprocessor 可豁免），
    产物版本用 PlistBuddy 核对。
+3. **ci**：HEAD 质量闸门，`--ci auto`（默认）/ `gh` / `local` 三档——**红着不能
+   发版**（v0.3.14 是红着发的，评估套件坏了没人发现）。**GitHub 额度烧完也要能
+   发版**：macOS runner 按 10 倍扣分钟，auto 找不到 HEAD 的 run（Actions 不可用）
+   会回落到**本地全套验证**（单测 + 评估套件，即 ci.yml 的本地等价物，build 在
+   ci 之前就是为了这个）；`gh` 强依赖远端；`local` 完全不用 Actions。gh API
+   （推 tag、gh release create、workflow disable/enable）不走 Actions 分钟数，
+   额度烧尽照样能发。
 4. **smoke**：把产物拷到**非 DerivedData 路径**再启动——Keychain 条目 ACL 对
    adhoc 构建按 cdhash/路径认，只在换路径启动时才暴露"授权窗永不渲染"这类问题；
    桥 + `/agent/stats` + `/ai/profiles` 探活。
@@ -948,7 +953,7 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
    Release 工作流。
 
 失败续跑：`--from <阶段>`（如 build 过了 smoke 挂了 → `--from smoke`）；急救闸门
-`--skip-ci-check` 别轻易用；发布前想预览正文用 `body <tag>`（与 CI 的 release.yml
+`--skip-ci-check` 别轻易用；额度紧张时 `--ci local`；发布前想预览正文用 `body <tag>`（与 CI 的 release.yml
 共用 `scripts/install-note.template.md`，改安装说明只改这一个文件）。
 
 ## 端点扩展模式

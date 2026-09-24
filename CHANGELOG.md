@@ -5,14 +5,17 @@
 - **发布流程一键化（`scripts/release.sh`）**：v0.3.14 的发布把每个手工步骤的坑都踩了一遍
   （Release 工作流禁晚了被 tag 触发、`gh` 用错 repo 名 404、CI 红着就打了 tag、冒烟/打包/
   校验全凭记忆排顺序）——现在全部固化成一个脚本：`scripts/release.sh <版本号>`，阶段
-  **prep**（冻结 CHANGELOG + 版本号 + 构建号自增，推 main）→ **ci**（等 HEAD 的 CI 全绿，
-  红着不许发）→ **build**（clean Release + 零警告闸门 + 产物版本核对）→ **smoke**（从
+  **prep**（冻结 CHANGELOG + 版本号 + 构建号自增，推 main）→ **build**（clean Release +
+  零警告闸门 + 产物版本核对）→ **ci**（HEAD 质量闸门，红着不许发）→ **smoke**（从
   **非 DerivedData 路径**启动冒烟 + 桥/统计/档案端点探活）→ **package**（zip + SHASUMS）
   → **publish**（先禁 Release 工作流再推 tag、正文 = CHANGELOG 段 + 安装说明模板、
   `--repo` 从 git remote 推导）→ **verify**（从 release 重新下载验校验和/版本/启动，
   完成后恢复 Release 工作流）。任一步失败 `--from <阶段>` 续跑；`body <tag>` 可单独
   预览 release 正文。安装说明抽成 **`scripts/install-note.template.md`**（CI 的
-  release.yml 与脚本共用，单一真相）。
+  release.yml 与脚本共用，单一真相）。**GitHub 免费额度烧完也能发**：ci 阶段
+  `--ci auto`（默认；Actions 不可用时自动回落）/ `gh` / `local` 三档——`local` 用
+  本地单测 + 评估套件顶上 CI 的覆盖（build 排在 ci 之前就是为了给它供产物）；
+  gh API（推 tag、建 release、workflow 开关）不走 Actions 分钟数，额度烧尽照样发。
 
 ### Fixed
 

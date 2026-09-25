@@ -218,7 +218,8 @@ final class SyncStore: ObservableObject {
     // MARK: - 登录 / 注册 / 退出
 
     func login(username: String, password: String) async throws {
-        try await authenticate(username: username, password: password, register: false)
+        try await authenticate(username: username, password: password,
+                               register: false, captchaCode: nil)
     }
 
     func register(username: String, password: String, captchaCode: String? = nil) async throws {
@@ -230,7 +231,7 @@ final class SyncStore: ObservableObject {
         username: String, password: String, register: Bool, captchaCode: String?
     ) async throws {
         let trimmed = username.trimmingCharacters(in: .whitespaces)
-        let body = SyncAuthBody(
+        var body = SyncAuthBody(
             username: trimmed,
             password: password,
             nickname: nil,

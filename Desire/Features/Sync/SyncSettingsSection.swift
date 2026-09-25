@@ -20,6 +20,8 @@ struct SyncSettingsSection: View {
     @State private var pwSaved = false
     @State private var importedKey = ""
     @State private var keyWorking = false
+    @State private var captchaInput = ""
+    @State private var captchaLoading = false
     @State private var keyError: String?
     @State private var keyCopied = false
 
@@ -66,6 +68,13 @@ struct SyncSettingsSection: View {
                 .onChange(of: mode) {
                     formError = nil
                     confirmPassword = ""
+                    if mode == .register && store.captcha == nil {
+                        captchaLoading = true
+                        Task { @MainActor in
+                            await store.loadCaptcha()
+                            captchaLoading = false
+                        }
+                    }
                 }
                 SettingsRowDivider()
                 SettingsRow("Username", subtitle: mode == .register ? localizedSettingText("Usernames start with a letter and use 3-32 letters, digits or underscores.") : nil) {
@@ -100,6 +109,8 @@ struct SyncSettingsSection: View {
                             width: 170
                         )
                     }
+                    SettingsRowDivider()
+                    captchaRow
                     if !password.isEmpty {
                         SettingsRowDivider()
                         strengthRow
@@ -154,7 +165,40 @@ struct SyncSettingsSection: View {
         case .signIn:
             return !trimmedUsername.isEmpty && !password.isEmpty
         case .register:
-            return usernameValid && passwordValid && confirmMatches
+            return usernameValid && passwordValid && confirmMatches && captchaInput.count >= 4
+        }
+    }
+
+    @ViewBuilder
+    private var captchaRow: some View {
+        SettingsRow("Verification Code") {
+            HStack(spacing: 8) {
+                if captchaLoading {
+                    ProgressView().controlSize(.small)
+                } else if let png = store.captcha?.pngData, let nsImage = NSImage(data: png) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 36)
+                        .cornerRadius(4)
+                } else {
+                    Text(localizedSettingText("Failed to load"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    captchaLoading = true
+                    Task { @MainActor in
+                        await store.loadCaptcha()
+                        captchaLoading = false
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -212,12 +256,15 @@ struct SyncSettingsSection: View {
                 case .signIn:
                     try await store.login(username: username, password: password)
                 case .register:
-                    try await store.register(username: username, password: password)
+                    try await store.register(username: username, password: password,
+                                             captchaCode: captchaInput)
                 }
                 password = ""
                 confirmPassword = ""
+                captchaInput = ""
             } catch {
                 formError = error.localizedDescription
+                if mode == .register { await store.loadCaptcha() } // 验证码已被消费或作废
             }
             isWorking = false
         }

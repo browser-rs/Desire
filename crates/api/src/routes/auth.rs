@@ -5,6 +5,7 @@ use axum::routing::{get, post};
 
 pub fn public() -> Router<AppState> {
   Router::new()
+    .route("/auth/captcha", get(auth_controller::captcha))
     .route("/auth/register", post(auth_controller::register))
     .route("/auth/login", post(auth_controller::login))
     .route("/auth/refresh", post(auth_controller::refresh))

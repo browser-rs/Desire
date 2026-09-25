@@ -240,6 +240,29 @@ struct SyncAuthBody: Codable {
     var password: String
     var nickname: String?
     var device: SyncDeviceBody?
+    /// 仅注册携带；登录省略
+    var captchaId: String?
+    var captchaCode: String?
+
+    enum CodingKeys: String, CodingKey {
+        case username, password, nickname, device
+        case captchaId = "captcha_id"
+        case captchaCode = "captcha_code"
+    }
+}
+
+struct SyncCaptcha: Codable {
+    var captchaId: String
+    /// PNG 的标准 base64
+    var image: String
+    /// dev 环境回显的明文码；prod 无
+    var code: String?
+
+    enum CodingKeys: String, CodingKey {
+        case captchaId = "captcha_id"
+        case image
+        case code
+    }
 }
 
 struct SyncDeviceBody: Codable {

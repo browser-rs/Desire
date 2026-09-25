@@ -42,6 +42,11 @@ nonisolated enum SyncAPIClient {
         )
     }
 
+    /// 注册验证码(公开端点;dev 环境响应附带明文码)。
+    static func captcha(baseURL: String) async throws -> SyncCaptcha {
+        try await send("GET", baseURL, "/auth/captcha")
+    }
+
     /// 修改密码（登录态）。成功后现有令牌仍有效。
     static func changePassword(
         baseURL: String, accessToken: String, body: SetPasswordReq

@@ -2565,6 +2565,7 @@ final class AutomationServer {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         do {
             if register {
+                // 验证码:不传即由 store 自动拉取并用 dev 回显码(dev 环境)生产注册走 UI
                 try await app.syncStore.register(
                     username: Self.string(body, "username") ?? "",
                     password: Self.string(body, "password") ?? ""

@@ -9,6 +9,15 @@
 set -euo pipefail
 
 BASE="${1:-http://127.0.0.1:18090}"
+
+API="${2:-http://127.0.0.1:18090}"
+
+fetch_captcha() { # 输出 "captcha_id captcha_code"(dev 回显)
+  curl -s "$API/auth/captcha" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+print(d['captcha_id'], d.get('code',''))"
+}
 USERNAME="smoke_$(date +%s)"
 PASS1="smoke-pass-123"
 PASS2="smoke-pass-456"
@@ -58,14 +67,16 @@ expect_code 200 GET /health
 step "GET /health"
 
 # ---- register ----
-REG_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASS1\",\"device\":{\"device_id\":\"$DEVICE_ID\",\"name\":\"Smoke Mac\",\"platform\":\"macOS\"}}"
+CAP=$(fetch_captcha)
+REG_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASS1\",\"device\":{\"device_id\":\"$DEVICE_ID\",\"name\":\"Smoke Mac\",\"platform\":\"macOS\"},\"captcha_id\":\"${CAP%% *}\",\"captcha_code\":\"${CAP##* }\"}"
 R=$(req POST /auth/register "$REG_BODY")
 ACCESS=$(echo "$R" | get data.access_token)
 REFRESH=$(echo "$R" | get data.refresh_token)
 [ -n "$ACCESS" ] && [ -n "$REFRESH" ] || fail "register 响应缺 token: $R"
 step "register + 发 token"
 
-DUP_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASS1\"}"
+CAP2=$(fetch_captcha)
+DUP_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASS1\",\"captcha_id\":\"${CAP2%% *}\",\"captcha_code\":\"${CAP2##* }\"}"
 expect_code 409 POST /auth/register "$DUP_BODY"
 step "重复注册 → 409"
 

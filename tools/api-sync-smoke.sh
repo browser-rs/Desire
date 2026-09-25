@@ -8,6 +8,15 @@
 set -euo pipefail
 
 BASE="${1:-http://127.0.0.1:18090}"
+
+API="${2:-http://127.0.0.1:18090}"
+
+fetch_captcha() { # 输出 "captcha_id captcha_code"(dev 回显)
+  curl -s "$BASE/auth/captcha" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+print(d['captcha_id'], d.get('code',''))"
+}
 USERNAME="syncsmoke_$(date +%s)"
 
 PASS_STEPS=0
@@ -22,6 +31,13 @@ for k in sys.argv[1].split("."):
     v = v[int(k)] if isinstance(v, list) else v[k]
 print(v)
 ' "$1"
+}
+
+fetch_captcha() {
+  curl -s "$BASE/auth/captcha" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+print(d['captcha_id'], d.get('code',''))"
 }
 
 count() { python3 -c 'import json,sys;print(len(json.load(sys.stdin)["data"]["items"]))'; }
@@ -51,7 +67,8 @@ expect_code() {
 }
 
 # ---- 登录拿 token(依赖 auth 模块) ----
-REG_BODY="{\"username\":\"$USERNAME\",\"password\":\"smoke-pass-123\"}"
+CAP=$(fetch_captcha)
+REG_BODY="{\"username\":\"$USERNAME\",\"password\":\"smoke-pass-123\",\"captcha_id\":\"${CAP%% *}\",\"captcha_code\":\"${CAP##* }\"}"
 TOKEN=$(req POST /auth/register "$REG_BODY" | get data.access_token)
 [ -n "$TOKEN" ] || fail "register 失败"
 step "注册 + token"

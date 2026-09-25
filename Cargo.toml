@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = "1"
 axum = "0.8"
+base64 = "0.22"
 bcrypt = "0.19"
 chrono = {version = "0.4", features = ["serde"]}
 dotenvy = "0.15"

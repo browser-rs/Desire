@@ -17,12 +17,16 @@ pub struct DeviceInfoReq {
 pub struct RegisterReq {
   /// 字母开头,3-32 位字母/数字/下划线
   pub username: String,
-  /// 6-72 字节(bcrypt 上限)
+  /// 8-72 字节,须含字母和数字
   pub password: String,
   #[serde(default)]
   pub nickname: Option<String>,
   #[serde(default)]
   pub device: Option<DeviceInfoReq>,
+  /// 注册验证码 id(GET /auth/captcha 签发)
+  pub captcha_id: String,
+  /// 用户输入的验证码字符
+  pub captcha_code: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -92,6 +96,16 @@ pub struct DeviceDto {
   pub revoked: bool,
   pub last_seen_at: chrono::NaiveDateTime,
   pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CaptchaResp {
+  pub captcha_id: String,
+  /// PNG 图片的 base64(标准字母表)
+  pub image: String,
+  /// 仅 dev 环境返回明文码(冒烟脚本用);prod 为 None
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub code: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

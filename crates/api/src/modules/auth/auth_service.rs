@@ -1,6 +1,8 @@
 use axum::http::HeaderMap;
-use chrono::Utc;
+use base64::Engine as _;
+use chrono::{NaiveDateTime, Utc};
 use std::time::Duration;
+use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::types::AppState;
@@ -8,9 +10,12 @@ use crate::utils::jwt;
 use crate::utils::refresh_token;
 
 use super::auth_model::{
-  DeviceDto, DeviceInfoReq, DeviceRow, LoginReq, MeDto, RefreshTokenRow, RegisterReq,
+  CaptchaResp, DeviceDto, DeviceInfoReq, DeviceRow, LoginReq, MeDto, RefreshTokenRow, RegisterReq,
   SetPasswordReq, TokenPair, UpdateProfileReq, UserRow,
 };
+
+/// 注册验证码有效期(分钟)
+const CAPTCHA_TTL_MINUTES: i64 = 5;
 
 /// 用户名:字母开头,3-32 位字母/数字/下划线
 pub fn is_valid_username(username: &str) -> bool {
@@ -135,6 +140,79 @@ async fn issue_tokens(
   })
 }
 
+/// 注册验证码:签发 4 位字符码(去易混字符),渲染 PNG,5 分钟一次性。
+/// 顺手清理过期行;按 IP 限流(30/分钟)。dev 环境响应附带明文码(冒烟脚本用)。
+/// 纯同步渲染:4 位字符码 + PNG 字节。Captcha 内嵌的 ThreadRng/图片缓冲
+/// 都是 !Send,必须在此函数内销毁,不能跨 await 存活。
+fn render_captcha() -> Result<(String, Vec<u8>), AppError> {
+  const POOL: &[char] = &[
+    '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'H', 'J', 'K', 'L', 'M',
+    'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  ];
+  let mut cap = captcha::Captcha::new();
+  cap.set_chars(POOL);
+  cap.add_chars(4);
+  cap.view(140, 44);
+  cap.apply_filter(captcha::filters::Noise::new(0.1));
+  cap.apply_filter(captcha::filters::Wave::new(2.0, 3.0));
+  cap
+    .as_tuple()
+    .map(|(code, png)| (code.to_uppercase(), png))
+    .ok_or_else(|| AppError::Internal("captcha render failed".into()))
+}
+
+pub async fn new_captcha(state: &AppState, headers: &HeaderMap) -> Result<CaptchaResp, AppError> {
+  if !state.rate_limiter.allow(
+    &format!("captcha:ip:{}", ip(headers)),
+    30,
+    Duration::from_secs(60),
+  ) {
+    return Err(AppError::RateLimited("请求过于频繁，请稍后再试".into()));
+  }
+  let (code, png) = render_captcha()?;
+  let id = Uuid::new_v4().simple().to_string();
+  let now = Utc::now().naive_utc();
+  let expires = now + chrono::Duration::minutes(CAPTCHA_TTL_MINUTES);
+  sqlx::query("DELETE FROM registration_captchas WHERE expires_at < ?")
+    .bind(now)
+    .execute(&state.pool)
+    .await?;
+  sqlx::query("INSERT INTO registration_captchas (id, code, expires_at) VALUES (?, ?, ?)")
+    .bind(&id)
+    .bind(&code)
+    .bind(expires)
+    .execute(&state.pool)
+    .await?;
+  Ok(CaptchaResp {
+    captcha_id: id,
+    image: base64::engine::general_purpose::STANDARD.encode(&png),
+    code: (state.config.env == crate::configs::Env::Dev).then_some(code),
+  })
+}
+
+/// 注册验证码校验:一次性原子消费(id + code + 未用 + 未过期 全匹配才置 used)。
+/// 失败不消耗验证码(用户可重试),但客户端失败后应主动刷新。
+async fn verify_captcha(
+  state: &AppState,
+  captcha_id: &str,
+  captcha_code: &str,
+  now: NaiveDateTime,
+) -> Result<(), AppError> {
+  let result =
+    sqlx::query("UPDATE registration_captchas SET used = 1 WHERE id = ? AND code = ? AND used = 0 AND expires_at > ?")
+      .bind(captcha_id)
+      .bind(captcha_code.trim())
+      .bind(now)
+      .execute(&state.pool)
+      .await?;
+  if result.rows_affected() == 0 {
+    return Err(AppError::Unauthorized(
+      "验证码错误或已过期，请刷新后重试".into(),
+    ));
+  }
+  Ok(())
+}
+
 pub async fn register(
   state: &AppState,
   headers: &HeaderMap,
@@ -182,6 +260,13 @@ pub async fn register(
     ));
   }
   validate_password(&req.password)?;
+  verify_captcha(
+    state,
+    req.captcha_id.trim(),
+    &req.captcha_code,
+    Utc::now().naive_utc(),
+  )
+  .await?;
   let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
     .bind(username)
     .fetch_optional(&state.pool)

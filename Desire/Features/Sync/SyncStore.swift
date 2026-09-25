@@ -35,6 +35,8 @@ final class SyncStore: ObservableObject {
     @Published private(set) var hasSyncKey = false
     /// 密钥指纹（16 位 hex），设置页展示用于跨设备核对。
     @Published private(set) var syncKeyFingerprint: String?
+    /// 当前待用的注册验证码（nil = 未加载/已消费）
+    @Published private(set) var captcha: CaptchaInfo?
 
     static let defaultServerBaseURL = "http://127.0.0.1:18090"
 
@@ -62,6 +64,12 @@ final class SyncStore: ObservableObject {
     private let accessAccount = "sync-access-token"
     private let refreshAccount = "sync-refresh-token"
     private let masterKeyAccount = "sync-master-key"
+
+    struct CaptchaInfo {
+        let id: String
+        let pngData: Data
+        let devCode: String?
+    }
 
     /// 定时同步间隔（5 分钟；各域量小，全量 push 无压力）。
     private let syncInterval: TimeInterval = 300
@@ -177,6 +185,19 @@ final class SyncStore: ObservableObject {
         masterKeyBase64
     }
 
+    /// 拉取一张新的注册验证码（图片 + id；dev 环境附明文码）。
+    func loadCaptcha() async {
+        do {
+            let resp = try await SyncAPIClient.captcha(baseURL: serverBaseURL)
+            guard let data = Data(base64Encoded: resp.image) else {
+                throw SyncAPIError.network(String(localized: "Sync server returned invalid data"))
+            }
+            captcha = CaptchaInfo(id: resp.captchaId, pngData: data, devCode: resp.code)
+        } catch {
+            captcha = nil
+        }
+    }
+
     // MARK: - 启动后的首次同步 + 定时器
 
     func startAutoSync() {
@@ -200,11 +221,14 @@ final class SyncStore: ObservableObject {
         try await authenticate(username: username, password: password, register: false)
     }
 
-    func register(username: String, password: String) async throws {
-        try await authenticate(username: username, password: password, register: true)
+    func register(username: String, password: String, captchaCode: String? = nil) async throws {
+        try await authenticate(username: username, password: password,
+                               register: true, captchaCode: captchaCode)
     }
 
-    private func authenticate(username: String, password: String, register: Bool) async throws {
+    private func authenticate(
+        username: String, password: String, register: Bool, captchaCode: String?
+    ) async throws {
         let trimmed = username.trimmingCharacters(in: .whitespaces)
         let body = SyncAuthBody(
             username: trimmed,
@@ -212,6 +236,15 @@ final class SyncStore: ObservableObject {
             nickname: nil,
             device: deviceBody()
         )
+        if register {
+            // 注册必须携带验证码:没加载过就先拉一张
+            if captcha == nil { await loadCaptcha() }
+            guard let cap = captcha else {
+                throw SyncAPIError.server(String(localized: "Failed to load the verification code"))
+            }
+            body.captchaId = cap.id
+            body.captchaCode = captchaCode ?? cap.devCode
+        }
         let pair: SyncTokenPair
         if register {
             pair = try await SyncAPIClient.register(baseURL: serverBaseURL, body: body)

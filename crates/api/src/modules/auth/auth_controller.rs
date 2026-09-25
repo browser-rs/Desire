@@ -7,10 +7,23 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::auth_model::{
-  DeviceDto, LoginReq, LogoutReq, MeDto, RefreshReq, RegisterReq, RevokeDeviceReq, SetPasswordReq,
-  TokenPair, UpdateProfileReq,
+  CaptchaResp, DeviceDto, LoginReq, LogoutReq, MeDto, RefreshReq, RegisterReq, RevokeDeviceReq,
+  SetPasswordReq, TokenPair, UpdateProfileReq,
 };
 use super::auth_service;
+
+/// 注册验证码图片（公开；dev 环境响应附带明文码供冒烟脚本用）。
+#[utoipa::path(
+  get, path = "/auth/captcha", tag = "auth",
+  responses((status = 200, body = CaptchaResp))
+)]
+pub async fn captcha(
+  State(state): State<AppState>,
+  headers: axum::http::HeaderMap,
+) -> ApiResult<CaptchaResp> {
+  let resp = auth_service::new_captcha(&state, &headers).await?;
+  api_ok!(resp)
+}
 
 #[utoipa::path(
   post, path = "/auth/register", tag = "auth",

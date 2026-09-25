@@ -40,6 +40,12 @@ struct SyncSettingsSection: View {
 
     // MARK: - 未登录：登录 / 注册表单
 
+    enum AuthMode { case signIn; case register }
+
+    @State private var mode: AuthMode = .signIn
+    @State private var confirmPassword = ""
+    @State private var showPassword = false
+
     @ViewBuilder
     private var signedOut: some View {
         SettingsSection(
@@ -48,28 +54,172 @@ struct SyncSettingsSection: View {
             icon: "arrow.triangle.2.circlepath"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Username") {
+                SettingsRow("Mode") {
+                    Picker("", selection: $mode) {
+                        Text(localizedSettingText("Sign In")).tag(AuthMode.signIn)
+                        Text(localizedSettingText("Register")).tag(AuthMode.register)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 170)
+                }
+                .onChange(of: mode) {
+                    formError = nil
+                    confirmPassword = ""
+                }
+                SettingsRowDivider()
+                SettingsRow("Username", subtitle: mode == .register ? localizedSettingText("Usernames start with a letter and use 3-32 letters, digits or underscores.") : nil) {
                     SettingsTextField(placeholder: "username", text: $username, width: 200)
                 }
                 SettingsRowDivider()
-                SettingsRow("Password") {
-                    SettingsTextField(placeholder: "••••••••", text: $password, isSecure: true, width: 200)
+                SettingsRow("Password", subtitle: mode == .register ? localizedSettingText("At least 8 characters with letters and numbers.") : nil) {
+                    HStack(spacing: 6) {
+                        SettingsTextField(
+                            placeholder: "••••••••",
+                            text: $password,
+                            isSecure: !showPassword,
+                            width: 170
+                        )
+                        Button {
+                            showPassword.toggle()
+                        } label: {
+                            Image(systemName: showPassword ? "eye.slash" : "eye")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                if mode == .register {
+                    SettingsRowDivider()
+                    SettingsRow("Confirm Password", subtitle: confirmError) {
+                        SettingsTextField(
+                            placeholder: "••••••••",
+                            text: $confirmPassword,
+                            isSecure: true,
+                            width: 170
+                        )
+                    }
+                    if !password.isEmpty {
+                        SettingsRowDivider()
+                        strengthRow
+                    }
                 }
                 SettingsRowDivider()
                 SettingsRow("Account", subtitle: formError) {
-                    HStack(spacing: 8) {
-                        SettingsCapsuleButton(
-                            "Sign In",
-                            isDisabled: !canSubmit || isWorking
-                        ) { submit(register: false) }
-                        SettingsCapsuleButton(
-                            "Register",
-                            style: .secondary,
-                            isDisabled: !canSubmit || isWorking
-                        ) { submit(register: true) }
-                    }
+                    SettingsCapsuleButton(
+                        mode == .signIn ? "Sign In" : "Register",
+                        isDisabled: !canSubmit || isWorking
+                    ) { submit() }
                 }
             }
+        }
+    }
+
+    // MARK: - 表单校验（镜像服务端规则，提前给出反馈；服务端仍是权威）
+
+    private var trimmedUsername: String {
+        username.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var usernameValid: Bool {
+        let t = trimmedUsername
+        guard (3...32).contains(t.count), let first = t.first, first.isASCII, first.isLetter else {
+            return false
+        }
+        return t.dropFirst().allSatisfy {
+            ($0.isASCII && $0.isLetter) || ($0.isASCII && $0.isNumber) || $0 == "_"
+        }
+    }
+
+    private var passwordValid: Bool {
+        guard (8...72).contains(password.count) else { return false }
+        return password.contains(where: { $0.isLetter }) && password.contains(where: { $0.isNumber })
+    }
+
+    private var confirmMatches: Bool {
+        !confirmPassword.isEmpty && confirmPassword == password
+    }
+
+    private var confirmError: String? {
+        guard mode == .register, !confirmPassword.isEmpty, confirmPassword != password else {
+            return nil
+        }
+        return localizedSettingText("Passwords do not match.")
+    }
+
+    private var canSubmit: Bool {
+        guard !isWorking else { return false }
+        switch mode {
+        case .signIn:
+            return !trimmedUsername.isEmpty && !password.isEmpty
+        case .register:
+            return usernameValid && passwordValid && confirmMatches
+        }
+    }
+
+    private var strengthRow: some View {
+        let score = strengthScore(password)
+        return SettingsRow("Password strength") {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    Capsule()
+                        .fill(index < score ? strengthColor(score) : Color.secondary.opacity(0.18))
+                        .frame(width: 18, height: 4)
+                }
+                Text(localizedSettingText(strengthLabel(score)))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 0-3：长度 ≥8 / 字母数字混用 / 长度 ≥12。仅提示用，服务端仍是权威。
+    private func strengthScore(_ password: String) -> Int {
+        var score = 0
+        if password.count >= 8 { score += 1 }
+        let hasLetter = password.contains(where: { $0.isLetter })
+        let hasDigit = password.contains(where: { $0.isNumber })
+        if hasLetter && hasDigit { score += 1 }
+        if password.count >= 12 { score += 1 }
+        return score
+    }
+
+    private func strengthColor(_ score: Int) -> Color {
+        switch score {
+        case 0: .red
+        case 1: .orange
+        case 2: .yellow
+        default: .green
+        }
+    }
+
+    private func strengthLabel(_ score: Int) -> String {
+        switch score {
+        case 0: "Weak"
+        case 1: "Fair"
+        case 2: "Good"
+        default: "Strong"
+        }
+    }
+
+    private func submit() {
+        isWorking = true
+        formError = nil
+        Task { @MainActor in
+            do {
+                switch mode {
+                case .signIn:
+                    try await store.login(username: username, password: password)
+                case .register:
+                    try await store.register(username: username, password: password)
+                }
+                password = ""
+                confirmPassword = ""
+            } catch {
+                formError = error.localizedDescription
+            }
+            isWorking = false
         }
     }
 
@@ -256,9 +406,9 @@ struct SyncSettingsSection: View {
                     )
                 }
                 SettingsRowDivider()
-                SettingsRow("New Password") {
+                SettingsRow("New Password", subtitle: localizedSettingText("At least 8 characters with letters and numbers.")) {
                     SettingsTextField(
-                        placeholder: "≥ 6 characters",
+                        placeholder: "At least 8 characters",
                         text: $newPassword,
                         isSecure: true,
                         width: 200
@@ -278,8 +428,14 @@ struct SyncSettingsSection: View {
         }
     }
 
+    private var newPasswordValid: Bool {
+        let n = newPassword
+        guard (8...72).contains(n.count) else { return false }
+        return n.contains(where: { $0.isLetter }) && n.contains(where: { $0.isNumber })
+    }
+
     private var canChangePassword: Bool {
-        !currentPassword.isEmpty && newPassword.count >= 6
+        !currentPassword.isEmpty && newPasswordValid
     }
 
     private func submitPasswordChange() {
@@ -297,10 +453,6 @@ struct SyncSettingsSection: View {
             }
             pwWorking = false
         }
-    }
-
-    private var canSubmit: Bool {
-        !username.trimmingCharacters(in: .whitespaces).isEmpty && password.count >= 6
     }
 
     // MARK: - 服务器地址
@@ -338,21 +490,18 @@ struct SyncSettingsSection: View {
         return lastSyncAt.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func submit(register: Bool) {
-        isWorking = true
-        formError = nil
-        Task { @MainActor in
-            do {
-                if register {
-                    try await store.register(username: username, password: password)
-                } else {
-                    try await store.login(username: username, password: password)
-                }
-                password = ""
-            } catch {
-                formError = error.localizedDescription
-            }
-            isWorking = false
-        }
+}
+
+struct SyncSettingsSection_Previews: PreviewProvider {
+    static var previews: some View {
+        SyncSettingsSection(store: SyncStore(
+            bookmarkStore: BookmarkStore(),
+            quickDialStore: QuickDialStore(),
+            readingListStore: ReadingListStore(),
+            shortcutStore: KeyboardShortcutStore(),
+            settings: Settings(),
+            agentPreferenceStore: AgentPreferenceStore()
+        ))
+        .appAccent(.blue)
     }
 }

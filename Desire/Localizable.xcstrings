@@ -1418,29 +1418,6 @@
         }
       }
     },
-    "≥ 6 characters" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "≥ 6 characters"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "至少 6 个字符"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "至少 6 個字元"
-          }
-        }
-      }
-    },
     "✓ Default" : {
       "localizations" : {
         "en" : {
@@ -3593,6 +3570,20 @@
             "value" : "附加圖片（視覺模型可用）"
           }
         }
+      }
+    },
+    "At least 8 characters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "At least 8 characters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位" } }
+      }
+    },
+    "At least 8 characters with letters and numbers." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "At least 8 characters with letters and numbers." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位，需包含字母和数字。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位，需包含字母和數字。" } }
       }
     },
     "Attach Images" : {
@@ -6121,6 +6112,13 @@
             "value" : "計算樣式（%lld）"
           }
         }
+      }
+    },
+    "Confirm Password" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Password" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认密码" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認密碼" } }
       }
     },
     "Configure Agent in Settings…" : {
@@ -10531,6 +10529,13 @@
         }
       }
     },
+    "Fair" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fair" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一般" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一般" } }
+      }
+    },
     "Failed to import plugin: invalid file format" : {
       "comment" : "Plugin import error",
       "localizations" : {
@@ -11589,6 +11594,13 @@
             "value" : "開始使用"
           }
         }
+      }
+    },
+    "Good" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Good" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "良好" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "良好" } }
       }
     },
     "Go Back" : {
@@ -14434,6 +14446,13 @@
             "value" : "模型服務"
           }
         }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mode" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模式" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "模式" } }
       }
     },
     "Models" : {
@@ -17665,6 +17684,20 @@
         }
       }
     },
+    "Password strength" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Password strength" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码强度" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "密碼強度" } }
+      }
+    },
+    "Passwords do not match." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Passwords do not match." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "两次输入的密码不一致。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "兩次輸入的密碼不一致。" } }
+      }
+    },
     "Password Generator" : {
       "localizations" : {
         "en" : {
@@ -17683,28 +17716,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼產生器"
-          }
-        }
-      }
-    },
-    "Password must be 6-72 characters" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Password must be 6-72 characters"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "密码长度须为 6-72 个字符"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "密碼長度須為 6-72 個字元"
           }
         }
       }
@@ -23346,6 +23357,13 @@
         }
       }
     },
+    "Strong" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Strong" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "强" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "強" } }
+      }
+    },
     "Startup" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -25941,6 +25959,13 @@
         }
       }
     },
+    "Usernames start with a letter and use 3-32 letters, digits or underscores." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Usernames start with a letter and use 3-32 letters, digits or underscores." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户名以字母开头，可使用 3-32 位字母/数字/下划线。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用者名稱以字母開頭，可使用 3-32 位字母/數字/底線。" } }
+      }
+    },
     "Undo" : {
       "comment" : "Undo button",
       "localizations" : {
@@ -26884,6 +26909,13 @@
             "value" : "警告"
           }
         }
+      }
+    },
+    "Weak" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Weak" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "弱" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "弱" } }
       }
     },
     "Web Content" : {

@@ -69,6 +69,11 @@ DUP_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASS1\"}"
 expect_code 409 POST /auth/register "$DUP_BODY"
 step "重复注册 → 409"
 
+# ---- 弱口令 → 422（8-72 位且字母+数字）----
+WEAK_BODY="{\"username\":\"weak_$USERNAME\",\"password\":\"12345678\"}"
+expect_code 422 POST /auth/register "$WEAK_BODY"
+step "纯数字弱口令注册 → 422"
+
 # ---- login ----
 BAD_LOGIN_BODY="{\"username\":\"$USERNAME\",\"password\":\"wrong-pass\"}"
 expect_code 401 POST /auth/login "$BAD_LOGIN_BODY"

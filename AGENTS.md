@@ -1063,6 +1063,13 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   一键清空都会记 tombstone；事实与摘要共用一个待删清单（id 空间不重叠）。
   `AgentMemorySync.apply` 合并语义在 tests/run.sh（删除同样走 LWW）。
   **对话（conversation-*.json）依旧不同步**——用户 2026-09-24 的明确决定不因本功能改变。
+- **口令策略与注册 UI（2026-09-25）**：口令 = **8-72 字节且同时含字母和数字**
+  （`auth_service::validate_password` 注册/改密共用；desire-admin 重置同策略）。
+  **登录不校验复杂度**——已有弱口令账号可登录，只在改密时收口。客户端镜像同规则
+  （SyncSettingsSection 实时校验 + 强度条 0-3 档），服务端仍是权威（422）。注册 UI
+  为登录/注册**分段模式切换**（同一表单，注册模式多确认密码字段）。
+  **坑：改完服务端白名单等代码后 `cargo test` 不重建 bin——起服务前必须显式
+  `cargo build`，否则新端点 404（本次踩：二进制 04:54 旧货服务到 05:43）**。
 - **settings KV 域（2026-09-25，第五域）**：目录白名单 `SettingsSync.catalog`
   （23 键，刻意排除 screenshotFolder/selectedCustomEngineId 这类机器相关项）。
   设置没有 per-key updatedAt——SyncStore 用"**快照 diff 检测本地变更 → 变更盖新戳**"，

@@ -129,8 +129,13 @@ async fn user_reset_password(
   username: &str,
   password: &str,
 ) -> anyhow::Result<()> {
-  if !(6..=72).contains(&password.len()) {
-    bail!("密码长度须为 6-72 字节");
+  if !(8..=72).contains(&password.len()) {
+    bail!("密码须为 8-72 位,且同时包含字母和数字");
+  }
+  let has_letter = password.bytes().any(|b| b.is_ascii_alphabetic());
+  let has_digit = password.bytes().any(|b| b.is_ascii_digit());
+  if !has_letter || !has_digit {
+    bail!("密码须同时包含字母和数字");
   }
   let Some(user_id) = user_exists(pool, username).await? else {
     bail!("用户不存在: {username}");

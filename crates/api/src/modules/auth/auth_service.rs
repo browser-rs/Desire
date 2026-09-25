@@ -25,9 +25,18 @@ pub fn is_valid_username(username: &str) -> bool {
 }
 
 /// 密码 6-72 字节(72 是 bcrypt 的硬上限)
+/// 密码策略:8-72 字节(bcrypt 上限),且须同时包含字母与数字(防纯数字/纯字母弱口令)。
+/// 注册与修改密码共用;已有账号的旧弱口令仍可登录(登录不校验复杂度)。
 fn validate_password(password: &str) -> Result<(), AppError> {
-  if !(6..=72).contains(&password.len()) {
-    return Err(AppError::Validation("密码长度须为 6-72 字节".into()));
+  if !(8..=72).contains(&password.len()) {
+    return Err(AppError::Validation(
+      "密码须为 8-72 位,且同时包含字母和数字".into(),
+    ));
+  }
+  let has_letter = password.bytes().any(|b| b.is_ascii_alphabetic());
+  let has_digit = password.bytes().any(|b| b.is_ascii_digit());
+  if !has_letter || !has_digit {
+    return Err(AppError::Validation("密码须同时包含字母和数字".into()));
   }
   Ok(())
 }
@@ -491,14 +500,20 @@ mod tests {
 
   #[test]
   fn password_rules() {
-    assert!(validate_password("123456").is_ok());
-    assert!(validate_password("a".repeat(72).as_str()).is_ok());
+    // 合法:8 位起,字母+数字
+    assert!(validate_password("pass1234").is_ok());
+    assert!(validate_password("a1").is_err()); // 太短
+    assert!(validate_password("aaaaaaaa").is_err()); // 纯字母
+    assert!(validate_password("12345678").is_err()); // 纯数字
+    assert!(validate_password("a".repeat(72).as_str()).is_err()); // 无数字
+    assert!(validate_password("a1".repeat(36).as_str()).is_ok()); // 72 位上限
+    let too_long = format!("{}a", "a1".repeat(36));
     assert!(matches!(
-      validate_password("12345"),
+      validate_password(too_long.as_str()),
       Err(AppError::Validation(_))
     ));
     assert!(matches!(
-      validate_password("a".repeat(73).as_str()),
+      validate_password("12345"),
       Err(AppError::Validation(_))
     ));
   }

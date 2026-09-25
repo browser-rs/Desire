@@ -259,8 +259,10 @@ final class SyncStore: ObservableObject {
             throw SyncAPIError.unauthorized
         }
         let trimmedNew = new.trimmingCharacters(in: .whitespaces)
-        guard trimmedNew.count >= 6, trimmedNew.count <= 72 else {
-            throw SyncAPIError.server(String(localized: "Password must be 6-72 characters"))
+        let hasLetter = trimmedNew.contains(where: { $0.isLetter })
+        let hasDigit = trimmedNew.contains(where: { $0.isNumber })
+        guard trimmedNew.count >= 8, trimmedNew.count <= 72, hasLetter, hasDigit else {
+            throw SyncAPIError.server(String(localized: "Password must be 8-72 characters and include letters and numbers"))
         }
         try await SyncAPIClient.changePassword(
             baseURL: serverBaseURL,

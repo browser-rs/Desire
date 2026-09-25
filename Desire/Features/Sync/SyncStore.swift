@@ -26,6 +26,7 @@ final class SyncStore: ObservableObject {
     @Published private(set) var lastSyncAt: Date?
     /// 最近一次同步/登录失败的展示文本；成功后清空。
     @Published private(set) var lastError: String?
+    private var lastAuthError: Error?
     /// 同步服务器地址（设置页/桥可改，立即生效）。
     @Published private(set) var serverBaseURL: String
     /// 用户选择的同步类目（缺省全开）。关闭 = 跳过该域 push/pull；
@@ -132,59 +133,6 @@ final class SyncStore: ObservableObject {
         keychainReadData(masterKeyAccount)?.base64EncodedString()
     }
 
-    /// 生成新主密钥,返回 base64（仅此一次完整展示,用户自行备份）。
-    /// 上报指纹走 `uploadKeyCheck()`。
-    func generateSyncKey() throws -> String {
-        let key = SyncCrypto.generateMasterKey()
-        try storeSyncKey(key)
-        return key
-    }
-
-    /// 导入既有密钥（新设备/换机）。
-    func importSyncKey(_ text: String) throws {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard SyncCrypto.isValidMasterKeyBase64(trimmed) else {
-            throw SyncCrypto.CryptoError.invalidKeyFormat
-        }
-        try storeSyncKey(trimmed)
-    }
-
-    /// 上报/校验指纹:服务器无指纹 → 登记本机;不一致 → 抛错(拿错密钥)。
-    func uploadKeyCheck() async throws {
-        guard let master = masterKeyBase64 else {
-            throw SyncCrypto.CryptoError.invalidKeyFormat
-        }
-        let check = try SyncCrypto.keyCheckHex(masterKeyBase64: master)
-        let existing: KeyCheckResp = try await SyncAPIClient.keyCheck(
-            baseURL: serverBaseURL, accessToken: validAccessToken()
-        )
-        switch existing.check {
-        case nil:
-            try await SyncAPIClient.setKeyCheck(
-                baseURL: serverBaseURL, fingerprint: check,
-                accessToken: validAccessToken()
-            )
-        case .some(let stored) where stored == check:
-            break
-        case .some:
-            throw SyncCrypto.CryptoError.authenticationFailed
-        }
-    }
-
-    private func storeSyncKey(_ base64: String) throws {
-        guard let data = Data(base64Encoded: base64) else {
-            throw SyncCrypto.CryptoError.invalidKeyFormat
-        }
-        keychainWrite(data, account: masterKeyAccount)
-        hasSyncKey = true
-        syncKeyFingerprint = try SyncCrypto.fingerprint(masterKeyBase64: base64)
-    }
-
-    /// 导出主密钥（设置页"复制到新设备"用）。
-    func revealSyncKey() -> String? {
-        masterKeyBase64
-    }
-
     /// 拉取一张新的注册验证码（图片 + id；dev 环境附明文码）。
     func loadCaptcha() async {
         do {
@@ -237,26 +185,76 @@ final class SyncStore: ObservableObject {
             nickname: nil,
             device: deviceBody()
         )
-        if register {
-            // 注册必须携带验证码:没加载过就先拉一张
-            if captcha == nil { await loadCaptcha() }
-            guard let cap = captcha else {
-                throw SyncAPIError.server(String(localized: "Failed to load the verification code"))
+        var pair: SyncTokenPair?
+        // 注册:验证码可能过期(5 分钟 TTL)/被消费 → 失败后换新码重试一次
+        for attempt in 0...(register ? 1 : 0) {
+            if register {
+                if captcha == nil || attempt > 0 { await loadCaptcha() }
+                guard let cap = captcha else {
+                    throw SyncAPIError.server(String(localized: "Failed to load the verification code"))
+                }
+                body.captchaId = cap.id
+                body.captchaCode = captchaCode ?? cap.devCode
             }
-            body.captchaId = cap.id
-            body.captchaCode = captchaCode ?? cap.devCode
+            do {
+                if register {
+                    pair = try await SyncAPIClient.register(baseURL: serverBaseURL, body: body)
+                } else {
+                    pair = try await SyncAPIClient.login(baseURL: serverBaseURL, body: body)
+                }
+                break
+            } catch let err as SyncAPIError {
+                // 401 = 验证码/凭据类失败:换一张新验证码重试一次(第二次仍失败则抛出)
+                guard attempt == 0, case .unauthorized = err else { throw err }
+                captcha = nil
+            }
         }
-        let pair: SyncTokenPair
-        if register {
-            pair = try await SyncAPIClient.register(baseURL: serverBaseURL, body: body)
-        } else {
-            pair = try await SyncAPIClient.login(baseURL: serverBaseURL, body: body)
+        guard let pair else {
+            throw lastAuthError ?? SyncAPIError.server(String(localized: "Sync session expired"))
         }
         storeTokens(pair)
         defaults.set(trimmed, forKey: usernameKey)
         authState = .signedIn(username: trimmed)
         lastError = nil
+        // E2E 密钥生命周期(密码仍在作用域):注册 = 首次托管;登录 = 从托管恢复
+        try await restoreOrEscrowDEK(password: password)
         await syncNow()
+    }
+
+    /// E2E 密钥生命周期核心(登录/注册成功后调用,密码在作用域内):
+    /// - 服务器已有托管 → 用密码解包恢复 DEK(服务器为权威,覆盖本机旧值);
+    /// - 无托管(首台设备/旧版升级) → 用本机 DEK(无则新生成)包裹上报;
+    /// - 解包失败(托管损坏/密码在别处被改后数据未轮换) → 明确抛错,同步阻止。
+    private func restoreOrEscrowDEK(password: String) async throws {
+        let escrow = try await SyncAPIClient.keyEscrow(
+            baseURL: serverBaseURL, accessToken: validAccessToken())
+        if let salt = escrow.kdfSalt, !salt.isEmpty,
+           let wrapped = escrow.wrappedDek, !wrapped.isEmpty {
+            let restored = try SyncCrypto.unwrapDEK(wrapped, password: password, saltBase64: salt)
+            guard let data = Data(base64Encoded: restored) else {
+                throw SyncCrypto.CryptoError.invalidKeyFormat
+            }
+            keychainWrite(data, account: masterKeyAccount)
+            hasSyncKey = true
+            syncKeyFingerprint = try SyncCrypto.fingerprint(masterKeyBase64: restored)
+            return
+        }
+        // 首台设备:沿用本机已有 DEK(兼容旧版加密数据),没有则新生成
+        let dek: String
+        if let existing = masterKeyBase64, SyncCrypto.isValidMasterKeyBase64(existing) {
+            dek = existing
+        } else {
+            dek = SyncCrypto.generateMasterKey()
+        }
+        let salt = SyncCrypto.generateSalt()
+        let wrapped = try SyncCrypto.wrapDEK(dekBase64: dek, password: password, saltBase64: salt)
+        let check = try SyncCrypto.keyCheckHex(masterKeyBase64: dek)
+        try await SyncAPIClient.setKeyEscrow(
+            baseURL: serverBaseURL, accessToken: validAccessToken(),
+            body: SyncEscrowBody(kdfSalt: salt, wrappedDek: wrapped, keyCheck: check))
+        keychainWrite(Data(base64Encoded: dek)!, account: masterKeyAccount)
+        hasSyncKey = true
+        syncKeyFingerprint = try SyncCrypto.fingerprint(masterKeyBase64: dek)
     }
 
     func logout() {
@@ -290,7 +288,7 @@ final class SyncStore: ObservableObject {
     /// 修改密码（登录态）。成功后现有令牌仍有效，无需重新登录。
     func changePassword(current: String, new: String) async throws {
         guard case .signedIn = authState else {
-            throw SyncAPIError.unauthorized
+            throw SyncAPIError.unauthorized(message: nil)
         }
         let trimmedNew = new.trimmingCharacters(in: .whitespaces)
         let hasLetter = trimmedNew.contains(where: { $0.isLetter })
@@ -298,10 +296,19 @@ final class SyncStore: ObservableObject {
         guard trimmedNew.count >= 8, trimmedNew.count <= 72, hasLetter, hasDigit else {
             throw SyncAPIError.server(String(localized: "Password must be 8-72 characters and include letters and numbers"))
         }
+        // E2E 换包:同一个 DEK 用新密码重新包裹,既有密文保持可解
+        let dek = masterKeyBase64
+        guard let dek, SyncCrypto.isValidMasterKeyBase64(dek) else {
+            throw SyncCrypto.CryptoError.invalidKeyFormat
+        }
+        let newSalt = SyncCrypto.generateSalt()
+        let wrapped = try SyncCrypto.wrapDEK(dekBase64: dek, password: trimmedNew,
+                                             saltBase64: newSalt)
         try await SyncAPIClient.changePassword(
             baseURL: serverBaseURL,
             accessToken: validAccessToken(),
-            body: SetPasswordReq(oldPassword: current, newPassword: trimmedNew)
+            body: SetPasswordReq(oldPassword: current, newPassword: trimmedNew,
+                                 newKdfSalt: newSalt, newWrappedDek: wrapped)
         )
     }
 
@@ -336,7 +343,6 @@ final class SyncStore: ObservableObject {
 
     private func runSyncCycle() async throws {
         let token = try await validAccessToken()
-        try await uploadKeyCheck() // 指纹不一致在此抛错,防拿错密钥覆盖旧密文
         guard let master = masterKeyBase64 else {
             throw SyncCrypto.CryptoError.invalidKeyFormat
         }
@@ -840,7 +846,7 @@ final class SyncStore: ObservableObject {
     private func validAccessToken() async throws -> String {
         if let access = keychainReadString(accessAccount), !access.isEmpty { return access }
         guard let refresh = keychainReadString(refreshAccount), !refresh.isEmpty else {
-            throw SyncAPIError.unauthorized
+            throw SyncAPIError.unauthorized(message: nil)
         }
         let pair = try await SyncAPIClient.refresh(baseURL: serverBaseURL, refreshToken: refresh)
         storeTokens(pair)

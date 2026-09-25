@@ -374,7 +374,6 @@ final class AutomationServer {
         ep("POST", "/sync/server", "Point the sync client at a server base URL (persisted)", params: ["baseURL:string"], example: #"-d '{"baseURL":"http://127.0.0.1:18090"}'"#)
         ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
-        ep("POST", "/sync/key", "Generate or import the E2E sync key (generated key is returned once — store it)", params: ["generate?:bool", "key?:string (base64 from another device)"], example: #"-d '{"generate":true}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
         ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
         ep("POST", "/search-history/clear", "Clear search history", example: "-d '{}'")
@@ -803,8 +802,6 @@ final class AutomationServer {
                 return try Self.json(Self.syncSetSetting(body))
             case ("POST", "/sync/domain"):
                 return try Self.json(Self.syncSetDomain(body))
-            case ("POST", "/sync/key"):
-                return try Self.json(await Self.syncSetKey(body))
             case ("GET", "/search-history"):
                 return try Self.json(Self.searchHistory(count: Int(query["count"] ?? "10") ?? 10))
             case ("POST", "/search-history/add"):
@@ -2624,28 +2621,6 @@ final class AutomationServer {
         guard let enabled = body["enabled"] as? Bool else { return ["error": "missing enabled"] }
         app.syncStore.setEnabled(domain, enabled)
         return syncStatus()
-    }
-
-    /// 生成或导入 E2E 同步密钥。generate=true 时返回一次性的 key（base64），
-    /// 调用方需自行保存;import 走服务端指纹校验（不一致报 409 语义错误）。
-    private static func syncSetKey(_ body: [String: Any]) async -> [String: Any] {
-        guard let app = AppState.live else { return ["error": "app state not ready"] }
-        do {
-            var generatedKey: String?
-            if body["generate"] as? Bool == true {
-                generatedKey = try app.syncStore.generateSyncKey()
-            } else if let key = Self.string(body, "key") {
-                try app.syncStore.importSyncKey(key)
-            } else {
-                return ["error": "missing key or generate"]
-            }
-            try await app.syncStore.uploadKeyCheck()
-            var out = syncStatus()
-            if let generatedKey { out["key"] = generatedKey }
-            return out
-        } catch {
-            return ["error": error.localizedDescription]
-        }
     }
 
     private static func addQuickDial(title: String, url: String) throws -> [String: Any] {

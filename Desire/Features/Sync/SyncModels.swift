@@ -296,10 +296,51 @@ struct SyncLogoutBody: Codable {
 struct SetPasswordReq: Codable {
     var oldPassword: String
     var newPassword: String
+    /// 改密时同步换包(新盐 + 新 KEK 包裹的 DEK);缺省 = 无托管
+    var newKdfSalt: String?
+    var newWrappedDek: String?
 
     enum CodingKeys: String, CodingKey {
         case oldPassword = "old_password"
         case newPassword = "new_password"
+        case newKdfSalt = "new_kdf_salt"
+        case newWrappedDek = "new_wrapped_dek"
+    }
+}
+
+/// 托管的包裹 DEK(JSON 信封,客户端加解密,服务端存原文)。
+/// nonisolated:被非隔离的 SyncCrypto 在任意线程编解码。
+nonisolated struct SyncWrappedDek: Codable, Equatable {
+    var v: Int
+    /// 目前固定 pbkdf2-sha256
+    var kdf: String
+    var iter: Int
+    /// AES-GCM combined 的 base64
+    var ct: String
+}
+
+struct SyncEscrowResp: Codable {
+    /// nil = 该账号尚未托管密钥(第一台设备)
+    var kdfSalt: String?
+    var wrappedDek: String?
+    var keyCheck: String?
+
+    enum CodingKeys: String, CodingKey {
+        case kdfSalt = "kdf_salt"
+        case wrappedDek = "wrapped_dek"
+        case keyCheck = "key_check"
+    }
+}
+
+struct SyncEscrowBody: Codable {
+    var kdfSalt: String
+    var wrappedDek: String
+    var keyCheck: String
+
+    enum CodingKeys: String, CodingKey {
+        case kdfSalt = "kdf_salt"
+        case wrappedDek = "wrapped_dek"
+        case keyCheck = "key_check"
     }
 }
 

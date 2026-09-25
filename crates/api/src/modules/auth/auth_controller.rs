@@ -7,8 +7,8 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::auth_model::{
-  CaptchaResp, DeviceDto, LoginReq, LogoutReq, MeDto, RefreshReq, RegisterReq, RevokeDeviceReq,
-  SetPasswordReq, TokenPair, UpdateProfileReq,
+  CaptchaResp, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq, MeDto, RefreshReq,
+  RegisterReq, RevokeDeviceReq, SetPasswordReq, TokenPair, UpdateProfileReq,
 };
 use super::auth_service;
 
@@ -114,6 +114,40 @@ pub async fn set_password(
   Json(req): Json<SetPasswordReq>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
   auth_service::set_password(&state, claims.sub, req).await?;
+  Ok(Json(ApiResponse::<()>::empty()))
+}
+
+/// E2E 密钥托管：读取（GET）或上报（PUT）盐+包裹 DEK+指纹。
+#[utoipa::path(
+  get, path = "/sync/key-escrow", tag = "sync",
+  responses((status = 200, body = KeyEscrowResp))
+)]
+pub async fn key_escrow(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> ApiResult<KeyEscrowResp> {
+  let resp = auth_service::key_escrow_get(&state, claims.sub).await?;
+  api_ok!(resp)
+}
+
+#[utoipa::path(
+  put, path = "/sync/key-escrow", tag = "sync",
+  request_body = KeyEscrowBody,
+  responses((status = 200))
+)]
+pub async fn set_key_escrow(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Json(req): Json<KeyEscrowBody>,
+) -> ApiResult<()> {
+  auth_service::key_escrow_set(
+    &state,
+    claims.sub,
+    &req.kdf_salt,
+    &req.wrapped_dek,
+    &req.key_check,
+  )
+  .await?;
   Ok(Json(ApiResponse::<()>::empty()))
 }
 

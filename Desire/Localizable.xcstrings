@@ -2461,20 +2461,6 @@
         }
       }
     },
-    "Agent Prompt" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Agent Prompt" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 提示词" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Agent 提示詞" } }
-      }
-    },
-    "Agent Memory" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Agent Memory" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 记忆" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Agent 記憶" } }
-      }
-    },
     "Agent capabilities & tools" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2538,6 +2524,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在輸入"
+          }
+        }
+      }
+    },
+    "Agent Memory" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Memory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 记忆"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 記憶"
+          }
+        }
+      }
+    },
+    "Agent Prompt" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Prompt"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 提示词"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 提示詞"
           }
         }
       }
@@ -3505,6 +3537,52 @@
         }
       }
     },
+    "At least 8 characters" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At least 8 characters"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少 8 位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少 8 位"
+          }
+        }
+      }
+    },
+    "At least 8 characters with letters and numbers." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At least 8 characters with letters and numbers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少 8 位，需包含字母和数字。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少 8 位，需包含字母和數字。"
+          }
+        }
+      }
+    },
     "At the end" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3570,20 +3648,6 @@
             "value" : "附加圖片（視覺模型可用）"
           }
         }
-      }
-    },
-    "At least 8 characters" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "At least 8 characters" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位" } }
-      }
-    },
-    "At least 8 characters with letters and numbers." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "At least 8 characters with letters and numbers." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位，需包含字母和数字。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "至少 8 位，需包含字母和數字。" } }
       }
     },
     "Attach Images" : {
@@ -5128,6 +5192,29 @@
         }
       }
     },
+    "Choose what to sync across devices. Turning one off keeps its server data." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose what to sync across devices. Turning one off keeps its server data."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择跨设备同步的内容；关闭的类目，服务器上的数据会保留。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇跨裝置同步的內容；關閉的類別，伺服器上的資料會保留。"
+          }
+        }
+      }
+    },
     "Choose…" : {
       "localizations" : {
         "en" : {
@@ -6114,13 +6201,6 @@
         }
       }
     },
-    "Confirm Password" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Password" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认密码" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認密碼" } }
-      }
-    },
     "Configure Agent in Settings…" : {
       "localizations" : {
         "en" : {
@@ -6185,6 +6265,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載安裝程式、磁碟映像與指令碼檔案(.dmg/.pkg/.sh…)前先確認。"
+          }
+        }
+      }
+    },
+    "Confirm Password" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Password"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認密碼"
           }
         }
       }
@@ -7422,13 +7525,6 @@
             "value" : "CSS：%@"
           }
         }
-      }
-    },
-    "Choose what to sync across devices. Turning one off keeps its server data." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose what to sync across devices. Turning one off keeps its server data." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择跨设备同步的内容；关闭的类目，服务器上的数据会保留。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇跨裝置同步的內容；關閉的類別，伺服器上的資料會保留。" } }
       }
     },
     "Current Password" : {
@@ -9738,6 +9834,29 @@
         }
       }
     },
+    "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端到端加密：数据在离开这台 Mac 前会用该密钥加密，服务器无法读取。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端對端加密：資料在離開這台 Mac 前會用該金鑰加密，伺服器無法讀取。"
+          }
+        }
+      }
+    },
     "Endpoint URL" : {
       "localizations" : {
         "en" : {
@@ -10529,13 +10648,6 @@
         }
       }
     },
-    "Fair" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fair" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一般" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一般" } }
-      }
-    },
     "Failed to import plugin: invalid file format" : {
       "comment" : "Plugin import error",
       "localizations" : {
@@ -10555,6 +10667,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法匯入外掛：檔案格式無效"
+          }
+        }
+      }
+    },
+    "Failed to load the verification code" : {
+
+    },
+    "Fair" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fair"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般"
           }
         }
       }
@@ -11596,13 +11734,6 @@
         }
       }
     },
-    "Good" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Good" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "良好" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "良好" } }
-      }
-    },
     "Go Back" : {
       "comment" : "Keyboard shortcut",
       "extractionState" : "stale",
@@ -11647,6 +11778,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一頁"
+          }
+        }
+      }
+    },
+    "Good" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
           }
         }
       }
@@ -12978,13 +13132,6 @@
         }
       }
     },
-    "Invalid sync key format" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Invalid sync key format" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥格式无效" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰格式無效" } }
-      }
-    },
     "Invalid Certificate" : {
       "comment" : "Certificate alert title",
       "localizations" : {
@@ -13004,6 +13151,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "憑證無效"
+          }
+        }
+      }
+    },
+    "Invalid sync key format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid sync key format"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步密钥格式无效"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步金鑰格式無效"
           }
         }
       }
@@ -13142,6 +13311,29 @@
         }
       }
     },
+    "Key Fingerprint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key Fingerprint"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥指纹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰指紋"
+          }
+        }
+      }
+    },
     "Key saved" : {
       "localizations" : {
         "en" : {
@@ -13162,13 +13354,6 @@
             "value" : "已儲存金鑰"
           }
         }
-      }
-    },
-    "Key Fingerprint" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key Fingerprint" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密钥指纹" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "金鑰指紋" } }
       }
     },
     "Keyboard Shortcuts" : {
@@ -14381,6 +14566,29 @@
         }
       }
     },
+    "Mode" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        }
+      }
+    },
     "Model" : {
       "localizations" : {
         "en" : {
@@ -14446,13 +14654,6 @@
             "value" : "模型服務"
           }
         }
-      }
-    },
-    "Mode" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mode" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模式" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "模式" } }
       }
     },
     "Models" : {
@@ -17684,20 +17885,6 @@
         }
       }
     },
-    "Password strength" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Password strength" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码强度" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "密碼強度" } }
-      }
-    },
-    "Passwords do not match." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Passwords do not match." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "两次输入的密码不一致。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "兩次輸入的密碼不一致。" } }
-      }
-    },
     "Password Generator" : {
       "localizations" : {
         "en" : {
@@ -17716,6 +17903,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼產生器"
+          }
+        }
+      }
+    },
+    "Password must be 8-72 characters and include letters and numbers" : {
+
+    },
+    "Password strength" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password strength"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码强度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼強度"
           }
         }
       }
@@ -17739,6 +17952,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼"
+          }
+        }
+      }
+    },
+    "Passwords do not match." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords do not match."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两次输入的密码不一致。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩次輸入的密碼不一致。"
           }
         }
       }
@@ -18756,10 +18992,26 @@
       }
     },
     "Quick Dial" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Dial" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快拨" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "快撥" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Dial"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快拨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快撥"
+          }
+        }
       }
     },
     "Quick setup — click to fill endpoint + model." : {
@@ -22336,6 +22588,28 @@
         }
       }
     },
+    "Set a sync key first — sync stays local until then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set a sync key first — sync stays local until then."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先设置同步密钥，在此之前数据仅保留在本地。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先設定同步金鑰，在此之前資料僅保留在本機。"
+          }
+        }
+      }
+    },
     "Set as Default Browser…" : {
       "localizations" : {
         "en" : {
@@ -23357,13 +23631,6 @@
         }
       }
     },
-    "Strong" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Strong" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "强" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "強" } }
-      }
-    },
     "Startup" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23583,6 +23850,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在串流輸出"
+          }
+        }
+      }
+    },
+    "Strong" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強"
           }
         }
       }
@@ -23812,69 +24102,6 @@
         }
       }
     },
-    "Sync Categories" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Categories" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步类目" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步類別" } }
-      }
-    },
-    "Set a sync key first — sync stays local until then." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set a sync key first — sync stays local until then." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先设置同步密钥，在此之前数据仅保留在本地。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請先設定同步金鑰，在此之前資料僅保留在本機。" } }
-      }
-    },
-    "Sync key does not match the server data" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync key does not match the server data" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥与服务器数据不匹配" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰與伺服器資料不符" } }
-      }
-    },
-    "Sync key does not match this data" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync key does not match this data" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥与该数据不匹配" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰與該資料不符" } }
-      }
-    },
-    "Import Key" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Key" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入密钥" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入金鑰" } }
-      }
-    },
-    "Generate New Key" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Generate New Key" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生成新密钥" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "產生新金鑰" } }
-      }
-    },
-    "Copy Sync Key" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Sync Key" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制同步密钥" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "複製同步金鑰" } }
-      }
-    },
-    "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "端到端加密：数据在离开这台 Mac 前会用该密钥加密，服务器无法读取。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "端對端加密：資料在離開這台 Mac 前會用該金鑰加密，伺服器無法讀取。" } }
-      }
-    },
-    "Sync Key" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Key" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步密钥" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步金鑰" } }
-      }
-    },
     "Switch model / provider" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23967,6 +24194,32 @@
         }
       }
     },
+    "Sync Categories" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Categories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步类目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步類別"
+          }
+        }
+      }
+    },
+    "Sync encryption failed: %@" : {
+
+    },
     "Sync Error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23986,6 +24239,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同步錯誤"
+          }
+        }
+      }
+    },
+    "Sync Key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步金鑰"
+          }
+        }
+      }
+    },
+    "Sync key does not match the server data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync key does not match the server data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步密钥与服务器数据不匹配"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步金鑰與伺服器資料不符"
+          }
+        }
+      }
+    },
+    "Sync key does not match this data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync key does not match this data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步密钥与该数据不匹配"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步金鑰與該資料不符"
           }
         }
       }
@@ -25959,13 +26280,6 @@
         }
       }
     },
-    "Usernames start with a letter and use 3-32 letters, digits or underscores." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Usernames start with a letter and use 3-32 letters, digits or underscores." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户名以字母开头，可使用 3-32 位字母/数字/下划线。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用者名稱以字母開頭，可使用 3-32 位字母/數字/底線。" } }
-      }
-    },
     "Undo" : {
       "comment" : "Undo button",
       "localizations" : {
@@ -26597,6 +26911,29 @@
         }
       }
     },
+    "Usernames start with a letter and use 3-32 letters, digits or underscores." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usernames start with a letter and use 3-32 letters, digits or underscores."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户名以字母开头，可使用 3-32 位字母/数字/下划线。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用者名稱以字母開頭，可使用 3-32 位字母/數字/底線。"
+          }
+        }
+      }
+    },
     "v%@" : {
       "localizations" : {
         "en" : {
@@ -26912,10 +27249,26 @@
       }
     },
     "Weak" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Weak" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "弱" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "弱" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱"
+          }
+        }
       }
     },
     "Web Content" : {

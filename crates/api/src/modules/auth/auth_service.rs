@@ -10,8 +10,8 @@ use crate::utils::jwt;
 use crate::utils::refresh_token;
 
 use super::auth_model::{
-  CaptchaResp, DeviceDto, DeviceInfoReq, DeviceRow, LoginReq, MeDto, RefreshTokenRow, RegisterReq,
-  SetPasswordReq, TokenPair, UpdateProfileReq, UserRow,
+  CaptchaResp, DeviceDto, DeviceInfoReq, DeviceRow, KeyEscrowResp, LoginReq, MeDto,
+  RefreshTokenRow, RegisterReq, SetPasswordReq, TokenPair, UpdateProfileReq, UserRow,
 };
 
 /// 注册验证码有效期(分钟)
@@ -140,8 +140,72 @@ async fn issue_tokens(
   })
 }
 
-/// 注册验证码:签发 4 位字符码(去易混字符),渲染 PNG,5 分钟一次性。
-/// 顺手清理过期行;按 IP 限流(30/分钟)。dev 环境响应附带明文码(冒烟脚本用)。
+// MARK: - E2E 密钥托管
+
+/// 指纹 64 位 hex / 盐 base64 ≤64 / 包裹体 ≤4KB 的轻量校验。
+fn validate_escrow(kdf_salt: &str, wrapped_dek: &str, key_check: &str) -> Result<(), AppError> {
+  let salt_ok = !kdf_salt.is_empty() && kdf_salt.len() <= 64;
+  let dek_ok = !wrapped_dek.is_empty() && wrapped_dek.len() <= 4096;
+  let check_ok = key_check.len() == 64 && key_check.bytes().all(|b| b.is_ascii_hexdigit());
+  if salt_ok && dek_ok && check_ok {
+    Ok(())
+  } else {
+    Err(AppError::Validation("key escrow 字段非法".into()))
+  }
+}
+
+pub async fn key_escrow_get(state: &AppState, user_id: i64) -> Result<KeyEscrowResp, AppError> {
+  let row: Option<(Option<String>, Option<String>, Option<String>)> =
+    sqlx::query_as("SELECT kdf_salt, wrapped_dek, sync_key_check FROM users WHERE id = ?")
+      .bind(user_id)
+      .fetch_optional(&state.pool)
+      .await?;
+  let Some((salt, wrapped, check)) = row else {
+    return Err(AppError::NotFound("user not found".into()));
+  };
+  Ok(KeyEscrowResp {
+    kdf_salt: salt.filter(|s| !s.is_empty()),
+    wrapped_dek: wrapped.filter(|s| !s.is_empty()),
+    key_check: check.filter(|c| !c.is_empty()),
+  })
+}
+
+/// 上报托管:无已有指纹 → 首次登记;一致 → 幂等;不一致 → 409(防拿错密钥覆盖)。
+pub async fn key_escrow_set(
+  state: &AppState,
+  user_id: i64,
+  kdf_salt: &str,
+  wrapped_dek: &str,
+  key_check: &str,
+) -> Result<(), AppError> {
+  validate_escrow(kdf_salt, wrapped_dek, key_check)?;
+  let existing: Option<Option<String>> =
+    sqlx::query_scalar("SELECT sync_key_check FROM users WHERE id = ?")
+      .bind(user_id)
+      .fetch_optional(&state.pool)
+      .await?;
+  let Some(existing) = existing else {
+    return Err(AppError::NotFound("user not found".into()));
+  };
+  match existing.as_deref().filter(|c| !c.is_empty()) {
+    None => {}
+    Some(c) if c == key_check => {}
+    Some(_) => {
+      return Err(AppError::Conflict(
+        "sync key does not match existing data".into(),
+      ));
+    }
+  }
+  sqlx::query("UPDATE users SET kdf_salt = ?, wrapped_dek = ?, sync_key_check = ? WHERE id = ?")
+    .bind(kdf_salt)
+    .bind(wrapped_dek)
+    .bind(key_check)
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+  Ok(())
+}
+
 /// 纯同步渲染:4 位字符码 + PNG 字节。Captcha 内嵌的 ThreadRng/图片缓冲
 /// 都是 !Send,必须在此函数内销毁,不能跨 await 存活。
 fn render_captcha() -> Result<(String, Vec<u8>), AppError> {
@@ -513,6 +577,17 @@ pub async fn set_password(
   }
   let new_hash = bcrypt::hash(req.new_password.trim(), 10)
     .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
+  // E2E 换包:客户端随改密提交新盐+新包裹体(同 DEK 重包裹),既有密文保持可解
+  if let (Some(salt), Some(wrapped)) = (&req.new_kdf_salt, &req.new_wrapped_dek) {
+    sqlx::query("UPDATE users SET password_hash = ?, kdf_salt = ?, wrapped_dek = ? WHERE id = ?")
+      .bind(new_hash)
+      .bind(salt)
+      .bind(wrapped)
+      .bind(user_id)
+      .execute(&state.pool)
+      .await?;
+    return Ok(());
+  }
   sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
     .bind(new_hash)
     .bind(user_id)

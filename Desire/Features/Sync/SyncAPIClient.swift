@@ -2,17 +2,25 @@ import Foundation
 
 /// 同步服务的错误。401 单列——SyncStore 据此刷新令牌并重试一次。
 enum SyncAPIError: LocalizedError {
-    case unauthorized
+    /// 令牌失效/过期——SyncStore 据此刷新令牌并重试一次
+    case unauthorized(message: String?)
     /// 服务端返回的业务错误（message 可直接展示）
     case server(String)
     case network(String)
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized: String(localized: "Sync session expired")
+        case .unauthorized(let message):
+            message ?? String(localized: "Sync session expired")
         case .server(let message): message
         case .network(let message): message
         }
+    }
+
+    /// 供 retry 逻辑判断:错误是否为 401 类
+    static func isUnauthorized(_ error: Error) -> Bool {
+        if case SyncAPIError.unauthorized = error { return true }
+        return false
     }
 }
 
@@ -48,11 +56,27 @@ nonisolated enum SyncAPIClient {
     }
 
     /// 修改密码（登录态）。成功后现有令牌仍有效。
+    /// body 内可携带换包字段（E2E）：新盐 + 新包裹 DEK。
     static func changePassword(
         baseURL: String, accessToken: String, body: SetPasswordReq
     ) async throws {
         _ = try await rawRequest(
             "PUT", baseURL, "/auth/password",
+            body: encode(body), token: accessToken
+        )
+    }
+
+    /// 读取密钥托管（盐 + 包裹 DEK + 指纹）。全 nil = 第一台设备。
+    static func keyEscrow(baseURL: String, accessToken: String) async throws -> SyncEscrowResp {
+        try await send("GET", baseURL, "/sync/key-escrow", token: accessToken)
+    }
+
+    /// 上报托管。指纹与服务器已有不一致 → 409（防拿错密钥覆盖）。
+    static func setKeyEscrow(
+        baseURL: String, accessToken: String, body: SyncEscrowBody
+    ) async throws {
+        _ = try await rawRequest(
+            "PUT", baseURL, "/sync/key-escrow",
             body: encode(body), token: accessToken
         )
     }
@@ -148,7 +172,12 @@ nonisolated enum SyncAPIClient {
             throw SyncAPIError.network(error.localizedDescription)
         }
         let status = (urlResponse as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 401 { throw SyncAPIError.unauthorized }
+        if status == 401 {
+            // 服务器 401 带具体原因(验证码错误/账号禁用等),透出真实消息
+            let serverMessage = (try? SyncJSON.makeDecoder().decode(SyncEnvelope<SyncNull>.self, from: data))
+                .flatMap { $0.message }
+            throw SyncAPIError.unauthorized(message: serverMessage)
+        }
         // 200 但信封 code≠0（服务端把错误塞进信封）→ 直接取 message
         let envelope = try? SyncJSON.makeDecoder().decode(SyncEnvelope<SyncNull>.self, from: data)
         if let envelope, envelope.code != 0 {
@@ -162,4 +191,5 @@ nonisolated enum SyncAPIClient {
 }
 
 /// 信封 `data: null` 的占位可解码类型。
-struct SyncNull: Codable {}
+/// 信封 `data: null` 的占位可解码类型。nonisolated:被本文件的非隔离客户端在任意线程解码。
+nonisolated struct SyncNull: Codable {}

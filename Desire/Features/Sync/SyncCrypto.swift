@@ -1,3 +1,4 @@
+import CommonCrypto
 import CryptoKit
 import Foundation
 
@@ -78,6 +79,86 @@ nonisolated enum SyncCrypto {
         )
         let tag = HMAC<SHA256>.authenticationCode(for: Data("fingerprint".utf8), using: derived)
         return Data(tag).map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - 密码派生 KEK + DEK 包裹(E2E 密钥托管)
+
+    static let kdfIterations = 600_000
+    static let kdfAlgorithm = "pbkdf2-sha256"
+
+    /// KEK = PBKDF2-HMAC-SHA256(密码, 盐, 60 万次, 32B)。阻塞 ~0.3-0.6s,
+    /// 仅在登录/注册/改密时调用,禁止放进同步周期。
+    static func deriveKEK(password: String, saltBase64: String) throws -> SymmetricKey {
+        guard let salt = Data(base64Encoded: saltBase64) else {
+            throw CryptoError.invalidKeyFormat
+        }
+        var derived = Data(repeating: 0, count: 32)
+        var passwordBytes = Array(password.utf8CString) // 含结尾 NUL,与 C API 约定一致
+        let status = derived.withUnsafeMutableBytes { derivedPtr in
+            salt.withUnsafeBytes { saltPtr in
+                CCKeyDerivationPBKDF(
+                    CCPBKDFAlgorithm(kCCPBKDF2),
+                    &passwordBytes, passwordBytes.count - 1,
+                    saltPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), salt.count,
+                    CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                    UInt32(kdfIterations),
+                    derivedPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    32
+                )
+            }
+        }
+        guard status == kCCSuccess else {
+            throw CryptoError.cryptoFailure("PBKDF2 failed: \(status)")
+        }
+        return SymmetricKey(data: derived)
+    }
+
+    static func generateSalt() -> String {
+        var bytes = Data(repeating: 0, count: 16)
+        _ = bytes.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
+        return bytes.base64EncodedString()
+    }
+
+    /// 用密码派生的 KEK 包裹 DEK → JSON 信封文本(上传服务端托管)。
+    static func wrapDEK(dekBase64: String, password: String, saltBase64: String) throws -> String {
+        guard let dekRaw = Data(base64Encoded: dekBase64), dekRaw.count == 32 else {
+            throw CryptoError.invalidKeyFormat
+        }
+        let kek = try deriveKEK(password: password, saltBase64: saltBase64)
+        let sealed: AES.GCM.SealedBox
+        do {
+            sealed = try AES.GCM.seal(dekRaw, using: kek)
+        } catch {
+            throw CryptoError.cryptoFailure("DEK wrap: \(error.localizedDescription)")
+        }
+        guard let combined = sealed.combined else {
+            throw CryptoError.cryptoFailure("AES-GCM seal returned no combined representation")
+        }
+        let blob = SyncWrappedDek(
+            v: envelopeVersion, kdf: kdfAlgorithm,
+            iter: kdfIterations, ct: base64URL(combined))
+        let data = try JSONEncoder().encode(blob)
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    static func unwrapDEK(_ wrappedJSON: String, password: String, saltBase64: String) throws -> String {
+        guard let data = wrappedJSON.data(using: .utf8),
+              let blob = try? JSONDecoder().decode(SyncWrappedDek.self, from: data) else {
+            throw CryptoError.invalidKeyFormat
+        }
+        let kek = try deriveKEK(password: password, saltBase64: saltBase64)
+        guard let combined = base64URLDecode(blob.ct) else {
+            throw CryptoError.invalidKeyFormat
+        }
+        let sealed: AES.GCM.SealedBox
+        let dekData: Data
+        do {
+            sealed = try AES.GCM.SealedBox(combined: combined)
+            dekData = try AES.GCM.open(sealed, using: kek)
+        } catch {
+            throw CryptoError.authenticationFailed
+        }
+        return dekData.base64EncodedString()
     }
 
     // MARK: - 域派生密钥

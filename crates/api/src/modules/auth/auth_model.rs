@@ -58,6 +58,11 @@ pub struct RevokeDeviceReq {
 pub struct SetPasswordReq {
   pub old_password: String,
   pub new_password: String,
+  /// 改密时同步换包:新盐 + 新 KEK 包裹的 DEK(E2E;缺省 = 该账号无托管密钥)
+  #[serde(default)]
+  pub new_kdf_salt: Option<String>,
+  #[serde(default)]
+  pub new_wrapped_dek: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -96,6 +101,24 @@ pub struct DeviceDto {
   pub revoked: bool,
   pub last_seen_at: chrono::NaiveDateTime,
   pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct KeyEscrowResp {
+  /// PBKDF2 盐(base64);None = 该账号尚未托管密钥(第一台设备)
+  pub kdf_salt: Option<String>,
+  /// 包裹后的 DEK(JSON 信封文本,服务端不可读);None = 无
+  pub wrapped_dek: Option<String>,
+  /// DEK 指纹(hex),客户端用于校验密钥一致性
+  pub key_check: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct KeyEscrowBody {
+  pub kdf_salt: String,
+  pub wrapped_dek: String,
+  /// DEK 指纹(hex);与已有指纹不一致时 409(防拿错密钥覆盖)
+  pub key_check: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

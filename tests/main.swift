@@ -584,6 +584,34 @@ do {
     eq("记忆 摘要盖写", overwritten.summaries[0].summary, "新摘要")
 }
 
+// ---------- 云同步：E2E 密钥托管（PBKDF2/wrap） ----------
+
+do {
+    let password = "correct-horse-battery"
+    let salt = SyncCrypto.generateSalt()
+    let dek = SyncCrypto.generateMasterKey()
+
+    // KEK 确定 + wrap/unwrap 回环
+    let wrapped = try SyncCrypto.wrapDEK(dekBase64: dek, password: password, saltBase64: salt)
+    check("托管信封可解析", wrapped.contains("\"pbkdf2-sha256\""))
+    let restored = try SyncCrypto.unwrapDEK(wrapped, password: password, saltBase64: salt)
+    eq("托管 DEK 回环", restored, dek)
+    // 错误密码 → 解包认证失败
+    check("错密码解包被拒",
+          (try? SyncCrypto.unwrapDEK(wrapped, password: "wrong", saltBase64: salt)) == nil)
+    // 错误盐 → 解包认证失败
+    check("错盐解包被拒",
+          (try? SyncCrypto.unwrapDEK(wrapped, password: password, saltBase64: SyncCrypto.generateSalt())) == nil)
+    // KEK 确定(同密码同盐同派生)
+    let kek1 = try SyncCrypto.deriveKEK(password: password, saltBase64: salt)
+    let kek2 = try SyncCrypto.deriveKEK(password: password, saltBase64: salt)
+    eq("KEK 确定", kek1.withUnsafeBytes { Data($0) }, kek2.withUnsafeBytes { Data($0) })
+    // 盐唯一
+    check("盐唯一", SyncCrypto.generateSalt() != SyncCrypto.generateSalt())
+}
+
+// ---------- 汇总 ----------
+
 // ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

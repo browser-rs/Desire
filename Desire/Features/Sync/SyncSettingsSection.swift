@@ -18,12 +18,8 @@ struct SyncSettingsSection: View {
     @State private var pwWorking = false
     @State private var pwError: String?
     @State private var pwSaved = false
-    @State private var importedKey = ""
-    @State private var keyWorking = false
     @State private var captchaInput = ""
     @State private var captchaLoading = false
-    @State private var keyError: String?
-    @State private var keyCopied = false
 
     var body: some View {
         SettingsContainer {
@@ -272,133 +268,80 @@ struct SyncSettingsSection: View {
 
     // MARK: - 已登录：状态 + 操作
 
+    /// 各区块直接作为 body 级 SettingsContainer 的兄弟子视图（勿再套
+    /// SettingsContainer——双层容器会让本区块被双重内边距挤窄，宽度不一致）。
     @ViewBuilder
     private func signedIn(_ account: String) -> some View {
-        SettingsContainer {
-            SettingsSection(
-                title: "Sync",
-                subtitle: "Bookmarks sync automatically every 5 minutes and at launch.",
-                icon: "arrow.triangle.2.circlepath"
-            ) {
-                VStack(spacing: 0) {
-                    SettingsRow("Account", subtitle: account) {
-                        if store.isSyncing {
-                            StatusPill(text: localizedSettingText("Syncing…"), kind: .info)
-                        } else {
-                            StatusPill(text: localizedSettingText("Signed in"), kind: .success)
-                        }
-                    }
-                    SettingsRowDivider()
-                    SettingsRow("Last Sync", subtitle: lastSyncText) {
-                        SettingsCapsuleButton(
-                            "Sync Now",
-                            isDisabled: store.isSyncing
-                        ) {
-                            isWorking = true
-                            Task {
-                                await store.syncNow()
-                                isWorking = false
-                            }
-                        }
-                    }
-                    if let error = store.lastError {
-                        SettingsRowDivider()
-                        SettingsRow("Sync Error", subtitle: error) {
-                            EmptyView()
-                        }
-                    }
-                    SettingsRowDivider()
-                    SettingsActionRow(
-                        "Device",
-                        subtitle: "Sign out on this Mac. Synced data stays on the server.",
-                        buttonTitle: "Sign Out",
-                        isDestructive: true
-                    ) {
-                        store.logout()
-                        password = ""
-                        currentPassword = ""
-                        newPassword = ""
-                        pwSaved = false
+        syncSection(account)
+        keySection
+        passwordSection
+        categoriesSection
+    }
+
+    private func syncSection(_ account: String) -> some View {
+        SettingsSection(
+            title: "Sync",
+            subtitle: "Bookmarks sync automatically every 5 minutes and at launch.",
+            icon: "arrow.triangle.2.circlepath"
+        ) {
+            VStack(spacing: 0) {
+                SettingsRow("Account", subtitle: account) {
+                    if store.isSyncing {
+                        StatusPill(text: localizedSettingText("Syncing…"), kind: .info)
+                    } else {
+                        StatusPill(text: localizedSettingText("Signed in"), kind: .success)
                     }
                 }
+                SettingsRowDivider()
+                SettingsRow("Last Sync", subtitle: lastSyncText) {
+                    SettingsCapsuleButton(
+                        "Sync Now",
+                        isDisabled: store.isSyncing
+                    ) {
+                        isWorking = true
+                        Task {
+                            await store.syncNow()
+                            isWorking = false
+                        }
+                    }
+                }
+                if let error = store.lastError {
+                    SettingsRowDivider()
+                    SettingsRow("Sync Error", subtitle: error) {
+                        EmptyView()
+                    }
+                }
+                SettingsRowDivider()
+                SettingsActionRow(
+                    "Device",
+                    subtitle: "Sign out on this Mac. Synced data stays on the server.",
+                    buttonTitle: "Sign Out",
+                    isDestructive: true
+                ) {
+                    store.logout()
+                    password = ""
+                    currentPassword = ""
+                    newPassword = ""
+                    pwSaved = false
+                }
             }
-            keySection
-            passwordSection
-            categoriesSection
-            serverSection
         }
     }
 
     // MARK: - 同步密钥（E2E 加密）
 
+    /// 密钥由账号密码经 KDF 派生并托管在服务器（包裹形态），换设备登录即自动恢复;
+    /// 不再提供手工生成/导入——忘记密码即无法解密既有服务端数据(标准 E2E 取舍)。
     @ViewBuilder
     private var keySection: some View {
         SettingsSection(
             title: "Sync Key",
-            subtitle: "End-to-end encrypted: your data is encrypted with this key before it leaves this Mac. The server can never read it.",
+            subtitle: "End-to-end encrypted with your account password. The server stores only scrambled data and cannot read it.",
             icon: "key.fill"
         ) {
-            VStack(spacing: 0) {
-                if store.hasSyncKey {
-                    SettingsRow("Key Fingerprint", subtitle: store.syncKeyFingerprint) {
-                        SettingsCapsuleButton("Copy Sync Key", style: .secondary) {
-                            if let key = store.revealSyncKey() {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(key, forType: .string)
-                                keyCopied = true
-                            }
-                        }
-                    }
-                    SettingsRowDivider()
-                    SettingsRow("Copy Sync Key", subtitle: keyCopied ? localizedSettingText("Copied") : nil) {
-                        EmptyView()
-                    }
-                } else {
-                    SettingsRow("Sync Key") {
-                        SettingsTextField(
-                            placeholder: "Paste the base64 key from another device.",
-                            text: $importedKey,
-                            width: 240
-                        )
-                    }
-                    SettingsRowDivider()
-                    SettingsRow("Sync Key", subtitle: keyError) {
-                        HStack(spacing: 8) {
-                            SettingsCapsuleButton(
-                                "Generate New Key",
-                                isDisabled: keyWorking
-                            ) { runKeyFlow(importText: nil) }
-                            SettingsCapsuleButton(
-                                "Import Key",
-                                style: .secondary,
-                                isDisabled: importedKey.trimmingCharacters(in: .whitespaces).isEmpty || keyWorking
-                            ) { runKeyFlow(importText: importedKey) }
-                        }
-                    }
-                }
+            SettingsRow("Key Fingerprint", subtitle: store.syncKeyFingerprint ?? localizedSettingText("Not set")) {
+                EmptyView()
             }
-        }
-    }
-
-    private func runKeyFlow(importText: String?) {
-        keyWorking = true
-        keyError = nil
-        keyCopied = false
-        Task { @MainActor in
-            do {
-                if let importText {
-                    try store.importSyncKey(importText)
-                } else {
-                    let key = try store.generateSyncKey()
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(key, forType: .string)
-                    keyCopied = true
-                }
-                try await store.uploadKeyCheck()
-            } catch {
-                keyError = error.localizedDescription
-            }
-            keyWorking = false
         }
     }
 
@@ -512,7 +455,7 @@ struct SyncSettingsSection: View {
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Server", subtitle: store.serverBaseURL) {
+                SettingsRow("Server") {
                     SettingsTextField(
                         placeholder: "http://127.0.0.1:18090",
                         text: $serverURL,

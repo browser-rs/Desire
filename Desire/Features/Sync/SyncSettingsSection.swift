@@ -290,7 +290,7 @@ struct SyncSettingsSection: View {
     private func syncSection(_ account: String) -> some View {
         SettingsSection(
             title: "Sync",
-            subtitle: "Bookmarks sync automatically every 5 minutes and at launch.",
+            subtitle: "Changes sync within seconds. A full check runs every 5 minutes.",
             icon: "arrow.triangle.2.circlepath"
         ) {
             VStack(spacing: 0) {
@@ -367,7 +367,8 @@ struct SyncSettingsSection: View {
                 ForEach(Array(SyncDomain.allCases.enumerated()), id: \.element) { index, domain in
                     if index > 0 { SettingsRowDivider() }
                     SettingsToggleRow(
-                        localizedSettingText(domainTitle(domain)),
+                        domain.displayName,
+                        subtitle: domainStatusCaption(domain),
                         isOn: Binding(
                             get: { store.isEnabled(domain) },
                             set: { store.setEnabled(domain, $0) }
@@ -378,15 +379,21 @@ struct SyncSettingsSection: View {
         }
     }
 
-    private func domainTitle(_ domain: SyncDomain) -> String {
-        switch domain {
-        case .bookmarks: "Bookmarks"
-        case .quickDials: "Quick Dial"
-        case .readingList: "Reading List"
-        case .keyboardShortcuts: "Keyboard Shortcuts"
-        case .settings: "Settings"
-        case .agentMemory: "Agent Memory"
-        case .agentPrefs: "Agent Prompt"
+    /// 相对时间文案（系统本地化，"3 分钟前"），随 app 语言走。
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    /// 逐域状态副标题：✓ + 相对时间 / ⚠ + 错误文案。禁用的域不显示（状态无意义）。
+    private func domainStatusCaption(_ domain: SyncDomain) -> String? {
+        guard store.isEnabled(domain), let status = store.domainStatus[domain] else { return nil }
+        switch status {
+        case .ok(let date):
+            return "✓ " + Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
+        case .failed(let message):
+            return "⚠ " + message
         }
     }
 
@@ -482,11 +489,12 @@ struct SyncSettingsSection: View {
         }
     }
 
+    /// 上次完整同步：相对时间为主（"3 分钟前"），绝对时间挂 tooltip。
     private var lastSyncText: String {
         guard let lastSyncAt = store.lastSyncAt else {
             return localizedSettingText("Never")
         }
-        return lastSyncAt.formatted(date: .abbreviated, time: .shortened)
+        return Self.relativeFormatter.localizedString(for: lastSyncAt, relativeTo: Date())
     }
 
 }

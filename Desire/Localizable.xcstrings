@@ -111,6 +111,52 @@
         }
       }
     },
+    "Changes sync within seconds. A full check runs every 5 minutes." : {
+      "comment" : "Sync settings subtitle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes sync within seconds. A full check runs every 5 minutes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改在数秒内同步，每 5 分钟做一次完整检查。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更在數秒內同步，每 5 分鐘做一次完整檢查。"
+          }
+        }
+      }
+    },
+    "Not set" : {
+      "comment" : "Sync key fingerprint placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not set"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        }
+      }
+    },
     "·" : {
       "localizations" : {
         "en" : {
@@ -10718,7 +10764,27 @@
       }
     },
     "Failed to load the verification code" : {
-
+      "comment" : "Sync captcha fetch failure",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load the verification code"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码加载失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證碼載入失敗"
+          }
+        }
+      }
     },
     "Fair" : {
       "extractionState" : "stale",
@@ -17977,7 +18043,27 @@
       }
     },
     "Password must be 8-72 characters and include letters and numbers" : {
-
+      "comment" : "Password policy",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password must be 8-72 characters and include letters and numbers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码需 8-72 个字符，且同时包含字母和数字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼需 8-72 個字元，且同時包含字母和數字"
+          }
+        }
+      }
     },
     "Password strength" : {
       "extractionState" : "stale",
@@ -24287,7 +24373,27 @@
       }
     },
     "Sync encryption failed: %@" : {
-
+      "comment" : "Crypto error with detail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync encryption failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步加密失败：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步加密失敗：%@"
+          }
+        }
+      }
     },
     "Sync Error" : {
       "extractionState" : "stale",

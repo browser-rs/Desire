@@ -1078,6 +1078,31 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   **测试提醒**：curl 推设置若得 conflict 是 LWW 正常行为——秒级 `date` 时间戳会输给
   应用侧微秒戳，要用 python 生成带微秒/更晚的时间戳。
   下一步 = 客户端 SyncEngine（Swift 侧按域 adapter + DiskStore 接线）。
+- **同步已改变更驱动（2026-09-26，"全面优化"轮）**：**push 走脏域门控 + 5s 防抖**，
+  不再每 5 分钟全量推——源 store 的 `objectWillChange`（init 里 `observeLocalChanges`
+  订阅七个 store）→ `dirtyDomains` 标脏 → 防抖到点只推脏域；pull 始终游标增量 +
+  5 分钟定时兜底 + 唤醒（`NSWorkspace.didWakeNotification`，延 10s 等网络）/断网恢复
+  （NWPathMonitor）补拉。五条硬规矩：
+  ① **远端回写必须包 `applyRemotely`**——`objectWillChange` 在属性写**之前**同步触发，
+  `applyingRemote` 守卫窗口内的通知不是本地变更；不包的话 pull 回来的数据把自己标脏、
+  推拉互振成死循环。窗口必须**同步闭合**（不能罩住 await——否则用户轮次中的真实变更会被吞）。
+  ② **脏标记先摘再 collect，push 失败放回**——collect 同步、push 是网络窗口，摘早了
+  窗口内的新变更会重新标脏；放回由退避重试兜（5s 翻倍至 300s 封顶）。
+  ③ **新增域 checklist** = `domainAdapters` 加一行（collect/apply/clear/commit?）+
+  init 订阅源 store；防抖/隔离/退避自动生效。settings/agentPrefs 类"快照 diff"域还要
+  提供 `commit`（**push 全部成功后才落快照**，收集时先攒 pending）。
+  ④ **快照语义 = "与服务器已一致"**——本地写路径（含桥 `/sync/setting`）只盖戳+标脏、
+  **绝不写快照**（写了这变更永远推不上去，2026-09-26 当场修掉自己引入的这个回归；
+  顺带修了旧缺陷：本地改过的设置键以前每轮重复推，因为 collect 盖新戳而快照不落）。
+  ⑤ **错误口径分自动/手动**——`syncNow(isAuto:)`：自动失败只落 `domainStatus`
+  （设置页逐域"✓ 相对时间 / ⚠ 错误"），手动失败才刷新全局 lastError；单域失败不阻断
+  其他域（`SyncCycleOutcome` 聚合，401 仍上抛整体刷新重试）。离线时自动同步静默跳过。
+  其他：**push 分块 400 条**（服务端 MAX_PUSH_ITEMS=500，大书签库全量一发会被整单拒）、
+  **pull 整页 1000 自动翻页**（中途失败游标不落盘=幂等重拉）、登录/启动首轮仍全脏对账、
+  退出登录清脏/退避/防抖任务。E2E 手法（桥即可全程验证）：`/bookmarks/add` 后**不调
+  /sync/now**，轮询 `/sync/status` 看 `domains.bookmarks.dirty` 秒级转 false + ok 时间戳
+  刷新；服务端落库用**第二客户端 curl 直登**（`/auth/login` 无需验证码 → GET
+  /sync/bookmarks 数行），删除后核对 tombstone（deleted=true 且 payload NULL）。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
   `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：

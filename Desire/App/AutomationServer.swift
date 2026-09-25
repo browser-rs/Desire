@@ -2529,6 +2529,8 @@ final class AutomationServer {
             "reading_list": defaults.string(forKey: "sync.cursor.reading_list") ?? "",
             "keyboard_shortcuts": defaults.string(forKey: "sync.cursor.keyboard_shortcuts") ?? "",
             "settings": defaults.string(forKey: "sync.cursor.settings") ?? "",
+            "agent_memory": defaults.string(forKey: "sync.cursor.agent_memory") ?? "",
+            "agent_prefs": defaults.string(forKey: "sync.cursor.agent_prefs") ?? "",
         ]
         return [
             "auth": auth,
@@ -2549,6 +2551,22 @@ final class AutomationServer {
                 "quickdials": app.quickDialStore.pendingDeletions.count,
                 "reading_list": app.readingListStore.pendingDeletions.count,
             ],
+            // 变更驱动同步的观测面：每域脏标记 + 最近一次结果
+            "domains": Dictionary(
+                uniqueKeysWithValues: SyncDomain.allCases.map { domain in
+                    let status: [String: Any]
+                    switch store.domainStatus[domain] {
+                    case .ok(let date): status = ["ok": date.timeIntervalSince1970]
+                    case .failed(let message): status = ["error": message]
+                    case nil: status = [:]
+                    }
+                    return (domain.rawValue, [
+                        "enabled": store.isEnabled(domain),
+                        "dirty": store.isDirty(domain),
+                        "status": status,
+                    ])
+                }
+            ),
         ]
     }
 

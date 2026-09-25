@@ -610,9 +610,37 @@ do {
     check("盐唯一", SyncCrypto.generateSalt() != SyncCrypto.generateSalt())
 }
 
-// ---------- 汇总 ----------
+// ---------- 同步：域级结果聚合（SyncCycleOutcome） ----------
 
-// ---------- 汇总 ----------// ---------- 汇总 ----------// ---------- 汇总 ----------
+do {
+    // 空轮次：无失败、无成功
+    let empty = SyncCycleOutcome()
+    check("outcome：空轮无错误文案", empty.errorText() == nil)
+    check("outcome：空轮无成功", !empty.anySuccess && !empty.hasFailure)
+
+    // 部分失败：文案按 SyncDomain.allCases 固定顺序拼接，带展示名
+    var partial = SyncCycleOutcome()
+    partial.succeeded.insert(.settings)
+    partial.failed[.bookmarks] = "network down"
+    partial.failed[.agentPrefs] = "409"
+    let text = partial.errorText() ?? ""
+    check("outcome：部分失败有文案", !text.isEmpty)
+    check("outcome：文案含域名与消息", text.contains("Bookmarks: network down") && text.contains("Agent Prompt: 409"))
+    check("outcome：文案顺序按域枚举序（bookmarks 在 agentPrefs 前）",
+          (text.range(of: "Bookmarks")?.lowerBound ?? text.endIndex) < (text.range(of: "Agent Prompt")?.lowerBound ?? text.endIndex))
+    check("outcome：部分成功可见", partial.anySuccess && partial.hasFailure)
+    check("outcome：文案不含成功域", !text.contains("Settings"))
+
+    // 全失败：anySuccess = false（全局 lastSyncAt 不推进的依据）
+    var allBad = SyncCycleOutcome()
+    allBad.failed[.quickDials] = "timeout"
+    check("outcome：全失败无成功", !allBad.anySuccess && allBad.hasFailure)
+
+    // displayName：七个域都有非空展示名
+    check("domain：展示名齐全", SyncDomain.allCases.allSatisfy { !$0.displayName.isEmpty })
+}
+
+// ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

@@ -15,6 +15,39 @@ enum SyncDomain: String, CaseIterable {
     case agentMemory = "agent_memory"
     /// Agent 自定义系统提示词
     case agentPrefs = "agent_prefs"
+
+    /// 展示名（键与设置页既有文案共用，目录里已有三语）。
+    var displayName: String {
+        switch self {
+        case .bookmarks: String(localized: "Bookmarks")
+        case .quickDials: String(localized: "Quick Dial")
+        case .readingList: String(localized: "Reading List")
+        case .keyboardShortcuts: String(localized: "Keyboard Shortcuts")
+        case .settings: String(localized: "Settings")
+        case .agentMemory: String(localized: "Agent Memory")
+        case .agentPrefs: String(localized: "Agent Prompt")
+        }
+    }
+}
+
+/// 一轮同步的域级结果聚合（纯逻辑，tests/run.sh 覆盖）：哪些域成功、哪些失败、
+/// 全局错误文案怎么拼。域间错误隔离后，一轮可以"部分成功"——据此决定
+/// lastSyncAt 是否推进、全局 lastError 是否刷新。
+struct SyncCycleOutcome: Equatable {
+    var succeeded: Set<SyncDomain> = []
+    var failed: [SyncDomain: String] = [:]
+
+    var anySuccess: Bool { !succeeded.isEmpty }
+    var hasFailure: Bool { !failed.isEmpty }
+
+    /// 全局错误文案：按 SyncDomain.allCases 固定顺序拼接（稳定可测），无失败 = nil。
+    func errorText() -> String? {
+        guard !failed.isEmpty else { return nil }
+        return SyncDomain.allCases.compactMap { domain -> String? in
+            guard let message = failed[domain] else { return nil }
+            return "\(domain.displayName): \(message)"
+        }.joined(separator: "  ")
+    }
 }
 
 /// 书签域的 payload(密文内部结构,服务器不解读)。

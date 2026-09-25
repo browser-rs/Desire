@@ -1,15 +1,22 @@
+import AppKit
 import Combine
 import Foundation
 import LocalAuthentication
+import Network
 import Security
 
 /// 云同步会话与编排（Store 层）：登录态（令牌存 Keychain）、每域拉取游标、
-/// 立即/定时同步。策略 = 每周期"全量 push + 游标增量 pull"，LWW 仲裁在服务端。
+/// 变更驱动的近实时同步。策略：
+/// - **push 走脏域门控**：源 store 的 objectWillChange → 标脏 → 5 秒防抖后
+///   只上推脏域（`applyingRemote` 守卫保证远端合并回写不再标脏）；启动/登录
+///   首轮全脏做全量对账；push 失败保留脏标记，退避重试（5s 翻倍至 5min 封顶）。
+/// - **pull 始终游标增量**，每 5 分钟定时巡检 + 唤醒/联网恢复时补一轮。
+/// - LWW 仲裁在服务端；单域失败不阻断其他域（结果见 domainStatus）。
 ///
 /// **E2E 加密**：主密钥（256 位）只在客户端 Keychain，永不上传；每个域用
 /// HKDF 派生独立密钥做 AES-256-GCM 载荷加密，client_id 用独立派生密钥做
-/// HMAC（服务器只见不透明标签）。服务器另有密钥指纹（HMAC 的 hex）用于
-/// 新设备导入校验。见 SyncCrypto。
+/// HMAC（服务器只见不透明标签）。服务器另有密钥托管（密码包裹的 DEK）用于
+/// 新设备恢复。见 SyncCrypto。
 ///
 /// Keychain 读全部 `interactive: false`（LAContext interactionNotAllowed）——
 /// 启动/回合中路径禁止触发隐窗授权（v0.3.14 教训，见 AGENTS）。
@@ -21,12 +28,21 @@ final class SyncStore: ObservableObject {
         case signedIn(username: String)
     }
 
+    /// 单域最近一次同步结果（设置页逐域展示）。
+    enum DomainStatus: Equatable {
+        case ok(Date)
+        case failed(String)
+    }
+
     @Published private(set) var authState: AuthState = .signedOut
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSyncAt: Date?
-    /// 最近一次同步/登录失败的展示文本；成功后清空。
+    /// 最近一次同步/登录失败的展示文本；成功后清空。只在**手动**同步失败时刷新
+    /// （自动同步的失败落在 domainStatus 里，不拿后台网络抖动打扰用户）。
     @Published private(set) var lastError: String?
     private var lastAuthError: Error?
+    /// 各域最近一次同步结果（ok 时间 / failed 文案）。
+    @Published private(set) var domainStatus: [SyncDomain: DomainStatus] = [:]
     /// 同步服务器地址（设置页/桥可改，立即生效）。
     @Published private(set) var serverBaseURL: String
     /// 用户选择的同步类目（缺省全开）。关闭 = 跳过该域 push/pull；
@@ -51,6 +67,31 @@ final class SyncStore: ObservableObject {
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
+    // MARK: 变更驱动同步的状态
+
+    /// 本地有未上推变更的域。源 store 的 objectWillChange 标脏；push 成功才清
+    /// （collect 与清标记在同一个同步块里，网络期间的新变更会重新标脏，不丢）。
+    private var dirtyDomains: Set<SyncDomain> = []
+    /// 远端合并回写（push 胜者落地 / pull 合并 / 清 pending）期间的守卫：
+    /// objectWillChange 在属性写**之前**同步触发，这段窗口内的通知不是本地变更。
+    private var applyingRemote = false
+    /// 防抖任务（nil = 无排程；同一窗口内的多次变更合并成一次同步）。
+    private var changeSyncTask: Task<Void, Never>?
+    /// 自动重试间隔：5s 起步，失败翻倍，封顶 300s（退化为定时器节奏）。
+    private var changeSyncDelay: TimeInterval = changeDebounceSeconds
+    /// 网络可达性（离线时自动同步静默跳过；手动照常执行并如实报错）。
+    private var isOnline = true
+    private let pathMonitor = NWPathMonitor()
+    private var cancellables: Set<AnyCancellable> = []
+
+    // 常量 nonisolated：默认参数值等非隔离上下文也要读（Swift 6 下是错误）。
+    nonisolated static let changeDebounceSeconds: TimeInterval = 5
+    nonisolated static let maxRetryDelaySeconds: TimeInterval = 300
+    /// 服务端 push 单请求条数上限 500（MAX_PUSH_ITEMS），客户端分块留余量。
+    nonisolated static let pushChunkSize = 400
+    /// 服务端 pull 固定页大小（PULL_LIMIT，请求不带 limit 参数）。
+    nonisolated static let pullPageSize = 1000
+
     // UserDefaults keys
     private let usernameKey = "sync.username"
     private let serverKey = "sync.serverBaseURL"
@@ -72,7 +113,8 @@ final class SyncStore: ObservableObject {
         let devCode: String?
     }
 
-    /// 定时同步间隔（5 分钟；各域量小，全量 push 无压力）。
+    /// 定时巡检间隔(5 分钟):push 走脏域门控(变更后 5 秒级防抖),pull 始终游标
+    /// 增量,定时轮只是其他设备变更的兜底拉取。
     private let syncInterval: TimeInterval = 300
 
     init(
@@ -103,6 +145,87 @@ final class SyncStore: ObservableObject {
             authState = .signedIn(username: username)
         }
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date
+        // 变更驱动：源 store 一动就标脏 + 排防抖同步。注意 AgentPreferenceStore
+        // 的任何变化（不只提示词）都会标脏 agentPrefs——多标无害（未变化的
+        // collect 返回空、不产生 push），换来的是订阅层零特判。
+        observeLocalChanges(bookmarkStore.objectWillChange, domain: .bookmarks)
+        observeLocalChanges(quickDialStore.objectWillChange, domain: .quickDials)
+        observeLocalChanges(readingListStore.objectWillChange, domain: .readingList)
+        observeLocalChanges(shortcutStore.objectWillChange, domain: .keyboardShortcuts)
+        observeLocalChanges(settings.objectWillChange, domain: .settings)
+        observeLocalChanges(agentPreferenceStore.objectWillChange, domain: .agentPrefs)
+        observeLocalChanges(agentMemoryStore.objectWillChange, domain: .agentMemory)
+    }
+
+    private func observeLocalChanges(
+        _ publisher: ObservableObjectPublisher, domain: SyncDomain
+    ) {
+        publisher
+            .sink { [weak self] _ in self?.noteLocalChange(domain) }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - 变更驱动调度
+
+    private func noteLocalChange(_ domain: SyncDomain) {
+        guard !applyingRemote else { return }
+        dirtyDomains.insert(domain)
+        scheduleChangeSync()
+    }
+
+    /// 排一次防抖同步（已有排程则合并）。isSyncing 时不特殊处理：syncNow
+    /// 会把这次调用转成"轮次结束后补排"，脏标记不会丢。
+    private func scheduleChangeSync(after delay: TimeInterval = changeDebounceSeconds) {
+        guard case .signedIn = authState, hasSyncKey, changeSyncTask == nil else { return }
+        changeSyncTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self else { return }
+            self.changeSyncTask = nil
+            await self.syncNow(isAuto: true)
+        }
+    }
+
+    /// 一轮结束后的收尾：还有脏域（轮次中途新变更 / push 失败）就再排一场；
+    /// 失败场景指数退避，避免对挂掉的服务器 5 秒一撞。
+    private func settleAutoFollowUp(hadFailure: Bool) {
+        guard case .signedIn = authState, hasSyncKey, !dirtyDomains.isEmpty else { return }
+        if hadFailure {
+            changeSyncDelay = min(changeSyncDelay * 2, Self.maxRetryDelaySeconds)
+        } else {
+            changeSyncDelay = Self.changeDebounceSeconds
+        }
+        scheduleChangeSync(after: changeSyncDelay)
+    }
+
+    private func startNetworkMonitoring() {
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let online = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                guard let self, self.isOnline != online else { return }
+                self.isOnline = online
+                // 断网期间积压的本地变更，恢复联网立刻补推。
+                if online { self.scheduleChangeSync() }
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "me.siwi.Desire.sync.path"))
+    }
+
+    /// 睡眠唤醒后补一轮（其他设备睡眠期间的下发 + 本机积压上推）。
+    /// 延 10 秒等网络栈就绪；离线则由 isOnline 门控自然跳过。
+    private func observeWake() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(10))
+                await self?.syncNow(isAuto: true)
+            }
+        }
+    }
+
+    /// 桥/调试用：某域是否有未上推的本地变更。
+    func isDirty(_ domain: SyncDomain) -> Bool {
+        dirtyDomains.contains(domain)
     }
 
     func setServerBaseURL(_ url: String) {
@@ -125,6 +248,9 @@ final class SyncStore: ObservableObject {
     func setEnabled(_ domain: SyncDomain, _ enabled: Bool) {
         enabledDomains[domain] = enabled
         defaults.set(enabled, forKey: enabledKey(domain))
+        // 重新打开：关闭期间积压的本地变更（脏标记一直在）即刻防抖补推，
+        // 不等 5 分钟兜底轮。
+        if enabled { scheduleChangeSync() }
     }
 
     // MARK: - E2E 主密钥
@@ -152,14 +278,18 @@ final class SyncStore: ObservableObject {
         if syncTimer == nil {
             syncTimer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.syncNow()
+                    await self?.syncNow(isAuto: true)
                 }
             }
         }
+        startNetworkMonitoring()
+        observeWake()
         guard case .signedIn = authState, hasSyncKey else { return }
+        // 启动首轮全脏：对账本地未上推的变更（含上次会话遗留的 tombstone）。
+        dirtyDomains = Set(SyncDomain.allCases)
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(3))
-            await self.syncNow()
+            await self.syncNow(isAuto: true)
         }
     }
 
@@ -218,6 +348,8 @@ final class SyncStore: ObservableObject {
         lastError = nil
         // E2E 密钥生命周期(密码仍在作用域):注册 = 首次托管;登录 = 从托管恢复
         try await restoreOrEscrowDEK(password: password)
+        // 登录/注册后首轮全脏:本地存量(含换账号场景)全部与服务器对账一遍
+        dirtyDomains = Set(SyncDomain.allCases)
         await syncNow()
     }
 
@@ -270,6 +402,11 @@ final class SyncStore: ObservableObject {
         clearSyncState()
         authState = .signedOut
         lastError = nil
+        dirtyDomains = []
+        domainStatus = [:]
+        changeSyncTask?.cancel()
+        changeSyncTask = nil
+        changeSyncDelay = Self.changeDebounceSeconds
     }
 
     /// 清空账号相关的本地同步状态。游标是**按账号语义**存的（每设备每域的
@@ -314,107 +451,191 @@ final class SyncStore: ObservableObject {
 
     // MARK: - 同步
 
-    /// 各域 push + pull。已登录、有密钥且空闲才执行；401 时刷新令牌并整体重试一次。
-    func syncNow() async {
-        guard case .signedIn = authState, !isSyncing else { return }
-        guard hasSyncKey else {
-            lastError = String(localized: "Set a sync key first — sync stays local until then.")
+    /// 各域 push（仅脏域）+ pull（全部启用域）。已登录、有密钥且空闲才执行；
+    /// 401 时刷新令牌并整体重试一次。isAuto = 定时/防抖/唤醒触发的后台轮次：
+    /// 离线静默跳过，失败只落 domainStatus；手动失败才刷新全局 lastError。
+    func syncNow(isAuto: Bool = false) async {
+        if isSyncing {
+            // 正在跑的轮次收集不到这批变更——结束后补排一场（见 settleAutoFollowUp）。
+            scheduleChangeSync()
             return
         }
+        guard case .signedIn = authState else { return }
+        guard hasSyncKey else {
+            if !isAuto {
+                lastError = String(localized: "Set a sync key first — sync stays local until then.")
+            }
+            return
+        }
+        if isAuto && !isOnline { return }
         isSyncing = true
         defer { isSyncing = false }
+        var outcome = SyncCycleOutcome()
         do {
-            try await runSyncCycle()
-            lastError = nil
+            outcome = try await runSyncCycle()
         } catch SyncAPIError.unauthorized {
             // access 过期：强制刷新后整体重试一次
             keychainDelete(accessAccount)
             do {
                 _ = try await validAccessToken()
-                try await runSyncCycle()
-                lastError = nil
+                outcome = try await runSyncCycle()
             } catch {
-                lastError = error.localizedDescription
+                outcome = failAllEnabledDomains(error.localizedDescription)
             }
         } catch {
-            lastError = error.localizedDescription
+            outcome = failAllEnabledDomains(error.localizedDescription)
+        }
+        if outcome.hasFailure {
+            if !isAuto { lastError = outcome.errorText() }
+        } else {
+            lastError = nil
+        }
+        if outcome.anySuccess {
+            lastSyncAt = Date()
+            defaults.set(lastSyncAt, forKey: lastSyncKey)
+        }
+        settleAutoFollowUp(hadFailure: outcome.hasFailure)
+    }
+
+    /// 令牌/主密钥级失败（影响所有启用域）：全部启用域记失败，汇总口径统一。
+    private func failAllEnabledDomains(_ message: String) -> SyncCycleOutcome {
+        var outcome = SyncCycleOutcome()
+        for adapter in domainAdapters where isEnabled(adapter.domain) {
+            outcome.failed[adapter.domain] = message
+            domainStatus[adapter.domain] = .failed(message)
+        }
+        return outcome
+    }
+
+    /// 单域适配器：collect 本机状态（加密）→ push → 冲突胜者落地 → 清已裁决
+    /// tombstone → 游标增量 pull → 合并回写。**新增域 = 在 domainAdapters 加一行
+    /// + init 里订阅源 store**（observeLocalChanges），脏标记/防抖/隔离自动生效。
+    private struct DomainAdapter {
+        let domain: SyncDomain
+        let collect: (String) -> [SyncWireItem<SyncEncryptedPayload>]
+        let apply: ([SyncWireItem<SyncEncryptedPayload>], String) -> Void
+        let clear: (Set<String>, String) -> Void
+        /// push 全部成功后调用（settings/agentPrefs 用它把"待生效快照"落盘；
+        /// 收集时先攒着，push 失败就不落，下轮以更新戳重推）。
+        let commit: () -> Void
+
+        init(
+            domain: SyncDomain,
+            collect: @escaping (String) -> [SyncWireItem<SyncEncryptedPayload>],
+            apply: @escaping ([SyncWireItem<SyncEncryptedPayload>], String) -> Void,
+            clear: @escaping (Set<String>, String) -> Void,
+            commit: (() -> Void)? = nil
+        ) {
+            self.domain = domain
+            self.collect = collect
+            self.apply = apply
+            self.clear = clear
+            self.commit = commit ?? {}
         }
     }
 
-    private func runSyncCycle() async throws {
+    private var domainAdapters: [DomainAdapter] {
+        [
+            DomainAdapter(domain: .bookmarks, collect: collectBookmarks, apply: applyBookmarks, clear: clearBookmarksPending),
+            DomainAdapter(domain: .quickDials, collect: collectQuickDials, apply: applyQuickDials, clear: clearQuickDialsPending),
+            DomainAdapter(domain: .readingList, collect: collectReadingList, apply: applyReadingList, clear: clearReadingListPending),
+            DomainAdapter(domain: .keyboardShortcuts, collect: collectShortcuts, apply: applyShortcuts, clear: { _, _ in }),
+            DomainAdapter(domain: .settings, collect: collectSettings, apply: applySettings, clear: { _, _ in },
+                          commit: { self.commitSettingsSnapshot() }),
+            DomainAdapter(domain: .agentMemory, collect: collectAgentMemory, apply: applyAgentMemory, clear: clearAgentMemoryPending),
+            DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
+                          commit: { self.commitAgentPrefsSnapshot() }),
+        ]
+    }
+
+    private func runSyncCycle() async throws -> SyncCycleOutcome {
         let token = try await validAccessToken()
         guard let master = masterKeyBase64 else {
             throw SyncCrypto.CryptoError.invalidKeyFormat
         }
-        if isEnabled(.bookmarks) {
-            try await runDomainSync(.bookmarks, token: token, master: master,
-                                    collectPush: collectBookmarks,
-                                    applyRemote: applyBookmarks,
-                                    clearApplied: clearBookmarksPending)
+        var outcome = SyncCycleOutcome()
+        for adapter in domainAdapters where isEnabled(adapter.domain) {
+            do {
+                try await runDomainSync(adapter, token: token, master: master)
+                outcome.succeeded.insert(adapter.domain)
+                domainStatus[adapter.domain] = .ok(Date())
+            } catch {
+                // 401 = 令牌过期，抛给上层整体刷新重试；其余按域隔离，不阻断其他域。
+                if let syncError = error as? SyncAPIError, case .unauthorized = syncError {
+                    throw error
+                }
+                let message = error.localizedDescription
+                outcome.failed[adapter.domain] = message
+                domainStatus[adapter.domain] = .failed(message)
+            }
         }
-        if isEnabled(.quickDials) {
-            try await runDomainSync(.quickDials, token: token, master: master,
-                                    collectPush: collectQuickDials,
-                                    applyRemote: applyQuickDials,
-                                    clearApplied: clearQuickDialsPending)
-        }
-        if isEnabled(.readingList) {
-            try await runDomainSync(.readingList, token: token, master: master,
-                                    collectPush: collectReadingList,
-                                    applyRemote: applyReadingList,
-                                    clearApplied: clearReadingListPending)
-        }
-        if isEnabled(.keyboardShortcuts) {
-            try await runDomainSync(.keyboardShortcuts, token: token, master: master,
-                                    collectPush: collectShortcuts,
-                                    applyRemote: applyShortcuts,
-                                    clearApplied: { _, _ in })
-        }
-        if isEnabled(.settings) {
-            try await runDomainSync(.settings, token: token, master: master,
-                                    collectPush: collectSettings,
-                                    applyRemote: applySettings,
-                                    clearApplied: { _, _ in })
-        }
-        if isEnabled(.agentMemory) {
-            try await runDomainSync(.agentMemory, token: token, master: master,
-                                    collectPush: collectAgentMemory,
-                                    applyRemote: applyAgentMemory,
-                                    clearApplied: clearAgentMemoryPending)
-        }
-        if isEnabled(.agentPrefs) {
-            try await runDomainSync(.agentPrefs, token: token, master: master,
-                                    collectPush: collectAgentPrefs,
-                                    applyRemote: applyAgentPrefs,
-                                    clearApplied: { _, _ in })
-        }
-        lastSyncAt = Date()
-        defaults.set(lastSyncAt, forKey: lastSyncKey)
+        return outcome
     }
 
-    /// 单域骨架:全量 push → conflict 胜者落地 → 清已裁决的待删 →
-    /// 游标增量 pull → 合并回写 → 游标推进到末条的 (updated_at, id)。
-    private func runDomainSync(
-        _ domain: SyncDomain,
-        token: String,
-        master: String,
-        collectPush: (String) -> [SyncWireItem<SyncEncryptedPayload>],
-        applyRemote: ([SyncWireItem<SyncEncryptedPayload>], String) -> Void,
-        clearApplied: (Set<String>, String) -> Void
-    ) async throws {
+    /// 远端数据落地（push 胜者 / pull 合并 / 清 pending）一律包在这里：
+    /// objectWillChange 在属性写**之前**同步触发，守卫窗口内的通知不是本地变更
+    /// ——否则拉取回来的数据会把自己标脏，形成推拉互振。
+    private func applyRemotely(_ body: () -> Void) {
+        applyingRemote = true
+        body()
+        applyingRemote = false
+    }
+
+    /// push 分块：服务端单请求上限 500 条（MAX_PUSH_ITEMS），大书签库全量对账
+    /// 一发会被整单拒绝；按 400 一块顺序推，结果聚合。
+    private func pushChunked(
+        domain: SyncDomain, items: [SyncWireItem<SyncEncryptedPayload>], token: String
+    ) async throws -> [SyncPushResult<SyncEncryptedPayload>] {
+        var results: [SyncPushResult<SyncEncryptedPayload>] = []
+        results.reserveCapacity(items.count)
         let base = serverBaseURL
-        let results = try await SyncAPIClient.push(
-            baseURL: base, domain: domain.rawValue, items: collectPush(master), accessToken: token
-        )
-        let winners = results.compactMap { $0.status == "conflict" ? $0.item : nil }
-        if !winners.isEmpty { applyRemote(winners, master) }
-        // applied 与 conflict 都代表"服务端已权威裁决":applied 是本机赢了,
-        // conflict 是服务端赢了(胜者已落地)。两种情况下待删清单里的旧 tombstone
-        // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
-        clearApplied(Set(results.map(\.clientId)), master)
+        var index = items.startIndex
+        while index < items.endIndex {
+            let end = items.index(index, offsetBy: Self.pushChunkSize, limitedBy: items.endIndex) ?? items.endIndex
+            let chunkResults: [SyncPushResult<SyncEncryptedPayload>] = try await SyncAPIClient.push(
+                baseURL: base, domain: domain.rawValue,
+                items: Array(items[index..<end]), accessToken: token
+            )
+            results.append(contentsOf: chunkResults)
+            index = end
+        }
+        return results
+    }
+
+    /// 单域骨架：脏域才 push（空集合不发请求）→ 冲突胜者落地 → 清已裁决的
+    /// 待删 → 游标增量 pull（整页则继续翻页）→ 合并回写 → 游标推进到末条。
+    private func runDomainSync(
+        _ adapter: DomainAdapter, token: String, master: String
+    ) async throws {
+        let domain = adapter.domain
+        var pushResults: [SyncPushResult<SyncEncryptedPayload>] = []
+        if dirtyDomains.contains(domain) {
+            // 先摘脏标记再 collect：collect 同步执行，此后网络窗口内的新变更会
+            // 重新标脏，不会被这次 push 吞掉。push 失败则放回脏集合等退避重试。
+            dirtyDomains.remove(domain)
+            let items = adapter.collect(master)
+            if !items.isEmpty {
+                do {
+                    pushResults = try await pushChunked(domain: domain, items: items, token: token)
+                } catch {
+                    dirtyDomains.insert(domain)
+                    throw error
+                }
+                adapter.commit()
+                let winners = pushResults.compactMap { $0.status == "conflict" ? $0.item : nil }
+                applyRemotely {
+                    if !winners.isEmpty { adapter.apply(winners, master) }
+                    // applied 与 conflict 都代表"服务端已权威裁决"：applied 是本机赢了,
+                    // conflict 是服务端赢了(胜者已落地)。两种情况下待删清单里的旧 tombstone
+                    // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
+                    adapter.clear(Set(pushResults.map(\.clientId)), master)
+                }
+            }
+        }
 
         // pull 增量。游标是复合的 "updated_at|id"——仅凭时间戳时,同刻行恰跨
-        // 分页边界会被 `> since` 永久跳过(静默丢失)。
+        // 分页边界会被 `> since` 永久跳过(静默丢失)。返回整页(=服务端页大小)
+        // 说明可能还有下一页,翻到不足一页为止;中途失败游标不落盘,下轮重拉(幂等)。
         let cursor = defaults.string(forKey: cursorKey(domain))
         var since: String?
         var sinceID: Int64?
@@ -423,15 +644,25 @@ final class SyncStore: ObservableObject {
             since = parts.first
             sinceID = parts.count > 1 ? Int64(parts[1]) : nil
         }
-        let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
-            baseURL: base, domain: domain.rawValue,
-            since: since, sinceID: sinceID, accessToken: token
-        )
-        if !response.items.isEmpty {
-            applyRemote(response.items, master)
+        var finalCursor: String?
+        var pages = 0
+        while pages < 50 {
+            pages += 1
+            let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
+                baseURL: serverBaseURL, domain: domain.rawValue,
+                since: since, sinceID: sinceID, accessToken: token
+            )
+            if response.items.isEmpty { break }
+            applyRemotely { adapter.apply(response.items, master) }
             if let last = response.items.last {
-                defaults.set("\(last.updatedAt ?? "")|\(last.id ?? 0)", forKey: cursorKey(domain))
+                finalCursor = "\(last.updatedAt ?? "")|\(last.id ?? 0)"
+                since = last.updatedAt
+                sinceID = last.id
             }
+            if response.items.count < Self.pullPageSize { break }
+        }
+        if let finalCursor {
+            defaults.set(finalCursor, forKey: cursorKey(domain))
         }
     }
 
@@ -583,27 +814,40 @@ final class SyncStore: ObservableObject {
 
     // MARK: - 设置 KV 域(键名也加密:线上 client_id = HMAC(键名))
 
+    /// collect 期间攒下的"推送后生效"快照（push 成功才落盘，见 DomainAdapter.commit）。
+    private var pendingSettingsSnapshot: [String: SettingsSyncValue]?
+    private var pendingAgentPrefsSnapshot: [String: SettingsSyncValue]?
+
+    /// 只推与"上次已知值"不同的键（快照 diff）。快照缺键 = 首推或清账号状态后
+    /// 的全量补齐。旧实现每轮都推全部条目：本地改过的键在 collect 时盖新戳但
+    /// 快照不更新，下轮 diff 仍不等 → 戳越盖越新、每 5 分钟重推一遍。
     private func collectSettings(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
-        let snapshot = loadSettingsSnapshot()
+        var snapshot = loadSettingsSnapshot()
         var stamps = loadSettingsStamps()
         let now = Date()
         var items: [SyncWireItem<SyncEncryptedPayload>] = []
         for entry in SettingsSync.catalog {
             guard let value = entry.read(settings) else { continue }
-            let stamp: Date
-            if snapshot[entry.key] != value {
-                stamp = now
-                stamps[entry.key] = now
-            } else {
-                stamp = stamps[entry.key] ?? now
-            }
+            guard snapshot[entry.key] != value else { continue }
+            snapshot[entry.key] = value
+            stamps[entry.key] = now
             let payload = SettingsSyncEntryPayload(key: entry.key, value: value)
             items.append(encryptedWire(domain: .settings, realID: entry.key,
-                                       clientUpdatedAt: stamp, deleted: false,
+                                       clientUpdatedAt: now, deleted: false,
                                        payload: payload, master: master))
         }
-        saveSettingsStamps(stamps)
+        if !items.isEmpty {
+            pendingSettingsSnapshot = snapshot
+            saveSettingsStamps(stamps)
+        }
         return items
+    }
+
+    private func commitSettingsSnapshot() {
+        if let snapshot = pendingSettingsSnapshot {
+            saveSettingsSnapshot(snapshot)
+            pendingSettingsSnapshot = nil
+        }
     }
 
     private func applySettings(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
@@ -729,22 +973,27 @@ final class SyncStore: ObservableObject {
 
     private func collectAgentPrefs(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
         let key = Self.agentPromptKey
-        let snapshot = loadSettingsSnapshot()
+        var snapshot = loadSettingsSnapshot()
         var stamps = loadSettingsStamps()
         let now = Date()
         let value = agentPreferenceStore.systemPrompt
-        let stamp: Date
-        if snapshot[key] != .string(value) {
-            stamp = now
-            stamps[key] = now
-            saveSettingsStamps(stamps)
-        } else {
-            stamp = stamps[key] ?? now
-        }
+        // 提示词相对"上次已知值"无变化 → 不推（collect 空数组 = 本轮不发请求）。
+        guard snapshot[key] != .string(value) else { return [] }
+        snapshot[key] = .string(value)
+        stamps[key] = now
+        saveSettingsStamps(stamps)
+        pendingAgentPrefsSnapshot = snapshot
         let payload = AgentPrefsSyncPayload(systemPrompt: value)
         return [encryptedWire(domain: .agentPrefs, realID: key,
-                              clientUpdatedAt: stamp, deleted: false,
+                              clientUpdatedAt: now, deleted: false,
                               payload: payload, master: master)]
+    }
+
+    private func commitAgentPrefsSnapshot() {
+        if let snapshot = pendingAgentPrefsSnapshot {
+            saveSettingsSnapshot(snapshot)
+            pendingAgentPrefsSnapshot = nil
+        }
     }
 
     private func applyAgentPrefs(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
@@ -763,18 +1012,17 @@ final class SyncStore: ObservableObject {
         saveSettingsSnapshot(snapshot)
     }
 
-    /// 本机即时写入（桥/测试用）：应用 + 盖戳 + 记快照，下个周期自然上推。
+    /// 本机即时写入（桥/测试用）：应用 + 盖戳 + 标脏（**不写快照**——快照语义是
+    /// "与服务器已一致"，写快照会让这次变更永远推不上去），下个防抖周期上推。
     func applyExternalSetting(key: String, value: SettingsSyncValue) -> Bool {
         guard let entry = SettingsSync.entry(forKey: key), entry.apply(settings, value) else {
             return false
         }
-        let now = Date()
         var stamps = loadSettingsStamps()
-        stamps[key] = now
+        stamps[key] = Date()
         saveSettingsStamps(stamps)
-        var snapshot = loadSettingsSnapshot()
-        snapshot[key] = value
-        saveSettingsSnapshot(snapshot)
+        dirtyDomains.insert(.settings)
+        scheduleChangeSync()
         return true
     }
 

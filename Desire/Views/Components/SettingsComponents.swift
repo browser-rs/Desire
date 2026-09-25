@@ -509,10 +509,14 @@ struct SettingsTextField: View {
     @Binding var text: String
     var isSecure: Bool = false
     var width: CGFloat? = nil
+    /// 安全输入时在框内右侧显示"眼睛"切换明文/密文
+    var secureToggle: Bool = false
+
+    @State private var revealSecure = false
 
     var body: some View {
         Group {
-            if isSecure {
+            if isSecure && !revealSecure {
                 SecureField(localizedSettingText(placeholder), text: $text)
             } else {
                 TextField(localizedSettingText(placeholder), text: $text)
@@ -531,6 +535,19 @@ struct SettingsTextField: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
         )
+        .overlay(alignment: .trailing) {
+            if secureToggle {
+                Button {
+                    revealSecure.toggle()
+                } label: {
+                    Image(systemName: revealSecure ? "eye.slash" : "eye")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
+            }
+        }
     }
 }
 

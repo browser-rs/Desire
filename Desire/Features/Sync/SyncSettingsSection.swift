@@ -59,11 +59,12 @@ struct SyncSettingsSection: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 170)
+                    .frame(width: 200)
                 }
                 .onChange(of: mode) {
                     formError = nil
                     confirmPassword = ""
+                    captchaInput = ""
                     if mode == .register && store.captcha == nil {
                         captchaLoading = true
                         Task { @MainActor in
@@ -74,26 +75,17 @@ struct SyncSettingsSection: View {
                 }
                 SettingsRowDivider()
                 SettingsRow("Username", subtitle: mode == .register ? localizedSettingText("Usernames start with a letter and use 3-32 letters, digits or underscores.") : nil) {
-                    SettingsTextField(placeholder: "username", text: $username, width: 200)
+                    SettingsTextField(placeholder: "username", text: $username, width: 240)
                 }
                 SettingsRowDivider()
                 SettingsRow("Password", subtitle: mode == .register ? localizedSettingText("At least 8 characters with letters and numbers.") : nil) {
-                    HStack(spacing: 6) {
-                        SettingsTextField(
-                            placeholder: "••••••••",
-                            text: $password,
-                            isSecure: !showPassword,
-                            width: 170
-                        )
-                        Button {
-                            showPassword.toggle()
-                        } label: {
-                            Image(systemName: showPassword ? "eye.slash" : "eye")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    SettingsTextField(
+                        placeholder: "••••••••",
+                        text: $password,
+                        isSecure: true,
+                        width: 240,
+                        secureToggle: true
+                    )
                 }
                 if mode == .register {
                     SettingsRowDivider()
@@ -102,7 +94,8 @@ struct SyncSettingsSection: View {
                             placeholder: "••••••••",
                             text: $confirmPassword,
                             isSecure: true,
-                            width: 170
+                            width: 240,
+                            secureToggle: true
                         )
                     }
                     SettingsRowDivider()
@@ -171,30 +164,45 @@ struct SyncSettingsSection: View {
             HStack(spacing: 8) {
                 if captchaLoading {
                     ProgressView().controlSize(.small)
+                        .frame(width: 100, height: 32)
                 } else if let png = store.captcha?.pngData, let nsImage = NSImage(data: png) {
                     Image(nsImage: nsImage)
                         .resizable()
+                        .interpolation(.none)
                         .scaledToFit()
-                        .frame(height: 36)
+                        .frame(width: 100, height: 32)
                         .cornerRadius(4)
+                        .contentShape(Rectangle())
+                        .onTapGesture { refreshCaptcha() }
                 } else {
                     Text(localizedSettingText("Failed to load"))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+                        .frame(width: 100, height: 32)
                 }
                 Button {
-                    captchaLoading = true
-                    Task { @MainActor in
-                        await store.loadCaptcha()
-                        captchaLoading = false
-                    }
+                    refreshCaptcha()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .help(localizedSettingText("Get a new one"))
+                SettingsTextField(
+                    placeholder: "Enter the characters shown",
+                    text: $captchaInput,
+                    width: 100
+                )
             }
+        }
+    }
+
+    private func refreshCaptcha() {
+        captchaLoading = true
+        Task { @MainActor in
+            await store.loadCaptcha()
+            captchaLoading = false
         }
     }
 
@@ -260,7 +268,8 @@ struct SyncSettingsSection: View {
                 captchaInput = ""
             } catch {
                 formError = error.localizedDescription
-                if mode == .register { await store.loadCaptcha() } // 验证码已被消费或作废
+                // 注册失败后验证码已被消费/作废 → 换新码供重试
+                if mode == .register { await store.loadCaptcha() }
             }
             isWorking = false
         }

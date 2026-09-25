@@ -2,6 +2,13 @@
 
 ### Added
 
+- **产品介绍页（`website/index.html`）**：单文件静态落地页，"墨与朱"编辑风
+  （宣纸底 + 墨色正文 + 朱砂点睛，「欲」字印章记忆点）；字体全用 macOS 内置
+  Hoefler Text / 宋体 / 楷体，**零外部依赖**（无 CDN，国内访问无阻碍）。
+  内容：英雄区 + 六大特性 + 智能体轨迹示例 + 端到端加密三步图解（含七类
+  同步 chips 与"AI 对话永留本地"的诚实标注）+ 下载四步（含 xattr 命令）。
+  桌面/移动自适应；动效纯 CSS，支持 `prefers-reduced-motion` 与无 JS 降级。
+  发布方式见 `website/README.md`（GitHub Pages 或任意静态托管，无构建）。
 - **同步改为变更驱动（近实时）**：源 store（书签/快速拨号/阅读列表/快捷键/设置/
   Agent 记忆/Agent 提示词）的变更经 `objectWillChange` 标脏对应域，5 秒防抖后只
   上推脏域——不再等 5 分钟定时轮；远端合并回写由 `applyingRemote` 守卫包住，

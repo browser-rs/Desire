@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desire — 会替你动手的浏览器 · macOS AI 浏览器</title>
+<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon · 免费使用。">
+<meta property="og:title" content="Desire — 会替你动手的浏览器">
+<meta property="og:description" content="内置 AI 智能体 · 端到端加密同步 · 视频广告拦截 · 为 macOS 而生">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
+<style>
+  /* ================= 设计令牌：墨与朱 ================= */
+  :root {
+    --paper:      #f6f1e7;
+    --paper-2:    #eee7d7;
+    --ink:        #211b13;
+    --ink-soft:   #6a6150;
+    --cinnabar:   #c03a1a;
+    --cinnabar-d: #93290e;
+    --hairline:   rgba(33, 27, 19, 0.16);
+    --hairline-2: rgba(33, 27, 19, 0.32);
+    --ink-bg:     #171209;
+    --paper-on-ink: #ece3cd;
+    --gold:       #b98a2f;
+
+    --font-display: "Hoefler Text", "Songti SC", "STSongti-SC-Regular", "Georgia", serif;
+    --font-body:    -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono:    "SF Mono", "Menlo", "Consolas", monospace;
+    --font-seal:    "Kaiti SC", "STKaiti", "Songti SC", serif;
+
+    --w: min(1120px, 92vw);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* 纸张颗粒 */
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    opacity: 0.045;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  ::selection { background: var(--cinnabar); color: var(--paper); }
+
+  a { color: inherit; }
+
+  .wrap { width: var(--w); margin: 0 auto; }
+
+  /* ================= 顶部 ================= */
+  header.site {
+    position: sticky; top: 0; z-index: 100;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .site-inner {
+    display: flex; align-items: center; gap: 2.5rem;
+    padding: 0.9rem 0;
+  }
+  .wordmark {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 1.45rem;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    display: flex; align-items: baseline; gap: 0.6rem;
+  }
+  .wordmark .dot { color: var(--cinnabar); font-style: normal; }
+  nav.main { display: flex; gap: 1.8rem; margin-left: auto; }
+  nav.main a {
+    text-decoration: none;
+    font-size: 0.86rem;
+    letter-spacing: 0.14em;
+    color: var(--ink-soft);
+    transition: color 0.2s;
+  }
+  nav.main a:hover { color: var(--cinnabar); }
+  .gh-link {
+    font-family: var(--font-mono);
+    font-size: 0.8rem !important;
+    border: 1px solid var(--hairline-2);
+    border-radius: 99px;
+    padding: 0.28rem 0.9rem;
+    color: var(--ink) !important;
+    transition: all 0.2s;
+  }
+  .gh-link:hover { border-color: var(--cinnabar); background: var(--cinnabar); color: var(--paper) !important; }
+
+  /* ================= 英雄区 ================= */
+  .hero { position: relative; padding: 7rem 0 5.5rem; }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    gap: 3rem;
+    align-items: end;
+  }
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.34em;
+    color: var(--cinnabar);
+    display: flex; align-items: center; gap: 0.9rem;
+    margin-bottom: 2rem;
+  }
+  .kicker::before { content: ""; width: 2.4rem; height: 1px; background: var(--cinnabar); }
+
+  h1.display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(2.7rem, 6.2vw, 4.6rem);
+    line-height: 1.18;
+    letter-spacing: 0.015em;
+  }
+  h1.display em {
+    font-style: italic;
+    color: var(--cinnabar);
+  }
+  .hero-lede {
+    max-width: 34em;
+    margin: 1.8rem 0 2.6rem;
+    font-size: 1.06rem;
+    color: var(--ink-soft);
+  }
+  .hero-lede strong { color: var(--ink); font-weight: 600; }
+
+  .cta-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding: 0.85rem 1.7rem;
+    border-radius: 2px;
+    transition: transform 0.15s ease, background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .btn-solid {
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink);
+  }
+  .btn-solid:hover { background: var(--cinnabar); border-color: var(--cinnabar); transform: translateY(-2px); }
+  .btn-ghost {
+    border: 1px solid var(--hairline-2);
+    color: var(--ink);
+  }
+  .btn-ghost:hover { border-color: var(--ink); transform: translateY(-2px); }
+  .btn .ver { font-family: var(--font-mono); font-size: 0.78em; opacity: 0.72; }
+
+  .hero-meta {
+    margin-top: 2.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.12em;
+    color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;
+  }
+  .hero-meta span::before { content: "· "; color: var(--cinnabar); }
+
+  /* 印章 + 竖排 */
+  .hero-side {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 1.3rem;
+    padding-bottom: 0.4rem;
+  }
+  .vertical-line {
+    writing-mode: vertical-rl;
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    letter-spacing: 0.5em;
+    color: var(--ink-soft);
+    border-right: 1px solid var(--hairline-2);
+    padding-right: 1rem;
+    height: 21rem;
+  }
+  .seal {
+    width: 7.4rem; height: 7.4rem;
+    background: var(--cinnabar);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg);
+    box-shadow: 0 14px 34px -14px rgba(156, 41, 14, 0.55),
+                inset 0 0 0 3px var(--paper),
+                inset 0 0 0 5px var(--cinnabar);
+    position: relative;
+  }
+  .seal::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 10px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23s)' opacity='0.6'/%3E%3C/svg%3E");
+    mix-blend-mode: screen;
+    opacity: 0.16;
+    border-radius: 10px;
+  }
+  .seal span {
+    font-family: var(--font-seal);
+    font-size: 4.6rem;
+    color: var(--paper);
+    line-height: 1;
+    transform: translateY(-2px);
+  }
+
+  /* ================= 走马灯 ================= */
+  .ticker {
+    border-top: 3px double var(--hairline-2);
+    border-bottom: 3px double var(--hairline-2);
+    overflow: hidden;
+    padding: 0.72rem 0;
+    background: var(--paper-2);
+  }
+  .ticker-track {
+    display: flex;
+    width: max-content;
+    animation: ticker 36s linear infinite;
+  }
+  .ticker ul {
+    display: flex;
+    list-style: none;
+    white-space: nowrap;
+  }
+  .ticker li {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    letter-spacing: 0.22em;
+    padding: 0 1.6rem;
+    position: relative;
+  }
+  .ticker li::after {
+    content: "❖";
+    position: absolute; right: -0.42rem;
+    font-size: 0.6rem;
+    color: var(--cinnabar);
+    top: 0.28em;
+  }
+  @keyframes ticker { to { transform: translateX(-50%); } }
+
+  /* ================= 章节骨架 ================= */
+  section.block { padding: 5.6rem 0; }
+  .sec-head { margin-bottom: 3.2rem; }
+  .sec-head .kicker { margin-bottom: 1.1rem; }
+  h2.title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1.9rem, 3.6vw, 2.7rem);
+    line-height: 1.3;
+    max-width: 24em;
+    text-wrap: balance;
+  }
+
+  /* ================= 导语 ================= */
+  .lede-block p.lede {
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 2.2vw, 1.62rem);
+    line-height: 1.95;
+    max-width: 33em;
+  }
+  .lede-block p.lede mark {
+    background: linear-gradient(transparent 62%, rgba(192, 58, 26, 0.24) 62%);
+    color: inherit;
+  }
+
+  /* ================= 特性清单 ================= */
+  .features { border-top: 1px solid var(--hairline); }
+  .feature-row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 5fr) minmax(0, 7fr);
+    gap: 1.5rem 2.5rem;
+    padding: 2.5rem 0;
+    border-bottom: 1px solid var(--hairline);
+    align-items: baseline;
+  }
+  .feature-no {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    color: var(--ink-soft);
+    font-style: italic;
+    transition: color 0.25s;
+  }
+  .feature-row:hover .feature-no { color: var(--cinnabar); }
+  .feature-name {
+    font-family: var(--font-display);
+    font-size: 1.42rem;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+  .feature-desc { color: var(--ink-soft); font-size: 0.97rem; }
+  .feature-desc b { color: var(--ink); font-weight: 600; }
+
+  /* ================= 轨迹示例 ================= */
+  .trace-sec { background: var(--paper-2); border-top: 3px double var(--hairline-2); border-bottom: 3px double var(--hairline-2); }
+  .trace-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 3rem;
+    align-items: center;
+  }
+  .trace-card {
+    background: var(--paper);
+    border: 1px solid var(--hairline-2);
+    border-radius: 4px;
+    box-shadow: 10px 10px 0 -1px rgba(33, 27, 19, 0.08);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 2.05;
+    padding: 1.6rem 1.7rem;
+    overflow-x: auto;
+  }
+  .trace-card .t-user { color: var(--ink); }
+  .trace-card .t-user::before { content: "你　"; color: var(--cinnabar); }
+  .trace-card .t-step { color: var(--ink-soft); display: flex; justify-content: space-between; gap: 2rem; }
+  .trace-card .t-step .ms { color: var(--gold); white-space: nowrap; }
+  .trace-card .t-done { color: var(--ink); border-top: 1px dashed var(--hairline-2); margin-top: 0.5rem; padding-top: 0.6rem; }
+  .trace-card .t-done .ok { color: #3d7a37; }
+
+  /* ================= 端到端加密（墨色段） ================= */
+  .e2e {
+    background: var(--ink-bg);
+    color: var(--paper-on-ink);
+    padding: 6rem 0;
+  }
+  .e2e .kicker { color: #e0684a; }
+  .e2e .kicker::before { background: #e0684a; }
+  .e2e h2.title { color: var(--paper-on-ink); }
+  .e2e-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.2rem;
+    margin: 3.4rem 0 3rem;
+    counter-reset: step;
+  }
+  .e2e-step {
+    border-top: 1px solid rgba(236, 227, 205, 0.25);
+    padding-top: 1.4rem;
+    position: relative;
+  }
+  .e2e-step::before {
+    counter-increment: step;
+    content: "第" counter(step, cjk-ideographic) "步";
+    font-family: var(--font-display);
+    color: #e0684a;
+    font-size: 1.05rem;
+    letter-spacing: 0.2em;
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+  .e2e-step h3 {
+    font-family: var(--font-display);
+    font-size: 1.18rem;
+    font-weight: 500;
+    margin-bottom: 0.6rem;
+  }
+  .e2e-step p { font-size: 0.9rem; color: rgba(236, 227, 205, 0.72); }
+  .e2e-step .mono { font-family: var(--font-mono); font-size: 0.76rem; color: var(--gold); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+  .chip {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    letter-spacing: 0.12em;
+    border: 1px solid rgba(236, 227, 205, 0.35);
+    border-radius: 99px;
+    padding: 0.42rem 1.15rem;
+  }
+  .chip.on { background: var(--cinnabar); border-color: var(--cinnabar); color: #fff; }
+  .e2e-note {
+    margin-top: 2.2rem;
+    font-size: 0.86rem;
+    color: rgba(236, 227, 205, 0.6);
+    border-left: 2px solid var(--cinnabar);
+    padding-left: 1.1rem;
+    max-width: 46em;
+  }
+
+  /* ================= 下载 ================= */
+  .dl-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 4rem;
+    align-items: start;
+  }
+  .dl-version {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: var(--ink-soft);
+    margin: 1.2rem 0 2rem;
+  }
+  .dl-version b { color: var(--cinnabar); font-size: 1.5em; font-style: italic; }
+  .dl-req {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem;
+  }
+  .dl-req span::before { content: "◦ "; color: var(--cinnabar); }
+
+  .steps { list-style: none; counter-reset: st; }
+  .steps li {
+    counter-increment: st;
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    gap: 1.1rem;
+    padding: 1.15rem 0;
+    border-bottom: 1px solid var(--hairline);
+    align-items: baseline;
+  }
+  .steps li::before {
+    content: counter(st, decimal-leading-zero);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.25rem;
+    color: var(--cinnabar);
+  }
+  .steps .s-main { font-size: 0.98rem; }
+  .steps .s-sub { font-size: 0.84rem; color: var(--ink-soft); margin-top: 0.15rem; }
+  .steps code {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    background: var(--paper-2);
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    padding: 0.5rem 0.9rem;
+    display: inline-block;
+    margin-top: 0.55rem;
+  }
+  .dl-links { margin-top: 2.2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+  .dl-fine {
+    margin-top: 1.6rem;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+
+  /* ================= 页脚 ================= */
+  footer.site {
+    border-top: 3px double var(--hairline-2);
+    padding: 2.6rem 0 3rem;
+    background: var(--paper-2);
+  }
+  .foot-inner {
+    display: flex; flex-wrap: wrap; gap: 1.2rem 3rem;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .foot-brand {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.15rem;
+  }
+  .foot-brand .dot { color: var(--cinnabar); font-style: normal; }
+  .foot-nav { display: flex; gap: 1.8rem; }
+  .foot-nav a {
+    font-size: 0.84rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+  }
+  .foot-nav a:hover { color: var(--cinnabar); }
+  .foot-fine {
+    margin-top: 1.4rem;
+    font-size: 0.76rem;
+    font-family: var(--font-mono);
+    color: var(--ink-soft);
+    letter-spacing: 0.06em;
+  }
+
+  <!-- ================= 入场动画 ================= -->
+  /* 渐进增强：只有 JS 可用（html.js）才隐藏待入场元素，否则内容永远可见 */
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 0.8s cubic-bezier(0.22, 0.6, 0.2, 1),
+                transform 0.8s cubic-bezier(0.22, 0.6, 0.2, 1);
+  }
+  .js .reveal.visible { opacity: 1; transform: none; }
+  .hero .reveal:nth-child(1) { transition-delay: 0.05s; }
+  .hero .reveal:nth-child(2) { transition-delay: 0.18s; }
+  .hero .reveal:nth-child(3) { transition-delay: 0.3s; }
+  .hero .reveal:nth-child(4) { transition-delay: 0.42s; }
+
+  @keyframes seal-in {
+    0%   { opacity: 0; transform: rotate(-4deg) scale(1.5); }
+    60%  { opacity: 1; transform: rotate(-4deg) scale(0.94); }
+    100% { opacity: 1; transform: rotate(-4deg) scale(1); }
+  }
+  .js .seal { opacity: 0; animation: seal-in 0.7s cubic-bezier(0.2, 0.7, 0.3, 1.1) 0.65s forwards; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .ticker-track { animation: none; }
+    .js .reveal { opacity: 1; transform: none; transition: none; }
+    .js .seal { opacity: 1; animation: none; }
+  }
+
+  /* ================= 响应式 ================= */
+  @media (max-width: 900px) {
+    .hero { padding: 4.6rem 0 4rem; }
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero-side { justify-content: flex-start; order: -1; padding-bottom: 0; }
+    .vertical-line { display: none; }
+    .seal { width: 5.6rem; height: 5.6rem; }
+    .seal span { font-size: 3.4rem; }
+    nav.main a:not(.gh-link) { display: none; }
+    .feature-row { grid-template-columns: 1fr; gap: 0.4rem; padding: 2rem 0; }
+    .feature-no { font-size: 1.2rem; }
+    .trace-grid { grid-template-columns: 1fr; gap: 2rem; }
+    .e2e-steps { grid-template-columns: 1fr; gap: 1.8rem; }
+    .dl-grid { grid-template-columns: 1fr; gap: 2.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= 顶部 ================= -->
+<header class="site">
+  <div class="wrap site-inner">
+    <a class="wordmark" href="#top">Desire<span class="dot">。</span></a>
+    <nav class="main" aria-label="页面导航">
+      <a href="#features">特性</a>
+      <a href="#agent">智能体</a>
+      <a href="#e2e">加密</a>
+      <a href="#download">下载</a>
+      <a class="gh-link" href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ================= 英雄区 ================= -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="kicker reveal">为 macOS 而生的浏览器</p>
+        <h1 class="display reveal">会替你<em>动手</em>的<br>浏览器。</h1>
+        <p class="hero-lede reveal">
+          内置 AI 智能体：读懂页面、执行操作、跑完命令再来汇报。
+          书签与记忆<strong>端到端加密同步</strong>——服务器上躺着的，
+          只有你能解开的密文。
+        </p>
+        <div class="cta-row reveal">
+          <a class="btn btn-solid" href="https://github.com/browser-rs/Desire/releases/latest" target="_blank" rel="noopener">
+            下载 Desire <span class="ver">v0.4.0</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">
+            源码与发行说明 ↗
+          </a>
+        </div>
+        <p class="hero-meta reveal">
+          <span>Apple Silicon</span>
+          <span>macOS 26.5+</span>
+          <span>免费使用</span>
+          <span>简体 · 繁體 · English</span>
+        </p>
+      </div>
+      <div class="hero-side" aria-hidden="true">
+        <div class="vertical-line">浏览之外，皆是分内之事</div>
+        <div class="seal"><span>欲</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 走马灯 ================= -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <ul>
+        <li>内置智能体</li><li>端到端加密同步</li><li>视频广告拦截</li><li>HLS 直下 MP4</li>
+        <li>多档案隔离</li><li>快捷键随心改</li><li>广告拦截</li><li>开发者工具</li>
+      </ul>
+      <ul>
+        <li>内置智能体</li><li>端到端加密同步</li><li>视频广告拦截</li><li>HLS 直下 MP4</li>
+        <li>多档案隔离</li><li>快捷键随心改</li><li>广告拦截</li><li>开发者工具</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ================= 导语 ================= -->
+  <section class="block lede-block">
+    <div class="wrap">
+      <p class="lede reveal">
+        Desire 为干活而生：页面是你的，数据是你的，替你动手的智能体也在你的机器上。
+        不注册账号，也能用尽<mark>每一项本地功能</mark>；
+        想要多设备同步时，账号、验证码与端到端加密都已备好。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= 特性 ================= -->
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">六件正事</p>
+        <h2 class="title">一台浏览器该有的，与不该缺席的。</h2>
+      </div>
+      <div class="features">
+        <div class="feature-row reveal">
+          <span class="feature-no">01</span>
+          <h3 class="feature-name">AI 智能体，住在侧栏里</h3>
+          <p class="feature-desc">读页面、执行 JavaScript、跑 shell 命令、派子代理分头干活。
+            做完一件事，<b>从轨迹到耗时逐条可查</b>。记忆分画像、事实与摘要——你说过的偏好它记得住，而这一切默认留在本机。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">02</span>
+          <h3 class="feature-name">端到端加密的七类同步</h3>
+          <p class="feature-desc">书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词，
+            <b>七类数据逐项可选</b>。密钥由你的密码派生，服务器只见密文；注册与登录有图形验证码把关。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">03</span>
+          <h3 class="feature-name">视频站，清净且能带走</h3>
+          <p class="feature-desc">视频广告按站点规则拦截，<b>规则热插拔</b>、无需更新应用；
+            想收藏的 HLS 视频直下 MP4——本机装有 ffmpeg 便自动直连，音轨一个不丢。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">04</span>
+          <h3 class="feature-name">广告与追踪，拦得明明白白</h3>
+          <p class="feature-desc">内置 EasyList / EasyList China 转换规则，兼容自定义规则语法；
+            AI 还能识别页面上的广告元素，<b>你确认后才落成规则</b>，随时可回滚。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">05</span>
+          <h3 class="feature-name">多档案与效率</h3>
+          <p class="feature-desc">工作与生活分属不同档案，Cookie、历史、书签互不掺杂；
+            快速拨号、阅读列表、查找栏、会话恢复，外加一套<b>能改到每一个键的快捷键</b>。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">06</span>
+          <h3 class="feature-name">给折腾的人</h3>
+          <p class="feature-desc">Console 与 Network 按标签页归档，DOM 树逐层展开、请求可重放；
+            响应式模式模拟触屏视口。中键关标签、链接新开，都是顺手的默认。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 智能体轨迹 ================= -->
+  <section class="block trace-sec" id="agent">
+    <div class="wrap trace-grid">
+      <div class="reveal">
+        <p class="kicker">智能体 · 一回合的轨迹</p>
+        <h2 class="title">做了什么、耗时几许，全程摊开给你看。</h2>
+        <p class="feature-desc" style="margin-top:1.3rem; max-width:30em;">
+          每一回合的工具调用、参数、耗时与结果都会留档：哪些被拒绝、哪些抛了错、
+          最终答案如何得出——不做黑盒。子代理的用量会计入成本，
+          token 与单价换成钱，清清楚楚。
+        </p>
+      </div>
+      <div class="trace-card reveal" role="img" aria-label="智能体回合轨迹示例">
+        <div class="t-user">把这篇教程里的命令整理出来，在本机验证一遍</div>
+        <div class="t-step"><span>readTab → 可见文本（≤20k）</span><span class="ms">0.4s</span></div>
+        <div class="t-step"><span>executeJS → 提取全部代码块</span><span class="ms">0.2s</span></div>
+        <div class="t-step"><span>runCommand → 逐条执行并核对退出码</span><span class="ms">12.8s</span></div>
+        <div class="t-step"><span>readFile → 比对输出与教程预期</span><span class="ms">0.1s</span></div>
+        <div class="t-done">整理完毕，132 项校验全部通过 <span class="ok">✓</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 端到端加密 ================= -->
+  <section class="e2e" id="e2e">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">端到端加密同步</p>
+        <h2 class="title">服务器被整个搬走，<br>读到的也只有密文。</h2>
+      </div>
+      <div class="e2e-steps">
+        <div class="e2e-step reveal">
+          <h3>密码只属于你</h3>
+          <p>注册那刻，密码在本机经 <span class="mono">PBKDF2 · 600,000 轮</span>派生出包裹密钥——明文密码从不离开这台 Mac。</p>
+        </div>
+        <div class="e2e-step reveal">
+          <h3>数据密钥被包裹托管</h3>
+          <p>一把 256 位随机密钥负责加密数据；它被包裹密钥锁好后才存到服务器，换设备登录即自动恢复。</p>
+        </div>
+        <div class="e2e-step reveal">
+          <h3>每类数据各用各的钥匙</h3>
+          <p>七类同步各自派生独立密钥，条目 ID 一律换成不可逆标签——服务器连"哪条属于哪条"都数不清。</p>
+        </div>
+      </div>
+      <div class="chips reveal" aria-label="可同步的七类数据">
+        <span class="chip on">书签树</span>
+        <span class="chip on">快速拨号</span>
+        <span class="chip on">阅读列表</span>
+        <span class="chip on">快捷键</span>
+        <span class="chip on">设置</span>
+        <span class="chip on">Agent 记忆</span>
+        <span class="chip on">Agent 提示词</span>
+        <span class="chip">AI 对话 · 永留本地</span>
+      </div>
+      <p class="e2e-note reveal">
+        诚实起见：服务器仍能看到账号、类别、行数与时间这类元数据。
+        改密码不会弄丢既有数据——同一把密钥用新密码重新包裹；忘记密码则密文不可解，这是端到端加密的标准取舍。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= 下载 ================= -->
+  <section class="block" id="download">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">下载</p>
+        <h2 class="title">现在就装上。</h2>
+      </div>
+      <div class="dl-grid">
+        <div class="reveal">
+          <p class="dl-version">当前版本 <b>v0.4.0</b></p>
+          <div class="dl-req">
+            <span>Apple Silicon</span>
+            <span>macOS 26.5+</span>
+            <span>免费</span>
+          </div>
+          <div class="dl-links">
+            <a class="btn btn-solid" href="https://github.com/browser-rs/Desire/releases/latest" target="_blank" rel="noopener">
+              下载最新版 ↓
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/browser-rs/Desire/releases" target="_blank" rel="noopener">
+              全部发行版
+            </a>
+          </div>
+          <p class="dl-fine">
+            发行包附带 SHASUMS256.txt 校验和；构建未签名，首次打开前需执行一次下方命令移除隔离标记。
+          </p>
+        </div>
+        <ol class="steps reveal">
+          <li>
+            <div>
+              <div class="s-main">下载并解压 zip</div>
+              <div class="s-sub">Desire-v0.4.0-macos-arm64.zip，双击解压即可。</div>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="s-main">把 Desire.app 拖进「应用程序」</div>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="s-main">终端执行一次移除隔离标记</div>
+              <div class="s-sub">未签名构建的必要步骤，只需做一次。</div>
+              <code>xattr -cr /Applications/Desire.app</code>
+            </div>
+          </li>
+          <li>
+            <div>
+              <div class="s-main">打开 Desire</div>
+              <div class="s-sub">首次启动 Gatekeeper 会检查一遍，之后照常。</div>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= 页脚 ================= -->
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-inner">
+      <p class="foot-brand">Desire<span class="dot">。</span>会替你动手的浏览器。</p>
+      <nav class="foot-nav" aria-label="页脚导航">
+        <a href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/browser-rs/Desire/releases" target="_blank" rel="noopener">发行说明</a>
+        <a href="#features">特性</a>
+        <a href="#download">下载</a>
+      </nav>
+    </div>
+    <p class="foot-fine">© <span id="year">2026</span> browser-rs / Desire · SwiftUI on macOS · 简體 / 繁體 / English</p>
+  </div>
+</footer>
+
+<script>
+  // 渐进增强开关：JS 可用才启用入场动画的隐藏初始态
+  document.documentElement.classList.add('js');
+  document.getElementById('year').textContent = new Date().getFullYear();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    }
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
+</body>
+</html>

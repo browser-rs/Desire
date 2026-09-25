@@ -1095,3 +1095,10 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
 - **坑**：2026-09-24 遇到 rustup stable 工具链损坏（bin 下 `cargo`/`rustc` 丢失但
   `rustup component add` 报 "up to date"）——修法
   `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。
+
+- **测试数据清理铁律（2026-09-25 差点误删事故后立规）**：① **禁止无条件 `DELETE FROM users`**
+  ——清理必须带测试标记（`WHERE username LIKE 'smoke\_%' OR ...`），且只在本地 dev 库执行；
+  ② **对 app 做 E2E 前必须先把服务器地址钉回本地**（`POST /sync/server {"baseURL":"http://127.0.0.1:18090"}`），
+  跑完恢复——否则桥驱动的注册/同步会落到 app 当前指向的生产服务器（本次验证码 E2E 的
+  sync_e2e 测试号即可能已泄漏到生产，待用户核对清理）；③ 同理 `/sync/now`、`/sync/register`
+  等桥端点全部跟随 app 当前服务器地址，别当本地专用。

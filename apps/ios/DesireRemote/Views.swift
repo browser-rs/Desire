@@ -261,17 +261,41 @@ struct ChatView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 20) {
+            Spacer(minLength: 20)
             ZStack {
-                Circle().fill(Color.accentColor.opacity(0.12)).frame(width: 84, height: 84)
-                Image(systemName: "wand.and.stars").font(.system(size: 34)).foregroundStyle(.tint)
+                Circle().fill(RootView.brand.opacity(0.14)).frame(width: 92, height: 92)
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 38)).foregroundStyle(RootView.brand)
             }
-            Text("给 Agent 派个活").font(.headline)
-            Text("指令会立即送达 Mac，Agent 在本地执行，\n这里实时显示对话与工具轨迹。")
-                .font(.footnote).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            VStack(spacing: 6) {
+                Text("给 Agent 派个活").font(.title3.bold())
+                Text("指令立即送达 Mac，Agent 在本地执行\n这里实时显示对话与工具轨迹")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            VStack(spacing: 10) {
+                ForEach([("继续", "arrow.forward.circle"),
+                         ("总结当前页面", "doc.text.magnifyingglass"),
+                         ("再检查一遍结果", "checkmark.seal")], id: \.0) { item in
+                    Button { send(item.0) } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: item.1).foregroundStyle(RootView.brand)
+                            Text(item.0).font(.subheadline)
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 13)
+                        .background(Color(.secondarySystemBackground),
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(client.busy)
+                }
+            }
+            .padding(.horizontal, 28)
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var messageList: some View {
@@ -294,7 +318,7 @@ struct ChatView: View {
         }
     }
 
-    // MARK: 漂浮输入区（参考 IrsClawApp 的浮动胶囊）
+    // MARK: 漂浮输入区（深色可见的实体胶囊；建议卡片在空态里）
 
     private var inputArea: some View {
         VStack(spacing: 8) {
@@ -304,36 +328,33 @@ struct ChatView: View {
             }
             if voice.isRecording {
                 recordingBar
-            } else {
-                quickChips
             }
             HStack(alignment: .bottom, spacing: 8) {
-                micButton
-                    .padding(.leading, 4)
-                    .padding(.bottom, 3)
+                micButton.padding(.bottom, 4).padding(.leading, 2)
                 TextField("给 Agent 派个活…", text: $draft, axis: .vertical)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
                     .font(.body)
                     .focused($inputFocused)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                sendButton
-                    .padding(.trailing, 4)
-                    .padding(.bottom, 3)
+                    .padding(.vertical, 9)
+                sendButton.padding(.bottom, 3).padding(.trailing, 2)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
             .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+                Capsule(style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+                    .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 5)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
             )
             .padding(.horizontal, 12)
         }
-        .padding(.bottom, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(.bar)
     }
 
     private var recordingBar: some View {
@@ -348,25 +369,8 @@ struct ChatView: View {
             Button("完成") { voice.stop() }.font(.caption.bold())
         }
         .padding(.horizontal, 16).padding(.vertical, 6)
-        .background(Color.red.opacity(0.06), in: Capsule())
+        .background(Color.red.opacity(0.08), in: Capsule())
         .padding(.horizontal, 12)
-    }
-
-    private var quickChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(["继续", "总结当前页面", "再检查一遍结果"], id: \.self) { chip in
-                    Button { send(chip) } label: {
-                        Text(chip)
-                            .font(.caption)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .disabled(client.busy)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
     }
 
     @ViewBuilder

@@ -211,7 +211,7 @@ struct ChatView: View {
                     messageList
                 }
             }
-            .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
+            .background(Color(.secondarySystemBackground).ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 inputArea
@@ -257,7 +257,6 @@ struct ChatView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.bar)
     }
 
     private var emptyState: some View {
@@ -286,7 +285,7 @@ struct ChatView: View {
                             Image(systemName: "arrow.up.right").font(.caption2).foregroundStyle(.tertiary)
                         }
                         .padding(.horizontal, 16).padding(.vertical, 13)
-                        .background(Color(.secondarySystemBackground),
+                        .background(Color(.tertiarySystemBackground),
                                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -343,7 +342,7 @@ struct ChatView: View {
             .padding(.vertical, 4)
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
+                    .fill(Color(.tertiarySystemBackground))
                     .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 5)
             )
             .overlay(
@@ -354,7 +353,6 @@ struct ChatView: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(.bar)
     }
 
     private var recordingBar: some View {
@@ -519,7 +517,7 @@ struct MessageBubble: View {
                             .padding(.horizontal, 14).padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color(.secondarySystemBackground))
+                                    .fill(Color(.tertiarySystemBackground))
                             )
                     }
                 }

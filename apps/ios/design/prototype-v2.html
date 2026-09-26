@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DesireRemote 原型 v2 — IrsClawApp 式：聊天主页 + 抽屉</title>
+<style>
+  :root{
+    --bg:#000; --card:#1c1c1e; --card2:#2c2c2e; --line:#333;
+    --ink:#fff; --sec:#98989f; --brand:#f25c33; --brand2:#d93b1a;
+    --ok:#34c759; --warn:#ff9500; --err:#ff453a; --blue:#0a84ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  body{background:#0d0d0f;color:#ddd;font-family:-apple-system,"PingFang SC",sans-serif;padding:32px}
+  h1{font-size:22px;margin-bottom:4px}
+  .sub{color:#999;font-size:13px;margin-bottom:6px}
+  .legend{display:flex;gap:16px;font-size:12px;color:#aaa;margin:12px 0 24px;flex-wrap:wrap}
+  .lg{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  h2{font-size:15px;margin:28px 0 12px;color:#ddd}
+  .flow{display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:10px;width:270px}
+  .arrow{color:#777;font-size:12px;text-align:center;line-height:1.5}
+  .arrow b{color:var(--brand)}
+  .phone{width:266px;height:572px;background:var(--bg);border-radius:36px;border:7px solid #2f2f33;
+         position:relative;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.65);display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:104px;height:21px;background:#2f2f33;border-radius:0 0 13px 13px;z-index:9}
+  .status{height:28px;display:flex;justify-content:space-between;align-items:center;padding:0 22px;font-size:10px;color:#fff;flex-shrink:0}
+  .head{padding:8px 12px 10px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .cbtn{width:40px;height:40px;border-radius:50%;background:#1c1c1e;display:flex;align-items:center;justify-content:center;font-size:16px;color:#ddd;flex-shrink:0;cursor:pointer}
+  .cbtn.grp{display:flex;gap:6px;background:transparent;width:auto;height:auto;padding:0 6px}
+  .title{flex:1;text-align:center;font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:1px}
+  .stream{flex:1;display:flex;flex-direction:column;gap:10px;padding:4px 12px;overflow:hidden}
+  .msg{display:flex;gap:8px}
+  .msg.user{flex-direction:row-reverse}
+  .msg .av{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff}
+  .msg .bub{border-radius:16px;padding:10px 13px;font-size:12.5px;line-height:1.6;max-width:82%}
+  .msg.user .av{background:linear-gradient(135deg,#4a90d9,#36c3f0)}
+  .msg.user .bub{background:var(--blue);color:#fff;border-bottom-right-radius:5px}
+  .msg.ai .av{background:linear-gradient(135deg,#a06be0,#e06bb0)}
+  .msg.ai .bub{background:#1c1c1e;color:#eee;border-bottom-left-radius:5px}
+  .think{background:#1c1c1e;border-radius:14px;padding:10px 13px;display:flex;align-items:center;gap:8px;margin-left:38px}
+  .think .i{font-size:13px}
+  .think span{color:#98989f;font-size:11.5px;flex:1}
+  .think em{color:#6d6d75;font-style:normal;font-size:10px}
+  .react{display:flex;gap:10px;margin:-4px 0 0 38px;font-size:13px;color:#6d6d75}
+  .capsule{margin:auto 12px 16px;background:#1c1c1e;border-radius:28px;padding:11px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .capsule .ph{flex:1;color:#8e8e93;font-size:13px}
+  .capsule .mic{font-size:15px;color:#8e8e93}
+  .capsule .send{font-size:16px;color:#fff}
+  .drawer{position:absolute;top:0;bottom:0;left:0;width:78%;background:#141416;border-right:1px solid #2a2a2c;
+          display:flex;flex-direction:column;z-index:20;border-radius:30px 0 0 30px}
+  .dhead{padding:16px 14px 10px;display:flex;align-items:center;gap:10px}
+  .dhead .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2));
+             color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
+  .dhead .nm{flex:1;min-width:0}
+  .dhead .nm b{font-size:14px;color:#fff;display:block}
+  .dhead .nm span{font-size:10.5px;color:var(--sec)}
+  .dlist{flex:1;overflow:hidden;padding:4px 10px}
+  .drow{background:#1c1c1e;border-radius:12px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:center;gap:9px;cursor:pointer}
+  .drow.on{outline:1.5px solid var(--brand)}
+  .drow .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2));
+            color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .drow .t{flex:1;min-width:0}
+  .drow .t b{font-size:12px;color:#fff;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .drow .t span{font-size:9.5px;color:var(--sec)}
+  .dsec{font-size:9.5px;color:#6d6d75;padding:8px 14px 4px;font-weight:600;letter-spacing:.5px}
+  .dact{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:13px;color:#ddd;cursor:pointer}
+  .dact .i{width:22px;text-align:center;font-size:15px;color:var(--brand)}
+  .dact.danger{color:#ff6961}.dact.danger .i{color:#ff6961}
+  .dim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:19}
+  .card{background:#141416;border-radius:16px;padding:20px;margin:0 12px}
+  .btn{display:block;text-align:center;background:var(--brand);color:#fff;border-radius:22px;padding:11px;
+       font-size:13.5px;font-weight:600;margin-top:10px;cursor:pointer}
+  .btn.sec{background:#1c1c1e;color:#ddd}
+  .btn.line{background:transparent;border:1px solid #333;color:#ddd}
+  .note{font-size:11px;color:#ccc;background:#141416;border:1px solid #2a2a2c;border-radius:10px;padding:10px 12px;margin-top:10px;line-height:1.6}
+  .note b{color:var(--brand)}
+  .statebox{font-size:12px;color:#ccc;background:#141416;border:1px solid #2a2a2c;border-radius:12px;padding:14px 16px;width:100%;max-width:920px;line-height:1.8}
+  .statebox b{color:var(--brand)}
+  .sechead{font-size:9.5px;color:#6d6d75;padding:2px 2px 6px;font-weight:600;letter-spacing:.5px}
+  .board .row{background:#1c1c1e;border-radius:12px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+  .board .row .k{font-size:12px;color:#98989f}
+  .board .row .v{font-size:12px;color:#fff;font-weight:600}
+  .board .row .v.warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<h1>DesireRemote 原型 v2 — 单页聊天 + 抽屉（IrsClawApp 式）</h1>
+<div class="sub">去掉底部 Tab。主界面 = 聊天页；左上 ≡ 抽屉承载全部功能（会话切换 / 扫码登录 / 看板 / 设置 / 解除配对）；连接状态不锁功能。</div>
+<div class="legend">
+  <span><span class="lg" style="background:var(--ok)"></span>在线</span>
+  <span><span class="lg" style="background:var(--warn)"></span>Mac 离线（指令排队）</span>
+  <span><span class="lg" style="background:var(--err)"></span>重连中</span>
+  <span>▸ = 流转</span>
+</div>
+
+<h2>A · 主流程：登录 → 未配对 → 聊天主页 + 抽屉</h2>
+<div class="flow">
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head"><div class="cbtn">≡</div><div class="title">Desire Remote</div><div class="cbtn" style="width:40px">　</div></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 26px;text-align:center">
+          <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;font-size:34px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:14px">欲</div>
+          <b style="font-size:17px;color:#fff">Desire Remote</b>
+          <p style="font-size:11.5px;color:var(--sec);margin:6px 0 18px">登录 Desire 账号，连接你的 Mac</p>
+          <div style="width:100%;background:#1c1c1e;border-radius:14px;padding:4px 14px;text-align:left">
+            <div style="padding:10px 0;border-bottom:1px solid #2c2c2e;color:#8e8e93;font-size:12.5px">用户名</div>
+            <div style="padding:10px 0;color:#8e8e93;font-size:12.5px">密码</div>
+          </div>
+          <div class="btn" style="width:100%">登录</div>
+          <div style="margin-top:12px;font-size:11.5px;color:var(--brand)">没有账号？注册</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">登录成功 ▸ <b>主页（未配对）</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head"><div class="cbtn">≡</div><div class="title">连接 Mac</div><div style="width:40px"></div></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 26px;text-align:center">
+          <div style="font-size:42px;margin-bottom:12px">⌗</div>
+          <b style="font-size:16px;color:#fff">连接你的 Mac</b>
+          <p style="font-size:11.5px;color:var(--sec);margin:8px 0 16px">在 Mac「设置 → 远程」生成配对二维码；<br>或扫 Mac「设置 → Sync」的登录码免密登录。</p>
+          <div class="btn" style="width:100%">扫码配对</div>
+          <div class="btn sec" style="width:100%">扫一扫登录 Mac</div>
+          <div style="width:100%;background:#1c1c1e;border-radius:12px;margin-top:14px;padding:10px 12px;color:#8e8e93;font-size:11.5px;text-align:left">粘贴配对内容（JSON）…</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">配对成功 ▸ <b>聊天主页</b><br><span style="color:#888">（未配对也保留抽屉：切账号/扫码登录）</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="cbtn">≡</div>
+          <div class="title"><span class="dot" style="background:var(--ok)"></span>Mankong's MacBook</div>
+          <div class="cbtn grp"><div class="cbtn" style="background:#1c1c1e;width:36px;height:36px">✎</div><div class="cbtn" style="background:#1c1c1e;width:36px;height:36px">⚙</div></div>
+        </div>
+        <div class="stream">
+          <div class="msg user"><div class="av">👤</div><div class="bub">下载这个页面的视频</div></div>
+          <div class="think"><span class="i">🧠</span><span>Thinking</span><em>254 chars ›</em></div>
+          <div class="msg ai"><div class="av">✦</div><div class="bub">主源是 720p 的 HLS 流，我用 ffmpeg 直接转封装成 MP4（不重编码，速度快）✅<br><br>• <b>来源</b>：surrit.com 720p HLS<br>• <b>输出</b>：~/Downloads/xxx.mp4</div></div>
+          <div class="react">👍 👎</div>
+        </div>
+        <div class="capsule"><div class="mic">🎙</div><div class="ph">Message…</div><div class="send">↑</div></div>
+      </div>
+    </div>
+    <div class="arrow">点 ≡ ▸ <b>抽屉</b>（下一屏）</div>
+    <div class="statebox">标题 = 当前会话名 + 连接点。<br>✎ 新建会话（乐观进空聊天室）；⚙ 设置。<br>busy 时 ✎ 旁出现 ■ 停止。</div>
+  </div>
+</div>
+
+<h2>B · 抽屉（功能全集）+ Agent 看板</h2>
+<div class="flow">
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="dim"></div>
+      <div class="drawer">
+        <div class="dhead">
+          <div class="av">欲</div>
+          <div class="nm"><b>Mankong's MacBook</b><br><span style="color:var(--ok)">● 已连接 · Qwen3.8</span></div>
+        </div>
+        <div class="dsec">会话</div>
+        <div class="dlist">
+          <div class="drow on"><div class="av">💬</div><div class="t"><b>视频下载任务</b><span>18 条消息</span></div></div>
+          <div class="drow"><div class="av">💬</div><div class="t"><b>继续</b><span>27 条消息</span></div></div>
+          <div class="drow"><div class="av">💬</div><div class="t"><b>远程离线探针确认</b><span>13 条消息</span></div></div>
+          <div class="drow"><div class="av">💬</div><div class="t"><b>欢迎使用浏览器助手</b><span>2 条消息</span></div></div>
+        </div>
+        <div class="dsec">操作</div>
+        <div class="dact"><span class="i">⌗</span>扫一扫登录另一台 Mac</div>
+        <div class="dact"><span class="i">📊</span>Agent 看板（状态 / 记忆）</div>
+        <div class="dact"><span class="i">✎</span>新建会话</div>
+        <div style="flex:1"></div>
+        <div class="dact danger" style="margin-bottom:14px"><span class="i">⏏</span>解除配对 / 退出登录</div>
+      </div>
+    </div>
+    <div class="arrow">抽屉 = 功能全集：<br>会话切换（滑动删除/重命名）+ 连接状态 +<br>扫码登录 / 看板 / 设置入口 / 解除配对</div>
+    <div class="statebox"><b>断线时的抽屉</b>：状态变 🔴 重连中 / 🟠 Mac 离线，<br>会话列表仍可浏览，新增"重新连接"项。<br><b>任何状态下抽屉都在</b>——不再有入口丢失。</div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head"><div class="cbtn">‹</div><div class="title">Agent 看板</div><div style="width:40px"></div></div>
+        <div style="flex:1;padding:2px 12px;overflow:hidden">
+          <div class="sechead">状态</div>
+          <div class="board"><div class="row"><span class="k">模型</span><span class="v">Qwen3.8-Flash-Next</span></div>
+            <div class="row"><span class="k">上下文占用</span><span class="v">42%</span></div>
+            <div class="row"><span class="k">排队 / 回合用时</span><span class="v">0 · 1分12秒</span></div></div>
+          <div class="sechead">用户画像</div>
+          <div class="board"><div class="row"><span class="v" style="font-weight:400;color:#ddd">Mankong · 中文 · 简洁直接</span></div></div>
+          <div class="sechead">事实 · 3（左滑删除）</div>
+          <div class="board"><div class="row"><span class="v" style="font-weight:400;color:#ddd">📌 常下载 720p HLS 视频</span><span class="k">preference</span></div>
+            <div class="row"><span class="v" style="font-weight:400;color:#ddd">偏好转封装不重编码</span><span class="k">habit</span></div></div>
+          <div class="sechead">对话摘要 · 4（左滑删除）</div>
+          <div class="board"><div class="row"><span class="v" style="font-weight:400;color:#98989f;font-size:11px">User asked to download page videos…</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">看板从抽屉「📊」进入（推入全屏页，‹ 返回）</div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head"><div class="cbtn">‹</div><div class="title">设置</div><div style="width:40px"></div></div>
+        <div style="flex:1;padding:2px 12px;overflow:hidden">
+          <div class="sechead">外观</div>
+          <div class="board"><div class="row"><span class="k">主题</span><span class="v">跟随系统 ▸</span></div></div>
+          <div class="sechead">服务器（可选覆盖）</div>
+          <div class="board"><div class="row"><span class="k">留空 = 内置默认地址</span><span class="v" style="color:#6d6d75">▸</span></div></div>
+          <div class="sechead">账号</div>
+          <div class="board"><div class="row"><span class="k">smoke_mac_rc · 退出登录</span><span class="v" style="color:#6d6d75">▸</span></div></div>
+          <div class="sechead">关于</div>
+          <div class="board"><div class="row"><span class="k">版本 · 状态</span><span class="v" style="color:#6d6d75">▸</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">设置从抽屉「⚙」进入</div>
+  </div>
+</div>
+
+<h2>C · 状态与异常（连接不锁功能）</h2>
+<div class="flow">
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>18:34</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="cbtn">≡</div>
+          <div class="title"><span class="dot" style="background:var(--err)"></span>Mankong's MacBook</div>
+          <div class="cbtn grp"><div class="cbtn" style="background:#1c1c1e;width:36px;height:36px">✎</div></div>
+        </div>
+        <div style="margin:0 12px 8px;background:#2a1512;border:1px solid #5a2a22;border-radius:10px;padding:8px 12px;font-size:10.5px;color:#ffb4a8">
+          🔴 连接断开 · 自动重连中 —— 发送的消息将排队，Mac 上线后送达</div>
+        <div class="stream">
+          <div class="msg user"><div class="av">👤</div><div class="bub" style="opacity:.75">继续下载 1080p</div></div>
+          <div style="margin-left:38px;font-size:10.5px;color:var(--warn)">🕓 已排队，Mac 上线后自动送达</div>
+        </div>
+        <div class="capsule"><div class="mic">🎙</div><div class="ph">仍可继续输入…</div><div class="send" style="color:#8e8e93">↑</div></div>
+      </div>
+    </div>
+    <div class="arrow">断线：横幅 + 标题红点 + 消息排队标记<br>功能全部保留</div>
+    <div class="statebox"><b>状态语义</b>：<br>🟢 在线　🟠 Mac 离线（可发，排队）<br>🔴 重连中（自动退避，无需手动操作）<br>登录过期 → 唯一强制跳登录页的情形<br><br><b>全部写操作乐观反馈</b>：新建/删除/重命名/发送立即生效，失败回滚 + 提示。</div>
+  </div>
+</div>
+</body>
+</html>

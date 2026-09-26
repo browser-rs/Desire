@@ -203,6 +203,7 @@
 		5A0A010D2FF7D00000E5D4E8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F8JZTX6J52;
@@ -220,7 +221,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = me.siwi.DesireRemote;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -236,6 +236,7 @@
 		5A0A010E2FF7D00000E5D4E8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F8JZTX6J52;
@@ -253,7 +254,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = me.siwi.DesireRemote;
 				PRODUCT_NAME = "$(TARGET_NAME)";

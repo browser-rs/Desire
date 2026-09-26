@@ -17,7 +17,10 @@ import UIKit
 final class RemoteClient: ObservableObject {
 
     enum Phase: Equatable {
-        case login, devices, sessions, chat
+        /// 登录过期/未登录（唯一强制回登录页的情形）
+        case login
+        /// 已登录主页面：未配对显示连接引导，已配对显示聊天
+        case main
     }
 
     struct RemoteSessionInfo: Identifiable, Codable, Equatable {
@@ -25,6 +28,12 @@ final class RemoteClient: ObservableObject {
         var label: String
         var busy: Bool
         var count: Int
+        /// 最近更新时间（epoch 秒；Mac 端 conversation.updatedAt）
+        var date: Double?
+
+        var dateValue: Date? {
+            date.map { Date(timeIntervalSince1970: $0) }
+        }
     }
 
     @Published var phase: Phase = .login
@@ -117,7 +126,7 @@ final class RemoteClient: ObservableObject {
             sessionKeyB64 = key
             desktopDeviceID = desktop
             hasSavedPairing = true
-            phase = .sessions
+            phase = .main
             username = defaults.string(forKey: "remote.username") ?? ""
             // 恢复持久化的对话记录（杀 App 不丢）
             if let data = defaults.data(forKey: "remote.messages"),
@@ -167,7 +176,7 @@ final class RemoteClient: ObservableObject {
                     defaults.set(baseURL, forKey: "remote.server")
                 }
                 defaults.set(username, forKey: "remote.username")
-                phase = .devices
+                phase = .main
             } catch {
                 loginError = error.localizedDescription
             }
@@ -284,7 +293,7 @@ final class RemoteClient: ObservableObject {
                 hasSavedPairing = true
                 messages = []
                 busy = false
-                phase = .sessions
+                phase = .main
                 connectWS()
                 startPullLoop()
                 requestSessions()
@@ -296,7 +305,7 @@ final class RemoteClient: ObservableObject {
 
     /// 回到前台：重连续 transports 并补快照。
     func appForegrounded() {
-        guard hasSavedPairing else { return }
+        guard hasSavedPairing, phase == .main else { return }
         startPullLoop()
         if wsTask == nil { connectWS() }
         requestSync()
@@ -338,7 +347,7 @@ final class RemoteClient: ObservableObject {
         desktopOnline = true
         connectionState = "未连接"
         hasSavedPairing = false
-        phase = .devices
+        phase = .main
         guard let token, let desktopID else { return }
         Task {
             let _: RevokeResp? = try? await API.send(
@@ -636,7 +645,7 @@ final class RemoteClient: ObservableObject {
         busy = false
         queuedOffline = false
         connectionState = desktopOnline ? "已连接" : "Mac 离线"
-        phase = .chat
+        phase = .main
         pushFrame(["t": "newSession"], replace: false)
         scheduleSessionsRefresh()
     }
@@ -658,7 +667,6 @@ final class RemoteClient: ObservableObject {
             selectedSessionID = nil
             messages = []
             pendingNewSession = false
-            if phase == .chat { phase = .sessions }
         }
         pushFrame(["t": "deleteSession", "session": id], replace: false)
         scheduleSessionsRefresh()
@@ -681,7 +689,7 @@ final class RemoteClient: ObservableObject {
         selectedSessionID = id
         messages = []
         busy = false
-        phase = .chat
+        phase = .main
         var dict: [String: String] = ["t": "select"]
         if let id { dict["session"] = id }
         pushFrame(dict, replace: false)

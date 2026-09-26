@@ -744,7 +744,8 @@ final class RemoteControlStore: ObservableObject {
                 ["id": conversation.id.uuidString,
                  "label": conversation.title,
                  "busy": busy && conversation.id.uuidString == remoteConversationID,
-                 "count": conversation.messages.count]
+                 "count": conversation.messages.count,
+                 "date": conversation.updatedAt.timeIntervalSince1970]
             }
         let dict: [String: Any] = ["t": "sessions", "list": Array(list)]
         return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) }

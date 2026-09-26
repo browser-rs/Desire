@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DesireRemote 原型 v1 — 页面与状态流转</title>
+<style>
+  :root{
+    --brand:#c03a1a; --brand-bright:#f25c33;
+    --ink:#1a1a1a; --paper:#f2f2f7; --card:#fff;
+    --ok:#34c759; --warn:#ff9500; --err:#ff3b30;
+    --sec:#8e8e93; --line:#e5e5ea;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  body{background:#111;color:#eee;font-family:-apple-system,"PingFang SC",sans-serif;padding:32px}
+  h1{font-size:22px;margin-bottom:4px}
+  .sub{color:#999;font-size:13px;margin-bottom:8px}
+  .legend{display:flex;gap:14px;font-size:12px;color:#aaa;margin:14px 0 26px;flex-wrap:wrap}
+  .legend b{font-weight:600}
+  .lg{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .flow{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:10px;width:270px}
+  .arrow{color:#666;font-size:12px;text-align:center;width:100%;margin:2px 0}
+  .arrow b{color:#f25c33}
+  .phone{width:264px;height:560px;background:var(--paper);border-radius:34px;border:7px solid #2a2a2a;
+         position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.55);display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:22px;background:#2a2a2a;border-radius:0 0 14px 14px;z-index:9}
+  .status{height:30px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;font-size:10px;color:var(--ink);flex-shrink:0}
+  .screen{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+  .head{padding:6px 16px 10px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .head h3{font-size:22px;color:var(--ink);font-weight:800}
+  .toolrow{margin-left:auto;display:flex;gap:8px}
+  .tool{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;
+        align-items:center;justify-content:center;font-size:15px;color:#555;cursor:pointer}
+  .tag{font-size:9px;padding:2px 8px;border-radius:20px;display:inline-block}
+  .banner{margin:0 12px 8px;padding:7px 12px;border-radius:10px;font-size:10.5px;display:flex;gap:6px;align-items:center}
+  .banner.warn{background:#fff3e0;color:#a35c00;border:1px solid #ffd699}
+  .banner.err{background:#fdecec;color:#c0261a;border:1px solid #f5b5b0}
+  .list{flex:1;overflow:hidden;padding:0 12px;display:flex;flex-direction:column;gap:8px}
+  .row{background:var(--card);border-radius:14px;padding:11px 13px;display:flex;align-items:center;gap:11px;
+       box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .row .av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#e0532f,#b93318);
+           color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .row .t{flex:1;min-width:0}
+  .row .t b{font-size:13px;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .t span{font-size:10.5px;color:var(--sec)}
+  .row .chev{color:#c7c7cc;font-size:14px}
+  .row.sel{outline:2px solid var(--brand);outline-offset:-2px}
+  .row.swipe-del{background:#ff3b30;color:#fff;border-radius:14px;padding:11px 16px;display:flex;justify-content:flex-end;align-items:center;font-size:13px;font-weight:600}
+  .capsule-in{margin:8px 12px 14px;background:#fff;border-radius:26px;padding:10px 14px;display:flex;align-items:center;gap:10px;
+              box-shadow:0 6px 18px rgba(0,0,0,.14);flex-shrink:0}
+  .capsule-in .ph{flex:1;color:#b0b0b5;font-size:12.5px}
+  .capsule-in .mic,.capsule-in .send{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .capsule-in .mic{background:#f0f0f3;color:#777}
+  .capsule-in .send{background:var(--brand);color:#fff}
+  .tabs{height:66px;background:#fff;border-top:1px solid var(--line);display:flex;flex-shrink:0}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:9.5px;color:#9a9aa0}
+  .tab.on{color:var(--brand)}
+  .tab .i{font-size:18px}
+  .card{background:var(--card);border-radius:16px;padding:18px;margin:0 12px;color:var(--ink)}
+  .btn{display:block;text-align:center;background:var(--brand);color:#fff;border-radius:12px;padding:11px;
+       font-size:13.5px;font-weight:600;margin-top:10px;cursor:pointer}
+  .btn.sec{background:#f0f0f3;color:var(--ink)}
+  .btn.line{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .note{font-size:11px;color:var(--ink);background:#f6f6f9;border:1px solid #e8e8ee;border-radius:10px;padding:10px 12px;margin-top:10px;line-height:1.5}
+  .note b{color:var(--brand)}
+  .sechead{font-size:10px;color:var(--sec);padding:2px 4px 6px;font-weight:600;letter-spacing:.4px}
+  .statebox{font-size:11px;color:#ccc;background:#1d1d1f;border:1px solid #333;border-radius:10px;padding:8px 10px;width:100%;line-height:1.6}
+  .statebox b{color:#f25c33}
+  h2{font-size:15px;margin:26px 0 12px;color:#ddd}
+  .dark{background:#111}
+  .dark .phone{background:#000;border-color:#333}
+  .dark .card,.dark .row{background:#1c1c1e}
+  .dark .row .t b,.dark h3{color:#fff}
+  .dark .capsule-in{background:#1c1c1e}
+  .pill{position:absolute;top:52px;left:50%;transform:translateX(-50%);display:flex;gap:5px;align-items:center;
+        background:rgba(250,250,252,.9);border:1px solid #e8e8ee;border-radius:20px;padding:4px 10px;font-size:9.5px;color:#555;z-index:5;white-space:nowrap}
+  .msg{display:flex;gap:7px;margin:0 12px 8px}
+  .msg .av{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+  .msg .bub{border-radius:14px;padding:9px 11px;font-size:11.5px;line-height:1.55}
+  .msg.user{flex-direction:row-reverse}
+  .msg.user .av{background:linear-gradient(135deg,#4a90d9,#36c3f0)}
+  .msg.user .bub{background:var(--brand);color:#fff;border-bottom-right-radius:4px}
+  .msg.ai .av{background:linear-gradient(135deg,#a06be0,#e06bb0)}
+  .msg.ai .bub{background:#fff;color:var(--ink);border-bottom-left-radius:4px}
+  .msg.tool .av{background:linear-gradient(135deg,#9a9aa2,#6d6d75)}
+  .msg.tool .bub{background:#ececf1;color:#555;font-family:ui-monospace,monospace;font-size:10px;border-bottom-left-radius:4px}
+  .lbl{font-size:9px;color:#8e8e93;display:flex;gap:4px;align-items:center;margin-bottom:3px}
+</style>
+</head>
+<body>
+<h1>DesireRemote 原型 v1 — 信息架构与状态流转</h1>
+<div class="sub">核心原则：<b style="color:#f25c33">连接状态不锁功能</b>（离线仍可浏览/派活，指令自动排队）；<b style="color:#f25c33">全局动作任何页面可达</b>（扫码登录、新建、设置）；<b style="color:#f25c33">乐观反馈</b>（操作立即生效，Mac 离线时排队）。</div>
+<div class="legend">
+  <span><span class="lg" style="background:var(--ok)"></span><b>在线</b>（WS+最近心跳）</span>
+  <span><span class="lg" style="background:var(--warn)"></span><b>Mac 离线</b>（last_seen 超 15s）</span>
+  <span><span class="lg" style="background:var(--err)"></span><b>断线重连中</b></span>
+  <span>▸ 箭头 = 页面流转</span>
+</div>
+
+<!-- ============ 流 A：登录 → 配对 → 主页 ============ -->
+<h2>A · 首次进入（登录 → 配对 → 主页）</h2>
+<div class="flow">
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3 style="font-size:18px">Desire Remote</h3></div>
+        <div class="card" style="margin-bottom:12px;display:flex;gap:12px;align-items:center">
+          <div class="av" style="width:44px;height:44px;border-radius:10px;font-size:22px;font-weight:800">欲</div>
+          <div><b style="font-size:14px">Desire Remote</b><br><span style="font-size:11px;color:var(--sec)">远程对话 Mac 上的 Agent</span></div>
+        </div>
+        <div class="card">
+          <div class="sechead">账号</div>
+          <div style="border-bottom:1px solid var(--line);padding:7px 0;color:#b0b0b5;font-size:12px">用户名</div>
+          <div style="padding:7px 0;color:#b0b0b5;font-size:12px">密码</div>
+          <div class="btn">登录</div>
+          <div style="text-align:center;font-size:11px;color:var(--brand);margin-top:10px">没有账号？注册</div>
+        </div>
+        <div class="note">登录页不再有服务器地址（内置默认 + 设置页可选覆盖）。</div>
+      </div>
+    </div>
+    <div class="arrow">登录成功<br>▸ <b>主页</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3 style="font-size:22px">连接 Mac</h3>
+          <div class="toolrow"><div class="tool" title="扫码登录 Mac">⌗</div><div class="tool">⚙</div></div>
+        </div>
+        <div class="card" style="text-align:center;padding:26px 18px">
+          <div style="font-size:40px;margin-bottom:8px">⌗</div>
+          <b style="font-size:15px">与你的 Mac 配对</b>
+          <p style="font-size:11px;color:var(--sec);margin:8px 0 2px">在 Mac 的 设置 → 远程 里生成二维码。</p>
+          <p style="font-size:11px;color:var(--sec)">也可以扫 Mac「设置 → Sync」的登录码，免密码登录。</p>
+          <div class="btn">扫码配对</div>
+          <div class="btn sec">扫一扫登录 Mac</div>
+          <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px">
+            <div style="border-bottom:1px solid var(--line);padding:6px 0;color:#b0b0b5;font-size:11px">粘贴配对内容（JSON）</div>
+            <div class="btn sec">导入</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">扫码 / 粘贴配对成功<br>▸ <b>主页（会话）</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3>会话</h3>
+          <div class="toolrow"><div class="tool" title="扫码登录 Mac">⌗</div><div class="tool" title="新建会话">✎</div><div class="tool">⚙</div></div>
+        </div>
+        <div class="banner err"><span class="lg" style="background:var(--err)"></span>连接断开 · 自动重连中…（消息会排队）</div>
+        <div class="list">
+          <div class="row sel"><div class="av">💬</div><div class="t"><b>视频下载任务</b><span>18 条消息 · Mac 离线</span></div><div class="chev">›</div></div>
+          <div class="row"><div class="av">💬</div><div class="t"><b>远程离线探针确认</b><span>13 条消息</span></div><div class="chev">›</div></div>
+          <div class="row"><div class="av">💬</div><div class="t"><b>继续</b><span>27 条消息</span></div><div class="chev">›</div></div>
+        </div>
+        <div class="capsule-in"><div class="mic">🎙</div><div class="ph">给 Agent 派个活…</div><div class="send">↑</div></div>
+        <div class="tabs">
+          <div class="tab on"><div class="i">💬</div>会话</div>
+          <div class="tab"><div class="i">📊</div>看板</div>
+          <div class="tab"><div class="i">⚙</div>设置</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">点会话 / 派活<br>▸ <b>聊天页</b></div>
+    <div class="statebox"><b>主页双形态</b>：未配对=连接引导卡（上图）；已配对=会话列表（本图）。<br><b>断线不锁功能</b>：横幅常驻提示 + 指令排队，扫码登录入口永远在工具栏与 Tab。</div>
+  </div>
+</div>
+
+<!-- ============ 流 B：聊天 ============ -->
+<h2>B · 聊天页（含工具渲染 / 离线排队）</h2>
+<div class="flow">
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="pill">🟠 工作中 · Qwen3.8 · 42% · 1分12秒 &nbsp;［看板 ▾］</div>
+        <div class="head" style="padding-top:34px"><div class="toolrow" style="margin-left:0"><div class="tool">‹ 返回</div></div>
+          <b style="font-size:14px;color:var(--ink)">视频下载任务</b>
+          <div class="toolrow"><div class="tool" title="Agent 看板">📊</div></div>
+        </div>
+        <div style="flex:1;padding-top:6px">
+          <div class="msg user"><div class="av">👤</div><div class="bub">下载这个页面的视频</div></div>
+          <div class="msg tool"><div class="av">🔧</div><div class="bub"><div class="lbl">🔧 工具 · 点击展开参数</div>listMediaResources(…)<br>↳ 7 media resource(s): [stream] …</div></div>
+          <div class="msg ai"><div class="av">✦</div><div class="bub">主源是 720p HLS，用 ffmpeg 转封装 MP4…<br><b>**来源** · **输出** · 1.2 GB</b></div></div>
+          <div class="msg ai"><div class="av">✦</div><div class="bub"><div class="lbl">🧠 思考过程 ▸</div>正在解析页面…</div></div>
+        </div>
+        <div class="capsule-in"><div class="mic">🎙</div><div class="ph">继续下载 1080p…</div><div class="send" style="background:var(--err)">■</div></div>
+      </div>
+    </div>
+    <div class="arrow">点状态胶囊 / 📊<br>▸ <b>Agent 看板</b></div>
+    <div class="statebox">顶部胶囊=模型/上下文%/用时（点开看板）。<br>发送键 busy 时变 <b>■ 停止</b>。<br>工具消息：<b>调用名（可展开参数）+ 结果常驻 4 行折叠</b>。</div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3 style="font-size:20px">Agent 看板</h3>
+          <div class="toolrow"><div class="tool">✕</div></div>
+        </div>
+        <div class="list" style="padding-top:4px">
+          <div class="sechead">状态</div>
+          <div class="row"><div class="t"><b style="font-size:12px">模型</b><span>Qwen3.8-Flash-Next</span></div>
+               <div class="t" style="text-align:right"><b style="font-size:12px">上下文 42%</b><span style="color:var(--warn)">▲ 60% 转橙</span></div></div>
+          <div class="row"><div class="t"><b style="font-size:12px">排队 1 条</b><span>回合用时 1分12秒</span></div></div>
+          <div class="sechead">用户画像</div>
+          <div class="row"><div class="t"><b style="font-size:12px">Mankong · 中文</b><span>风格：简洁直接</span></div></div>
+          <div class="sechead">事实 · 3 <span style="color:#c7c7cc">（左滑删除）</span></div>
+          <div class="row"><div class="av" style="border-radius:8px;width:30px;height:30px">📌</div><div class="t"><b style="font-size:12px;font-weight:400">常下载 720p HLS 视频</b><span>preference · global</span></div></div>
+          <div class="row"><div class="t"><b style="font-size:12px;font-weight:400">偏好转封装不重编码</b><span>habit · global</span></div></div>
+          <div class="sechead">对话摘要 · 4 <span style="color:#c7c7cc">（左滑删除）</span></div>
+          <div class="row"><div class="t"><span style="font-size:11px;color:var(--ink)">User asked to download page videos…</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">看板入口：<br>聊天页状态胶囊 / 📊 / Tab「看板」</div>
+  </div>
+</div>
+
+<!-- ============ 流 C：深浅色 + 设置 ============ -->
+<h2>C · 设置与主题（任何状态可达）</h2>
+<div class="flow">
+  <div class="stage">
+    <div class="phone dark"><div class="notch"></div><div class="status" style="color:#fff"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3>会话</h3>
+          <div class="toolrow"><div class="tool" style="background:#1c1c1e;border-color:#333">⌗</div><div class="tool" style="background:#1c1c1e;border-color:#333">✎</div><div class="tool" style="background:#1c1c1e;border-color:#333">⚙</div></div>
+        </div>
+        <div class="list">
+          <div class="row"><div class="av" style="background:linear-gradient(135deg,#f25c33,#d93b1a)">💬</div><div class="t"><b>视频下载任务</b><span style="color:#98989f">18 条消息</span></div><div class="chev">›</div></div>
+          <div class="row"><div class="av" style="background:linear-gradient(135deg,#f25c33,#d93b1a)">💬</div><div class="t"><b>继续</b><span style="color:#98989f">27 条消息</span></div><div class="chev">›</div></div>
+        </div>
+        <div class="capsule-in" style="background:#1c1c1e"><div class="mic" style="background:#2c2c2e;color:#bbb">🎙</div><div class="ph">给 Agent 派个活…</div><div class="send">↑</div></div>
+        <div class="tabs" style="background:#1c1c1e;border-top-color:#2c2c2e">
+          <div class="tab on"><div class="i">💬</div>会话</div>
+          <div class="tab"><div class="i">📊</div>看板</div>
+          <div class="tab"><div class="i">⚙</div>设置</div>
+        </div>
+      </div>
+      <div style="position:absolute;bottom:70px;right:12px;background:#0a84ff;color:#fff;font-size:9px;padding:3px 8px;border-radius:8px">深色 · 品牌色自动提亮</div>
+    </div>
+    <div class="arrow">设置 → 外观（跟随系统/浅色/深色）<br>sheet 与主界面同步换肤</div>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="notch"></div><div class="status"><span>9:41</span><span>信号 · WiFi · 电池</span></div>
+      <div class="screen">
+        <div class="head"><h3 style="font-size:20px">设置</h3><div class="toolrow"><div class="tool">✕</div></div></div>
+        <div class="list" style="padding-top:2px">
+          <div class="sechead">桌面登录</div>
+          <div class="row"><div class="t"><b style="font-size:12.5px">扫一扫登录 Mac</b><span>Mac 出码，手机确认，免密码</span></div><div class="chev">⌗</div></div>
+          <div class="sechead">外观</div>
+          <div class="row"><div class="t"><b style="font-size:12.5px">主题</b><span>跟随系统 · 浅色 · 深色</span></div></div>
+          <div class="sechead">服务器（可选覆盖）</div>
+          <div class="row"><div class="t"><b style="font-size:12.5px;color:#b0b0b5">留空 = 内置默认地址</b><span>改后需重新登录</span></div></div>
+          <div class="sechead">账号</div>
+          <div class="row"><div class="t"><b style="font-size:12.5px">smoke_mac_rc</b><span>退出登录 · 解除配对</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">设置任何状态可达：<br>主页 ⚙ / 聊天页 ⚙ / Tab 设置</div>
+    <div class="statebox"><b>入口不再丢失</b>：扫码登录从"未配对卡片"上移到<br>① 主页工具栏 ⌗　② 设置页首行　③ 未配对引导卡。<br>配对过、断线、离线——都能一键再扫。</div>
+  </div>
+</div>
+
+<!-- ============ 状态机 ============ -->
+<h2>D · 全局状态机（页面 × 连接 正交）</h2>
+<div class="flow">
+  <div class="stage" style="width:100%;max-width:900px">
+    <div class="statebox" style="font-size:12.5px;padding:16px 18px">
+      <b>页面相位（Phase）</b>：未登录 → 已登录未配对（连接引导卡）→ 已配对（会话列表 ⇄ 聊天）<br>
+      <b>连接态（独立于页面，只影响横幅/胶囊/发送行为）</b>：在线 🟢 ／ Mac 离线 🟠（last_seen&gt;15s，指令排队+提示）／ 断线重连中 🔴（指数退避）／ 会话过期 → 强制回登录页（唯一强制迁移）<br>
+      <b>写操作乐观反馈</b>：新建会话=立即进空聊天室；删除/重命名=本地即时生效；发送=立即上屏（离线显示"已排队，Mac 上线后送达"）<br>
+      <b>全局入口</b>：扫码登录 ⌗（主页工具栏+设置+未配对卡）、新建 ✎（主页工具栏）、看板 📊（Tab+聊天胶囊）、设置 ⚙（主页+聊天+Tab）
+    </div>
+  </div>
+</div>
+</body>
+</html>

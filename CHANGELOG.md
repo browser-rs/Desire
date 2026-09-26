@@ -49,6 +49,14 @@
 
 ### Changed
 
+- **DesireRemote 视图层照 IrsClawApp 架构重写**：单页聊天为根（无 Tab、
+  无独立会话列表页）；左上 ≡ 弹出 Menu 半屏 sheet（.medium/.large
+  detents）——Agent 状态卡（模型/上下文%/排队/连接）+ Browse 磁贴网格
+  （会话/记忆/看板/扫码登录）+ 最近会话前 5；磁贴经 navigationDestination
+  push 全屏页：会话列表（今天/昨天/本周/更早分组 + 左滑删除 + 左滑重命名）、
+  记忆页（画像/事实/摘要 + 左滑删除）、看板页；聊天页照 IrsClaw ChatView
+  （bottom 锚点滚动、safeAreaInset 漂浮输入胶囊、mic/send 圆钮、busy 变
+  停止、PulsingDot 录音条、断线/排队横幅）。sessions 帧补 date 时间戳。
 - **服务器地址改为"覆盖"语义（Mac + iOS）**：内置生产地址不再出现在
   任何界面（登录页删掉服务器区块、设置页占位符不露地址）；设置项留空
   = 使用内置默认，填了才覆盖（旧版把默认值写进覆盖位的自动迁移清除，

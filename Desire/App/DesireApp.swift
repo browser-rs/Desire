@@ -189,6 +189,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ShutdownDiagnostics.capture(reason: "applicationShouldTerminate")
         TabSessionCoordinator.shared.prepareForTermination()
         ShutdownDiagnostics.capture(reason: "after session flush")
+        // 云同步退出前补推：有未上推的本地变更时延后终止，SyncStore 保证 5 秒内
+        // 回调（期间 .terminateLater 挂起）；无脏域照常立即退出。
+        if let syncStore = AppState.live?.syncStore, syncStore.needsQuitFlush {
+            syncStore.flushOnQuit { NSApp.reply(toApplicationShouldTerminate: true) }
+            return .terminateLater
+        }
         return .terminateNow
     }
 }

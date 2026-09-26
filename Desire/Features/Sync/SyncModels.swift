@@ -15,6 +15,8 @@ enum SyncDomain: String, CaseIterable {
     case agentMemory = "agent_memory"
     /// Agent 自定义系统提示词
     case agentPrefs = "agent_prefs"
+    /// 浏览历史（opt-in 默认关闭；服务端专表 + 90 天 TTL）
+    case history
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -26,6 +28,7 @@ enum SyncDomain: String, CaseIterable {
         case .settings: String(localized: "Settings")
         case .agentMemory: String(localized: "Agent Memory")
         case .agentPrefs: String(localized: "Agent Prompt")
+        case .history: String(localized: "Browsing History")
         }
     }
 }
@@ -208,6 +211,15 @@ struct SettingsSyncEntryPayload: Codable, Equatable {
 /// Agent 偏好域的载荷（密文内部）：自定义系统提示词。
 struct AgentPrefsSyncPayload: Codable, Equatable {
     var systemPrompt: String
+}
+
+/// 历史域的载荷（密文内部结构）：一条访问记录。updatedAt = LWW 盖戳。
+struct HistorySyncPayload: Codable, Equatable {
+    var id: UUID
+    var url: String
+    var title: String
+    var timestamp: Date
+    var updatedAt: Date?
 }
 
 /// 值本体(带类型标签的 JSON)。

@@ -2,6 +2,22 @@
 
 ### Added
 
+- **浏览历史同步（第八类，opt-in 默认关闭）**：服务端新建专表
+  `sync_history_items`（0007 迁移，与通用引擎同构、按域路由表名）——历史是
+  高频写入的日志型数据，与关键小域分开治理；**服务端 90 天 TTL**（history
+  push 后顺带清理该用户超期行，含 tombstone）。客户端 `HistoryEntry` 补
+  `updatedAt` 盖戳（旧文件缺键以访问时间兜底归一）、墓碑清单（**只有用户
+  显式删除**——单删/清空/按域删/按时间删——才推 tombstone；滚动裁剪与合并
+  溢出不推，靠 TTL 收敛）、`replaceForSync` 合并回写；合并语义
+  `HistorySync`（FlatSyncMerge 直配）进纯逻辑单测。设置 → Sync 类目列表
+  自动出现"浏览历史"开关（默认关）；桥 `/sync/status` 的 cursors/待删计数
+  补 history，`/command` 补 `clearHistory`。desire-admin stats 并表统计。
+- **会话过期自愈**：refresh 令牌被服务端拒绝（吊销/轮换丢失/换 JWT 密钥）
+  时不再每轮空转报 401——干净登出（清令牌/游标/戳，主密钥保留）并给出
+  "同步会话已过期，请重新登录"的明确提示（全局与逐域状态一致）。
+- **退出前补推**：退出时有未上推的本地变更，`applicationShouldTerminate`
+  走 `.terminateLater` 做**只 push 不 pull** 的限时补推（5 秒内必回调，
+  推不上去的域放回脏集合由下次启动首轮对账兜底）；无脏域照常立即退出。
 - **产品介绍页（`website/index.html`）**：单文件静态落地页，"墨与朱"编辑风
   （宣纸底 + 墨色正文 + 朱砂点睛，「欲」字印章记忆点）；字体全用 macOS 内置
   Hoefler Text / 宋体 / 楷体，**零外部依赖**（无 CDN，国内访问无阻碍）。

@@ -1103,6 +1103,23 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   /sync/now**，轮询 `/sync/status` 看 `domains.bookmarks.dirty` 秒级转 false + ok 时间戳
   刷新；服务端落库用**第二客户端 curl 直登**（`/auth/login` 无需验证码 → GET
   /sync/bookmarks 数行），删除后核对 tombstone（deleted=true 且 payload NULL）。
+- **历史同步（2026-09-26，第八类 opt-in）**：服务端**专表** `sync_history_items`
+  （0007 迁移，`CREATE TABLE` 与 sync_items 同构；引擎 `sync_model::table_for`
+  按域路由表名，SQL 经 `sqlx::AssertSqlSafe` 放行——**sqlx 0.9 对动态 SQL 有
+  编译期审计**，format! 拼表名必须包这一层）。**服务端 90 天 TTL**：history
+  push 提交后顺带 DELETE 该用户超期行（含 tombstone，best-effort）——历史是
+  高频日志型数据，这是专表存在的意义。客户端三条语义：① `HistoryEntry` 补
+  `updatedAt`（旧文件缺键以 timestamp 兜底归一；标题校正盖新戳）；② 墓碑
+  **只记用户显式删除**（单删/清空/按域删/按时间删），滚动裁剪与合并溢出**不推
+  墓碑**——否则本地 500 条上限与服务端全量日志互相拉扯永不收敛，超期行靠 TTL
+  收尾；③ 合并复用 FlatSyncMerge（`HistorySync`，tests 覆盖）。类目开关
+  **默认关**（enabledDomains 缺省按域特判）；生产服务端未部署 0007 前开启该
+  类目会 404——默认关即安全。同轮：**会话过期自愈**（refresh 401 → 清令牌/
+  游标回未登录态 + 明确文案，防每轮空转 401）；**退出前补推**（needsQuitFlush
+  + flushOnQuit：只 push 脏域不 pull，5 秒必回调，AppDelegate 走
+  `.terminateLater`；未登录/同步中直接跳过不拖慢退出）。**本地 dev 数据库
+  连接串以 container-mysql 环境变量为准（`container inspect container-mysql`），
+  仓库 .env 里的 root:root 是坏的**——本次据此修正 .env 并记入。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
   `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：

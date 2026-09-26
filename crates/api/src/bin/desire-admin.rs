@@ -242,11 +242,15 @@ async fn stats(pool: &MySqlPool) -> anyhow::Result<()> {
     .fetch_one(pool)
     .await?;
   println!("用户数: {users}");
+  // 历史域在专表 sync_history_items（0007），与通用表并表统计
   let rows = sqlx::query_as::<_, (String, i64, i64)>(
-        "SELECT domain, COUNT(*), SUM(deleted_at IS NOT NULL) FROM sync_items GROUP BY domain ORDER BY domain",
-    )
-    .fetch_all(pool)
-    .await?;
+    "SELECT domain, COUNT(*), SUM(deleted_at IS NOT NULL) FROM (\
+           SELECT domain, deleted_at FROM sync_items \
+           UNION ALL SELECT domain, deleted_at FROM sync_history_items\
+         ) t GROUP BY domain ORDER BY domain",
+  )
+  .fetch_all(pool)
+  .await?;
   if rows.is_empty() {
     println!("同步数据: (空)");
     return Ok(());

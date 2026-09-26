@@ -157,6 +157,29 @@
         }
       }
     },
+    "Sync session expired — please sign in again." : {
+      "comment" : "Session expired after refresh token rejection",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync session expired — please sign in again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步会话已过期，请重新登录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步會話已過期，請重新登入。"
+          }
+        }
+      }
+    },
     "·" : {
       "localizations" : {
         "en" : {
@@ -4669,8 +4692,7 @@
       }
     },
     "Browsing History" : {
-      "comment" : "Keyboard shortcut",
-      "extractionState" : "stale",
+      "comment" : "Sync domain display name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4687,7 +4709,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "瀏覽紀錄"
+            "value" : "瀏覽歷史"
           }
         }
       }

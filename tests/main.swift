@@ -640,6 +640,58 @@ do {
     check("domain：展示名齐全", SyncDomain.allCases.allSatisfy { !$0.displayName.isEmpty })
 }
 
+// ---------- 同步：历史域合并（HistorySync） ----------
+
+do {
+    func entry(_ id: String, _ url: String, at: Date) -> HistoryEntry {
+        HistoryEntry(id: UUID(uuidString: id)!, url: url, title: url,
+                     timestamp: at, updatedAt: at)
+    }
+    func wire(_ id: String, at: Date, deleted: Bool = false,
+              url: String = "https://remote.example") -> SyncWireItem<HistorySyncPayload> {
+        let uuid = UUID(uuidString: id)!
+        return SyncWireItem<HistorySyncPayload>(
+            clientId: uuid.uuidString,
+            clientUpdatedAt: at,
+            deleted: deleted,
+            payload: deleted ? nil : HistorySyncPayload(
+                id: uuid, url: url, title: "远端标题", timestamp: at, updatedAt: at),
+            updatedAt: nil)
+    }
+
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+    let t1 = t0.addingTimeInterval(100)
+    let idA = "00000000-0000-0000-0000-00000000000A"
+    let idB = "00000000-0000-0000-0000-00000000000B"
+
+    // 远端新条目 → 插入并盖远端戳
+    let local0 = [entry(idA, "https://a.example", at: t0)]
+    let merged0 = HistorySync.merge(base: local0, remote: [wire(idB, at: t1)])
+    check("history：远端新条目插入", merged0.count == 2)
+    check("history：插入条目盖远端戳", merged0.last?.updatedAt == t1)
+
+    // 本地更新 → 远端旧版本被忽略（LWW）
+    let localNewer = [entry(idA, "https://local.example", at: t1)]
+    let merged1 = HistorySync.merge(base: localNewer, remote: [wire(idA, at: t0)])
+    check("history：本地较新忽略远端", merged1[0].url == "https://local.example")
+
+    // 远端更新 → 覆盖本地并盖戳
+    let merged2 = HistorySync.merge(base: local0, remote: [wire(idA, at: t1)])
+    check("history：远端较新覆盖", merged2[0].url == "https://remote.example" && merged2[0].updatedAt == t1)
+
+    // 同刻非删除 → 幂等忽略（不产生每轮重写）
+    let merged3 = HistorySync.merge(base: localNewer, remote: [wire(idA, at: t1)])
+    check("history：同刻幂等保留本地", merged3[0].url == "https://local.example")
+
+    // 同刻删除 → 应用（收敛，防 tombstone vs 本地同戳死循环）
+    let merged4 = HistorySync.merge(base: localNewer, remote: [wire(idA, at: t1, deleted: true)])
+    check("history：同刻删除收敛", merged4.isEmpty)
+
+    // 远端墓碑删除本地条目
+    let merged5 = HistorySync.merge(base: local0, remote: [wire(idA, at: t1, deleted: true)])
+    check("history：远端墓碑删除", merged5.isEmpty)
+}
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

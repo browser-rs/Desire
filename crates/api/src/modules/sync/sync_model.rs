@@ -6,7 +6,9 @@ use utoipa::ToSchema;
 ///   稳定 UUID,payload = 条目本体(含排序/父子关系等,服务端不解读);
 /// - settings:client_id = 设置键名,payload = 值本体;
 /// - agent_memory:client_id = HMAC(事实/摘要 id 或 "profile"),payload = 条目本体;
-/// - agent_prefs:client_id = 偏好键名,payload = 值本体。
+/// - agent_prefs:client_id = 偏好键名,payload = 值本体;
+/// - history:client_id = HMAC(访问 UUID),payload = 条目本体——**专表存储**
+///   (见 table_for;高频日志型数据,服务端 90 天 TTL,客户端 opt-in 默认关闭)。
 /// E2E 开启后以上 client_id 与 payload 在库里均为不透明形态(HMAC/密文)。
 pub const DOMAINS: &[&str] = &[
   "bookmarks",
@@ -16,7 +18,21 @@ pub const DOMAINS: &[&str] = &[
   "settings",
   "agent_memory",
   "agent_prefs",
+  "history",
 ];
+
+/// 域 → 存储表。history 独立成表(0007):写入频繁、体量大、有独立 TTL,
+/// 与关键小域分开治理,通用引擎的 SQL 除表名外完全一致。
+pub fn table_for(domain: &str) -> &'static str {
+  if domain == "history" {
+    "sync_history_items"
+  } else {
+    "sync_items"
+  }
+}
+
+/// 历史域服务端保留期(天):push 时顺带清理该用户更老的行(含 tombstone)。
+pub const HISTORY_TTL_DAYS: u32 = 90;
 
 pub fn is_valid_domain(domain: &str) -> bool {
   DOMAINS.contains(&domain)

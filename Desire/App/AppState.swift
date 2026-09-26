@@ -50,6 +50,7 @@ class AppState: ObservableObject {
             bookmarkStore: browsing.bookmarkStore,
             quickDialStore: browsing.quickDialStore,
             readingListStore: browsing.readingListStore,
+            historyStore: browsing.historyStore,
             shortcutStore: system.keyboardShortcutStore,
             settings: system.settings,
             agentPreferenceStore: ai.preference

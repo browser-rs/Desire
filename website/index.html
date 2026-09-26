@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词七类端到端加密同步；视频广告拦截与 HLS 转 MP4 下载；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；自动化桥接口。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 下载；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；自动化桥接口。"
     },
     {
       "@type": "FAQPage",
@@ -66,7 +66,7 @@
         {
           "@type": "Question",
           "name": "同步的数据安全吗？服务器能看到我的书签吗？",
-          "acceptedAnswer": { "@type": "Answer", "text": "同步采用端到端加密：密钥由你的密码在本机派生（PBKDF2 六十万轮），书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词七类数据加密后才上传，服务器只见密文，连条目 ID 都是不可逆标签。AI 对话永久保留在设备本地，不参与同步。" }
+          "acceptedAnswer": { "@type": "Answer", "text": "同步采用端到端加密：密钥由你的密码在本机派生（PBKDF2 六十万轮），书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词八类数据（浏览历史默认关闭）加密后才上传，服务器只见密文，连条目 ID 都是不可逆标签。AI 对话永久保留在设备本地，不参与同步。" }
         },
         {
           "@type": "Question",
@@ -728,9 +728,9 @@
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">02</span>
-          <h3 class="feature-name">端到端加密的七类同步</h3>
-          <p class="feature-desc">书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词，
-            <b>七类数据逐项可选</b>。密钥由你的密码派生，服务器只见密文；注册与登录有图形验证码把关。</p>
+          <h3 class="feature-name">端到端加密的八类同步</h3>
+          <p class="feature-desc">书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆、提示词与浏览历史，
+            <b>八类数据逐项可选</b>（浏览历史默认关闭）。密钥由你的密码派生，服务器只见密文；注册与登录有图形验证码把关。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">03</span>
@@ -801,10 +801,10 @@
         </div>
         <div class="e2e-step reveal">
           <h3>每类数据各用各的钥匙</h3>
-          <p>七类同步各自派生独立密钥，条目 ID 一律换成不可逆标签——服务器连"哪条属于哪条"都数不清。</p>
+          <p>八类同步各自派生独立密钥，条目 ID 一律换成不可逆标签——服务器连"哪条属于哪条"都数不清。</p>
         </div>
       </div>
-      <div class="chips reveal" aria-label="可同步的七类数据">
+      <div class="chips reveal" aria-label="可同步的八类数据">
         <span class="chip on">书签树</span>
         <span class="chip on">快速拨号</span>
         <span class="chip on">阅读列表</span>
@@ -812,6 +812,7 @@
         <span class="chip on">设置</span>
         <span class="chip on">Agent 记忆</span>
         <span class="chip on">Agent 提示词</span>
+        <span class="chip on">浏览历史 · 默认关</span>
         <span class="chip">AI 对话 · 永留本地</span>
       </div>
       <p class="e2e-note reveal">
@@ -843,7 +844,7 @@
         </details>
         <details class="faq-item reveal">
           <summary>同步的数据安全吗？服务器能看到我的书签吗？</summary>
-          <p>看不到。同步是端到端加密的：密钥由你的密码在本机派生（PBKDF2 六十万轮），七类数据加密后才上传，服务器只见密文，连条目 ID 都换成了不可逆标签。AI 对话永久保留在设备本地，不参与同步。</p>
+          <p>看不到。同步是端到端加密的：密钥由你的密码在本机派生（PBKDF2 六十万轮），八类数据（浏览历史默认关闭）加密后才上传，服务器只见密文，连条目 ID 都换成了不可逆标签。AI 对话永久保留在设备本地，不参与同步。</p>
         </details>
         <details class="faq-item reveal">
           <summary>忘记同步密码会怎样？</summary>

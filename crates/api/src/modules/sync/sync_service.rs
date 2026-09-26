@@ -1,11 +1,12 @@
 use chrono::{NaiveDateTime, Utc};
+use tracing::warn;
 
 use crate::errors::AppError;
 use crate::types::AppState;
 
 use super::sync_model::{
-  MAX_PAYLOAD_BYTES, MAX_PUSH_ITEMS, PULL_LIMIT, SyncItemDto, SyncPullResp, SyncPushItem,
-  SyncPushResp, SyncPushResultItem, SyncRowRaw,
+  HISTORY_TTL_DAYS, MAX_PAYLOAD_BYTES, MAX_PUSH_ITEMS, PULL_LIMIT, SyncItemDto, SyncPullResp,
+  SyncPushItem, SyncPushResp, SyncPushResultItem, SyncRowRaw, table_for,
 };
 
 /// 拉取:增量行(含 tombstone),按 (updated_at, id) 升序,单批 ≤1000。
@@ -21,14 +22,15 @@ pub async fn pull(
   since: Option<NaiveDateTime>,
   since_id: Option<i64>,
 ) -> Result<SyncPullResp, AppError> {
+  let table = table_for(domain);
   let rows = match (since, since_id) {
     (None, _) => {
-      sqlx::query_as::<_, SyncRowRaw>(
+      sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
         "SELECT id, client_id, client_updated_at, deleted_at, \
          CAST(payload AS CHAR) AS payload_str, updated_at \
-         FROM sync_items WHERE user_id = ? AND domain = ? \
+         FROM {table} WHERE user_id = ? AND domain = ? \
          ORDER BY updated_at, id LIMIT ?",
-      )
+      )))
       .bind(user_id)
       .bind(domain)
       .bind(PULL_LIMIT)
@@ -36,13 +38,13 @@ pub async fn pull(
       .await?
     }
     (Some(ts), Some(id)) => {
-      sqlx::query_as::<_, SyncRowRaw>(
+      sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
         "SELECT id, client_id, client_updated_at, deleted_at, \
          CAST(payload AS CHAR) AS payload_str, updated_at \
-         FROM sync_items \
+         FROM {table} \
          WHERE user_id = ? AND domain = ? AND (updated_at > ? OR (updated_at = ? AND id > ?)) \
          ORDER BY updated_at, id LIMIT ?",
-      )
+      )))
       .bind(user_id)
       .bind(domain)
       .bind(ts)
@@ -53,12 +55,12 @@ pub async fn pull(
       .await?
     }
     (Some(ts), None) => {
-      sqlx::query_as::<_, SyncRowRaw>(
+      sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
         "SELECT id, client_id, client_updated_at, deleted_at, \
          CAST(payload AS CHAR) AS payload_str, updated_at \
-         FROM sync_items WHERE user_id = ? AND domain = ? AND updated_at > ? \
+         FROM {table} WHERE user_id = ? AND domain = ? AND updated_at > ? \
          ORDER BY updated_at, id LIMIT ?",
-      )
+      )))
       .bind(user_id)
       .bind(domain)
       .bind(ts)
@@ -111,6 +113,7 @@ pub async fn push(
       MAX_PUSH_ITEMS
     )));
   }
+  let table = table_for(domain);
   let mut results = Vec::with_capacity(items.len());
   let now = Utc::now().naive_utc();
   let mut tx = state.pool.begin().await?;
@@ -131,11 +134,11 @@ pub async fn push(
       }
     }
     let client_at = clamp_client_stamp(item.client_updated_at, now);
-    let existing = sqlx::query_as::<_, SyncRowRaw>(
+    let existing = sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
       "SELECT id, client_id, client_updated_at, deleted_at, \
        CAST(payload AS CHAR) AS payload_str, updated_at \
-       FROM sync_items WHERE user_id = ? AND domain = ? AND client_id = ? FOR UPDATE",
-    )
+       FROM {table} WHERE user_id = ? AND domain = ? AND client_id = ? FOR UPDATE",
+    )))
     .bind(user_id)
     .bind(domain)
     .bind(client_id)
@@ -144,10 +147,10 @@ pub async fn push(
     let result = match existing {
       None => {
         let payload = if item.deleted { None } else { item.payload };
-        sqlx::query(
-          "INSERT INTO sync_items (user_id, domain, client_id, payload, client_updated_at, deleted_at) \
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+          "INSERT INTO {table} (user_id, domain, client_id, payload, client_updated_at, deleted_at) \
            VALUES (?, ?, ?, ?, ?, ?)",
-        )
+        )))
         .bind(user_id)
         .bind(domain)
         .bind(client_id)
@@ -165,9 +168,9 @@ pub async fn push(
       Some(row) => {
         if client_at > row.client_updated_at {
           let payload = if item.deleted { None } else { item.payload };
-          sqlx::query(
-            "UPDATE sync_items SET payload = ?, client_updated_at = ?, deleted_at = ? WHERE id = ?",
-          )
+          sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE {table} SET payload = ?, client_updated_at = ?, deleted_at = ? WHERE id = ?",
+          )))
           .bind(payload)
           .bind(client_at)
           .bind(if item.deleted { Some(now) } else { None })
@@ -204,10 +207,33 @@ pub async fn push(
     results.push(result);
   }
   tx.commit().await?;
+  cleanup_history_ttl(state, user_id, domain).await;
   Ok(SyncPushResp {
     results,
     server_time: Utc::now().naive_utc(),
   })
+}
+
+/// 历史域 TTL:history push 后顺带删掉该用户超过保留期的行(含 tombstone)。
+/// best-effort——失败只记日志,不影响 push 结果。走 (user_id, domain, updated_at)
+/// 前缀索引,单用户行数有限,代价可忽略。
+async fn cleanup_history_ttl(state: &AppState, user_id: i64, domain: &str) {
+  if table_for(domain) != "sync_history_items" {
+    return;
+  }
+  let result = sqlx::query(
+    "DELETE FROM sync_history_items \
+     WHERE user_id = ? AND domain = ? \
+     AND updated_at < NOW() - INTERVAL ? DAY",
+  )
+  .bind(user_id)
+  .bind(domain)
+  .bind(HISTORY_TTL_DAYS as i64)
+  .execute(&state.pool)
+  .await;
+  if let Err(e) = result {
+    warn!("history TTL cleanup failed (user {user_id}): {e}");
+  }
 }
 
 /// `since` 查询参数解析:无时区 naive datetime,如 `2026-09-24T12:00:00.123456`

@@ -18,6 +18,7 @@ SOURCES=(
   Desire/Features/Bookmarks/Bookmark.swift
   Desire/Features/NewTab/QuickDial.swift
   Desire/Features/ReadingList/ReadingListItem.swift
+  Desire/Features/History/HistoryEntry.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Agent/Memory/MemoryModels.swift
   Desire/Features/Sync/SyncCrypto.swift

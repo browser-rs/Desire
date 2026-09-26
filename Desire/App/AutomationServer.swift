@@ -2081,6 +2081,7 @@ final class AutomationServer {
         case "toggleDevTools": command = .toggleDevTools
         case "addToReadingList": command = .addToReadingList
         case "askAgentAboutPage": command = .askAgentAboutPage
+        case "clearHistory": command = .clearHistory
         default:
             return ["error": "unknown command \(name)"]
         }
@@ -2531,6 +2532,7 @@ final class AutomationServer {
             "settings": defaults.string(forKey: "sync.cursor.settings") ?? "",
             "agent_memory": defaults.string(forKey: "sync.cursor.agent_memory") ?? "",
             "agent_prefs": defaults.string(forKey: "sync.cursor.agent_prefs") ?? "",
+            "history": defaults.string(forKey: "sync.cursor.history") ?? "",
         ]
         return [
             "auth": auth,
@@ -2550,6 +2552,7 @@ final class AutomationServer {
                 "bookmarks": app.bookmarkStore.pendingDeletions.count,
                 "quickdials": app.quickDialStore.pendingDeletions.count,
                 "reading_list": app.readingListStore.pendingDeletions.count,
+                "history": app.historyStore.pendingDeletions.count,
             ],
             // 变更驱动同步的观测面：每域脏标记 + 最近一次结果
             "domains": Dictionary(

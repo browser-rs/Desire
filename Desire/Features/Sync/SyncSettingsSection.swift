@@ -505,6 +505,7 @@ struct SyncSettingsSection_Previews: PreviewProvider {
             bookmarkStore: BookmarkStore(),
             quickDialStore: QuickDialStore(),
             readingListStore: ReadingListStore(),
+            historyStore: HistoryStore(),
             shortcutStore: KeyboardShortcutStore(),
             settings: Settings(),
             agentPreferenceStore: AgentPreferenceStore()

@@ -378,3 +378,35 @@ enum ReadingListSync {
         )
     }
 }
+
+/// 历史域同步（纯逻辑，tests/run.sh 覆盖）：FlatSyncMerge 的直配适配。
+/// 语义与平铺域一致（LWW + 同刻删除收敛）。历史是日志型数据：本地滚动裁剪
+/// 与合并溢出**不产生墓碑**，只有用户显式删除走 tombstone（HistoryStore）；
+/// 服务端 90 天 TTL 收尾。
+enum HistorySync {
+
+    static func payload(_ entry: HistoryEntry) -> HistorySyncPayload {
+        HistorySyncPayload(id: entry.id, url: entry.url, title: entry.title,
+                           timestamp: entry.timestamp, updatedAt: entry.updatedAt)
+    }
+
+    static func merge(
+        base: [HistoryEntry], remote: [SyncWireItem<HistorySyncPayload>]
+    ) -> [HistoryEntry] {
+        FlatSyncMerge.merge(
+            base: base,
+            remote: remote,
+            idOf: { $0.id.uuidString },
+            updatedAtOf: { $0.updatedAt },
+            make: { _, payload, at in
+                HistoryEntry(id: payload.id, url: payload.url, title: payload.title,
+                             timestamp: payload.timestamp, updatedAt: at)
+            },
+            update: { entry, payload, at in
+                entry.url = payload.url
+                entry.title = payload.title
+                entry.updatedAt = at
+            }
+        )
+    }
+}

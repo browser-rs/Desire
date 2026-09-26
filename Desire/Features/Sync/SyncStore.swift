@@ -60,6 +60,7 @@ final class SyncStore: ObservableObject {
     private let bookmarkStore: BookmarkStore
     private let quickDialStore: QuickDialStore
     private let readingListStore: ReadingListStore
+    private let historyStore: HistoryStore
     private let shortcutStore: KeyboardShortcutStore
     private let settings: Settings
     private let agentPreferenceStore: AgentPreferenceStore
@@ -121,6 +122,7 @@ final class SyncStore: ObservableObject {
         bookmarkStore: BookmarkStore,
         quickDialStore: QuickDialStore,
         readingListStore: ReadingListStore,
+        historyStore: HistoryStore,
         shortcutStore: KeyboardShortcutStore,
         settings: Settings,
         agentPreferenceStore: AgentPreferenceStore
@@ -128,13 +130,16 @@ final class SyncStore: ObservableObject {
         self.bookmarkStore = bookmarkStore
         self.quickDialStore = quickDialStore
         self.readingListStore = readingListStore
+        self.historyStore = historyStore
         self.shortcutStore = shortcutStore
         self.settings = settings
         self.agentPreferenceStore = agentPreferenceStore
         let storedServer = defaults.string(forKey: serverKey) ?? ""
         serverBaseURL = storedServer.isEmpty ? Self.defaultServerBaseURL : storedServer
         for domain in SyncDomain.allCases {
-            enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? true
+            // 浏览历史 opt-in（高频日志型数据 + 隐私敏感），默认关；其余域默认开
+            let fallback = domain == .history ? false : true
+            enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
         if let data = keychainReadData(masterKeyAccount) {
             hasSyncKey = true
@@ -155,6 +160,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(settings.objectWillChange, domain: .settings)
         observeLocalChanges(agentPreferenceStore.objectWillChange, domain: .agentPrefs)
         observeLocalChanges(agentMemoryStore.objectWillChange, domain: .agentMemory)
+        observeLocalChanges(historyStore.objectWillChange, domain: .history)
     }
 
     private func observeLocalChanges(
@@ -226,6 +232,55 @@ final class SyncStore: ObservableObject {
     /// 桥/调试用：某域是否有未上推的本地变更。
     func isDirty(_ domain: SyncDomain) -> Bool {
         dirtyDomains.contains(domain)
+    }
+
+    // MARK: - 退出前补推（applicationShouldTerminate）
+
+    /// 是否值得在退出前补推：已登录、有密钥、不在同步中、有脏域。
+    var needsQuitFlush: Bool {
+        guard case .signedIn = authState, hasSyncKey, !isSyncing else { return false }
+        return !dirtyDomains.isEmpty
+    }
+
+    /// 退出前限时补推：**只 push 脏域、不 pull**（pull 对退出无意义且耗时），
+    /// 单域失败互相不挡，全部 best-effort；推不上去的域放回脏集合（下次启动
+    /// 启动首轮全量对账兜底）。无论成败 **5 秒内必回调 onDone**（应用必须退出）。
+    func flushOnQuit(onDone: @escaping @MainActor () -> Void) {
+        guard needsQuitFlush else { onDone(); return }
+        guard let master = masterKeyBase64 else { onDone(); return }
+        let pending = domainAdapters.filter { isEnabled($0.domain) && dirtyDomains.contains($0.domain) }
+        var finished = false
+        func finish() {
+            guard !finished else { return }
+            finished = true
+            onDone()
+        }
+        let deadlineTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            finish()
+        }
+        Task { @MainActor in
+            defer { deadlineTask.cancel() }
+            guard let token = try? await validAccessToken() else { finish(); return }
+            for adapter in pending {
+                guard !finished else { return }
+                dirtyDomains.remove(adapter.domain)
+                let items = adapter.collect(master)
+                guard !items.isEmpty else { continue }
+                do {
+                    let results = try await pushChunked(domain: adapter.domain, items: items, token: token)
+                    adapter.commit()
+                    let winners = results.compactMap { $0.status == "conflict" ? $0.item : nil }
+                    applyRemotely {
+                        if !winners.isEmpty { adapter.apply(winners, master) }
+                        adapter.clear(Set(results.map(\.clientId)), master)
+                    }
+                } catch {
+                    dirtyDomains.insert(adapter.domain)
+                }
+            }
+            finish()
+        }
     }
 
     func setServerBaseURL(_ url: String) {
@@ -479,6 +534,16 @@ final class SyncStore: ObservableObject {
             do {
                 _ = try await validAccessToken()
                 outcome = try await runSyncCycle()
+            } catch let refreshError as SyncAPIError {
+                if case .unauthorized = refreshError {
+                    // refresh 也被服务端拒绝（吊销/轮换丢失/服务端换密钥）：
+                    // 会话已死——干净登出并给出明确指引，不再每轮空转报 401。
+                    handleSessionExpired()
+                    outcome = failAllEnabledDomains(
+                        String(localized: "Sync session expired — please sign in again."))
+                } else {
+                    outcome = failAllEnabledDomains(refreshError.localizedDescription)
+                }
             } catch {
                 outcome = failAllEnabledDomains(error.localizedDescription)
             }
@@ -505,6 +570,22 @@ final class SyncStore: ObservableObject {
             domainStatus[adapter.domain] = .failed(message)
         }
         return outcome
+    }
+
+    /// refresh 令牌被服务端拒绝（吊销/轮换丢失/服务端换 JWT 密钥）：
+    /// 清干净本地会话回到未登录态。主密钥保留（设备所有），重新登录即自动恢复；
+    /// 游标/戳按账号语义清空，重登走全量对账（与 logout 同口径）。
+    private func handleSessionExpired() {
+        keychainDelete(accessAccount)
+        keychainDelete(refreshAccount)
+        defaults.removeObject(forKey: usernameKey)
+        clearSyncState()
+        authState = .signedOut
+        domainStatus = [:]
+        changeSyncTask?.cancel()
+        changeSyncTask = nil
+        changeSyncDelay = Self.changeDebounceSeconds
+        lastError = String(localized: "Sync session expired — please sign in again.")
     }
 
     /// 单域适配器：collect 本机状态（加密）→ push → 冲突胜者落地 → 清已裁决
@@ -545,6 +626,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .agentMemory, collect: collectAgentMemory, apply: applyAgentMemory, clear: clearAgentMemoryPending),
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
+            DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
         ]
     }
 
@@ -1042,6 +1124,44 @@ final class SyncStore: ObservableObject {
 
     private func saveSettingsSnapshot(_ snapshot: [String: SettingsSyncValue]) {
         defaults.set(try? SyncJSON.makeEncoder().encode(snapshot), forKey: settingsSnapshotKey)
+    }
+
+    // MARK: - 历史域（opt-in；服务端专表 + 90 天 TTL）
+
+    private func collectHistory(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items = historyStore.entries.map {
+            encryptedWire(domain: .history, realID: $0.id.uuidString,
+                          clientUpdatedAt: $0.updatedAt ?? $0.timestamp, deleted: false,
+                          payload: HistorySync.payload($0), master: master)
+        }
+        for (id, deletedAt) in historyStore.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .history, realID: id.uuidString,
+                clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyHistory(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        let decrypted = decryptItems(items, domain: .history, master: master, as: HistorySyncPayload.self) { item, payload in
+            SyncWireItem<HistorySyncPayload>(
+                clientId: payload.id.uuidString,
+                clientUpdatedAt: item.clientUpdatedAt,
+                deleted: item.deleted,
+                payload: payload,
+                updatedAt: item.updatedAt
+            )
+        }
+        historyStore.replaceForSync(
+            HistorySync.merge(base: historyStore.entries, remote: decrypted)
+        )
+    }
+
+    private func clearHistoryPending(_ serverIDs: Set<String>, master: String) {
+        let real = historyStore.pendingDeletions.keys.filter {
+            serverIDs.contains(SyncCrypto.hmacClientID($0.uuidString, domain: .history, masterKeyBase64: master))
+        }
+        historyStore.clearPendingDeletions(Set(real))
     }
 
     // MARK: - 加解密小工具

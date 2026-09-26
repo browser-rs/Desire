@@ -119,15 +119,18 @@ final class RemoteClient: ObservableObject {
         }
         customServer = savedServer == Self.builtinServer ? "" : savedServer
         controllerName = UIDevice.current.name
-        if let token = defaults.string(forKey: "remote.access"),
-           let key = defaults.string(forKey: "remote.sessionKey"),
-           let desktop = defaults.string(forKey: "remote.desktopID") {
+        migrateSecretsToKeychain()
+        if let token = KeychainStore.get("remote.access"),
+           let key = KeychainStore.get("remote.sessionKey"),
+           let desktop = KeychainStore.get("remote.desktopID") {
+            // 令牌/配对密钥在 Keychain——卸载重装后自动恢复登录与配对
             accessToken = token
             sessionKeyB64 = key
             desktopDeviceID = desktop
             hasSavedPairing = true
             phase = .main
-            username = defaults.string(forKey: "remote.username") ?? ""
+            username = KeychainStore.get("remote.username")
+                ?? defaults.string(forKey: "remote.username") ?? ""
             // 恢复持久化的对话记录（杀 App 不丢）
             if let data = defaults.data(forKey: "remote.messages"),
                let saved = try? JSONDecoder().decode([ChatMessage].self, from: data) {
@@ -169,8 +172,8 @@ final class RemoteClient: ObservableObject {
                     "POST", baseURL, "/auth/login",
                     body: try JSONEncoder().encode(body))
                 accessToken = pair.accessToken
-                defaults.set(pair.accessToken, forKey: "remote.access")
-                defaults.set(pair.refreshToken, forKey: "remote.refresh")
+                KeychainStore.set(pair.accessToken, account: "remote.access")
+                KeychainStore.set(pair.refreshToken, account: "remote.refresh")
                 // 服务器覆盖：只在用户显式设置过时持久化（空 = 内置默认）
                 if !customServer.isEmpty {
                     defaults.set(baseURL, forKey: "remote.server")
@@ -179,6 +182,19 @@ final class RemoteClient: ObservableObject {
                 phase = .main
             } catch {
                 loginError = error.localizedDescription
+            }
+        }
+    }
+
+    /// 一次性迁移：旧版把令牌/配对密钥放 UserDefaults（卸载即丢）——
+    /// 迁入 Keychain（重装保留），随后清掉 UserDefaults 副本。
+    private func migrateSecretsToKeychain() {
+        for key in ["remote.access", "remote.refresh", "remote.sessionKey", "remote.desktopID", "remote.username"] {
+            if let value = defaults.string(forKey: key) {
+                if KeychainStore.get(key) == nil {
+                    KeychainStore.set(value, account: key)
+                }
+                defaults.removeObject(forKey: key)
             }
         }
     }
@@ -198,7 +214,7 @@ final class RemoteClient: ObservableObject {
     }
 
     private func forceRefresh() async throws -> String {
-        guard let refresh = defaults.string(forKey: "remote.refresh") else {
+        guard let refresh = KeychainStore.get("remote.refresh") else {
             throw sessionExpired()
         }
         do {
@@ -206,8 +222,8 @@ final class RemoteClient: ObservableObject {
                 "POST", baseURL, "/auth/refresh",
                 body: try JSONEncoder().encode(["refresh_token": refresh]))
             accessToken = refreshed.accessToken
-            defaults.set(refreshed.accessToken, forKey: "remote.access")
-            defaults.set(refreshed.refreshToken, forKey: "remote.refresh")
+            KeychainStore.set(refreshed.accessToken, account: "remote.access")
+            KeychainStore.set(refreshed.refreshToken, account: "remote.refresh")
             return refreshed.accessToken
         } catch {
             throw sessionExpired()
@@ -217,8 +233,8 @@ final class RemoteClient: ObservableObject {
     /// 会话彻底过期：清令牌回登录页（服务端轮换后旧 refresh 一律失效）。
     private func sessionExpired() -> APIError {
         accessToken = nil
-        defaults.removeObject(forKey: "remote.access")
-        defaults.removeObject(forKey: "remote.refresh")
+        KeychainStore.set(nil, account: "remote.access")
+        KeychainStore.set(nil, account: "remote.refresh")
         phase = .login
         connectionState = "登录已过期，请重新登录"
         return APIError.server("登录已过期，请重新登录")
@@ -255,8 +271,8 @@ final class RemoteClient: ObservableObject {
     }
 
     func logout() {
-        defaults.removeObject(forKey: "remote.access")
-        defaults.removeObject(forKey: "remote.refresh")
+        KeychainStore.set(nil, account: "remote.access")
+        KeychainStore.set(nil, account: "remote.refresh")
         stopAllTransports()
         accessToken = nil
         phase = .login
@@ -287,8 +303,8 @@ final class RemoteClient: ObservableObject {
                     token: token)
                 desktopDeviceID = resp.desktopDeviceId
                 desktopName = resp.desktopName
-                defaults.set(qr.k, forKey: "remote.sessionKey")
-                defaults.set(resp.desktopDeviceId, forKey: "remote.desktopID")
+                KeychainStore.set(qr.k, account: "remote.sessionKey")
+                KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
                 defaults.set(baseURL, forKey: "remote.server")
                 hasSavedPairing = true
                 messages = []
@@ -324,10 +340,10 @@ final class RemoteClient: ObservableObject {
         let token = accessToken
         let desktopID = desktopDeviceID
         stopAllTransports()
-        defaults.removeObject(forKey: "remote.sessionKey")
-        defaults.removeObject(forKey: "remote.desktopID")
-        defaults.removeObject(forKey: "remote.access")
-        defaults.removeObject(forKey: "remote.refresh")
+        KeychainStore.set(nil, account: "remote.sessionKey")
+        KeychainStore.set(nil, account: "remote.desktopID")
+        KeychainStore.set(nil, account: "remote.access")
+        KeychainStore.set(nil, account: "remote.refresh")
         defaults.removeObject(forKey: "remote.messages")
         defaults.removeObject(forKey: "remote.busy")
         sessionKeyB64 = nil

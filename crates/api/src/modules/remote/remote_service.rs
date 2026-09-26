@@ -228,6 +228,21 @@ pub async fn pairing_claim(
     .bind(id)
     .execute(&state.pool)
     .await?;
+  // 同一台手机重新配对：吊销同 (user, desktop_device_id, controller_name)
+  // 的旧在效配对——重装 App / 重扫不会在桌面设备列表里堆积垃圾行。
+  // 各手机的会话密钥互不相同，旧行吊销后旧手机自然失联。
+  sqlx::query(
+    "UPDATE remote_pairings SET revoked_at = ? \
+     WHERE user_id = ? AND desktop_device_id = ? AND controller_name = ? \
+       AND id != ? AND revoked_at IS NULL",
+  )
+  .bind(Utc::now().naive_utc())
+  .bind(user_id)
+  .bind(&device_id)
+  .bind(controller_name.trim())
+  .bind(id)
+  .execute(&state.pool)
+  .await?;
   publish_notify(state, user_id, &device_id, "pairing_claimed").await;
   Ok((device_id, desktop_name))
 }

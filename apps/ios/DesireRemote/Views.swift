@@ -190,64 +190,77 @@ struct ChatView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var draft = ""
     @State private var showSettings = false
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                statusStrip
+                header
+                Divider().opacity(0.4)
                 if client.messages.isEmpty {
                     emptyState
                 } else {
                     messageList
                 }
-                inputBar
             }
-            .navigationTitle(client.desktopName ?? "Desire")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
+            .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                inputArea
             }
-            .sheet(isPresented: $showSettings) {
-                RemoteSettingsView()
-            }
+            .sheet(isPresented: $showSettings) { RemoteSettingsView() }
         }
     }
 
-    private var statusStrip: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(client.busy ? Color.orange : (client.connectionState == "已连接" ? Color.green : Color.secondary))
-                .frame(width: 8, height: 8)
-            Text(client.connectionState)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    // MARK: 顶部（自定义，最大化内容区）
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.red.opacity(0.9))
+                Text("欲").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+            }
+            .frame(width: 30, height: 30)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(client.desktopName ?? "Desire")
+                    .font(.subheadline.weight(.semibold)).lineLimit(1)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(client.busy ? .orange : (client.connectionState == "已连接" ? .green : .secondary))
+                        .frame(width: 6, height: 6)
+                    Text(client.connectionState).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
             Spacer()
             if client.busy {
-                ProgressView().controlSize(.mini)
-                Button("停止", role: .destructive) { client.sendCancel() }
-                    .font(.caption.bold())
+                Button { client.sendCancel() } label: {
+                    Label("停止", systemImage: "stop.fill")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Color.red.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.red)
+                }
             }
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape").font(.system(size: 17)).foregroundStyle(.secondary)
+            }
+            .padding(.leading, 4)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(.bar)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "text.bubble")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint.opacity(0.7))
+        VStack(spacing: 12) {
+            ZStack {
+                Circle().fill(Color.accentColor.opacity(0.12)).frame(width: 84, height: 84)
+                Image(systemName: "wand.and.stars").font(.system(size: 34)).foregroundStyle(.tint)
+            }
             Text("给 Agent 派个活").font(.headline)
             Text("指令会立即送达 Mac，Agent 在本地执行，\n这里实时显示对话与工具轨迹。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.footnote).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -256,153 +269,203 @@ struct ChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(client.messages) { message in
-                        MessageBubble(message: message)
-                            .id(message.id)
+                        MessageBubble(message: message).id(message.id)
                     }
-                    Color.clear.frame(height: 6).id("bottom-anchor")
+                    Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
             }
-            .onChange(of: client.messages) { _, new in
-                if let last = new.last {
-                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture { inputFocused = false }
+            .onChange(of: client.messages) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
         }
     }
 
-    private var inputBar: some View {
-        VStack(spacing: 6) {
+    // MARK: 漂浮输入区（参考 IrsClawApp 的浮动胶囊）
+
+    private var inputArea: some View {
+        VStack(spacing: 8) {
             if client.queuedOffline {
-                HStack(spacing: 4) {
-                    Image(systemName: "tray.full")
-                    Text("已排队，Mac 上线后自动送达")
-                }
-                .font(.caption2)
-                .foregroundStyle(.orange)
-                .frame(maxWidth: .infinity)
+                Label("已排队，Mac 上线后自动送达", systemImage: "tray.full")
+                    .font(.caption2).foregroundStyle(.orange)
             }
             quickChips
-            HStack(alignment: .bottom, spacing: 10) {
-            TextField("给 Agent 派个活…", text: $draft, axis: .vertical)
-                .lineLimit(1...5)
-                .padding(10)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-            sendButton
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("给 Agent 派个活…", text: $draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .focused($inputFocused)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                sendButton
+                    .padding(.trailing, 4)
+                    .padding(.bottom, 3)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+            )
+            .padding(.horizontal, 12)
         }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .padding(.bottom, 8)
     }
 
-    /// 常用指令快捷 chips
     private var quickChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(["继续", "总结当前页面", "再检查一遍结果"], id: \.self) { chip in
-                    Button { send(chip) } label: { Text(chip) }
-                        .font(.caption)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
-                        .disabled(client.busy)
+                    Button { send(chip) } label: {
+                        Text(chip)
+                            .font(.caption)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .disabled(client.busy)
                 }
             }
+            .padding(.horizontal, 16)
         }
     }
 
     @ViewBuilder
     private var sendButton: some View {
+        let empty = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if client.busy {
-            Button(role: .destructive) {
-                client.sendCancel()
-            } label: {
+            Button { client.sendCancel() } label: {
                 Image(systemName: "stop.circle.fill")
-                    .font(.system(size: 34))
+                    .font(.system(size: 32))
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(.white, .red)
             }
         } else {
-            Button {
-                send()
-            } label: {
+            Button { send() } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.tint)
-                    .opacity(draftIsEmpty ? 0.35 : 1)
+                    .font(.system(size: 32))
+                    .foregroundStyle(empty ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.tint))
             }
-            .disabled(draftIsEmpty)
+            .disabled(empty)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: empty)
         }
-    }
-
-    private var draftIsEmpty: Bool {
-        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func send(_ override: String? = nil) {
         let text = (override ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         client.sendPrompt(text)
-        draft = ""
+        if override == nil { draft = "" }
+    }
+}
+
+// MARK: - 气泡（头像 + 卡片，参考 IrsClawApp 视觉语言）
+
+private struct RemoteAvatar: View {
+    let icon: String
+    let colors: [Color]
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 28, height: 28)
     }
 }
 
 struct MessageBubble: View {
     let message: ChatMessage
     @State private var reasoningExpanded = false
+    @State private var toolExpanded = false
 
     var body: some View {
         switch message.role {
         case "user":
-            HStack {
-                Spacer(minLength: 48)
+            HStack(alignment: .top, spacing: 8) {
+                Spacer(minLength: 40)
                 Text(message.content ?? "")
-                    .padding(12)
-                    .background(.tint, in: RoundedRectangle(cornerRadius: 16))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.accentColor)
+                    )
                     .foregroundStyle(.white)
+                RemoteAvatar(icon: "person.fill", colors: [.blue, .cyan])
             }
         case "tool":
-            VStack(alignment: .leading, spacing: 4) {
-                if let calls = message.toolCalls, !calls.isEmpty {
-                    ForEach(calls, id: \.self) { call in
-                        Label(call, systemImage: "wrench.and.screwdriver")
+            HStack(alignment: .top, spacing: 8) {
+                RemoteAvatar(icon: "wrench.and.screwdriver.fill", colors: [.gray, .secondary])
+                VStack(alignment: .leading, spacing: 4) {
+                    if let calls = message.toolCalls, !calls.isEmpty {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { toolExpanded.toggle() }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "wrench.and.screwdriver")
+                                Text(calls.joined(separator: " · "))
+                                    .lineLimit(1)
+                                Image(systemName: toolExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                }
-                if let content = message.content, !content.isEmpty {
-                    Text(content)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-                }
-            }
-            .padding(.horizontal, 4)
-        default:
-            VStack(alignment: .leading, spacing: 6) {
-                if let reasoning = message.reasoning, !reasoning.isEmpty {
-                    DisclosureGroup(isExpanded: $reasoningExpanded) {
-                        Text(reasoning)
-                            .font(.caption)
+                    if toolExpanded, let content = message.content, !content.isEmpty {
+                        Text(content)
+                            .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
-                            .padding(.top, 2)
-                    } label: {
-                        Text("思考过程").font(.caption).foregroundStyle(.secondary)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.tertiarySystemBackground),
+                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
-                if let content = message.content, !content.isEmpty {
-                    Text(content)
-                        .textSelection(.enabled)
-                        .padding(12)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-                }
+                Spacer(minLength: 20)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        default:
+            HStack(alignment: .top, spacing: 8) {
+                RemoteAvatar(icon: "sparkles", colors: [.purple, .pink])
+                VStack(alignment: .leading, spacing: 6) {
+                    if let reasoning = message.reasoning, !reasoning.isEmpty {
+                        DisclosureGroup(isExpanded: $reasoningExpanded) {
+                            Text(reasoning)
+                                .font(.caption).foregroundStyle(.secondary)
+                                .padding(.top, 2)
+                        } label: {
+                            Label("思考过程", systemImage: "brain")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(Color(.tertiarySystemBackground),
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    if let content = message.content, !content.isEmpty {
+                        Text(content)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 14).padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color(.secondarySystemBackground))
+                            )
+                    }
+                }
+                Spacer(minLength: 20)
+            }
         }
     }
 }

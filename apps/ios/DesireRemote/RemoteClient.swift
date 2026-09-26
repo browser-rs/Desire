@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftUI
 import UIKit
 
 /// 远程会话客户端：登录 → 扫码/导入配对 → WS 中继 → 与 Mac 上的 Agent 对话。
@@ -30,6 +31,21 @@ final class RemoteClient: ObservableObject {
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
 
+    // MARK: - 主题
+
+    /// 外观：system / light / dark（设置页可改，持久化）。
+    @Published var appearance: String {
+        didSet { defaults.set(appearance, forKey: "remote.appearance") }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch appearance {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
     private let defaults = UserDefaults.standard
     private var accessToken: String?
     private var sessionKeyB64: String?
@@ -40,7 +56,12 @@ final class RemoteClient: ObservableObject {
 
     static let defaultServer = "https://api.mankong.icu/v9"
 
-    init() {
+    convenience init() {
+        self.init(appearance: "")
+    }
+
+    init(appearance _: String) {
+        appearance = UserDefaults.standard.string(forKey: "remote.appearance") ?? "system"
         serverURL = defaults.string(forKey: "remote.server") ?? Self.defaultServer
         controllerName = UIDevice.current.name
         if let token = defaults.string(forKey: "remote.access"),

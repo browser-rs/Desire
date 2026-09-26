@@ -7,15 +7,22 @@ import VisionKit
 struct RootView: View {
     @EnvironmentObject var client: RemoteClient
 
+    /// 朱砂品牌色（与 Mac 端「欲」字印章一致）
+    static let brand = Color(red: 0.75, green: 0.23, blue: 0.10)
+
     var body: some View {
-        switch client.phase {
-        case .login:
-            LoginView()
-        case .devices:
-            DevicesView()
-        case .chat:
-            ChatView()
+        Group {
+            switch client.phase {
+            case .login:
+                LoginView()
+            case .devices:
+                DevicesView()
+            case .chat:
+                ChatView()
+            }
         }
+        .tint(Self.brand)
+        .preferredColorScheme(client.preferredColorScheme)
     }
 }
 
@@ -542,6 +549,14 @@ struct RemoteSettingsView: View {
                         saved = true
                     }
                     .disabled(serverURL.isEmpty)
+                }
+                Section("外观") {
+                    Picker("主题", selection: $client.appearance) {
+                        Text("跟随系统").tag("system")
+                        Text("浅色").tag("light")
+                        Text("深色").tag("dark")
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Section("账号") {
                     LabeledContent("用户名", value: client.savedUsername)

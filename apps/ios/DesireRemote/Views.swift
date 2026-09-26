@@ -841,3 +841,146 @@ struct ScannerSheet: UIViewControllerRepresentable {
         }
     }
 }
+
+// MARK: - 轻量 Markdown 渲染（无外部依赖）
+
+struct MarkdownText: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                blockView(block)
+            }
+        }
+    }
+
+    enum Block {
+        case paragraph([Inline])
+        case heading(Int, [Inline])
+        case bullet([Inline])
+        case code(String)
+    }
+
+    enum Inline: Equatable {
+        case text(String)
+        case bold(String)
+        case code(String)
+    }
+
+    private var blocks: [Block] {
+        var out: [Block] = []
+        var paragraph: [String] = []
+        var inCode = false
+        var codeLines: [String] = []
+
+        func flushParagraph() {
+            guard !paragraph.isEmpty else { return }
+            out.append(.paragraph(paragramInlines(paragraph.joined(separator: "\n"))))
+            paragraph = []
+        }
+
+        for line in text.components(separatedBy: "\n") {
+            if line.hasPrefix("```") {
+                flushParagraph()
+                if inCode {
+                    out.append(.code(codeLines.joined(separator: "\n")))
+                    codeLines = []
+                }
+                inCode.toggle()
+                continue
+            }
+            if inCode { codeLines.append(line); continue }
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { flushParagraph(); continue }
+            if let h = headingLevel(line) {
+                flushParagraph()
+                out.append(.heading(h, inlineInlines(String(line.dropFirst(h + 1)))))
+                continue
+            }
+            if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                flushParagraph()
+                out.append(.bullet(inlineInlines(String(line.dropFirst(2)))))
+                continue
+            }
+            paragraph.append(line)
+        }
+        if inCode, !codeLines.isEmpty { out.append(.code(codeLines.joined(separator: "\n"))) }
+        flushParagraph()
+        return out
+    }
+
+    private func headingLevel(_ line: String) -> Int? {
+        var count = 0
+        for ch in line {
+            if ch == "#" { count += 1 } else { break }
+        }
+        guard (1...3).contains(count), count < line.count,
+              line[line.index(line.startIndex, offsetBy: count)] == " " else { return nil }
+        return count
+    }
+
+    private func paragramInlines(_ text: String) -> [Inline] { inlineInlines(text) }
+
+    private func inlineInlines(_ text: String) -> [Inline] {
+        var out: [Inline] = []
+        var current = ""
+        var chars = Array(text)
+        var i = 0
+        while i < chars.count {
+            if chars[i] == "`", let end = firstIndex(of: "`", after: i, in: chars) {
+                if !current.isEmpty { out.append(.text(current)); current = "" }
+                out.append(.code(String(chars[(i + 1)..<end])))
+                i = end + 1
+                continue
+            }
+            if chars[i] == "*", i + 1 < chars.count, chars[i + 1] == "*",
+               let end = firstIndex(of: "*", after: i + 1, in: chars) {
+                if !current.isEmpty { out.append(.text(current)); current = "" }
+                out.append(.bold(String(chars[(i + 2)..<end])))
+                i = end + 1
+                continue
+            }
+            current.append(chars[i])
+            i += 1
+        }
+        if !current.isEmpty { out.append(.text(current)) }
+        return out
+    }
+
+    private func firstIndex(of ch: Character, after start: Int, in chars: [Character]) -> Int? {
+        for index in (start + 1)..<chars.count where chars[index] == ch { return index }
+        return nil
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: Block) -> some View {
+        switch block {
+        case .paragraph(let inlines): inlineRow(inlines)
+        case .heading(let level, let inlines):
+            inlineRow(inlines)
+                .font(.system(size: CGFloat(17 - level), weight: .bold))
+        case .bullet(let inlines):
+            HStack(alignment: .top, spacing: 6) {
+                Text("•").foregroundStyle(.secondary)
+                inlineRow(inlines)
+            }
+        case .code(let code):
+            Text(code)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemBackground),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    private func inlineRow(_ inlines: [Inline]) -> some View {
+        inlines.reduce(Text("")) { acc, inline in
+            switch inline {
+            case .text(let t): return acc + Text(t)
+            case .bold(let t): return acc + Text(t).bold()
+            case .code(let t): return acc + Text(t).font(.system(size: 13, design: .monospaced)).foregroundColor(.accentColor)
+            }
+        }
+    }
+}

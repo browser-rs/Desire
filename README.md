@@ -1,5 +1,7 @@
 # Desire
 
+**Product page: [desire.mankong.icu](https://desire.mankong.icu/)**
+
 **An AI-native web browser for macOS.** Built with SwiftUI and WebKit — and
 the browser itself is the agent's execution environment: a built-in AI agent
 drives 100+ real browser tools, while an automation bridge and an MCP server
@@ -118,7 +120,8 @@ curl -sN $B/events                                          # watch what happens
 
 Grab the latest unsigned build from
 [GitHub Releases](https://github.com/browser-rs/Desire/releases) — Apple
-Silicon (arm64), macOS 26.5+.
+Silicon (arm64), macOS 26.5+. A visual intro with the same install steps
+(in Chinese) lives at [desire.mankong.icu](https://desire.mankong.icu/).
 
 1. **Unzip** `Desire-vX.Y.Z-macos-arm64.zip` (double-click it, or
    `ditto -x -k Desire-vX.Y.Z-macos-arm64.zip .`).

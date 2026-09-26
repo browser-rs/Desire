@@ -624,6 +624,9 @@ struct MessageBubble: View {
     var body: some View {
         switch message.role {
         case "user":
+            if (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                EmptyView()
+            } else {
             HStack(alignment: .top, spacing: 8) {
                 Spacer(minLength: 40)
                 Text(message.content ?? "")
@@ -636,7 +639,12 @@ struct MessageBubble: View {
                     .foregroundStyle(.white)
                 RemoteAvatar(icon: "person.fill", colors: [.blue, .cyan])
             }
+            }
         case "tool":
+            if (message.toolCalls ?? []).isEmpty,
+               (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                EmptyView()
+            } else {
             HStack(alignment: .top, spacing: 8) {
                 RemoteAvatar(icon: "wrench.and.screwdriver.fill", colors: [.gray, .secondary])
                 VStack(alignment: .leading, spacing: 4) {
@@ -656,7 +664,8 @@ struct MessageBubble: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if toolExpanded, let content = message.content, !content.isEmpty {
+                    if toolExpanded, let content = message.content,
+                       !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(content)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
@@ -667,6 +676,7 @@ struct MessageBubble: View {
                     }
                 }
                 Spacer(minLength: 20)
+            }
             }
         default:
             HStack(alignment: .top, spacing: 8) {
@@ -685,7 +695,8 @@ struct MessageBubble: View {
                         .background(Color(.tertiarySystemBackground),
                                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    if let content = message.content, !content.isEmpty {
+                    if let content = message.content,
+                       !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(content)
                             .textSelection(.enabled)
                             .padding(.horizontal, 14).padding(.vertical, 12)

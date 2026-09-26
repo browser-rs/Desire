@@ -71,6 +71,63 @@ nonisolated enum SyncAPIClient {
         try await send("GET", baseURL, "/sync/key-escrow", token: accessToken)
     }
 
+    // MARK: - 扫码登录（桌面出票显示二维码，手机 App 扫码确认后桌面轮询领 token）
+
+    struct QrCreateBody: Codable {
+        var desktop_device_id: String
+        var desktop_name: String
+    }
+
+    struct QrCreateResp: Codable {
+        var ticket: String
+        var expiresAt: String
+    }
+
+    struct QrStatusResp: Codable {
+        /// 0=待扫码 1=已扫码待确认 2=已确认(含 token，一次性领取) 3=过期
+        var status: Int
+        var accessToken: String?
+        var refreshToken: String?
+        var username: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case accessToken = "access_token"
+            case refreshToken = "refresh_token"
+            case username
+        }
+    }
+
+    struct QrTicketBody: Codable {
+        var ticket: String
+    }
+
+    static func qrCreate(
+        baseURL: String, deviceID: String, deviceName: String
+    ) async throws -> QrCreateResp {
+        try await send(
+            "POST", baseURL, "/auth/qr/create",
+            body: encode(QrCreateBody(desktop_device_id: deviceID, desktop_name: deviceName)))
+    }
+
+    static func qrStatus(baseURL: String, ticket: String) async throws -> QrStatusResp {
+        try await send("GET", baseURL, "/auth/qr/status?ticket=\(ticket)")
+    }
+
+    /// 手机端标记"已扫码"（登录态）。
+    static func qrScan(baseURL: String, ticket: String, accessToken: String) async throws {
+        _ = try await rawRequest(
+            "POST", baseURL, "/auth/qr/scan",
+            body: encode(QrTicketBody(ticket: ticket)), token: accessToken)
+    }
+
+    /// 手机端确认登录（登录态）：服务器为桌面设备签发 token 对。
+    static func qrConfirm(baseURL: String, ticket: String, accessToken: String) async throws {
+        _ = try await rawRequest(
+            "POST", baseURL, "/auth/qr/confirm",
+            body: encode(QrTicketBody(ticket: ticket)), token: accessToken)
+    }
+
     // MARK: - 远程控制（配对 REST + 双信箱 push/pull；WS 只做订阅下行，见 RemoteControlStore）
 
     struct RemotePairingStartBody: Codable {

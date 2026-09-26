@@ -173,3 +173,45 @@ impl From<DeviceRow> for DeviceDto {
     }
   }
 }
+
+// MARK: - 扫码登录（桌面显示二维码，手机 App 扫码并在手机上确认）
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct QrCreateReq {
+  /// 桌面端稳定设备 id（确认时为该设备登记并签发 refresh）
+  pub desktop_device_id: String,
+  #[serde(default)]
+  pub desktop_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct QrCreateResp {
+  /// 手机端扫码内容即此 ticket（二维码 payload 建议带服务器地址便于校验）
+  pub ticket: String,
+  pub expires_at: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct QrStatusResp {
+  /// 0=待扫码 1=已扫码待确认 2=已确认(含 token，一次性领取) 3=过期
+  pub status: i16,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub access_token: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub refresh_token: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub username: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct QrScanReq {
+  pub ticket: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct QrConfirmReq {
+  pub ticket: String,
+  /// 桌面端设备信息（create 时申报的 desktop_device_id 须一致）
+  #[serde(default)]
+  pub device: Option<DeviceInfoReq>,
+}

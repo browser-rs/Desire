@@ -7,8 +7,9 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::auth_model::{
-  CaptchaResp, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq, MeDto, RefreshReq,
-  RegisterReq, RevokeDeviceReq, SetPasswordReq, TokenPair, UpdateProfileReq,
+  CaptchaResp, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq, MeDto, QrConfirmReq,
+  QrCreateReq, QrCreateResp, QrScanReq, QrStatusResp, RefreshReq, RegisterReq, RevokeDeviceReq,
+  SetPasswordReq, TokenPair, UpdateProfileReq,
 };
 use super::auth_service;
 
@@ -51,6 +52,75 @@ pub async fn login(
 ) -> ApiResult<TokenPair> {
   let tokens = auth_service::login(&state, &headers, req).await?;
   api_ok!(tokens)
+}
+
+/// POST /auth/qr/create —— 桌面端出票并渲染二维码(无鉴权;IP 限流)。
+pub async fn qr_create(
+  State(state): State<AppState>,
+  headers: axum::http::HeaderMap,
+  Json(req): Json<QrCreateReq>,
+) -> ApiResult<QrCreateResp> {
+  let client_ip = headers
+    .get("x-forwarded-for")
+    .and_then(|v| v.to_str().ok())
+    .unwrap_or("");
+  if !state.rate_limiter.allow(
+    &format!("qr-create-ip:{client_ip}"),
+    20,
+    std::time::Duration::from_secs(600),
+  ) {
+    return Err(AppError::Validation("创建过于频繁".into()));
+  }
+  let (ticket, expires_at) = auth_service::qr_create(
+    &state,
+    &req.desktop_device_id,
+    req.desktop_name.as_deref().unwrap_or(""),
+    &headers,
+  )
+  .await?;
+  api_ok!(QrCreateResp { ticket, expires_at })
+}
+
+/// GET /auth/qr/status?ticket= —— 桌面端轮询(无鉴权;token 一次性消费)。
+pub async fn qr_status(
+  State(state): State<AppState>,
+  axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> ApiResult<QrStatusResp> {
+  let ticket = params.get("ticket").cloned().unwrap_or_default();
+  if ticket.is_empty() || ticket.len() > 64 {
+    return Err(AppError::Validation("invalid ticket".into()));
+  }
+  let (status, access_token, refresh_token, username) =
+    auth_service::qr_status(&state, &ticket).await?;
+  api_ok!(QrStatusResp { status, access_token, refresh_token, username })
+}
+
+/// POST /auth/qr/scan —— 手机端扫码(鉴权):置"已扫码待确认"。
+pub async fn qr_scan(
+  State(state): State<AppState>,
+  Extension(_claims): Extension<Claims>,
+  Json(req): Json<QrScanReq>,
+) -> ApiResult<serde_json::Value> {
+  let desktop_name = auth_service::qr_scan(&state, &req.ticket).await?;
+  api_ok!(serde_json::json!({ "desktopName": desktop_name }))
+}
+
+/// POST /auth/qr/confirm —— 手机端确认(鉴权):为桌面设备签发 token 对。
+pub async fn qr_confirm(
+  State(state): State<AppState>,
+  Extension(claims): Extension<crate::utils::jwt::Claims>,
+  headers: axum::http::HeaderMap,
+  Json(req): Json<QrConfirmReq>,
+) -> ApiResult<serde_json::Value> {
+  auth_service::qr_confirm(
+    &state,
+    claims.sub,
+    &req.ticket,
+    req.device.as_ref(),
+    &headers,
+  )
+  .await?;
+  api_ok!(serde_json::json!({ "ok": true }))
 }
 
 #[utoipa::path(

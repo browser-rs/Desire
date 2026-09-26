@@ -123,11 +123,14 @@ final class RemoteClient: ObservableObject {
         }
     }
 
-    private var baseURL: String {
+    /// 规范化后的服务器地址（扫码登录时与二维码 payload 的 s 字段比对）
+    var normalizedServerURL: String {
         var base = serverURL.trimmingCharacters(in: .whitespaces)
         while base.hasSuffix("/") { base.removeLast() }
         return base
     }
+
+    private var baseURL: String { normalizedServerURL }
 
     // MARK: - 登录
 
@@ -672,6 +675,19 @@ final class RemoteClient: ObservableObject {
     func requestSync() {
         guard sessionKeyB64 != nil else { return }
         pushFrame(["t": "sync"], replace: false)
+    }
+
+    /// 扫码登录 Mac：scan（置已扫码）+ confirm（为桌面签发 token）。
+    /// 返回桌面名供 UI 确认弹窗展示。
+    func qrLoginScanAndConfirm(ticket: String) async throws -> String {
+        let token = try await currentToken()
+        let scan: QrScanResp = try await API.send(
+            "POST", baseURL, "/auth/qr/scan",
+            body: try JSONEncoder().encode(QrTicketBody(ticket: ticket)), token: token)
+        let _: PushOK = try await API.send(
+            "POST", baseURL, "/auth/qr/confirm",
+            body: try JSONEncoder().encode(QrTicketBody(ticket: ticket)), token: token)
+        return scan.desktopName ?? "Mac"
     }
 
     /// 拉取 Agent 记忆（画像/事实/摘要；看板打开与下拉刷新时调）。

@@ -24,6 +24,7 @@ struct RootView: View {
                 ChatView()
             }
         }
+        .background(Color(.systemBackground).ignoresSafeArea())
         .tint(Self.brand)
         .preferredColorScheme(client.preferredColorScheme)
     }
@@ -107,6 +108,42 @@ struct DevicesView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var showScanner = false
     @State private var manualCode = ""
+    @State private var qrLogin: (ticket: String, server: String, desktopName: String)?
+    @State private var qrLoginWorking = false
+    @State private var qrLoginDone: String?
+    @State private var scannerMode: ScannerMode = .pairing
+
+    enum ScannerMode { case pairing, qrLogin }
+
+    private func handleScanned(_ raw: String) {
+        if scannerMode == .qrLogin {
+            handleQRLoginPayload(raw)
+            return
+        }
+        // 配对 payload 带 "k"(会话密钥)；登录 payload 只有 ticket——自动分流
+        if let data = raw.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           obj["ticket"] != nil, obj["k"] == nil {
+            handleQRLoginPayload(raw)
+            return
+        }
+        client.importPairing(raw)
+    }
+
+    private func handleQRLoginPayload(_ raw: String) {
+        guard let data = raw.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let ticket = obj["ticket"] as? String else {
+            qrLoginDone = "二维码不是登录码"
+            return
+        }
+        let server = obj["s"] as? String ?? client.serverURL
+        guard server.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "/")) == client.normalizedServerURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) else {
+            qrLoginDone = "该二维码属于其他服务器（\(server)），与当前登录服务器不一致"
+            return
+        }
+        qrLogin = (ticket, server, "")
+    }
 
     var body: some View {
         NavigationStack {
@@ -131,8 +168,37 @@ struct DevicesView: View {
             .sheet(isPresented: $showScanner) {
                 ScannerSheet { raw in
                     showScanner = false
-                    client.importPairing(raw)
+                    handleScanned(raw)
                 }
+            }
+            .alert("在此 Mac 上登录？", isPresented: Binding(
+                get: { qrLogin != nil },
+                set: { if !$0 { qrLogin = nil } })) {
+                Button("确认登录") {
+                    guard let login = qrLogin else { return }
+                    qrLoginWorking = true
+                    Task { @MainActor in
+                        defer { qrLoginWorking = false }
+                        do {
+                            _ = try await client.qrLoginScanAndConfirm(ticket: login.ticket)
+                            qrLogin = nil
+                            qrLoginDone = "已在该 Mac 上登录 ✓"
+                        } catch {
+                            qrLogin = nil
+                            qrLoginDone = "失败：\(error.localizedDescription)"
+                        }
+                    }
+                }
+                Button("取消", role: .cancel) { qrLogin = nil }
+            } message: {
+                Text(qrLogin.map { "服务器：\($0.server)\n将用当前账号（\(client.savedUsername)）登录。" } ?? "")
+            }
+            .alert("扫码登录", isPresented: Binding(
+                get: { qrLoginDone != nil },
+                set: { if !$0 { qrLoginDone = nil } })) {
+                Button("好", role: .cancel) { qrLoginDone = nil }
+            } message: {
+                Text(qrLoginDone ?? "")
             }
         }
     }
@@ -171,6 +237,7 @@ struct DevicesView: View {
                 .multilineTextAlignment(.center)
             Button {
                 showScanner = true
+                scannerMode = .pairing
             } label: {
                 Label("扫码配对", systemImage: "camera.viewfinder")
                     .frame(maxWidth: .infinity)
@@ -191,6 +258,20 @@ struct DevicesView: View {
         .frame(maxWidth: .infinity)
         .padding(22)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        VStack(spacing: 8) {
+            Button {
+                scannerMode = .qrLogin
+                showScanner = true
+            } label: {
+                Label("扫一扫登录 Mac", systemImage: "macbook.and.iphone")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!DataScannerViewController.isAvailable)
+            Text("已登录的 iPhone 扫描 Mac 设置页的登录二维码，免密码登录。")
+                .font(.caption2).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
     }
 }
 

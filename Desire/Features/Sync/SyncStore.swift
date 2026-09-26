@@ -363,6 +363,49 @@ final class SyncStore: ObservableObject {
                                register: true, captchaCode: captchaCode)
     }
 
+    struct QRLoginSession {
+        let ticket: String
+        let qrPayload: String
+    }
+
+    /// 出票并渲染二维码 payload（{"v":1,"s":服务器,"ticket":…}）。
+    func qrLoginStart() async throws -> QRLoginSession {
+        let resp = try await SyncAPIClient.qrCreate(
+            baseURL: serverBaseURL, deviceID: deviceID,
+            deviceName: Host.current().localizedName ?? "Mac")
+        let dict: [String: Any] = ["v": 1, "s": serverBaseURL, "ticket": resp.ticket]
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return QRLoginSession(ticket: resp.ticket, qrPayload: String(data: data, encoding: .utf8) ?? "")
+    }
+
+    /// 轮询一次。返回 (status, pair, username)；status=2 且 pair 非空 = 本轮领到。
+    func qrLoginPoll(ticket: String) async throws -> (status: Int, pair: SyncTokenPair?, username: String?) {
+        let resp = try await SyncAPIClient.qrStatus(baseURL: serverBaseURL, ticket: ticket)
+        var pair: SyncTokenPair?
+        if let a = resp.accessToken, let r = resp.refreshToken {
+            pair = SyncTokenPair(accessToken: a, refreshToken: r, expiresIn: 7200)
+        }
+        return (resp.status, pair, resp.username)
+    }
+
+    /// 扫码登录：用手机端确认后颁发的 token 对直接建立登录态。
+    /// E2E 主密钥不经过扫码流（密码不出现在链路里）——本机 Keychain 已有
+    /// 主密钥（此前用密码登录过）则同步照常；没有则 hasSyncKey 保持 false，
+    /// 加密域同步会提示需要用密码登录一次完成托管恢复。
+    func signInWithQR(pair: SyncTokenPair, username: String) async {
+        storeTokens(pair)
+        defaults.set(username, forKey: usernameKey)
+        authState = .signedIn(username: username)
+        lastError = nil
+        if keychainReadData(masterKeyAccount) != nil {
+            hasSyncKey = true
+            syncKeyFingerprint = try? SyncCrypto.fingerprint(masterKeyBase64: masterKeyBase64 ?? "")
+        }
+        // 登录后首轮全脏：本地存量与服务器对账一遍
+        dirtyDomains = Set(SyncDomain.allCases)
+        await syncNow()
+    }
+
     private func authenticate(
         username: String, password: String, register: Bool, captchaCode: String?
     ) async throws {

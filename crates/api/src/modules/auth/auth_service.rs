@@ -364,6 +364,187 @@ pub async fn register(
   issue_tokens(state, user_id, req.device.as_ref(), headers).await
 }
 
+/// 扫码登录 —— 照 Trove login_tickets 三步流：
+/// 桌面 `qr_create` 出票并渲染二维码 → 手机 `qr_scan`(鉴权)置已扫 →
+/// 手机 `qr_confirm`(鉴权)为桌面设备签发 token 对 → 桌面 `qr_status`
+/// 轮询领走。**token 一次性消费**：被领走时原子清空，防止同一 token 对
+/// 被第二个轮询方领走（Trove 踩过的坑）。
+#[derive(sqlx::FromRow)]
+struct QrLoginRow {
+  id: i64,
+  status: i16,
+  user_id: Option<i64>,
+  token: Option<String>,
+  refresh_token: Option<String>,
+  expires_at: chrono::NaiveDateTime,
+}
+
+pub async fn qr_create(
+  state: &AppState,
+  desktop_device_id: &str,
+  desktop_name: &str,
+  headers: &HeaderMap,
+) -> Result<(String, String), AppError> {
+  let device_id = desktop_device_id.trim();
+  if device_id.is_empty() || device_id.len() > 64 {
+    return Err(AppError::Validation(
+      "desktop_device_id is required (1-64 chars)".into(),
+    ));
+  }
+  let now = Utc::now().naive_utc();
+  sqlx::query("DELETE FROM auth_qr_logins WHERE expires_at < ?")
+    .bind(now)
+    .execute(&state.pool)
+    .await?;
+  let ticket = crate::utils::refresh_token::generate();
+  let ticket = format!("{ticket}{}", crate::utils::refresh_token::generate());
+  let expires_at = Utc::now() + chrono::Duration::minutes(5);
+  sqlx::query(
+    "INSERT INTO auth_qr_logins (ticket, status, desktop_device_id, desktop_name, expires_at)      VALUES (?, 0, ?, ?, ?)",
+  )
+  .bind(&ticket)
+  .bind(device_id)
+  .bind(trim_or_empty(&Some(desktop_name.to_string())))
+  .bind(expires_at.naive_utc())
+  .execute(&state.pool)
+  .await?;
+  let _ = headers;
+  Ok((ticket, expires_at.to_rfc3339()))
+}
+
+pub async fn qr_status(
+  state: &AppState,
+  ticket: &str,
+) -> Result<(i16, Option<String>, Option<String>, Option<String>), AppError> {
+  // (status, access_token, refresh_token, username)
+  let row: Option<QrLoginRow> = sqlx::query_as(
+    "SELECT id, status, user_id, token, refresh_token, expires_at FROM auth_qr_logins WHERE ticket = ?",
+  )
+  .bind(ticket)
+  .fetch_optional(&state.pool)
+  .await?;
+  let Some(row) = row else {
+    return Err(AppError::NotFound("ticket not found".into()));
+  };
+  if row.expires_at < Utc::now().naive_utc() {
+    return Ok((3, None, None, None));
+  }
+  // 一次性消费:token 只发给第一个看到 status=2 的轮询方,随后原子清空
+  if row.status == 2 && row.token.is_some() {
+    let consumed = sqlx::query(
+      "UPDATE auth_qr_logins SET token = NULL, refresh_token = NULL        WHERE ticket = ? AND status = 2 AND token IS NOT NULL",
+    )
+    .bind(ticket)
+    .execute(&state.pool)
+    .await?;
+    let username = match row.user_id {
+      Some(uid) => sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = ?")
+        .bind(uid)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten(),
+      None => None,
+    };
+    if consumed.rows_affected() == 1 {
+      return Ok((2, row.token, row.refresh_token, username));
+    }
+    // 并发轮询:token 已被另一方领走
+    return Ok((2, None, None, username));
+  }
+  // status=2 且 token 已被并发领走时 username 仍可查——无妨,token 拿不到
+  let username = match row.user_id {
+    Some(uid) => sqlx::query_scalar("SELECT username FROM users WHERE id = ?")
+      .bind(uid)
+      .fetch_optional(&state.pool)
+      .await
+      .ok()
+      .flatten(),
+    None => None,
+  };
+  Ok((row.status, username, None, None))
+}
+
+pub async fn qr_scan(state: &AppState, ticket: &str) -> Result<String, AppError> {
+  let now = Utc::now().naive_utc();
+  let res = sqlx::query(
+    "UPDATE auth_qr_logins SET status = 1 WHERE ticket = ? AND status = 0 AND expires_at > ?",
+  )
+  .bind(ticket)
+  .bind(now)
+  .execute(&state.pool)
+  .await?;
+  if res.rows_affected() == 0 {
+    return Err(AppError::Conflict("ticket already scanned or expired".into()));
+  }
+  let name: Option<String> = sqlx::query_scalar(
+    "SELECT desktop_name FROM auth_qr_logins WHERE ticket = ?",
+  )
+  .bind(ticket)
+  .fetch_optional(&state.pool)
+  .await?
+  .flatten();
+  Ok(name.unwrap_or_default())
+}
+
+pub async fn qr_confirm(
+  state: &AppState,
+  user_id: i64,
+  ticket: &str,
+  device: Option<&DeviceInfoReq>,
+  headers: &HeaderMap,
+) -> Result<(), AppError> {
+  let row: Option<QrLoginRow> = sqlx::query_as(
+    "SELECT id, status, user_id, token, refresh_token, expires_at FROM auth_qr_logins WHERE ticket = ?",
+  )
+  .bind(ticket)
+  .fetch_optional(&state.pool)
+  .await?;
+  let Some(row) = row else {
+    return Err(AppError::NotFound("ticket not found".into()));
+  };
+  if row.expires_at < Utc::now().naive_utc() {
+    return Err(AppError::Conflict("ticket expired".into()));
+  }
+  if row.status != 1 {
+    return Err(AppError::Conflict("ticket not scanned".into()));
+  }
+  // 手机端申报的 device_id 必须与桌面 create 时申报一致——refresh token
+  // 绑定到桌面的设备行上(吊销该设备即可吊销这次扫码登录)
+  let desktop_device_id: String = sqlx::query_scalar(
+    "SELECT desktop_device_id FROM auth_qr_logins WHERE id = ?",
+  )
+  .bind(row.id)
+  .fetch_one(&state.pool)
+  .await?;
+  if let Some(d) = device {
+    if !d.device_id.trim().is_empty() && d.device_id.trim() != desktop_device_id {
+      return Err(AppError::Validation("device mismatch".into()));
+    }
+  }
+  let token_pair = issue_tokens(
+    state,
+    user_id,
+    Some(&DeviceInfoReq {
+      device_id: desktop_device_id.clone(),
+      name: None,
+      platform: Some("macOS".into()),
+    }),
+    headers,
+  )
+  .await?;
+  sqlx::query(
+    "UPDATE auth_qr_logins SET status = 2, user_id = ?, token = ?, refresh_token = ? WHERE id = ?",
+  )
+  .bind(user_id)
+  .bind(&token_pair.access_token)
+  .bind(&token_pair.refresh_token)
+  .bind(row.id)
+  .execute(&state.pool)
+  .await?;
+  Ok(())
+}
+
 /// 密码登录:账号不存在或密码错误统一 401(防枚举),不区分"没注册"。
 pub async fn login(
   state: &AppState,

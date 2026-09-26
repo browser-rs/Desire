@@ -41,6 +41,16 @@ struct SnapshotFrame: Codable {
     var elapsed: Int?
 }
 
+// MARK: - 扫码登录（手机扫 Mac 二维码后确认）
+
+struct QrTicketBody: Codable {
+    var ticket: String
+}
+
+struct QrScanResp: Codable {
+    var desktopName: String?
+}
+
 // MARK: - Agent 记忆（t = "memory"）
 
 struct AgentMemory: Codable {

@@ -34,6 +34,19 @@
   语义）；快照协议相应扩展 model/contextPercent/queueCount/elapsed/
   toolArgs，新增 getMemory/deleteMemory/memory 帧。
 
+### Added
+
+- **Mac 端扫码登录（照 Trove 三步流）**：设置 → Sync 未登录时新增"扫码
+  登录"——桌面出票渲染二维码，已登录的 iPhone DesireRemote 扫码并在
+  手机上确认，桌面轮询领走 token 对，免密码登录。服务端新增
+  `auth_qr_logins`（0010 迁移）与四步端点 `qr/create|status|scan|confirm`
+  （create/status 无鉴权带 IP 限流；scan/confirm 走手机 JWT；refresh
+  token 绑定桌面设备行，吊销设备即吊销扫码登录）。**token 一次性消费**
+  （被领走时原子清空，防同 token 被第二个轮询方领走，Trove 踩过的坑）。
+  扫码登录不经密码——E2E 主密钥沿用本机 Keychain 已有值，无主密钥的
+  全新机器仍需密码登录一次完成托管恢复。另修复 iOS 切后台时任务切换
+  卡片黑底（窗口底色钉为系统背景色）。
+
 ### Changed
 
 - **远程链路三个双端 bug 修复**：① iOS"已断开"永不恢复——`login()` 从未存

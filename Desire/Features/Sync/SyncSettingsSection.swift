@@ -31,6 +31,9 @@ struct SyncSettingsSection: View {
             }
             serverSection
         }
+        .sheet(isPresented: $showQRLogin) {
+            SyncQRLoginSheet(store: store)
+        }
         .onAppear {
             serverURL = store.serverBaseURL
         }
@@ -43,6 +46,7 @@ struct SyncSettingsSection: View {
     @State private var mode: AuthMode = .signIn
     @State private var confirmPassword = ""
     @State private var showPassword = false
+    @State private var showQRLogin = false
 
     @ViewBuilder
     private var signedOut: some View {
@@ -71,6 +75,12 @@ struct SyncSettingsSection: View {
                             await store.loadCaptcha()
                             captchaLoading = false
                         }
+                    }
+                }
+                SettingsRowDivider()
+                SettingsRow("QR Login", subtitle: "用已登录的 iPhone App 扫码，免密码登录本机。") {
+                    SettingsCapsuleButton("扫码登录", style: .secondary) {
+                        showQRLogin = true
                     }
                 }
                 SettingsRowDivider()

@@ -9,7 +9,14 @@ import UIKit
 final class RemoteClient: ObservableObject {
 
     enum Phase: Equatable {
-        case login, devices, chat
+        case login, devices, sessions, chat
+    }
+
+    struct RemoteSessionInfo: Identifiable, Codable, Equatable {
+        var id: String
+        var label: String
+        var busy: Bool
+        var count: Int
     }
 
     @Published var phase: Phase = .login
@@ -25,6 +32,10 @@ final class RemoteClient: ObservableObject {
     @Published var busy = false
     /// Mac 离线时发出的消息（排队中，上线后送达）
     @Published var queuedOffline = false
+    /// Mac 上的会话列表（聊天记录）
+    @Published var sessions: [RemoteSessionInfo] = []
+    /// 当前查看的会话 id（nil = Mac 当前活跃会话）
+    @Published var selectedSessionID: String?
     /// 本地即时回显的临时用户消息（快照到达后被覆盖）
     @Published var pendingEcho: ChatMessage?
 
@@ -71,7 +82,7 @@ final class RemoteClient: ObservableObject {
             sessionKeyB64 = key
             desktopDeviceID = desktop
             hasSavedPairing = true
-            phase = .chat
+            phase = .sessions
             username = defaults.string(forKey: "remote.username") ?? ""
             // 恢复持久化的对话记录（杀 App 不丢）
             if let data = defaults.data(forKey: "remote.messages"),
@@ -176,9 +187,9 @@ final class RemoteClient: ObservableObject {
                 hasSavedPairing = true
                 messages = []
                 busy = false
-                phase = .chat
+                phase = .sessions
                 connectWS()
-                requestSync()
+                requestSessions()
             } catch {
                 pairError = error.localizedDescription
             }
@@ -286,8 +297,20 @@ final class RemoteClient: ObservableObject {
     }
 
     private func handleInner(_ text: String) {
-        guard let data = text.data(using: .utf8),
-              let frame = try? JSONDecoder().decode(SnapshotFrame.self, from: data) else { return }
+        guard let data = text.data(using: .utf8) else { return }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           root["t"] as? String == "sessions" {
+            if let list = root["list"] as? [[String: Any]] {
+                sessions = list.compactMap { item in
+                    guard let id = item["id"] as? String, let label = item["label"] as? String else { return nil }
+                    return RemoteSessionInfo(id: id, label: label,
+                                             busy: item["busy"] as? Bool ?? false,
+                                             count: item["count"] as? Int ?? 0)
+                }
+            }
+            return
+        }
+        guard let frame = try? JSONDecoder().decode(SnapshotFrame.self, from: data) else { return }
         messages = frame.messages
         if pendingEcho != nil { pendingEcho = nil }
         busy = frame.busy
@@ -311,8 +334,10 @@ final class RemoteClient: ObservableObject {
     // MARK: - 对外动作
 
     func sendPrompt(_ text: String) {
-        guard let sessionKeyB64,
-              let payload = RemoteCrypto.innerFrame(["t": "prompt", "text": text], sessionKeyB64: sessionKeyB64)
+        guard let sessionKeyB64 else { return }
+        var dict: [String: String] = ["t": "prompt", "text": text]
+        if let selectedSessionID { dict["session"] = selectedSessionID }
+        guard let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64)
         else { return }
         let offline = connectionState.contains("断开") || connectionState.contains("未连接")
         sendTransport(["kind": "route", "payload": payload, "deliver_if_offline": true])
@@ -329,6 +354,28 @@ final class RemoteClient: ObservableObject {
         guard let sessionKeyB64,
               let payload = RemoteCrypto.innerFrame(["t": "cancel"], sessionKeyB64: sessionKeyB64) else { return }
         sendTransport(["kind": "route", "payload": payload])
+    }
+
+    /// 请求 Mac 的会话列表（聊天记录）。
+    func requestSessions() {
+        guard let sessionKeyB64,
+              let payload = RemoteCrypto.innerFrame(["t": "sessions"], sessionKeyB64: sessionKeyB64) else { return }
+        sendTransport(["kind": "route", "payload": payload])
+    }
+
+    /// 打开某个会话（Mac 侧切换遥控目标并回推该会话快照）。
+    func selectSession(_ id: String?) {
+        selectedSessionID = id
+        messages = []
+        busy = false
+        phase = .chat
+        guard let sessionKeyB64 else { return }
+        var dict: [String: String] = ["t": "select"]
+        if let id { dict["session"] = id }
+        if let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64) {
+            sendTransport(["kind": "route", "payload": payload])
+        }
+        requestSync()
     }
 
     func requestSync() {

@@ -17,6 +17,8 @@ struct RootView: View {
                 LoginView()
             case .devices:
                 DevicesView()
+            case .sessions:
+                SessionsView()
             case .chat:
                 ChatView()
             }
@@ -142,7 +144,7 @@ struct DevicesView: View {
                 .foregroundStyle(.tint)
             Text(desktop).font(.title3.bold())
             Button {
-                client.phase = .chat
+                client.phase = .sessions
             } label: {
                 Label("打开控制台", systemImage: "message.fill")
                     .frame(maxWidth: .infinity)
@@ -191,6 +193,130 @@ struct DevicesView: View {
     }
 }
 
+// MARK: - 会话列表（聊天记录，结构照 IrsClawApp SessionListView）
+
+struct SessionsView: View {
+    @EnvironmentObject var client: RemoteClient
+    @State private var showSettings = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if client.sessions.isEmpty {
+                    emptyState
+                } else {
+                    sessionsList
+                }
+            }
+            .background(Color(.secondarySystemBackground).ignoresSafeArea())
+            .navigationTitle("会话")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            }
+            .refreshable { client.requestSessions() }
+            .sheet(isPresented: $showSettings) { RemoteSettingsView() }
+            .onAppear {
+                if client.connectionState != "已连接" { client.appForegrounded() }
+                client.requestSessions()
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.system(size: 52, weight: .light))
+                .foregroundStyle(.tertiary)
+            VStack(spacing: 6) {
+                Text("还没有会话").font(.title3.weight(.semibold))
+                Text("在 Mac 上打开 Agent 面板开始一轮对话，\n这里会实时出现。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button("刷新") { client.requestSessions() }
+                .buttonStyle(.bordered)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var sessionsList: some View {
+        List {
+            Section {
+                ForEach(client.sessions) { session in
+                    SessionRowCard(session: session,
+                                   isSelected: session.id == client.selectedSessionID)
+                        .contentShape(Rectangle())
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .onTapGesture { client.selectSession(session.id) }
+                }
+            } header: {
+                Text(client.desktopName ?? "Mac 上的会话")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+                    .padding(.leading, 4)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+}
+
+struct SessionRowCard: View {
+    let session: RemoteClient.RemoteSessionInfo
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(RootView.brand.opacity(0.9))
+                Image(systemName: "bubble.left.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 42, height: 42)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(session.label)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if session.busy {
+                        Circle().fill(.orange).frame(width: 6, height: 6)
+                        Text("工作中").font(.caption2).foregroundStyle(.orange)
+                    } else {
+                        Text("\(session.count) 条消息").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(RootView.brand)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(.tertiarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 // MARK: - 控制台（聊天）
 
 struct ChatView: View {
@@ -235,6 +361,16 @@ struct ChatView: View {
 
     private var floatingTopBar: some View {
         HStack(spacing: 8) {
+            Button {
+                client.requestSessions()
+                client.phase = .sessions
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(RootView.brand)

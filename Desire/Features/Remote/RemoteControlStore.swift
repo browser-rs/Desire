@@ -278,12 +278,18 @@ final class RemoteControlStore: ObservableObject {
         case "prompt":
             let text = inner.text ?? ""
             guard !text.isEmpty else { return }
-            if AgentScheduler.shared.deliveryTarget == nil {
+            if let sid = inner.session { remoteSessionID = sid }
+            guard let target = remoteSession else {
                 sendInner(["t": "error", "message": String(localized: "No live agent session")])
                 return
             }
-            AgentScheduler.shared.deliveryTarget?.sendMessage(text, recordHistory: false)
+            target.sendMessage(text, recordHistory: false)
             pushSnapshot(force: true)
+        case "select":
+            remoteSessionID = inner.session
+            pushSnapshot(force: true)
+        case "sessions":
+            sendInnerRaw(sessionsFrame())
         case "cancel":
             AgentScheduler.shared.deliveryTarget?.cancel()
             pushSnapshot(force: true)
@@ -298,6 +304,12 @@ final class RemoteControlStore: ObservableObject {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let text = String(data: data, encoding: .utf8) else { return }
         webSocketTask?.send(.string(text)) { _ in }
+    }
+
+    private func sendInnerRaw(_ json: String) {
+        guard let data = json.data(using: .utf8),
+              let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
+        sendTransport(["kind": "route", "payload": payload])
     }
 
     private func sendInner(_ dict: [String: Any]) {
@@ -332,12 +344,14 @@ final class RemoteControlStore: ObservableObject {
         let t: String
         let messages: [RemoteSnapshotMessage]
         let busy: Bool
+        /// 当前遥控的 Mac 会话 id（手机端会话列表高亮用）
+        let session: String?
     }
 
     private func pushSnapshot(force: Bool) {
         guard connection == .online else { return }
         // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
-        let session = AgentScheduler.shared.deliveryTarget
+        let session = remoteSession
         let messages = (session?.messages.suffix(100) ?? []).map { message -> RemoteSnapshotMessage in
             RemoteSnapshotMessage(
                 id: message.id.uuidString,
@@ -346,7 +360,10 @@ final class RemoteControlStore: ObservableObject {
                 reasoning: message.reasoning.map { String($0.prefix(600)) },
                 toolCalls: message.toolCalls.map { $0.map(\.function.name) })
         }
-        let frame = RemoteSnapshotFrame(t: "snapshot", messages: Array(messages), busy: session?.isProcessing ?? false)
+        let frame = RemoteSnapshotFrame(t: "snapshot", messages: Array(messages),
+                                        busy: session?.isProcessing ?? false,
+                                        session: remoteSessionID ?? AgentScheduler.shared.liveSessions()
+                                            .first(where: { $0.store === session })?.id.uuidString)
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }
@@ -380,6 +397,27 @@ final class RemoteControlStore: ObservableObject {
 
     /// 轮询取帧：Mac 端 URLSession WS 下行不可用（实测），控制器指令统一
     /// 从留言表拉取——每秒一拍，与快照推送共用定时器。
+    /// 手机端选中的会话（nil = 跟随 Mac 最新会话）
+    private var remoteSessionID: String?
+
+    private var remoteSession: AgentSessionStore? {
+        if let remoteSessionID, let id = UUID(uuidString: remoteSessionID) {
+            return AgentScheduler.shared.session(withID: id)
+        }
+        return AgentScheduler.shared.deliveryTarget
+    }
+
+    private func sessionsFrame() -> String {
+        let list = AgentScheduler.shared.liveSessions().map { entry -> [String: Any] in
+            ["id": entry.id.uuidString,
+             "label": entry.displayLabel,
+             "busy": entry.store?.isProcessing ?? false,
+             "count": entry.store?.messages.count ?? 0]
+        }
+        let dict: [String: Any] = ["t": "sessions", "list": list]
+        return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) } ?? "{\"t\":\"sessions\",\"list\":[]}"
+    }
+
     private var pollInFlight = false
     private func pollInbox() {
         guard connection == .online, !pollInFlight else { return }
@@ -577,4 +615,5 @@ nonisolated struct RemoteInnerFrame: Codable {
     var text: String?
     var message: String?
     var body: String?
+    var session: String?
 }

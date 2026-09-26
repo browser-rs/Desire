@@ -432,6 +432,8 @@ final class RemoteControlStore: ObservableObject {
     }
 
     private var pollInFlight = false
+    /// 已处理过的取帧 id（服务器重投兜底；处理完立即 ack 删除）
+    private var processedInboxIDs: Set<Int64> = []
     private func pollInbox() {
         guard connection == .online, !pollInFlight else { return }
         pollInFlight = true
@@ -440,11 +442,19 @@ final class RemoteControlStore: ObservableObject {
             guard let token = try? await syncStore.remoteAuthToken() else { return }
             guard let resp = try? await SyncAPIClient.remotePullInbox(
                 baseURL: baseURL, accessToken: token, deviceID: syncStore.deviceID) else { return }
+            var ackIds: [Int64] = []
             for item in resp.items {
+                ackIds.append(item.id)
+                guard !self.processedInboxIDs.contains(item.id) else { continue }
+                self.processedInboxIDs.insert(item.id)
+                if self.processedInboxIDs.count > 500 { self.processedInboxIDs.removeAll() }
                 if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
                     Self.remoteDebug("pull ← \(String(inner.prefix(100)))")
                     handleInnerFrame(inner)
                 }
+            }
+            if !ackIds.isEmpty {
+                self.sendTransport(["kind": "ack", "ids": ackIds])
             }
         }
     }

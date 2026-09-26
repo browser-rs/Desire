@@ -104,6 +104,8 @@ struct DevicesView: View {
 }
 
 /// VisionKit 扫码封装（真机可用；失败回退粘贴导入）。
+/// 关键：DataScannerViewController **必须显式 startScanning()** 才会识别，
+/// 否则摄像头开着但永远不出结果（首版"扫码无效"的根因）。
 struct ScannerSheet: UIViewControllerRepresentable {
     let onRead: (String) -> Void
 
@@ -116,18 +118,35 @@ struct ScannerSheet: UIViewControllerRepresentable {
         return scanner
     }
 
-    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
+        // DataScannerViewController 不可继承（非 open），启动扫描放这里：
+        // update 在挂载后必走一次；started 防重复
+        if !context.coordinator.started {
+            context.coordinator.started = true
+            try? uiViewController.startScanning()
+        }
+    }
+
+    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
+        uiViewController.stopScanning()
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(onRead: onRead) }
 
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         let onRead: (String) -> Void
+        private var didFire = false
+        fileprivate var started = false
         init(onRead: @escaping (String) -> Void) { self.onRead = onRead }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            guard !didFire else { return }
             for item in addedItems {
-                if case .barcode(let barcode) = item, let raw = barcode.payloadStringValue {
-                    Task { @MainActor in onRead(raw) }
+                if case .barcode(let barcode) = item, let raw = barcode.payloadStringValue,
+                   !raw.isEmpty {
+                    didFire = true
+                    onRead(raw)
+                    return
                 }
             }
         }

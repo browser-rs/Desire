@@ -278,7 +278,10 @@ final class RemoteControlStore: ObservableObject {
         case "prompt":
             let text = inner.text ?? ""
             guard !text.isEmpty else { return }
-            if let sid = inner.session { remoteSessionID = sid }
+            if let sid = inner.session, sid != remoteConversationID {
+                remoteConversationID = sid
+                openRemoteConversation()
+            }
             guard let target = remoteSession else {
                 sendInner(["t": "error", "message": String(localized: "No live agent session")])
                 return
@@ -286,18 +289,17 @@ final class RemoteControlStore: ObservableObject {
             target.sendMessage(text, recordHistory: false)
             pushSnapshot(force: true)
         case "select":
-            remoteSessionID = inner.session
+            remoteConversationID = inner.session
+            openRemoteConversation()
             pushSnapshot(force: true)
         case "sessions":
             sendInnerRaw(sessionsFrame())
         case "newSession":
-            // 手机端"+"：在 Mac 上新建一个 Agent 会话并切换遥控目标
+            // 手机端"+"：新建一条真实对话（落盘、有标题）并在面板中打开
             guard let app = AppState.live else { return }
-            let store = AgentSessionStore(preference: app.aiPreference,
-                                          conversationStore: app.conversationStore)
-            remoteCreatedSessions.append(store)
-            let id = AgentScheduler.shared.registerSession(store)
-            remoteSessionID = id.uuidString
+            let conversation = app.conversationStore.create(title: "New Conversation")
+            remoteConversationID = conversation.id.uuidString
+            openRemoteConversation()
             sendInnerRaw(sessionsFrame())
             pushSnapshot(force: true)
         case "cancel":
@@ -372,8 +374,7 @@ final class RemoteControlStore: ObservableObject {
         }
         let frame = RemoteSnapshotFrame(t: "snapshot", messages: Array(messages),
                                         busy: session?.isProcessing ?? false,
-                                        session: remoteSessionID ?? AgentScheduler.shared.liveSessions()
-                                            .first(where: { $0.store === session })?.id.uuidString)
+                                        session: remoteConversationID)
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }
@@ -407,28 +408,43 @@ final class RemoteControlStore: ObservableObject {
 
     /// 轮询取帧：Mac 端 URLSession WS 下行不可用（实测），控制器指令统一
     /// 从留言表拉取——每秒一拍，与快照推送共用定时器。
-    /// 手机端选中的会话（nil = 跟随 Mac 最新会话）
-    private var remoteSessionID: String?
+    /// 手机端选中的**对话** id（ConversationStore 的对话；nil = 最新一条）
+    private var remoteConversationID: String?
     /// 远程新建的会话强引用——AgentScheduler 里是弱引用，不持有会立即释放，
     /// 表现为"列表闪烁/新建无效"。
     private var remoteCreatedSessions: [AgentSessionStore] = []
 
+    /// 远程对话的执行者 = Mac 当前活跃的 Agent 会话（面板）；选中的对话
+    /// 会在它里面打开——**远程发消息与本地发消息完全等效**。
     private var remoteSession: AgentSessionStore? {
-        if let remoteSessionID, let id = UUID(uuidString: remoteSessionID) {
-            return AgentScheduler.shared.session(withID: id)
-        }
-        return AgentScheduler.shared.deliveryTarget
+        AgentScheduler.shared.deliveryTarget
     }
 
+    /// 在活跃会话里打开手机选中的对话（面板同步切换到该对话）。
+    private func openRemoteConversation() {
+        guard let remoteConversationID, let id = UUID(uuidString: remoteConversationID) else { return }
+        remoteSession?.loadConversation(id)
+    }
+
+    /// 会话列表 = **用户的真实对话**（ConversationStore，有标题/会持久化），
+    /// 不再是窗口会话——远程 App 就是本地 Agent 对话的镜像。
     private func sessionsFrame() -> String {
-        let list = AgentScheduler.shared.liveSessions().map { entry -> [String: Any] in
-            ["id": entry.id.uuidString,
-             "label": entry.displayLabel,
-             "busy": entry.store?.isProcessing ?? false,
-             "count": entry.store?.messages.count ?? 0]
+        guard let app = AppState.live else {
+            return "{\"t\":\"sessions\",\"list\":[]}"
         }
-        let dict: [String: Any] = ["t": "sessions", "list": list]
-        return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) } ?? "{\"t\":\"sessions\",\"list\":[]}"
+        let busy = remoteSession?.isProcessing ?? false
+        let list = app.conversationStore.conversations
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(50)
+            .map { conversation -> [String: Any] in
+                ["id": conversation.id.uuidString,
+                 "label": conversation.title,
+                 "busy": busy && conversation.id.uuidString == remoteConversationID,
+                 "count": conversation.messages.count]
+            }
+        let dict: [String: Any] = ["t": "sessions", "list": Array(list)]
+        return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) }
+            ?? "{\"t\":\"sessions\",\"list\":[]}"
     }
 
     private var pollInFlight = false

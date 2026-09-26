@@ -48,14 +48,17 @@ final class VoiceInputService: ObservableObject {
                 transcribedText = ""
                 errorMessage = nil
 
-                task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
-                    guard let self else { return }
-                    Task { @MainActor [self] in
+                // 局部弱引用：闭包不写捕获列表——Swift 的所有权检查对
+                // "[weak self] + 内层 Task 捕获" 组合会误报（clean build 才暴露）
+                weak let callbackTarget = self
+                task = recognizer?.recognitionTask(with: req) { result, error in
+                    guard let callbackTarget else { return }
+                    Task { @MainActor in
                         if let result {
-                            self.transcribedText = result.bestTranscription.formattedString
-                            if result.isFinal { self.stop() }
+                            callbackTarget.transcribedText = result.bestTranscription.formattedString
+                            if result.isFinal { callbackTarget.stop() }
                         }
-                        if error != nil, self.isRecording { self.stop() }
+                        if error != nil, callbackTarget.isRecording { callbackTarget.stop() }
                     }
                 }
 

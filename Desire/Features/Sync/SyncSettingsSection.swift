@@ -35,7 +35,8 @@ struct SyncSettingsSection: View {
             SyncQRLoginSheet(store: store)
         }
         .onAppear {
-            serverURL = store.serverBaseURL
+            // 内置默认地址不在界面露出：只有用户设过覆盖才显示值
+            serverURL = store.hasServerOverride ? store.serverBaseURL : ""
         }
     }
 
@@ -481,9 +482,9 @@ struct SyncSettingsSection: View {
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Server") {
+                SettingsRow("Server", subtitle: "留空使用内置默认地址（修改后需重新登录）。") {
                     SettingsTextField(
-                        placeholder: "https://api.mankong.icu/v9",
+                        placeholder: String(localizedSettingText("Default: built-in server")),
                         text: $serverURL,
                         width: 240
                     )

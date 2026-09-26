@@ -61,12 +61,6 @@ struct LoginView: View {
                     }
                     .padding(.vertical, 2)
                 }
-                Section("服务器") {
-                    TextField("https://api.mankong.icu/v9", text: $client.serverURL)
-                        .keyboardType(.URL)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                }
                 Section("Desire 账号") {
                     TextField("用户名", text: $client.username)
                         .textInputAutocapitalization(.never)
@@ -143,7 +137,7 @@ struct DevicesView: View {
             qrLoginDone = "二维码不是登录码"
             return
         }
-        let server = obj["s"] as? String ?? client.serverURL
+        let server = obj["s"] as? String ?? client.normalizedServerURL
         guard server.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "/")) == client.normalizedServerURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) else {
             qrLoginDone = "该二维码属于其他服务器（\(server)），与当前登录服务器不一致"
             return
@@ -901,19 +895,20 @@ struct RemoteSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("服务器") {
-                    TextField("服务器地址", text: $serverURL)
+                Section {
+                    TextField("留空 = 使用内置默认地址", text: $serverURL)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    Text("修改后需退出登录并重新登录才生效。")
+                    Text("留空使用内置默认地址。修改后需退出登录并重新登录才生效。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Button("保存服务器地址") {
                         client.saveServerURL(serverURL)
                         saved = true
                     }
-                    .disabled(serverURL.isEmpty)
+                } header: {
+                    Text("服务器（可选覆盖）")
                 }
                 Section("外观") {
                     Picker("主题", selection: $client.appearance) {
@@ -951,7 +946,7 @@ struct RemoteSettingsView: View {
                 }
             }
             .onAppear {
-                serverURL = client.serverURL
+                serverURL = client.customServer
             }
             .onChange(of: saved) { _, isSaved in
                 if isSaved {

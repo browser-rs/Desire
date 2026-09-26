@@ -28,7 +28,8 @@ final class RemoteClient: ObservableObject {
     }
 
     @Published var phase: Phase = .login
-    @Published var serverURL: String
+    /// 服务器覆盖地址：空 = 使用内置默认（内置地址不在界面露出）
+    @Published var customServer: String
     @Published var username = ""
     @Published var password = ""
     @Published var loginError: String?
@@ -93,7 +94,8 @@ final class RemoteClient: ObservableObject {
     /// 会话列表延迟刷新（写操作后等 Mac 回包，1.8s 兜底；多次触发合并）
     private var sessionsRefreshTask: Task<Void, Never>?
 
-    static let defaultServer = "https://api.mankong.icu/v9"
+    /// 内置生产地址（不出现在任何界面文案里；可被覆盖设置替换）
+    static let builtinServer = "https://api.mankong.icu/v9"
 
     convenience init() {
         self.init(appearance: "")
@@ -101,7 +103,12 @@ final class RemoteClient: ObservableObject {
 
     init(appearance _: String) {
         appearance = UserDefaults.standard.string(forKey: "remote.appearance") ?? "system"
-        serverURL = defaults.string(forKey: "remote.server") ?? Self.defaultServer
+        // 迁移：旧版把内置默认地址写进了覆盖位——清掉，地址不再于界面露出
+        let savedServer = defaults.string(forKey: "remote.server") ?? ""
+        if savedServer == Self.builtinServer {
+            defaults.removeObject(forKey: "remote.server")
+        }
+        customServer = savedServer == Self.builtinServer ? "" : savedServer
         controllerName = UIDevice.current.name
         if let token = defaults.string(forKey: "remote.access"),
            let key = defaults.string(forKey: "remote.sessionKey"),
@@ -125,7 +132,8 @@ final class RemoteClient: ObservableObject {
 
     /// 规范化后的服务器地址（扫码登录时与二维码 payload 的 s 字段比对）
     var normalizedServerURL: String {
-        var base = serverURL.trimmingCharacters(in: .whitespaces)
+        let chosen = customServer.isEmpty ? Self.builtinServer : customServer
+        var base = chosen.trimmingCharacters(in: .whitespaces)
         while base.hasSuffix("/") { base.removeLast() }
         return base
     }
@@ -154,7 +162,10 @@ final class RemoteClient: ObservableObject {
                 accessToken = pair.accessToken
                 defaults.set(pair.accessToken, forKey: "remote.access")
                 defaults.set(pair.refreshToken, forKey: "remote.refresh")
-                defaults.set(baseURL, forKey: "remote.server")
+                // 服务器覆盖：只在用户显式设置过时持久化（空 = 内置默认）
+                if !customServer.isEmpty {
+                    defaults.set(baseURL, forKey: "remote.server")
+                }
                 defaults.set(username, forKey: "remote.username")
                 phase = .devices
             } catch {
@@ -217,13 +228,17 @@ final class RemoteClient: ObservableObject {
         }
     }
 
-    /// 设置页修改服务器地址（需重新登录才生效到令牌层面）。
+    /// 设置页修改服务器覆盖地址：空 = 清除覆盖回内置默认
+    /// （需重新登录才生效到令牌层面）。
     func saveServerURL(_ url: String) {
         var base = url.trimmingCharacters(in: .whitespaces)
         while base.hasSuffix("/") { base.removeLast() }
-        guard !base.isEmpty else { return }
-        serverURL = base
-        defaults.set(base, forKey: "remote.server")
+        customServer = base
+        if base.isEmpty {
+            defaults.removeObject(forKey: "remote.server")
+        } else {
+            defaults.set(base, forKey: "remote.server")
+        }
     }
 
     var savedUsername: String {
@@ -248,7 +263,8 @@ final class RemoteClient: ObservableObject {
             pairError = "二维码内容无法识别"
             return
         }
-        serverURL = qr.s
+        // 配对二维码自带服务器地址——用户扫码即显式选择，作为覆盖存下
+        saveServerURL(qr.s)
         sessionKeyB64 = qr.k
         isWorking = true
         Task { @MainActor in

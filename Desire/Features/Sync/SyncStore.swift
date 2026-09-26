@@ -285,10 +285,22 @@ final class SyncStore: ObservableObject {
         }
     }
 
+    /// 服务器覆盖地址是否生效（内置默认地址不在界面露出）。
+    var hasServerOverride: Bool {
+        guard let stored = defaults.string(forKey: serverKey) else { return false }
+        return !stored.isEmpty
+    }
+
+    /// 设置服务器覆盖地址：空 / 与内置默认相同 → 清除覆盖回内置
+    /// （尾斜杠会造成 //auth/… 双斜杠，先归一）。
     func setServerBaseURL(_ url: String) {
         var trimmed = url.trimmingCharacters(in: .whitespaces)
-        while trimmed.hasSuffix("/") { trimmed.removeLast() }   // 尾斜杠会造成 //auth/… 双斜杠
-        guard !trimmed.isEmpty else { return }
+        while trimmed.hasSuffix("/") { trimmed.removeLast() }
+        if trimmed.isEmpty || trimmed == Self.defaultServerBaseURL {
+            defaults.removeObject(forKey: serverKey)
+            serverBaseURL = Self.defaultServerBaseURL
+            return
+        }
         defaults.set(trimmed, forKey: serverKey)
         serverBaseURL = trimmed
     }

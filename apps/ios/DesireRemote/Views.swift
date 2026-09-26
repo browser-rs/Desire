@@ -1,5 +1,6 @@
 import MarkdownUI
 import SwiftUI
+import UIKit
 import Vision
 import VisionKit
 
@@ -8,8 +9,13 @@ import VisionKit
 struct RootView: View {
     @EnvironmentObject var client: RemoteClient
 
-    /// 朱砂品牌色（与 Mac 端「欲」字印章一致）
-    static let brand = Color(red: 0.75, green: 0.23, blue: 0.10)
+    /// 朱砂品牌色（与 Mac 端「欲」字印章一致）。深色模式提亮一档——
+    /// 暗底上用同一暗红会"糊"进背景（按钮/胶囊/头像对比度不足）。
+    static let brand = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.95, green: 0.36, blue: 0.20, alpha: 1)
+            : UIColor(red: 0.75, green: 0.23, blue: 0.10, alpha: 1)
+    })
 
     var body: some View {
         Group {
@@ -170,6 +176,7 @@ struct DevicesView: View {
                     showScanner = false
                     handleScanned(raw)
                 }
+                .preferredColorScheme(client.preferredColorScheme)
             }
             .alert("在此 Mac 上登录？", isPresented: Binding(
                 get: { qrLogin != nil },
@@ -312,7 +319,10 @@ struct SessionsView: View {
                 }
             }
             .refreshable { client.requestSessions() }
-            .sheet(isPresented: $showSettings) { RemoteSettingsView() }
+            .sheet(isPresented: $showSettings) {
+                RemoteSettingsView()
+                    .preferredColorScheme(client.preferredColorScheme)
+            }
             .alert("重命名会话", isPresented: Binding(
                 get: { renameTarget != nil },
                 set: { if !$0 { renameTarget = nil } })) {
@@ -488,8 +498,14 @@ struct ChatView: View {
             }
             .background(Color(.secondarySystemBackground).ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showSettings) { RemoteSettingsView() }
-            .sheet(isPresented: $showBoard) { AgentBoardView() }
+            .sheet(isPresented: $showSettings) {
+                RemoteSettingsView()
+                    .preferredColorScheme(client.preferredColorScheme)
+            }
+            .sheet(isPresented: $showBoard) {
+                AgentBoardView()
+                    .preferredColorScheme(client.preferredColorScheme)
+            }
         }
     }
 
@@ -792,7 +808,7 @@ struct MessageBubble: View {
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.accentColor)
+                            .fill(RootView.brand)
                     )
                     .foregroundStyle(.white)
                 RemoteAvatar(icon: "person.fill", colors: [.blue, .cyan])
@@ -824,7 +840,7 @@ struct MessageBubble: View {
                        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(content)
                             .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.primary.opacity(0.78))
                             .lineLimit(toolExpanded ? nil : 4)
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1004,9 +1020,18 @@ struct MarkdownTextView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var bubbleTheme: Theme {
-        // 边距收紧到气泡内合适的呼吸感；表格横向滚动（手机宽度放不下）
+        // 边距收紧到气泡内合适的呼吸感；表格横向滚动（手机宽度放不下）。
+        // gitHub 主题的链接色是"白底深绿"——暗色气泡里看不清，统一改主题色；
+        // 行内代码前景显式 primary（主题默认在暗色下发灰）。
         Theme.gitHub
             .text {
+                ForegroundColor(.primary)
+            }
+            .link {
+                ForegroundColor(Color.accentColor)
+                UnderlineStyle(.single)
+            }
+            .code {
                 ForegroundColor(.primary)
             }
             .heading1 { configuration in

@@ -101,7 +101,7 @@ struct MainView: View {
             } onSettings: {
                 showingSettings = true
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .preferredColorScheme(client.preferredColorScheme)
         }

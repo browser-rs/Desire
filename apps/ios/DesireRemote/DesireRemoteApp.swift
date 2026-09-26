@@ -11,18 +11,3 @@ struct DesireRemoteApp: App {
         }
     }
 }
-
-struct RootView: View {
-    @EnvironmentObject var client: RemoteClient
-
-    var body: some View {
-        switch client.phase {
-        case .login:
-            LoginView()
-        case .devices:
-            DevicesView()
-        case .chat:
-            ChatView()
-        }
-    }
-}

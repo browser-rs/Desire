@@ -95,6 +95,19 @@ final class RemoteClient: ObservableObject {
         return id
     }
 
+    /// 设置页修改服务器地址（需重新登录才生效到令牌层面）。
+    func saveServerURL(_ url: String) {
+        var base = url.trimmingCharacters(in: .whitespaces)
+        while base.hasSuffix("/") { base.removeLast() }
+        guard !base.isEmpty else { return }
+        serverURL = base
+        defaults.set(base, forKey: "remote.server")
+    }
+
+    var savedUsername: String {
+        defaults.string(forKey: "remote.username") ?? ""
+    }
+
     func logout() {
         defaults.removeObject(forKey: "remote.access")
         wsTask?.cancel(with: .goingAway, reason: nil)

@@ -14,6 +14,24 @@ import Security
 /// - 信道：WebSocket 出站连中继（无需公网入站），业务载荷 AES-256-GCM 密文。
 /// - 桥接：prompt → AgentSessionStore.sendMessage（与桥 /agent/send 同路径）；
 ///   快照（消息 suffix(20) + busy）1 秒一拍、变化才发——手机端重连先发 sync 补快照。
+/// 专用 WebSocket 会话代理：open/close 事件打点（诊断收发问题）。
+final class RemoteWSDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
+    var onOpen: (() -> Void)?
+    var onClose: (() -> Void)?
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        RemoteControlStore.remoteDebug("ws didOpen protocol=\(`protocol` ?? "none")")
+        onOpen?()
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        RemoteControlStore.remoteDebug("ws didClose code=\(closeCode.rawValue)")
+        onClose?()
+    }
+}
+
 @MainActor
 final class RemoteControlStore: ObservableObject {
 
@@ -58,6 +76,8 @@ final class RemoteControlStore: ObservableObject {
     private var baseURL: String { syncStore.serverBaseURL }
 
     private var webSocketTask: URLSessionWebSocketTask?
+    private let wsDelegate = RemoteWSDelegate()
+    private var wsSession: URLSession?
     private var receiveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var snapshotTimer: Timer?
@@ -90,6 +110,8 @@ final class RemoteControlStore: ObservableObject {
     private func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        wsSession?.invalidateAndCancel()
+        wsSession = nil
         receiveTask?.cancel()
         receiveTask = nil
         reconnectTask?.cancel()
@@ -124,7 +146,16 @@ final class RemoteControlStore: ObservableObject {
                 }
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                let task = URLSession.shared.webSocketTask(with: request)
+                // 专用会话（非 .shared）：独立 delegate 队列，open/close 可观测
+                let session = URLSession(configuration: .default, delegate: self.wsDelegate, delegateQueue: nil)
+                self.wsSession = session
+                self.wsDelegate.onOpen = {
+                    Task { @MainActor in RemoteControlStore.remoteDebug("ws onOpen fired") }
+                }
+                self.wsDelegate.onClose = {
+                    Task { @MainActor in RemoteControlStore.remoteDebug("ws onClose fired") }
+                }
+                let task = session.webSocketTask(with: request)
                 self.webSocketTask = task
                 task.resume()
                 Self.remoteDebug("ws resumed url=\(url.absoluteString)")

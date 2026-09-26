@@ -146,8 +146,11 @@ final class RemoteControlStore: ObservableObject {
                 }
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                // 专用会话（非 .shared）：独立 delegate 队列，open/close 可观测
-                let session = URLSession(configuration: .default, delegate: self.wsDelegate, delegateQueue: nil)
+                // 专用会话（非 .shared）+ 显式禁代理：系统代理会中转 localhost WS
+                // 并把服务器写入的下行帧吞在代理侧（下行全灭的根因假设，实测验证）
+                let config = URLSessionConfiguration.ephemeral
+                config.connectionProxyDictionary = [:]
+                let session = URLSession(configuration: config, delegate: self.wsDelegate, delegateQueue: nil)
                 self.wsSession = session
                 self.wsDelegate.onOpen = {
                     Task { @MainActor in RemoteControlStore.remoteDebug("ws onOpen fired") }
@@ -201,26 +204,27 @@ final class RemoteControlStore: ObservableObject {
 
     /// completion 式接收（re-arm 循环）。async receive() 在本 App 的
     /// MainActor 上下文下曾出现永不返回（下行全灭），回调式无此问题。
+    /// 接收循环跑在 **非隔离的 detached 任务**里（与脚本验证环境一致），
+    /// 帧处理再跳回 MainActor。曾实测：MainActor 隔离的 receive 永不返回
+    /// （下行全灭），非隔离上下文同一 API 正常收帧。
     private func startReceiving(_ task: URLSessionWebSocketTask) {
-        task.receive { [weak self] result in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard self.webSocketTask === task else { return }
-                switch result {
-                case .success(let message):
-                    switch message {
-                    case .string(let text):
-                        self.handleTransportFrame(text)
-                    case .data(let data):
-                        self.handleTransportFrame(String(data: data, encoding: .utf8) ?? "")
-                    @unknown default:
-                        break
-                    }
-                    self.startReceiving(task)
-                case .failure:
-                    await self.handleDisconnect(dead: task)
+        receiveTask = Task.detached(priority: .utility) { [weak self] in
+            while !Task.isCancelled {
+                let message: URLSessionWebSocketTask.Message
+                do {
+                    message = try await task.receive()
+                } catch {
+                    break
                 }
+                let text: String
+                switch message {
+                case .string(let t): text = t
+                case .data(let d): text = String(data: d, encoding: .utf8) ?? ""
+                @unknown default: continue
+                }
+                await self?.handleTransportFrame(text)
             }
+            await self?.handleDisconnect(dead: task)
         }
     }
 

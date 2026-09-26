@@ -32,13 +32,7 @@ struct SnapshotFrame: Codable {
     var busy: Bool
 }
 
-// MARK: - 传输帧（服务器可见：kind = inbox/route/ack/ping/pong/closed）
-
-struct TransportFrame: Codable {
-    var kind: String
-    var items: [InboxItem]?
-    var payload: String?
-}
+// MARK: - 信箱帧（WS express 与 pull 兜底共用同一形态）
 
 struct InboxItem: Codable {
     var id: Int64
@@ -77,6 +71,31 @@ struct ClaimResp: Codable {
     var desktopName: String
 }
 
+/// GET /remote/pull 响应（双信箱；desktopOnline 供控制器判定 Mac 是否在线）
+struct PullResp: Codable {
+    var items: [InboxItem]
+    var desktopOnline: Bool?
+}
+
+/// POST /remote/push 请求体（replace = 作废对端信箱里的 pending 旧帧，快照用）
+struct PushBody: Codable {
+    var payload: String
+    var replace: Bool
+}
+
+struct PushOK: Codable {
+    var ok: Bool
+}
+
+struct RevokeBody: Codable {
+    var desktop_device_id: String
+    var controller_name: String
+}
+
+struct RevokeResp: Codable {
+    var revoked: Int
+}
+
 struct Envelope<Response: Codable>: Codable {
     var code: Int
     var message: String?
@@ -85,10 +104,14 @@ struct Envelope<Response: Codable>: Codable {
 
 enum APIError: LocalizedError {
     case server(String)
+    /// HTTP 401 —— 令牌过期，调用方（authedSend）刷新后重试一次
+    case unauthorized(String)
 
     var errorDescription: String? {
-        if case .server(let message) = self { return message }
-        return nil
+        switch self {
+        case .server(let message): message
+        case .unauthorized(let message): message
+        }
     }
 }
 
@@ -109,6 +132,11 @@ enum API {
         request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 {
+            let message = (try? JSONDecoder().decode(Envelope<Empty>.self, from: data))?
+                .message ?? "登录已过期"
+            throw APIError.unauthorized(message)
+        }
         guard let envelope = try? JSONDecoder().decode(Envelope<Response>.self, from: data),
               envelope.code == 0, let payload = envelope.data else {
             let message = (try? JSONDecoder().decode(Envelope<Empty>.self, from: data))?

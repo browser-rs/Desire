@@ -71,7 +71,7 @@ nonisolated enum SyncAPIClient {
         try await send("GET", baseURL, "/sync/key-escrow", token: accessToken)
     }
 
-    // MARK: - 远程控制（配对 REST；控制业务走 WebSocket，见 RemoteControlStore）
+    // MARK: - 远程控制（配对 REST + 双信箱 push/pull；WS 只做订阅下行，见 RemoteControlStore）
 
     struct RemotePairingStartBody: Codable {
         var desktop_device_id: String
@@ -136,6 +136,8 @@ nonisolated enum SyncAPIClient {
 
     struct RemoteInboxPull: Codable {
         var items: [RemoteInboxPullItem]
+        /// 收件方为控制器时有意义：桌面 last_seen 戳是否在在线窗口内。
+        var desktopOnline: Bool?
     }
 
     struct RemoteInboxPullItem: Codable {
@@ -143,10 +145,28 @@ nonisolated enum SyncAPIClient {
         var payload: String
     }
 
+    /// `role` = 发送方角色（desktop/controller），服务器映射到对端信箱。
     static func remotePullInbox(
-        baseURL: String, accessToken: String, deviceID: String
+        baseURL: String, accessToken: String, deviceID: String, role: String
     ) async throws -> RemoteInboxPull {
-        try await send("GET", baseURL, "/remote/pull?device=\(deviceID)", token: accessToken)
+        try await send(
+            "GET", baseURL, "/remote/pull?role=\(role)&device=\(deviceID)", token: accessToken)
+    }
+
+    struct RemotePushBody: Codable {
+        var payload: String
+        var replace: Bool
+    }
+
+    /// 发送业务帧（E2E 密文）：入库（持久、离线可达）+ 服务器 express 发布。
+    static func remotePush(
+        baseURL: String, accessToken: String, deviceID: String, role: String,
+        payload: String, replace: Bool
+    ) async throws {
+        _ = try await rawRequest(
+            "POST", baseURL, "/remote/push?role=\(role)&device=\(deviceID)",
+            body: encode(RemotePushBody(payload: payload, replace: replace)),
+            token: accessToken)
     }
 
     static func remotePairingRevoke(

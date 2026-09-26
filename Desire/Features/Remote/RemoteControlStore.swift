@@ -6,14 +6,6 @@ import Foundation
 import LocalAuthentication
 import Security
 
-/// 远程控制（Mac 被控端）：手机经 api 中继与本机建立 E2E 加密通道，
-/// 远程对话 Agent——**工作仍全部在本地执行**，手机只发指令、看进度、批确认。
-///
-/// - 配对：设置页生成一次性配对码（10 分钟）+ 本机会话密钥（256 位随机，
-///   Keychain 持久），二维码携带 `服务器/码/密钥/设备id`。服务器只见密文。
-/// - 信道：WebSocket 出站连中继（无需公网入站），业务载荷 AES-256-GCM 密文。
-/// - 桥接：prompt → AgentSessionStore.sendMessage（与桥 /agent/send 同路径）；
-///   快照（消息 suffix(20) + busy）1 秒一拍、变化才发——手机端重连先发 sync 补快照。
 /// 专用 WebSocket 会话代理：open/close 事件打点（诊断收发问题）。
 final class RemoteWSDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
     var onOpen: (() -> Void)?
@@ -32,10 +24,26 @@ final class RemoteWSDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked 
     }
 }
 
+/// 远程控制（Mac 被控端）：手机经 api 中继远程对话本机 Agent，
+/// **工作仍全部在本地执行**，手机只发指令、看进度、批确认。
+///
+/// 传输拓扑（服务端可水平扩展，连接无状态，照 Trove im_ws 模式）：
+/// - **上行一律 REST** `POST /remote/push`（本端帧 = 快照/回包，E2E 密文，
+///   快照带 replace=true：新帧作废收件信箱 pending 旧帧）。
+/// - **下行 = WS 频道订阅（express，即时） + `GET /remote/pull`（1s 兜底）**，
+///   两条路径按信箱行 id 去重后走同一处理函数。WS 不承载业务帧。
+/// - WS 服务端 20s Ping 保活（防 LB 空闲回收）；客户端 20s sendPing 探活，
+///   探活失败即触发重连（半开连接 ≤20s 内暴露）。
+/// - 连接状态由"最近一次链路活动"（WS 帧/REST 成功）驱动，不再凭
+///   `task.resume()` 想当然置 .online。
+/// - 配对：设置页生成一次性配对码（10 分钟）+ 本机会话密钥（256 位随机，
+///   Keychain 持久），二维码携带 `服务器/码/密钥/设备id`。服务器只见密文。
+///   认领后服务器向桌面频道发布 `pairing_claimed` 通知 → 二维码自动收起
+///   （Redis 未配置时降级为二维码显示期间的 2s 设备数轮询兜底）。
 @MainActor
 final class RemoteControlStore: ObservableObject {
 
-    /// 远程链路诊断日志（/tmp/remote_mac_debug.log）——排查下行投递问题用，
+    /// 远程链路诊断日志（/tmp/remote_mac_debug.log）——排查链路问题用，
     /// 只在关键事件打点、量极小；后续稳定可移除。
     nonisolated static func remoteDebug(_ line: String) {
         let path = "/tmp/remote_mac_debug.log"
@@ -80,9 +88,16 @@ final class RemoteControlStore: ObservableObject {
     private var wsSession: URLSession?
     private var receiveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
-    private var snapshotTimer: Timer?
+    private var wsPingTask: Task<Void, Never>?
+    /// 链路心跳定时器：pull 兜底 + 快照推送 + 状态评估 + 认领检测，1s 一拍。
+    private var linkTimer: Timer?
+
+    /// 链路活动（WS 帧到达 / REST 成功）；8s 内有活动 = online。
+    private var lastLinkActivity = Date.distantPast
+    private var consecutivePollFailures = 0
+    private var lastPollError: String?
+    private var lastForcedPush = Date.distantPast
     private var lastSnapshotJSON = ""
-    private var refreshDevicesTask: Task<Void, Never>?
 
     init(syncStore: SyncStore) {
         self.syncStore = syncStore
@@ -95,6 +110,7 @@ final class RemoteControlStore: ObservableObject {
         isEnabled = enabled
         defaults.set(enabled, forKey: enabledKey)
         if enabled {
+            startLinkLoop()
             connect()
         } else {
             disconnect()
@@ -104,39 +120,88 @@ final class RemoteControlStore: ObservableObject {
     /// 启动入口（AppState.init 调；内部自判条件，不占启动路径）。
     func startIfEnabled() {
         guard isEnabled else { return }
+        startLinkLoop()
         connect()
     }
 
     private func disconnect() {
+        teardownLink()
+        linkTimer?.invalidate()
+        linkTimer = nil
+        lastLinkActivity = .distantPast
+        consecutivePollFailures = 0
+        connection = .off
+    }
+
+    /// 只拆 WS（REST 链路独立于 WS 存活），不动定时器。
+    private func teardownLink() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         wsSession?.invalidateAndCancel()
         wsSession = nil
         receiveTask?.cancel()
         receiveTask = nil
+        wsPingTask?.cancel()
+        wsPingTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
-        snapshotTimer?.invalidate()
-        snapshotTimer = nil
-        connection = .off
     }
 
-    // MARK: - 连接（出站 WS；断线 5s 退避重连）
+    // MARK: - 链路心跳循环（1s：pull 兜底 + 快照推送 + 状态评估 + 认领检测）
 
-    private func connect() {
-        guard isEnabled, case .signedIn = syncStore.authState else {
-            connection = .off
+    private func startLinkLoop() {
+        guard linkTimer == nil else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tick()
+            }
+        }
+        linkTimer = timer
+        tick()
+    }
+
+    private func tick() {
+        evaluateConnection()
+        pollInbox()
+        // 快照 15s 强推一拍兜底（平时变化才发）：手机错过一帧也能在半分钟内追平
+        pushSnapshot(force: Date().timeIntervalSince(lastForcedPush) > 15)
+        claimWatchTick()
+    }
+
+    private func noteLinkActivity() {
+        lastLinkActivity = Date()
+        consecutivePollFailures = 0
+        if connection != .online { connection = .online }
+    }
+
+    /// 状态诚实化：online = 8s 内有链路活动；连续 3 次 pull 失败才报 error
+    /// （单次网络抖动不打脸）。
+    private func evaluateConnection() {
+        guard isEnabled else {
+            if connection != .off { connection = .off }
             return
         }
+        guard case .signedIn = syncStore.authState else {
+            if connection != .off { connection = .off }
+            return
+        }
+        if consecutivePollFailures >= 3 {
+            let message = lastPollError ?? String(localized: "Sync server error")
+            if connection != .error(message) { connection = .error(message) }
+            return
+        }
+        let fresh = Date().timeIntervalSince(lastLinkActivity) < 8
+        let target: ConnectionState = fresh ? .online : .connecting
+        if connection != target { connection = target }
+    }
+
+    // MARK: - WS（下行订阅 + 探活；断线 5s 退避重连）
+
+    private func connect() {
+        guard isEnabled, case .signedIn = syncStore.authState else { return }
         // **无条件先拆旧连接**：旧 task 残留（死 socket）会吞掉所有重连——
         // 曾经的"existing task 早退"就是重连永久停摆的根因。
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-        receiveTask?.cancel()
-        receiveTask = nil
-        snapshotTimer?.invalidate()
-        snapshotTimer = nil
-        connection = .connecting
+        teardownLink()
         Task { @MainActor in
             do {
                 let token = try await syncStore.remoteAuthToken()
@@ -152,8 +217,12 @@ final class RemoteControlStore: ObservableObject {
                 config.connectionProxyDictionary = [:]
                 let session = URLSession(configuration: config, delegate: self.wsDelegate, delegateQueue: nil)
                 self.wsSession = session
+                weak let weakSelf = self
                 self.wsDelegate.onOpen = {
-                    Task { @MainActor in RemoteControlStore.remoteDebug("ws onOpen fired") }
+                    Task { @MainActor in
+                        RemoteControlStore.remoteDebug("ws onOpen fired")
+                        weakSelf?.noteLinkActivity()
+                    }
                 }
                 self.wsDelegate.onClose = {
                     Task { @MainActor in RemoteControlStore.remoteDebug("ws onClose fired") }
@@ -162,12 +231,10 @@ final class RemoteControlStore: ObservableObject {
                 self.webSocketTask = task
                 task.resume()
                 Self.remoteDebug("ws resumed url=\(url.absoluteString)")
-                self.connection = .online
-                self.startSnapshotLoop()
+                self.startPingLoop(task)
                 self.startReceiving(task)
             } catch {
                 Self.remoteDebug("connect failed: \(error.localizedDescription)")
-                self.connection = .error(error.localizedDescription)
                 self.scheduleReconnect()
             }
         }
@@ -193,14 +260,37 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
+    /// 20s sendPing：保活 + 半开连接探活。探活失败 = 链路已死，走统一断开路径
+    /// （NAT/对端静默掉线时 receive() 会永远挂着，只有 ping 能暴露）。
+    private func startPingLoop(_ task: URLSessionWebSocketTask) {
+        wsPingTask?.cancel()
+        wsPingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                guard !Task.isCancelled else { break }
+                await MainActor.run { RemoteControlStore.remoteDebug("ws ping →") }
+                task.sendPing { [weak self] error in
+                    guard let error else { return }
+                    RemoteControlStore.remoteDebug("ws ping failed: \(error.localizedDescription)")
+                    Task { @MainActor [weak self] in
+                        self?.handleDisconnect(dead: task)
+                    }
+                }
+            }
+        }
+    }
+
     /// SyncStore 登录态变化时由设置页/AppState 驱动；未登录即断开。
     func syncAuthDidChange() {
         if case .signedOut = syncStore.authState {
             disconnect()
+        } else if case .signedIn = syncStore.authState, isEnabled {
+            startLinkLoop()
+            connect()
         }
     }
 
-    // MARK: - 收发
+    // MARK: - 收帧（express WS + pull 兜底，单一处理路径）
 
     /// completion 式接收（re-arm 循环）。async receive() 在本 App 的
     /// MainActor 上下文下曾出现永不返回（下行全灭），回调式无此问题。
@@ -222,7 +312,7 @@ final class RemoteControlStore: ObservableObject {
                 case .data(let d): text = String(data: d, encoding: .utf8) ?? ""
                 @unknown default: continue
                 }
-                await self?.handleTransportFrame(text)
+                await self?.handleExpressEnvelope(text)
             }
             await self?.handleDisconnect(dead: task)
         }
@@ -232,45 +322,50 @@ final class RemoteControlStore: ObservableObject {
         guard self.webSocketTask === dead || self.webSocketTask == nil else { return }
         self.webSocketTask = nil
         self.receiveTask = nil
-        self.snapshotTimer?.invalidate()
-        self.snapshotTimer = nil
-        guard self.isEnabled, case .signedIn = self.syncStore.authState else {
-            self.connection = .off
-            return
-        }
-        self.connection = .error(String(localized: "Sync server error"))
+        self.wsPingTask?.cancel()
+        self.wsPingTask = nil
         Self.remoteDebug("ws lost → schedule reconnect")
         self.scheduleReconnect()
     }
 
-    /// 传输帧（服务器可见）：inbox / pong；route 业务载荷已在上层路由。
-    private func handleTransportFrame(_ text: String) {
-        NSLog("REMOTE-DBG transport: %@", String(text.prefix(160)))
-        guard let data = text.data(using: .utf8),
-              let frame = try? SyncJSON.makeDecoder().decode(RemoteTransportFrame.self, from: data)
-        else { return }
-        switch frame.kind {
-        case "inbox":
-            for item in frame.items ?? [] {
-                if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
-                    handleInnerFrame(inner)
-                }
-                sendTransport(["kind": "ack", "ids": [item.id]])
-            }
-        case "route":
-            // 中继转发的控制器业务帧（密文）——解密后进业务处理
-            if let payload = frame.payload,
-               let inner = Self.decrypt(payloadB64: payload, sessionKeyB64: sessionKeyB64) {
-                handleInnerFrame(inner)
-            }
-        default:
-            break
+    /// WS express 帧：`{"id":..,"payload":".."}`（业务，与 pull items 同形）
+    /// 或 `{"kind":"notify","event":..}`（服务器控制通知，明文）。
+    private func handleExpressEnvelope(_ text: String) {
+        NSLog("REMOTE-DBG express: %@", String(text.prefix(160)))
+        guard let data = text.data(using: .utf8) else { return }
+        if let ctrl = try? SyncJSON.makeDecoder().decode(RemoteNotifyEnvelope.self, from: data),
+           ctrl.kind == "notify" {
+            if ctrl.event == "pairing_claimed" { handlePairingClaimed() }
+            return
+        }
+        if let item = try? SyncJSON.makeDecoder().decode(SyncAPIClient.RemoteInboxPullItem.self, from: data) {
+            noteLinkActivity()
+            ingestInboxItems([item])
         }
     }
 
-    /// 业务帧（E2E 解密后）：prompt / cancel / sync。
+    /// express 与 pull 共用入口：按行 id 去重 → 解密 → 业务帧。
+    private func ingestInboxItems(_ items: [SyncAPIClient.RemoteInboxPullItem]) {
+        for item in items {
+            guard !processedInboxIDs.contains(item.id) else { continue }
+            processedInboxIDs.insert(item.id)
+            if processedInboxIDs.count > 500 { processedInboxIDs.removeAll() }
+            if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
+                Self.remoteDebug("inner ← \(String(inner.prefix(100)))")
+                handleInnerFrame(inner)
+            }
+        }
+    }
+
+    /// 控制通知信封（明文；服务器生成，无业务数据）。
+    nonisolated struct RemoteNotifyEnvelope: Codable {
+        var kind: String
+        var event: String?
+    }
+
+    // MARK: - 业务帧（E2E 解密后）：prompt / cancel / sync。
+
     private func handleInnerFrame(_ text: String) {
-        Self.remoteDebug("inner ← \(String(text.prefix(120)))")
         guard let data = text.data(using: .utf8),
               let inner = try? SyncJSON.makeDecoder().decode(RemoteInnerFrame.self, from: data)
         else { return }
@@ -312,37 +407,35 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
-    private func sendTransport(_ dict: [String: Any]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: dict),
-              let text = String(data: data, encoding: .utf8) else { return }
-        webSocketTask?.send(.string(text)) { _ in }
+    // MARK: - 上行（一律 REST push）
+
+    private func pushPayload(_ payload: String, replace: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self, case .signedIn = self.syncStore.authState else { return }
+            guard let token = try? await self.syncStore.remoteAuthToken() else { return }
+            do {
+                try await SyncAPIClient.remotePush(
+                    baseURL: self.baseURL, accessToken: token, deviceID: self.syncStore.deviceID,
+                    role: "desktop", payload: payload, replace: replace)
+                self.noteLinkActivity()
+            } catch {
+                Self.remoteDebug("push failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func sendInnerRaw(_ json: String) {
-        guard let data = json.data(using: .utf8),
-              let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        guard let payload = Self.encrypt(data: Data(json.utf8), sessionKeyB64: sessionKeyB64) else { return }
+        pushPayload(payload, replace: false)
     }
 
     private func sendInner(_ dict: [String: Any]) {
-        guard let payload = Self.encrypt(dict: dict, sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let json = String(data: data, encoding: .utf8) else { return }
+        sendInnerRaw(json)
     }
 
-    // MARK: - 快照推送（1 秒一拍；变化才发）
-
-    private func startSnapshotLoop() {
-        snapshotTimer?.invalidate()
-        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.pushSnapshot(force: false)
-                self?.pollInbox()
-            }
-        }
-        snapshotTimer = timer
-        pushSnapshot(force: true)
-        pollInbox()
-    }
+    // MARK: - 快照推送（1s 一拍、变化才发；15s 强推兜底）
 
     struct RemoteSnapshotMessage: Codable {
         let id: String
@@ -361,7 +454,8 @@ final class RemoteControlStore: ObservableObject {
     }
 
     private func pushSnapshot(force: Bool) {
-        guard connection == .online else { return }
+        guard isEnabled, case .signedIn = syncStore.authState else { return }
+        if force { lastForcedPush = Date() }
         // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
         let session = remoteSession
         let messages = (session?.messages.suffix(100) ?? []).map { message -> RemoteSnapshotMessage in
@@ -378,12 +472,146 @@ final class RemoteControlStore: ObservableObject {
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }
-        NSLog("REMOTE-DBG push snapshot force=%d busy=%d", force ? 1 : 0, (session?.isProcessing ?? false) ? 1 : 0)
         lastSnapshotJSON = fingerprint
         guard let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
-        Self.remoteDebug("snapshot → (\(frame.messages.count) msgs, busy=\(frame.busy))")
-        sendTransport(["kind": "route", "payload": payload])
+        Self.remoteDebug("snapshot push (\(frame.messages.count) msgs, busy=\(frame.busy), force=\(force))")
+        pushPayload(payload, replace: true)
     }
+
+    /// pull 兜底（1s 一拍）：取走桌面信箱帧；服务器顺带盖在线戳。
+    private var pollInFlight = false
+    /// 已处理过的帧 id（express 先到时，兜底 pull 的同 id 行直接跳过）
+    private var processedInboxIDs: Set<Int64> = []
+    private func pollInbox() {
+        guard isEnabled, case .signedIn = syncStore.authState, !pollInFlight else { return }
+        pollInFlight = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.pollInFlight = false }
+            guard let token = try? await self.syncStore.remoteAuthToken() else { return }
+            do {
+                let resp = try await SyncAPIClient.remotePullInbox(
+                    baseURL: self.baseURL, accessToken: token,
+                    deviceID: self.syncStore.deviceID, role: "desktop")
+                self.noteLinkActivity()
+                self.ingestInboxItems(resp.items)
+            } catch {
+                self.consecutivePollFailures += 1
+                self.lastPollError = error.localizedDescription
+                Self.remoteDebug("pull failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - 配对
+
+    struct RemotePairingQR: Codable {
+        var v: Int
+        var s: String
+        var c: String
+        var k: String
+        var d: String
+    }
+
+    /// 生成配对码 + 二维码（会话密钥首次生成后存 Keychain，长期复用）。
+    func startPairing() {
+        Task { @MainActor in
+            do {
+                let token = try await syncStore.remoteAuthToken()
+                // 先对齐已配对数（认领检测的基线），再签发新码
+                if let existing = try? await SyncAPIClient.remoteDevices(
+                    baseURL: baseURL, accessToken: token).devices {
+                    pairedDevices = existing
+                }
+                deviceCountAtPairingStart = pairedDevices.count
+                let deviceName = Host.current().localizedName ?? "Mac"
+                let resp = try await SyncAPIClient.remotePairingStart(
+                    baseURL: baseURL, accessToken: token,
+                    deviceID: syncStore.deviceID, deviceName: deviceName)
+                let key = try currentOrCreateSessionKey()
+                let qrPayload = RemotePairingQR(
+                    v: 1, s: baseURL, c: resp.code, k: key, d: syncStore.deviceID)
+                let qrData = try SyncJSON.makeEncoder().encode(qrPayload)
+                pairingStartedAt = Date()
+                activePairing = ActivePairing(
+                    code: resp.code,
+                    expiresAt: Date().addingTimeInterval(600),
+                    qrImage: Self.makeQR(from: String(data: qrData, encoding: .utf8) ?? ""))
+                refreshDevices()
+            } catch {
+                connection = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    /// 服务器向桌面频道发布的认领通知（express）——二维码即刻收起。
+    private func handlePairingClaimed() {
+        guard activePairing != nil else { return }
+        Self.remoteDebug("pairing claimed (notify) → clear QR")
+        clearActivePairing()
+        refreshDevices()
+    }
+
+    private func clearActivePairing() {
+        activePairing = nil
+        pairingStartedAt = nil
+    }
+
+    /// 认领检测兜底（Redis 未配置时 notify 收不到）：二维码显示期间每 2s
+    /// 刷一次设备列表，数量增加 = 已认领；过期自动收起。
+    private var pairingStartedAt: Date?
+    private var deviceCountAtPairingStart = 0
+    private var claimWatchCounter = 0
+    private func claimWatchTick() {
+        guard let pairing = activePairing else {
+            claimWatchCounter = 0
+            return
+        }
+        if pairing.expiresAt.timeIntervalSinceNow < -5 {
+            clearActivePairing()
+            return
+        }
+        claimWatchCounter += 1
+        guard claimWatchCounter % 2 == 0 else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let token = try? await self.syncStore.remoteAuthToken() else { return }
+            guard let devices = try? await SyncAPIClient.remoteDevices(
+                baseURL: self.baseURL, accessToken: token).devices else { return }
+            self.pairedDevices = devices
+            if self.activePairing != nil,
+               devices.count > self.deviceCountAtPairingStart {
+                Self.remoteDebug("pairing claimed (poll) → clear QR")
+                self.clearActivePairing()
+            }
+        }
+    }
+
+    func refreshDevices() {
+        guard case .signedIn = syncStore.authState else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let token = try? await self.syncStore.remoteAuthToken() else { return }
+            guard let devices = try? await SyncAPIClient.remoteDevices(
+                baseURL: self.baseURL, accessToken: token).devices else { return }
+            self.pairedDevices = devices
+        }
+    }
+
+    func revoke(deviceID: String, controllerName: String?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let token = try await self.syncStore.remoteAuthToken()
+                try await SyncAPIClient.remotePairingRevoke(
+                    baseURL: self.baseURL, accessToken: token,
+                    deviceID: deviceID, controllerName: controllerName)
+                self.refreshDevices()
+            } catch {
+                self.connection = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - 桥（E2E/自动化）辅助
 
     /// 桥（E2E/自动化）读取当前配对码与密钥。**仅限本地自动化桥**，
     /// 等价于把二维码内容给到本机脚本——不得经任何网络端点外暴。
@@ -406,8 +634,8 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
-    /// 轮询取帧：Mac 端 URLSession WS 下行不可用（实测），控制器指令统一
-    /// 从留言表拉取——每秒一拍，与快照推送共用定时器。
+    // MARK: - 手机遥控的目标会话
+
     /// 手机端选中的**对话** id（ConversationStore 的对话；nil = 最新一条）
     private var remoteConversationID: String?
     /// 远程新建的会话强引用——AgentScheduler 里是弱引用，不持有会立即释放，
@@ -445,96 +673,6 @@ final class RemoteControlStore: ObservableObject {
         let dict: [String: Any] = ["t": "sessions", "list": Array(list)]
         return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) }
             ?? "{\"t\":\"sessions\",\"list\":[]}"
-    }
-
-    private var pollInFlight = false
-    /// 已处理过的取帧 id（服务器重投兜底；处理完立即 ack 删除）
-    private var processedInboxIDs: Set<Int64> = []
-    private func pollInbox() {
-        guard connection == .online, !pollInFlight else { return }
-        pollInFlight = true
-        Task { @MainActor in
-            defer { self.pollInFlight = false }
-            guard let token = try? await syncStore.remoteAuthToken() else { return }
-            guard let resp = try? await SyncAPIClient.remotePullInbox(
-                baseURL: baseURL, accessToken: token, deviceID: syncStore.deviceID) else { return }
-            var ackIds: [Int64] = []
-            for item in resp.items {
-                ackIds.append(item.id)
-                guard !self.processedInboxIDs.contains(item.id) else { continue }
-                self.processedInboxIDs.insert(item.id)
-                if self.processedInboxIDs.count > 500 { self.processedInboxIDs.removeAll() }
-                if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
-                    Self.remoteDebug("pull ← \(String(inner.prefix(100)))")
-                    handleInnerFrame(inner)
-                }
-            }
-            if !ackIds.isEmpty {
-                self.sendTransport(["kind": "ack", "ids": ackIds])
-            }
-        }
-    }
-
-    // MARK: - 配对
-
-    struct RemotePairingQR: Codable {
-        var v: Int
-        var s: String
-        var c: String
-        var k: String
-        var d: String
-    }
-
-    /// 生成配对码 + 二维码（会话密钥首次生成后存 Keychain，长期复用）。
-    func startPairing() {
-        Task { @MainActor in
-            do {
-                let token = try await syncStore.remoteAuthToken()
-                let deviceName = Host.current().localizedName ?? "Mac"
-                let resp = try await SyncAPIClient.remotePairingStart(
-                    baseURL: baseURL, accessToken: token,
-                    deviceID: syncStore.deviceID, deviceName: deviceName)
-                let key = try currentOrCreateSessionKey()
-                let qrPayload = RemotePairingQR(
-                    v: 1, s: baseURL, c: resp.code, k: key, d: syncStore.deviceID)
-                let qrData = try SyncJSON.makeEncoder().encode(qrPayload)
-                activePairing = ActivePairing(
-                    code: resp.code,
-                    expiresAt: Date().addingTimeInterval(600),
-                    qrImage: Self.makeQR(from: String(data: qrData, encoding: .utf8) ?? ""))
-                refreshDevices()
-            } catch {
-                connection = .error(error.localizedDescription)
-            }
-        }
-    }
-
-    func refreshDevices() {
-        guard case .signedIn = syncStore.authState else { return }
-        refreshDevicesTask?.cancel()
-        refreshDevicesTask = Task { @MainActor in
-            do {
-                let token = try await syncStore.remoteAuthToken()
-                pairedDevices = try await SyncAPIClient.remoteDevices(
-                    baseURL: baseURL, accessToken: token).devices
-            } catch {
-                // 列表刷新失败不打扰（下次打开设置页再试）
-            }
-        }
-    }
-
-    func revoke(deviceID: String, controllerName: String?) {
-        Task { @MainActor in
-            do {
-                let token = try await syncStore.remoteAuthToken()
-                try await SyncAPIClient.remotePairingRevoke(
-                    baseURL: baseURL, accessToken: token,
-                    deviceID: deviceID, controllerName: controllerName)
-                refreshDevices()
-            } catch {
-                connection = .error(error.localizedDescription)
-            }
-        }
     }
 
     // MARK: - E2E 会话密钥（Keychain 持久；二维码携带）
@@ -634,18 +772,6 @@ final class RemoteControlStore: ObservableObject {
         query[kSecValueData as String] = Data(value.utf8)
         SecItemAdd(query as CFDictionary, nil)
     }
-}
-
-/// 传输帧（服务器可见）：inbox / pong。
-nonisolated struct RemoteTransportFrame: Codable {
-    var kind: String
-    var items: [RemoteInboxItem]?
-    var payload: String?
-}
-
-nonisolated struct RemoteInboxItem: Codable {
-    var id: Int64
-    var payload: String
 }
 
 /// 业务帧（E2E 内层）。t = snapshot/prompt/cancel/sync/error。

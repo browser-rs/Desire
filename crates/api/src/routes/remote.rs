@@ -3,7 +3,7 @@ use crate::types::AppState;
 use axum::Router;
 use axum::routing::{get, post};
 
-/// 远程控制：配对 REST + 中继 WS。全部在 jwt_auth 保护层内;
+/// 远程控制：配对 REST + 双信箱推送/拉取 + 订阅 WS。全部在 jwt_auth 保护层内;
 /// WS 的角色/设备经查询参数,业务载荷为 E2E 密文,服务器只路由。
 pub fn router() -> Router<AppState> {
   Router::new()
@@ -21,5 +21,6 @@ pub fn router() -> Router<AppState> {
     )
     .route("/remote/devices", get(remote_controller::devices))
     .route("/remote/pull", get(remote_controller::pull_inbox))
+    .route("/remote/push", post(remote_controller::push_frame))
     .route("/remote/ws", get(remote_controller::ws))
 }

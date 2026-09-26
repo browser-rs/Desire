@@ -13,8 +13,6 @@ pub struct AppState {
   pub redis: Option<crate::cache::RedisConn>,
   /// 登录/注册限流(进程内滑动窗口;见 utils/rate_limit.rs)
   pub rate_limiter: Arc<RateLimiter>,
-  /// 远程控制在线注册表(WS 信箱;见 modules/remote)
-  pub remote: Arc<crate::modules::remote::remote_service::RemoteRegistry>,
 }
 
 #[derive(Debug, Serialize)]

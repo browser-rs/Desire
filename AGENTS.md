@@ -1120,29 +1120,48 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   `.terminateLater`；未登录/同步中直接跳过不拖慢退出）。**本地 dev 数据库
   连接串以 container-mysql 环境变量为准（`container inspect container-mysql`），
   仓库 .env 里的 root:root 是坏的**——本次据此修正 .env 并记入。
-- **远程控制 / Desire Remote（2026-09-26，M0+M1）**：手机经 api 中继远程对话本机
-  Agent（工作全在本地执行）。三端：① 服务端 `modules/remote`（0008 迁移：
-  remote_pairings 配对码表[只存 SHA-256、10 分钟一次性] + remote_inbox 离线留言
-  [E2E 密文、24h TTL]）；WS `/remote/ws?role=desktop|controller&device=<id>`（鉴权
-  走 jwt_auth 中间件——URLSessionWebSocketTask 用 URLRequest 头带 Bearer，令牌
-  不进 URL）；axum 需显式 `features=["ws"]`，**动态 SQL 表名必须包
-  `sqlx::AssertSqlSafe`**。② Mac `Features/Remote/RemoteControlStore`：开关 +
-  一次性配对码（二维码携带 服务器/码/会话密钥/设备id，密钥 Keychain 持久）+
-  出站 WS（5s 退避重连）+ Agent 桥接（prompt→sendMessage，快照=消息 suffix(20)
-  每秒一拍、**变化才发**；远端重连发 sync 补快照）。③ iOS `apps/ios/
-  DesireRemote.xcodeproj`（独立工程、bundle me.siwi.DesireRemote、SwiftUI +
-  VisionKit 扫码 + 粘贴导入兜底）。**E2E 信道 AES-256-GCM**：会话密钥只在配对
-  二维码里，服务器只见密文。桥辅助端点：`/remote/toggle|pair|status`（status 含
-  配对码+密钥，**仅限本地自动化桥**）。**已验证**：REST 配对/认领、WS 双向注册、
-  桌面→手机加密快照解密、限流（配对 20/时/用户——自动化会烧额度，重启服务端清零）。
-  **下行定案：poll 兜底**——Mac 端 URLSession WS 下行在 GUI App 里永不交付
-  （TCP ESTABLISHED + 服务器 socket write ok 实锤，async/completion/detached/
-  专用会话/禁代理全试过，同码脚本却正常）。解决：控制器→桌面**统一进留言表**，
-  Mac 每秒 `GET /remote/pull?device=` 取帧（与快照推送共用定时器；delivered_at
-  置位不重投，TTL 兜底）；出站（桌面→手机）WS 照常。**遗留小项**：重连停摆
-  （已修 teardown 竞态）；REMOTE-DBG 文件日志（/tmp/remote_mac_debug.log）
-  稳定后可删。新增 Mac store 时勿忘：
-  `observeLocalChanges` 订阅 + `applyingRemote` 守卫见同步段。
+- **远程控制 / Desire Remote（2026-09-26，M0+M1，当日重构为 Trove im_ws 模式）**：
+  手机经 api 中继远程对话本机 Agent（工作全在本地执行）。**部署是两台实例 +
+  nginx 轮询（无 sticky）——一切进程内连接注册表必然失效**，现架构连接无状态：
+  - **传输**：上行一律 REST `POST /remote/push?role=<发送方>&device=<桌面id>`
+    （E2E 密文 INSERT remote_inbox[持久、离线 24h 可达] → Redis PUBLISH express
+    [尽力而为]）；下行 = WS 订阅自己频道（express，即时）+ `GET /remote/pull`
+    1s 兜底，**按信箱行 id 去重后走同一处理函数**。WS 只做"订阅下行 + 心跳"，
+    不收发业务帧；服务端每连接一条独立 PubSub（照 Trove：订阅模式与复用
+    ConnectionManager 互斥）。
+  - **信箱语义**：`recipient` 列区分 desktop/controller 双信箱；快照
+    `replace=true`（新帧作废同信箱 pending 旧帧，手机离线堆积有界）；取走即删
+    （SELECT+DELETE 同事务，**at-most-once、不重复派活优先**，无 ack 机制）。
+    控制器信箱 = 该桌面全部控制器共享（v1 语义；快照是全量幂等的所以安全）。
+  - **role 参数方向相反**：push 的 role = 发送方（for_sender 映射到对端信箱），
+    pull 的 role = 收件方自己——写反过一次（pull 空结果）。
+  - **在线判定**：桌面 pull 时服务器盖 `desktop_last_seen_at`，15s 窗口；
+    跨实例基于 DB，不依赖进程内状态。
+  - **心跳**：服务端 20s WS Ping（防 nginx/LB 空闲回收——此前 Mac WS 每几分钟
+    被 1001 掐断的根因）+ 客户端 20s `sendPing` 探活（半开连接 ≤20s 暴露，
+    探活失败走统一断开→重连）。
+  - **配对**：claim 后服务器向桌面频道 publish `{"kind":"notify","event":
+    "pairing_claimed"}`（明文、无业务数据）→ Mac 即刻收起二维码；Redis 未配置
+    时降级为二维码显示期间 2s 设备数轮询兜底。**claim 必须同账号**（防枚举，
+    跨账号统一报"配对码无效或已过期"——E2E 时控制器用错账号会踩）。
+  - **iOS 令牌铁律**：`login()` 必须存 refresh token、401 → 刷新重试一次 →
+    失败清会话回登录页；WS 断线 `wsTask = nil` + 5s→30s 退避重连。此前
+    access 过期后 WS 永远 401、界面永远"已断开"且永不恢复，即漏掉这条。
+    `unpair()` 必须先 best-effort 调 `/remote/pairing/revoke` 再清本地
+    （此前只清本地，Mac 设备列表里手机永远挂着）。
+  - **E2E**：`tools/api-remote-smoke.py`（10 步：双角色 push/pull、replace、
+    presence 窗口、express、吊销 403；express 顺序敏感——先连 WS 保持、push
+    期间读帧）；Mac 侧走桥 `/remote/toggle|pair|status`（status 含配对码+密钥，
+    **仅限本地自动化桥**；devices 字段已接真实数据）+ `/tmp/remote_mac_debug.log`
+    看打点。**坑**：`recipient` 列 varchar(16)（"controller" 10 字符，varchar(8)
+    上过当）；0009 曾在本地应用后修正宽度——本地库手工回滚过该迁移再重放。
+  - **生产部署**：服务器先发（0009 + 代码）→ 立即发 Mac → 再发 iOS；**新服务器
+    忽略旧客户端的 WS route 帧**，窗口期远程不可用，三件套需同批更新；**两实例
+    必须共享同一 Redis（`DESIRE_REDIS_URL`）**，否则 express 全灭、降级纯轮询
+    （功能仍可用，延迟 ≤1s）。
+  - E2E 信道依旧 AES-256-GCM（会话密钥只在配对二维码）；axum 需 `features=["ws"]`；
+    Mac 链路循环 1s 一拍：pull + 快照（变化才发、15s 强推兜底）+ 状态评估
+    （8s 内有活动 = online，连续 3 次 pull 失败才报 error）+ 认领检测。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
   `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：

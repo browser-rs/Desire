@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A0A02022FF7D00000E5D4E8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5A0A02012FF7D00000E5D4E8 /* MarkdownUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		5A0A00012FF7D00000E5D4E8 /* DesireRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesireRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A0A02022FF7D00000E5D4E8 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,12 +70,32 @@
 			);
 			name = DesireRemote;
 			packageProductDependencies = (
+				5A0A02012FF7D00000E5D4E8 /* MarkdownUI */,
 			);
 			productName = DesireRemote;
 			productReference = 5A0A00012FF7D00000E5D4E8 /* DesireRemote.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5A0A02002FF7D00000E5D4E8 /* XCRemoteSwiftPackageReference "MarkdownUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5A0A02012FF7D00000E5D4E8 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A0A02002FF7D00000E5D4E8 /* XCRemoteSwiftPackageReference "MarkdownUI" */;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXProject section */
 		5A0A00F92FF7D00000E5D4E8 /* Project object */ = {
@@ -96,6 +121,9 @@
 			);
 			mainGroup = 5A0A00F82FF7D00000E5D4E8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5A0A02002FF7D00000E5D4E8 /* XCRemoteSwiftPackageReference "MarkdownUI" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5A0A00FF2FF7D00000E5D4E8 /* Products */;
 			projectDirPath = "";

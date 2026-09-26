@@ -2,24 +2,33 @@
 
 ### Added
 
-- **远程控制（Desire Remote，M0+M1）**：手机 App 经 api 中继远程对话本机
-  Agent——**工作仍全部在 Mac 本地执行**，手机发指令、看进度。服务端新增
-  `modules/remote`（0008 迁移：一次性配对码[仅存 SHA-256] + 离线留言
-  [E2E 密文 24h TTL]；WS `/remote/ws` 中继路由，axum 开 `ws` 特性）；
-  Mac 设置新增"远程"区（开关/二维码配对/已配对设备吊销，`Features/Remote/`）；
-  新目录 `apps/ios/DesireRemote.xcodeproj`（独立 iOS App：登录 → 扫码/粘贴
-  配对 → Agent 控制台，SwiftUI + VisionKit 扫码）。**控制信道端到端加密**
-  （AES-256-GCM，会话密钥只在配对二维码中，服务器只路由密文）。配对限流
-  20 次/时/用户。
-  **下行方案（已定案）**：Mac 端 URLSession WS **双向不正常**——上行（快照、
-  服务器实收 write ok）正常，下行帧到 TCP 层却永不交付应用层（async/
-  completion/detached/专用会话/禁代理全部试过，服务器 delivered+write ok
-  实锤）。因此控制器→桌面方向**改为留言表 + 桌面轮询**：`GET /remote/pull`
-  每秒取帧（与快照推送共用定时器），出站仍走 WS。**E2E 4/4 全绿**：配对→
-  快照（含对话历史）→指令到达 Mac 执行→离线排队帧送达。APNs 推送、审批
-  卡片远程应答（M2）、按需截图未做。
+- **远程控制（Desire Remote，M0+M1，当日重构为可水平扩展传输）**：手机 App
+  经 api 中继远程对话本机 Agent——**工作仍全部在 Mac 本地执行**，手机发指令、
+  看进度。服务端 `modules/remote`（0008 配对码/留言 + 0009 双信箱迁移）；
+  Mac 设置"远程"区（`Features/Remote/`）；`apps/ios/DesireRemote.xcodeproj`
+  （登录 → 扫码配对 → 控制台）。**信道端到端加密**（AES-256-GCM，密钥只在
+  二维码中，服务器只路由密文）。**传输架构（照 Trove im_ws 模式，两实例 +
+  nginx 轮询部署下正确）**：上行一律 `POST /remote/push`（入库持久 + Redis
+  express 发布，快照 replace 语义）；下行 = WS 订阅自己频道（即时）+
+  `GET /remote/pull` 每秒兜底，按信箱行 id 去重；在线判定基于 DB
+  `desktop_last_seen_at`（15s 窗口，跨实例一致）；服务端/客户端双向 20s
+  心跳（解 nginx 空闲回收）。配对认领即时通知桌面收起二维码。
+  E2E：`tools/api-remote-smoke.py` 10 步全绿 + Mac 桥真机链路验证（prompt
+  送达 Agent 执行、快照回传手机可解密）。APNs 推送、审批卡片远程应答（M2）、
+  按需截图未做。
+- **Desire Remote iOS 支持 Markdown 渲染**：Agent 气泡接入 MarkdownUI
+  （上一版手写的无依赖轻量渲染移除），主题参照 IrsClawApp——GitHub 基础
+  主题 + 气泡内边距收紧、表格横向滚动（手机宽度放不下整表）、代码块/引用/
+  有序无序列表全覆盖；流式更新不整棵重建（按 message.id 稳定身份）。
 
 ### Changed
+
+- **远程链路三个双端 bug 修复**：① iOS"已断开"永不恢复——`login()` 从未存
+  refresh token、WS 用过期 access 直连、断线后无重连逻辑；现 401 自动刷新
+  重试一次、断线 5s→30s 退避重连、会话彻底过期回登录页。② Mac 配对二维码
+  认领后不消失——认领是纯 REST、桌面端无从得知；现认领即时推送通知 +
+  二维码显示期间 2s 设备数轮询兜底。③ iOS 解除配对无效——只清本地不清
+  服务器；现先 best-effort 调 `/remote/pairing/revoke` 再清本地。
 
 - **默认同步服务器切至生产**：全新安装（未手动配置过服务器地址）直接使用
   `https://api.mankong.icu/v9`；已手动配置过的设备保留原值不受影响。

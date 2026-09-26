@@ -1,3 +1,4 @@
+import MarkdownUI
 import SwiftUI
 import Vision
 import VisionKit
@@ -704,8 +705,7 @@ struct MessageBubble: View {
                     }
                     if let content = message.content,
                        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(content)
-                            .textSelection(.enabled)
+                        MarkdownTextView(text: content)
                             .padding(.horizontal, 14).padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -842,145 +842,96 @@ struct ScannerSheet: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - 轻量 Markdown 渲染（无外部依赖）
+// MARK: - Markdown 渲染（MarkdownUI，主题照 IrsClawApp MarkdownTextView）
 
-struct MarkdownText: View {
+struct MarkdownTextView: View {
     let text: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var bubbleTheme: Theme {
+        // 边距收紧到气泡内合适的呼吸感；表格横向滚动（手机宽度放不下）
+        Theme.gitHub
+            .text {
+                ForegroundColor(.primary)
+            }
+            .heading1 { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontWeight(.semibold)
+                        FontSize(.em(1.35))
+                    }
+                    .markdownMargin(top: 12, bottom: 6)
+            }
+            .heading2 { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontWeight(.semibold)
+                        FontSize(.em(1.2))
+                    }
+                    .markdownMargin(top: 12, bottom: 6)
+            }
+            .heading3 { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontWeight(.semibold)
+                        FontSize(.em(1.08))
+                    }
+                    .markdownMargin(top: 10, bottom: 4)
+            }
+            .paragraph { configuration in
+                configuration.label
+                    .fixedSize(horizontal: false, vertical: true)
+                    .markdownMargin(top: 0, bottom: 8)
+            }
+            .listItem { configuration in
+                configuration.label
+                    .markdownMargin(top: 2, bottom: 2)
+            }
+            .blockquote { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontSize(.em(0.95))
+                    }
+                    .markdownMargin(top: 6, bottom: 6)
+            }
+            .codeBlock { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        FontSize(.em(0.92))
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        colorScheme == .dark ? Color(rgba: 0xffff_ff14) : Color(rgba: 0x1b1f_230d)
+                    )
+                    .markdownMargin(top: 8, bottom: 8)
+            }
+            .table { configuration in
+                ScrollView(.horizontal, showsIndicators: true) {
+                    configuration.label
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .markdownTableBorderStyle(.init(
+                    color: colorScheme == .dark ? Color(rgba: 0x4244_4eff) : Color(rgba: 0xe4e4_e8ff)
+                ))
+                .markdownTableBackgroundStyle(.alternatingRows(
+                    colorScheme == .dark ? Color(rgba: 0x1819_1dff) : .white,
+                    colorScheme == .dark ? Color(rgba: 0x2526_2aff) : Color(rgba: 0xf7f7_f9ff)
+                ))
+                .markdownMargin(top: 8, bottom: 12)
+            }
+            .thematicBreak {
+                Divider()
+                    .markdownMargin(top: 12, bottom: 12)
+            }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                blockView(block)
-            }
-        }
-    }
-
-    enum Block {
-        case paragraph([Inline])
-        case heading(Int, [Inline])
-        case bullet([Inline])
-        case code(String)
-    }
-
-    enum Inline: Equatable {
-        case text(String)
-        case bold(String)
-        case code(String)
-    }
-
-    private var blocks: [Block] {
-        var out: [Block] = []
-        var paragraph: [String] = []
-        var inCode = false
-        var codeLines: [String] = []
-
-        func flushParagraph() {
-            guard !paragraph.isEmpty else { return }
-            out.append(.paragraph(paragramInlines(paragraph.joined(separator: "\n"))))
-            paragraph = []
-        }
-
-        for line in text.components(separatedBy: "\n") {
-            if line.hasPrefix("```") {
-                flushParagraph()
-                if inCode {
-                    out.append(.code(codeLines.joined(separator: "\n")))
-                    codeLines = []
-                }
-                inCode.toggle()
-                continue
-            }
-            if inCode { codeLines.append(line); continue }
-            if line.trimmingCharacters(in: .whitespaces).isEmpty { flushParagraph(); continue }
-            if let h = headingLevel(line) {
-                flushParagraph()
-                out.append(.heading(h, inlineInlines(String(line.dropFirst(h + 1)))))
-                continue
-            }
-            if line.hasPrefix("- ") || line.hasPrefix("* ") {
-                flushParagraph()
-                out.append(.bullet(inlineInlines(String(line.dropFirst(2)))))
-                continue
-            }
-            paragraph.append(line)
-        }
-        if inCode, !codeLines.isEmpty { out.append(.code(codeLines.joined(separator: "\n"))) }
-        flushParagraph()
-        return out
-    }
-
-    private func headingLevel(_ line: String) -> Int? {
-        var count = 0
-        for ch in line {
-            if ch == "#" { count += 1 } else { break }
-        }
-        guard (1...3).contains(count), count < line.count,
-              line[line.index(line.startIndex, offsetBy: count)] == " " else { return nil }
-        return count
-    }
-
-    private func paragramInlines(_ text: String) -> [Inline] { inlineInlines(text) }
-
-    private func inlineInlines(_ text: String) -> [Inline] {
-        var out: [Inline] = []
-        var current = ""
-        var chars = Array(text)
-        var i = 0
-        while i < chars.count {
-            if chars[i] == "`", let end = firstIndex(of: "`", after: i, in: chars) {
-                if !current.isEmpty { out.append(.text(current)); current = "" }
-                out.append(.code(String(chars[(i + 1)..<end])))
-                i = end + 1
-                continue
-            }
-            if chars[i] == "*", i + 1 < chars.count, chars[i + 1] == "*",
-               let end = firstIndex(of: "*", after: i + 1, in: chars) {
-                if !current.isEmpty { out.append(.text(current)); current = "" }
-                out.append(.bold(String(chars[(i + 2)..<end])))
-                i = end + 1
-                continue
-            }
-            current.append(chars[i])
-            i += 1
-        }
-        if !current.isEmpty { out.append(.text(current)) }
-        return out
-    }
-
-    private func firstIndex(of ch: Character, after start: Int, in chars: [Character]) -> Int? {
-        for index in (start + 1)..<chars.count where chars[index] == ch { return index }
-        return nil
-    }
-
-    @ViewBuilder
-    private func blockView(_ block: Block) -> some View {
-        switch block {
-        case .paragraph(let inlines): inlineRow(inlines)
-        case .heading(let level, let inlines):
-            inlineRow(inlines)
-                .font(.system(size: CGFloat(17 - level), weight: .bold))
-        case .bullet(let inlines):
-            HStack(alignment: .top, spacing: 6) {
-                Text("•").foregroundStyle(.secondary)
-                inlineRow(inlines)
-            }
-        case .code(let code):
-            Text(code)
-                .font(.system(size: 12, design: .monospaced))
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemBackground),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-    }
-
-    private func inlineRow(_ inlines: [Inline]) -> some View {
-        inlines.reduce(Text("")) { acc, inline in
-            switch inline {
-            case .text(let t): return acc + Text(t)
-            case .bold(let t): return acc + Text(t).bold()
-            case .code(let t): return acc + Text(t).font(.system(size: 13, design: .monospaced)).foregroundColor(.accentColor)
-            }
-        }
+        // 不加 .id(text)：流式更新时每个 token 都会换文本，加 id 会整棵重建、
+        // 未闭合的 Markdown 闪成空/原文。外层 ForEach 已按 message.id 稳定身份。
+        Markdown(text)
+            .markdownTheme(bubbleTheme)
+            .textSelection(.enabled)
     }
 }

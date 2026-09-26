@@ -3,8 +3,16 @@ import Foundation
 import SwiftUI
 import UIKit
 
-/// 远程会话客户端：登录 → 扫码/导入配对 → WS 中继 → 与 Mac 上的 Agent 对话。
+/// 远程会话客户端：登录 → 扫码/导入配对 → 中继 → 与 Mac 上的 Agent 对话。
 /// 信道端到端加密（会话密钥来自配对二维码，服务器不可读）。
+///
+/// 传输拓扑（与 Mac 端 RemoteControlStore 对齐，服务端可水平扩展）：
+/// - **上行一律 REST** `POST /remote/push`（E2E 密文入库 + 服务器 express 发布）。
+/// - **下行 = WS 频道订阅（express，即时） + 前台 1s `GET /remote/pull` 兜底**，
+///   两条路径按信箱行 id 去重后走同一处理函数。WS 不承载业务帧。
+/// - 20s `sendPing` 探活 + 保活；断线 `wsTask = nil` → 5s→30s 退避重连。
+/// - 令牌：401 → 刷新重试一次；刷新也失败 → 清会话回登录页。
+///   （此前 access token 过期后 WS 永远 401、界面永远"已断开"，即此根因。）
 @MainActor
 final class RemoteClient: ObservableObject {
 
@@ -38,6 +46,8 @@ final class RemoteClient: ObservableObject {
     @Published var selectedSessionID: String?
     /// 本地即时回显的临时用户消息（快照到达后被覆盖）
     @Published var pendingEcho: ChatMessage?
+    /// Mac 在线（服务器 last_seen 判定；pull 响应携带）
+    @Published private(set) var desktopOnline = true
 
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
@@ -64,6 +74,13 @@ final class RemoteClient: ObservableObject {
     private var controllerName: String
     private var wsTask: URLSessionWebSocketTask?
     private var receiveTask: Task<Void, Never>?
+    private var pingTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+    private var pullTask: Task<Void, Never>?
+    private var reconnectAttempt = 0
+    private var pullFailures = 0
+    /// 已处理过的信箱帧 id（WS express 先到时，兜底 pull 的同 id 行跳过）
+    private var processedIDs: Set<Int64> = []
 
     static let defaultServer = "https://api.mankong.icu/v9"
 
@@ -91,6 +108,7 @@ final class RemoteClient: ObservableObject {
             }
             busy = defaults.bool(forKey: "remote.busy")
             connectWS()
+            startPullLoop()
         }
     }
 
@@ -121,6 +139,7 @@ final class RemoteClient: ObservableObject {
                     body: try JSONEncoder().encode(body))
                 accessToken = pair.accessToken
                 defaults.set(pair.accessToken, forKey: "remote.access")
+                defaults.set(pair.refreshToken, forKey: "remote.refresh")
                 defaults.set(baseURL, forKey: "remote.server")
                 defaults.set(username, forKey: "remote.username")
                 phase = .devices
@@ -135,6 +154,53 @@ final class RemoteClient: ObservableObject {
         let id = UUID().uuidString
         defaults.set(id, forKey: "remote.deviceID")
         return id
+    }
+
+    // MARK: - 令牌（401 → 刷新重试一次；刷新失败回登录页）
+
+    private func currentToken() async throws -> String {
+        if let accessToken { return accessToken }
+        return try await forceRefresh()
+    }
+
+    private func forceRefresh() async throws -> String {
+        guard let refresh = defaults.string(forKey: "remote.refresh") else {
+            throw sessionExpired()
+        }
+        do {
+            let refreshed: TokenPair = try await API.send(
+                "POST", baseURL, "/auth/refresh",
+                body: try JSONEncoder().encode(["refresh_token": refresh]))
+            accessToken = refreshed.accessToken
+            defaults.set(refreshed.accessToken, forKey: "remote.access")
+            defaults.set(refreshed.refreshToken, forKey: "remote.refresh")
+            return refreshed.accessToken
+        } catch {
+            throw sessionExpired()
+        }
+    }
+
+    /// 会话彻底过期：清令牌回登录页（服务端轮换后旧 refresh 一律失效）。
+    private func sessionExpired() -> APIError {
+        accessToken = nil
+        defaults.removeObject(forKey: "remote.access")
+        defaults.removeObject(forKey: "remote.refresh")
+        phase = .login
+        connectionState = "登录已过期，请重新登录"
+        return APIError.server("登录已过期，请重新登录")
+    }
+
+    /// 带令牌请求 + 401 自动刷新重试一次。
+    private func authedSend<Response: Codable>(
+        _ method: String, _ path: String, body: Data? = nil
+    ) async throws -> Response {
+        let token = try await currentToken()
+        do {
+            return try await API.send(method, baseURL, path, body: body, token: token)
+        } catch APIError.unauthorized {
+            let fresh = try await forceRefresh()
+            return try await API.send(method, baseURL, path, body: body, token: fresh)
+        }
     }
 
     /// 设置页修改服务器地址（需重新登录才生效到令牌层面）。
@@ -152,7 +218,8 @@ final class RemoteClient: ObservableObject {
 
     func logout() {
         defaults.removeObject(forKey: "remote.access")
-        wsTask?.cancel(with: .goingAway, reason: nil)
+        defaults.removeObject(forKey: "remote.refresh")
+        stopAllTransports()
         accessToken = nil
         phase = .login
     }
@@ -189,6 +256,7 @@ final class RemoteClient: ObservableObject {
                 busy = false
                 phase = .sessions
                 connectWS()
+                startPullLoop()
                 requestSessions()
             } catch {
                 pairError = error.localizedDescription
@@ -196,67 +264,149 @@ final class RemoteClient: ObservableObject {
         }
     }
 
-    private func currentToken() async throws -> String {
-        if let accessToken { return accessToken }
-        // access 过期：用 refresh 换新
-        guard let refresh = defaults.string(forKey: "remote.refresh") else {
-            phase = .login
-            throw APIError.server("请重新登录")
-        }
-        let refreshed: TokenPair = try await API.send(
-            "POST", baseURL, "/auth/refresh",
-            body: try JSONEncoder().encode(["refresh_token": refresh]))
-        accessToken = refreshed.accessToken
-        defaults.set(refreshed.accessToken, forKey: "remote.access")
-        return refreshed.accessToken
-    }
-
-    /// 回到前台：WS 多半已被 iOS 掐断——重连并补快照。
+    /// 回到前台：重连续 transports 并补快照。
     func appForegrounded() {
-        guard phase == .chat, hasSavedPairing, (wsTask == nil) else {
-            if phase == .chat { requestSync() }
-            return
-        }
-        connectWS()
+        guard hasSavedPairing else { return }
+        startPullLoop()
+        if wsTask == nil { connectWS() }
+        requestSync()
     }
 
+    /// 退到后台：停轮询（省电）；WS 会被系统掐断，回前台统一重建。
+    func appWentBackground() {
+        pullTask?.cancel()
+        pullTask = nil
+    }
+
+    /// 解除配对：先 best-effort 吊销服务器侧配对，再清本地。
+    /// （此前只清本地——Mac 端设备列表里手机永远挂着。吊销失败时设备
+    /// 仍留在 Mac 列表，可在 Mac 端手动吊销。）
     func unpair() {
+        let token = accessToken
+        let desktopID = desktopDeviceID
+        stopAllTransports()
         defaults.removeObject(forKey: "remote.sessionKey")
         defaults.removeObject(forKey: "remote.desktopID")
+        defaults.removeObject(forKey: "remote.access")
+        defaults.removeObject(forKey: "remote.refresh")
+        defaults.removeObject(forKey: "remote.messages")
+        defaults.removeObject(forKey: "remote.busy")
         sessionKeyB64 = nil
         desktopDeviceID = nil
+        accessToken = nil
         messages = []
-        wsTask?.cancel(with: .goingAway, reason: nil)
+        sessions = []
+        selectedSessionID = nil
+        busy = false
+        queuedOffline = false
+        desktopOnline = true
+        connectionState = "未连接"
         hasSavedPairing = false
         phase = .devices
+        guard let token, let desktopID else { return }
+        Task {
+            let _: RevokeResp? = try? await API.send(
+                "POST", baseURL, "/remote/pairing/revoke",
+                body: try JSONEncoder().encode(
+                    RevokeBody(desktop_device_id: desktopID, controller_name: controllerName)),
+                token: token)
+        }
     }
 
-    // MARK: - WebSocket
+    private func stopAllTransports() {
+        wsTask?.cancel(with: .goingAway, reason: nil)
+        wsTask = nil
+        receiveTask?.cancel()
+        receiveTask = nil
+        pingTask?.cancel()
+        pingTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        pullTask?.cancel()
+        pullTask = nil
+    }
+
+    // MARK: - WebSocket（下行订阅 + 探活）
 
     private func connectWS() {
-        guard let accessToken, let desktopDeviceID else { return }
-        var wsBase = baseURL
-        if wsBase.hasPrefix("https://") {
-            wsBase = "wss://" + wsBase.dropFirst("https://".count)
-        } else if wsBase.hasPrefix("http://") {
-            wsBase = "ws://" + wsBase.dropFirst("http://".count)
+        guard hasSavedPairing, let desktopDeviceID else { return }
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let token = try await self.currentToken()
+                var wsBase = self.baseURL
+                if wsBase.hasPrefix("https://") {
+                    wsBase = "wss://" + wsBase.dropFirst("https://".count)
+                } else if wsBase.hasPrefix("http://") {
+                    wsBase = "ws://" + wsBase.dropFirst("http://".count)
+                }
+                guard let url = URL(string: "\(wsBase)/remote/ws?role=controller&device=\(desktopDeviceID)") else {
+                    return
+                }
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                let task = URLSession.shared.webSocketTask(with: request)
+                self.wsTask = task
+                task.resume()
+                if !self.connectionState.contains("工作中") {
+                    self.connectionState = "连接中…"
+                }
+                self.startPingLoop(task)
+                self.receiveLoop(task)
+                self.requestSync()
+            } catch {
+                // 会话过期：sessionExpired() 已置回登录页；其余失败走重连
+                if self.hasSavedPairing, self.phase != .login {
+                    self.connectionState = "重连中…"
+                    self.scheduleReconnect()
+                }
+            }
         }
-        guard let url = URL(string: "\(wsBase)/remote/ws?role=controller&device=\(desktopDeviceID)") else {
-            return
+    }
+
+    private func scheduleReconnect() {
+        guard hasSavedPairing, phase != .login, reconnectTask == nil else { return }
+        reconnectAttempt += 1
+        let delay = min(30, 5 * reconnectAttempt)
+        reconnectTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.reconnectTask = nil
+            self.connectWS()
         }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let task = URLSession.shared.webSocketTask(with: request)
-        wsTask = task
-        task.resume()
-        connectionState = "连接中…"
-        receiveLoop(task)
-        requestSync()
+    }
+
+    /// 20s sendPing：保活 + 半开连接探活（探活失败 = 链路已死，
+    /// 主动拆掉触发重连，界面不再永远停在"已连接"的假象上）。
+    private func startPingLoop(_ task: URLSessionWebSocketTask) {
+        pingTask?.cancel()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                guard !Task.isCancelled else { break }
+                task.sendPing { error in
+                    guard error != nil else { return }
+                    Task { @MainActor [weak self] in
+                        self?.wsTaskDidDie(task)
+                    }
+                }
+            }
+        }
+    }
+
+    private func wsTaskDidDie(_ dead: URLSessionWebSocketTask) {
+        guard wsTask === dead else { return }
+        dead.cancel(with: .goingAway, reason: nil)
+        wsTask = nil
+        connectionState = "重连中…"
+        scheduleReconnect()
     }
 
     private func receiveLoop(_ task: URLSessionWebSocketTask) {
         receiveTask?.cancel()
-        receiveTask = Task { @MainActor in
+        receiveTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 let message: URLSessionWebSocketTask.Message?
                 do {
@@ -271,30 +421,90 @@ final class RemoteClient: ObservableObject {
                 case .data(let d): text = String(data: d, encoding: .utf8) ?? ""
                 @unknown default: continue
                 }
-                handleTransportFrame(text)
+                self?.handleExpressEnvelope(text)
             }
-            connectionState = "已断开"
+            guard !Task.isCancelled else { return }
+            // 被动断开（新连接接管/登出时不走这儿）
+            guard let self, self.wsTask === task else { return }
+            self.wsTask = nil
+            self.connectionState = "重连中…"
+            self.scheduleReconnect()
         }
     }
 
-    private func handleTransportFrame(_ text: String) {
+    /// WS express 帧 = 信箱行 `{"id":..,"payload":".."}`（与 pull items 同形）。
+    private func handleExpressEnvelope(_ text: String) {
         guard let data = text.data(using: .utf8),
-              let frame = try? JSONDecoder().decode(TransportFrame.self, from: data) else { return }
-        switch frame.kind {
-        case "route", "inbox":
-            let payload = frame.kind == "inbox" ? frame.items?.first?.payload : frame.payload
-            guard let payload, let sessionKeyB64,
-                  let inner = RemoteCrypto.decrypt(payloadB64: payload, sessionKeyB64: sessionKeyB64) else { return }
-            handleInner(inner)
-            if frame.kind == "inbox", let id = frame.items?.first?.id {
-                sendTransport(["kind": "ack", "ids": [id]])
+              let item = try? JSONDecoder().decode(InboxItem.self, from: data) else { return }
+        noteLinkActivity()
+        ingestItems([item])
+    }
+
+    // MARK: - pull 兜底（前台 1s 一拍）
+
+    private func startPullLoop() {
+        guard pullTask == nil else { return }
+        pullTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                await self?.pullOnce()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
-        case "closed":
-            connectionState = "被服务器拒绝（配对可能已吊销）"
-        default:
-            break
         }
     }
+
+    private func pullOnce() async {
+        guard let desktopDeviceID else { return }
+        do {
+            let resp: PullResp = try await authedSend(
+                "GET", "/remote/pull?role=controller&device=\(desktopDeviceID)")
+            pullFailures = 0
+            desktopOnline = resp.desktopOnline ?? true
+            ingestItems(resp.items)
+            refreshConnectionText()
+        } catch APIError.server(let message) where message.contains("登录已过期") {
+            // 会话过期：sessionExpired() 已置回登录页
+            stopAllTransports()
+        } catch {
+            pullFailures += 1
+            if pullFailures >= 3 {
+                connectionState = "重连中…"
+            }
+        }
+    }
+
+    private func ingestItems(_ items: [InboxItem]) {
+        for item in items {
+            guard !processedIDs.contains(item.id) else { continue }
+            processedIDs.insert(item.id)
+            if processedIDs.count > 500 { processedIDs.removeAll() }
+            guard let sessionKeyB64,
+                  let inner = RemoteCrypto.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64)
+            else { continue }
+            handleInner(inner)
+        }
+    }
+
+    /// 链路有活动：重连退避归零，界面回到连接态文案。
+    private func noteLinkActivity() {
+        reconnectAttempt = 0
+        pullFailures = 0
+        refreshConnectionText()
+    }
+
+    private func refreshConnectionText() {
+        guard !busy else {
+            connectionState = "Agent 工作中…"
+            return
+        }
+        if !desktopOnline {
+            connectionState = "Mac 离线"
+        } else if connectionState.contains("断开") || connectionState.contains("重连")
+            || connectionState == "未连接" || connectionState == "连接中…" {
+            connectionState = "已连接"
+        }
+    }
+
+    // MARK: - 业务帧处理
 
     private func handleInner(_ text: String) {
         guard let data = text.data(using: .utf8) else { return }
@@ -314,33 +524,39 @@ final class RemoteClient: ObservableObject {
         messages = frame.messages
         if pendingEcho != nil { pendingEcho = nil }
         busy = frame.busy
-        connectionState = busy ? "Agent 工作中…" : "已连接"
+        connectionState = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
         if let data = try? JSONEncoder().encode(frame.messages) {
             defaults.set(data, forKey: "remote.messages")
         }
         defaults.set(busy, forKey: "remote.busy")
-        if queuedOffline, !busy {
+        if queuedOffline, !busy, desktopOnline {
             queuedOffline = false
             connectionState = "已连接"
         }
     }
 
-    private func sendTransport(_ dict: [String: Any]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: dict),
-              let text = String(data: data, encoding: .utf8) else { return }
-        wsTask?.send(.string(text)) { _ in }
+    // MARK: - 上行（一律 REST push）
+
+    private func pushFrame(_ dict: [String: String], replace: Bool) {
+        guard let sessionKeyB64, let desktopDeviceID,
+              let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64) else { return }
+        Task { [weak self] in
+            guard let self,
+                  let body = try? JSONEncoder().encode(PushBody(payload: payload, replace: replace)) else { return }
+            let _: PushOK? = try? await self.authedSend(
+                "POST", "/remote/push?role=controller&device=\(desktopDeviceID)",
+                body: body)
+        }
     }
 
     // MARK: - 对外动作
 
     func sendPrompt(_ text: String) {
-        guard let sessionKeyB64 else { return }
+        guard sessionKeyB64 != nil else { return }
         var dict: [String: String] = ["t": "prompt", "text": text]
         if let selectedSessionID { dict["session"] = selectedSessionID }
-        guard let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64)
-        else { return }
-        let offline = connectionState.contains("断开") || connectionState.contains("未连接")
-        sendTransport(["kind": "route", "payload": payload, "deliver_if_offline": true])
+        let offline = !desktopOnline
+        pushFrame(dict, replace: false)
         queuedOffline = offline
         // 即时回显：不等 Mac 快照，先让指令出现在对话里
         let echo = ChatMessage(id: "echo-\(UUID().uuidString)", role: "user",
@@ -351,23 +567,17 @@ final class RemoteClient: ObservableObject {
     }
 
     func sendCancel() {
-        guard let sessionKeyB64,
-              let payload = RemoteCrypto.innerFrame(["t": "cancel"], sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        pushFrame(["t": "cancel"], replace: false)
     }
 
     /// 请求 Mac 的会话列表（聊天记录）。
     func requestSessions() {
-        guard let sessionKeyB64,
-              let payload = RemoteCrypto.innerFrame(["t": "sessions"], sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        pushFrame(["t": "sessions"], replace: false)
     }
 
     /// 让 Mac 新建一个会话并切过去（列表页"+"按钮）。
     func newSession() {
-        guard let sessionKeyB64,
-              let payload = RemoteCrypto.innerFrame(["t": "newSession"], sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        pushFrame(["t": "newSession"], replace: false)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_800_000_000)
             requestSessions()
@@ -380,18 +590,14 @@ final class RemoteClient: ObservableObject {
         messages = []
         busy = false
         phase = .chat
-        guard let sessionKeyB64 else { return }
         var dict: [String: String] = ["t": "select"]
         if let id { dict["session"] = id }
-        if let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64) {
-            sendTransport(["kind": "route", "payload": payload])
-        }
+        pushFrame(dict, replace: false)
         requestSync()
     }
 
     func requestSync() {
-        guard let sessionKeyB64,
-              let payload = RemoteCrypto.innerFrame(["t": "sync"], sessionKeyB64: sessionKeyB64) else { return }
-        sendTransport(["kind": "route", "payload": payload])
+        guard sessionKeyB64 != nil else { return }
+        pushFrame(["t": "sync"], replace: false)
     }
 }

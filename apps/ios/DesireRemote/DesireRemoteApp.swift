@@ -10,7 +10,11 @@ struct DesireRemoteApp: App {
             RootView()
                 .environmentObject(client)
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { client.appForegrounded() }
+                    switch phase {
+                    case .active: client.appForegrounded()
+                    case .background: client.appWentBackground()
+                    default: break
+                    }
                 }
         }
     }

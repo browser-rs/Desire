@@ -2647,7 +2647,12 @@ final class AutomationServer {
             "enabled": store.isEnabled,
             "connection": store.connectionForBridge,
             "pairing": pairing,
-            "devices": [],
+            "devices": store.pairedDevices.map {
+                ["desktopDeviceId": $0.desktopDeviceId,
+                 "desktopName": $0.desktopName,
+                 "controllerName": $0.controllerName,
+                 "online": $0.online]
+            },
         ]
     }
 

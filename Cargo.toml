@@ -13,6 +13,7 @@ hex = "0.4"
 rand = "0.9"
 jsonwebtoken = {version = "11", features = ["rust_crypto"]}
 redis = { version = "1", features = ["tokio-comp", "connection-manager", "aio"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 sha2 = "0.11"

@@ -49,12 +49,13 @@ final class VoiceInputService: ObservableObject {
                 errorMessage = nil
 
                 task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
-                    Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    Task { @MainActor [self] in
                         if let result {
-                            self?.transcribedText = result.bestTranscription.formattedString
-                            if result.isFinal { self?.stop() }
+                            self.transcribedText = result.bestTranscription.formattedString
+                            if result.isFinal { self.stop() }
                         }
-                        if error != nil, self?.isRecording == true { self?.stop() }
+                        if error != nil, self.isRecording { self.stop() }
                     }
                 }
 

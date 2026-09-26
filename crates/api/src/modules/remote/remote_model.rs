@@ -38,15 +38,11 @@ pub struct PairingRevokeReq {
   pub controller_name: Option<String>,
 }
 
-/// 传输帧(服务器可见)。业务载荷一律 `payload`(E2E 密文,服务器不解读)。
-#[derive(Debug, Deserialize)]
-pub struct WsFrame {
-  pub kind: String,
+/// POST /remote/push 请求体。业务载荷 `payload`(E2E 密文,服务器不解读);
+/// `replace` = 新帧作废收件信箱里的 pending 旧帧(快照语义,离线堆积有界)。
+#[derive(Deserialize)]
+pub struct PushFrameReq {
+  pub payload: String,
   #[serde(default)]
-  pub payload: Option<String>,
-  /// controller → desktop:桌面不在线时是否投递离线留言
-  #[serde(default)]
-  pub deliver_if_offline: bool,
-  #[serde(default)]
-  pub ids: Vec<i64>,
+  pub replace: bool,
 }

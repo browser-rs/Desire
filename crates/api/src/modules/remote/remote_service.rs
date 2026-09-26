@@ -1,12 +1,6 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use axum::extract::ws::Message;
 use chrono::{Duration, Utc};
 use rand::Rng;
-use serde_json::json;
 use sha2::{Digest, Sha256};
-use tokio::sync::{Mutex, mpsc};
 
 use crate::errors::AppError;
 use crate::types::AppState;
@@ -17,9 +11,10 @@ pub const CODE_CHARS: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 /// 离线留言保留期(小时)与单条密文上限。
 pub const INBOX_TTL_HOURS: i64 = 24;
 pub const MAX_PAYLOAD_BYTES: usize = 32 * 1024;
-/// 单用户桌面连接 / 单桌面控制器连接上限。
+/// 在线判定窗口(秒):桌面 pull 时服务器盖 last_seen 戳,窗口内 = 在线。
+pub const ONLINE_WINDOW_SECS: i64 = 15;
+/// 单用户桌面配对数上限。
 pub const MAX_DESKTOPS_PER_USER: usize = 4;
-pub const MAX_CONTROLLERS_PER_DESKTOP: usize = 4;
 
 fn hash_code(code: &str) -> String {
   let mut hasher = Sha256::new();
@@ -35,128 +30,94 @@ pub fn generate_pairing_code() -> String {
     .collect()
 }
 
-/// 桌面/控制器在线注册表。服务器只持有"谁能收到帧"的信箱,
-/// 不解读业务载荷。
-#[derive(Default)]
-pub struct RemoteRegistry {
-  inner: Mutex<RegistryInner>,
+/// 信箱归属。传输拓扑(可水平扩展,连接无状态):
+/// - 发送一律 `POST /remote/push`:INSERT remote_inbox(持久,离线 24h 可达)
+///   → Redis PUBLISH express 信封(尽力而为,任意实例可投)。
+/// - 接收 = WS 频道订阅(即时) + `GET /remote/pull`(兜底,1s),按行 id 去重。
+/// - WS 只做"订阅自己频道的下行管道 + 心跳",不承载业务帧。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Mailbox {
+  /// 收件方 = 桌面(手机发的指令/留言)
+  Desktop,
+  /// 收件方 = 控制器(桌面发的快照/回包;该桌面全部控制器共享信箱)
+  Controller,
 }
 
-#[derive(Default)]
-struct RegistryInner {
-  /// user_id → (desktop_device_id → 发送信箱)
-  desktops: HashMap<i64, HashMap<String, mpsc::Sender<Message>>>,
-  /// user_id → (desktop_device_id → [控制器发送信箱])
-  controllers: HashMap<i64, HashMap<String, Vec<mpsc::Sender<Message>>>>,
+impl Mailbox {
+  pub fn as_str(&self) -> &'static str {
+    match self {
+      Mailbox::Desktop => "desktop",
+      Mailbox::Controller => "controller",
+    }
+  }
+
+  pub fn from_str(s: &str) -> Option<Mailbox> {
+    match s {
+      "desktop" => Some(Mailbox::Desktop),
+      "controller" => Some(Mailbox::Controller),
+      _ => None,
+    }
+  }
+
+  /// 发送方角色 → 收件信箱。
+  pub fn for_sender(sender_role: &str) -> Option<Mailbox> {
+    match sender_role {
+      "desktop" => Some(Mailbox::Controller),
+      "controller" => Some(Mailbox::Desktop),
+      _ => None,
+    }
+  }
+
+  /// WS 订阅频道(照 Trove im_ws:每连接一条 PubSub,任意实例投递皆可达)。
+  pub fn channel(&self, user_id: i64, desktop_device_id: &str) -> String {
+    format!("remote:{}:{user_id}:{desktop_device_id}", self.as_str())
+  }
 }
 
-impl RemoteRegistry {
-  pub async fn insert_desktop(
-    &self,
-    user_id: i64,
-    device_id: &str,
-    tx: mpsc::Sender<Message>,
-  ) -> Result<(), AppError> {
-    let mut inner = self.inner.lock().await;
-    let desktops = inner.desktops.entry(user_id).or_default();
-    if !desktops.contains_key(device_id) && desktops.len() >= MAX_DESKTOPS_PER_USER {
-      return Err(AppError::Validation("桌面连接数已达上限".into()));
-    }
-    desktops.insert(device_id.to_string(), tx);
-    Ok(())
-  }
+/// 配对码校验:desktop 设备在该用户名下存在在效配对(claimed 未 revoked)。
+pub async fn pairing_exists(state: &AppState, user_id: i64, desktop_device_id: &str) -> bool {
+  sqlx::query_scalar::<_, i64>(
+    "SELECT COUNT(*) FROM remote_pairings \
+     WHERE user_id = ? AND desktop_device_id = ? AND claimed_at IS NOT NULL AND revoked_at IS NULL",
+  )
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .fetch_one(&state.pool)
+  .await
+  .unwrap_or(0)
+    > 0
+}
 
-  pub async fn remove_desktop(&self, user_id: i64, device_id: &str, tx: &mpsc::Sender<Message>) {
-    let mut inner = self.inner.lock().await;
-    if let Some(devices) = inner.desktops.get_mut(&user_id) {
-      // 只在信箱仍是本连接时移除(重连竞态:新连接已登记,别把新的踢掉)
-      if devices
-        .get(device_id)
-        .is_some_and(|existing| existing.same_channel(tx))
-      {
-        devices.remove(device_id);
-      }
-      if devices.is_empty() {
-        inner.desktops.remove(&user_id);
-      }
-    }
+/// 在线判定:桌面 last_seen 戳在窗口内(跨实例,基于 DB,不依赖进程内注册表)。
+pub async fn desktop_online(state: &AppState, user_id: i64, desktop_device_id: &str) -> bool {
+  let seen: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
+    "SELECT desktop_last_seen_at FROM remote_pairings \
+     WHERE user_id = ? AND desktop_device_id = ? AND claimed_at IS NOT NULL AND revoked_at IS NULL \
+     ORDER BY id DESC LIMIT 1",
+  )
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .fetch_optional(&state.pool)
+  .await
+  .ok()
+  .flatten();
+  match seen {
+    Some(seen) => Utc::now().naive_utc() - seen < Duration::seconds(ONLINE_WINDOW_SECS),
+    None => false,
   }
+}
 
-  pub async fn insert_controller(
-    &self,
-    user_id: i64,
-    device_id: &str,
-    tx: mpsc::Sender<Message>,
-  ) -> Result<(), AppError> {
-    let mut inner = self.inner.lock().await;
-    let controllers = inner.controllers.entry(user_id).or_default();
-    let list = controllers.entry(device_id.to_string()).or_default();
-    if list.len() >= MAX_CONTROLLERS_PER_DESKTOP {
-      return Err(AppError::Validation("控制器连接数已达上限".into()));
-    }
-    list.push(tx);
-    Ok(())
-  }
-
-  pub async fn remove_controller(&self, user_id: i64, device_id: &str, tx: &mpsc::Sender<Message>) {
-    let mut inner = self.inner.lock().await;
-    if let Some(devices) = inner.controllers.get_mut(&user_id) {
-      if let Some(list) = devices.get_mut(device_id) {
-        list.retain(|existing| !existing.same_channel(tx));
-        if list.is_empty() {
-          devices.remove(device_id);
-        }
-      }
-      if devices.is_empty() {
-        inner.controllers.remove(&user_id);
-      }
-    }
-  }
-
-  /// controller → desktop 转发。返回 false = 桌面不在线。
-  pub async fn forward_to_desktop(&self, user_id: i64, device_id: &str, msg: Message) -> bool {
-    let inner = self.inner.lock().await;
-    let Some(tx) = inner
-      .desktops
-      .get(&user_id)
-      .and_then(|devices| devices.get(device_id))
-    else {
-      return false;
-    };
-    tx.send(msg).await.is_ok()
-  }
-
-  /// desktop → 全部控制器广播。返回送达数。
-  pub async fn broadcast_to_controllers(
-    &self,
-    user_id: i64,
-    device_id: &str,
-    msg: Message,
-  ) -> usize {
-    let inner = self.inner.lock().await;
-    let Some(list) = inner
-      .controllers
-      .get(&user_id)
-      .and_then(|devices| devices.get(device_id))
-    else {
-      return 0;
-    };
-    let mut delivered = 0;
-    for tx in list {
-      if tx.send(msg.clone()).await.is_ok() {
-        delivered += 1;
-      }
-    }
-    delivered
-  }
-
-  pub async fn desktop_online(&self, user_id: i64, device_id: &str) -> bool {
-    let inner = self.inner.lock().await;
-    inner
-      .desktops
-      .get(&user_id)
-      .is_some_and(|devices| devices.contains_key(device_id))
-  }
+/// 桌面 pull 时盖章(在线判定的依据)。
+async fn touch_desktop(state: &AppState, user_id: i64, desktop_device_id: &str) {
+  let _ = sqlx::query(
+    "UPDATE remote_pairings SET desktop_last_seen_at = ? \
+     WHERE user_id = ? AND desktop_device_id = ? AND claimed_at IS NOT NULL AND revoked_at IS NULL",
+  )
+  .bind(Utc::now().naive_utc())
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .execute(&state.pool)
+  .await;
 }
 
 /// 签发配对码(登录态,desktop 端)。过期未认领的码顺带清理。
@@ -174,6 +135,18 @@ pub async fn pairing_start(
   .bind(expired)
   .execute(&state.pool)
   .await?;
+  // 桌面配对数上限(吊销的不占额)
+  let active: i64 = sqlx::query_scalar(
+    "SELECT COUNT(DISTINCT desktop_device_id) FROM remote_pairings \
+     WHERE user_id = ? AND claimed_at IS NOT NULL AND revoked_at IS NULL",
+  )
+  .bind(user_id)
+  .fetch_one(&state.pool)
+  .await?;
+  let is_new_desktop = !pairing_exists(state, user_id, desktop_device_id).await;
+  if is_new_desktop && active >= MAX_DESKTOPS_PER_USER as i64 {
+    return Err(AppError::Validation("桌面配对数已达上限".into()));
+  }
   let code = generate_pairing_code();
   let expires_at = Utc::now().naive_utc() + Duration::minutes(PAIRING_TTL_MINUTES);
   sqlx::query(
@@ -191,6 +164,7 @@ pub async fn pairing_start(
 }
 
 /// 认领配对码(controller 端):必须同账号、未认领、未吊销、未过期。
+/// 成功后向桌面频道发布控制通知(明文、无业务数据),桌面端据此收起二维码。
 pub async fn pairing_claim(
   state: &AppState,
   user_id: i64,
@@ -220,6 +194,7 @@ pub async fn pairing_claim(
     .bind(id)
     .execute(&state.pool)
     .await?;
+  publish_notify(state, user_id, &device_id, "pairing_claimed").await;
   Ok((device_id, desktop_name))
 }
 
@@ -227,7 +202,6 @@ pub async fn pairing_claim(
 pub async fn list_devices(
   state: &AppState,
   user_id: i64,
-  registry: &Arc<RemoteRegistry>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
   let rows: Vec<(String, String, String, chrono::NaiveDateTime)> = sqlx::query_as(
     "SELECT desktop_device_id, desktop_name, controller_name, created_at FROM remote_pairings \
@@ -239,8 +213,8 @@ pub async fn list_devices(
   .await?;
   let mut out = Vec::with_capacity(rows.len());
   for (device_id, desktop_name, controller_name, created) in rows {
-    let online = registry.desktop_online(user_id, &device_id).await;
-    out.push(json!({
+    let online = desktop_online(state, user_id, &device_id).await;
+    out.push(serde_json::json!({
       "desktopDeviceId": device_id,
       "desktopName": desktop_name,
       "controllerName": controller_name,
@@ -283,93 +257,121 @@ pub async fn pairing_revoke(
   Ok(result.rows_affected())
 }
 
-/// 桌面不在线时投递离线留言(E2E 密文原样入库);顺带清理超期行。
+/// 入站帧:入库(持久) + express 发布(尽力而为)。返回行 id。
 pub async fn inbox_push(
   state: &AppState,
   user_id: i64,
   desktop_device_id: &str,
+  mailbox: Mailbox,
   payload: &str,
-) -> Result<(), AppError> {
+  replace: bool,
+) -> Result<i64, AppError> {
   let cutoff = Utc::now().naive_utc() - Duration::hours(INBOX_TTL_HOURS);
   sqlx::query("DELETE FROM remote_inbox WHERE created_at < ?")
     .bind(cutoff)
     .execute(&state.pool)
     .await?;
-  sqlx::query("INSERT INTO remote_inbox (user_id, desktop_device_id, payload) VALUES (?, ?, ?)")
+  // replace:新帧使同信箱的 pending 旧帧作废(快照语义:只有最新有意义,
+  // 手机离线堆积有界)
+  if replace {
+    sqlx::query(
+      "DELETE FROM remote_inbox \
+       WHERE user_id = ? AND desktop_device_id = ? AND recipient = ? AND delivered_at IS NULL",
+    )
     .bind(user_id)
     .bind(desktop_device_id)
-    .bind(payload)
+    .bind(mailbox.as_str())
     .execute(&state.pool)
     .await?;
-  Ok(())
-}
-
-/// 桌面连接后取未投递的离线留言。
-pub async fn inbox_pending(
-  state: &AppState,
-  user_id: i64,
-  desktop_device_id: &str,
-) -> Result<Vec<(i64, String)>, AppError> {
-  sqlx::query_as::<_, (i64, String)>(
-    "SELECT id, payload FROM remote_inbox \
-     WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL ORDER BY id",
+  }
+  let result = sqlx::query(
+    "INSERT INTO remote_inbox (user_id, desktop_device_id, recipient, payload) VALUES (?, ?, ?, ?)",
   )
   .bind(user_id)
   .bind(desktop_device_id)
-  .fetch_all(&state.pool)
-  .await
-  .map_err(|e| AppError::Internal(format!("inbox pending: {e}")))
+  .bind(mailbox.as_str())
+  .bind(payload)
+  .execute(&state.pool)
+  .await?;
+  let id = i64::try_from(result.last_insert_id()).unwrap_or_default();
+  // express:与实例无关,收件方的 WS 连接(挂在任意实例上)各自消费本频道。
+  // Redis 未配置/发布失败静默——兜底是 pull(1s)。
+  publish_express(state, user_id, desktop_device_id, mailbox, id, payload).await;
+  Ok(id)
 }
 
-/// 桌面轮询取帧：取未投递行并标记 delivered（不删——WS/HTTP 都可能丢，
-/// 由 TTL 与 ack 双保险；重复风险由客户端幂等处理承担，v1 取"不重复派活"
-/// 优先：delivered_at 置位后不再返回）。
+/// 取走信箱帧:SELECT + DELETE 同事务(delivered_at 弃用,取走即删;
+/// 语义 = 取后不重投,"不重复派活"优先)。桌面 pull 顺带盖在线戳。
 pub async fn inbox_take(
   state: &AppState,
   user_id: i64,
   desktop_device_id: &str,
+  mailbox: Mailbox,
 ) -> Result<Vec<(i64, String)>, AppError> {
-  let rows: Vec<(i64, String)> = sqlx::query_as::<_, (i64, String)>(
+  if mailbox == Mailbox::Desktop {
+    touch_desktop(state, user_id, desktop_device_id).await;
+  }
+  let mut tx = state
+    .pool
+    .begin()
+    .await
+    .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
+  let rows: Vec<(i64, String)> = sqlx::query_as(
     "SELECT id, payload FROM remote_inbox \
-     WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL ORDER BY id LIMIT 100",
+     WHERE user_id = ? AND desktop_device_id = ? AND recipient = ? AND delivered_at IS NULL \
+     ORDER BY id LIMIT 100",
   )
   .bind(user_id)
   .bind(desktop_device_id)
-  .fetch_all(&state.pool)
+  .bind(mailbox.as_str())
+  .fetch_all(&mut *tx)
   .await
   .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
-  if !rows.is_empty() {
-    let now = Utc::now().naive_utc();
-    for (id, _) in &rows {
-      let _ = sqlx::query("UPDATE remote_inbox SET delivered_at = ? WHERE id = ?")
-        .bind(now)
-        .bind(id)
-        .execute(&state.pool)
-        .await;
-    }
+  for (id, _) in &rows {
+    sqlx::query("DELETE FROM remote_inbox WHERE id = ?")
+      .bind(id)
+      .execute(&mut *tx)
+      .await
+      .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
   }
+  tx.commit()
+    .await
+    .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
   Ok(rows)
 }
 
-/// 桌面确认已处理离线留言。
-pub async fn inbox_ack(state: &AppState, ids: &[i64], user_id: i64) -> Result<(), AppError> {
-  if ids.is_empty() {
-    return Ok(());
-  }
-  // 逐条删:量小(每设备至多几条),避免动态 IN 拼接
-  for id in ids {
-    sqlx::query("DELETE FROM remote_inbox WHERE id = ? AND user_id = ?")
-      .bind(id)
-      .bind(user_id)
-      .execute(&state.pool)
-      .await?;
-  }
-  Ok(())
+/// express 信封 `{"id":..,"payload":".."}`(与 pull items 同形,客户端单一处理路径)。
+async fn publish_express(
+  state: &AppState,
+  user_id: i64,
+  desktop_device_id: &str,
+  mailbox: Mailbox,
+  id: i64,
+  payload: &str,
+) {
+  let Some(conn) = &state.redis else { return };
+  let envelope = serde_json::json!({"id": id, "payload": payload});
+  let channel = mailbox.channel(user_id, desktop_device_id);
+  let _: Result<(), _> =
+    redis::AsyncCommands::publish(&mut conn.clone(), channel, envelope.to_string())
+      .await
+      .inspect_err(|e| tracing::warn!("remote express publish: {e}"));
+}
+
+/// 控制通知(明文,无业务数据):配对认领等服务器侧事件。
+pub async fn publish_notify(state: &AppState, user_id: i64, desktop_device_id: &str, event: &str) {
+  let Some(conn) = &state.redis else { return };
+  let envelope = serde_json::json!({"kind": "notify", "event": event});
+  let channel = Mailbox::Desktop.channel(user_id, desktop_device_id);
+  let _: Result<(), _> =
+    redis::AsyncCommands::publish(&mut conn.clone(), channel, envelope.to_string())
+      .await
+      .inspect_err(|e| tracing::warn!("remote notify publish: {e}"));
 }
 
 #[cfg(test)]
 mod tests {
-  use super::{CODE_CHARS, generate_pairing_code, hash_code};
+  use super::{CODE_CHARS, Mailbox, generate_pairing_code, hash_code};
 
   #[test]
   fn code_shape() {
@@ -385,5 +387,17 @@ mod tests {
   fn hash_deterministic() {
     assert_eq!(hash_code("ABCD2345"), hash_code("ABCD2345"));
     assert_ne!(hash_code("ABCD2345"), hash_code("ABCD2346"));
+  }
+
+  #[test]
+  fn mailbox_routing() {
+    // 桌面发 → 控制器信箱;手机发 → 桌面信箱
+    assert_eq!(Mailbox::for_sender("desktop"), Some(Mailbox::Controller));
+    assert_eq!(Mailbox::for_sender("controller"), Some(Mailbox::Desktop));
+    assert_eq!(Mailbox::for_sender("bogus"), None);
+    assert_eq!(
+      Mailbox::Controller.channel(7, "DEV"),
+      "remote:controller:7:DEV"
+    );
   }
 }

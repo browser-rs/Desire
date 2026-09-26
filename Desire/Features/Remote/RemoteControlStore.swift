@@ -290,6 +290,15 @@ final class RemoteControlStore: ObservableObject {
             pushSnapshot(force: true)
         case "sessions":
             sendInnerRaw(sessionsFrame())
+        case "newSession":
+            // 手机端"+"：在 Mac 上新建一个 Agent 会话并切换遥控目标
+            guard let app = AppState.live else { return }
+            let store = AgentSessionStore(preference: app.aiPreference,
+                                          conversationStore: app.conversationStore)
+            let id = AgentScheduler.shared.registerSession(store)
+            remoteSessionID = id.uuidString
+            sendInnerRaw(sessionsFrame())
+            pushSnapshot(force: true)
         case "cancel":
             AgentScheduler.shared.deliveryTarget?.cancel()
             pushSnapshot(force: true)

@@ -363,6 +363,17 @@ final class RemoteClient: ObservableObject {
         sendTransport(["kind": "route", "payload": payload])
     }
 
+    /// 让 Mac 新建一个会话并切过去（列表页"+"按钮）。
+    func newSession() {
+        guard let sessionKeyB64,
+              let payload = RemoteCrypto.innerFrame(["t": "newSession"], sessionKeyB64: sessionKeyB64) else { return }
+        sendTransport(["kind": "route", "payload": payload])
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            requestSessions()
+        }
+    }
+
     /// 打开某个会话（Mac 侧切换遥控目标并回推该会话快照）。
     func selectSession(_ id: String?) {
         selectedSessionID = id

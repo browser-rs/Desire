@@ -212,6 +212,13 @@ struct SessionsView: View {
             .navigationTitle("会话")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        client.newSession()
+                    } label: {
+                        Label("新建会话", systemImage: "square.and.pencil")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showSettings = true

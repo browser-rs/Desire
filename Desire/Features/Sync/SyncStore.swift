@@ -55,7 +55,9 @@ final class SyncStore: ObservableObject {
     /// 当前待用的注册验证码（nil = 未加载/已消费）
     @Published private(set) var captcha: CaptchaInfo?
 
-    static let defaultServerBaseURL = "http://127.0.0.1:18090"
+    /// 默认同步服务器（生产）。本地开发/测试用桥 `POST /sync/server` 钉回
+    /// 本地实例（见 AGENTS 测试铁律：app 驱动的 E2E 前必须钉本地）。
+    static let defaultServerBaseURL = "https://api.mankong.icu/v9"
 
     private let bookmarkStore: BookmarkStore
     private let quickDialStore: QuickDialStore
@@ -284,7 +286,8 @@ final class SyncStore: ObservableObject {
     }
 
     func setServerBaseURL(_ url: String) {
-        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        var trimmed = url.trimmingCharacters(in: .whitespaces)
+        while trimmed.hasSuffix("/") { trimmed.removeLast() }   // 尾斜杠会造成 //auth/… 双斜杠
         guard !trimmed.isEmpty else { return }
         defaults.set(trimmed, forKey: serverKey)
         serverBaseURL = trimmed

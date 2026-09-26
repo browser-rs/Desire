@@ -473,7 +473,7 @@ struct SyncSettingsSection: View {
             VStack(spacing: 0) {
                 SettingsRow("Server") {
                     SettingsTextField(
-                        placeholder: "http://127.0.0.1:18090",
+                        placeholder: "https://api.mankong.icu/v9",
                         text: $serverURL,
                         width: 240
                     )

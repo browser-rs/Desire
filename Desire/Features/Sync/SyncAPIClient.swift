@@ -81,6 +81,11 @@ nonisolated enum SyncAPIClient {
     struct QrCreateResp: Codable {
         var ticket: String
         var expiresAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case ticket
+            case expiresAt = "expires_at"
+        }
     }
 
     struct QrStatusResp: Codable {

@@ -202,22 +202,75 @@ struct ChatView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
-                Divider().opacity(0.4)
-                if client.messages.isEmpty {
-                    emptyState
-                } else {
-                    messageList
+            ZStack {
+                // 全屏消息层：从屏幕顶到输入栏，全程可滚
+                Group {
+                    if client.messages.isEmpty {
+                        emptyState
+                    } else {
+                        messageList
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // 顶部漂浮状态条（不是栏块，悬浮在内容之上）
+                VStack {
+                    floatingTopBar
+                    Spacer()
+                }
+
+                // 底部漂浮输入区
+                VStack {
+                    Spacer()
+                    inputArea
                 }
             }
             .background(Color(.secondarySystemBackground).ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                inputArea
-            }
             .sheet(isPresented: $showSettings) { RemoteSettingsView() }
         }
+    }
+
+    // MARK: 顶部漂浮状态条（全屏聊天：无栏块，仅悬浮元素）
+
+    private var floatingTopBar: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(RootView.brand)
+                Text("欲").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+            }
+            .frame(width: 26, height: 26)
+            Text(client.desktopName ?? "Desire")
+                .font(.footnote.weight(.semibold)).lineLimit(1)
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(client.busy ? .orange : (client.connectionState == "已连接" ? .green : .secondary))
+                    .frame(width: 6, height: 6)
+                Text(client.busy ? "工作中" : client.connectionState)
+                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: Capsule())
+            Spacer()
+            if client.busy {
+                Button { client.sendCancel() } label: {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.system(size: 22))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .red)
+                }
+            }
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 4)
     }
 
     // MARK: 顶部（自定义，最大化内容区）
@@ -260,39 +313,13 @@ struct ChatView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 20)
-            ZStack {
-                Circle().fill(RootView.brand.opacity(0.14)).frame(width: 92, height: 92)
-                Image(systemName: "wand.and.stars")
-                    .font(.system(size: 38)).foregroundStyle(RootView.brand)
-            }
-            VStack(spacing: 6) {
-                Text("给 Agent 派个活").font(.title3.bold())
-                Text("指令立即送达 Mac，Agent 在本地执行\n这里实时显示对话与工具轨迹")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            VStack(spacing: 10) {
-                ForEach([("继续", "arrow.forward.circle"),
-                         ("总结当前页面", "doc.text.magnifyingglass"),
-                         ("再检查一遍结果", "checkmark.seal")], id: \.0) { item in
-                    Button { send(item.0) } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: item.1).foregroundStyle(RootView.brand)
-                            Text(item.0).font(.subheadline)
-                            Spacer()
-                            Image(systemName: "arrow.up.right").font(.caption2).foregroundStyle(.tertiary)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 13)
-                        .background(Color(.tertiarySystemBackground),
-                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(client.busy)
-                }
-            }
-            .padding(.horizontal, 28)
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 34)).foregroundStyle(RootView.brand.opacity(0.85))
+            Text("给 Agent 派个活").font(.subheadline.weight(.semibold))
+            Text("指令立即送达 Mac，Agent 在本地执行")
+                .font(.caption).foregroundStyle(.secondary)
             Spacer()
         }
     }
@@ -307,7 +334,8 @@ struct ChatView: View {
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.top, 52)
+                .padding(.bottom, 10)
             }
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture { inputFocused = false }
@@ -327,6 +355,16 @@ struct ChatView: View {
             }
             if voice.isRecording {
                 recordingBar
+            } else if client.messages.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(["继续", "总结当前页面"], id: \.self) { chip in
+                        Button { send(chip) } label: {
+                            Text(chip).font(.caption)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                    }
+                }
             }
             HStack(alignment: .bottom, spacing: 8) {
                 micButton.padding(.bottom, 4).padding(.leading, 2)

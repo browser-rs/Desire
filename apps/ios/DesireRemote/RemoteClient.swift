@@ -539,16 +539,18 @@ final class RemoteClient: ObservableObject {
     }
 
     private func refreshConnectionText() {
-        guard !busy else {
-            connectionState = "Agent 工作中…"
-            return
-        }
-        if !desktopOnline {
-            connectionState = "Mac 离线"
+        let target: String
+        if busy {
+            target = "Agent 工作中…"
+        } else if !desktopOnline {
+            target = "Mac 离线"
         } else if connectionState.contains("断开") || connectionState.contains("重连")
             || connectionState == "未连接" || connectionState == "连接中…" {
-            connectionState = "已连接"
+            target = "已连接"
+        } else {
+            return
         }
+        if connectionState != target { connectionState = target }
     }
 
     // MARK: - 业务帧处理
@@ -580,11 +582,16 @@ final class RemoteClient: ObservableObject {
             selectedSessionID = sid
         }
         busy = frame.busy
-        agentModel = frame.model ?? ""
-        contextPercent = frame.contextPercent ?? 0
-        queueCount = frame.queueCount ?? 0
-        elapsedSeconds = frame.elapsed
-        connectionState = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
+        // 相同值不发布：避免每秒快照触发全 UI 重绘（Menu 打开时的闪动源）
+        let newModel = frame.model ?? ""
+        if agentModel != newModel { agentModel = newModel }
+        let newContext = frame.contextPercent ?? 0
+        if contextPercent != newContext { contextPercent = newContext }
+        let newQueue = frame.queueCount ?? 0
+        if queueCount != newQueue { queueCount = newQueue }
+        if elapsedSeconds != frame.elapsed { elapsedSeconds = frame.elapsed }
+        let target = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
+        if connectionState != target { connectionState = target }
         if let data = try? JSONEncoder().encode(frame.messages) {
             defaults.set(data, forKey: "remote.messages")
         }

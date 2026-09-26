@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod remote;
 pub mod sync;
 
 use crate::middleware::auth::jwt_auth;
@@ -16,6 +17,7 @@ pub fn build_router(state: AppState) -> Router {
   let protected = Router::new()
     .merge(auth::protected())
     .merge(sync::router())
+    .merge(remote::router())
     .layer(middleware::from_fn_with_state(state.clone(), jwt_auth));
 
   let root = Router::new()

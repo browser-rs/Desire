@@ -1230,15 +1230,22 @@ final class SyncStore: ObservableObject {
     }
 
     private func deviceBody() -> SyncDeviceBody {
-        let id: String
+        SyncDeviceBody(deviceID: deviceID, name: Host.current().localizedName ?? "Mac", platform: "macOS")
+    }
+
+    /// 本机稳定设备 id（远程配对与云同步共用同一标识）。
+    var deviceID: String {
         if let stored = defaults.string(forKey: deviceIDKey), !stored.isEmpty {
-            id = stored
-        } else {
-            id = UUID().uuidString
-            defaults.set(id, forKey: deviceIDKey)
+            return stored
         }
-        let name = Host.current().localizedName ?? "Mac"
-        return SyncDeviceBody(deviceID: id, name: name, platform: "macOS")
+        let id = UUID().uuidString
+        defaults.set(id, forKey: deviceIDKey)
+        return id
+    }
+
+    /// 子系统（远程控制等）取访问令牌：缺失/过期自动刷新。
+    func remoteAuthToken() async throws -> String {
+        try await validAccessToken()
     }
 
     // MARK: - Keychain（照 AgentPreferenceStore 的既有范式）

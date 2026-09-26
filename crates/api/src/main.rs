@@ -42,6 +42,7 @@ async fn main() -> anyhow::Result<()> {
     config: Arc::new(config.clone()),
     redis,
     rate_limiter: Arc::new(RateLimiter::default()),
+    remote: Arc::new(desire_api::modules::remote::remote_service::RemoteRegistry::default()),
   });
   let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
   tracing::info!("env={:?} api listening on {}", config.env, config.bind_addr);

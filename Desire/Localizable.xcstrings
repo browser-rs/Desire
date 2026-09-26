@@ -111,71 +111,416 @@
         }
       }
     },
-    "Changes sync within seconds. A full check runs every 5 minutes." : {
-      "comment" : "Sync settings subtitle",
+    "Code" : {
+      "comment" : "Remote control",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Changes sync within seconds. A full check runs every 5 minutes."
+            "value" : "Code"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改在数秒内同步，每 5 分钟做一次完整检查。"
+            "value" : "配对码"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "變更在數秒內同步，每 5 分鐘做一次完整檢查。"
+            "value" : "配對碼"
           }
         }
       }
     },
-    "Not set" : {
-      "comment" : "Sync key fingerprint placeholder",
+    "Connected" : {
+      "comment" : "Remote control",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not set"
+            "value" : "Connected"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未设置"
+            "value" : "已连接"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未設定"
+            "value" : "已連線"
           }
         }
       }
     },
-    "Sync session expired — please sign in again." : {
-      "comment" : "Session expired after refresh token rejection",
+    "Connecting…" : {
+      "comment" : "Remote control",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sync session expired — please sign in again."
+            "value" : "Connecting…"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同步会话已过期，请重新登录。"
+            "value" : "连接中…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同步會話已過期，請重新登入。"
+            "value" : "連線中…"
+          }
+        }
+      }
+    },
+    "Control the Agent on this Mac from your iPhone. Tasks run locally here — the phone sends instructions, watches progress, and unlocks sensitive steps." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control the Agent on this Mac from your iPhone. Tasks run locally here — the phone sends instructions, watches progress, and unlocks sensitive steps."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 iPhone 远程对话这台 Mac 上的 Agent。任务仍在本地执行——手机发指令、看进度、解锁敏感步骤。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 iPhone 遠端對話這台 Mac 上的 Agent。任務仍在本地執行——手機發指令、看進度、解鎖敏感步驟。"
+          }
+        }
+      }
+    },
+    "Error" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤"
+          }
+        }
+      }
+    },
+    "Expires in %d s" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expires in %d s"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 秒后过期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 秒後過期"
+          }
+        }
+      }
+    },
+    "No live agent session" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No live agent session"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 上没有活动的 Agent 会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 上沒有活躍的 Agent 會話"
+          }
+        }
+      }
+    },
+    "No paired devices yet." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No paired devices yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有已配对的设备。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有已配對的裝置。"
+          }
+        }
+      }
+    },
+    "No pairing code yet." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pairing code yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有配对码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有配對碼。"
+          }
+        }
+      }
+    },
+    "Offline" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離線"
+          }
+        }
+      }
+    },
+    "Pair a Phone" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair a Phone"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对手机"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對手機"
+          }
+        }
+      }
+    },
+    "Paired Devices" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paired Devices"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配对设备"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配對裝置"
+          }
+        }
+      }
+    },
+    "Paired phones may send prompts to this Mac's Agent. Revoke any time." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paired phones may send prompts to this Mac's Agent. Revoke any time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配对的手机可以向这台 Mac 的 Agent 发送指令，可随时吊销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配對的手機可以向這台 Mac 的 Agent 發送指令，可隨時吊銷。"
+          }
+        }
+      }
+    },
+    "Remote" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端"
+          }
+        }
+      }
+    },
+    "Remote Control" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote Control"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程控制"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端控制"
+          }
+        }
+      }
+    },
+    "Scan Me" : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan Me"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫码配对"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃碼配對"
+          }
+        }
+      }
+    },
+    "Scan with the Desire Remote app. The code works once and expires in 10 minutes." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan with the Desire Remote app. The code works once and expires in 10 minutes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Desire Remote 扫码。配对码一次有效，10 分钟后过期。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Desire Remote 掃碼。配對碼一次有效，10 分鐘後過期。"
+          }
+        }
+      }
+    },
+    "Sign in to Sync first — Remote uses the same account." : {
+      "comment" : "Remote control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to Sync first — Remote uses the same account."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先登录 Sync——远程与同步共用同一账号。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先登入同步——遠端與同步共用同一帳號。"
           }
         }
       }
@@ -2598,7 +2943,6 @@
       }
     },
     "Agent Memory" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2621,7 +2965,6 @@
       }
     },
     "Agent Prompt" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5075,6 +5418,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "會更改狀態"
+          }
+        }
+      }
+    },
+    "Changes sync within seconds. A full check runs every 5 minutes." : {
+      "comment" : "Sync settings subtitle",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes sync within seconds. A full check runs every 5 minutes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改在数秒内同步，每 5 分钟做一次完整检查。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更在數秒內同步，每 5 分鐘做一次完整檢查。"
           }
         }
       }
@@ -16875,6 +17242,30 @@
         }
       }
     },
+    "Not set" : {
+      "comment" : "Sync key fingerprint placeholder",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not set"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        }
+      }
+    },
     "Number" : {
       "comment" : "Screenshot tool: numbered label annotation",
       "localizations" : {
@@ -19169,7 +19560,6 @@
       }
     },
     "Quick Dial" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24616,6 +25006,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同步工作階段已過期"
+          }
+        }
+      }
+    },
+    "Sync session expired — please sign in again." : {
+      "comment" : "Session expired after refresh token rejection",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync session expired — please sign in again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步会话已过期，请重新登录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步會話已過期，請重新登入。"
           }
         }
       }

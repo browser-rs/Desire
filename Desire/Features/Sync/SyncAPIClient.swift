@@ -71,6 +71,79 @@ nonisolated enum SyncAPIClient {
         try await send("GET", baseURL, "/sync/key-escrow", token: accessToken)
     }
 
+    // MARK: - 远程控制（配对 REST；控制业务走 WebSocket，见 RemoteControlStore）
+
+    struct RemotePairingStartBody: Codable {
+        var desktop_device_id: String
+        var desktop_name: String
+    }
+
+    struct RemotePairingStartResp: Codable {
+        var code: String
+        var expiresAt: String
+    }
+
+    struct RemotePairingClaimBody: Codable {
+        var code: String
+        var controller_name: String
+    }
+
+    struct RemotePairingClaimResp: Codable {
+        var desktopDeviceId: String
+        var desktopName: String
+    }
+
+    struct RemotePairedDevice: Codable, Identifiable {
+        var desktopDeviceId: String
+        var desktopName: String
+        var controllerName: String
+        var online: Bool
+        var createdAt: String
+        var id: String { desktopDeviceId + "/" + controllerName }
+    }
+
+    struct RemoteDeviceList: Codable {
+        var devices: [RemotePairedDevice]
+    }
+
+    struct RemoteRevokeBody: Codable {
+        var desktop_device_id: String
+        var controller_name: String?
+    }
+
+    static func remotePairingStart(
+        baseURL: String, accessToken: String, deviceID: String, deviceName: String
+    ) async throws -> RemotePairingStartResp {
+        try await send(
+            "POST", baseURL, "/remote/pairing/start",
+            body: encode(RemotePairingStartBody(
+                desktop_device_id: deviceID, desktop_name: deviceName)),
+            token: accessToken)
+    }
+
+    static func remotePairingClaim(
+        baseURL: String, accessToken: String, code: String, controllerName: String
+    ) async throws -> RemotePairingClaimResp {
+        try await send(
+            "POST", baseURL, "/remote/pairing/claim",
+            body: encode(RemotePairingClaimBody(code: code, controller_name: controllerName)),
+            token: accessToken)
+    }
+
+    static func remoteDevices(baseURL: String, accessToken: String) async throws -> RemoteDeviceList {
+        try await send("GET", baseURL, "/remote/devices", token: accessToken)
+    }
+
+    static func remotePairingRevoke(
+        baseURL: String, accessToken: String, deviceID: String, controllerName: String?
+    ) async throws {
+        _ = try await rawRequest(
+            "POST", baseURL, "/remote/pairing/revoke",
+            body: encode(RemoteRevokeBody(
+                desktop_device_id: deviceID, controller_name: controllerName)),
+            token: accessToken)
+    }
+
     /// 上报托管。指纹与服务器已有不一致 → 409（防拿错密钥覆盖）。
     static func setKeyEscrow(
         baseURL: String, accessToken: String, body: SyncEscrowBody

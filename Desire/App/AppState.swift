@@ -55,6 +55,7 @@ class AppState: ObservableObject {
             settings: system.settings,
             agentPreferenceStore: ai.preference
         )
+        remoteControlStore = RemoteControlStore(syncStore: syncStore)
         Self.live = self
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
         // 创建标签时经 profileDataStore 各自恢复）。
@@ -68,6 +69,8 @@ class AppState: ObservableObject {
         }
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         syncStore.startAutoSync()
+        // 远程控制：开关开着且已登录才连中继。
+        remoteControlStore.startIfEnabled()
     }
 
     // MARK: - Forwarding accessors
@@ -77,6 +80,7 @@ class AppState: ObservableObject {
     // Browsing
     var bookmarkStore: BookmarkStore { browsing.bookmarkStore }
     var historyStore: HistoryStore { browsing.historyStore }
+    let remoteControlStore: RemoteControlStore
     var downloadStore: DownloadStore { browsing.downloadStore }
     var quickDialStore: QuickDialStore { browsing.quickDialStore }
     var readingListStore: ReadingListStore { browsing.readingListStore }

@@ -373,6 +373,9 @@ final class AutomationServer {
         ep("POST", "/sync/logout", "Sign out on this device (server tokens revoked)", example: "-d '{}'")
         ep("POST", "/sync/server", "Point the sync client at a server base URL (persisted)", params: ["baseURL:string"], example: #"-d '{"baseURL":"http://127.0.0.1:18090"}'"#)
         ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
+        ep("POST", "/remote/toggle", "E2E/automation: enable/disable remote control (Mac side)", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
+        ep("POST", "/remote/pair", "E2E/automation: start a pairing code on the Mac side", example: "-d '{}'")
+        ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
         ep("POST", "/search-history/add", "Record a search", params: ["query:string", "engine?:string"], example: #"-d '{"query":"weather"}'"#)
@@ -798,6 +801,12 @@ final class AutomationServer {
                 return try Self.json(Self.syncLogout())
             case ("POST", "/sync/server"):
                 return try Self.json(Self.syncSetServer(Self.string(body, "baseURL") ?? ""))
+            case ("POST", "/remote/toggle"):
+                return try Self.json(Self.remoteToggle(body["enabled"] as? Bool ?? false))
+            case ("POST", "/remote/pair"):
+                return try Self.json(Self.remotePairStart())
+            case ("GET", "/remote/status"):
+                return try Self.json(Self.remoteStatus())
             case ("POST", "/sync/setting"):
                 return try Self.json(Self.syncSetSetting(body))
             case ("POST", "/sync/domain"):
@@ -2611,6 +2620,35 @@ final class AutomationServer {
         guard !baseURL.isEmpty else { return ["error": "missing baseURL"] }
         app.syncStore.setServerBaseURL(baseURL)
         return ["ok": true, "baseURL": app.syncStore.serverBaseURL]
+    }
+
+    // MARK: - 远程控制（E2E/自动化辅助；status 含会话密钥，仅限本地桥）
+
+    private static func remoteToggle(_ enabled: Bool) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.remoteControlStore.setEnabled(enabled)
+        return ["ok": true, "enabled": enabled]
+    }
+
+    private static func remotePairStart() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.remoteControlStore.startPairing()
+        return ["ok": true]
+    }
+
+    private static func remoteStatus() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.remoteControlStore
+        var pairing: [String: Any] = [:]
+        if let secrets = store.pairingSecrets {
+            pairing = ["code": secrets.code, "sessionKey": secrets.sessionKeyB64]
+        }
+        return [
+            "enabled": store.isEnabled,
+            "connection": store.connectionForBridge,
+            "pairing": pairing,
+            "devices": [],
+        ]
     }
 
     /// 写一个可同步设置项（catalog 白名单内）；下个同步周期自然上推。

@@ -1120,6 +1120,26 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   `.terminateLater`；未登录/同步中直接跳过不拖慢退出）。**本地 dev 数据库
   连接串以 container-mysql 环境变量为准（`container inspect container-mysql`），
   仓库 .env 里的 root:root 是坏的**——本次据此修正 .env 并记入。
+- **远程控制 / Desire Remote（2026-09-26，M0+M1）**：手机经 api 中继远程对话本机
+  Agent（工作全在本地执行）。三端：① 服务端 `modules/remote`（0008 迁移：
+  remote_pairings 配对码表[只存 SHA-256、10 分钟一次性] + remote_inbox 离线留言
+  [E2E 密文、24h TTL]）；WS `/remote/ws?role=desktop|controller&device=<id>`（鉴权
+  走 jwt_auth 中间件——URLSessionWebSocketTask 用 URLRequest 头带 Bearer，令牌
+  不进 URL）；axum 需显式 `features=["ws"]`，**动态 SQL 表名必须包
+  `sqlx::AssertSqlSafe`**。② Mac `Features/Remote/RemoteControlStore`：开关 +
+  一次性配对码（二维码携带 服务器/码/会话密钥/设备id，密钥 Keychain 持久）+
+  出站 WS（5s 退避重连）+ Agent 桥接（prompt→sendMessage，快照=消息 suffix(20)
+  每秒一拍、**变化才发**；远端重连发 sync 补快照）。③ iOS `apps/ios/
+  DesireRemote.xcodeproj`（独立工程、bundle me.siwi.DesireRemote、SwiftUI +
+  VisionKit 扫码 + 粘贴导入兜底）。**E2E 信道 AES-256-GCM**：会话密钥只在配对
+  二维码里，服务器只见密文。桥辅助端点：`/remote/toggle|pair|status`（status 含
+  配对码+密钥，**仅限本地自动化桥**）。**已验证**：REST 配对/认领、WS 双向注册、
+  桌面→手机加密快照解密、限流（配对 20/时/用户——自动化会烧额度，重启服务端清零）。
+  **未决**：手机→Mac 的 prompt 下行一次未能在线验证（Mac 端 receiveLoop/
+  startSnapshotLoop 的 REMOTE-DBG 探针在连接 online 时无输出，与 bridge 报 online
+  矛盾——需 Xcode 断点排查 receiveLoop 或 keychain ACL；重连停摆（服务器重启后
+  5s 退避重连偶发不触发，toggle 关/开可解）同源待查）。新增 Mac store 时勿忘：
+  `observeLocalChanges` 订阅 + `applyingRemote` 守卫见同步段。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
   `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：

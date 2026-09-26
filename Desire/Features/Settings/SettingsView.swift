@@ -20,6 +20,7 @@ struct SettingsView: View {
         case general
         case ai
         case sync
+        case remote
         case privacy
         case autofill
         case keyboardShortcuts
@@ -31,6 +32,7 @@ struct SettingsView: View {
             case .general: "gearshape"
             case .ai: "brain.head.profile"
             case .sync: "arrow.triangle.2.circlepath"
+            case .remote: "iphone.radiowaves.left.and.right"
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
@@ -42,6 +44,7 @@ struct SettingsView: View {
             case .general: "General"
             case .ai: "Agent"
             case .sync: "Sync"
+            case .remote: "Remote"
             case .privacy: "Privacy"
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
@@ -52,6 +55,7 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var aiPreference: AgentPreferenceStore
     @ObservedObject var syncStore: SyncStore
+    @ObservedObject var remoteControlStore: RemoteControlStore
     @ObservedObject var contentBlocker: ContentBlockerStore
     /// 视频站广告拦截（YouTube/哔哩哔哩等的广告位与列表页广告卡片）。
     @ObservedObject var videoAdBlocker: VideoAdBlocker
@@ -101,6 +105,8 @@ struct SettingsView: View {
             AgentSettingsSection(store: aiPreference)
         case .sync:
             SyncSettingsSection(store: syncStore)
+        case .remote:
+            RemoteSettingsSection(store: remoteControlStore, syncStore: syncStore)
         case .privacy:
             PrivacySettingsStoreSection(
                 settings: settings,

@@ -4,12 +4,13 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1"
-axum = "0.8"
+axum = {version = "0.8", features = ["ws"]}
 base64 = "0.22"
 bcrypt = "0.19"
 chrono = {version = "0.4", features = ["serde"]}
 dotenvy = "0.15"
 hex = "0.4"
+rand = "0.9"
 jsonwebtoken = {version = "11", features = ["rust_crypto"]}
 redis = { version = "1", features = ["tokio-comp", "connection-manager", "aio"] }
 serde = {version = "1", features = ["derive"]}

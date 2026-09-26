@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### Added
+
+- **远程控制（Desire Remote，M0+M1）**：手机 App 经 api 中继远程对话本机
+  Agent——**工作仍全部在 Mac 本地执行**，手机发指令、看进度。服务端新增
+  `modules/remote`（0008 迁移：一次性配对码[仅存 SHA-256] + 离线留言
+  [E2E 密文 24h TTL]；WS `/remote/ws` 中继路由，axum 开 `ws` 特性）；
+  Mac 设置新增"远程"区（开关/二维码配对/已配对设备吊销，`Features/Remote/`）；
+  新目录 `apps/ios/DesireRemote.xcodeproj`（独立 iOS App：登录 → 扫码/粘贴
+  配对 → Agent 控制台，SwiftUI + VisionKit 扫码）。**控制信道端到端加密**
+  （AES-256-GCM，会话密钥只在配对二维码中，服务器只路由密文）。配对限流
+  20 次/时/用户。
+  **当前边界**：手机→Mac 的 prompt 下行尚未在真机全链路验证（Mac 端接收
+  循环有一处待查，见 AGENTS 远程段"未决"）；APNs 推送、审批卡片远程应答
+  （M2）、按需截图未做。
+
 ### Changed
 
 - **默认同步服务器切至生产**：全新安装（未手动配置过服务器地址）直接使用

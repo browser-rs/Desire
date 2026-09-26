@@ -694,38 +694,40 @@ struct MessageBubble: View {
             }
             }
         case "tool":
-            if (message.toolCalls ?? []).isEmpty,
-               (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // 快照里 tool 消息只有结果 content（调用名在 assistant 帧上），
+            // 结果常驻显示、默认 4 行折叠，点标签或卡片展开全文
+            if (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 EmptyView()
             } else {
             HStack(alignment: .top, spacing: 8) {
                 RemoteAvatar(icon: "wrench.and.screwdriver.fill", colors: [.gray, .secondary])
                 VStack(alignment: .leading, spacing: 4) {
-                    if let calls = message.toolCalls, !calls.isEmpty {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { toolExpanded.toggle() }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "wrench.and.screwdriver")
-                                Text(calls.joined(separator: " · "))
-                                    .lineLimit(1)
-                                Image(systemName: toolExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 9, weight: .bold))
-                            }
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { toolExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "wrench.and.screwdriver")
+                            Text("工具结果")
+                            Image(systemName: toolExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
                         }
-                        .buttonStyle(.plain)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
                     }
-                    if toolExpanded, let content = message.content,
+                    .buttonStyle(.plain)
+                    if let content = message.content,
                        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(content)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
+                            .lineLimit(toolExpanded ? nil : 4)
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(.tertiarySystemBackground),
                                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { toolExpanded.toggle() }
+                            }
                     }
                 }
                 Spacer(minLength: 20)
@@ -747,6 +749,15 @@ struct MessageBubble: View {
                         .padding(.horizontal, 10).padding(.vertical, 8)
                         .background(Color(.tertiarySystemBackground),
                                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    if let calls = message.toolCalls, !calls.isEmpty {
+                        HStack(spacing: 5) {
+                            Image(systemName: "wrench.and.screwdriver")
+                            Text(calls.joined(separator: " · "))
+                                .lineLimit(1)
+                        }
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
                     }
                     if let content = message.content,
                        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

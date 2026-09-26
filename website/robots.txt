@@ -1,0 +1,29 @@
+# Desire — desire.mankong.icu
+# 全部放行：搜索引擎与 AI 引擎 alike。此站无后台、无隐私路径。
+
+User-agent: *
+Allow: /
+
+# —— AI / 生成式引擎爬虫（GEO）明确欢迎 ——
+User-agent: GPTBot
+Allow: /
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Applebot
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+User-agent: CCBot
+Allow: /
+User-agent: Bytespider
+Allow: /
+
+Sitemap: https://desire.mankong.icu/sitemap.xml

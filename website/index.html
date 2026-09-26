@@ -4,10 +4,80 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Desire — 会替你动手的浏览器 · macOS AI 浏览器</title>
-<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon · 免费使用。">
+<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon · macOS 26.5+ · 免费使用。">
+<meta name="theme-color" content="#f6f1e7">
+<link rel="canonical" href="https://desire.mankong.icu/">
 <meta property="og:title" content="Desire — 会替你动手的浏览器">
-<meta property="og:description" content="内置 AI 智能体 · 端到端加密同步 · 视频广告拦截 · 为 macOS 而生">
+<meta property="og:description" content="内置 AI 智能体 · 端到端加密同步 · 视频广告拦截 · 为 macOS 而生。Apple Silicon · 免费。">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://desire.mankong.icu/">
+<meta property="og:site_name" content="Desire">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://desire.mankong.icu/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Desire——会替你动手的浏览器。朱砂「欲」字印章与 macOS 标语。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Desire — 会替你动手的浏览器">
+<meta name="twitter:description" content="内置 AI 智能体 · 端到端加密同步 · 为 macOS 而生。免费，Apple Silicon。">
+<meta name="twitter:image" content="https://desire.mankong.icu/og.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "name": "Desire",
+      "url": "https://desire.mankong.icu/",
+      "inLanguage": "zh-Hans",
+      "description": "为 macOS 而生的 AI 浏览器：内置智能体、端到端加密同步。"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Desire",
+      "operatingSystem": "macOS",
+      "applicationCategory": "BrowserApplication",
+      "softwareVersion": "0.4.0",
+      "url": "https://desire.mankong.icu/",
+      "downloadUrl": "https://github.com/browser-rs/Desire/releases/latest",
+      "inLanguage": ["zh-Hans", "zh-Hant", "en"],
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词七类端到端加密同步；视频广告拦截与 HLS 转 MP4 下载；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；自动化桥接口。"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Desire 是免费的吗？",
+          "acceptedAnswer": { "@type": "Answer", "text": "是。全部功能免费使用，安装包从 GitHub Releases 下载，无需注册即可使用所有本地功能；账号仅用于多设备同步。" }
+        },
+        {
+          "@type": "Question",
+          "name": "Desire 需要什么硬件和系统版本？",
+          "acceptedAnswer": { "@type": "Answer", "text": "Apple Silicon（arm64）Mac，macOS 26.5 及以上版本。" }
+        },
+        {
+          "@type": "Question",
+          "name": "打开时提示无法验证或已损坏怎么办？",
+          "acceptedAnswer": { "@type": "Answer", "text": "Desire 是未签名构建（无 Developer ID 证书）。把 Desire.app 拖进 /Applications 后，在终端执行一次 xattr -cr /Applications/Desire.app 移除隔离标记即可正常打开。" }
+        },
+        {
+          "@type": "Question",
+          "name": "同步的数据安全吗？服务器能看到我的书签吗？",
+          "acceptedAnswer": { "@type": "Answer", "text": "同步采用端到端加密：密钥由你的密码在本机派生（PBKDF2 六十万轮），书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词七类数据加密后才上传，服务器只见密文，连条目 ID 都是不可逆标签。AI 对话永久保留在设备本地，不参与同步。" }
+        },
+        {
+          "@type": "Question",
+          "name": "忘记同步密码会怎样？",
+          "acceptedAnswer": { "@type": "Answer", "text": "解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。" }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
 <style>
   /* ================= 设计令牌：墨与朱 ================= */
@@ -390,6 +460,44 @@
     max-width: 46em;
   }
 
+  /* ================= 常见问题 ================= */
+  .faq-list { border-top: 1px solid var(--hairline); }
+  .faq-item { border-bottom: 1px solid var(--hairline); }
+  .faq-item summary {
+    font-family: var(--font-display);
+    font-size: 1.18rem;
+    padding: 1.35rem 0;
+    cursor: pointer;
+    list-style: none;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 2rem;
+    transition: color 0.2s;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: "＋";
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--cinnabar);
+    flex: none;
+    transition: transform 0.25s;
+  }
+  .faq-item[open] summary::after { content: "－"; }
+  .faq-item summary:hover { color: var(--cinnabar); }
+  .faq-item p {
+    padding: 0 0 1.5rem;
+    max-width: 46em;
+    color: var(--ink-soft);
+    font-size: 0.96rem;
+  }
+  .faq-item p code {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    background: var(--paper-2);
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    padding: 0.15rem 0.5rem;
+  }
+
   /* ================= 下载 ================= */
   .dl-grid {
     display: grid;
@@ -537,6 +645,7 @@
       <a href="#features">特性</a>
       <a href="#agent">智能体</a>
       <a href="#e2e">加密</a>
+      <a href="#faq">问答</a>
       <a href="#download">下载</a>
       <a class="gh-link" href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub ↗</a>
     </nav>
@@ -709,6 +818,38 @@
         诚实起见：服务器仍能看到账号、类别、行数与时间这类元数据。
         改密码不会弄丢既有数据——同一把密钥用新密码重新包裹；忘记密码则密文不可解，这是端到端加密的标准取舍。
       </p>
+    </div>
+  </section>
+
+  <!-- ================= 常见问题 ================= -->
+  <section class="block" id="faq">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">常见问题</p>
+        <h2 class="title">问得最多的五件事。</h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item reveal" open>
+          <summary>Desire 是免费的吗？</summary>
+          <p>是。全部功能免费使用，安装包从 GitHub Releases 下载。无需注册即可使用所有本地功能——账号只在你需要多设备同步时才出现。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>需要什么硬件和系统版本？</summary>
+          <p>Apple Silicon（arm64）Mac，macOS 26.5 及以上版本。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>打开时提示无法验证或"已损坏"怎么办？</summary>
+          <p>Desire 是未签名构建（没有 Developer ID 证书）。把 Desire.app 拖进「应用程序」后，在终端执行一次 <code>xattr -cr /Applications/Desire.app</code> 移除隔离标记，即可正常打开。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>同步的数据安全吗？服务器能看到我的书签吗？</summary>
+          <p>看不到。同步是端到端加密的：密钥由你的密码在本机派生（PBKDF2 六十万轮），七类数据加密后才上传，服务器只见密文，连条目 ID 都换成了不可逆标签。AI 对话永久保留在设备本地，不参与同步。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>忘记同步密码会怎样？</summary>
+          <p>解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。</p>
+        </details>
+      </div>
     </div>
   </section>
 

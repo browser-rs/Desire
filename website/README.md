@@ -17,6 +17,25 @@ cd website && python3 -m http.server 8877
 
 直接双击 `index.html` 也能看（无任何网络请求）。
 
+## SEO / GEO 清单（2026-09-26 已做）
+
+- **基础**：title / description / `lang="zh-Hans"` / canonical / theme-color；
+  语义化结构（header·main·section·nav·footer、h1–h2 层级、FAQ 用原生
+  `<details>`）；零外链资源（单文件内联 CSS，LCP 就是正文本身）。
+- **社交卡片**：完整 Open Graph（url / site_name / locale / image 1200×630
+  + 尺寸与 alt）+ Twitter `summary_large_image`；配图 `og.jpg` 由
+  og.html 设计稿截图导出（96KB JPEG）。
+- **结构化数据**：单段 JSON-LD `@graph` = WebSite + SoftwareApplication
+  （BrowserApplication、price 0、featureList）+ FAQPage；**FAQPage 的五条
+  问答与页面可见 FAQ 段逐字一致**（改一处必须改另一处）。
+- **GEO（AI 引擎）**：`llms.txt`（产品事实速览）、`robots.txt` 显式放行
+  GPTBot / OAI-SearchBot / ClaudeBot / PerplexityBot / Google-Extended /
+  Applebot / CCBot / Bytespider、`sitemap.xml`；问答里都是可引用的具体事实
+  （版本、轮数、类目数），不含营销空话。
+- **部署注意**：`og.jpg`、`robots.txt`、`sitemap.xml`、`llms.txt` 必须位于
+  **域名根路径**（`https://desire.mankong.icu/…`）才生效——若当初只上传了
+  `index.html`，把 `website/` 下这几个文件一并补传。
+
 ## 发布与更新
 
 生产站点已上线：**<https://desire.mankong.icu/>**。更新页面 = 把改后的

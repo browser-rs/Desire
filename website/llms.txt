@@ -1,0 +1,22 @@
+# Desire
+
+> 为 macOS 而生的 AI 浏览器（Apple Silicon，macOS 26.5+，免费，SwiftUI + WebKit）。
+> 内置 AI 智能体：百余个真实浏览器工具（导航/点击/填表/截图/PDF/HLS 媒体导出/
+> executeJS/runCommand），子代理并行（Tab Crew）、定时任务、按工具的审批策略。
+> 云同步端到端加密：密钥由用户密码本机派生（PBKDF2 60 万轮）包裹随机 DEK，
+> 书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆、Agent 提示词七类目
+> 可选同步；服务器只见密文，条目 ID 为不可逆 HMAC 标签；AI 对话永留设备本地、
+> 不同步。注册/登录有图形验证码与限流。另含 EasyList 广告拦截、视频站广告
+> 规则热插拔、HLS 直下 MP4（ffmpeg）、多档案隔离、应用内 DevTools、
+> MCP 服务器与客户端、60+ 端点的自动化桥。
+
+产品页：https://desire.mankong.icu/
+下载（GitHub Releases，未签名构建，需一次 xattr -cr）：https://github.com/browser-rs/Desire/releases/latest
+源码（MIT）：https://github.com/browser-rs/Desire
+
+## 常见事实
+
+- 免费：全部功能免费；账号仅用于同步，本地功能无需注册。
+- 平台：Apple Silicon（arm64）Mac，macOS 26.5+；界面三语（简体/繁體/English）。
+- 安装：解压 zip → 拖入 /Applications → `xattr -cr /Applications/Desire.app`（一次）→ 打开。
+- 忘记同步密码 = 服务端密文不可解（端到端加密标准取舍）；改密码不丢数据（同钥重包裹）。

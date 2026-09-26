@@ -9,7 +9,11 @@
   同步 chips 与"AI 对话永留本地"的诚实标注）+ 下载四步（含 xattr 命令）。
   桌面/移动自适应；动效纯 CSS，支持 `prefers-reduced-motion` 与无 JS 降级。
   **已部署生产 <https://desire.mankong.icu/>**，主 README 顶部与 Download 段
-  均已指向；更新与发布方式见 `website/README.md`。
+  均已指向；更新与发布方式见 `website/README.md`。**SEO/GEO 已优化**：canonical、
+  完整 OG/Twitter Card（含 1200×630 `og.jpg`）、JSON-LD（WebSite +
+  SoftwareApplication + FAQPage，问答与页面可见 FAQ 逐字一致）、新增可见
+  FAQ 段与导航锚点、`robots.txt`（显式放行 GPTBot/ClaudeBot/PerplexityBot
+  等 AI 爬虫）、`sitemap.xml`、`llms.txt`。
 - **同步改为变更驱动（近实时）**：源 store（书签/快速拨号/阅读列表/快捷键/设置/
   Agent 记忆/Agent 提示词）的变更经 `objectWillChange` 标脏对应域，5 秒防抖后只
   上推脏域——不再等 5 分钟定时轮；远端合并回写由 `applyingRemote` 守卫包住，

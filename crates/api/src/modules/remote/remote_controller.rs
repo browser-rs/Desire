@@ -119,27 +119,28 @@ pub async fn pairing_revoke(
 
 fn sender_mailbox(params: &HashMap<String, String>) -> Result<(Mailbox, String), Response> {
   let role = params.get("role").cloned().unwrap_or_default();
+  let lane = params.get("lane").cloned().unwrap_or_default();
   let device_id = params.get("device").cloned().unwrap_or_default();
   if device_id.is_empty() || device_id.len() > 64 {
     return Err(api_err(AppError::Validation("invalid device".into())));
   }
-  let Some(mailbox) = Mailbox::for_sender(&role) else {
+  let Some(mailbox) = Mailbox::for_sender(&role, &lane) else {
     return Err((StatusCode::BAD_REQUEST, "invalid role").into_response());
   };
   Ok((mailbox, device_id))
 }
 
-fn receiver_mailbox(params: &HashMap<String, String>) -> Result<(Mailbox, String), Response> {
+fn receiver_lanes(params: &HashMap<String, String>) -> Result<(Vec<Mailbox>, String), Response> {
   let role = params.get("role").cloned().unwrap_or_default();
   let device_id = params.get("device").cloned().unwrap_or_default();
   if device_id.is_empty() || device_id.len() > 64 {
     return Err(api_err(AppError::Validation("invalid device".into())));
   }
-  // pull 的 role = 收件方自己(桌面拉 desktop 信箱,控制器拉 controller 信箱)
-  let Some(mailbox) = Mailbox::from_str(&role) else {
+  // pull 的 role = 收件方自己(桌面拉 desktop 信箱,控制器拉 controller 全部 lane)
+  let Some(lanes) = Mailbox::pull_lanes(&role) else {
     return Err((StatusCode::BAD_REQUEST, "invalid role").into_response());
   };
-  Ok((mailbox, device_id))
+  Ok((lanes, device_id))
 }
 
 /// GET /remote/pull?role=<收件方角色>&device=<desktop_device_id>
@@ -150,7 +151,7 @@ pub async fn pull_inbox(
   Extension(claims): Extension<Claims>,
   Query(params): Query<HashMap<String, String>>,
 ) -> Response {
-  let (mailbox, device_id) = match receiver_mailbox(&params) {
+  let (lanes, device_id) = match receiver_lanes(&params) {
     Ok(v) => v,
     Err(resp) => return resp,
   };
@@ -161,7 +162,7 @@ pub async fn pull_inbox(
   ) {
     return api_err(AppError::Validation("拉取过于频繁".into()));
   }
-  match remote_service::inbox_take(&state, claims.sub, &device_id, mailbox).await {
+  match remote_service::inbox_take(&state, claims.sub, &device_id, &lanes).await {
     Ok(rows) => {
       let online = remote_service::desktop_online(&state, claims.sub, &device_id).await;
       let items: Vec<Value> = rows
@@ -174,9 +175,10 @@ pub async fn pull_inbox(
   }
 }
 
-/// POST /remote/push?role=<发送方角色>&device=<desktop_device_id>
+/// POST /remote/push?role=<发送方角色>&device=<desktop_device_id>[&lane=snapshot]
 /// 发送业务帧(E2E 密文):入库(持久,离线可达) + Redis express 发布(尽力而为)。
-/// 桌面发快照带 replace=true(新帧作废同信箱 pending 旧帧,离线堆积有界)。
+/// 桌面发快照带 lane=snapshot + replace=true(独立 lane,replace 只清同 lane,
+/// 不会误删先落地的 sessions 回包;离线堆积有界)。
 pub async fn push_frame(
   State(state): State<AppState>,
   Extension(claims): Extension<Claims>,

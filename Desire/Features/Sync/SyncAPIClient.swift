@@ -159,12 +159,13 @@ nonisolated enum SyncAPIClient {
     }
 
     /// 发送业务帧（E2E 密文）：入库（持久、离线可达）+ 服务器 express 发布。
+    /// `lane` = "snapshot" 时走独立快照 lane（replace 只清同 lane，不误删回包）。
     static func remotePush(
         baseURL: String, accessToken: String, deviceID: String, role: String,
-        payload: String, replace: Bool
+        lane: String, payload: String, replace: Bool
     ) async throws {
         _ = try await rawRequest(
-            "POST", baseURL, "/remote/push?role=\(role)&device=\(deviceID)",
+            "POST", baseURL, "/remote/push?role=\(role)&lane=\(lane)&device=\(deviceID)",
             body: encode(RemotePushBody(payload: payload, replace: replace)),
             token: accessToken)
     }

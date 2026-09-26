@@ -1129,10 +1129,13 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
     1s 兜底，**按信箱行 id 去重后走同一处理函数**。WS 只做"订阅下行 + 心跳"，
     不收发业务帧；服务端每连接一条独立 PubSub（照 Trove：订阅模式与复用
     ConnectionManager 互斥）。
-  - **信箱语义**：`recipient` 列区分 desktop/controller 双信箱；快照
-    `replace=true`（新帧作废同信箱 pending 旧帧，手机离线堆积有界）；取走即删
-    （SELECT+DELETE 同事务，**at-most-once、不重复派活优先**，无 ack 机制）。
-    控制器信箱 = 该桌面全部控制器共享（v1 语义；快照是全量幂等的所以安全）。
+  - **信箱语义**：`recipient` 列区分三条 lane——desktop（手机→桌面指令）、
+    controller（桌面→手机回包：sessions 列表/error）、controller_snap（快照
+    专用 lane）；**快照 `replace=true` 只清同 lane**——曾与回包共 lane，快照
+    后到把先落地的 sessions 回包删掉，手机"新建会话"永远刷不出列表（pull 时
+    controller 角色一次取两条 lane，按 id 排序）。取走即删（SELECT+DELETE
+    同事务，**at-most-once、不重复派活优先**，无 ack 机制）。控制器两条 lane
+    = 该桌面全部控制器共享（v1 语义；快照是全量幂等的所以安全）。
   - **role 参数方向相反**：push 的 role = 发送方（for_sender 映射到对端信箱），
     pull 的 role = 收件方自己——写反过一次（pull 空结果）。
   - **在线判定**：桌面 pull 时服务器盖 `desktop_last_seen_at`，15s 窗口；
@@ -1162,6 +1165,11 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   - E2E 信道依旧 AES-256-GCM（会话密钥只在配对二维码）；axum 需 `features=["ws"]`；
     Mac 链路循环 1s 一拍：pull + 快照（变化才发、15s 强推兜底）+ 状态评估
     （8s 内有活动 = online，连续 3 次 pull 失败才报 error）+ 认领检测。
+  - **`ConversationStore.create()` 只构造值对象**——不落盘、不进内存列表，
+    调用方必须再 `save()`（落盘 + upsert + 排序）。远程 newSession 曾漏掉
+    save：快照的 session 指向新 id 但列表里永远没有它（"新建会话没反应"的
+    第二个根因）。远程关闭后不广播：`setEnabled(false)` 拆 WS + 停链路循环，
+    push/pull 均有 isEnabled 守卫（最多一帧在途）。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+
   `scripts/build-api.sh|build-migrate.sh|push.sh|run.sh|migrate.sh`。**部署顺序铁律**：

@@ -390,9 +390,12 @@ final class RemoteControlStore: ObservableObject {
         case "sessions":
             sendInnerRaw(sessionsFrame())
         case "newSession":
-            // 手机端"+"：新建一条真实对话（落盘、有标题）并在面板中打开
+            // 手机端"+"：新建一条真实对话（落盘、有标题）并在面板中打开。
+            // create 只构造值对象——必须再 save()（落盘 + 进内存列表），
+            // 否则 sessionsFrame 列表里没有它，手机端永远刷不出新会话。
             guard let app = AppState.live else { return }
             let conversation = app.conversationStore.create(title: "New Conversation")
+            app.conversationStore.save(conversation)
             remoteConversationID = conversation.id.uuidString
             openRemoteConversation()
             sendInnerRaw(sessionsFrame())
@@ -409,14 +412,15 @@ final class RemoteControlStore: ObservableObject {
 
     // MARK: - 上行（一律 REST push）
 
-    private func pushPayload(_ payload: String, replace: Bool) {
+    /// lane: "snapshot" = 快照 lane（replace 只清同 lane，不误删 sessions 回包）。
+    private func pushPayload(_ payload: String, lane: String, replace: Bool) {
         Task { @MainActor [weak self] in
             guard let self, case .signedIn = self.syncStore.authState else { return }
             guard let token = try? await self.syncStore.remoteAuthToken() else { return }
             do {
                 try await SyncAPIClient.remotePush(
                     baseURL: self.baseURL, accessToken: token, deviceID: self.syncStore.deviceID,
-                    role: "desktop", payload: payload, replace: replace)
+                    role: "desktop", lane: lane, payload: payload, replace: replace)
                 self.noteLinkActivity()
             } catch {
                 Self.remoteDebug("push failed: \(error.localizedDescription)")
@@ -426,7 +430,7 @@ final class RemoteControlStore: ObservableObject {
 
     private func sendInnerRaw(_ json: String) {
         guard let payload = Self.encrypt(data: Data(json.utf8), sessionKeyB64: sessionKeyB64) else { return }
-        pushPayload(payload, replace: false)
+        pushPayload(payload, lane: "", replace: false)
     }
 
     private func sendInner(_ dict: [String: Any]) {
@@ -475,7 +479,7 @@ final class RemoteControlStore: ObservableObject {
         lastSnapshotJSON = fingerprint
         guard let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
         Self.remoteDebug("snapshot push (\(frame.messages.count) msgs, busy=\(frame.busy), force=\(force))")
-        pushPayload(payload, replace: true)
+        pushPayload(payload, lane: "snapshot", replace: true)
     }
 
     /// pull 兜底（1s 一拍）：取走桌面信箱帧；服务器顺带盖在线戳。

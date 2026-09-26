@@ -13,9 +13,13 @@
   `GET /remote/pull` 每秒兜底，按信箱行 id 去重；在线判定基于 DB
   `desktop_last_seen_at`（15s 窗口，跨实例一致）；服务端/客户端双向 20s
   心跳（解 nginx 空闲回收）。配对认领即时通知桌面收起二维码。
+  **快照走独立 lane（controller_snap）**：replace 只清同 lane，不再误删
+  先落地的 sessions 回包；远程"新建会话"修复（Mac 端 create 后补 save
+  落盘进列表 + 手机端点"+"乐观进空聊天室、按快照 session 字段锁定选中）。
+  远程开关关闭后不再有任何广播（拆 WS + 停链路循环 + isEnabled 守卫）。
   E2E：`tools/api-remote-smoke.py` 10 步全绿 + Mac 桥真机链路验证（prompt
-  送达 Agent 执行、快照回传手机可解密）。APNs 推送、审批卡片远程应答（M2）、
-  按需截图未做。
+  送达 Agent 执行、快照回传手机可解密、newSession 列表/落盘/快照三确认）。
+  APNs 推送、审批卡片远程应答（M2）、按需截图未做。
 - **Desire Remote iOS 支持 Markdown 渲染**：Agent 气泡接入 MarkdownUI
   （上一版手写的无依赖轻量渲染移除），主题参照 IrsClawApp——GitHub 基础
   主题 + 气泡内边距收紧、表格横向滚动（手机宽度放不下整表）、代码块/引用/

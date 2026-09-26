@@ -35,12 +35,17 @@ pub fn generate_pairing_code() -> String {
 ///   → Redis PUBLISH express 信封(尽力而为,任意实例可投)。
 /// - 接收 = WS 频道订阅(即时) + `GET /remote/pull`(兜底,1s),按行 id 去重。
 /// - WS 只做"订阅自己频道的下行管道 + 心跳",不承载业务帧。
+/// - Controller 与 ControllerSnap 是控制器的两条 lane:replace 只清同 lane,
+///   否则快照的 replace 会把先落地的 sessions 回包从信箱里删掉
+///   (远程"新建会话"列表永远刷不出来的根因)。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mailbox {
   /// 收件方 = 桌面(手机发的指令/留言)
   Desktop,
-  /// 收件方 = 控制器(桌面发的快照/回包;该桌面全部控制器共享信箱)
+  /// 收件方 = 控制器,回包 lane(sessions 列表/错误回执;共享信箱)
   Controller,
+  /// 收件方 = 控制器,快照 lane(只有最新有意义,replace 清旧)
+  ControllerSnap,
 }
 
 impl Mailbox {
@@ -48,6 +53,8 @@ impl Mailbox {
     match self {
       Mailbox::Desktop => "desktop",
       Mailbox::Controller => "controller",
+      // varchar(16) 上限;"controller_snap" 15 字符
+      Mailbox::ControllerSnap => "controller_snap",
     }
   }
 
@@ -59,18 +66,45 @@ impl Mailbox {
     }
   }
 
-  /// 发送方角色 → 收件信箱。
-  pub fn for_sender(sender_role: &str) -> Option<Mailbox> {
-    match sender_role {
-      "desktop" => Some(Mailbox::Controller),
-      "controller" => Some(Mailbox::Desktop),
+  /// 发送方角色 + 可选 lane → 收件信箱。lane=snapshot 仅桌面发快照时用。
+  pub fn for_sender(sender_role: &str, lane: &str) -> Option<Mailbox> {
+    match (sender_role, lane) {
+      ("desktop", "snapshot") => Some(Mailbox::ControllerSnap),
+      ("desktop", "") => Some(Mailbox::Controller),
+      ("controller", "") => Some(Mailbox::Desktop),
       _ => None,
     }
   }
 
-  /// WS 订阅频道(照 Trove im_ws:每连接一条 PubSub,任意实例投递皆可达)。
+  /// pull 时该收件角色的全部 lane(controller 角色取两条)。
+  pub fn pull_lanes(receiver_role: &str) -> Option<Vec<Mailbox>> {
+    match receiver_role {
+      "desktop" => Some(vec![Mailbox::Desktop]),
+      "controller" => Some(vec![Mailbox::Controller, Mailbox::ControllerSnap]),
+      _ => None,
+    }
+  }
+
+  /// WS 订阅/发布频道(照 Trove im_ws:每连接一条 PubSub,任意实例投递皆可达)。
+  /// 同一收件方的两条 lane 共用一个频道。
+  pub fn channel_of(receiver: Mailbox, user_id: i64, desktop_device_id: &str) -> String {
+    let role = match receiver {
+      Mailbox::Desktop => "desktop",
+      Mailbox::Controller | Mailbox::ControllerSnap => "controller",
+    };
+    format!("remote:{role}:{user_id}:{desktop_device_id}")
+  }
+
+  /// 本信箱的下行发布频道。
   pub fn channel(&self, user_id: i64, desktop_device_id: &str) -> String {
-    format!("remote:{}:{user_id}:{desktop_device_id}", self.as_str())
+    Mailbox::channel_of(
+      match self {
+        Mailbox::Desktop => Mailbox::Desktop,
+        Mailbox::Controller | Mailbox::ControllerSnap => Mailbox::Controller,
+      },
+      user_id,
+      desktop_device_id,
+    )
   }
 }
 
@@ -302,15 +336,19 @@ pub async fn inbox_push(
 
 /// 取走信箱帧:SELECT + DELETE 同事务(delivered_at 弃用,取走即删;
 /// 语义 = 取后不重投,"不重复派活"优先)。桌面 pull 顺带盖在线戳。
+/// controller 角色一次取全部 lane(回包 + 快照,按 id 排序)。
 pub async fn inbox_take(
   state: &AppState,
   user_id: i64,
   desktop_device_id: &str,
-  mailbox: Mailbox,
+  lanes: &[Mailbox],
 ) -> Result<Vec<(i64, String)>, AppError> {
-  if mailbox == Mailbox::Desktop {
+  assert!(!lanes.is_empty(), "pull_lanes 不返回空");
+  if lanes.contains(&Mailbox::Desktop) {
     touch_desktop(state, user_id, desktop_device_id).await;
   }
+  let first = lanes[0].as_str();
+  let second = lanes.get(1).map(Mailbox::as_str).unwrap_or(first);
   let mut tx = state
     .pool
     .begin()
@@ -318,12 +356,14 @@ pub async fn inbox_take(
     .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
   let rows: Vec<(i64, String)> = sqlx::query_as(
     "SELECT id, payload FROM remote_inbox \
-     WHERE user_id = ? AND desktop_device_id = ? AND recipient = ? AND delivered_at IS NULL \
+     WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL \
+       AND (recipient = ? OR recipient = ?) \
      ORDER BY id LIMIT 100",
   )
   .bind(user_id)
   .bind(desktop_device_id)
-  .bind(mailbox.as_str())
+  .bind(first)
+  .bind(second)
   .fetch_all(&mut *tx)
   .await
   .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
@@ -391,13 +431,25 @@ mod tests {
 
   #[test]
   fn mailbox_routing() {
-    // 桌面发 → 控制器信箱;手机发 → 桌面信箱
-    assert_eq!(Mailbox::for_sender("desktop"), Some(Mailbox::Controller));
-    assert_eq!(Mailbox::for_sender("controller"), Some(Mailbox::Desktop));
-    assert_eq!(Mailbox::for_sender("bogus"), None);
+    // 桌面发 → 控制器信箱;手机发 → 桌面信箱;快照 lane 独立
+    assert_eq!(Mailbox::for_sender("desktop", ""), Some(Mailbox::Controller));
+    assert_eq!(
+      Mailbox::for_sender("desktop", "snapshot"),
+      Some(Mailbox::ControllerSnap)
+    );
+    assert_eq!(Mailbox::for_sender("controller", ""), Some(Mailbox::Desktop));
+    assert_eq!(Mailbox::for_sender("bogus", ""), None);
+    assert_eq!(Mailbox::for_sender("controller", "snapshot"), None);
+    // 控制器两条 lane 共用一个下行频道
     assert_eq!(
       Mailbox::Controller.channel(7, "DEV"),
-      "remote:controller:7:DEV"
+      Mailbox::ControllerSnap.channel(7, "DEV")
     );
+    // pull:控制器取两条 lane,桌面取一条
+    assert_eq!(
+      Mailbox::pull_lanes("controller"),
+      Some(vec![Mailbox::Controller, Mailbox::ControllerSnap])
+    );
+    assert_eq!(Mailbox::pull_lanes("desktop"), Some(vec![Mailbox::Desktop]));
   }
 }

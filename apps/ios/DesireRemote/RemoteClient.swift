@@ -81,6 +81,8 @@ final class RemoteClient: ObservableObject {
     private var pullFailures = 0
     /// 已处理过的信箱帧 id（WS express 先到时，兜底 pull 的同 id 行跳过）
     private var processedIDs: Set<Int64> = []
+    /// 刚请求新建会话：下一帧快照的 session 字段即新会话 id，据此锁定选中
+    private var pendingNewSession = false
 
     static let defaultServer = "https://api.mankong.icu/v9"
 
@@ -296,6 +298,7 @@ final class RemoteClient: ObservableObject {
         accessToken = nil
         messages = []
         sessions = []
+        pendingNewSession = false
         selectedSessionID = nil
         busy = false
         queuedOffline = false
@@ -523,6 +526,10 @@ final class RemoteClient: ObservableObject {
         guard let frame = try? JSONDecoder().decode(SnapshotFrame.self, from: data) else { return }
         messages = frame.messages
         if pendingEcho != nil { pendingEcho = nil }
+        if pendingNewSession, let sid = frame.session, !sid.isEmpty {
+            pendingNewSession = false
+            selectedSessionID = sid
+        }
         busy = frame.busy
         connectionState = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
         if let data = try? JSONEncoder().encode(frame.messages) {
@@ -576,7 +583,16 @@ final class RemoteClient: ObservableObject {
     }
 
     /// 让 Mac 新建一个会话并切过去（列表页"+"按钮）。
+    /// 乐观切换：不等 Mac 回帧，先进空聊天室（Mac 离线时该指令会在其上线后
+    /// 补执行）；Mac 创建后的第一帧快照带 session 字段，据此锁定选中会话。
     func newSession() {
+        pendingNewSession = true
+        selectedSessionID = nil
+        messages = []
+        busy = false
+        queuedOffline = false
+        connectionState = desktopOnline ? "已连接" : "Mac 离线"
+        phase = .chat
         pushFrame(["t": "newSession"], replace: false)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_800_000_000)
@@ -586,6 +602,7 @@ final class RemoteClient: ObservableObject {
 
     /// 打开某个会话（Mac 侧切换遥控目标并回推该会话快照）。
     func selectSession(_ id: String?) {
+        pendingNewSession = false
         selectedSessionID = id
         messages = []
         busy = false

@@ -30,6 +30,8 @@ struct SnapshotFrame: Codable {
     var t: String
     var messages: [ChatMessage]
     var busy: Bool
+    /// Mac 当前遥控的会话 id（新建会话后手机据此锁定选中）
+    var session: String?
 }
 
 // MARK: - 信箱帧（WS express 与 pull 兜底共用同一形态）

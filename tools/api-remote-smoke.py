@@ -172,17 +172,21 @@ def main():
     assert "desktopOnline" in pulled, pulled
     step("controller→desktop push + pull 取帧(带 desktopOnline)")
 
-    # desktop → controller + replace 语义(两连发只留最后一条)
+    # desktop → controller + replace 语义 + lane 隔离:
+    # 快照 lane 两连发只留最后一条;回包(无 lane)不被快照的 replace 误删
     pa = base64.b64encode(b"snapshot-v1").decode()
     pb = base64.b64encode(b"snapshot-v2").decode()
-    must("POST", f"/remote/push?role=desktop&device={desk}",
+    pc = base64.b64encode(b"reply-sessions").decode()
+    must("POST", f"/remote/push?role=desktop&device={desk}&lane=snapshot",
          {"payload": pa, "replace": True}, token=desk_tok)
     must("POST", f"/remote/push?role=desktop&device={desk}",
+         {"payload": pc, "replace": False}, token=desk_tok)
+    must("POST", f"/remote/push?role=desktop&device={desk}&lane=snapshot",
          {"payload": pb, "replace": True}, token=desk_tok)
     pulled = must("GET", f"/remote/pull?role=controller&device={desk}", token=ctrl_tok)
     payloads = [i["payload"] for i in pulled["items"]]
-    assert payloads == [pb], payloads
-    step("desktop→controller push + replace 语义(旧 pending 快照作废)")
+    assert payloads == [pc, pb], payloads
+    step("desktop→controller:replace 只清快照 lane,回包不被误删")
 
     # devices 列表 + 在线判定(刚 pull 过 → online;>15s 不 pull → offline)
     devices = must("GET", "/remote/devices", token=desk_tok)["devices"]

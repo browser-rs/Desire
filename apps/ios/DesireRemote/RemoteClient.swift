@@ -83,6 +83,8 @@ final class RemoteClient: ObservableObject {
     private var processedIDs: Set<Int64> = []
     /// 刚请求新建会话：下一帧快照的 session 字段即新会话 id，据此锁定选中
     private var pendingNewSession = false
+    /// 会话列表延迟刷新（写操作后等 Mac 回包，1.8s 兜底；多次触发合并）
+    private var sessionsRefreshTask: Task<Void, Never>?
 
     static let defaultServer = "https://api.mankong.icu/v9"
 
@@ -317,6 +319,8 @@ final class RemoteClient: ObservableObject {
     }
 
     private func stopAllTransports() {
+        sessionsRefreshTask?.cancel()
+        sessionsRefreshTask = nil
         wsTask?.cancel(with: .goingAway, reason: nil)
         wsTask = nil
         receiveTask?.cancel()
@@ -594,10 +598,41 @@ final class RemoteClient: ObservableObject {
         connectionState = desktopOnline ? "已连接" : "Mac 离线"
         phase = .chat
         pushFrame(["t": "newSession"], replace: false)
-        Task { @MainActor in
+        scheduleSessionsRefresh()
+    }
+
+    /// 写操作（新建/删除/重命名）后等 Mac 处理完再刷列表。
+    private func scheduleSessionsRefresh() {
+        sessionsRefreshTask?.cancel()
+        sessionsRefreshTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_800_000_000)
-            requestSessions()
+            guard !Task.isCancelled, let self else { return }
+            self.requestSessions()
         }
+    }
+
+    /// 删除会话（列表滑动删除）：本地即时移除 + 通知 Mac 删除落盘。
+    func deleteSession(_ id: String) {
+        sessions.removeAll { $0.id == id }
+        if selectedSessionID == id {
+            selectedSessionID = nil
+            messages = []
+            pendingNewSession = false
+            if phase == .chat { phase = .sessions }
+        }
+        pushFrame(["t": "deleteSession", "session": id], replace: false)
+        scheduleSessionsRefresh()
+    }
+
+    /// 重命名会话（列表滑动/长按菜单）：本地即时改 + 通知 Mac 持久化。
+    func renameSession(_ id: String, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let idx = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[idx].label = trimmed
+        }
+        pushFrame(["t": "renameSession", "session": id, "text": String(trimmed.prefix(100))], replace: false)
+        scheduleSessionsRefresh()
     }
 
     /// 打开某个会话（Mac 侧切换遥控目标并回推该会话快照）。

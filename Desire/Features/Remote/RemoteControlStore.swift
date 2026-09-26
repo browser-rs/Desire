@@ -403,6 +403,23 @@ final class RemoteControlStore: ObservableObject {
         case "cancel":
             AgentScheduler.shared.deliveryTarget?.cancel()
             pushSnapshot(force: true)
+        case "deleteSession":
+            // 手机端滑动删除：与桌面历史列表删除同一语义（delete 即移除，
+            // 面板正打开的会话不受影响——桌面端行为一致）
+            guard let app = AppState.live, let sid = inner.session, let id = UUID(uuidString: sid) else { return }
+            app.conversationStore.delete(id)
+            if remoteConversationID == sid {
+                remoteConversationID = nil
+            }
+            sendInnerRaw(sessionsFrame())
+        case "renameSession":
+            // 新标题走内层帧的 text 字段
+            guard let app = AppState.live, let sid = inner.session, let id = UUID(uuidString: sid) else { return }
+            let title = (inner.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, var conversation = app.conversationStore.conversation(for: id) else { return }
+            conversation.title = String(title.prefix(100))
+            app.conversationStore.save(conversation)
+            sendInnerRaw(sessionsFrame())
         case "sync":
             pushSnapshot(force: true)
         default:

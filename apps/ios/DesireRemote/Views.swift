@@ -199,6 +199,8 @@ struct DevicesView: View {
 struct SessionsView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var showSettings = false
+    @State private var renameTarget: RemoteClient.RemoteSessionInfo?
+    @State private var renameText = ""
 
     var body: some View {
         NavigationStack {
@@ -230,6 +232,16 @@ struct SessionsView: View {
             }
             .refreshable { client.requestSessions() }
             .sheet(isPresented: $showSettings) { RemoteSettingsView() }
+            .alert("重命名会话", isPresented: Binding(
+                get: { renameTarget != nil },
+                set: { if !$0 { renameTarget = nil } })) {
+                TextField("会话名称", text: $renameText)
+                Button("保存") {
+                    if let target = renameTarget { client.renameSession(target.id, to: renameText) }
+                    renameTarget = nil
+                }
+                Button("取消", role: .cancel) { renameTarget = nil }
+            }
             .onAppear {
                 if client.connectionState != "已连接" { client.appForegrounded() }
                 client.requestSessions()
@@ -267,6 +279,39 @@ struct SessionsView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .onTapGesture { client.selectSession(session.id) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                client.deleteSession(session.id)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                renameText = session.label
+                                renameTarget = session
+                            } label: {
+                                Label("重命名", systemImage: "pencil")
+                            }
+                            .tint(RootView.brand)
+                        }
+                        .contextMenu {
+                            Button { client.selectSession(session.id) } label: {
+                                Label("打开", systemImage: "bubble.left")
+                            }
+                            Button {
+                                renameText = session.label
+                                renameTarget = session
+                            } label: {
+                                Label("重命名", systemImage: "pencil")
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                client.deleteSession(session.id)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
                 }
             } header: {
                 Text(client.desktopName ?? "Mac 上的会话")

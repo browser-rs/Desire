@@ -1,8 +1,13 @@
 import SwiftUI
 
-/// Agent 状态条（对应桌面输入框上方的状态行）：模型 / 上下文占用 / 用时 /
-/// 全权限徽标 / 当前操作目标页，并在回合进行中提供暂停·继续与停止。
-struct AgentStatusStripView: View {
+/// Agent 状态弹窗（输入框左侧按钮点开）：模型 / 目标页 / 上下文 / 用量 /
+/// 权限 / 本回合控制。
+///
+/// 这些信息此前是**常驻在输入框上方的一条**（模型名 + FULL ACCESS 徽标 + …），
+/// 把聊天区压掉一大截、也让底部很杂。改成按需弹出后，底部只剩输入框。
+struct AgentStatusSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
     let busy: Bool
     let paused: Bool
     let model: String
@@ -10,80 +15,163 @@ struct AgentStatusStripView: View {
     let elapsed: Int?
     let contextLabel: String?
     let fullAccess: Bool
-    /// 回合进行中才有意义（nil = 不显示对应按钮）
+    let tokens: Int?
+    let cost: String?
+    /// 回合进行中才提供（nil = 不显示对应按钮）
     var onPauseToggle: (() -> Void)?
     var onStop: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                if busy {
-                    AgentBusyDot()
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    headerCard
+                    statsGrid
+                    permissionCard
+                    if busy { controlCard }
                 }
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if busy, let elapsed, !paused {
-                    Text("\(elapsed)s")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
+                .desirePagePadding()
+                .padding(.vertical, 12)
+            }
+            .background(DesireUI.pageFill.ignoresSafeArea())
+            .navigationTitle("Agent 状态")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                        .fontWeight(.medium)
                 }
-                if contextPercent > 0 {
-                    Text("上下文 \(contextPercent)%")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    // MARK: - 概览
+
+    private var headerCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            DesireIconBadge(icon: "sparkles", size: 40, filled: true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.isEmpty ? "未配置模型" : model)
+                    .font(.system(size: 16, weight: .semibold))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                HStack(spacing: 5) {
+                    if busy { AgentBusyDot() }
+                    Text(runStateText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
-                if fullAccess {
-                    Text("FULL ACCESS")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.orange.opacity(0.14)))
+                if let contextLabel, !contextLabel.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "scope")
+                            .font(.system(size: 9))
+                        Text(contextLabel)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .foregroundStyle(.tertiary)
                 }
-                if busy, let onPauseToggle {
-                    controlChip(
+            }
+            Spacer(minLength: 0)
+        }
+        .desireCard()
+    }
+
+    private var runStateText: String {
+        if paused { return "已暂停 · 等待继续" }
+        if busy { return elapsed.map { "工作中 · \($0)s" } ?? "工作中" }
+        return "就绪"
+    }
+
+    private var statsGrid: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: 8
+        ) {
+            DesireStatTile(
+                icon: "gauge.medium", title: "上下文",
+                value: "\(contextPercent)%", tint: contextColor)
+            DesireStatTile(
+                icon: "text.word.spacing", title: "Token",
+                value: tokens.map(DesireUI.formatTokens) ?? "—")
+            DesireStatTile(
+                icon: "dollarsign.circle", title: "成本",
+                value: cost ?? "—")
+        }
+    }
+
+    private var contextColor: Color {
+        if contextPercent >= 85 { return .red }
+        if contextPercent >= 60 { return .orange }
+        return DesireUI.brand
+    }
+
+    // MARK: - 权限
+
+    private var permissionCard: some View {
+        DesireSection(title: "权限") {
+            HStack(alignment: .top, spacing: 10) {
+                DesireIconBadge(
+                    icon: "bolt.shield.fill",
+                    tint: fullAccess ? .orange : .secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(fullAccess ? "FULL ACCESS 已开启" : "逐次审批")
+                        .font(.system(size: 15, weight: .medium))
+                    Text(fullAccess
+                         ? "所有工具直接执行，包括在页面上运行任意 JavaScript。"
+                         : "改变状态与执行代码的工具会先请你确认。")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, DesireUI.cardPadding)
+            .padding(.vertical, 12)
+        }
+    }
+
+    // MARK: - 本回合控制
+
+    private var controlCard: some View {
+        DesireSection(title: "本回合") {
+            HStack(spacing: 8) {
+                if let onPauseToggle {
+                    controlButton(
+                        paused ? "继续" : "暂停",
                         icon: paused ? "play.fill" : "pause.fill",
                         tint: paused ? .green : .orange,
                         action: onPauseToggle)
                 }
-                if busy, let onStop {
-                    controlChip(icon: "stop.fill", tint: .red, action: onStop)
+                if let onStop {
+                    controlButton("停止", icon: "stop.fill", tint: .red, action: onStop)
                 }
             }
-            if let contextLabel, !contextLabel.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "scope")
-                        .font(.system(size: 9))
-                    Text(contextLabel)
-                        .font(.system(size: 10))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer(minLength: 0)
-                }
-                .foregroundStyle(.tertiary)
-            }
+            .padding(.horizontal, DesireUI.cardPadding)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 2)
     }
 
-    private func controlChip(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func controlButton(
+        _ title: String, icon: String, tint: Color, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(tint.opacity(0.12)))
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: DesireUI.chipCorner, style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
         }
         .buttonStyle(.plain)
-    }
-
-    private var title: String {
-        if paused { return model.isEmpty ? "已暂停" : "已暂停 · \(model)" }
-        if busy { return model.isEmpty ? "Agent 工作中…" : "Agent 工作中 · \(model)" }
-        return model.isEmpty ? "就绪" : model
     }
 }
 

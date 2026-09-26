@@ -88,6 +88,12 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var quickActions: [RemoteQuickAction] = []
     /// 回合被暂停（面板"继续"按钮据此显示）
     @Published private(set) var paused = false
+    /// 已发出「停止」，但 Mac 还没确认。
+    ///
+    /// 取消只能在**检查点**生效：Agent 正卡在一个不可中断的工具里时（例如
+    /// `executeJS`／下载），快照要过一会儿才回 `busy=false`。中间这段时间界面
+    /// 必须告诉用户"已经收到，正在停"，否则点下去毫无反馈、看着就是没反应。
+    @Published private(set) var stopping = false
     /// 本对话累计 token / 成本（未填单价时 cost 为 nil——不显示 0）
     @Published private(set) var tokens: Int?
     @Published private(set) var cost: String?
@@ -171,6 +177,9 @@ final class RemoteClient: ObservableObject {
             phase = .main
             username = KeychainStore.get("remote.username")
                 ?? defaults.string(forKey: "remote.username") ?? ""
+            // Mac 名字也从本地恢复：否则冷启动后是 nil，界面会渲染成
+            // "未连接 Mac"（而链路其实是通的）。随后每帧快照会校正它。
+            desktopName = defaults.string(forKey: "remote.desktopName")
             // 恢复持久化的对话记录（杀 App 不丢）
             if let data = defaults.data(forKey: "remote.messages"),
                let saved = try? JSONDecoder().decode([ChatMessage].self, from: data) {
@@ -392,6 +401,7 @@ final class RemoteClient: ObservableObject {
             token: token)
         desktopDeviceID = resp.desktopDeviceId
         desktopName = resp.desktopName
+        defaults.set(resp.desktopName, forKey: "remote.desktopName")
         KeychainStore.set(info.sessionKeyB64, account: "remote.sessionKey")
         KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
         hasSavedPairing = true
@@ -432,6 +442,7 @@ final class RemoteClient: ObservableObject {
         KeychainStore.set(nil, account: "remote.refresh")
         defaults.removeObject(forKey: "remote.messages")
         defaults.removeObject(forKey: "remote.busy")
+        defaults.removeObject(forKey: "remote.desktopName")
         sessionKeyB64 = nil
         desktopDeviceID = nil
         accessToken = nil
@@ -743,8 +754,16 @@ final class RemoteClient: ObservableObject {
         if quickActions != newQuickActions { quickActions = newQuickActions }
         let newPaused = frame.paused ?? false
         if paused != newPaused { paused = newPaused }
+        // 停止生效 = Mac 不再忙
+        if stopping, !busy { stopping = false }
         if tokens != frame.tokens { tokens = frame.tokens }
         if cost != frame.cost { cost = frame.cost }
+        // Mac 名字以快照为准（权威、改名也能跟上），并持久化——此前它只在配对
+        // 响应里拿过一次，冷启动后为 nil，界面会显示成"未连接 Mac"。
+        if let name = frame.desktop, !name.isEmpty, desktopName != name {
+            desktopName = name
+            defaults.set(name, forKey: "remote.desktopName")
+        }
         let target = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
         if connectionState != target { connectionState = target }
         if let data = try? JSONEncoder().encode(frame.messages) {
@@ -794,6 +813,9 @@ final class RemoteClient: ObservableObject {
         // 不必等下一帧（用户点了"停止"就该立刻看到卡片消失）。
         approval = nil
         question = nil
+        paused = false
+        // Mac 确认（busy=false）之前一直显示"正在停止…"
+        stopping = true
     }
 
     // MARK: - 人工介入 / 进度（上行，一律 REST push）

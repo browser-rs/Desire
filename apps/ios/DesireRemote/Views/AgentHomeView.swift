@@ -2,31 +2,29 @@ import SwiftUI
 
 /// Agent Tab：桌面 Agent 面板的能力总入口。
 ///
-/// 取代原来的「Agent 看板」——那个页面只是把 5 个数字排成 List，没有任何
-/// 可操作项、也没有通往桌面那 5 个子页（记忆/历史/统计/轨迹/能力）的入口。
-/// 现在这一页 = 状态总览 + 会话控制 + 能力/用量/记忆/设备四组入口。
+/// 形态与「会话」「设置」两个 Tab 保持一致：`List(.insetGrouped)` +
+/// `DesireSectionHeader` 分组的原生分组列表。此前这里是 ScrollView + 自绘卡片
+/// （圆角 14、行距 18、分组标题字号都自成一套），三个 Tab 摆在一起风格不齐。
 struct AgentHomeView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var confirmFullAccess = false
     @State private var confirmClear = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                statusCard
-                controlSection
-                capabilitySection
-                usageSection
-                memorySection
-                deviceSection
-            }
-            .desirePagePadding()
-            .padding(.vertical, 12)
+        List {
+            statusSection
+            controlSection
+            capabilitySection
+            usageSection
+            memorySection
+            deviceSection
         }
-        .background(DesireUI.pageFill.ignoresSafeArea())
+        .listStyle(.insetGrouped)
         .navigationTitle("Agent")
         .navigationBarTitleDisplayMode(.large)
         .task { client.requestModels() }
+        // 每次切到本页都强制要一帧快照，避免状态停在"工作中"
+        .onAppear { client.requestSync() }
         .refreshable {
             client.requestModels()
             client.requestSync()
@@ -45,10 +43,10 @@ struct AgentHomeView: View {
         }
     }
 
-    // MARK: - 状态总览
+    // MARK: - 状态
 
-    private var statusCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var statusSection: some View {
+        Section {
             HStack(spacing: 12) {
                 DesireIconBadge(icon: "sparkles", size: 40, filled: true)
                 VStack(alignment: .leading, spacing: 3) {
@@ -76,25 +74,16 @@ struct AgentHomeView: View {
                         .background(Capsule().fill(Color.orange.opacity(0.15)))
                 }
             }
-
-            Divider()
-
-            LazyVGrid(
-                columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                spacing: 8
-            ) {
-                DesireStatTile(
-                    icon: "gauge.medium", title: "上下文",
-                    value: "\(client.contextPercent)%", tint: contextColor)
-                DesireStatTile(
-                    icon: "text.word.spacing", title: "Token",
-                    value: client.tokens.map(DesireUI.formatTokens) ?? "—")
-                DesireStatTile(
-                    icon: "dollarsign.circle", title: "成本",
-                    value: client.cost ?? "—")
-            }
+            DesireValueRow(
+                title: "上下文占用", value: "\(client.contextPercent)%",
+                valueColor: contextColor, mono: true)
+            DesireValueRow(
+                title: "本对话 Token",
+                value: client.tokens.map(DesireUI.formatTokens) ?? "—", mono: true)
+            DesireValueRow(title: "本对话成本", value: client.cost ?? "—", mono: true)
+        } header: {
+            DesireSectionHeader(title: "状态")
         }
-        .desireCard()
     }
 
     private var connectionColor: Color {
@@ -108,7 +97,7 @@ struct AgentHomeView: View {
     private var contextColor: Color {
         if client.contextPercent >= 85 { return .red }
         if client.contextPercent >= 60 { return .orange }
-        return DesireUI.brand
+        return .secondary
     }
 
     private var runStateText: String {
@@ -122,7 +111,7 @@ struct AgentHomeView: View {
     // MARK: - 控制
 
     private var controlSection: some View {
-        DesireSection(title: "控制") {
+        Section {
             HStack(spacing: 8) {
                 if client.busy {
                     controlButton(
@@ -140,10 +129,6 @@ struct AgentHomeView: View {
                     confirmClear = true
                 }
             }
-            .padding(.horizontal, DesireUI.cardPadding)
-            .padding(.vertical, 12)
-
-            DesireRowDivider()
 
             HStack(spacing: 10) {
                 DesireIconBadge(
@@ -161,12 +146,12 @@ struct AgentHomeView: View {
                     .labelsHidden()
                     .tint(.orange)
             }
-            .padding(.horizontal, DesireUI.cardPadding)
-            .padding(.vertical, 11)
+        } header: {
+            DesireSectionHeader(title: "控制")
         }
     }
 
-    /// 开启要二次确认（不可逆风险方向），关闭直接生效。
+    /// 开启要二次确认（不可逆的风险方向），关闭直接生效。
     private var fullAccessBinding: Binding<Bool> {
         Binding(
             get: { client.fullAccess },
@@ -203,61 +188,73 @@ struct AgentHomeView: View {
     // MARK: - 能力 / 用量 / 记忆 / 设备
 
     private var capabilitySection: some View {
-        DesireSection(
-            title: "能力",
-            subtitle: "手机能指挥 Mac 上的 Agent 做什么"
-        ) {
-            DesireNavLink(
-                icon: "sparkles.rectangle.stack",
-                title: "工具与技能",
-                subtitle: "全部可调用工具、风险分级与技能库"
-            ) {
+        Section {
+            NavigationLink {
                 AgentCapabilitiesView()
+            } label: {
+                DesireNavRow(
+                    icon: "sparkles.rectangle.stack",
+                    title: "工具与技能",
+                    subtitle: "全部可调用工具、风险分级与技能库",
+                    showsChevron: false)
             }
+        } header: {
+            DesireSectionHeader(title: "能力")
         }
     }
 
     private var usageSection: some View {
-        DesireSection(title: "用量") {
-            DesireNavLink(
-                icon: "chart.bar.xaxis",
-                title: "用量统计",
-                subtitle: "跨会话 token、成本与工具失败率"
-            ) {
+        Section {
+            NavigationLink {
                 AgentStatsView()
+            } label: {
+                DesireNavRow(
+                    icon: "chart.bar.xaxis",
+                    title: "用量统计",
+                    subtitle: "跨会话 token、成本与工具失败率",
+                    showsChevron: false)
             }
-            DesireRowDivider()
-            DesireNavLink(
-                icon: "point.topleft.down.to.point.bottomright.curvepath",
-                title: "执行轨迹",
-                subtitle: "当前对话每个回合做了什么、每步耗时"
-            ) {
+            NavigationLink {
                 AgentTraceView()
+            } label: {
+                DesireNavRow(
+                    icon: "point.topleft.down.to.point.bottomright.curvepath",
+                    title: "执行轨迹",
+                    subtitle: "当前对话每个回合做了什么、每步耗时",
+                    showsChevron: false)
             }
+        } header: {
+            DesireSectionHeader(title: "用量")
         }
     }
 
     private var memorySection: some View {
-        DesireSection(title: "记忆") {
-            DesireNavLink(
-                icon: "brain.head.profile",
-                title: "Agent 记忆",
-                subtitle: "用户画像、长期事实与对话摘要"
-            ) {
+        Section {
+            NavigationLink {
                 MemoryView()
+            } label: {
+                DesireNavRow(
+                    icon: "brain.head.profile",
+                    title: "Agent 记忆",
+                    subtitle: "用户画像、长期事实与对话摘要",
+                    showsChevron: false)
             }
+        } header: {
+            DesireSectionHeader(title: "记忆")
         }
     }
 
     private var deviceSection: some View {
-        DesireSection(title: "设备") {
-            VStack(spacing: 10) {
-                DesireValueRow(title: "Mac", value: client.desktopName ?? "—")
-                DesireValueRow(title: "账号", value: client.savedUsername.isEmpty ? "—" : client.savedUsername)
-                DesireValueRow(title: "链路", value: client.connectionState, valueColor: connectionColor)
-            }
-            .padding(.horizontal, DesireUI.cardPadding)
-            .padding(.vertical, 12)
+        Section {
+            DesireValueRow(title: "Mac", value: client.desktopName ?? "—")
+            DesireValueRow(
+                title: "账号",
+                value: client.savedUsername.isEmpty ? "—" : client.savedUsername)
+            DesireValueRow(
+                title: "链路", value: client.connectionState,
+                valueColor: connectionColor)
+        } header: {
+            DesireSectionHeader(title: "设备")
         }
     }
 }

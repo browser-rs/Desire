@@ -10,97 +10,100 @@ struct AgentTraceView: View {
     @State private var expanded: Set<Int> = []
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                if let trace = client.trace {
-                    if trace.turns.isEmpty {
+        List {
+            if let trace = client.trace {
+                if trace.turns.isEmpty {
+                    Section {
                         DesireEmptyState(
                             icon: "point.topleft.down.to.point.bottomright.curvepath",
                             title: "这个对话还没有轨迹",
                             message: "在 Mac 上跑完一轮对话后，这里会显示 Agent 实际执行的每一步。")
-                    } else {
-                        statsGrid(trace.stats)
-                        diagnosticsSection(trace.stats)
-                        turnSection(trace.turns)
+                            .listRowBackground(Color.clear)
                     }
                 } else {
-                    loadingCard
+                    statsSection(trace.stats)
+                    diagnosticsSection(trace.stats)
+                    turnSection(trace.turns)
+                }
+            } else {
+                Section {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("正在从 Mac 读取轨迹…")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            .desirePagePadding()
-            .padding(.vertical, 12)
         }
-        .background(DesireUI.pageFill.ignoresSafeArea())
+        .listStyle(.insetGrouped)
         .navigationTitle("执行轨迹")
         .navigationBarTitleDisplayMode(.inline)
         .task { client.requestTrace() }
         .refreshable { client.requestTrace() }
     }
 
-    private var loadingCard: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-            Text("正在从 Mac 读取轨迹…")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+    // MARK: - 汇总
+
+    private func statsSection(_ stats: RemoteTraceStats) -> some View {
+        Section {
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 8
+            ) {
+                DesireStatTile(
+                    icon: "arrow.triangle.2.circlepath", title: "回合",
+                    value: "\(stats.turns ?? 0)")
+                DesireStatTile(
+                    icon: "wrench.and.screwdriver", title: "工具调用",
+                    value: "\(stats.toolCalls ?? 0)")
+                DesireStatTile(
+                    icon: "hand.raised", title: "被你拒绝",
+                    value: "\(stats.denied ?? 0)",
+                    tint: (stats.denied ?? 0) > 0 ? .orange : DesireUI.brand)
+                DesireStatTile(
+                    icon: "exclamationmark.triangle", title: "执行失败",
+                    value: "\(stats.threwError ?? 0)",
+                    tint: (stats.threwError ?? 0) > 0 ? .red : DesireUI.brand)
+            }
+        } header: {
+            DesireSectionHeader(title: "汇总")
         }
-        .frame(maxWidth: .infinity)
-        .desireCard()
     }
 
-    private func statsGrid(_ stats: RemoteTraceStats) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible()), GridItem(.flexible())],
-            spacing: 8
-        ) {
-            DesireStatTile(icon: "arrow.triangle.2.circlepath", title: "回合",
-                           value: "\(stats.turns ?? 0)")
-            DesireStatTile(icon: "wrench.and.screwdriver", title: "工具调用",
-                           value: "\(stats.toolCalls ?? 0)")
-            DesireStatTile(
-                icon: "hand.raised", title: "被你拒绝",
-                value: "\(stats.denied ?? 0)",
-                tint: (stats.denied ?? 0) > 0 ? .orange : DesireUI.brand)
-            DesireStatTile(
-                icon: "exclamationmark.triangle", title: "执行失败",
-                value: "\(stats.threwError ?? 0)",
-                tint: (stats.threwError ?? 0) > 0 ? .red : DesireUI.brand)
-        }
-    }
+    // MARK: - 诊断
 
     private func diagnosticsSection(_ stats: RemoteTraceStats) -> some View {
-        DesireSection(title: "诊断", subtitle: "哪一步慢、哪一步容易失败") {
-            VStack(spacing: 10) {
-                DesireValueRow(
-                    title: "平均工具耗时",
-                    value: DesireUI.formatMs(stats.avgToolMs ?? 0),
-                    mono: true)
-                DesireValueRow(
-                    title: "Token（输入 / 输出）",
-                    value: "\(DesireUI.formatTokens(stats.promptTokens ?? 0)) / \(DesireUI.formatTokens(stats.completionTokens ?? 0))",
-                    mono: true)
-                DesireValueRow(
-                    title: "成本",
-                    value: DesireUI.formatUSD(stats.cost) ?? (stats.costIncomplete == true ? "含未定价调用" : "—"),
-                    valueColor: stats.cost == nil && stats.costIncomplete == true ? .orange : .secondary,
-                    mono: true)
-                if let unverified = stats.unverifiedTurns, unverified > 0 {
-                    DesireValueRow(title: "带核验提示的回合", value: "\(unverified)", valueColor: .orange)
-                }
-                let up = stats.votesUp ?? 0
-                let down = stats.votesDown ?? 0
-                if up + down > 0 {
-                    DesireValueRow(title: "你的评价", value: "👍 \(up) · 👎 \(down)")
-                }
-                if let slowest = stats.slowestTools, !slowest.isEmpty {
-                    toolStatBlock(title: "最慢的工具", items: slowest, showsAvg: true)
-                }
-                if let flakiest = stats.flakiestTools, !flakiest.isEmpty {
-                    toolStatBlock(title: "最容易失败的工具", items: flakiest, showsAvg: false)
-                }
+        Section {
+            DesireValueRow(
+                title: "平均工具耗时",
+                value: DesireUI.formatMs(stats.avgToolMs ?? 0), mono: true)
+            DesireValueRow(
+                title: "Token（输入 / 输出）",
+                value: "\(DesireUI.formatTokens(stats.promptTokens ?? 0)) / \(DesireUI.formatTokens(stats.completionTokens ?? 0))",
+                mono: true)
+            DesireValueRow(
+                title: "成本",
+                value: DesireUI.formatUSD(stats.cost)
+                    ?? (stats.costIncomplete == true ? "含未定价调用" : "—"),
+                valueColor: stats.cost == nil && stats.costIncomplete == true ? .orange : .secondary,
+                mono: true)
+            if let unverified = stats.unverifiedTurns, unverified > 0 {
+                DesireValueRow(title: "带核验提示的回合", value: "\(unverified)", valueColor: .orange)
             }
-            .padding(.horizontal, DesireUI.cardPadding)
-            .padding(.vertical, 12)
+            let up = stats.votesUp ?? 0
+            let down = stats.votesDown ?? 0
+            if up + down > 0 {
+                DesireValueRow(title: "你的评价", value: "👍 \(up) · 👎 \(down)")
+            }
+            if let slowest = stats.slowestTools, !slowest.isEmpty {
+                toolStatBlock(title: "最慢的工具", items: slowest, showsAvg: true)
+            }
+            if let flakiest = stats.flakiestTools, !flakiest.isEmpty {
+                toolStatBlock(title: "最容易失败的工具", items: flakiest, showsAvg: false)
+            }
+        } header: {
+            DesireSectionHeader(title: "诊断", subtitle: "哪一步慢、哪一步容易失败")
         }
     }
 
@@ -136,15 +139,17 @@ struct AgentTraceView: View {
         }
     }
 
+    // MARK: - 回合明细
+
     private func turnSection(_ turns: [RemoteTraceTurn]) -> some View {
-        DesireSection(
-            title: "回合明细",
-            subtitle: "最近 \(turns.count) 个回合（点开看每步）"
-        ) {
-            ForEach(Array(turns.enumerated()), id: \.element.id) { index, turn in
-                if index > 0 { DesireRowDivider() }
+        Section {
+            ForEach(turns) { turn in
                 turnRow(turn)
             }
+        } header: {
+            DesireSectionHeader(
+                title: "回合明细",
+                subtitle: "最近 \(turns.count) 个回合（点开看每步）")
         }
     }
 
@@ -212,8 +217,7 @@ struct AgentTraceView: View {
                 }
             }
         }
-        .padding(.horizontal, DesireUI.cardPadding)
-        .padding(.vertical, 11)
+        .padding(.vertical, 2)
     }
 
     /// 一步工具：竖线串成的简易时间线。

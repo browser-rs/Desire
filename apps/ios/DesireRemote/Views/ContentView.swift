@@ -1,11 +1,11 @@
-import Combine
 import SwiftUI
 
 /// 根视图：相位切换（登录 / 主界面）。
 ///
-/// 信息架构（重做后）：主界面 = 底部 TabView 四个一级入口
-/// 「对话 / 会话 / Agent / 设置」——此前是一个 Drawer 抽屉塞磁贴，
-/// 功能入口分散且层级混乱。聊天窗口保持独立，其余页面全部重做。
+/// 信息架构：主界面 = 底部 TabView「会话 / Agent / 设置」三个一级入口。
+/// **对话不是一个 Tab** —— 它从会话列表 push 进去，并在进入后隐藏 TabBar
+/// （全屏聊天）。此前把"对话"也做成 Tab，"会话列表"和"对话"两个入口语义
+/// 重叠，且聊天页底部还被 TabBar 压住一截。
 struct RootView: View {
     @EnvironmentObject var client: RemoteClient
 
@@ -29,37 +29,23 @@ struct RootView: View {
 
 /// 一级 Tab。
 enum AppTab: Hashable {
-    case chat
     case sessions
     case agent
     case settings
 }
 
-/// Tab 之间的跳转（例如在会话列表里选中一条后自动回到对话页）。
-final class AppTabRouter: ObservableObject {
-    @Published var tab: AppTab = .chat
-}
-
-/// 已登录主界面：配对后进入四 Tab 工作台；未配对时只显示连接引导
+/// 已登录主界面：配对后进入三 Tab 工作台；未配对时只显示连接引导
 /// （此时任何 Tab 里的功能都无数据可依，不如把配对这一件事做清楚）。
 struct MainView: View {
     @EnvironmentObject var client: RemoteClient
-    @StateObject private var router = AppTabRouter()
+    @State private var tab: AppTab = .sessions
 
     var body: some View {
         if client.hasSavedPairing {
-            TabView(selection: $router.tab) {
-                NavigationStack {
-                    ChatView()
-                }
-                .tabItem { Label("对话", systemImage: "bubble.left.and.bubble.right.fill") }
-                .tag(AppTab.chat)
-
-                NavigationStack {
-                    SessionListView()
-                }
-                .tabItem { Label("会话", systemImage: "clock.arrow.circlepath") }
-                .tag(AppTab.sessions)
+            TabView(selection: $tab) {
+                SessionsTab()
+                    .tabItem { Label("会话", systemImage: "bubble.left.and.bubble.right.fill") }
+                    .tag(AppTab.sessions)
 
                 NavigationStack {
                     AgentHomeView()
@@ -73,7 +59,6 @@ struct MainView: View {
                 .tabItem { Label("设置", systemImage: "gearshape.fill") }
                 .tag(AppTab.settings)
             }
-            .environmentObject(router)
         } else {
             NavigationStack {
                 ConnectMacView()
@@ -88,6 +73,33 @@ struct MainView: View {
                         }
                     }
             }
+        }
+    }
+}
+
+/// 会话 Tab：列表 → push 对话页。对话页自身隐藏 TabBar（全屏聊天）。
+struct SessionsTab: View {
+    @EnvironmentObject var client: RemoteClient
+    @State private var path: [String] = []
+
+    /// 新建对话的 route 占位值：点"新建"时 Mac 还没回来会话 id（`newSession`
+    /// 之后的第一帧快照才带），而对话页本来就读 client 状态，不需要真 id。
+    private static let newConversationRoute = "__new__"
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            SessionListView(
+                onOpen: { id in
+                    if id != client.selectedSessionID { client.selectSession(id) }
+                    path.append(id)
+                },
+                onNew: {
+                    client.newSession()
+                    path.append(Self.newConversationRoute)
+                })
+                .navigationDestination(for: String.self) { _ in
+                    ChatView()
+                }
         }
     }
 }

@@ -69,6 +69,8 @@ struct SnapshotFrame: Codable {
     var tokens: Int?
     /// 本对话累计成本（未填单价时 Mac 不传——不显示 0）
     var cost: String?
+    /// Mac 的显示名（持续下发，冷启动也有真名可显示）
+    var desktop: String?
 }
 
 // MARK: - 快照子载荷

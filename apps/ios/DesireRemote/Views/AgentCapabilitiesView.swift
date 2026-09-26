@@ -15,59 +15,65 @@ struct AgentCapabilitiesView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                if let caps = client.capabilities {
-                    if caps.tools.isEmpty && caps.skills.isEmpty {
+        List {
+            if let caps = client.capabilities {
+                if caps.tools.isEmpty && caps.skills.isEmpty {
+                    Section {
                         DesireEmptyState(
                             icon: "sparkles.rectangle.stack",
                             title: "没有可用能力",
                             message: "Mac 侧没有返回工具或技能。")
-                    } else {
-                        summaryCard(caps)
-                        ForEach(groups(caps), id: \.0) { title, tools in
-                            toolSection(title: title, tools: tools)
-                        }
-                        if !caps.skills.isEmpty {
-                            skillSection(caps.skills)
-                        }
+                            .listRowBackground(Color.clear)
                     }
                 } else {
-                    loadingCard
+                    summarySection(caps)
+                    ForEach(groups(caps), id: \.0) { title, tools in
+                        toolSection(title: title, tools: tools)
+                    }
+                    if !caps.skills.isEmpty {
+                        skillSection(caps.skills)
+                    }
+                }
+            } else {
+                Section {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("正在从 Mac 读取能力清单…")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            .desirePagePadding()
-            .padding(.vertical, 12)
         }
-        .background(DesireUI.pageFill.ignoresSafeArea())
+        .listStyle(.insetGrouped)
         .navigationTitle("工具与技能")
         .navigationBarTitleDisplayMode(.inline)
         .task { client.requestCapabilities() }
         .refreshable { client.requestCapabilities() }
     }
 
-    private var loadingCard: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-            Text("正在从 Mac 读取能力清单…")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+    // MARK: - 总览
+
+    private func summarySection(_ caps: RemoteCapabilities) -> some View {
+        Section {
+            HStack(spacing: 8) {
+                DesireStatTile(
+                    icon: "wrench.and.screwdriver", title: "工具",
+                    value: "\(caps.tools.count)")
+                DesireStatTile(
+                    icon: "book", title: "技能",
+                    value: "\(caps.skills.count)")
+                DesireStatTile(
+                    icon: "shield.lefthalf.filled", title: "需确认",
+                    value: "\(caps.tools.filter { $0.risk != "readonly" }.count)",
+                    tint: .orange)
+            }
+        } header: {
+            DesireSectionHeader(title: "总览")
         }
-        .frame(maxWidth: .infinity)
-        .desireCard()
     }
 
-    private func summaryCard(_ caps: RemoteCapabilities) -> some View {
-        HStack(spacing: 8) {
-            DesireStatTile(icon: "wrench.and.screwdriver", title: "工具",
-                           value: "\(caps.tools.count)")
-            DesireStatTile(icon: "book", title: "技能", value: "\(caps.skills.count)")
-            DesireStatTile(
-                icon: "shield.lefthalf.filled", title: "需确认",
-                value: "\(caps.tools.filter { $0.risk != "readonly" }.count)",
-                tint: .orange)
-        }
-    }
+    // MARK: - 工具（按风险分档）
 
     private func groups(_ caps: RemoteCapabilities) -> [(String, [RemoteToolInfo])] {
         Self.groupOrder
@@ -76,14 +82,12 @@ struct AgentCapabilitiesView: View {
     }
 
     private func toolSection(title: String, tools: [RemoteToolInfo]) -> some View {
-        DesireSection(
-            title: title,
-            subtitle: riskSubtitle(title)
-        ) {
-            ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
-                if index > 0 { DesireRowDivider() }
+        Section {
+            ForEach(tools) { tool in
                 toolRow(tool)
             }
+        } header: {
+            DesireSectionHeader(title: title, subtitle: riskSubtitle(title))
         }
     }
 
@@ -116,8 +120,6 @@ struct AgentCapabilitiesView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, DesireUI.cardPadding)
-        .padding(.vertical, 10)
     }
 
     private func riskIcon(_ risk: String) -> String {
@@ -136,13 +138,11 @@ struct AgentCapabilitiesView: View {
         }
     }
 
+    // MARK: - 技能
+
     private func skillSection(_ skills: [RemoteSkillInfo]) -> some View {
-        DesireSection(
-            title: "技能",
-            subtitle: "Agent 可按需加载的操作说明（Mac 本地 skills 目录）"
-        ) {
-            ForEach(Array(skills.enumerated()), id: \.element.id) { index, skill in
-                if index > 0 { DesireRowDivider() }
+        Section {
+            ForEach(skills) { skill in
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "book.fill")
                         .font(.system(size: 12, weight: .semibold))
@@ -161,9 +161,11 @@ struct AgentCapabilitiesView: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, DesireUI.cardPadding)
-                .padding(.vertical, 10)
             }
+        } header: {
+            DesireSectionHeader(
+                title: "技能",
+                subtitle: "Agent 可按需加载的操作说明（Mac 本地 skills 目录）")
         }
     }
 }

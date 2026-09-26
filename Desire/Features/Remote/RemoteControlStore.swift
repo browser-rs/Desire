@@ -637,6 +637,10 @@ final class RemoteControlStore: ObservableObject {
         var tokens: Int? = nil
         /// 本对话累计成本（未填单价时为 nil——**不显示 0**，与桌面同口径）
         var cost: String? = nil
+        /// 本机（Mac）显示名。手机端此前只在配对响应里拿到过一次、且没持久化，
+        /// 冷启动后名字为 nil 就会被渲染成"未连接 Mac"，与真实的连接状态互相
+        /// 矛盾。随快照持续下发后，手机始终有权威名字（Mac 改名也能跟上）。
+        var desktop: String? = nil
 
         struct ApprovalPayload: Codable {
             var id: String
@@ -716,7 +720,8 @@ final class RemoteControlStore: ObservableObject {
             quickActions: Self.quickActionPayloads(),
             paused: session?.isPaused ?? false,
             tokens: Self.remoteTokenCount(session),
-            cost: session?.conversationUsage.formattedUSD)
+            cost: session?.conversationUsage.formattedUSD,
+            desktop: Host.current().localizedName ?? "Mac")
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }

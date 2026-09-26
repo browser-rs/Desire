@@ -14,6 +14,8 @@ struct ChatView: View {
     @StateObject private var voice = VoiceInputService()
     /// 消息流是否贴底（迟滞：贴到 60pt 内跟随，离开 160pt 停跟随）
     @State private var atBottom = true
+    /// Agent 状态弹窗（模型 / 上下文 / 权限 / 本回合控制）
+    @State private var showStatus = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -26,66 +28,43 @@ struct ChatView: View {
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
+                    // 内边距与底板都在 agentDock 内部（快捷动作行要留在底板外）
                     agentDock(proxy: proxy)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
                 }
         }
         .onChange(of: voice.transcribedText) { _, text in
             if voice.isRecording, !text.isEmpty { draft = text }
         }
+        // 导航栏**留白但透明**：返回键用系统的（原生玻璃质感，左滑返回手势也
+        // 一定可用），同时视觉上仍是全屏聊天——内容会滚到导航栏下面去。
+        // 自绘的浮动圆键看着不像原生控件，已去掉。
+        // TabBar 必须隐藏：对话是从会话列表 push 进来的。
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 标题即会话切换入口：免去为切会话来回切 Tab
-            ToolbarItem(placement: .principal) { sessionMenu }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    client.newSession()
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 15, weight: .medium))
-                }
-                .accessibilityLabel("新建对话")
-            }
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .task {
+            client.requestSessions()
+            // 进对话强制要一帧快照：若之前漏了"回合结束"那一帧，状态会一直
+            // 停在"工作中"，靠这次主动把 Mac 的当前状态拉回来。
+            client.requestSync()
         }
-        .task { client.requestSessions() }
-    }
-
-    // MARK: - 顶部会话切换
-
-    private var currentTitle: String {
-        client.sessions.first { $0.id == client.selectedSessionID }?.label
-            ?? (client.desktopName ?? "Desire")
-    }
-
-    private var sessionMenu: some View {
-        Menu {
-            ForEach(client.sessions.prefix(12)) { session in
-                Button {
-                    if session.id != client.selectedSessionID { client.selectSession(session.id) }
-                } label: {
-                    Label(
-                        session.label,
-                        systemImage: session.id == client.selectedSessionID
-                            ? "checkmark" : "bubble.left")
-                }
-            }
-            if !client.sessions.isEmpty { Divider() }
-            Button {
-                client.newSession()
-            } label: {
-                Label("新建对话", systemImage: "plus.bubble")
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(currentTitle)
-                    .font(.system(size: 16, weight: .semibold))
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .foregroundStyle(.primary)
+        .sheet(isPresented: $showStatus) {
+            AgentStatusSheet(
+                busy: client.busy,
+                paused: client.paused,
+                model: client.agentModel,
+                contextPercent: client.contextPercent,
+                elapsed: client.elapsedSeconds,
+                contextLabel: client.contextLabel,
+                fullAccess: client.fullAccess,
+                tokens: client.tokens,
+                cost: client.cost,
+                onPauseToggle: client.busy
+                    ? { client.paused ? client.resumeTurn() : client.pauseTurn() } : nil,
+                onStop: client.busy ? { client.sendCancel() } : nil)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .preferredColorScheme(client.preferredColorScheme)
         }
     }
 
@@ -109,7 +88,7 @@ struct ChatView: View {
                 Color.clear.frame(height: 1).id("bottom")
             }
             .padding(.horizontal, 14)
-            .padding(.top, 6)
+            .padding(.top, 8)
             .padding(.bottom, 10)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -223,35 +202,13 @@ struct ChatView: View {
 
     // MARK: - Agent 停靠区
 
-    /// 状态 → 计划 → 子代理 → 排队 → 快捷动作 → 提问 → 审批 → 输入胶囊。
+    /// 快捷动作（浮在最上，**不在底板里**）→ 底板内：计划 / 子代理 / 排队 /
+    /// 提问 / 审批 / 输入胶囊。
+    ///
+    /// 快捷动作行属于"建议"，不是输入控件的一部分；把它留在底板里会把那条实色
+    /// 底撑得很高（用户实测："黑色背景太高了"）。
     private func agentDock(proxy: ScrollViewProxy) -> some View {
         VStack(spacing: 8) {
-            if showsStatus {
-                AgentStatusStripView(
-                    busy: client.busy,
-                    paused: client.paused,
-                    model: client.agentModel,
-                    contextPercent: client.contextPercent,
-                    elapsed: client.elapsedSeconds,
-                    contextLabel: client.contextLabel,
-                    fullAccess: client.fullAccess,
-                    onPauseToggle: client.busy
-                        ? { client.paused ? client.resumeTurn() : client.pauseTurn() } : nil,
-                    onStop: client.busy ? { client.sendCancel() } : nil)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if !client.plan.isEmpty {
-                PlanStripView(steps: client.plan)
-            }
-            if !client.subagents.isEmpty {
-                SubagentStripView(subagents: client.subagents)
-            }
-            if !client.queued.isEmpty {
-                QueuedStripView(
-                    queued: client.queued,
-                    onRemove: { client.removeQueued(id: $0) },
-                    onClearAll: { client.clearQueued() })
-            }
             if showsQuickActions {
                 QuickActionBarView(
                     actions: client.quickActions,
@@ -259,18 +216,40 @@ struct ChatView: View {
                     disabled: client.busy,
                     onAction: { client.quickAction(key: $0) },
                     onRegenerate: { client.regenerate() })
+                    .padding(.horizontal, 12)
             }
-            if let question = client.question {
-                RemoteQuestionCard(question: question) { text in
-                    client.answer(id: question.id, text: text)
+
+            VStack(spacing: 8) {
+                if !client.plan.isEmpty {
+                    PlanStripView(steps: client.plan)
                 }
-            }
-            if let approval = client.approval {
-                RemoteApprovalBar(approval: approval) { decision in
-                    client.approve(id: approval.id, decision: decision)
+                if !client.subagents.isEmpty {
+                    SubagentStripView(subagents: client.subagents)
                 }
+                if !client.queued.isEmpty {
+                    QueuedStripView(
+                        queued: client.queued,
+                        onRemove: { client.removeQueued(id: $0) },
+                        onClearAll: { client.clearQueued() })
+                }
+                if let question = client.question {
+                    RemoteQuestionCard(question: question) { text in
+                        client.answer(id: question.id, text: text)
+                    }
+                }
+                if let approval = client.approval {
+                    RemoteApprovalBar(approval: approval) { decision in
+                        client.approve(id: approval.id, decision: decision)
+                    }
+                }
+                floatingInputBar
             }
-            floatingInputBar
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            // 不透明底板只包住需要遮住下方消息的交互区（输入胶囊原本是
+            // `.ultraThinMaterial`，滚过来的消息会透过它显形）
+            .background(Color(uiColor: .systemBackground))
         }
         // 「最新」键浮在停靠区上方（不占布局高度，免得滚动时整块跳一下）
         .overlay(alignment: .topTrailing) {
@@ -309,10 +288,6 @@ struct ChatView: View {
         .buttonStyle(.plain)
     }
 
-    private var showsStatus: Bool {
-        client.busy || client.fullAccess || !(client.contextLabel ?? "").isEmpty
-    }
-
     private var showsQuickActions: Bool {
         !client.messages.isEmpty
             && !client.busy
@@ -324,7 +299,10 @@ struct ChatView: View {
     // MARK: - 漂浮输入胶囊
 
     private var floatingInputBar: some View {
-        HStack(spacing: 8) {
+        // 间距 8 → 6、左右内边距 16 → 12：左侧两个图标按钮不再占大块空间，
+        // 打字区变宽（原来两个 38pt 圆按钮 + 大间距挤掉了不少宽度）。
+        HStack(spacing: 6) {
+            statusButton
             micButton
             TextField(placeholder, text: $draft, axis: .vertical)
                 .lineLimit(1...5)
@@ -334,16 +312,17 @@ struct ChatView: View {
                 .disabled(awaitingApproval)
             sendButton
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
+            // 实色而非 `.ultraThinMaterial`：半透明会让下方消息透上来
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: client.question?.id)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: client.approval?.id)
@@ -355,6 +334,32 @@ struct ChatView: View {
         return "Message…"
     }
 
+    /// 状态入口：模型 / 上下文 / FULL ACCESS / 本回合控制的弹窗开关。
+    /// 做成**无底色的纯图标**（原来是个 38pt 实心圆）：输入条左边原本挤着两个
+    /// 同样大的圆按钮，把打字空间压掉一大截。右下小圆点仍表示"回合进行中"。
+    private var statusButton: some View {
+        Button {
+            showStatus = true
+        } label: {
+            Image(systemName: "gauge.with.needle")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(client.fullAccess ? .orange : .secondary)
+                .frame(width: 30, height: 30)
+                .overlay(alignment: .topTrailing) {
+                    if client.busy {
+                        Circle()
+                            .fill(client.paused ? Color.orange : DesireUI.brand)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().strokeBorder(Color(.secondarySystemBackground), lineWidth: 1.5))
+                            .offset(x: 2, y: -2)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Agent 状态")
+    }
+
     private var micButton: some View {
         Button {
             if voice.isRecording {
@@ -363,14 +368,11 @@ struct ChatView: View {
                 voice.start()
             }
         } label: {
-            ZStack {
-                Circle()
-                    .fill(Color(.secondarySystemBackground))
-                    .frame(width: 38, height: 38)
-                Image(systemName: voice.isRecording ? "mic.fill" : "mic")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(voice.isRecording ? .red : .secondary)
-            }
+            Image(systemName: voice.isRecording ? "mic.fill" : "mic")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(voice.isRecording ? .red : .secondary)
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!voice.isAvailable || awaitingApproval)
@@ -383,9 +385,9 @@ struct ChatView: View {
             ZStack {
                 Circle()
                     .fill(sendTint)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 34, height: 34)
                 Image(systemName: sendMode == .stop ? "stop.fill" : "arrow.up")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(sendMode == .disabled ? Color.secondary : .white)
             }
         }

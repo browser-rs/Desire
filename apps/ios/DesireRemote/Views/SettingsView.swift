@@ -12,26 +12,51 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section {
-                Picker("主题", selection: $client.appearance) {
-                    Text("跟随系统").tag("system")
-                    Text("浅色").tag("light")
-                    Text("深色").tag("dark")
+                ForEach(AppearanceOption.all) { option in
+                    Button {
+                        client.appearance = option.rawValue
+                    } label: {
+                        HStack(spacing: 12) {
+                            DesireIconBadge(icon: option.icon, tint: option.tint)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.title)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                Text(option.subtitle)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 8)
+                            if client.appearance == option.rawValue {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(DesireUI.brand)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             } header: {
                 DesireSectionHeader(title: "外观")
             }
 
             Section {
                 HStack(spacing: 12) {
-                    DesireIconBadge(icon: "bolt.horizontal.circle", tint: .secondary)
+                    DesireIconBadge(icon: "bolt.horizontal.circle", tint: connectionColor)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(client.desktopName ?? "未连接 Mac")
+                        // 主标题只放**设备名**，没有名字也不写"未连接"——连接与否
+                        // 由下一行的状态点表达，两行说两件事，避免互相矛盾。
+                        Text(client.desktopName ?? "Mac")
                             .font(.system(size: 15, weight: .medium))
-                        Text(client.connectionState)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(connectionColor)
+                                .frame(width: 6, height: 6)
+                            Text(client.connectionState)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -104,7 +129,9 @@ struct SettingsView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("设置")
-        .navigationBarTitleDisplayMode(.inline)
+        // 与「会话」「Agent」两个 Tab 一样用大标题（原来只有这里 inline，
+        // 三个 Tab 摆在一起层级感不一致）
+        .navigationBarTitleDisplayMode(.large)
         .onAppear { serverURL = client.customServer }
         .onChange(of: saved) { _, isSaved in
             guard isSaved else { return }
@@ -127,9 +154,51 @@ struct SettingsView: View {
         }
     }
 
+    /// 连接状态色（与 Agent 页同一口径）。
+    private var connectionColor: Color {
+        if client.connectionState.contains("断开") || client.connectionState.contains("重连") {
+            return .red
+        }
+        if !client.desktopOnline { return .orange }
+        return .green
+    }
+
     private static var version: String {
         let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
         return "\(short) (\(build))"
     }
+}
+
+/// 外观选项：带图标与说明的行式选择。
+/// 取代原来的分段控件 —— 分段控件没有图标，也说不清"跟随系统"到底跟随什么。
+private struct AppearanceOption: Identifiable {
+    let rawValue: String
+    let title: String
+    let subtitle: String
+    let icon: String
+    let tint: Color
+
+    var id: String { rawValue }
+
+    static let all: [AppearanceOption] = [
+        AppearanceOption(
+            rawValue: "system",
+            title: "跟随系统",
+            subtitle: "与 iPhone 的外观设置保持一致",
+            icon: "circle.lefthalf.filled",
+            tint: .blue),
+        AppearanceOption(
+            rawValue: "light",
+            title: "浅色",
+            subtitle: "始终使用浅色外观",
+            icon: "sun.max.fill",
+            tint: .orange),
+        AppearanceOption(
+            rawValue: "dark",
+            title: "深色",
+            subtitle: "始终使用深色外观",
+            icon: "moon.fill",
+            tint: .indigo),
+    ]
 }

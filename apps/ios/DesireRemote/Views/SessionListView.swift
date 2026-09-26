@@ -5,7 +5,10 @@ import SwiftUI
 /// 行内信息补上「最近更新时间」与消息数，左滑两个方向分别对应删除与重命名。
 struct SessionListView: View {
     @EnvironmentObject var client: RemoteClient
-    @EnvironmentObject var router: AppTabRouter
+    /// 点开一条会话（由上层 push 对话页）
+    var onOpen: (String) -> Void
+    /// 新建会话并进入对话页
+    var onNew: () -> Void
     @State private var renameTarget: RemoteClient.RemoteSessionInfo?
     @State private var renameText = ""
     @State private var pendingDelete: RemoteClient.RemoteSessionInfo?
@@ -53,8 +56,7 @@ struct SessionListView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    client.newSession()
-                    router.tab = .chat
+                    onNew()
                 } label: {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 15, weight: .medium))
@@ -62,8 +64,13 @@ struct SessionListView: View {
                 .accessibilityLabel("新建会话")
             }
         }
-        // 进页即拉一次（冷启动/前台恢复时本地可能是空的，等 Mac 回包填充）
-        .task { client.requestSessions() }
+        // 进页即拉一次；从对话页返回时也刷新（列表一直存在，`.task` 不会重跑，
+        // 而这段对话的标题/条数期间可能已经变了）
+        .onAppear {
+            client.requestSessions()
+            // 顺带强制一帧快照，避免本页与对话页的状态各自停在旧值
+            client.requestSync()
+        }
         .alert("重命名会话", isPresented: Binding(
             get: { renameTarget != nil },
             set: { if !$0 { renameTarget = nil } })) {
@@ -104,10 +111,7 @@ struct SessionListView: View {
                         row(session)
                     }
                 } header: {
-                    Text(section)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
+                    DesireSectionHeader(title: section)
                 }
             }
         }
@@ -118,8 +122,7 @@ struct SessionListView: View {
     private func row(_ session: RemoteClient.RemoteSessionInfo) -> some View {
         let isSelected = session.id == client.selectedSessionID
         return Button {
-            client.selectSession(session.id)
-            router.tab = .chat
+            onOpen(session.id)
         } label: {
             HStack(spacing: 12) {
                 DesireIconBadge(

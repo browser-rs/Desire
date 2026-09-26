@@ -422,9 +422,46 @@ final class RemoteControlStore: ObservableObject {
             sendInnerRaw(sessionsFrame())
         case "sync":
             pushSnapshot(force: true)
+        case "getMemory":
+            if let json = memoryFrame() { sendInnerRaw(json) }
+        case "deleteMemory":
+            // id 形如 "fact:<uuid>" / "summary:<uuid>"；走桌面同款删除（记 tombstone）
+            guard let rid = inner.id else { return }
+            if rid.hasPrefix("fact:"), let uuid = UUID(uuidString: String(rid.dropFirst(5))) {
+                AgentMemoryStore.shared.removeFact(uuid)
+            } else if rid.hasPrefix("summary:"), let uuid = UUID(uuidString: String(rid.dropFirst(8))) {
+                AgentMemoryStore.shared.removeSummary(uuid)
+            }
+            if let json = memoryFrame() { sendInnerRaw(json) }
         default:
             break
         }
+    }
+
+    /// 序列化 Agent 记忆（画像 + 事实 + 摘要）为手机端可读帧。
+    private func memoryFrame() -> String? {
+        let archive = AgentMemoryStore.shared.archive
+        let facts = archive.facts.prefix(80).map { fact in
+            RemoteMemoryFact(
+                id: fact.id.uuidString,
+                content: String(fact.content.prefix(120)),
+                category: fact.category,
+                pinned: fact.pinned,
+                scope: fact.scope)
+        }
+        let summaries = archive.summaries.prefix(20).map { summary in
+            RemoteMemorySummary(id: summary.id.uuidString, summary: String(summary.summary.prefix(160)))
+        }
+        let frame = RemoteMemoryFrame(
+            t: "memory",
+            profileName: archive.profile.name,
+            profileLanguage: archive.profile.language,
+            profileStyle: archive.profile.style,
+            profileCustom: archive.profile.customInstructions,
+            facts: Array(facts),
+            summaries: Array(summaries))
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     // MARK: - 上行（一律 REST push）
@@ -464,6 +501,8 @@ final class RemoteControlStore: ObservableObject {
         let content: String?
         let reasoning: String?
         let toolCalls: [String]?
+        /// 与 toolCalls 一一对应的参数摘要（各截 160 字符），手机端展开显示
+        var toolArgs: [String]? = nil
     }
 
     struct RemoteSnapshotFrame: Codable {
@@ -472,6 +511,14 @@ final class RemoteControlStore: ObservableObject {
         let busy: Bool
         /// 当前遥控的 Mac 会话 id（手机端会话列表高亮用）
         let session: String?
+        /// Agent 状态行（手机看板/状态胶囊）：当前模型
+        var model: String? = nil
+        /// 上下文占用%（与面板状态行同口径 contextFraction）
+        var contextPercent: Int? = nil
+        /// 排队消息条数
+        var queueCount: Int? = nil
+        /// busy 时当前回合已用时（秒）
+        var elapsed: Int? = nil
     }
 
     private func pushSnapshot(force: Bool) {
@@ -485,11 +532,19 @@ final class RemoteControlStore: ObservableObject {
                 role: message.role.rawValue,
                 content: message.content.map { String($0.prefix(2000)) },
                 reasoning: message.reasoning.map { String($0.prefix(600)) },
-                toolCalls: message.toolCalls.map { $0.map(\.function.name) })
+                toolCalls: message.toolCalls.map { $0.map(\.function.name) },
+                toolArgs: message.toolCalls.map { $0.map { String($0.function.arguments.prefix(160)) } })
+        }
+        let elapsedSeconds = session?.processingStartedAt.map {
+            max(0, Int(Date().timeIntervalSince($0)))
         }
         let frame = RemoteSnapshotFrame(t: "snapshot", messages: Array(messages),
                                         busy: session?.isProcessing ?? false,
-                                        session: remoteConversationID)
+                                        session: remoteConversationID,
+                                        model: AppState.live?.aiPreference.model,
+                                        contextPercent: session.map { Int(($0.contextFraction * 100).rounded()) },
+                                        queueCount: session.map { $0.queuedMessages.count },
+                                        elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil)
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }
@@ -802,4 +857,32 @@ nonisolated struct RemoteInnerFrame: Codable {
     var message: String?
     var body: String?
     var session: String?
+    /// 记忆条目 id（"fact:<uuid>" / "summary:<uuid>"，deleteMemory 用）
+    var id: String?
+}
+
+// MARK: - 记忆帧（手机拉取 Agent 记忆：画像 / 事实 / 摘要）
+
+nonisolated struct RemoteMemoryFact: Codable {
+    var id: String
+    var content: String
+    var category: String
+    var pinned: Bool
+    var scope: String
+}
+
+nonisolated struct RemoteMemorySummary: Codable {
+    var id: String
+    var summary: String
+}
+
+/// `t = "memory"`。摘要截 160 字符、事实截 120——列表可读即可，全文在桌面端。
+nonisolated struct RemoteMemoryFrame: Codable {
+    var t: String
+    var profileName: String
+    var profileLanguage: String
+    var profileStyle: String
+    var profileCustom: String
+    var facts: [RemoteMemoryFact]
+    var summaries: [RemoteMemorySummary]
 }

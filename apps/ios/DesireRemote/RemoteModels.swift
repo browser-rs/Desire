@@ -24,6 +24,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     let content: String?
     let reasoning: String?
     let toolCalls: [String]?
+    /// 与 toolCalls 一一对应的参数摘要（Mac 截 160 字符）
+    var toolArgs: [String]? = nil
 }
 
 struct SnapshotFrame: Codable {
@@ -32,6 +34,40 @@ struct SnapshotFrame: Codable {
     var busy: Bool
     /// Mac 当前遥控的会话 id（新建会话后手机据此锁定选中）
     var session: String?
+    /// Agent 状态行
+    var model: String?
+    var contextPercent: Int?
+    var queueCount: Int?
+    var elapsed: Int?
+}
+
+// MARK: - Agent 记忆（t = "memory"）
+
+struct AgentMemory: Codable {
+    var t: String
+    var profileName: String
+    var profileLanguage: String
+    var profileStyle: String
+    var profileCustom: String
+    var facts: [MemoryFactInfo]
+    var summaries: [MemorySummaryInfo]
+
+    var profileNonEmpty: Bool {
+        !(profileName.isEmpty && profileLanguage.isEmpty && profileStyle.isEmpty && profileCustom.isEmpty)
+    }
+}
+
+struct MemoryFactInfo: Codable, Identifiable, Equatable {
+    var id: String
+    var content: String
+    var category: String
+    var pinned: Bool
+    var scope: String
+}
+
+struct MemorySummaryInfo: Codable, Identifiable, Equatable {
+    var id: String
+    var summary: String
 }
 
 // MARK: - 信箱帧（WS express 与 pull 兜底共用同一形态）

@@ -48,6 +48,13 @@ final class RemoteClient: ObservableObject {
     @Published var pendingEcho: ChatMessage?
     /// Mac 在线（服务器 last_seen 判定；pull 响应携带）
     @Published private(set) var desktopOnline = true
+    /// Agent 状态行（快照携带）：模型 / 上下文占用% / 排队数 / 回合已用时秒
+    @Published private(set) var agentModel = ""
+    @Published private(set) var contextPercent = 0
+    @Published private(set) var queueCount = 0
+    @Published private(set) var elapsedSeconds: Int?
+    /// Agent 记忆（nil = 未加载；看板打开时拉取）
+    @Published private(set) var memory: AgentMemory?
 
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
@@ -301,6 +308,11 @@ final class RemoteClient: ObservableObject {
         messages = []
         sessions = []
         pendingNewSession = false
+        memory = nil
+        agentModel = ""
+        contextPercent = 0
+        queueCount = 0
+        elapsedSeconds = nil
         selectedSessionID = nil
         busy = false
         queuedOffline = false
@@ -516,6 +528,11 @@ final class RemoteClient: ObservableObject {
     private func handleInner(_ text: String) {
         guard let data = text.data(using: .utf8) else { return }
         if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           root["t"] as? String == "memory" {
+            memory = try? JSONDecoder().decode(AgentMemory.self, from: data)
+            return
+        }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            root["t"] as? String == "sessions" {
             if let list = root["list"] as? [[String: Any]] {
                 sessions = list.compactMap { item in
@@ -535,6 +552,10 @@ final class RemoteClient: ObservableObject {
             selectedSessionID = sid
         }
         busy = frame.busy
+        agentModel = frame.model ?? ""
+        contextPercent = frame.contextPercent ?? 0
+        queueCount = frame.queueCount ?? 0
+        elapsedSeconds = frame.elapsed
         connectionState = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
         if let data = try? JSONEncoder().encode(frame.messages) {
             defaults.set(data, forKey: "remote.messages")
@@ -651,5 +672,28 @@ final class RemoteClient: ObservableObject {
     func requestSync() {
         guard sessionKeyB64 != nil else { return }
         pushFrame(["t": "sync"], replace: false)
+    }
+
+    /// 拉取 Agent 记忆（画像/事实/摘要；看板打开与下拉刷新时调）。
+    func requestMemory() {
+        guard sessionKeyB64 != nil else { return }
+        pushFrame(["t": "getMemory"], replace: false)
+    }
+
+    /// 删除一条事实/摘要（rid 形如 "fact:<uuid>" / "summary:<uuid>"）。
+    /// 本地乐观移除，Mac 删除后回推全量记忆帧校正。
+    func deleteMemory(rid: String) {
+        if let memory {
+            var facts = memory.facts
+            var summaries = memory.summaries
+            facts.removeAll { "fact:\($0.id)" == rid }
+            summaries.removeAll { "summary:\($0.id)" == rid }
+            self.memory = AgentMemory(t: "memory", profileName: memory.profileName,
+                                      profileLanguage: memory.profileLanguage,
+                                      profileStyle: memory.profileStyle,
+                                      profileCustom: memory.profileCustom,
+                                      facts: facts, summaries: summaries)
+        }
+        pushFrame(["t": "deleteMemory", "id": rid], replace: false)
     }
 }

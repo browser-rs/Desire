@@ -376,6 +376,7 @@ struct ChatView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var draft = ""
     @State private var showSettings = false
+    @State private var showBoard = false
     @FocusState private var inputFocused: Bool
     @StateObject private var voice = VoiceInputService()
 
@@ -407,6 +408,7 @@ struct ChatView: View {
             .background(Color(.secondarySystemBackground).ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showSettings) { RemoteSettingsView() }
+            .sheet(isPresented: $showBoard) { AgentBoardView() }
         }
     }
 
@@ -432,15 +434,18 @@ struct ChatView: View {
             .frame(width: 26, height: 26)
             Text(client.desktopName ?? "Desire")
                 .font(.footnote.weight(.semibold)).lineLimit(1)
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(client.busy ? .orange : (client.connectionState == "已连接" ? .green : .secondary))
-                    .frame(width: 6, height: 6)
-                Text(client.busy ? "工作中" : client.connectionState)
-                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            Button { showBoard = true } label: {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(client.busy ? .orange : (client.connectionState == "已连接" ? .green : .secondary))
+                        .frame(width: 6, height: 6)
+                    Text(statusCapsuleText)
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: Capsule())
             }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(.ultraThinMaterial, in: Capsule())
+            .buttonStyle(.plain)
             Spacer()
             if client.busy {
                 Button { client.sendCancel() } label: {
@@ -499,6 +504,24 @@ struct ChatView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// 状态胶囊文案：忙时"工作中·用时"；闲时"模型 · 上下文%"（有数据才带）。
+    private var statusCapsuleText: String {
+        if client.busy {
+            if let s = client.elapsedSeconds { return "工作中 · \(Self.formatElapsed(s))" }
+            return "工作中"
+        }
+        var parts: [String] = [client.connectionState]
+        if !client.agentModel.isEmpty {
+            parts.append(client.agentModel.split(separator: "/").last.map(String.init) ?? client.agentModel)
+        }
+        if client.contextPercent > 0 { parts.append("上下文 \(client.contextPercent)%") }
+        return parts.joined(separator: " · ")
+    }
+
+    static func formatElapsed(_ seconds: Int) -> String {
+        seconds >= 60 ? "\(seconds / 60)分\(seconds % 60)秒" : "\(seconds)秒"
     }
 
     private var emptyState: some View {
@@ -673,6 +696,7 @@ struct MessageBubble: View {
     let message: ChatMessage
     @State private var reasoningExpanded = false
     @State private var toolExpanded = false
+    @State private var callArgsExpanded = false
 
     var body: some View {
         switch message.role {
@@ -751,13 +775,7 @@ struct MessageBubble: View {
                                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     if let calls = message.toolCalls, !calls.isEmpty {
-                        HStack(spacing: 5) {
-                            Image(systemName: "wrench.and.screwdriver")
-                            Text(calls.joined(separator: " · "))
-                                .lineLimit(1)
-                        }
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
+                        ToolCallRow(calls: calls, args: message.toolArgs)
                     }
                     if let content = message.content,
                        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -989,5 +1007,143 @@ struct MarkdownTextView: View {
         Markdown(text)
             .markdownTheme(bubbleTheme)
             .textSelection(.enabled)
+    }
+}
+
+
+// MARK: - 工具调用行（assistant 帧：调用名；点击展开参数摘要）
+
+struct ToolCallRow: View {
+    let calls: [String]
+    let args: [String]?
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "wrench.and.screwdriver")
+                    Text(calls.joined(separator: " · "))
+                        .lineLimit(1)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            if expanded, let args, !args.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(args.enumerated()), id: \.offset) { index, arg in
+                        Text("\(calls.indices.contains(index) ? calls[index] : "?")(\(arg))")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemBackground),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+}
+
+// MARK: - Agent 看板（状态 + 记忆；聊天页状态胶囊点击进入）
+
+struct AgentBoardView: View {
+    @EnvironmentObject var client: RemoteClient
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let memory = client.memory {
+                    memoryList(memory)
+                } else {
+                    ProgressView("正在读取记忆…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("Agent 看板")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .onAppear { client.requestMemory() }
+    }
+
+    private func memoryList(_ memory: AgentMemory) -> some View {
+        List {
+            Section("状态") {
+                LabeledContent("模型", value: client.agentModel.isEmpty ? "未配置" : client.agentModel)
+                LabeledContent("上下文占用") {
+                    Text("\(client.contextPercent)%")
+                        .foregroundStyle(client.contextPercent >= 85 ? Color.red : (client.contextPercent >= 60 ? Color.orange : Color.secondary))
+                }
+                if client.queueCount > 0 {
+                    LabeledContent("排队消息", value: "\(client.queueCount) 条")
+                }
+                if client.busy, let s = client.elapsedSeconds {
+                    LabeledContent("回合已用时", value: ChatView.formatElapsed(s))
+                }
+            }
+            if memory.profileNonEmpty {
+                Section("用户画像") {
+                    if !memory.profileName.isEmpty { LabeledContent("称呼", value: memory.profileName) }
+                    if !memory.profileLanguage.isEmpty { LabeledContent("语言", value: memory.profileLanguage) }
+                    if !memory.profileStyle.isEmpty { LabeledContent("风格", value: memory.profileStyle) }
+                    if !memory.profileCustom.isEmpty {
+                        Text(memory.profileCustom).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section("事实 · \(memory.facts.count)") {
+                if memory.facts.isEmpty {
+                    Text("还没有记住关于你的事实").font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(memory.facts) { fact in
+                    HStack(alignment: .top, spacing: 8) {
+                        if fact.pinned {
+                            Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(fact.content).font(.subheadline)
+                            HStack(spacing: 6) {
+                                Text(fact.category).font(.caption2).foregroundStyle(.tint)
+                                if fact.scope != "global" {
+                                    Text("@\(fact.scope)").font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            client.deleteMemory(rid: "fact:\(fact.id)")
+                        } label: { Label("删除", systemImage: "trash") }
+                    }
+                }
+            }
+            Section("对话摘要 · \(memory.summaries.count)") {
+                if memory.summaries.isEmpty {
+                    Text("长对话结束后会自动生成摘要").font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(memory.summaries) { summary in
+                    Text(summary.summary)
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                client.deleteMemory(rid: "summary:\(summary.id)")
+                            } label: { Label("删除", systemImage: "trash") }
+                        }
+                }
+            }
+        }
     }
 }

@@ -26,8 +26,13 @@
   有序无序列表全覆盖；流式更新不整棵重建（按 message.id 稳定身份）。
   **修复工具消息不渲染**：快照里调用名在 assistant 帧、结果 content 在
   tool 帧（toolCalls 为空）——此前 assistant 分支丢弃调用名、tool 分支
-  无展开钮导致结果永远折叠；现 assistant 帧显示"工具调用名"行，tool 帧
-  结果常驻显示（默认 4 行，点击展开全文）。
+  无展开钮导致结果永远折叠；现 assistant 帧显示"工具调用名"行（点击展开
+  参数摘要），tool 帧结果常驻显示（默认 4 行，点击展开全文）。
+  **Agent 看板**：聊天页状态胶囊升级（忙时"工作中·用时"，闲时"已连接·
+  模型·上下文 N%"），点击进入看板——状态区（模型/上下文占用%/排队/回合
+  用时）+ 记忆区（用户画像/事实/对话摘要，滑动删除走桌面同款 tombstone
+  语义）；快照协议相应扩展 model/contextPercent/queueCount/elapsed/
+  toolArgs，新增 getMemory/deleteMemory/memory 帧。
 
 ### Changed
 

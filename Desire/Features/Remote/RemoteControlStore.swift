@@ -17,6 +17,21 @@ import Security
 @MainActor
 final class RemoteControlStore: ObservableObject {
 
+    /// 远程链路诊断日志（/tmp/remote_mac_debug.log）——排查下行投递问题用，
+    /// 只在关键事件打点、量极小；后续稳定可移除。
+    nonisolated static func remoteDebug(_ line: String) {
+        let path = "/tmp/remote_mac_debug.log"
+        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        let text = "[\(stamp)] \(line)\n"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(Data(text.utf8))
+            try? handle.close()
+        } else {
+            try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
     enum ConnectionState: Equatable {
         case off
         case connecting
@@ -91,7 +106,14 @@ final class RemoteControlStore: ObservableObject {
             connection = .off
             return
         }
-        guard webSocketTask == nil else { return }
+        // **无条件先拆旧连接**：旧 task 残留（死 socket）会吞掉所有重连——
+        // 曾经的"existing task 早退"就是重连永久停摆的根因。
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        receiveTask?.cancel()
+        receiveTask = nil
+        snapshotTimer?.invalidate()
+        snapshotTimer = nil
         connection = .connecting
         Task { @MainActor in
             do {
@@ -105,10 +127,12 @@ final class RemoteControlStore: ObservableObject {
                 let task = URLSession.shared.webSocketTask(with: request)
                 self.webSocketTask = task
                 task.resume()
+                Self.remoteDebug("ws resumed url=\(url.absoluteString)")
                 self.connection = .online
                 self.startSnapshotLoop()
-                self.receiveLoop(task)
+                self.startReceiving(task)
             } catch {
+                Self.remoteDebug("connect failed: \(error.localizedDescription)")
                 self.connection = .error(error.localizedDescription)
                 self.scheduleReconnect()
             }
@@ -144,37 +168,44 @@ final class RemoteControlStore: ObservableObject {
 
     // MARK: - 收发
 
-    private func receiveLoop(_ task: URLSessionWebSocketTask) {
-        receiveTask = Task { @MainActor in
-            while !Task.isCancelled {
-                let message: URLSessionWebSocketTask.Message?
-                do {
-                    message = try await task.receive()
-                } catch {
-                    break
-                }
-                guard let message, !Task.isCancelled else { break }
-                switch message {
-                case .string(let text):
-                    self.handleTransportFrame(text)
-                case .data(let data):
-                    self.handleTransportFrame(String(data: data, encoding: .utf8) ?? "")
-                @unknown default:
-                    break
+    /// completion 式接收（re-arm 循环）。async receive() 在本 App 的
+    /// MainActor 上下文下曾出现永不返回（下行全灭），回调式无此问题。
+    private func startReceiving(_ task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard self.webSocketTask === task else { return }
+                switch result {
+                case .success(let message):
+                    switch message {
+                    case .string(let text):
+                        self.handleTransportFrame(text)
+                    case .data(let data):
+                        self.handleTransportFrame(String(data: data, encoding: .utf8) ?? "")
+                    @unknown default:
+                        break
+                    }
+                    self.startReceiving(task)
+                case .failure:
+                    await self.handleDisconnect(dead: task)
                 }
             }
-            // 到这里 = 连接断了（若已被更新的连接接管则不管）
-            guard self.webSocketTask === task || self.webSocketTask == nil else { return }
-            self.webSocketTask = nil
-            self.snapshotTimer?.invalidate()
-            snapshotTimer = nil
-            guard self.isEnabled, case .signedIn = self.syncStore.authState else {
-                self.connection = .off
-                return
-            }
-            self.connection = .error(String(localized: "Sync server error"))
-            self.scheduleReconnect()
         }
+    }
+
+    private func handleDisconnect(dead: URLSessionWebSocketTask) {
+        guard self.webSocketTask === dead || self.webSocketTask == nil else { return }
+        self.webSocketTask = nil
+        self.receiveTask = nil
+        self.snapshotTimer?.invalidate()
+        self.snapshotTimer = nil
+        guard self.isEnabled, case .signedIn = self.syncStore.authState else {
+            self.connection = .off
+            return
+        }
+        self.connection = .error(String(localized: "Sync server error"))
+        Self.remoteDebug("ws lost → schedule reconnect")
+        self.scheduleReconnect()
     }
 
     /// 传输帧（服务器可见）：inbox / pong；route 业务载荷已在上层路由。
@@ -204,6 +235,7 @@ final class RemoteControlStore: ObservableObject {
 
     /// 业务帧（E2E 解密后）：prompt / cancel / sync。
     private func handleInnerFrame(_ text: String) {
+        Self.remoteDebug("inner ← \(String(text.prefix(120)))")
         guard let data = text.data(using: .utf8),
               let inner = try? SyncJSON.makeDecoder().decode(RemoteInnerFrame.self, from: data)
         else { return }
@@ -269,7 +301,7 @@ final class RemoteControlStore: ObservableObject {
         guard connection == .online else { return }
         // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
         let session = AgentScheduler.shared.deliveryTarget
-        let messages = (session?.messages.suffix(20) ?? []).map { message -> RemoteSnapshotMessage in
+        let messages = (session?.messages.suffix(100) ?? []).map { message -> RemoteSnapshotMessage in
             RemoteSnapshotMessage(
                 id: message.id.uuidString,
                 role: message.role.rawValue,
@@ -284,6 +316,7 @@ final class RemoteControlStore: ObservableObject {
         NSLog("REMOTE-DBG push snapshot force=%d busy=%d", force ? 1 : 0, (session?.isProcessing ?? false) ? 1 : 0)
         lastSnapshotJSON = fingerprint
         guard let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
+        Self.remoteDebug("snapshot → (\(frame.messages.count) msgs, busy=\(frame.busy))")
         sendTransport(["kind": "route", "payload": payload])
     }
 

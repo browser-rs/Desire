@@ -201,7 +201,10 @@ async fn handle_socket(
       inbound = socket.recv() => {
         let Some(Ok(msg)) = inbound else { break };
         let Message::Text(text) = msg else { continue };
-        let Ok(incoming) = serde_json::from_str::<WsFrame>(&text) else { continue };
+        let Ok(incoming) = serde_json::from_str::<WsFrame>(&text) else {
+          tracing::info!(user = user_id, role = %role, "ws frame parse failed: {}", &text[..text.len().min(120)]);
+          continue;
+        };
         match incoming.kind.as_str() {
           "ping" => {
             let _ = tx.send(frame(json!({"kind":"pong"}))).await;
@@ -219,11 +222,13 @@ async fn handle_socket(
                 .remote
                 .forward_to_desktop(user_id, &device_id, Message::Text(payload.clone().into()))
                 .await;
+              tracing::info!(user = user_id, device = %device_id, delivered, "route controller→desktop");
               if !delivered && incoming.deliver_if_offline {
                 let _ =
                   remote_service::inbox_push(&state, user_id, &device_id, &payload).await;
               }
             } else {
+              tracing::info!(user = user_id, device = %device_id, "route desktop→controllers");
               // desktop → 全部控制器广播(控制器数量小,v1 不做定向);包同一信封
               let envelope = json!({"kind": "route", "payload": payload});
               let _ = state

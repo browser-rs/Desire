@@ -295,6 +295,7 @@ final class RemoteControlStore: ObservableObject {
             guard let app = AppState.live else { return }
             let store = AgentSessionStore(preference: app.aiPreference,
                                           conversationStore: app.conversationStore)
+            remoteCreatedSessions.append(store)
             let id = AgentScheduler.shared.registerSession(store)
             remoteSessionID = id.uuidString
             sendInnerRaw(sessionsFrame())
@@ -408,6 +409,9 @@ final class RemoteControlStore: ObservableObject {
     /// 从留言表拉取——每秒一拍，与快照推送共用定时器。
     /// 手机端选中的会话（nil = 跟随 Mac 最新会话）
     private var remoteSessionID: String?
+    /// 远程新建的会话强引用——AgentScheduler 里是弱引用，不持有会立即释放，
+    /// 表现为"列表闪烁/新建无效"。
+    private var remoteCreatedSessions: [AgentSessionStore] = []
 
     private var remoteSession: AgentSessionStore? {
         if let remoteSessionID, let id = UUID(uuidString: remoteSessionID) {

@@ -101,7 +101,7 @@ struct MainView: View {
             } onSettings: {
                 showingSettings = true
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
             .preferredColorScheme(client.preferredColorScheme)
         }
@@ -128,25 +128,24 @@ struct DrawerMenuView: View {
     let onSettings: () -> Void
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    agentCard
-                    navigationGrid
-                    if !client.sessions.isEmpty {
-                        recentSessionsSection
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Menu")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+        ScrollView {
+            VStack(spacing: 24) {
+                // 自定义头部：不用 NavigationStack 大标题——大标题会随
+                // detent 落位做缩放动画，观感是"文字视图都在缩放"
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Menu")
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    Spacer()
                     Button("Done") { dismiss() }
                         .fontWeight(.semibold)
                 }
+                agentCard
+                navigationGrid
+                if !client.sessions.isEmpty {
+                    recentSessionsSection
+                }
             }
+            .padding()
         }
     }
 

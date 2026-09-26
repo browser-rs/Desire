@@ -22,7 +22,9 @@ enum RemoteCrypto {
     }
 
     /// 内层业务帧：prompt/cancel/sync（手机 → Mac）。
-    static func innerFrame(_ dict: [String: String], sessionKeyB64: String) -> String? {
+    /// 取任意 JSON 值（不止字符串）：`setFullAccess` 要发真 bool，
+    /// Mac 端的 `RemoteInnerFrame.flag` 是 Bool 才能解出来。
+    static func innerFrame(_ dict: [String: Any], sessionKeyB64: String) -> String? {
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         return encrypt(text: String(data: data, encoding: .utf8) ?? "", sessionKeyB64: sessionKeyB64)
     }

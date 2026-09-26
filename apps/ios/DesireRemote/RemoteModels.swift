@@ -39,6 +39,229 @@ struct SnapshotFrame: Codable {
     var contextPercent: Int?
     var queueCount: Int?
     var elapsed: Int?
+
+    // MARK: 人工介入 / 进度（与 Mac 端 RemoteSnapshotFrame 对齐；全部可选）
+
+    /// 待审批的工具调用（Agent 挂起等 Allow Once / Always Allow / Deny）
+    var approval: RemoteApproval?
+    /// Agent 的反问（askUser 挂起等回答）
+    var question: RemoteQuestion?
+    /// updatePlan 维护的任务清单
+    var plan: [RemotePlanStep]?
+    /// 子代理实时进度
+    var subagents: [RemoteSubagent]?
+    /// 回合进行中输入、排队待发的消息
+    var queued: [RemoteQueued]?
+    /// Agent 将要操作的目标页（"Title — host"）
+    var context: String?
+    /// FULL ACCESS：所有工具免审批
+    var fullAccess: Bool?
+    /// 上一轮已结束且末条是 assistant → 可重新生成
+    var canRegenerate: Bool?
+    /// 快捷动作（Mac 为唯一文案来源）
+    var quickActions: [RemoteQuickAction]?
+
+    // MARK: 会话状态补充
+
+    /// 回合被暂停（pause 后、resume 前）
+    var paused: Bool?
+    /// 本对话累计 token（0 时 Mac 不传）
+    var tokens: Int?
+    /// 本对话累计成本（未填单价时 Mac 不传——不显示 0）
+    var cost: String?
+}
+
+// MARK: - 快照子载荷
+
+struct RemoteApproval: Codable, Identifiable, Equatable {
+    var id: String
+    var tool: String
+    /// readonly | sideEffect | dangerous
+    var risk: String
+    var summary: String
+    /// dangerous 档不提供"始终允许"
+    var dangerous: Bool
+
+    var riskDisplay: String {
+        switch risk {
+        case "readonly": "只读安全"
+        case "dangerous": "执行代码"
+        default: "改变状态"
+        }
+    }
+}
+
+struct RemoteQuestion: Codable, Identifiable, Equatable {
+    var id: String
+    var text: String
+    /// 兜底超时（秒）
+    var timeout: Int
+}
+
+struct RemotePlanStep: Codable, Equatable {
+    var content: String
+    /// pending | in_progress | done
+    var status: String
+}
+
+struct RemoteSubagent: Codable, Equatable {
+    var label: String
+    var step: Int
+    var maxSteps: Int
+    var tool: String?
+}
+
+struct RemoteQueued: Codable, Identifiable, Equatable {
+    var id: String
+    var text: String
+}
+
+struct RemoteQuickAction: Codable, Identifiable, Equatable {
+    var key: String
+    var title: String
+    var icon: String
+
+    var id: String { key }
+}
+
+/// 审批决定（approve 指令的 decision 字段）。
+enum RemoteApprovalDecision: String {
+    case allowOnce
+    case alwaysAllow
+    case deny
+}
+
+// MARK: - 按需拉取的只读信息帧（与 Mac 端 *Frame 组装函数一一对齐）
+
+/// 能力与工具（`t: "capabilities"`）：Agent 能调用的全部工具 + 技能库。
+struct RemoteCapabilities: Codable, Equatable {
+    var tools: [RemoteToolInfo]
+    var skills: [RemoteSkillInfo]
+}
+
+struct RemoteToolInfo: Codable, Identifiable, Equatable {
+    var name: String
+    var description: String
+    /// readonly | sideEffect | dangerous
+    var risk: String
+
+    var id: String { name }
+
+    /// 与桌面 `ToolRisk.displayName` 同义的中文档位。
+    var riskDisplay: String {
+        switch risk {
+        case "readonly": "只读安全"
+        case "dangerous": "执行代码"
+        default: "改变状态"
+        }
+    }
+}
+
+struct RemoteSkillInfo: Codable, Identifiable, Equatable {
+    var name: String
+    var description: String
+
+    var id: String { name }
+}
+
+/// 跨会话用量统计（`t: "stats"`）。
+struct RemoteStats: Codable, Equatable {
+    var totalTokens: Int
+    var promptTokens: Int
+    var completionTokens: Int
+    var turns: Int
+    var conversations: Int
+    var unpricedTokens: Int
+    var peakDayTokens: Int?
+    var longestConversationSeconds: Double
+    var currentStreak: Int
+    var longestStreak: Int
+    /// nil = 有未定价的调用（总额不完整，Mac 端刻意不给数）
+    var cost: Double?
+    var models: [RemoteModelUsage]
+}
+
+struct RemoteModelUsage: Codable, Identifiable, Equatable {
+    var model: String
+    var tokens: Int
+    var promptTokens: Int?
+    var completionTokens: Int?
+    var cost: Double?
+
+    var id: String { model }
+}
+
+/// 当前会话轨迹（`t: "trace"`）。
+struct RemoteTrace: Codable, Equatable {
+    var turns: [RemoteTraceTurn]
+    var stats: RemoteTraceStats
+}
+
+struct RemoteTraceTurn: Codable, Identifiable, Equatable {
+    var turn: Int
+    var goal: String
+    var answer: String?
+    var toolCalls: Int
+    var startedAt: String?
+    var tokens: RemoteTokenSplit?
+    var cost: Double?
+    var model: String?
+    var steps: [RemoteTraceStep]
+
+    var id: Int { turn }
+}
+
+struct RemoteTokenSplit: Codable, Equatable {
+    var prompt: Int
+    var completion: Int
+    var total: Int
+}
+
+struct RemoteTraceStep: Codable, Equatable {
+    var action: String
+    var ms: Double?
+    var denied: Bool?
+    var failed: Bool?
+}
+
+/// 轨迹聚合统计（与桌面「用量」页同口径；全可选，因为空会话时 Mac 回 `{}`）。
+struct RemoteTraceStats: Codable, Equatable {
+    var turns: Int?
+    var toolCalls: Int?
+    var denied: Int?
+    var threwError: Int?
+    var avgToolMs: Double?
+    var unverifiedTurns: Int?
+    var votesUp: Int?
+    var votesDown: Int?
+    var promptTokens: Int?
+    var completionTokens: Int?
+    var cost: Double?
+    var costIncomplete: Bool?
+    var slowestTools: [RemoteToolStat]?
+    var flakiestTools: [RemoteToolStat]?
+}
+
+struct RemoteToolStat: Codable, Equatable {
+    var tool: String
+    var calls: Int
+    var failed: Int?
+    var avgMs: Double?
+}
+
+/// 模型服务档案（`t: "models"`）。
+struct RemoteModels: Codable, Equatable {
+    var profiles: [RemoteProfile]
+    /// 当前档案 id
+    var active: String
+    /// 当前档案的候选模型
+    var models: [String]
+}
+
+struct RemoteProfile: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var model: String
 }
 
 // MARK: - 扫码登录（手机扫 Mac 二维码后确认）

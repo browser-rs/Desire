@@ -57,15 +57,17 @@ struct SyncSettingsSection: View {
             icon: "arrow.triangle.2.circlepath"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Mode") {
+                // 模式：整行分段（原来挤在右上角，与下方表单没有任何对齐关系）
+                HStack {
                     Picker("", selection: $mode) {
                         Text(localizedSettingText("Sign In")).tag(AuthMode.signIn)
                         Text(localizedSettingText("Register")).tag(AuthMode.register)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 200)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .onChange(of: mode) {
                     formError = nil
                     confirmPassword = ""
@@ -78,50 +80,84 @@ struct SyncSettingsSection: View {
                         }
                     }
                 }
+
                 SettingsRowDivider()
-                SettingsRow("QR Login", subtitle: "用已登录的 iPhone App 扫码，免密码登录本机。") {
-                    SettingsCapsuleButton("扫码登录", style: .secondary) {
-                        showQRLogin = true
-                    }
+                SettingsFieldRow(
+                    "Username",
+                    subtitle: mode == .register
+                        ? localizedSettingText("Usernames start with a letter and use 3-32 letters, digits or underscores.")
+                        : nil
+                ) {
+                    SettingsTextField(placeholder: "username", text: $username)
                 }
-                SettingsRowDivider()
-                SettingsRow("Username", subtitle: mode == .register ? localizedSettingText("Usernames start with a letter and use 3-32 letters, digits or underscores.") : nil) {
-                    SettingsTextField(placeholder: "username", text: $username, width: 240)
-                }
-                SettingsRowDivider()
-                SettingsRow("Password", subtitle: mode == .register ? localizedSettingText("At least 8 characters with letters and numbers.") : nil) {
+                SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                SettingsFieldRow(
+                    "Password",
+                    subtitle: mode == .register
+                        ? localizedSettingText("At least 8 characters with letters and numbers.")
+                        : nil
+                ) {
                     SettingsTextField(
                         placeholder: "••••••••",
                         text: $password,
                         isSecure: true,
-                        width: 240,
                         secureToggle: true
                     )
                 }
                 if mode == .register {
-                    SettingsRowDivider()
-                    SettingsRow("Confirm Password", subtitle: confirmError) {
+                    SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                    SettingsFieldRow("Confirm Password", subtitle: confirmError) {
                         SettingsTextField(
                             placeholder: "••••••••",
                             text: $confirmPassword,
                             isSecure: true,
-                            width: 240,
                             secureToggle: true
                         )
                     }
-                    SettingsRowDivider()
-                    captchaRow
+                    SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                    SettingsFieldRow("Verification Code") {
+                        captchaField
+                    }
                     if !password.isEmpty {
-                        SettingsRowDivider()
-                        strengthRow
+                        SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                        SettingsFieldRow("Password strength") {
+                            strengthBars
+                        }
                     }
                 }
+
+                // 提交：整行宽主按钮（原来是右上角小胶囊，整页没有视觉焦点）
                 SettingsRowDivider()
-                SettingsRow("Account", subtitle: formError) {
-                    SettingsCapsuleButton(
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSubmitButton(
                         mode == .signIn ? "Sign In" : "Register",
-                        isDisabled: !canSubmit || isWorking
+                        isDisabled: !canSubmit,
+                        isWorking: isWorking
                     ) { submit() }
+                    if let formError {
+                        Label(formError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(14)
+            }
+        }
+
+        // 扫码登录独立成卡：原来夹在表单中间，打断了"填表 → 提交"的视线顺序
+        SettingsSection(
+            title: "扫码登录",
+            subtitle: "用已登录的 iPhone App 扫码，免密码登录本机。",
+            icon: "qrcode"
+        ) {
+            SettingsRow("iPhone 扫码") {
+                SettingsCapsuleButton(
+                    "扫码登录",
+                    systemImage: "qrcode.viewfinder",
+                    style: .secondary
+                ) {
+                    showQRLogin = true
                 }
             }
         }
@@ -169,43 +205,45 @@ struct SyncSettingsSection: View {
         }
     }
 
+    /// 验证码字段（图形码 + 换一张 + 输入框），由 `SettingsFieldRow` 承载。
     @ViewBuilder
-    private var captchaRow: some View {
-        SettingsRow("Verification Code") {
-            HStack(spacing: 8) {
-                if captchaLoading {
-                    ProgressView().controlSize(.small)
-                        .frame(width: 100, height: 32)
-                } else if let png = store.captcha?.pngData, let nsImage = NSImage(data: png) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .interpolation(.none)
-                        .scaledToFit()
-                        .frame(width: 100, height: 32)
-                        .cornerRadius(4)
-                        .contentShape(Rectangle())
-                        .onTapGesture { refreshCaptcha() }
-                } else {
-                    Text(localizedSettingText("Failed to load"))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 100, height: 32)
-                }
-                Button {
-                    refreshCaptcha()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(localizedSettingText("Get a new one"))
-                SettingsTextField(
-                    placeholder: "Enter the characters shown",
-                    text: $captchaInput,
-                    width: 100
-                )
+    private var captchaField: some View {
+        HStack(spacing: 8) {
+            if captchaLoading {
+                ProgressView().controlSize(.small)
+                    .frame(width: 100, height: 32)
+            } else if let png = store.captcha?.pngData, let nsImage = NSImage(data: png) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+                    .frame(width: 100, height: 32)
+                    .cornerRadius(4)
+                    .contentShape(Rectangle())
+                    .onTapGesture { refreshCaptcha() }
+                    .help(localizedSettingText("Get a new one"))
+            } else {
+                Text(localizedSettingText("Failed to load"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, height: 32)
             }
+            Button {
+                refreshCaptcha()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(localizedSettingText("Get a new one"))
+
+            SettingsTextField(
+                placeholder: "Enter the characters shown",
+                text: $captchaInput,
+                width: 120
+            )
+            Spacer(minLength: 0)
         }
     }
 
@@ -217,19 +255,19 @@ struct SyncSettingsSection: View {
         }
     }
 
-    private var strengthRow: some View {
+    /// 强度条（由 `SettingsFieldRow` 承载）。
+    private var strengthBars: some View {
         let score = strengthScore(password)
-        return SettingsRow("Password strength") {
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { index in
-                    Capsule()
-                        .fill(index < score ? strengthColor(score) : Color.secondary.opacity(0.18))
-                        .frame(width: 18, height: 4)
-                }
-                Text(localizedSettingText(strengthLabel(score)))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+        return HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                Capsule()
+                    .fill(index < score ? strengthColor(score) : Color.secondary.opacity(0.18))
+                    .frame(width: 18, height: 4)
             }
+            Text(localizedSettingText(strengthLabel(score)))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
     }
 
@@ -414,33 +452,46 @@ struct SyncSettingsSection: View {
     private var passwordSection: some View {
         SettingsSection(title: "Change Password", icon: "key") {
             VStack(spacing: 0) {
-                SettingsRow("Current Password") {
+                SettingsFieldRow("Current Password") {
                     SettingsTextField(
                         placeholder: "••••••••",
                         text: $currentPassword,
-                        isSecure: true,
-                        width: 200
+                        isSecure: true
                     )
                 }
-                SettingsRowDivider()
-                SettingsRow("New Password", subtitle: localizedSettingText("At least 8 characters with letters and numbers.")) {
+                SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                SettingsFieldRow(
+                    "New Password",
+                    subtitle: localizedSettingText("At least 8 characters with letters and numbers.")
+                ) {
                     SettingsTextField(
                         placeholder: "At least 8 characters",
                         text: $newPassword,
-                        isSecure: true,
-                        width: 200
+                        isSecure: true
                     )
                 }
                 SettingsRowDivider()
-                SettingsRow(
-                    "Change Password",
-                    subtitle: pwError ?? (pwSaved ? localizedSettingText("Saved") : nil)
-                ) {
+                HStack(spacing: 8) {
+                    if let pwError {
+                        Label(pwError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if pwSaved {
+                        Label(localizedSettingText("Saved"), systemImage: "checkmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.green)
+                    }
                     SettingsCapsuleButton(
                         "Change Password",
                         isDisabled: !canChangePassword || pwWorking
                     ) { submitPasswordChange() }
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
         }
     }
@@ -482,20 +533,27 @@ struct SyncSettingsSection: View {
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
-                SettingsRow("Server", subtitle: "留空使用内置默认地址（修改后需重新登录）。") {
+                SettingsFieldRow("Server", subtitle: "留空使用内置默认地址（修改后需重新登录）。") {
                     SettingsTextField(
                         placeholder: String(localizedSettingText("Default: built-in server")),
-                        text: $serverURL,
-                        width: 240
+                        text: $serverURL
                     )
                 }
-                SettingsRowDivider()
-                SettingsRow("Apply", subtitle: serverSaved ? localizedSettingText("Saved") : nil) {
+                SettingsRowDivider(leading: SettingsMetrics.fieldDividerLeading)
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    if serverSaved {
+                        Label(localizedSettingText("Saved"), systemImage: "checkmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.green)
+                    }
                     SettingsCapsuleButton("Apply", style: .secondary) {
                         store.setServerBaseURL(serverURL)
                         serverSaved = true
                     }
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
         }
     }

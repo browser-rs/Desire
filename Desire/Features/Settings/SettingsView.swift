@@ -32,7 +32,9 @@ struct SettingsView: View {
             case .general: "gearshape"
             case .ai: "brain.head.profile"
             case .sync: "arrow.triangle.2.circlepath"
-            case .remote: "iphone.radiowaves.left.and.right"
+            // 单对象图标：`iphone.radiowaves.left.and.right` 是双设备+波纹的复合
+            // 图形，在固定宽度的侧栏图标列里会被挤变形、也压不住旁边的文字。
+            case .remote: "iphone"
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
@@ -79,9 +81,19 @@ struct SettingsView: View {
     private var content: some View {
         NavigationSplitView {
             List(Section.allCases, selection: $selectedSection) { section in
-                Label(section.title, systemImage: section.icon)
-                    .labelStyle(.titleAndIcon)
-                    .tag(section)
+                // 自绘行而不是 `Label`：侧栏各 SF Symbol 的固有宽度差别很大，
+                // 系统按图标原始宽度排版时标题起始位置会参差（"远程"那一项看着
+                // 就像错位了）。固定 18pt 图标列后所有标题左边缘对齐。
+                HStack(spacing: 8) {
+                    Image(systemName: section.icon)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, alignment: .center)
+                    Text(section.title)
+                        .font(.system(size: 13))
+                    Spacer(minLength: 0)
+                }
+                .tag(section)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
             .navigationSplitViewStyle(.balanced)

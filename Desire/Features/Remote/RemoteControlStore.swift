@@ -99,9 +99,39 @@ final class RemoteControlStore: ObservableObject {
     private var lastForcedPush = Date.distantPast
     private var lastSnapshotJSON = ""
 
+    /// Sync 账号状态订阅：登出时联动关闭远程（远程鉴权全靠 Sync 的 token）。
+    private var authObserver: AnyCancellable?
+    private var lastAuthState: SyncStore.AuthState = .signedOut
+
     init(syncStore: SyncStore) {
         self.syncStore = syncStore
         isEnabled = defaults.bool(forKey: enabledKey)
+        lastAuthState = syncStore.authState
+        // 账号一登出，远程就彻底不可用了（没有 access token）。此前只把
+        // `connection` 静默置成 .off，开关的持久化真值仍是 true——设置页于是
+        // 一直显示"远程开启"，用户以为手机还能连上；心跳定时器也在空转。
+        authObserver = syncStore.$authState
+            .removeDuplicates()
+            .sink { [weak self] state in
+                Task { @MainActor in self?.authStateChanged(state) }
+            }
+    }
+
+    /// 只在「已登录 → 登出」这一次转换上联动。启动时 `authState` 初值就是
+    /// signedOut（Keychain 尚未读完），不能把它误当成"用户刚登出"。
+    private func authStateChanged(_ state: SyncStore.AuthState) {
+        let previous = lastAuthState
+        lastAuthState = state
+        guard case .signedIn = previous, case .signedOut = state else { return }
+        shutDownForSignOut()
+    }
+
+    /// 登出后的收尾：关开关（持久化）、拆链路、停定时器、清设备与配对码。
+    private func shutDownForSignOut() {
+        setEnabled(false)      // 内含 teardownLink + 定时器失效 + connection = .off
+        pairedDevices = []
+        activePairing = nil
+        lastSnapshotJSON = ""
     }
 
     // MARK: - 开关
@@ -433,6 +463,67 @@ final class RemoteControlStore: ObservableObject {
                 AgentMemoryStore.shared.removeSummary(uuid)
             }
             if let json = memoryFrame() { sendInnerRaw(json) }
+        case "approve":
+            // 手机端审批。id 必须与当前挂起的审批一致——手机可能停在旧审批上
+            // （桌面已批过 A、Agent 又发起 B），不校验就会误批 B。
+            guard let id = inner.id, let target = remoteSession,
+                  target.pendingApproval?.id.uuidString == id,
+                  let decision = inner.decision else {
+                pushSnapshot(force: true)
+                return
+            }
+            target.resolveApproval(Self.approvalDecision(decision))
+            pushSnapshot(force: true)
+        case "answer":
+            // askUser 反问：UserPromptCenter 是全局单例，不挂在 session 上。
+            guard let text = inner.text,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            if let id = inner.id, UserPromptCenter.shared.pending?.id.uuidString != id {
+                pushSnapshot(force: true)
+                return
+            }
+            UserPromptCenter.shared.answer(text)
+            pushSnapshot(force: true)
+        case "regenerate":
+            remoteSession?.regenerate()
+            pushSnapshot(force: true)
+        case "quickAction":
+            guard let key = inner.action, let action = AgentQuickAction(wire: key) else { return }
+            remoteSession?.performQuickAction(action)
+            pushSnapshot(force: true)
+        case "removeQueued":
+            guard let id = inner.id, let uuid = UUID(uuidString: id) else { return }
+            remoteSession?.removeQueued(id: uuid)
+            pushSnapshot(force: true)
+        case "clearQueued":
+            remoteSession?.clearQueuedMessages()
+            pushSnapshot(force: true)
+        case "clear":
+            // 「新对话」：桌面 clear() 会先沉淀 L2 摘要再清空，语义与面板一致。
+            remoteSession?.clear()
+            pushSnapshot(force: true)
+        case "pause":
+            remoteSession?.pause()
+            pushSnapshot(force: true)
+        case "resume":
+            remoteSession?.resume()
+            pushSnapshot(force: true)
+        case "setFullAccess":
+            guard let flag = inner.flag, let target = remoteSession else { return }
+            target.fullAccess = flag
+            pushSnapshot(force: true)
+        case "capabilities":
+            // 只读回包：Agent 能用的工具（含风险分级）+ 技能库。
+            sendInnerRaw(Self.capabilitiesFrame())
+        case "stats":
+            sendInnerRaw(Self.statsFrame())
+        case "trace":
+            sendInnerRaw(traceFrame())
+        case "models":
+            sendInnerRaw(Self.modelsFrame())
+        case "setModel":
+            applyModelChange(inner)
+            pushSnapshot(force: true)
         default:
             break
         }
@@ -519,6 +610,74 @@ final class RemoteControlStore: ObservableObject {
         var queueCount: Int? = nil
         /// busy 时当前回合已用时（秒）
         var elapsed: Int? = nil
+
+        // MARK: 人工介入 / 进度（0.1.x 远程对齐桌面面板；全部可选，旧客户端忽略）
+
+        /// 待审批的工具调用（Agent 挂起等 Allow Once / Always Allow / Deny）
+        var approval: ApprovalPayload? = nil
+        /// Agent 的反问（askUser 挂起等回答；全局单例，不挂 session）
+        var question: QuestionPayload? = nil
+        /// updatePlan 维护的任务清单
+        var plan: [PlanStepPayload]? = nil
+        /// spawnSubagent / crew 子代理实时进度
+        var subagents: [SubagentPayload]? = nil
+        /// 回合进行中输入、排队待发的消息（可逐条移除）
+        var queued: [QueuedPayload]? = nil
+        /// Agent 将要操作的目标页（"Title — host"）
+        var context: String? = nil
+        /// FULL ACCESS：所有工具免审批（手机据此解释"为何不弹审批"）
+        var fullAccess: Bool? = nil
+        /// 上一轮已结束且末条是 assistant → 可重新生成
+        var canRegenerate: Bool? = nil
+        /// 快捷动作（Mac 为唯一文案来源，避免两端硬编码漂移）
+        var quickActions: [QuickActionPayload]? = nil
+        /// 回合被暂停（pause 后、resume 前；面板头部同款按钮的状态）
+        var paused: Bool? = nil
+        /// 本对话累计 token（与桌面状态行同一套 AgentUsage）
+        var tokens: Int? = nil
+        /// 本对话累计成本（未填单价时为 nil——**不显示 0**，与桌面同口径）
+        var cost: String? = nil
+
+        struct ApprovalPayload: Codable {
+            var id: String
+            var tool: String
+            /// readonly | sideEffect | dangerous
+            var risk: String
+            var summary: String
+            /// dangerous 档不提供"始终允许"
+            var dangerous: Bool
+        }
+
+        struct QuestionPayload: Codable {
+            var id: String
+            var text: String
+            /// 兜底超时（秒），供手机端提示
+            var timeout: Int
+        }
+
+        struct PlanStepPayload: Codable {
+            var content: String
+            /// pending | in_progress | done
+            var status: String
+        }
+
+        struct SubagentPayload: Codable {
+            var label: String
+            var step: Int
+            var maxSteps: Int
+            var tool: String?
+        }
+
+        struct QueuedPayload: Codable {
+            var id: String
+            var text: String
+        }
+
+        struct QuickActionPayload: Codable {
+            var key: String
+            var title: String
+            var icon: String
+        }
     }
 
     private func pushSnapshot(force: Bool) {
@@ -538,13 +697,26 @@ final class RemoteControlStore: ObservableObject {
         let elapsedSeconds = session?.processingStartedAt.map {
             max(0, Int(Date().timeIntervalSince($0)))
         }
-        let frame = RemoteSnapshotFrame(t: "snapshot", messages: Array(messages),
-                                        busy: session?.isProcessing ?? false,
-                                        session: remoteConversationID,
-                                        model: AppState.live?.aiPreference.model,
-                                        contextPercent: session.map { Int(($0.contextFraction * 100).rounded()) },
-                                        queueCount: session.map { $0.queuedMessages.count },
-                                        elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil)
+        let frame = RemoteSnapshotFrame(
+            t: "snapshot", messages: Array(messages),
+            busy: session?.isProcessing ?? false,
+            session: remoteConversationID,
+            model: AppState.live?.aiPreference.model,
+            contextPercent: session.map { Int(($0.contextFraction * 100).rounded()) },
+            queueCount: session.map { $0.queuedMessages.count },
+            elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil,
+            approval: Self.approvalPayload(session?.pendingApproval),
+            question: Self.questionPayload(UserPromptCenter.shared.pending),
+            plan: Self.planPayload(),
+            subagents: Self.subagentPayloads(session?.runningSubagents ?? []),
+            queued: Self.queuedPayloads(session?.queuedMessages ?? []),
+            context: session?.contextLabel,
+            fullAccess: session?.fullAccess,
+            canRegenerate: Self.remoteCanRegenerate(session),
+            quickActions: Self.quickActionPayloads(),
+            paused: session?.isPaused ?? false,
+            tokens: Self.remoteTokenCount(session),
+            cost: session?.conversationUsage.formattedUSD)
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
         let fingerprint = String(data: data, encoding: .utf8) ?? ""
         if !force && fingerprint == lastSnapshotJSON { return }
@@ -552,6 +724,231 @@ final class RemoteControlStore: ObservableObject {
         guard let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
         Self.remoteDebug("snapshot push (\(frame.messages.count) msgs, busy=\(frame.busy), force=\(force))")
         pushPayload(payload, lane: "snapshot", replace: true)
+    }
+
+    // MARK: - 快照：人工介入 / 进度载荷组装（有界截断，保持帧小）
+
+    /// 待审批工具调用 → 载荷。`dangerous` 档供手机禁用"始终允许"。
+    private static func approvalPayload(
+        _ approval: PendingToolApproval?
+    ) -> RemoteSnapshotFrame.ApprovalPayload? {
+        guard let approval else { return nil }
+        let risk: String
+        switch approval.risk {
+        case .readonly: risk = "readonly"
+        case .sideEffect: risk = "sideEffect"
+        case .dangerous: risk = "dangerous"
+        }
+        return RemoteSnapshotFrame.ApprovalPayload(
+            id: approval.id.uuidString,
+            tool: approval.toolCall.function.name,
+            risk: risk,
+            summary: String(approval.argumentsSummary.prefix(240)),
+            dangerous: approval.risk == .dangerous)
+    }
+
+    /// Agent 反问（`UserPromptCenter` 是全局单例，不挂 session）→ 载荷。
+    private static func questionPayload(
+        _ pending: PendingUserQuestion?
+    ) -> RemoteSnapshotFrame.QuestionPayload? {
+        guard let pending else { return nil }
+        return RemoteSnapshotFrame.QuestionPayload(
+            id: pending.id.uuidString,
+            text: String(pending.question.prefix(800)),
+            timeout: Int(UserPromptCenter.answerTimeout))
+    }
+
+    /// `updatePlan` 清单：最多 20 步、每步截 120。
+    private static func planPayload() -> [RemoteSnapshotFrame.PlanStepPayload]? {
+        let steps = AgentPlanStore.shared.steps
+        guard !steps.isEmpty else { return nil }
+        return steps.prefix(20).map {
+            RemoteSnapshotFrame.PlanStepPayload(
+                content: String($0.content.prefix(120)), status: $0.status)
+        }
+    }
+
+    /// 子代理进度：最多 4 条、label 截 80。
+    private static func subagentPayloads(
+        _ runs: [AgentSessionStore.SubagentProgress]
+    ) -> [RemoteSnapshotFrame.SubagentPayload]? {
+        guard !runs.isEmpty else { return nil }
+        return runs.prefix(4).map {
+            RemoteSnapshotFrame.SubagentPayload(
+                label: String($0.label.prefix(80)), step: $0.step,
+                maxSteps: $0.maxSteps, tool: $0.currentTool)
+        }
+    }
+
+    /// 排队消息：最多 8 条、每条截 120（手机端可逐条移除）。
+    private static func queuedPayloads(
+        _ items: [AgentSessionStore.QueuedMessage]
+    ) -> [RemoteSnapshotFrame.QueuedPayload]? {
+        guard !items.isEmpty else { return nil }
+        return items.prefix(8).map {
+            RemoteSnapshotFrame.QueuedPayload(
+                id: $0.id.uuidString, text: String($0.text.prefix(120)))
+        }
+    }
+
+    /// 快捷动作（Mac 为唯一文案来源，两端不硬编码）。
+    private static func quickActionPayloads() -> [RemoteSnapshotFrame.QuickActionPayload]? {
+        let list = AgentQuickAction.allCases.map {
+            RemoteSnapshotFrame.QuickActionPayload(key: $0.wire, title: $0.title, icon: $0.icon)
+        }
+        return list.isEmpty ? nil : list
+    }
+
+    /// 与桌面 `AgentPanel.canRegenerate` 同口径：回合结束、非提问态、末条是 assistant。
+    private static func remoteCanRegenerate(_ session: AgentSessionStore?) -> Bool {
+        guard let session, !session.isProcessing, !session.awaitingQuestion else { return false }
+        return session.messages.last?.role == .assistant
+    }
+
+    /// 手机端审批决定的线路值 → `ApprovalDecision`（未知值按最保守的"拒绝"处理）。
+    private static func approvalDecision(_ wire: String) -> ApprovalDecision {
+        switch wire {
+        case "allowOnce": return .allowOnce
+        case "alwaysAllow": return .alwaysAllow
+        default: return .deny
+        }
+    }
+
+    /// 本对话累计 token（0 → nil：手机端不显示 "0 token" 这种噪音）。
+    private static func remoteTokenCount(_ session: AgentSessionStore?) -> Int? {
+        let total = session?.conversationUsage.totalTokens ?? 0
+        return total > 0 ? total : nil
+    }
+
+    // MARK: - 只读信息帧（能力 / 统计 / 轨迹 / 模型）
+    //
+    // 这四类都是**手机主动请求、Mac 一次性回包**（走 controller lane 的普通
+    // 回包，不进每秒快照——数据量比状态大，按需取才合理，也与 sessions 列表
+    // 的既有约定一致）。
+
+    /// 组装内层回包 JSON（编码失败给一个显式错误帧，别让手机端干等）。
+    private static func encodeInfoFrame(_ dict: [String: Any]) -> String {
+        (try? JSONSerialization.data(withJSONObject: dict))
+            .flatMap { String(data: $0, encoding: .utf8) }
+            ?? "{\"t\":\"error\",\"message\":\"encode failed\"}"
+    }
+
+    private static func remoteRiskName(_ risk: ToolRisk) -> String {
+        switch risk {
+        case .readonly: return "readonly"
+        case .sideEffect: return "sideEffect"
+        case .dangerous: return "dangerous"
+        }
+    }
+
+    /// 能力与工具：Agent 可调用的全部工具（含风险分级）+ 技能库。
+    /// 与桌面「能力」页同源（`AgentCapabilitiesView`）。
+    private static func capabilitiesFrame() -> String {
+        let defs = BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs
+        let tools: [[String: Any]] = defs.map { def in
+            [
+                "name": def.function.name,
+                "description": String(def.function.description.prefix(300)),
+                "risk": remoteRiskName(ToolRisk.classify(def.function.name)),
+            ]
+        }
+        let skills: [[String: String]] = SkillStore.shared.skills.map {
+            ["name": $0.name, "description": String($0.description.prefix(300))]
+        }
+        return encodeInfoFrame(["t": "capabilities", "tools": tools, "skills": skills])
+    }
+
+    /// 跨会话用量统计（与桌面「用量」页、桥 `/agent/stats` 同一份口径）。
+    private static func statsFrame() -> String {
+        let store = ConversationStore()
+        let preference = AppState.live?.aiPreference
+        let stats = UsageStats.derive(from: store.conversations,
+                                      price: { preference?.usagePrice(for: $0) })
+        var payload: [String: Any] = [
+            "t": "stats",
+            "totalTokens": stats.totalTokens,
+            "promptTokens": stats.promptTokens,
+            "completionTokens": stats.completionTokens,
+            "turns": stats.turns,
+            "conversations": stats.conversations,
+            "unpricedTokens": stats.unpricedTokens,
+            "longestConversationSeconds": (stats.longestConversation * 10).rounded() / 10,
+            "currentStreak": stats.currentStreak,
+            "longestStreak": stats.longestStreak,
+            "models": stats.models.map { model -> [String: Any] in
+                ["model": model.id, "tokens": model.tokens,
+                 "promptTokens": model.promptTokens,
+                 "completionTokens": model.completionTokens,
+                 "cost": model.cost as Any]
+            },
+        ]
+        payload["cost"] = stats.cost as Any
+        payload["peakDayTokens"] = stats.peakDayTokens
+        return encodeInfoFrame(payload)
+    }
+
+    /// 当前会话的轨迹（Thought → Action → Observation，按回合）+ 聚合统计。
+    /// 只回最近 20 个回合、每回合只留手机要展示的字段——帧能小则小。
+    private func traceFrame() -> String {
+        guard let app = AppState.live,
+              let sid = remoteConversationID ?? remoteSession?.conversationId?.uuidString,
+              let id = UUID(uuidString: sid),
+              let conversation = app.conversationStore.conversation(for: id) else {
+            return Self.encodeInfoFrame(["t": "trace", "turns": [], "stats": [:]])
+        }
+        let preference = app.aiPreference
+        let turns = AgentTrace.turns(of: conversation, price: { preference.usagePrice(for: $0) })
+        let stats = AgentTrace.stats(of: turns)
+        let trimmed: [[String: Any]] = turns.suffix(20).map { turn in
+            var out: [String: Any] = [
+                "turn": turn["turn"] as? Int ?? 0,
+                "goal": String((turn["goal"] as? String ?? "").prefix(240)),
+                "toolCalls": turn["toolCalls"] as? Int ?? 0,
+            ]
+            if let answer = turn["answer"] as? String, !answer.isEmpty {
+                out["answer"] = String(answer.prefix(400))
+            }
+            if let started = turn["startedAt"] as? String { out["startedAt"] = started }
+            if let tokens = turn["tokens"] { out["tokens"] = tokens }
+            if let cost = turn["cost"] { out["cost"] = cost }
+            if let model = turn["model"] { out["model"] = model }
+            out["steps"] = (turn["steps"] as? [[String: Any]] ?? []).map { step -> [String: Any] in
+                var s: [String: Any] = ["action": step["action"] as? String ?? "?"]
+                if let ms = step["ms"] { s["ms"] = ms }
+                if let denied = step["denied"] as? Bool, denied { s["denied"] = true }
+                if let threw = step["threwError"] as? Bool, threw { s["failed"] = true }
+                return s
+            }
+            return out
+        }
+        return Self.encodeInfoFrame(["t": "trace", "turns": trimmed, "stats": stats])
+    }
+
+    /// 可用的模型服务档案 + 当前档案的候选模型（手机「模型」页）。
+    private static func modelsFrame() -> String {
+        guard let preference = AppState.live?.aiPreference else {
+            return encodeInfoFrame(["t": "models", "profiles": [], "models": [], "active": ""])
+        }
+        let profiles: [[String: String]] = preference.profiles.map {
+            ["id": $0.id.uuidString, "name": $0.name, "model": $0.model]
+        }
+        return encodeInfoFrame([
+            "t": "models",
+            "profiles": profiles,
+            "active": preference.activeProfile?.id.uuidString ?? "",
+            "models": preference.activeProfile?.modelList ?? [],
+        ])
+    }
+
+    /// 手机切换服务档案 / 模型（与桌面模型菜单同一落点：改当前档案）。
+    private func applyModelChange(_ inner: RemoteInnerFrame) {
+        guard let preference = AppState.live?.aiPreference else { return }
+        if let pid = inner.profile, let uuid = UUID(uuidString: pid) {
+            preference.activeProfileID = uuid
+        }
+        if let model = inner.model, !model.isEmpty {
+            preference.model = model
+        }
     }
 
     /// pull 兜底（1s 一拍）：取走桌面信箱帧；服务器顺带盖在线戳。
@@ -617,6 +1014,27 @@ final class RemoteControlStore: ObservableObject {
             } catch {
                 connection = .error(error.localizedDescription)
             }
+        }
+    }
+
+    /// 登录二维码要顺带携带的配对信息（c/k/d）；远程未开启或未登录时返回 nil
+    /// —— 那样手机只完成「登录本机」，仍需单独扫码配对。
+    ///
+    /// 起因：会话密钥（`k`）此前**只存在于配对码里**，扫码登录只解决账号登录，
+    /// 于是手机扫完登录码会一直停在配对页（用户实测反馈）。
+    func pairingPayloadForLoginQR() async -> [String: Any]? {
+        guard isEnabled, case .signedIn = syncStore.authState else { return nil }
+        do {
+            let token = try await syncStore.remoteAuthToken()
+            let resp = try await SyncAPIClient.remotePairingStart(
+                baseURL: baseURL, accessToken: token,
+                deviceID: syncStore.deviceID,
+                deviceName: Host.current().localizedName ?? "Mac")
+            let key = try currentOrCreateSessionKey()
+            return ["c": resp.code, "k": key, "d": syncStore.deviceID]
+        } catch {
+            Self.remoteDebug("pairing payload for login QR failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
@@ -858,8 +1276,19 @@ nonisolated struct RemoteInnerFrame: Codable {
     var message: String?
     var body: String?
     var session: String?
-    /// 记忆条目 id（"fact:<uuid>" / "summary:<uuid>"，deleteMemory 用）
+    /// 记忆条目 id（"fact:<uuid>" / "summary:<uuid>"，deleteMemory 用）；
+    /// 亦作 approve / answer / removeQueued 的目标 id（approval / question / queued 行 id）
     var id: String?
+    /// 审批决定（approve 用）：allowOnce | alwaysAllow | deny
+    var decision: String?
+    /// 快捷动作 key（quickAction 用，见 AgentQuickAction.wire）
+    var action: String?
+    /// 布尔开关负载（setFullAccess 用）
+    var flag: Bool?
+    /// 模型 id（setModel 用）
+    var model: String?
+    /// 服务档案 id（setModel 用，切换服务；nil = 只改当前档案的模型）
+    var profile: String?
 }
 
 // MARK: - 记忆帧（手机拉取 Agent 记忆：画像 / 事实 / 摘要）

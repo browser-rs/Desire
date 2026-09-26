@@ -66,6 +66,46 @@ final class RemoteClient: ObservableObject {
     /// Agent 记忆（nil = 未加载；看板打开时拉取）
     @Published private(set) var memory: AgentMemory?
 
+    // MARK: 人工介入 / 进度（快照携带，与 Mac 端 RemoteSnapshotFrame 对齐）
+
+    /// 待审批的工具调用（非 nil = Agent 正挂起等 Allow / Deny）
+    @Published private(set) var approval: RemoteApproval?
+    /// Agent 的反问（非 nil = askUser 正挂起等回答）
+    @Published private(set) var question: RemoteQuestion?
+    /// updatePlan 任务清单
+    @Published private(set) var plan: [RemotePlanStep] = []
+    /// 子代理实时进度
+    @Published private(set) var subagents: [RemoteSubagent] = []
+    /// 回合进行中输入、排队待发的消息
+    @Published private(set) var queued: [RemoteQueued] = []
+    /// Agent 将要操作的目标页（"Title — host"）
+    @Published private(set) var contextLabel: String?
+    /// FULL ACCESS：所有工具免审批（据此解释"为何不弹审批"）
+    @Published private(set) var fullAccess = false
+    /// 上一轮已结束 → 可重新生成
+    @Published private(set) var canRegenerate = false
+    /// 快捷动作（Mac 为唯一文案来源）
+    @Published private(set) var quickActions: [RemoteQuickAction] = []
+    /// 回合被暂停（面板"继续"按钮据此显示）
+    @Published private(set) var paused = false
+    /// 本对话累计 token / 成本（未填单价时 cost 为 nil——不显示 0）
+    @Published private(set) var tokens: Int?
+    @Published private(set) var cost: String?
+
+    // MARK: 按需拉取的只读信息（能力 / 统计 / 轨迹 / 模型）
+    //
+    // 这四类数据量比状态大，Mac 端只在手机主动请求时回一帧；页面进入时
+    // 拉一次 + 支持下拉刷新即可，不进每秒快照。
+
+    /// Agent 可调用的工具（含风险分级）+ 技能库
+    @Published private(set) var capabilities: RemoteCapabilities?
+    /// 跨会话用量统计
+    @Published private(set) var stats: RemoteStats?
+    /// 当前会话的轨迹（按回合）
+    @Published private(set) var trace: RemoteTrace?
+    /// 模型服务档案 + 当前档案的候选模型
+    @Published private(set) var models: RemoteModels?
+
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
 
@@ -139,6 +179,9 @@ final class RemoteClient: ObservableObject {
             busy = defaults.bool(forKey: "remote.busy")
             connectWS()
             startPullLoop()
+            // 冷启动恢复配对时也要拉一次会话列表——此前只在"配对成功"和
+            // 写操作后拉取，杀进程重开后列表永远是空的。
+            requestSessions()
         }
     }
 
@@ -213,7 +256,27 @@ final class RemoteClient: ObservableObject {
         return try await forceRefresh()
     }
 
+    /// 刷新单飞（single-flight）：并发请求共用一个刷新任务。
+    ///
+    /// refresh token 在服务端是**一次性的**——每次刷新即吊销旧的、轮换发新的
+    /// （`auth_service::refresh` 的 `UPDATE ... revoked_at`）。此前 pull 轮询、
+    /// push 上行、WS 重连会各自发起刷新：两个并发请求拿着同一个旧 token，
+    /// 第二个必然被服务端拒（"refresh token revoked"），而旧代码把任何失败都
+    /// 当成会话过期 → 清凭证回登录页。现象就是"莫名其妙被退出登录"。
+    private var refreshTask: Task<String, Error>?
+
     private func forceRefresh() async throws -> String {
+        if let existing = refreshTask { return try await existing.value }
+        let task = Task<String, Error> { [weak self] in
+            guard let self else { throw APIError.server("登录已过期，请重新登录") }
+            defer { self.refreshTask = nil }
+            return try await self.performRefresh()
+        }
+        refreshTask = task
+        return try await task.value
+    }
+
+    private func performRefresh() async throws -> String {
         guard let refresh = KeychainStore.get("remote.refresh") else {
             throw sessionExpired()
         }
@@ -225,8 +288,14 @@ final class RemoteClient: ObservableObject {
             KeychainStore.set(refreshed.accessToken, account: "remote.access")
             KeychainStore.set(refreshed.refreshToken, account: "remote.refresh")
             return refreshed.accessToken
-        } catch {
+        } catch APIError.unauthorized {
+            // 服务端明确拒绝（被吊销 / 过期 / 已被轮换过）：会话确实结束了
             throw sessionExpired()
+        } catch {
+            // 网络抖动 / 服务端 5xx / 解析失败：**不能**清会话。
+            // 此前 catch 兜底所有错误都清凭证，断网一次或服务器抖一下就把用户
+            // 踢回登录页——这是"退出登录"最常被误归因到 Mac 端动作的原因。
+            throw error
         }
     }
 
@@ -280,7 +349,13 @@ final class RemoteClient: ObservableObject {
 
     // MARK: - 配对（扫码 / 粘贴导入）
 
-    /// 扫码或粘贴得到二维码内容 → 解析 → 认领。
+    /// 登录二维码里顺带带来的配对信息（Mac 侧「远程控制」开着时才会带）。
+    struct LoginPairingInfo {
+        var code: String
+        var sessionKeyB64: String
+    }
+
+    /// 扫码或粘贴得到**配对二维码**内容 → 解析 → 认领。
     func importPairing(_ raw: String) {
         pairError = nil
         guard let data = raw.data(using: .utf8),
@@ -290,33 +365,42 @@ final class RemoteClient: ObservableObject {
         }
         // 配对二维码自带服务器地址——用户扫码即显式选择，作为覆盖存下
         saveServerURL(qr.s)
-        sessionKeyB64 = qr.k
         isWorking = true
+        let info = LoginPairingInfo(code: qr.c, sessionKeyB64: qr.k)
         Task { @MainActor in
             defer { isWorking = false }
             do {
-                let token = try await currentToken()
-                let resp: ClaimResp = try await API.send(
-                    "POST", baseURL, "/remote/pairing/claim",
-                    body: try JSONEncoder().encode(
-                        ClaimBody(code: qr.c, controller_name: controllerName)),
-                    token: token)
-                desktopDeviceID = resp.desktopDeviceId
-                desktopName = resp.desktopName
-                KeychainStore.set(qr.k, account: "remote.sessionKey")
-                KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
-                defaults.set(baseURL, forKey: "remote.server")
-                hasSavedPairing = true
-                messages = []
-                busy = false
-                phase = .main
-                connectWS()
-                startPullLoop()
-                requestSessions()
+                try await self.claimPairing(info)
             } catch {
                 pairError = error.localizedDescription
             }
         }
+    }
+
+    /// 完成远程配对（认领）：写入会话密钥与桌面设备 id，进主界面并起链路。
+    ///
+    /// 两个入口共用：扫**配对码**，以及扫**登录码**时 Mac 顺带带过来的配对信息。
+    /// 后者的存在意义是省掉"再扫一次配对码"——此前扫码登录只解决账号登录，
+    /// 手机没有会话密钥（只在配对码里传），于是登录成功后仍卡在配对页。
+    func claimPairing(_ info: LoginPairingInfo) async throws {
+        sessionKeyB64 = info.sessionKeyB64
+        let token = try await currentToken()
+        let resp: ClaimResp = try await API.send(
+            "POST", baseURL, "/remote/pairing/claim",
+            body: try JSONEncoder().encode(
+                ClaimBody(code: info.code, controller_name: controllerName)),
+            token: token)
+        desktopDeviceID = resp.desktopDeviceId
+        desktopName = resp.desktopName
+        KeychainStore.set(info.sessionKeyB64, account: "remote.sessionKey")
+        KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
+        hasSavedPairing = true
+        messages = []
+        busy = false
+        phase = .main
+        connectWS()
+        startPullLoop()
+        requestSessions()
     }
 
     /// 回到前台：重连续 transports 并补快照。
@@ -325,6 +409,8 @@ final class RemoteClient: ObservableObject {
         startPullLoop()
         if wsTask == nil { connectWS() }
         requestSync()
+        // 会话列表也补一次：Mac 侧可能在后台期间新增/重命名过会话
+        requestSessions()
     }
 
     /// 退到后台：停轮询（省电）；WS 会被系统掐断，回前台统一重建。
@@ -361,6 +447,22 @@ final class RemoteClient: ObservableObject {
         busy = false
         queuedOffline = false
         desktopOnline = true
+        approval = nil
+        question = nil
+        plan = []
+        subagents = []
+        queued = []
+        contextLabel = nil
+        fullAccess = false
+        canRegenerate = false
+        quickActions = []
+        paused = false
+        tokens = nil
+        cost = nil
+        capabilities = nil
+        stats = nil
+        trace = nil
+        models = nil
         connectionState = "未连接"
         hasSavedPairing = false
         phase = .main
@@ -573,20 +675,37 @@ final class RemoteClient: ObservableObject {
 
     private func handleInner(_ text: String) {
         guard let data = text.data(using: .utf8) else { return }
+        // 具名回包（没有 messages/busy 字段，解不出 SnapshotFrame）先按 t 分发。
         if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           root["t"] as? String == "memory" {
-            memory = try? JSONDecoder().decode(AgentMemory.self, from: data)
-            return
-        }
-        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           root["t"] as? String == "sessions" {
-            if let list = root["list"] as? [[String: Any]] {
-                sessions = list.compactMap { item in
-                    guard let id = item["id"] as? String, let label = item["label"] as? String else { return nil }
-                    return RemoteSessionInfo(id: id, label: label,
-                                             busy: item["busy"] as? Bool ?? false,
-                                             count: item["count"] as? Int ?? 0)
+           let kind = root["t"] as? String, kind != "snapshot" {
+            switch kind {
+            case "memory":
+                memory = try? JSONDecoder().decode(AgentMemory.self, from: data)
+            case "sessions":
+                if let list = root["list"] as? [[String: Any]] {
+                    sessions = list.compactMap { item in
+                        guard let id = item["id"] as? String, let label = item["label"] as? String else { return nil }
+                        return RemoteSessionInfo(id: id, label: label,
+                                                 busy: item["busy"] as? Bool ?? false,
+                                                 count: item["count"] as? Int ?? 0,
+                                                 date: item["date"] as? Double)
+                    }
                 }
+            case "capabilities":
+                capabilities = try? JSONDecoder().decode(RemoteCapabilities.self, from: data)
+            case "stats":
+                stats = try? JSONDecoder().decode(RemoteStats.self, from: data)
+            case "trace":
+                trace = try? JSONDecoder().decode(RemoteTrace.self, from: data)
+            case "models":
+                models = try? JSONDecoder().decode(RemoteModels.self, from: data)
+            case "error":
+                // Mac 端反馈（例如"没有活跃的 Agent 会话"）：显示成连接状态旁白。
+                if let message = root["message"] as? String, !message.isEmpty {
+                    connectionState = message
+                }
+            default:
+                break
             }
             return
         }
@@ -606,6 +725,26 @@ final class RemoteClient: ObservableObject {
         let newQueue = frame.queueCount ?? 0
         if queueCount != newQueue { queueCount = newQueue }
         if elapsedSeconds != frame.elapsed { elapsedSeconds = frame.elapsed }
+        // 人工介入 / 进度：相同值不发布（与上面同口径，防每秒快照触发全 UI 重绘）
+        if approval != frame.approval { approval = frame.approval }
+        if question != frame.question { question = frame.question }
+        let newPlan = frame.plan ?? []
+        if plan != newPlan { plan = newPlan }
+        let newSubagents = frame.subagents ?? []
+        if subagents != newSubagents { subagents = newSubagents }
+        let newQueued = frame.queued ?? []
+        if queued != newQueued { queued = newQueued }
+        if contextLabel != frame.context { contextLabel = frame.context }
+        let newFullAccess = frame.fullAccess ?? false
+        if fullAccess != newFullAccess { fullAccess = newFullAccess }
+        let newCanRegenerate = frame.canRegenerate ?? false
+        if canRegenerate != newCanRegenerate { canRegenerate = newCanRegenerate }
+        let newQuickActions = frame.quickActions ?? []
+        if quickActions != newQuickActions { quickActions = newQuickActions }
+        let newPaused = frame.paused ?? false
+        if paused != newPaused { paused = newPaused }
+        if tokens != frame.tokens { tokens = frame.tokens }
+        if cost != frame.cost { cost = frame.cost }
         let target = busy ? "Agent 工作中…" : (desktopOnline ? "已连接" : "Mac 离线")
         if connectionState != target { connectionState = target }
         if let data = try? JSONEncoder().encode(frame.messages) {
@@ -620,7 +759,7 @@ final class RemoteClient: ObservableObject {
 
     // MARK: - 上行（一律 REST push）
 
-    private func pushFrame(_ dict: [String: String], replace: Bool) {
+    private func pushFrame(_ dict: [String: Any], replace: Bool) {
         guard let sessionKeyB64, let desktopDeviceID,
               let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64) else { return }
         Task { [weak self] in
@@ -636,7 +775,7 @@ final class RemoteClient: ObservableObject {
 
     func sendPrompt(_ text: String) {
         guard sessionKeyB64 != nil else { return }
-        var dict: [String: String] = ["t": "prompt", "text": text]
+        var dict: [String: Any] = ["t": "prompt", "text": text]
         if let selectedSessionID { dict["session"] = selectedSessionID }
         let offline = !desktopOnline
         pushFrame(dict, replace: false)
@@ -651,6 +790,100 @@ final class RemoteClient: ObservableObject {
 
     func sendCancel() {
         pushFrame(["t": "cancel"], replace: false)
+        // 桌面 cancel() 会同时解除审批与提问的挂起——本地同步清空，
+        // 不必等下一帧（用户点了"停止"就该立刻看到卡片消失）。
+        approval = nil
+        question = nil
+    }
+
+    // MARK: - 人工介入 / 进度（上行，一律 REST push）
+
+    /// 审批工具调用。`id` 必须来自快照——Mac 端会校验，防陈旧误批。
+    func approve(id: String, decision: RemoteApprovalDecision) {
+        pushFrame(["t": "approve", "id": id, "decision": decision.rawValue], replace: false)
+        approval = nil
+    }
+
+    /// 回答 Agent 的反问。`id` 必须来自快照。
+    func answer(id: String, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        pushFrame(["t": "answer", "id": id, "text": trimmed], replace: false)
+        question = nil
+    }
+
+    /// 重跑上一条用户消息。
+    func regenerate() {
+        pushFrame(["t": "regenerate"], replace: false)
+    }
+
+    /// 快捷动作（`key` 来自快照 `quickActions`）。
+    func quickAction(key: String) {
+        pushFrame(["t": "quickAction", "action": key], replace: false)
+    }
+
+    /// 移除队列里的某一条（本地乐观移除，Mac 处理后回推快照校正）。
+    func removeQueued(id: String) {
+        queued.removeAll { $0.id == id }
+        pushFrame(["t": "removeQueued", "id": id], replace: false)
+    }
+
+    /// 清空排队消息。
+    func clearQueued() {
+        queued = []
+        pushFrame(["t": "clearQueued"], replace: false)
+    }
+
+    // MARK: - 会话控制（上行；与桌面面板头部按钮同一语义）
+
+    /// 清空当前对话 = 桌面面板的「新对话」：Mac 会先沉淀记忆摘要再清空。
+    func clearConversation() {
+        pushFrame(["t": "clear"], replace: false)
+        // 本地先清（不等下一帧）：点了"新对话"就该立刻看到空对话
+        messages = []
+        approval = nil
+        question = nil
+        plan = []
+        subagents = []
+        queued = []
+        pendingEcho = nil
+        canRegenerate = false
+        queuedOffline = false
+        tokens = nil
+        cost = nil
+        paused = false
+    }
+
+    /// 暂停回合（在下一个检查点前生效，即下一个模型调用/工具执行之前）。
+    func pauseTurn() {
+        pushFrame(["t": "pause"], replace: false)
+        paused = true
+    }
+
+    func resumeTurn() {
+        pushFrame(["t": "resume"], replace: false)
+        paused = false
+    }
+
+    /// FULL ACCESS：所有工具免审批（**含任意代码执行**）。风险最高，UI 侧二次确认。
+    func setFullAccess(_ on: Bool) {
+        pushFrame(["t": "setFullAccess", "flag": on], replace: false)
+        fullAccess = on
+    }
+
+    // MARK: - 只读信息（按需拉取；页面进入时请求一次 + 下拉刷新）
+
+    func requestCapabilities() { pushFrame(["t": "capabilities"], replace: false) }
+    func requestStats() { pushFrame(["t": "stats"], replace: false) }
+    func requestTrace() { pushFrame(["t": "trace"], replace: false) }
+    func requestModels() { pushFrame(["t": "models"], replace: false) }
+
+    /// 切换服务档案 / 模型（`profile` 传 nil = 只改当前档案的模型）。
+    /// 与桌面模型菜单同一落点：写的是 Mac 上的当前档案。
+    func selectModel(_ model: String, profile: String? = nil) {
+        var dict: [String: Any] = ["t": "setModel", "model": model]
+        if let profile { dict["profile"] = profile }
+        pushFrame(dict, replace: false)
     }
 
     /// 请求 Mac 的会话列表（聊天记录）。

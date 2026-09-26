@@ -381,11 +381,18 @@ final class SyncStore: ObservableObject {
     }
 
     /// 出票并渲染二维码 payload（{"v":1,"s":服务器,"ticket":…}）。
+    ///
+    /// 远程控制开着时**顺带带上配对信息**（`c`/`k`/`d`）：手机扫一次登录码就同时
+    /// 完成"登录本机"与"配对远程控制"。缺失时手机只完成登录，仍需单独扫配对码
+    /// ——会话密钥只在二维码里传（服务器读不到），所以必须由这里带出去。
     func qrLoginStart() async throws -> QRLoginSession {
         let resp = try await SyncAPIClient.qrCreate(
             baseURL: serverBaseURL, deviceID: deviceID,
             deviceName: Host.current().localizedName ?? "Mac")
-        let dict: [String: Any] = ["v": 1, "s": serverBaseURL, "ticket": resp.ticket]
+        var dict: [String: Any] = ["v": 1, "s": serverBaseURL, "ticket": resp.ticket]
+        if let pairing = await AppState.live?.remoteControlStore.pairingPayloadForLoginQR() {
+            dict.merge(pairing) { _, new in new }
+        }
         let data = try JSONSerialization.data(withJSONObject: dict)
         return QRLoginSession(ticket: resp.ticket, qrPayload: String(data: data, encoding: .utf8) ?? "")
     }

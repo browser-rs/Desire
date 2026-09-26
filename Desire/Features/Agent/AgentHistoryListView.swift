@@ -36,6 +36,10 @@ struct AgentHistoryListView: View {
             }
             content
         }
+        // 与记忆页等兄弟子页同一底色。List 自身还会再画一层背景，必须配
+        // `scrollContentBackground(.hidden)`（见 listBody），否则顶部搜索栏与
+        // 下方列表之间会出现一条横向色界——看起来"分成了两层"。
+        .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: selection) { _, newValue in
             // 原生语义：单选 = 打开；多选 = 批量模式（不打开）。
             if newValue.count == 1, let id = newValue.first, id != sessionStore.conversationId {
@@ -282,13 +286,16 @@ struct AgentHistoryListView: View {
                     }
                 } header: {
                     Text(group.title)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .textCase(.uppercase)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                        .padding(.top, 4)
                 }
             }
         }
         .listStyle(.inset)
+        // 让 List 露出父级底色（否则它自绘的一层背景会与顶部搜索栏形成色界）
+        .scrollContentBackground(.hidden)
         .onDeleteCommand {
             // 键盘 Delete：有选中就删选中的，否则删当前高亮的（List 会选中它）
             if !selection.isEmpty { confirmDelete(ids: selection) }
@@ -377,48 +384,62 @@ private struct ConversationRow: View {
     @FocusState private var isEditFocused: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(iconFill)
-                    .frame(width: 18, height: 18)
-                Image(systemName: isCurrent ? "bubble.left.fill" : "bubble.left")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(iconForeground)
-            }
-            .padding(.top, 1)
+        HStack(alignment: .top, spacing: 10) {
+            // 单个 SF Symbol 取代原来的「18×18 圆角小方块 + 9pt 图标」——
+            // 那个方块在 macOS 列表里又小又糊，也和系统图标语言不搭。
+            Image(systemName: isCurrent ? "bubble.left.fill" : "bubble.left")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isCurrent ? appAccent : Color.secondary)
+                .frame(width: 18, alignment: .center)
+                .padding(.top, 1)
 
-            VStack(alignment: .leading, spacing: 2) {
-                if isEditing {
-                    TextField("Title", text: $editTitle)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .focused($isEditFocused)
-                        .onSubmit { commitRename() }
-                        .onExitCommand { cancelRename() }
-                } else {
-                    Text(conversation.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if isEditing {
+                        TextField("Title", text: $editTitle)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, weight: .medium))
+                            .focused($isEditFocused)
+                            .onSubmit { commitRename() }
+                            .onExitCommand { cancelRename() }
+                    } else {
+                        Text(conversation.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    if isCurrent {
+                        Text("当前")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(appAccent)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(appAccent.opacity(0.14)))
+                    }
+                    Spacer(minLength: 8)
+                    // 条数与时间收到右上角：原来塞进副标题、和消息数挤成一行
+                    // 10pt tertiary，几乎读不出来。
+                    Text(messageCountText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize()
+                    Text(conversation.updatedAt, style: .relative)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize()
+                }
+                // 内容预览：让列表有"内容感"，不点开也能想起那条说过什么
+                if let preview {
+                    Text(preview)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                HStack(spacing: 4) {
-                    Text(messageCountText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Text("·")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Text(conversation.updatedAt, style: .relative)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
             }
-
-            Spacer(minLength: 4)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 7)
         .contentShape(Rectangle())
         // 不在行里自绘底色、也不放 hover 按钮：原生 List 画高亮，
         // 删除走滑动 / 右键 / Delete 键（用户："hover 的删除按钮可以去掉了"）。
@@ -459,22 +480,20 @@ private struct ConversationRow: View {
         onEndRename()
     }
 
+    /// 最后一条有内容的消息，作为列表预览（单行截断）。
+    private var preview: String? {
+        for message in conversation.messages.reversed() {
+            guard let text = message.content?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else { continue }
+            // 换行会撑破单行截断 → 压成空格；再截长度，避免超长正文参与布局
+            return String(text.replacingOccurrences(of: "\n", with: " ").prefix(120))
+        }
+        return nil
+    }
+
     private var messageCountText: String {
-        conversation.messages.count == 1
-            ? "1 message"
-            : "\(conversation.messages.count) messages"
+        "\(conversation.messages.count) 条"
     }
-
-    private var iconFill: Color {
-        isCurrent
-            ? appAccent.opacity(0.18)
-            : Color(nsColor: .controlBackgroundColor).opacity(0.6)
-    }
-
-    private var iconForeground: Color {
-        isCurrent ? appAccent : Color.secondary
-    }
-
 }
 
 // MARK: - DoubleClickHandler (NSViewRepresentable)

@@ -41,6 +41,22 @@ enum AgentQuickAction: CaseIterable {
             String(localized: "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send.")
         }
     }
+
+    /// 远程协议线路值（手机端 `quickAction` 指令回传用；`init?(wire:)` 反向解析）。
+    var wire: String {
+        switch self {
+        case .summarize: "summarize"
+        case .askAboutPage: "askAboutPage"
+        case .translate: "translate"
+        case .summarizeComments: "summarizeComments"
+        case .summarizeChat: "summarizeChat"
+        }
+    }
+
+    init?(wire: String) {
+        guard let match = Self.allCases.first(where: { $0.wire == wire }) else { return nil }
+        self = match
+    }
 }
 
 @MainActor
@@ -595,6 +611,9 @@ class AgentSessionStore: ObservableObject {
         isNewChatIntentional = false
         // Queued input belonged to the previous conversation's turn.
         queuedMessages.removeAll()
+        // 计划清单同样属于上一会话——不清会让面板（与远程手机端）显示
+        // 上一个会话残留的任务清单。
+        AgentPlanStore.shared.clear()
         isPaused = false
         usagePromptTokens = 0
         usageCompletionTokens = 0

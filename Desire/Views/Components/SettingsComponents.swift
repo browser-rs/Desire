@@ -551,13 +551,122 @@ struct SettingsTextField: View {
     }
 }
 
+// MARK: - Form Metrics
+
+/// 表单类排布的共享尺寸（标签列宽 + 配套的分隔线缩进）。
+enum SettingsMetrics {
+    /// 表单标签列宽度
+    static let fieldLabelWidth: CGFloat = 92
+    /// 表单行分隔线的左缩进 = 卡片内边距 14 + 标签列 92 + 行内间距 12
+    static let fieldDividerLeading: CGFloat = 118
+}
+
+// MARK: - Form Field Row
+
+/// 表单行的统一排布：**固定宽度的标签列 + 撑满剩余宽度的控件**。
+///
+/// `SettingsRow` 是"标题在左、控件贴最右"的排布——适合开关/按钮行；但用在
+/// 表单（用户名 / 密码 / 服务器）上会出现"标签和输入框之间一大片空白"，输入框
+/// 还被挤成固定小宽度、各页宽度互不相同（240 / 200 / 100）。表单一律用本行，
+/// 标签列对齐、控件撑满，整页宽度自然统一。
+struct SettingsFieldRow<Field: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder let field: Field
+
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder field: () -> Field) {
+        self.title = title
+        self.subtitle = subtitle
+        self.field = field()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(localizedSettingText(title))
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .frame(width: SettingsMetrics.fieldLabelWidth, alignment: .leading)
+                // 与输入框内首行文字基线对齐（输入框自带 6pt 内边距）
+                .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: 4) {
+                field
+                if let subtitle {
+                    Text(localizedSettingText(subtitle))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+    }
+}
+
+// MARK: - Submit Button
+
+/// 表单提交按钮：整行宽的实心强调色按钮。
+///
+/// 设置页其它地方一律用 `SettingsCapsuleButton`（浅底胶囊），整页都是浅色小控件
+/// 时**没有视觉焦点**；提交是页面里唯一的主动作，用实心按钮把视线收在一处。
+struct SettingsSubmitButton: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
+
+    let title: String
+    var isDisabled: Bool = false
+    var isWorking: Bool = false
+    let action: () -> Void
+
+    init(
+        _ title: String,
+        isDisabled: Bool = false,
+        isWorking: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.isDisabled = isDisabled
+        self.isWorking = isWorking
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if isWorking {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(localizedSettingText(title))
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(appAccent.opacity(isDisabled ? 0.35 : 0.92))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+    }
+}
+
 // MARK: - Row Divider
 
 /// Use this between `SettingsRow` children of a section to get a subtle
 /// divider that doesn't cross the rounded card corners.
 struct SettingsRowDivider: View {
+    /// 左侧缩进。默认 14（贴齐卡片内边距）；表单行用
+    /// `SettingsMetrics.fieldDividerLeading`，分隔线才会从输入框左边缘起。
+    var leading: CGFloat = 14
+
     var body: some View {
         Divider()
-            .padding(.leading, 14)
+            .padding(.leading, leading)
     }
 }

@@ -20,5 +20,6 @@ pub fn router() -> Router<AppState> {
       post(remote_controller::pairing_revoke),
     )
     .route("/remote/devices", get(remote_controller::devices))
+    .route("/remote/pull", get(remote_controller::pull_inbox))
     .route("/remote/ws", get(remote_controller::ws))
 }

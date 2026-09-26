@@ -312,10 +312,12 @@ final class RemoteControlStore: ObservableObject {
         let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.pushSnapshot(force: false)
+                self?.pollInbox()
             }
         }
         snapshotTimer = timer
         pushSnapshot(force: true)
+        pollInbox()
     }
 
     struct RemoteSnapshotMessage: Codable {
@@ -373,6 +375,26 @@ final class RemoteControlStore: ObservableObject {
         case .connecting: return "connecting"
         case .online: return "online"
         case .error(let message): return "error: \(message)"
+        }
+    }
+
+    /// 轮询取帧：Mac 端 URLSession WS 下行不可用（实测），控制器指令统一
+    /// 从留言表拉取——每秒一拍，与快照推送共用定时器。
+    private var pollInFlight = false
+    private func pollInbox() {
+        guard connection == .online, !pollInFlight else { return }
+        pollInFlight = true
+        Task { @MainActor in
+            defer { self.pollInFlight = false }
+            guard let token = try? await syncStore.remoteAuthToken() else { return }
+            guard let resp = try? await SyncAPIClient.remotePullInbox(
+                baseURL: baseURL, accessToken: token, deviceID: syncStore.deviceID) else { return }
+            for item in resp.items {
+                if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
+                    Self.remoteDebug("pull ← \(String(inner.prefix(100)))")
+                    handleInnerFrame(inner)
+                }
+            }
         }
     }
 

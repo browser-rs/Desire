@@ -321,6 +321,36 @@ pub async fn inbox_pending(
   .map_err(|e| AppError::Internal(format!("inbox pending: {e}")))
 }
 
+/// 桌面轮询取帧：取未投递行并标记 delivered（不删——WS/HTTP 都可能丢，
+/// 由 TTL 与 ack 双保险；重复风险由客户端幂等处理承担，v1 取"不重复派活"
+/// 优先：delivered_at 置位后不再返回）。
+pub async fn inbox_take(
+  state: &AppState,
+  user_id: i64,
+  desktop_device_id: &str,
+) -> Result<Vec<(i64, String)>, AppError> {
+  let rows: Vec<(i64, String)> = sqlx::query_as::<_, (i64, String)>(
+    "SELECT id, payload FROM remote_inbox \
+     WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL ORDER BY id LIMIT 100",
+  )
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .fetch_all(&state.pool)
+  .await
+  .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
+  if !rows.is_empty() {
+    let now = Utc::now().naive_utc();
+    for (id, _) in &rows {
+      let _ = sqlx::query("UPDATE remote_inbox SET delivered_at = ? WHERE id = ?")
+        .bind(now)
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+    }
+  }
+  Ok(rows)
+}
+
 /// 桌面确认已处理离线留言。
 pub async fn inbox_ack(state: &AppState, ids: &[i64], user_id: i64) -> Result<(), AppError> {
   if ids.is_empty() {

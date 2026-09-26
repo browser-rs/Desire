@@ -1135,10 +1135,13 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   二维码里，服务器只见密文。桥辅助端点：`/remote/toggle|pair|status`（status 含
   配对码+密钥，**仅限本地自动化桥**）。**已验证**：REST 配对/认领、WS 双向注册、
   桌面→手机加密快照解密、限流（配对 20/时/用户——自动化会烧额度，重启服务端清零）。
-  **未决**：手机→Mac 的 prompt 下行一次未能在线验证（Mac 端 receiveLoop/
-  startSnapshotLoop 的 REMOTE-DBG 探针在连接 online 时无输出，与 bridge 报 online
-  矛盾——需 Xcode 断点排查 receiveLoop 或 keychain ACL；重连停摆（服务器重启后
-  5s 退避重连偶发不触发，toggle 关/开可解）同源待查）。新增 Mac store 时勿忘：
+  **下行定案：poll 兜底**——Mac 端 URLSession WS 下行在 GUI App 里永不交付
+  （TCP ESTABLISHED + 服务器 socket write ok 实锤，async/completion/detached/
+  专用会话/禁代理全试过，同码脚本却正常）。解决：控制器→桌面**统一进留言表**，
+  Mac 每秒 `GET /remote/pull?device=` 取帧（与快照推送共用定时器；delivered_at
+  置位不重投，TTL 兜底）；出站（桌面→手机）WS 照常。**遗留小项**：重连停摆
+  （已修 teardown 竞态）；REMOTE-DBG 文件日志（/tmp/remote_mac_debug.log）
+  稳定后可删。新增 Mac store 时勿忘：
   `observeLocalChanges` 订阅 + `applyingRemote` 守卫见同步段。
 - **部署体系（2026-09-25，照 trove 搬）**：`docker/Dockerfile.api|Dockerfile.migrate`
   + `.dockerignore`（上下文最小化：Swift 应用目录/构建产物/秘密文件一律不进构建层）+

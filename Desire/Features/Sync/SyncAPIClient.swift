@@ -134,6 +134,21 @@ nonisolated enum SyncAPIClient {
         try await send("GET", baseURL, "/remote/devices", token: accessToken)
     }
 
+    struct RemoteInboxPull: Codable {
+        var items: [RemoteInboxPullItem]
+    }
+
+    struct RemoteInboxPullItem: Codable {
+        var id: Int64
+        var payload: String
+    }
+
+    static func remotePullInbox(
+        baseURL: String, accessToken: String, deviceID: String
+    ) async throws -> RemoteInboxPull {
+        try await send("GET", baseURL, "/remote/pull?device=\(deviceID)", token: accessToken)
+    }
+
     static func remotePairingRevoke(
         baseURL: String, accessToken: String, deviceID: String, controllerName: String?
     ) async throws {

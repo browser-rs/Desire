@@ -117,6 +117,28 @@ pub async fn pairing_revoke(
   }
 }
 
+/// GET /remote/pull?device=<desktop_device_id> —— 桌面轮询取帧（含命令/同步请求）。
+pub async fn pull_inbox(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+  let device_id = params.get("device").cloned().unwrap_or_default();
+  if device_id.is_empty() || device_id.len() > 64 {
+    return api_err(AppError::Validation("invalid device".into()));
+  }
+  match remote_service::inbox_take(&state, claims.sub, &device_id).await {
+    Ok(rows) => {
+      let items: Vec<Value> = rows
+        .iter()
+        .map(|(id, payload)| json!({"id": id, "payload": payload}))
+        .collect();
+      api_ok(json!({"items": items}))
+    }
+    Err(e) => api_err(e),
+  }
+}
+
 /// WS /remote/ws —— 中继通道。鉴权走 jwt_auth 中间件(Authorization 头,
 /// URLSessionWebSocketTask 可带自定义头,令牌不进 URL/日志)。
 pub async fn ws(
@@ -196,7 +218,11 @@ async fn handle_socket(
     tokio::select! {
       outbound = rx.recv() => {
         let Some(msg) = outbound else { break };
-        if socket.send(msg).await.is_err() { break; }
+        tracing::info!(user = user_id, role = %role, "ws outbound branch fired → socket.send");
+        match socket.send(msg).await {
+          Ok(()) => tracing::info!(user = user_id, "ws outbound write ok"),
+          Err(e) => { tracing::info!(user = user_id, "ws outbound write ERR: {e}"); break; }
+        }
       }
       inbound = socket.recv() => {
         let Some(Ok(msg)) = inbound else { break };
@@ -218,15 +244,10 @@ async fn handle_socket(
               continue;
             }
             if role == "controller" {
-              let delivered = state
-                .remote
-                .forward_to_desktop(user_id, &device_id, Message::Text(payload.clone().into()))
-                .await;
-              tracing::info!(user = user_id, device = %device_id, delivered, "route controller→desktop");
-              if !delivered && incoming.deliver_if_offline {
-                let _ =
-                  remote_service::inbox_push(&state, user_id, &device_id, &payload).await;
-              }
+              // Mac 端 URLSession WS 下行不可用（已实测），统一走留言表 + 桌面
+              // 轮询 GET /remote/pull 取帧；投递语义与"离线留言"合一。
+              let _ = remote_service::inbox_push(&state, user_id, &device_id, &payload).await;
+              tracing::info!(user = user_id, device = %device_id, "route controller→desktop (queued)");
             } else {
               tracing::info!(user = user_id, device = %device_id, "route desktop→controllers");
               // desktop → 全部控制器广播(控制器数量小,v1 不做定向);包同一信封

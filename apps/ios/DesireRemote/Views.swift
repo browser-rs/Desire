@@ -191,6 +191,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var showSettings = false
     @FocusState private var inputFocused: Bool
+    @StateObject private var voice = VoiceInputService()
 
     var body: some View {
         NavigationStack {
@@ -294,8 +295,15 @@ struct ChatView: View {
                 Label("已排队，Mac 上线后自动送达", systemImage: "tray.full")
                     .font(.caption2).foregroundStyle(.orange)
             }
-            quickChips
+            if voice.isRecording {
+                recordingBar
+            } else {
+                quickChips
+            }
             HStack(alignment: .bottom, spacing: 8) {
+                micButton
+                    .padding(.leading, 4)
+                    .padding(.bottom, 3)
                 TextField("给 Agent 派个活…", text: $draft, axis: .vertical)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
@@ -319,6 +327,22 @@ struct ChatView: View {
             .padding(.horizontal, 12)
         }
         .padding(.bottom, 8)
+    }
+
+    private var recordingBar: some View {
+        HStack(spacing: 8) {
+            Circle().fill(.red).frame(width: 7, height: 7)
+            Text("听写中…").font(.caption.weight(.medium)).foregroundStyle(.red)
+            if !voice.transcribedText.isEmpty {
+                Text(voice.transcribedText)
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Button("完成") { voice.stop() }.font(.caption.bold())
+        }
+        .padding(.horizontal, 16).padding(.vertical, 6)
+        .background(Color.red.opacity(0.06), in: Capsule())
+        .padding(.horizontal, 12)
     }
 
     private var quickChips: some View {
@@ -356,6 +380,30 @@ struct ChatView: View {
             }
             .disabled(empty)
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: empty)
+        }
+    }
+
+    @ViewBuilder
+    private var micButton: some View {
+        Button {
+            if voice.isRecording {
+                voice.stop()
+            } else {
+                voice.start()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(voice.isRecording ? Color.red.opacity(0.15) : Color.primary.opacity(0.06))
+                    .frame(width: 32, height: 32)
+                Image(systemName: voice.isRecording ? "mic.fill" : "mic")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(voice.isRecording ? .red : .secondary)
+            }
+        }
+        .disabled(client.busy || !voice.isAvailable)
+        .onChange(of: voice.transcribedText) { _, text in
+            if voice.isRecording, !text.isEmpty { draft = text }
         }
     }
 

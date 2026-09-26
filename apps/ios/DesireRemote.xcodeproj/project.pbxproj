@@ -200,6 +200,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "扫码配对 Desire Remote";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音输入指令";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把语音转成文字指令";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -230,6 +232,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "扫码配对 Desire Remote";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音输入指令";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把语音转成文字指令";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

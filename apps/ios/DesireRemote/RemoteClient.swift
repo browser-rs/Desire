@@ -22,6 +22,10 @@ final class RemoteClient: ObservableObject {
     @Published var connectionState = "未连接"
     @Published var messages: [ChatMessage] = []
     @Published var busy = false
+    /// Mac 离线时发出的消息（排队中，上线后送达）
+    @Published var queuedOffline = false
+    /// 本地即时回显的临时用户消息（快照到达后被覆盖）
+    @Published var pendingEcho: ChatMessage?
 
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
@@ -48,6 +52,12 @@ final class RemoteClient: ObservableObject {
             hasSavedPairing = true
             phase = .chat
             username = defaults.string(forKey: "remote.username") ?? ""
+            // 恢复持久化的对话记录（杀 App 不丢）
+            if let data = defaults.data(forKey: "remote.messages"),
+               let saved = try? JSONDecoder().decode([ChatMessage].self, from: data) {
+                messages = saved
+            }
+            busy = defaults.bool(forKey: "remote.busy")
             connectWS()
         }
     }
@@ -169,6 +179,15 @@ final class RemoteClient: ObservableObject {
         return refreshed.accessToken
     }
 
+    /// 回到前台：WS 多半已被 iOS 掐断——重连并补快照。
+    func appForegrounded() {
+        guard phase == .chat, hasSavedPairing, (wsTask == nil) else {
+            if phase == .chat { requestSync() }
+            return
+        }
+        connectWS()
+    }
+
     func unpair() {
         defaults.removeObject(forKey: "remote.sessionKey")
         defaults.removeObject(forKey: "remote.desktopID")
@@ -249,8 +268,17 @@ final class RemoteClient: ObservableObject {
         guard let data = text.data(using: .utf8),
               let frame = try? JSONDecoder().decode(SnapshotFrame.self, from: data) else { return }
         messages = frame.messages
+        if pendingEcho != nil { pendingEcho = nil }
         busy = frame.busy
         connectionState = busy ? "Agent 工作中…" : "已连接"
+        if let data = try? JSONEncoder().encode(frame.messages) {
+            defaults.set(data, forKey: "remote.messages")
+        }
+        defaults.set(busy, forKey: "remote.busy")
+        if queuedOffline, !busy {
+            queuedOffline = false
+            connectionState = "已连接"
+        }
     }
 
     private func sendTransport(_ dict: [String: Any]) {
@@ -265,8 +293,15 @@ final class RemoteClient: ObservableObject {
         guard let sessionKeyB64,
               let payload = RemoteCrypto.innerFrame(["t": "prompt", "text": text], sessionKeyB64: sessionKeyB64)
         else { return }
+        let offline = connectionState.contains("断开") || connectionState.contains("未连接")
         sendTransport(["kind": "route", "payload": payload, "deliver_if_offline": true])
-        connectionState = "Agent 工作中…"
+        queuedOffline = offline
+        // 即时回显：不等 Mac 快照，先让指令出现在对话里
+        let echo = ChatMessage(id: "echo-\(UUID().uuidString)", role: "user",
+                               content: text, reasoning: nil, toolCalls: nil)
+        messages.append(echo)
+        pendingEcho = echo
+        connectionState = offline ? "已排队，Mac 上线后送达" : "Agent 工作中…"
     }
 
     func sendCancel() {

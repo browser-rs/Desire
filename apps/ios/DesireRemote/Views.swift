@@ -274,16 +274,44 @@ struct ChatView: View {
     }
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        VStack(spacing: 6) {
+            if client.queuedOffline {
+                HStack(spacing: 4) {
+                    Image(systemName: "tray.full")
+                    Text("已排队，Mac 上线后自动送达")
+                }
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity)
+            }
+            quickChips
+            HStack(alignment: .bottom, spacing: 10) {
             TextField("给 Agent 派个活…", text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .padding(10)
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
             sendButton
         }
+        }
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// 常用指令快捷 chips
+    private var quickChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(["继续", "总结当前页面", "再检查一遍结果"], id: \.self) { chip in
+                    Button { send(chip) } label: { Text(chip) }
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                        .disabled(client.busy)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -314,8 +342,8 @@ struct ChatView: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func send() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func send(_ override: String? = nil) {
+        let text = (override ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         client.sendPrompt(text)
         draft = ""

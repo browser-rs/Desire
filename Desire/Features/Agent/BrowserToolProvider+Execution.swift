@@ -2,6 +2,19 @@ import AppKit
 import UniformTypeIdentifiers
 import WebKit
 
+/// 页面媒体候选（嗅探 + DOM 扫描合并后的一条）。
+/// `fromSniffer` 决定 listPageVideos 的输出形态（嗅探带 mime/size 元信息，
+/// 扫描带来源），批量工具只消费 url/kind/isBlob。
+private struct PageMediaCandidate {
+    let url: String
+    let kind: String
+    let mime: String
+    let source: String
+    let isBlob: Bool
+    let displaySize: String?
+    let fromSniffer: Bool
+}
+
 /// Tool dispatcher: resolves a single tool call against the `surface`.
 /// Split out of `BrowserToolProvider` so the Store class holds only state
 /// + small helpers. The `surface` is guarded at the top of `execute`.
@@ -54,6 +67,50 @@ extension BrowserToolProvider {
     /// 操作出错）才算失败；**查询成功但结果为空**（"No bookmarks"、"No history
     /// entries"…）不是失败 —— 那是工具给出的正常答案。
     static func fail(_ message: String) -> String { "Error: " + message }
+
+    /// 合并"网络嗅探 + DOM/meta 扫描"的页面媒体候选。listPageVideos 与
+    /// downloadAllPageVideos 共用同一份采集（顺序：嗅探在前，扫描去重追加）。
+    private func pageMediaCandidates(_ webView: WKWebView) async -> [PageMediaCandidate] {
+        let sniffed = surface?.tabManager?.tabs
+            .first(where: { $0.browser.webView === webView })?
+            .browser.detectedMedia ?? []
+        let scan = await callAsync(webView, function: "__desireScanMedia", args: [:])
+        var scanned: [(url: String, kind: String, mime: String, source: String, isBlob: Bool)] = []
+        if let data = scan.data(using: .utf8),
+           let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let items = obj["items"] as? [[String: Any]] {
+            for item in items {
+                guard let url = item["url"] as? String else { continue }
+                scanned.append((
+                    url,
+                    item["kind"] as? String ?? "video",
+                    item["mime"] as? String ?? "",
+                    item["source"] as? String ?? "dom",
+                    item["isBlob"] as? Bool ?? false
+                ))
+            }
+        }
+
+        var candidates: [PageMediaCandidate] = []
+        var seen = Set<String>()
+        for entry in sniffed where !seen.contains(entry.url) {
+            seen.insert(entry.url)
+            candidates.append(PageMediaCandidate(
+                url: entry.url, kind: entry.kind.rawValue, mime: entry.mime,
+                source: entry.source, isBlob: false,
+                displaySize: entry.displaySize, fromSniffer: true
+            ))
+        }
+        for entry in scanned where !seen.contains(entry.url) {
+            seen.insert(entry.url)
+            candidates.append(PageMediaCandidate(
+                url: entry.url, kind: entry.kind, mime: entry.mime,
+                source: entry.source, isBlob: entry.isBlob,
+                displaySize: nil, fromSniffer: false
+            ))
+        }
+        return candidates
+    }
 
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         let result = await executeBody(call, in: webView)
@@ -691,42 +748,20 @@ extension BrowserToolProvider {
             // Merge two detection paths: the network sniffer (real CDN URLs
             // behind blob: players, accumulated in the owning tab's
             // BrowserState) and the on-demand DOM/meta scan.
-            let sniffed = surface.tabManager?.tabs
-                .first(where: { $0.browser.webView === webView })?
-                .browser.detectedMedia ?? []
-            let scan = await callAsync(webView, function: "__desireScanMedia", args: [:])
-            var scanned: [(url: String, kind: String, mime: String, source: String, isBlob: Bool)] = []
-            if let data = scan.data(using: .utf8),
-               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-               let items = obj["items"] as? [[String: Any]] {
-                for item in items {
-                    guard let url = item["url"] as? String else { continue }
-                    scanned.append((
-                        url,
-                        item["kind"] as? String ?? "video",
-                        item["mime"] as? String ?? "",
-                        item["source"] as? String ?? "dom",
-                        item["isBlob"] as? Bool ?? false
-                    ))
-                }
-            }
-
+            let candidates = await pageMediaCandidates(webView)
             var lines: [String] = []
-            var seen = Set<String>()
-            for entry in sniffed where !seen.contains(entry.url) {
-                seen.insert(entry.url)
-                var line = "[\(entry.kind.rawValue)] \(entry.url)"
-                var meta: [String] = []
-                if !entry.mime.isEmpty { meta.append("type: \(entry.mime)") }
-                if let size = entry.displaySize { meta.append(size) }
-                if !meta.isEmpty { line += " (\(meta.joined(separator: ", ")))" }
-                lines.append(line)
-            }
-            for entry in scanned where !seen.contains(entry.url) {
-                seen.insert(entry.url)
+            for entry in candidates {
                 var line = "[\(entry.kind)] \(entry.url)"
-                if entry.isBlob { line += " (blob: only usable inside the page — look for the stream/mp4 entries instead)" }
-                else { line += " (via \(entry.source))" }
+                if entry.fromSniffer {
+                    var meta: [String] = []
+                    if !entry.mime.isEmpty { meta.append("type: \(entry.mime)") }
+                    if let size = entry.displaySize { meta.append(size) }
+                    if !meta.isEmpty { line += " (\(meta.joined(separator: ", ")))" }
+                } else if entry.isBlob {
+                    line += " (blob: only usable inside the page — look for the stream/mp4 entries instead)"
+                } else {
+                    line += " (via \(entry.source))"
+                }
                 lines.append(line)
             }
 
@@ -734,6 +769,170 @@ extension BrowserToolProvider {
                 return "No video/audio resources detected on this page. Try playing the video first — the network sniffer records the stream as it loads."
             }
             return "\(lines.count) media resource(s):\n" + lines.joined(separator: "\n")
+
+        case "downloadAllPageVideos":
+            // 喂食流批量（模式 A）：当前页嗅探到的媒体全部入队——去重/过滤
+            // （blob/DASH/纯音频）在规划层（BatchMediaPlan）做。逐页解析的
+            // 列表用 downloadVideoList。
+            let candidates = await pageMediaCandidates(webView)
+            guard !candidates.isEmpty else {
+                return "No video/stream resources detected on this page. If each list item links to a separate detail page, collect those URLs and use downloadVideoList instead."
+            }
+            let requestedFolder = (args["folderName"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : webView.url?.host
+            let batch = BatchMediaExportStore.shared.startPageBatch(
+                candidates: candidates.map { ($0.url, $0.kind, $0.mime, $0.isBlob) },
+                referer: webView.url,
+                userAgent: webView.customUserAgent,
+                folderName: folderName,
+                naming: args["naming"] as? String,
+                force: (args["force"] as? Bool) ?? false
+            )
+            let downloading = batch.items.filter { $0.state == .pending }.count
+            let skipped = batch.items.filter { $0.state == .skipped }
+            var reply = """
+            Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName) (≤2 concurrent). \
+            Failed items are retried automatically in the same batch/folder — do NOT fall back to downloadMedia for them. \
+            Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
+            """
+            if !skipped.isEmpty {
+                let names = skipped.prefix(8).map { "\($0.title) (\($0.summary ?? ""))" }.joined(separator: "; ")
+                reply += "\nSkipped \(skipped.count): \(names)"
+            }
+            return reply
+
+        case "downloadVideoList":
+            // 列表批量（模式 B）：详情页地址逐个交给隐藏解析器。长任务立刻
+            // 返回批次 id——回合不能阻塞在几十页的解析上。
+            guard let urls = args["urls"] as? [String], !urls.isEmpty else {
+                return Self.fail("Missing urls (array of detail-page URLs)")
+            }
+            guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
+                return Self.fail("Too many urls (\(urls.count)); cap is \(BatchMediaExportStore.maxItemsPerBatch) per batch")
+            }
+            let requestedFolder = (args["folderName"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : URL(string: urls[0])?.host
+            let batch = BatchMediaExportStore.shared.startListBatch(
+                pageURLs: urls,
+                userAgent: webView.customUserAgent,
+                folderName: folderName,
+                naming: args["naming"] as? String,
+                force: (args["force"] as? Bool) ?? false
+            )
+            let queued = batch.items.filter { $0.state == .pending }.count
+            let skipped = batch.items.filter { $0.state == .skipped }
+            var reply = """
+            Batch \(batch.id.uuidString.prefix(8)) started: \(queued) page(s) queued. Each page is loaded in a hidden browser \
+            (serialized, paced with the download slots so signed URLs never expire), the stream is captured and downloaded (≤2 concurrent). \
+            Cloudflare checks pass automatically; an interactive one is clicked with real mouse events, and only falls back to waiting for the \
+            user in a popup window if that fails. Failed items are retried automatically in the SAME batch/folder — do NOT fall back to \
+            downloadMedia for them. Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
+            """
+            if !skipped.isEmpty {
+                let names = skipped.prefix(8).map { "\($0.title) (\($0.summary ?? ""))" }.joined(separator: "; ")
+                reply += "\nSkipped \(skipped.count): \(names)"
+            }
+            return reply
+
+        case "retryBatchDownloads":
+            // 失败项重试：复用原批次与原文件夹（模型此前手动开新批次，文件
+            // 散落三个目录——工具描述已禁止，这里给出规范入口）。
+            let batches = BatchMediaExportStore.shared.batches
+            let target: BatchMediaBatch?
+            if let rawID = args["batchId"] as? String,
+               let uuid = UUID(uuidString: rawID) {
+                target = batches.first(where: { $0.id == uuid })
+            } else {
+                target = batches.first(where: { $0.state == .finished })
+            }
+            guard let batch = target else {
+                return Self.fail("No matching finished batch (pass batchId from listBatchDownloads)")
+            }
+            let failedCount = batch.items.filter { $0.state == .failed }.count
+            guard failedCount > 0 else {
+                return "Batch \(batch.folderName) has no failed items to retry."
+            }
+            BatchMediaExportStore.shared.retryFailed(batch.id)
+            return "Retrying \(failedCount) failed item(s) in batch \(batch.folderName) (same folder as before). listBatchDownloads reports progress."
+
+        case "listBatchDownloads":
+            let store = BatchMediaExportStore.shared
+            let batches = store.batches
+            guard !batches.isEmpty else { return "No batch downloads." }
+            var lines: [String] = []
+            for batch in batches.prefix(10) {
+                var line = "[\(batch.state.rawValue)] \(batch.folderName) (\(batch.mode.rawValue)) — \(batch.finishedCount)/\(batch.items.count) done → \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName)"
+                if store.isPaused(batch.id) { line += " — PAUSED (resume with manageBatchDownloads)" }
+                if let reason = store.suspensionReason(batch.id) {
+                    line += " — SUSPENDED: \(reason) (auto-resumes when space recovers)"
+                }
+                let needsHuman = batch.items.filter { $0.state == .needsHuman }
+                if !needsHuman.isEmpty {
+                    line += " — WAITING FOR HUMAN VERIFICATION (\(needsHuman.count)) — automatic clicking already failed; tell the user to finish the check in the popup window"
+                }
+                lines.append(line)
+                for item in batch.items.prefix(30) {
+                    var itemLine = "  · [\(item.state.rawValue)] \(item.title.isEmpty ? item.sourceURL.absoluteString : item.title)"
+                    if let progress = store.progress(for: item.id) {
+                        itemLine += " (\(progress.done)/\(progress.total) \(progress.unit.rawValue))"
+                    }
+                    if item.attempts > 1 { itemLine += " (attempt \(item.attempts))" }
+                    if let summary = item.summary, [.failed, .skipped].contains(item.state) {
+                        itemLine += " — \(summary)"
+                    }
+                    lines.append(itemLine)
+                }
+                if batch.items.count > 30 {
+                    lines.append("  … \(batch.items.count - 30) more items")
+                }
+            }
+            return lines.joined(separator: "\n")
+
+        case "manageBatchDownloads":
+            guard let rawID = args["batchId"] as? String,
+                  let batchID = UUID(uuidString: rawID) else {
+                return Self.fail("Missing/invalid batchId (from listBatchDownloads)")
+            }
+            guard let action = (args["action"] as? String)?.lowercased() else {
+                return Self.fail("Missing action (pause/resume/skip/add)")
+            }
+            let store = BatchMediaExportStore.shared
+            switch action {
+            case "pause":
+                store.pause(batchID: batchID)
+                return "Batch paused. Resume with manageBatchDownloads action=resume."
+            case "resume":
+                store.resume(batchID: batchID)
+                return "Batch resumed."
+            case "skip":
+                guard let rawItem = args["itemId"] as? String,
+                      let itemID = UUID(uuidString: rawItem) else {
+                    return Self.fail("skip needs itemId (from listBatchDownloads)")
+                }
+                store.skip(batchID: batchID, itemID: itemID)
+                return "Item skipped (removed from the queue)."
+            case "add":
+                guard let urls = args["urls"] as? [String], !urls.isEmpty else {
+                    return Self.fail("add needs urls (array)")
+                }
+                guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
+                    return Self.fail("Too many urls; cap is \(BatchMediaExportStore.maxItemsPerBatch)")
+                }
+                let mode = store.batches.first(where: { $0.id == batchID })?.mode ?? .list
+                let result = store.addItems(
+                    batchID: batchID,
+                    pageURLs: mode == .list ? urls : [],
+                    mediaURLs: mode == .page ? urls : [],
+                    referer: webView.url
+                )
+                return result.added == 0
+                    ? "Nothing added (\(result.duplicates) duplicate/invalid URL(s) — they may already be in this batch)."
+                    : "Added \(result.added) task(s) to the batch (\(result.duplicates) duplicates ignored). Numbering continues from the existing items."
+            default:
+                return Self.fail("Unknown action '\(action)' (pause/resume/skip/add)")
+            }
 
         case "downloadMedia":
             // 后台导出：直接文件流式落盘；HLS（m3u8）解析分片、按 Referer +

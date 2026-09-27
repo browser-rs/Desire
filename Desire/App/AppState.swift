@@ -69,6 +69,8 @@ class AppState: ObservableObject {
         }
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         syncStore.startAutoSync()
+        // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。
+        BatchMediaExportStore.shared.restoreIfNeeded()
         // 远程控制：开关开着且已登录才连中继。
         remoteControlStore.startIfEnabled()
     }

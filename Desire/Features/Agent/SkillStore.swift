@@ -254,6 +254,24 @@ final class SkillStore: ObservableObject {
            转码、压缩、抽音轨、合成双轨。
         5. 报告输出路径与大小。
 
+        ## 批量（列表页）
+        - 卡片**在列表页内直接播放**的（feed/瀑布流）：downloadAllPageVideos
+          一次入队当前页全部嗅探到的视频。
+        - 每项要**进详情页**才有视频的：先滚动/翻页收集详情页地址清单，
+          askUser 确认清单，再 downloadVideoList（隐藏浏览器逐页解析，
+          Cloudflare 自动过；交互式验证会先自动点击，不成才弹窗给用户）。
+        - 两者都不等待：listBatchDownloads 查进度，批次完成会通知。
+        - **队列管理用 manageBatchDownloads**：暂停/恢复整批、skip 掉排队中
+          的单项、向既有批次追加新任务（去重、序号接续）。
+        - **失败项不要用 downloadMedia 单独补**（会把文件散落到 Downloads
+          根目录）——引擎会在同批同文件夹自动重试（换新签名地址）；自动
+          重试耗尽后用 retryBatchDownloads 重跑失败项。
+        - **磁盘保护是自动的**：剩余空间低于预留线（默认 5GB，可改）会挂起
+          整批并提醒用户，空间恢复后自动续跑；不用你盯。
+        - 命名/保存位置遵循用户偏好（默认清洗标题、落 ~/Downloads/<host>/）；
+          用户表达过偏好的用 naming/folderName 参数传下去，引擎会记住并写入
+          长期记忆。
+
         ## 失败自愈
         - 下载失败/超时：换 listPageVideos 列表里的下一个源（通常有降清晰度备选）。
         - **HLS 不需要手动跑 ffmpeg**：downloadMedia 自己判定——装了 ffmpeg 就直接

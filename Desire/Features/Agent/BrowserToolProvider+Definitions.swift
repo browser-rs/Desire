@@ -190,6 +190,47 @@ extension BrowserToolProvider {
                 ], required: ["url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "downloadAllPageVideos",
+                description: "Batch-download EVERY video/stream detected on the CURRENT page — for feed/list pages whose cards PLAY INLINE (the streams are already sniffed). Deduplicates and skips audio-only/DASH/blob resources. Failed items are retried automatically in the SAME batch/folder (fresh signed URLs) — do NOT fall back to single downloadMedia calls, that scatters files. Files land in <save location>/<folder>/ with 01- 02- numbering; the user's saved naming/location preferences apply (naming param overrides for this batch and updates the preference). Returns a batch id immediately — do NOT wait or poll; listBatchDownloads reports progress. If each list item instead links to a SEPARATE detail page, collect those URLs (scroll for lazy lists) and call downloadVideoList.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the page's host)"),
+                    "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
+                    "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "downloadVideoList",
+                description: "Batch-download a video LIST whose items each have their own detail page: the app loads each URL in a hidden browser (serialized visits paced with the download slots, so signed URLs never expire), captures the real stream and downloads it (≤2 concurrent). Cloudflare: non-interactive checks pass automatically; interactive Turnstile is clicked with real mouse events in a popup window, and only falls back to waiting for the USER if that fails. Failed items are retried automatically in the SAME batch/folder. urls = detail-page URLs: collect them from the list page first (scroll/pagination for lazy lists), confirm the list with the user, then call. Cap 100 per batch. Returns a batch id immediately — do NOT wait or poll; listBatchDownloads reports progress.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Detail-page URLs (http/https), in list order"),
+                    "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the first URL's host)"),
+                    "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
+                    "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
+                ], required: ["urls"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "retryBatchDownloads",
+                description: "Retry the FAILED items of a finished batch — reuses the ORIGINAL batch and folder (never start a new batch for retries; scattered folders are a known user complaint). Most failures (403 / expired signed URLs) succeed after this because pages are re-resolved for fresh URLs. No batchId = retry the most recent finished batch.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "batchId": AgentJSONSchemaValue(type: "string", description: "Batch UUID (optional — defaults to the most recent finished batch)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listBatchDownloads",
+                description: "Progress of batch video downloads (downloadAllPageVideos / downloadVideoList / retryBatchDownloads): per-batch aggregates and per-item states with progress (pending/resolving/needsHuman/downloading/finished/failed/skipped). paused/suspended batches are waiting — suspended means the disk-space reserve was hit and the batch auto-resumes when space recovers. needsHuman means an interactive check is waiting — the app already tried clicking it automatically; only NOW tell the user to finish it in the popup window.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "manageBatchDownloads",
+                description: "Manage a batch download queue: pause (in-flight items return to pending), resume, skip one item (remove from queue), or add new tasks to an existing batch (deduped, numbering continues). Use with listBatchDownloads to get batch/item ids. Queue edits the user asks for go here.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "batchId": AgentJSONSchemaValue(type: "string", description: "Batch UUID (from listBatchDownloads)"),
+                    "action": AgentJSONSchemaValue(type: "string", description: "pause / resume / skip / add"),
+                    "itemId": AgentJSONSchemaValue(type: "string", description: "Item UUID (skip only)"),
+                    "urls": AgentJSONSchemaValue(type: "array", description: "URLs to append (add only): detail-page URLs for list-mode batches, media URLs for page-mode batches"),
+                ], required: ["batchId", "action"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "getPageText", description: "Get the RAW visible text of the current page (unfiltered, may be huge). Prefer getPageSnapshot.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

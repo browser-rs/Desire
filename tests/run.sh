@@ -16,6 +16,8 @@ SOURCES=(
   Desire/Features/Agent/ContextCompaction.swift
   Desire/Features/Agent/AgentTrace.swift
   Desire/Features/Bookmarks/Bookmark.swift
+  Desire/Features/Browsing/MediaResource.swift
+  Desire/Features/Downloads/BatchMedia.swift
   Desire/Features/NewTab/QuickDial.swift
   Desire/Features/ReadingList/ReadingListItem.swift
   Desire/Features/History/HistoryEntry.swift

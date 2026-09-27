@@ -692,6 +692,120 @@ do {
     check("history：远端墓碑删除", merged5.isEmpty)
 }
 
+// ---------- BatchMediaPlan（批量视频下载的规划层） ----------
+
+do {
+    func resource(_ url: String, kind: MediaResource.Kind, mime: String = "", source: String = "network") -> MediaResource {
+        MediaResource(url: url, kind: kind, mime: mime, sizeBytes: 0, source: source, detectedAt: Date())
+    }
+
+    // page 模式：去重 + blob/DASH/音频过滤
+    let pagePlan = BatchMediaPlan.planPageBatch(candidates: [
+        ("https://cdn.example/a.mp4", "video", "video/mp4", false),
+        ("https://cdn.example/a.mp4", "video", "video/mp4", false),      // 重复
+        ("blob:https://x/y", "video", "", true),                          // blob
+        ("https://cdn.example/b.mpd", "stream", "application/dash+xml", false), // DASH
+        ("https://cdn.example/c.m3u8", "stream", "", false),
+        ("https://cdn.example/d.mp3", "audio", "audio/mpeg", false),      // 纯音频
+        ("not a url", "video", "", false),                                // 非法
+    ])
+    eq("批量规划：page 有效项去重后 2 条", pagePlan.items.count, 2)
+    check("批量规划：page 保留 mp4 与 m3u8",
+          pagePlan.items.map(\.url.absoluteString) == ["https://cdn.example/a.mp4", "https://cdn.example/c.m3u8"])
+    eq("批量规划：page 跳过 4 条", pagePlan.skipped.count, 4)
+
+    // list 模式：校验 + 去重
+    let listPlan = BatchMediaPlan.planListBatch(urls: [
+        "https://site.example/v/1", "https://site.example/v/1",   // 重复
+        "ftp://site.example/v/2",                                 // scheme 非法
+        "  https://site.example/v/3  ",                           // 空白容忍
+    ])
+    eq("批量规划：list 有效项 2 条", listPlan.items.count, 2)
+    eq("批量规划：list 跳过 1 条", listPlan.skipped.count, 1)
+
+    // 解析结果挑选：stream > video > audio，blob 与 DASH 不参选
+    let picked = BatchMediaPlan.pickBestResource([
+        resource("https://cdn.example/audio.mp3", kind: .audio),
+        resource("https://cdn.example/video.mp4", kind: .video),
+        resource("https://cdn.example/hls.m3u8", kind: .stream),
+    ])
+    eq("批量规划：优先 stream", picked?.url, "https://cdn.example/hls.m3u8")
+    let fallback = BatchMediaPlan.pickBestResource([
+        resource("blob:https://x/y", kind: .video),
+        resource("https://cdn.example/dash.mpd", kind: .stream, mime: "application/dash+xml"),
+        resource("https://cdn.example/audio.mp3", kind: .audio),
+    ])
+    eq("批量规划：blob/DASH 排除后退 audio", fallback?.url, "https://cdn.example/audio.mp3")
+    check("批量规划：无可选资源返回 nil", BatchMediaPlan.pickBestResource([
+        resource("blob:https://x/y", kind: .video),
+    ]) == nil)
+
+    // 命名：序号宽度、消毒、查询串剥离
+    eq("批量规划：两位序号", BatchMediaPlan.numberedPrefix(0, total: 9), "01")
+    eq("批量规划：三位序号", BatchMediaPlan.numberedPrefix(99, total: 120), "100")
+    eq("批量规划：消毒路径分隔符", BatchMediaPlan.sanitizedFileName(from: "a/b:c"), "a-b-c")
+    eq("批量规划：剥查询串", BatchMediaPlan.sanitizedFileName(from: "clip.mp4?token=1"), "clip.mp4")
+    eq("批量规划：空回退", BatchMediaPlan.sanitizedFileName(from: "  ", fallback: "video"), "video")
+    // hint 自带扩展名会被 destinationURL 再追加一次 → 双扩展名（E2E 实测）
+    eq("批量规划：剥媒体扩展名", BatchMediaPlan.stripMediaExtension("c.mp4"), "c")
+    eq("批量规划：剥大写扩展名", BatchMediaPlan.stripMediaExtension("Clip.MP4"), "Clip")
+    eq("批量规划：非媒体扩展名保留", BatchMediaPlan.stripMediaExtension("2024.09"), "2024.09")
+    eq("批量规划：无扩展名原样", BatchMediaPlan.stripMediaExtension("episode one"), "episode one")
+
+    // 命名风格（2026-09-26 真实站点 12 部批量实测后的改进：原行为 = 原标题
+    // 80 字符硬截，站点模板重复段截出"同一句话三遍"的文件名）
+    let templateTitle = "MOV-2024001 【示例描述】高清畫質搶先看-MOV-2024001 【示例描述】高清畫質搶先看-MOV-2024001 【示例描述】高清畫質搶先看"
+    eq("命名 code：番号优先", BatchMediaPlan.displayName(pageTitle: templateTitle, mediaURL: nil, style: .code), "MOV-2024001")
+    let cleaned = BatchMediaPlan.displayName(pageTitle: templateTitle, mediaURL: nil, style: .clean)
+    check("命名 clean：重复段折叠（不含第二次出现）", !cleaned.contains("高清畫質搶先看-MOV"))
+    check("命名 clean：尾部模板残留代号已去", cleaned.hasSuffix("高清畫質搶先看"))
+    check("命名 clean：开头代号保留", cleaned.hasPrefix("MOV-2024001"))
+    check("命名 clean：≤60 字符", cleaned.count <= 60)
+    eq("命名 title：原样回退", BatchMediaPlan.displayName(pageTitle: "My Video", mediaURL: nil, style: .title), "My Video")
+    eq("命名 clean：无重复短标题不动", BatchMediaPlan.displayName(pageTitle: "Episode One", mediaURL: nil, style: .clean), "Episode One")
+    eq("命名 code：无代号退回 clean", BatchMediaPlan.displayName(pageTitle: "Episode One", mediaURL: nil, style: .code), "Episode One")
+    eq("命名 code：小写代号", BatchMediaPlan.displayName(pageTitle: "best of xyz-984 collection", mediaURL: nil, style: .code), "xyz-984")
+    eq("命名 clean：URL 回退（无页面标题）",
+       BatchMediaPlan.displayName(pageTitle: "", mediaURL: URL(string: "https://cdn.example/video/ep3.mp4"), style: .clean), "ep3")
+
+    // 清晰度智能选择（用户偏好"按最高清晰度下载"进引擎）：
+    // master 播放列表 > 画质标记最高 > 原顺序
+    func stream(_ url: String) -> MediaResource {
+        MediaResource(url: url, kind: .stream, mime: "", sizeBytes: 0, source: "network", detectedAt: Date())
+    }
+    let qualityPicked = BatchMediaPlan.pickBestResource([
+        stream("https://cdn.example/ID/720p/video.m3u8"),
+        stream("https://cdn.example/ID/playlist.m3u8"),      // master（无画质标记）
+        stream("https://cdn.example/ID/1080p/video.m3u8"),
+    ])
+    eq("画质：master 优先于任何变体", qualityPicked?.url, "https://cdn.example/ID/playlist.m3u8")
+    let noMaster = BatchMediaPlan.pickBestResource([
+        stream("https://cdn.example/ID/480p/video.m3u8"),
+        stream("https://cdn.example/ID/1080p/video.m3u8"),
+    ])
+    eq("画质：无 master 取画质最高", noMaster?.url, "https://cdn.example/ID/1080p/video.m3u8")
+    check("画质：伪标记不误判（时间戳/ID 段）",
+          BatchMediaPlan.qualityMarker(in: "https://cdn.example/v/20240901/video.m3u8") == nil)
+    eq("画质标记：大写 P", BatchMediaPlan.qualityMarker(in: "https://cdn.example/a/1080P/x.m3u8"), 1080)
+
+    // 变体族去重（page 模式）：master 与其目录下的变体同时被嗅探 → 只留 master
+    let family = BatchMediaPlan.dedupeVariantFamilies([
+        URL(string: "https://cdn.example/ID/playlist.m3u8")!,
+        URL(string: "https://cdn.example/ID/720p/video.m3u8")!,
+        URL(string: "https://cdn.example/other/x.m3u8")!,
+    ])
+    eq("变体族：保留 2 条（master + 异目录）", family.kept.count, 2)
+    eq("变体族：丢弃 1 条变体", family.dropped.count, 1)
+    eq("变体族：丢弃的是 720p", family.dropped.first?.url.absoluteString, "https://cdn.example/ID/720p/video.m3u8")
+    let pagePlan2 = BatchMediaPlan.planPageBatch(candidates: [
+        ("https://cdn.example/ID/playlist.m3u8", "stream", "", false),
+        ("https://cdn.example/ID/720p/video.m3u8", "stream", "", false),
+    ])
+    eq("变体族：page 规划只留 master", pagePlan2.items.count, 1)
+    check("变体族：skipped 注明归属 master",
+          pagePlan2.skipped.first?.reason.contains("master playlist") == true)
+}
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

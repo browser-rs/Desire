@@ -1,5 +1,6 @@
 import CommonCrypto
 import Foundation
+import WebKit
 
 /// Downloads media to the user's Downloads folder: direct files (mp4/webm/…)
 /// and HLS playlists (m3u8 → segments → single concatenated file).
@@ -20,12 +21,19 @@ import Foundation
 /// sending the page URL as Referer plus the webview's Safari user agent.
 @MainActor
 enum MediaExporter {
+    /// 进度计数的单位：ffmpeg 直连按秒、内置下载器按段。
+    enum ProgressUnit: String {
+        case segments, seconds
+    }
+
     struct Result {
         let fileURL: URL
         /// 段数——只有手写下载器知道；ffmpeg 直连是流式转封装，没有"段"的概念。
         let segmentCount: Int?
         let bytes: Int64
         let warnings: [String]
+        /// 完整性校验摘要（"4.0s, 1920x1080"）；nil = 本机没 ffprobe 或校验未通过。
+        var verification: String?
 
         var displayBytes: String {
             let mb = Double(bytes) / 1_048_576
@@ -88,7 +96,9 @@ enum MediaExporter {
         userAgent: String?,
         fileNameHint: String?,
         maxBandwidth: Int? = nil,
-        progress: @MainActor @escaping (Int, Int) -> Void
+        folderName: String? = nil,
+        baseDirectory: String? = nil,
+        progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
         let started = Date()
         let deadline = started.addingTimeInterval(30 * 60)
@@ -108,10 +118,13 @@ enum MediaExporter {
 
         if let directFile {
             let mime = (directFile.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-            let fileURL = try destinationURL(for: url, hint: fileNameHint, isMP4: mime.contains("mp4"))
-            try directFile.data.write(to: fileURL)
-            progress(1, 1)
-            return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [])
+            let fileURL = try destinationURL(for: url, hint: fileNameHint, isMP4: mime.contains("mp4"), folderName: folderName, baseDirectory: baseDirectory)
+            try Self.writePartAndFinalize(fileURL) { part in
+                try directFile.data.write(to: part)
+            }
+            progress(1, 1, .segments)
+            let verification = FFmpegExporter.probeSummary(fileURL: fileURL)
+            return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [], verification: verification)
         }
 
         var warnings: [String] = []
@@ -123,19 +136,23 @@ enum MediaExporter {
                 referer: referer, userAgent: userAgent, maxBandwidth: maxBandwidth
            ) {
             do {
-                let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true)
-                let outcome = try await FFmpegExporter.export(
-                    executable: ffmpeg,
-                    playlist: plan.url,
-                    referer: referer,
-                    userAgent: userAgent,
-                    programIndex: plan.programIndex,
-                    totalSeconds: plan.totalSeconds,
-                    destination: destination,
-                    deadline: deadline,
-                    progress: progress
-                )
-                return Result(fileURL: destination, segmentCount: nil, bytes: outcome.bytes, warnings: warnings)
+                let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
+                let outcome = try await Self.writePartAndFinalizeAsync(destination) { part in
+                    try await FFmpegExporter.export(
+                        executable: ffmpeg,
+                        playlist: plan.url,
+                        referer: referer,
+                        userAgent: userAgent,
+                        cookieHeader: await cookieHeader(for: url),
+                        programIndex: plan.programIndex,
+                        totalSeconds: plan.totalSeconds,
+                        destination: part,
+                        deadline: deadline,
+                        progress: { done, total in progress(done, total, .seconds) }
+                    )
+                }
+                let verification = FFmpegExporter.probeSummary(fileURL: destination)
+                return Result(fileURL: destination, segmentCount: nil, bytes: outcome.bytes, warnings: warnings, verification: verification)
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as URLError where error.code == .cancelled {
@@ -161,6 +178,8 @@ enum MediaExporter {
                 referer: referer,
                 userAgent: userAgent,
                 fileNameHint: fileNameHint,
+                folderName: folderName,
+                baseDirectory: baseDirectory,
                 deadlineCheck: { guard Date() < deadline else { throw ExportError.timedOut } },
                 progress: progress
             )
@@ -184,23 +203,26 @@ enum MediaExporter {
         guard result.fileURL.pathExtension.lowercased() == "ts",
               let ffmpeg = FFmpegExporter.locate() else {
             return Result(fileURL: result.fileURL, segmentCount: result.segmentCount,
-                          bytes: result.bytes, warnings: warnings)
+                          bytes: result.bytes, warnings: warnings, verification: result.verification)
         }
         let destination = try uniqueDestination(beside: result.fileURL, extension: "mp4")
         do {
-            let outcome = try await FFmpegExporter.remux(
-                executable: ffmpeg, source: result.fileURL,
-                destination: destination, deadline: deadline
-            )
+            let outcome = try await Self.writePartAndFinalizeAsync(destination) { part in
+                try await FFmpegExporter.remux(
+                    executable: ffmpeg, source: result.fileURL,
+                    destination: part, deadline: deadline
+                )
+            }
             try? FileManager.default.removeItem(at: result.fileURL)
+            let verification = FFmpegExporter.probeSummary(fileURL: destination)
             return Result(fileURL: destination, segmentCount: result.segmentCount,
-                          bytes: outcome.bytes, warnings: warnings)
+                          bytes: outcome.bytes, warnings: warnings, verification: verification)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             warnings.append("MP4 conversion failed, kept the .ts file: \(error.localizedDescription)")
             return Result(fileURL: result.fileURL, segmentCount: result.segmentCount,
-                          bytes: result.bytes, warnings: warnings)
+                          bytes: result.bytes, warnings: warnings, verification: nil)
         }
     }
 
@@ -337,8 +359,10 @@ enum MediaExporter {
         referer: URL?,
         userAgent: String?,
         fileNameHint: String?,
+        folderName: String? = nil,
+        baseDirectory: String? = nil,
         deadlineCheck: () throws -> Void,
-        progress: @MainActor (Int, Int) -> Void
+        progress: @MainActor (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
         var warnings: [String] = []
         var text = playlistText
@@ -435,7 +459,8 @@ enum MediaExporter {
 
         // Destination: .mp4 when fMP4 (EXT-X-MAP), else .ts (MPEG-TS).
         let isFMP4 = initSegment != nil && (initSegment!.pathExtension.lowercased() == "mp4" || initSegment!.pathExtension.lowercased() == "m4s")
-        let fileURL = try destinationURL(for: playlistURL, hint: fileNameHint, isMP4: isFMP4)
+        let finalURL = try destinationURL(for: playlistURL, hint: fileNameHint, isMP4: isFMP4, folderName: folderName, baseDirectory: baseDirectory)
+        let fileURL = finalURL.appendingPathExtension("part")
 
         FileManager.default.createFile(atPath: fileURL.path, contents: nil)
         let handle = try FileHandle(forWritingTo: fileURL)
@@ -482,7 +507,7 @@ enum MediaExporter {
             try handle.write(contentsOf: payload)
             bytes += Int64(payload.count)
             done += 1
-            progress(done, segments.count)
+            progress(done, segments.count, .segments)
         }
 
         // 一个段都没下到（全 404 / 全被跳过）不能算成功——以前会留下一个 0 字节的
@@ -492,9 +517,10 @@ enum MediaExporter {
             try? FileManager.default.removeItem(at: fileURL)
             throw ExportError.noSegmentsDownloaded
         }
+        try Self.finalizePart(fileURL, final: finalURL)
 
         return Result(
-            fileURL: fileURL,
+            fileURL: finalURL,
             segmentCount: done,
             bytes: bytes,
             warnings: failures > 0
@@ -505,10 +531,48 @@ enum MediaExporter {
 
     // MARK: - Plumbing
 
+    // MARK: - 原子落盘（.part + 成功改名）
+
+    /// 所有下载一律写 `<final>.part`、成功后改名——崩溃/取消只留一个
+    /// `.part`（下次尝试原地覆盖），不再产生 "-1" 后缀的残件链。
+    private static func writePartAndFinalize(_ finalURL: URL, _ body: (URL) throws -> Void) throws {
+        let part = finalURL.appendingPathExtension("part")
+        do {
+            try body(part)
+            try finalizePart(part, final: finalURL)
+        } catch {
+            try? FileManager.default.removeItem(at: part)
+            throw error
+        }
+    }
+
+    private static func writePartAndFinalizeAsync(_ finalURL: URL, _ body: (URL) async throws -> FFmpegExporter.Outcome) async throws -> FFmpegExporter.Outcome {
+        let part = finalURL.appendingPathExtension("part")
+        do {
+            let outcome = try await body(part)
+            try finalizePart(part, final: finalURL)
+            return outcome
+        } catch {
+            try? FileManager.default.removeItem(at: part)
+            throw error
+        }
+    }
+
+    private static func finalizePart(_ part: URL, final: URL) throws {
+        if FileManager.default.fileExists(atPath: final.path) {
+            _ = try FileManager.default.replaceItemAt(final, withItemAt: part)
+        } else {
+            try FileManager.default.moveItem(at: part, to: final)
+        }
+    }
+
     private static func fetch(url: URL, referer: URL?, userAgent: String?) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
         if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
+        if let cookie = await cookieHeader(for: url) {
+            request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        }
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ExportError.badStatus(http.statusCode)
@@ -516,20 +580,67 @@ enum MediaExporter {
         return (data, response)
     }
 
-    private static func destinationURL(for source: URL, hint: String?, isMP4: Bool) throws -> URL {
-        let downloads = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+    private static func destinationURL(for source: URL, hint: String?, isMP4: Bool, folderName: String? = nil, baseDirectory: String? = nil) throws -> URL {
+        // 自定义根目录（用户在低空间询问里选过"换位置"后记住的偏好）优先；
+        // 没有就落 ~/Downloads。
+        let parent: URL
+        if let baseDirectory, !baseDirectory.isEmpty {
+            parent = URL(fileURLWithPath: baseDirectory, isDirectory: true)
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        } else {
+            parent = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        }
+        var directory = parent
+        if let folderName, !folderName.isEmpty {
+            // 批量下载按批次归档；目录名同样做消毒（防路径穿越）。
+            let folder = folderName.replacingOccurrences(of: "/", with: "-")
+            directory = parent.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
         let ext = isMP4 ? "mp4" : (source.pathExtension.lowercased() == "mp4" ? "mp4" : "ts")
         var base = hint ?? source.deletingPathExtension().lastPathComponent
         base = base.components(separatedBy: "?").first ?? base
         base = base.replacingOccurrences(of: "/", with: "-")
         if base.isEmpty { base = "export-\(Int(Date().timeIntervalSince1970))" }
-        var candidate = downloads.appendingPathComponent("\(base).\(ext)")
+        var candidate = directory.appendingPathComponent("\(base).\(ext)")
         var n = 1
         while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = downloads.appendingPathComponent("\(base)-\(n).\(ext)")
+            candidate = directory.appendingPathComponent("\(base)-\(n).\(ext)")
             n += 1
         }
         return candidate
+    }
+
+    // MARK: - Cookie 透传
+
+    /// 媒体 CDN 也可能挂在 Cloudflare 后面（分段请求被 bot management 拦下
+    /// 返回 403）。这里把**同域**的 webview Cookie 附到 URLSession 请求上；
+    /// `cf_clearance` 与 UA 绑定——调用方必须传同一个 Safari UA（下载路径
+    /// 一直如此），否则 Cookie 反而暴露"UA 与获发时不一致"。
+    ///
+    /// 缓存 30s：一份 2000 段的 HLS 会打几千次 fetch，不能每次都读
+    /// cookie store；Cookie 的变更频率远低于此。
+    private static var cookieCache: (fetchedAt: Date, cookies: [HTTPCookie])?
+
+    private static func cookieHeader(for url: URL) async -> String? {
+        let cookies = await matchingCookies(for: url)
+        guard !cookies.isEmpty else { return nil }
+        return cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+    }
+
+    private static func matchingCookies(for url: URL) async -> [HTTPCookie] {
+        if cookieCache == nil || Date().timeIntervalSince(cookieCache!.fetchedAt) > 30 {
+            let all = await WKWebsiteDataStore.default().httpCookieStore.allCookies()
+            cookieCache = (Date(), all)
+        }
+        guard let host = url.host?.lowercased() else { return [] }
+        let secure = url.scheme == "https"
+        return cookieCache!.cookies.filter { cookie in
+            if cookie.isSecure && !secure { return false }
+            var domain = cookie.domain.lowercased()
+            if domain.hasPrefix(".") { domain = String(domain.dropFirst()) }
+            return host == domain || host.hasSuffix(".\(domain)")
+        }
     }
 
     /// 与 `source` 同目录、换扩展名的唯一路径（转 `.ts` → `.mp4` 时用）。

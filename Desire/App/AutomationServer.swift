@@ -441,9 +441,21 @@ final class AutomationServer {
         ep("POST", "/ads/block", "Hide elements on this host now and on future loads (+ optional request blocks)", params: ["selectors:[string]", "urlPattern?:string", "requests?:[string]", "index?:int"], example: #"-d '{"selectors":["[id=\"banner\"]"]}'"#)
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
+        ep("GET", "/media/batch", "Batch download progress (per-item states; needsHuman = waiting for a manual check in the popup window)", params: ["id?:uuid"], example: "…/media/batch")
+        ep("POST", "/media/batch/cancel", "Cancel a whole batch", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/media/batch/skip", "Skip one pending/needsHuman item", params: ["id:uuid", "itemId:uuid"], example: "-d '{\"id\":\"…\",\"itemId\":\"…\"}'")
+        ep("POST", "/media/batch/retry", "Re-run a finished batch's failed items (list mode re-resolves for fresh signed URLs)", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/media/batch/pause", "Pause a running batch (in-flight items return to pending)", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/media/batch/resume", "Resume a paused batch", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/media/batch/add", "Append tasks to an existing batch (deduped; numbering continues)", params: ["id:uuid", "urls:[string]", "kind?:list|media", "referer?:string"], example: #"-d '{"id":"…","urls":["https://…/v13"]}'"#)
+        ep("GET", "/media/batch/config", "Batch download preferences (disk reserve GB / naming / save root)", example: "…/media/batch/config")
+        ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
+        ep("GET", "/agent/prompt", "Pending user question (agent askUser / batch low-disk-space ask)", example: "…/agent/prompt")
+        ep("POST", "/agent/prompt/answer", "Answer the pending question (free text; the asker interprets it)", params: ["text:string"], example: #"-d '{"text":"继续"}'"#)
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
@@ -1088,6 +1100,36 @@ final class AutomationServer {
                     fileNameHint: Self.string(body, "filename"),
                     maxBandwidth: body["maxBandwidth"] as? Int
                 ))
+            case ("POST", "/media/batch"):
+                return try Self.json(Self.startMediaBatch(body: body))
+            case ("GET", "/media/batch"):
+                return try Self.json(Self.batchMediaSnapshot(id: Self.string(query, "id")))
+            case ("POST", "/media/batch/cancel"):
+                return try Self.json(Self.batchMediaCancel(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/media/batch/skip"):
+                return try Self.json(Self.batchMediaSkip(
+                    id: Self.string(body, "id") ?? "",
+                    itemID: Self.string(body, "itemId") ?? ""
+                ))
+            case ("POST", "/media/batch/retry"):
+                return try Self.json(Self.batchMediaRetry(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/media/batch/pause"):
+                return try Self.json(Self.batchMediaPause(id: Self.string(body, "id") ?? "", paused: true))
+            case ("POST", "/media/batch/resume"):
+                return try Self.json(Self.batchMediaPause(id: Self.string(body, "id") ?? "", paused: false))
+            case ("POST", "/media/batch/add"):
+                return try Self.json(Self.batchMediaAdd(
+                    id: Self.string(body, "id") ?? "",
+                    urls: (body["urls"] as? [String]) ?? [],
+                    kind: Self.string(body, "kind") ?? "list",
+                    referer: Self.string(body, "referer")
+                ))
+            case ("GET", "/media/batch/history"):
+                return try Self.json(Self.downloadHistory())
+            case ("GET", "/media/batch/config"):
+                return try Self.json(Self.batchMediaConfig())
+            case ("POST", "/media/batch/config"):
+                return try Self.json(Self.setBatchMediaConfig(body: body))
             case ("GET", "/profiles"):
                 return try Self.json(Self.profiles())
             case ("GET", "/split"):
@@ -1184,6 +1226,10 @@ final class AutomationServer {
                     text: Self.string(body, "text") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("GET", "/agent/prompt"):
+                return try Self.json(Self.pendingPrompt())
+            case ("POST", "/agent/prompt/answer"):
+                return try Self.json(Self.answerPendingPrompt(text: Self.string(body, "text") ?? ""))
             case ("POST", "/conversations/delete"):
                 return try Self.json(Self.deleteConversations(body))
             case ("POST", "/agent/feedback"):
@@ -3334,6 +3380,195 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    // MARK: 批量视频下载（BatchMediaExportStore）
+
+    /// 启动批量下载。mode=page：当前（或 index 指定）标签页嗅探到的媒体
+    /// 全部入队；mode=list：`urls` 里的详情页逐个交给隐藏解析器。
+    private static func startMediaBatch(body: [String: Any]) throws -> [String: Any] {
+        let mode = Self.string(body, "mode") ?? "page"
+        let folderName = Self.string(body, "folderName")
+        let naming = Self.string(body, "naming")
+        let force = body["force"] as? Bool ?? false
+        let index = body["index"] as? Int
+        switch mode {
+        case "page":
+            guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+            let media = tab.browser.detectedMedia
+            guard !media.isEmpty else {
+                return ["error": "no media sniffed on that tab (play the videos once, or use mode=list)"]
+            }
+            let batch = BatchMediaExportStore.shared.startPageBatch(
+                candidates: media.map { ($0.url, $0.kind.rawValue, $0.mime, $0.isBlob) },
+                referer: tab.browser.webView.url,
+                userAgent: tab.browser.webView.customUserAgent,
+                folderName: folderName,
+                naming: naming,
+                force: force
+            )
+            return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
+                    "queued": batch.items.filter { $0.state == .pending }.count,
+                    "skipped": batch.items.filter { $0.state == .skipped }.count]
+        case "list":
+            let urls = (body["urls"] as? [String]) ?? []
+            guard !urls.isEmpty else { return ["error": "missing urls"] }
+            guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
+                return ["error": "too many urls (cap \(BatchMediaExportStore.maxItemsPerBatch))"]
+            }
+            let batch = BatchMediaExportStore.shared.startListBatch(
+                pageURLs: urls,
+                userAgent: nil,
+                folderName: folderName,
+                naming: naming,
+                force: force
+            )
+            return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
+                    "queued": batch.items.filter { $0.state == .pending }.count,
+                    "skipped": batch.items.filter { $0.state == .skipped }.count]
+        default:
+            return ["error": "mode must be page or list"]
+        }
+    }
+
+    /// 批次快照（全部或按 id）：批次级聚合（各状态计数、暂停/挂起态）+
+    /// 逐项进度（done/total/单位）。
+    private static func batchMediaSnapshot(id: String?) throws -> [String: Any] {
+        let store = BatchMediaExportStore.shared
+        var batches = store.batches
+        if let id, let uuid = UUID(uuidString: id) {
+            batches = batches.filter { $0.id == uuid }
+        }
+        return ["batches": batches.map { batch -> [String: Any] in
+            var counts: [String: Int] = [:]
+            for item in batch.items { counts[item.state.rawValue, default: 0] += 1 }
+            var row: [String: Any] = [
+                "id": batch.id.uuidString,
+                "mode": batch.mode.rawValue,
+                "state": batch.state.rawValue,
+                "folder": batch.folderName,
+                "finished": batch.finishedCount,
+                "total": batch.items.count,
+                "counts": counts,
+                "createdAt": ISO8601DateFormatter().string(from: batch.createdAt),
+                "paused": store.isPaused(batch.id),
+            ]
+            if let reason = store.suspensionReason(batch.id) { row["suspended"] = reason }
+            row["items"] = batch.items.map { item -> [String: Any] in
+                var itemRow: [String: Any] = [
+                    "id": item.id.uuidString,
+                    "state": item.state.rawValue,
+                    "source": item.sourceURL.absoluteString,
+                    "attempts": item.attempts,
+                ]
+                if let media = item.mediaURL { itemRow["media"] = media.absoluteString }
+                if !item.title.isEmpty { itemRow["title"] = item.title }
+                if let summary = item.summary { itemRow["summary"] = summary }
+                if let progress = store.progress(for: item.id) {
+                    itemRow["progress"] = [
+                        "done": progress.done,
+                        "total": progress.total,
+                        "unit": progress.unit.rawValue,
+                    ]
+                }
+                return itemRow
+            }
+            return row
+        }]
+    }
+
+    /// 手动暂停 / 恢复整批。
+    private static func batchMediaPause(id: String, paused: Bool) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        if paused {
+            BatchMediaExportStore.shared.pause(batchID: uuid)
+        } else {
+            BatchMediaExportStore.shared.resume(batchID: uuid)
+        }
+        return ["ok": true]
+    }
+
+    /// 向既有批次追加任务。kind=list（默认）→ urls 是详情页；kind=media →
+    /// urls 是媒体地址（仅 page 模式批次）。返回实际追加数与重复数。
+    private static func batchMediaAdd(id: String, urls: [String], kind: String, referer: String?) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id), !urls.isEmpty else { return ["error": "bad id or missing urls"] }
+        guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
+            return ["error": "too many urls (cap \(BatchMediaExportStore.maxItemsPerBatch))"]
+        }
+        let refererURL = referer.flatMap { URL(string: $0) }
+        let result = BatchMediaExportStore.shared.addItems(
+            batchID: uuid,
+            pageURLs: kind == "list" ? urls : [],
+            mediaURLs: kind == "media" ? urls : [],
+            referer: refererURL
+        )
+        return ["ok": true, "added": result.added, "duplicates": result.duplicates]
+    }
+
+    /// 已下载历史（索引的只读视图，最新在前）——供 Agent/外部回答
+    /// "之前下过什么"。
+    private static func downloadHistory() -> [String: Any] {
+        let entries = BatchDownloadedIndex.snapshot()
+            .sorted { $0.value.at > $1.value.at }
+            .prefix(200)
+        return ["history": entries.map { url, entry -> [String: Any] in
+            ["url": url, "file": entry.file, "at": ISO8601DateFormatter().string(from: entry.at)]
+        }]
+    }
+
+    /// 批量下载的人性化配置（预留空间 / 命名 / 保存位置）。
+    private static func batchMediaConfig() -> [String: Any] {
+        [
+            "reserveGB": BatchMediaPreferences.reserveGB,
+            "naming": BatchMediaPreferences.namingStyle.rawValue,
+            "baseDirectory": BatchMediaPreferences.baseDirectory ?? NSNull(),
+            "saveRoot": BatchMediaPreferences.baseDirectory ?? "~/Downloads",
+            "skipDownloaded": BatchMediaPreferences.skipDownloaded,
+            "maxConcurrent": BatchMediaPreferences.maxConcurrent,
+        ]
+    }
+
+    private static func setBatchMediaConfig(body: [String: Any]) -> [String: Any] {
+        if let reserve = body["reserveGB"] as? Int {
+            BatchMediaPreferences.reserveGB = reserve
+        }
+        if let naming = Self.string(body, "naming"),
+           let style = BatchMediaPlan.NamingStyle(rawValue: naming.lowercased()) {
+            BatchMediaPreferences.namingStyle = style
+        }
+        if body["baseDirectory"] is NSNull {
+            BatchMediaPreferences.baseDirectory = nil
+        } else if let base = Self.string(body, "baseDirectory") {
+            guard base.hasPrefix("/") else { return ["error": "baseDirectory must be an absolute path"] }
+            BatchMediaPreferences.baseDirectory = base
+        }
+        if let skip = body["skipDownloaded"] as? Bool {
+            BatchMediaPreferences.skipDownloaded = skip
+        }
+        if let concurrent = body["maxConcurrent"] as? Int {
+            BatchMediaPreferences.maxConcurrent = concurrent
+        }
+        return batchMediaConfig()
+    }
+
+    private static func batchMediaCancel(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        BatchMediaExportStore.shared.cancel(batchID: uuid)
+        return ["ok": true]
+    }
+
+    private static func batchMediaSkip(id: String, itemID: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id), let itemUUID = UUID(uuidString: itemID) else {
+            return ["error": "bad id"]
+        }
+        BatchMediaExportStore.shared.skip(batchID: uuid, itemID: itemUUID)
+        return ["ok": true]
+    }
+
+    private static func batchMediaRetry(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "bad id"] }
+        BatchMediaExportStore.shared.retryFailed(uuid)
+        return ["ok": true]
+    }
+
     /// 往会话追加一条 system 备注（后台任务完成等）。面板不渲染 system 消息，
     /// 但下一轮请求会把它并进开头的 system 提示（**不能留在对话中间**：OpenAI
     /// 兼容服务要求 system 只能在开头）。
@@ -3344,9 +3579,28 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    /// 当前挂起的提问（agent askUser / 批量下载低空间询问共用一个通道）。
+    private static func pendingPrompt() -> [String: Any] {
+        guard let pending = UserPromptCenter.shared.pending else {
+            return ["pending": false]
+        }
+        return [
+            "pending": true,
+            "id": pending.id.uuidString,
+            "question": pending.question,
+        ]
+    }
+
+    /// 回答挂起的提问（引擎的磁盘询问经这里驱动；answer 幂等保护在
+    /// PendingUserQuestion.resume 内部）。
+    private static func answerPendingPrompt(text: String) -> [String: Any] {
+        guard UserPromptCenter.shared.pending != nil else { return ["error": "no pending prompt"] }
+        UserPromptCenter.shared.answer(text)
+        return ["ok": true]
+    }
+
     /// 停掉正在跑的一轮（等价于面板里的 Esc / Stop）。
-    private static func agentCancel(window: String?) throws -> [String: Any] {
-        guard let session = resolveSession(window) else {
+    private static func agentCancel(window: String?) throws -> [String: Any] {        guard let session = resolveSession(window) else {
             return ["error": "no live agent session"]
         }
         let wasBusy = session.isProcessing
@@ -3432,7 +3686,7 @@ final class AutomationServer {
                 let result = try await MediaExporter.download(
                     url: sourceURL, referer: refererURL, userAgent: nil,
                     fileNameHint: fileNameHint, maxBandwidth: maxBandwidth,
-                    progress: { _, _ in }
+                    progress: { _, _, _ in }
                 )
                 Log.agent.info("media download finished: \(url, privacy: .public) → \(String(describing: result), privacy: .public)")
             } catch {

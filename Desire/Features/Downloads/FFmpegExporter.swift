@@ -46,7 +46,7 @@ enum FFmpegExporter {
     /// ffmpeg 的安装位置。GUI 进程的 PATH 只有 `/usr/bin:/bin:/usr/sbin:/sbin`，
     /// Homebrew 的两个 bin 目录都不在里面，必须显式探测（沿用
     /// `SystemCommandStore.searchPaths` 的清单，保持一致）。
-    private static let searchPaths = [
+    private nonisolated static let searchPaths = [
         "/opt/homebrew/bin/ffmpeg",
         "/usr/local/bin/ffmpeg",
         "/opt/local/bin/ffmpeg",
@@ -55,7 +55,8 @@ enum FFmpegExporter {
 
     /// 每次导出都现场探测（几次 `fileExists`，代价可忽略）：用户现装 ffmpeg 后
     /// 不必重启 app。
-    static func locate() -> URL? {
+    /// 纯文件系统探测，无隔离要求（probeSummary 的 nonisolated 路径也用）。
+    nonisolated static func locate() -> URL? {
         for path in searchPaths where FileManager.default.isExecutableFile(atPath: path) {
             return URL(fileURLWithPath: path)
         }
@@ -63,6 +64,50 @@ enum FFmpegExporter {
     }
 
     static var isAvailable: Bool { locate() != nil }
+
+    /// ffprobe 输出摘要（"4.0s, 1920x1080"）——下载完成的完整性校验。
+    /// 文件不可读/无流/时长为 0 返回 nil（调用方在摘要里注明未通过校验）。
+    nonisolated static func probeSummary(fileURL: URL) -> String? {
+        let probe = locate().map { $0.deletingLastPathComponent().appendingPathComponent("ffprobe") }
+        guard let probe, FileManager.default.isExecutableFile(atPath: probe.path) else { return nil }
+        let process = Process()
+        process.executableURL = probe
+        process.arguments = [
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "format=duration:stream=width,height",
+            "-of", "csv=p=0",
+            fileURL.path,
+        ]
+        process.standardInput = FileHandle.nullDevice
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        // ffprobe 的 csv 输出顺序不保证（本机实测"流在前、格式在后"）——
+        // 按行特征识别：纯数字行 = 时长，"宽,高"行 = 分辨率。
+        let lines = String(data: data, encoding: .utf8)?
+            .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty } ?? []
+        var duration: Double?
+        var resolution: String?
+        for line in lines {
+            if duration == nil, let value = Double(line) { duration = value; continue }
+            if resolution == nil, line.contains(","),
+               let width = line.split(separator: ",").first.flatMap({ Double($0) }),
+               let height = line.split(separator: ",").last.flatMap({ Double($0) }),
+               width > 16, height > 16 {
+                resolution = "\(Int(width))x\(Int(height))"
+            }
+        }
+        guard let duration, duration > 0.2, let resolution else { return nil }
+        return String(format: "%.1fs, %@", duration, resolution)
+    }
 
     /// 把 `url`（master 或媒体播放列表）下载并转封装成 `destination`（.mp4）。
     ///
@@ -76,6 +121,7 @@ enum FFmpegExporter {
         playlist: URL,
         referer: URL?,
         userAgent: String?,
+        cookieHeader: String? = nil,
         programIndex: Int?,
         totalSeconds: Double,
         destination: URL,
@@ -106,6 +152,13 @@ enum FFmpegExporter {
             }
             if let userAgent {
                 args += ["-user_agent", userAgent]
+            }
+            if let cookieHeader {
+                // 媒体 CDN 挂 Cloudflare 时分段请求要带 Cookie（cf_clearance
+                // 与 UA 绑定，UA 已由 -user_agent 传同一个）。注意这里必须是
+                // **单行、无字面 CRLF** 的头值——`-headers` 里写 `\r\n` 会被
+                // 当成头值的一部分传上去（本文件头注释）。
+                args += ["-headers", "Cookie: \(cookieHeader)"]
             }
             args += ["-i", playlist.absoluteString]
             // ⚠️ `-map` 是**输出**选项，必须排在 `-i` 之后：放在前面 ffmpeg 直接拒收

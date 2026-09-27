@@ -69,6 +69,8 @@ enum ToolRisk: Int, Comparable {
         "getComments", "getConversation", "getFormFields",
         // Media address extraction (read-only: network sniffer + DOM scan)
         "listPageVideos",
+        // 批量下载进度查询（只读；批量启动是有副作用工具，走默认 sideEffect）
+        "listBatchDownloads",
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Waiting / timing (pure observation)

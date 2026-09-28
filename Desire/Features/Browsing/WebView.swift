@@ -810,6 +810,23 @@ struct WebView: NSViewRepresentable {
             } else {
                 let host = challenge.protectionSpace.host
                 DispatchQueue.main.async {
+                    // ① 会话级例外：用户本会话点过"仍然继续"的主机不再询问。
+                    // 一次页面加载会对同一主机挑战多次（主框架+子资源+重定向），
+                    // 没有记忆就是"疯狂弹窗"（本地自签名站实测）。
+                    if ServerTrustExceptions.shared.isGranted(host) {
+                        completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                        return
+                    }
+                    // ② 同主机的决策窗已在展示 → 本挑战排队，等第一次的决定
+                    //    统一放行/取消。
+                    if ServerTrustExceptions.shared.claimPresentation(host) {
+                        ServerTrustExceptions.shared.queue(
+                            host: host, trust: serverTrust,
+                            completionHandler: { disp, cred in
+                                completionHandler(disp, cred)
+                            })
+                        return
+                    }
                     let alert = NSAlert()
                     alert.messageText = String(localized: "Invalid Certificate")
                     let errDesc = error?.localizedDescription ?? String(localized: "Unknown Error")
@@ -820,13 +837,16 @@ struct WebView: NSViewRepresentable {
                     // PERF-6：sheet 而非 runModal（runModal 冻结整个 app）。
                     // 无窗口（离屏 webview）直接取消——不弹 app 模态。
                     guard let window = webView.window else {
+                        ServerTrustExceptions.shared.deny(host)
                         completionHandler(.cancelAuthenticationChallenge, nil)
                         return
                     }
                     alert.beginSheetModal(for: window) { response in
                         if response == .alertFirstButtonReturn {
+                            ServerTrustExceptions.shared.grant(host)
                             completionHandler(.useCredential, URLCredential(trust: serverTrust))
                         } else {
+                            ServerTrustExceptions.shared.deny(host)
                             completionHandler(.cancelAuthenticationChallenge, nil)
                         }
                     }

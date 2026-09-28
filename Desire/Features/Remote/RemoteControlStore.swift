@@ -7,20 +7,26 @@ import LocalAuthentication
 import Security
 
 /// 专用 WebSocket 会话代理：open/close 事件打点（诊断收发问题）。
+/// CONC-5：此前闭包属性在主线程写、URLSession delegate 队列读（@unchecked
+/// 下的真数据竞争）。改为只持 weak store（**初始化后无可变状态**），事件统一
+/// 跳回主 actor——delegate 本身真正线程安全，不再需要同步原语。
 final class RemoteWSDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
-    var onOpen: (() -> Void)?
-    var onClose: (() -> Void)?
+    private weak var store: RemoteControlStore?
+
+    init(store: RemoteControlStore?) {
+        self.store = store
+    }
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didOpenWithProtocol protocol: String?) {
         RemoteControlStore.remoteDebug("ws didOpen protocol=\(`protocol` ?? "none")")
-        onOpen?()
+        Task { @MainActor [weak self] in self?.store?.noteLinkActivity() }
     }
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         RemoteControlStore.remoteDebug("ws didClose code=\(closeCode.rawValue)")
-        onClose?()
+        Task { @MainActor [weak self] in self?.store?.noteLinkActivity() }
     }
 }
 
@@ -45,15 +51,24 @@ final class RemoteControlStore: ObservableObject {
 
     /// 远程链路诊断日志（/tmp/remote_mac_debug.log）——排查链路问题用，
     /// 只在关键事件打点、量极小；后续稳定可移除。
+    private nonisolated(unsafe) static var debugHandle: FileHandle?
+    private nonisolated static let debugQueue = DispatchQueue(label: "me.siwi.Desire.remote-debug")
+
     nonisolated static func remoteDebug(_ line: String) {
         let path = "/tmp/remote_mac_debug.log"
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let text = "[\(stamp)] \(line)\n"
-        if let handle = FileHandle(forWritingAtPath: path) {
+        // PERF-5：句柄常驻 + 串行队列——此前每条日志同步开关一次文件。
+        debugQueue.sync {
+            if debugHandle == nil {
+                FileManager.default.createFile(atPath: path, contents: nil)
+                debugHandle = FileHandle(forWritingAtPath: path)
+            }
+            guard let handle = debugHandle else { return }
             handle.seekToEndOfFile()
             handle.write(Data(text.utf8))
-            try? handle.close()
-        } else {
+        }
+        if debugHandle == nil {
             try? text.write(toFile: path, atomically: true, encoding: .utf8)
         }
     }
@@ -84,7 +99,10 @@ final class RemoteControlStore: ObservableObject {
     private var baseURL: String { syncStore.serverBaseURL }
 
     private var webSocketTask: URLSessionWebSocketTask?
-    private let wsDelegate = RemoteWSDelegate()
+    private lazy var wsDelegate = RemoteWSDelegate(store: self)
+    /// CONC-5：connect 的内层 Task 须存句柄——teardown 后仍可能在 await 令牌
+    /// 期间继续执行，把刚拆掉的连接"复活"（双活连接 / 旧 URLSession 泄漏）。
+    private var connectTask: Task<Void, Never>?
     private var wsSession: URLSession?
     private var receiveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
@@ -98,6 +116,8 @@ final class RemoteControlStore: ObservableObject {
     private var lastPollError: String?
     private var lastForcedPush = Date.distantPast
     private var lastSnapshotJSON = ""
+    /// PERF-5：廉价指纹（见 pushSnapshot）。
+    private var lastSnapshotFingerprint: Int?
 
     /// Sync 账号状态订阅：登出时联动关闭远程（远程鉴权全靠 Sync 的 token）。
     private var authObserver: AnyCancellable?
@@ -165,6 +185,8 @@ final class RemoteControlStore: ObservableObject {
 
     /// 只拆 WS（REST 链路独立于 WS 存活），不动定时器。
     private func teardownLink() {
+        connectTask?.cancel()
+        connectTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         wsSession?.invalidateAndCancel()
@@ -198,7 +220,7 @@ final class RemoteControlStore: ObservableObject {
         claimWatchTick()
     }
 
-    private func noteLinkActivity() {
+    func noteLinkActivity() {
         lastLinkActivity = Date()
         consecutivePollFailures = 0
         if connection != .online { connection = .online }
@@ -232,9 +254,12 @@ final class RemoteControlStore: ObservableObject {
         // **无条件先拆旧连接**：旧 task 残留（死 socket）会吞掉所有重连——
         // 曾经的"existing task 早退"就是重连永久停摆的根因。
         teardownLink()
-        Task { @MainActor in
+        connectTask = Task { @MainActor in
             do {
                 let token = try await syncStore.remoteAuthToken()
+                // await 期间可能被 teardown/disconnect 拆过场——此时绝不能再
+                // 碰连接属性（复活刚拆除的连接 = 双活 + 泄漏，CONC-5）。
+                guard !Task.isCancelled else { return }
                 guard let url = Self.remoteWSURL(base: self.baseURL, deviceID: self.syncStore.deviceID) else {
                     self.connection = .error(String(localized: "Invalid sync server address"))
                     return
@@ -245,18 +270,9 @@ final class RemoteControlStore: ObservableObject {
                 // 并把服务器写入的下行帧吞在代理侧（下行全灭的根因假设，实测验证）
                 let config = URLSessionConfiguration.ephemeral
                 config.connectionProxyDictionary = [:]
+                guard !Task.isCancelled else { return }
                 let session = URLSession(configuration: config, delegate: self.wsDelegate, delegateQueue: nil)
                 self.wsSession = session
-                weak let weakSelf = self
-                self.wsDelegate.onOpen = {
-                    Task { @MainActor in
-                        RemoteControlStore.remoteDebug("ws onOpen fired")
-                        weakSelf?.noteLinkActivity()
-                    }
-                }
-                self.wsDelegate.onClose = {
-                    Task { @MainActor in RemoteControlStore.remoteDebug("ws onClose fired") }
-                }
                 let task = session.webSocketTask(with: request)
                 self.webSocketTask = task
                 task.resume()
@@ -349,7 +365,10 @@ final class RemoteControlStore: ObservableObject {
     }
 
     private func handleDisconnect(dead: URLSessionWebSocketTask) {
-        guard self.webSocketTask === dead || self.webSocketTask == nil else { return }
+        // 严格身份匹配：teardown（webSocketTask 已 nil 或换了新 task）后，旧
+        // 任务的迟到失败/ping 超时绝不能触发重连——否则会把刚建立的**健康**
+        // 连接拆掉重建（周期性掉线抖动的根源，CONC-5）。
+        guard self.webSocketTask === dead else { return }
         self.webSocketTask = nil
         self.receiveTask = nil
         self.wsPingTask?.cancel()
@@ -698,6 +717,46 @@ final class RemoteControlStore: ObservableObject {
                 toolCalls: message.toolCalls.map { $0.map(\.function.name) },
                 toolArgs: message.toolCalls.map { $0.map { String($0.function.arguments.prefix(160)) } })
         }
+        // PERF-5：先算**廉价指纹**（整数组合，O(可见消息数)），没变化就不走
+        // "映射 100 条消息 + 全量 JSON 编码"的重路径——此前编码只为指纹比对，
+        // Agent 流式期间每秒与 flush 节拍叠在 MainActor 上。字段必须与下方
+        // frame 的全部输入一一对应，漏一个 = 手机端 stale。
+        var fingerprintInput = Hasher()
+        fingerprintInput.combine(remoteConversationID)
+        fingerprintInput.combine(AppState.live?.aiPreference.model)
+        fingerprintInput.combine(session?.contextLabel)
+        fingerprintInput.combine(session?.fullAccess)
+        fingerprintInput.combine(session?.conversationUsage.formattedUSD)
+        fingerprintInput.combine(session?.isPaused ?? false)
+        fingerprintInput.combine(session?.isProcessing ?? false)
+        fingerprintInput.combine(session.map { Int(($0.contextFraction * 100).rounded()) })
+        fingerprintInput.combine(session?.queuedMessages.count)
+        fingerprintInput.combine(UserPromptCenter.shared.pending?.id)
+        fingerprintInput.combine(session?.pendingApproval?.id)
+        fingerprintInput.combine(Self.remoteCanRegenerate(session))
+        fingerprintInput.combine(Self.quickActionPayloads()?.count)
+        fingerprintInput.combine(AgentPlanStore.shared.lastUpdated)
+        fingerprintInput.combine(Self.remoteTokenCount(session))
+        fingerprintInput.combine(Host.current().localizedName)
+        if session?.isProcessing == true {
+            fingerprintInput.combine(session?.processingStartedAt.map { Int(Date().timeIntervalSince($0)) } ?? 0)
+        }
+        for message in session?.messages.suffix(100) ?? [] {
+            fingerprintInput.combine(message.id)
+            fingerprintInput.combine(message.content?.count)
+            fingerprintInput.combine(message.reasoning?.count)
+            fingerprintInput.combine(message.toolCalls?.count)
+            fingerprintInput.combine(message.toolCalls?.last?.function.arguments.count)
+        }
+        for run in session?.runningSubagents ?? [] {
+            fingerprintInput.combine(run.id)
+            fingerprintInput.combine(run.step)
+            fingerprintInput.combine(run.currentTool)
+        }
+        let cheapFingerprint = fingerprintInput.finalize()
+        if !force && cheapFingerprint == lastSnapshotFingerprint { return }
+        lastSnapshotFingerprint = cheapFingerprint
+
         let elapsedSeconds = session?.processingStartedAt.map {
             max(0, Int(Date().timeIntervalSince($0)))
         }

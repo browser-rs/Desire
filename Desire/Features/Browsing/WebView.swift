@@ -818,12 +818,18 @@ struct WebView: NSViewRepresentable {
                     alert.alertStyle = .critical
                     alert.addButton(withTitle: String(localized: "Continue Anyway"))
                     alert.addButton(withTitle: String(localized: "Cancel"))
-                    let response = alert.runModal()
-                    if response == .alertFirstButtonReturn {
-                        let credential = URLCredential(trust: serverTrust)
-                        completionHandler(.useCredential, credential)
-                    } else {
+                    // PERF-6：sheet 而非 runModal（runModal 冻结整个 app）。
+                    // 无窗口（离屏 webview）直接取消——不弹 app 模态。
+                    guard let window = webView.window else {
                         completionHandler(.cancelAuthenticationChallenge, nil)
+                        return
+                    }
+                    alert.beginSheetModal(for: window) { response in
+                        if response == .alertFirstButtonReturn {
+                            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                        } else {
+                            completionHandler(.cancelAuthenticationChallenge, nil)
+                        }
                     }
                 }
             }
@@ -1372,11 +1378,18 @@ struct WebView: NSViewRepresentable {
             alert.addButton(withTitle: String(localized: "Deny"))
             let checkbox = NSButton(checkboxWithTitle: String(localized: "Remember this decision"), target: nil, action: nil)
             alert.accessoryView = checkbox
-            let response = alert.runModal()
-            if checkbox.state == .on {
-                parent.permissionStore.set(host: host, type: pType, decision: response == .alertFirstButtonReturn ? .allow : .deny)
+            // PERF-6：sheet 异步 + 无窗口兜底拒绝（后台页面不弹 app 模态）。
+            guard let window = webView.window else {
+                decisionHandler(.deny)
+                return
             }
-            decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
+            alert.beginSheetModal(for: window) { response in
+                let granted = response == .alertFirstButtonReturn
+                if checkbox.state == .on {
+                    self.parent.permissionStore.set(host: host, type: pType, decision: granted ? .allow : .deny)
+                }
+                decisionHandler(granted ? .grant : .deny)
+            }
         }
 
         func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
@@ -1392,11 +1405,18 @@ struct WebView: NSViewRepresentable {
             alert.addButton(withTitle: String(localized: "Deny"))
             let checkbox = NSButton(checkboxWithTitle: String(localized: "Remember this decision"), target: nil, action: nil)
             alert.accessoryView = checkbox
-            let response = alert.runModal()
-            if checkbox.state == .on {
-                parent.permissionStore.set(host: host, type: .geolocation, decision: response == .alertFirstButtonReturn ? .allow : .deny)
+            // PERF-6：sheet 异步 + 无窗口兜底拒绝（后台页面不弹 app 模态）。
+            guard let window = webView.window else {
+                decisionHandler(.deny)
+                return
             }
-            decisionHandler(response == .alertFirstButtonReturn ? .grant : .deny)
+            alert.beginSheetModal(for: window) { response in
+                let granted = response == .alertFirstButtonReturn
+                if checkbox.state == .on {
+                    self.parent.permissionStore.set(host: host, type: .geolocation, decision: granted ? .allow : .deny)
+                }
+                decisionHandler(granted ? .grant : .deny)
+            }
         }
 
         func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
@@ -1412,8 +1432,14 @@ struct WebView: NSViewRepresentable {
             panel.canChooseDirectories = parameters.allowsDirectories
             panel.allowsMultipleSelection = parameters.allowsMultipleSelection
             panel.canCreateDirectories = false
-            guard panel.runModal() == .OK else { completionHandler(nil); return }
-            completionHandler(panel.urls)
+            // PERF-6：sheet 异步；无窗口兜底取消。
+            guard let window = webView.window else {
+                completionHandler(nil)
+                return
+            }
+            panel.beginSheetModal(for: window) { response in
+                completionHandler(response == .OK ? panel.urls : nil)
+            }
         }
 
         func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
@@ -1421,7 +1447,11 @@ struct WebView: NSViewRepresentable {
             alert.messageText = webView.url?.host ?? ""
             alert.informativeText = message
             alert.addButton(withTitle: String(localized: "OK"))
-            alert.runModal()
+            // PERF-6：sheet 异步等待；无窗口（后台页）直接当已确认返回。
+            guard let window = webView.window else { return }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                alert.beginSheetModal(for: window) { _ in continuation.resume() }
+            }
         }
 
         func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
@@ -1430,7 +1460,12 @@ struct WebView: NSViewRepresentable {
             alert.informativeText = message
             alert.addButton(withTitle: String(localized: "OK"))
             alert.addButton(withTitle: String(localized: "Cancel"))
-            return alert.runModal() == .alertFirstButtonReturn
+            guard let window = webView.window else { return false }
+            return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                alert.beginSheetModal(for: window) { response in
+                    continuation.resume(returning: response == .alertFirstButtonReturn)
+                }
+            }
         }
 
         func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo) async -> String? {
@@ -1442,7 +1477,13 @@ struct WebView: NSViewRepresentable {
             let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
             textField.stringValue = defaultText ?? ""
             alert.accessoryView = textField
-            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            guard let window = webView.window else { return nil }
+            let confirmed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                alert.beginSheetModal(for: window) { response in
+                    continuation.resume(returning: response == .alertFirstButtonReturn)
+                }
+            }
+            guard confirmed else { return nil }
             return textField.stringValue
         }
 

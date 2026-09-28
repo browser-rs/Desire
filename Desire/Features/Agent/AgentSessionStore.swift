@@ -479,6 +479,8 @@ class AgentSessionStore: ObservableObject {
         // immediately instead of waiting for the next event/timeout.
         loopTask?.cancel()
         loopTask = nil
+        approvalTimeoutTask?.cancel()
+        approvalTimeoutTask = nil
         // If waiting on an approval, resume the suspended continuation with
         // a deny so the loop wakes up and sees `isCancelled`.
         if let approval = pendingApproval {
@@ -553,6 +555,18 @@ class AgentSessionStore: ObservableObject {
     }
 
     func clear() {
+        // CONC-2：先停掉在跑的回合——此前只置 isProcessing = false，旧 loopTask
+        // 会挂在审批/提问续体上永久泄漏，且新回合与旧循环交错写同一个 messages
+        //（工具调用/结果配对被破坏）。舞步与 cancel() 一致。
+        isCancelled = true
+        loopTask?.cancel()
+        loopTask = nil
+        approvalTimeoutTask?.cancel()
+        approvalTimeoutTask = nil
+        if let approval = pendingApproval {
+            approval.resume(with: .denied)
+            pendingApproval = nil
+        }
         // The conversation is about to disappear — capture its L2 summary
         // first so "新对话" doesn't erase what happened.
         if preference.memoryLearning, messages.count >= 8, let cid = conversationId {
@@ -579,7 +593,8 @@ class AgentSessionStore: ObservableObject {
         inputHistory.removeAll()   // 新对话从空历史开始
         isProcessing = false
         currentAction = nil
-        isCancelled = false
+        // 保持 isCancelled = true：被取消的旧循环可能在状态重置后才走到检查点，
+        // 它必须看到"已取消"而不是复活（sendMessage 开新回合时会重置此标志）。
         awaitingQuestion = false
         // The user deliberately started a new chat — reopening the panel
         // should NOT resurrect the previous conversation.
@@ -601,6 +616,17 @@ class AgentSessionStore: ObservableObject {
     }
 
     func loadConversation(_ id: UUID) {
+        // CONC-2：与 clear() 同理——切换走正在显示的会话前先停掉在跑回合
+        //（手机端切会话直达这里）。isCancelled 保持 true，等下一次发送重置。
+        isCancelled = true
+        loopTask?.cancel()
+        loopTask = nil
+        approvalTimeoutTask?.cancel()
+        approvalTimeoutTask = nil
+        if let approval = pendingApproval {
+            approval.resume(with: .denied)
+            pendingApproval = nil
+        }
         guard let conv = conversationStore.conversation(for: id) else { return }
         messages = conv.messages
         conversationId = conv.id
@@ -1778,25 +1804,42 @@ class AgentSessionStore: ObservableObject {
         return await requestApproval(toolCall: toolCall, risk: risk)
     }
 
+    /// 审批挂起的兜底超时：与 askUser 的 `agentAskUserTimeout` 同一默认（600s）。
+    /// 没有它，面板没开/用户不在场时回合会无限挂起（CONC-2）。
+    private var approvalTimeoutTask: Task<Void, Never>?
+
     /// Suspends the loop until the user resolves the pending approval.
-    /// The continuation is resumed by `resolveApproval(_:)`.
+    /// The continuation is resumed by `resolveApproval(_:)` or by the timeout.
     private func requestApproval(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
         await withCheckedContinuation { (continuation: CheckedContinuation<ApprovalOutcome, Never>) in
-            pendingApproval = PendingToolApproval(
+            let approval = PendingToolApproval(
                 toolCall: toolCall,
                 risk: risk,
                 argumentsSummary: summarizeArguments(toolCall),
                 continuation: continuation
             )
+            pendingApproval = approval
             BridgeEventBus.shared.publish("approvalPending", [
                 "tool": toolCall.function.name,
                 "risk": risk.displayName,
             ])
+            approvalTimeoutTask?.cancel()
+            approvalTimeoutTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(UserPromptCenter.answerTimeout))
+                guard !Task.isCancelled else { return }
+                guard let self, let pending = self.pendingApproval, pending.id == approval.id else { return }
+                // 以 id 比对防陈旧：迟到的前一个超时不会误杀新审批。
+                self.pendingApproval = nil
+                pending.resume(with: .denied)   // 幂等，与 resolve/cancel 竞态安全
+                Log.agent.info("approval timed out after \(Int(UserPromptCenter.answerTimeout))s: \(toolCall.function.name, privacy: .public)")
+            }
         }
     }
 
     /// Called by the UI (`ToolApprovalBar`) when the user decides.
     func resolveApproval(_ decision: ApprovalDecision) {
+        approvalTimeoutTask?.cancel()
+        approvalTimeoutTask = nil
         guard let approval = pendingApproval else { return }
         pendingApproval = nil
         ApprovalPolicyStore.shared.recordHistory(

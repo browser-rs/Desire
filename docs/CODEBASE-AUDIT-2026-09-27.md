@@ -300,10 +300,10 @@
 - [x] PERF-8 jsRequestIDs / jobs 加上限
 
 ### 第三批：Agent 会话与远程控制加固（1-2 天）
-- [ ] CONC-2 clear/loadConversation 取消在跑回合 + 审批超时
-- [ ] CONC-5 RemoteControlStore connect 句柄 + 严格匹配 + delegate 加锁
-- [ ] PERF-5 远程快照轻量指纹 + debug 句柄常驻 + poll 退避
-- [ ] PERF-6 WebView runModal → 非阻塞（7 处）
+- [x] CONC-2 clear/loadConversation 取消在跑回合 + 审批超时
+- [x] CONC-5 RemoteControlStore connect 句柄 + 严格匹配 + delegate 加锁
+- [x] PERF-5 远程快照轻量指纹 + debug 句柄常驻（**poll 退避不做**——1s 收令延迟是产品规格〈无 Redis 时降级轮询 ≤1s 可接受〉，退避会劣化手机端体验）
+- [x] PERF-6 WebView runModal → 非阻塞（7 处）
 
 ### 第四批：架构重构（随功能开发持续）
 - [ ] ARCH-2 executeBody / route 按域拆分

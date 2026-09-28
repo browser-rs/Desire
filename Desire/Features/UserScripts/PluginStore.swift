@@ -7,22 +7,29 @@ class PluginStore: ObservableObject {
     @Published var plugins: [Plugin] = []
     private let saveKey = "desire.plugins"
 
+    /// R2 归一：background 运行时经此感知增/改/删/启停并对账
+    /// （AppState 接线到 PluginBackgroundRuntime.syncAll）。
+    var onPluginsChanged: (() -> Void)?
+
     init() { load() }
 
     func add(_ plugin: Plugin) {
         plugins.append(plugin)
         save()
+        onPluginsChanged?()
     }
 
     func update(_ plugin: Plugin) {
         guard let i = plugins.firstIndex(where: { $0.id == plugin.id }) else { return }
         plugins[i] = plugin
         save()
+        onPluginsChanged?()
     }
 
     func remove(_ plugin: Plugin) {
         plugins.removeAll { $0.id == plugin.id }
         save()
+        onPluginsChanged?()
         // Chrome 语义：卸载即清该插件的 storage.local 桶（0.3.3）。
         WebExtensionStore.clear(ext: plugin.id.uuidString)
     }
@@ -46,6 +53,7 @@ class PluginStore: ObservableObject {
         guard let i = plugins.firstIndex(where: { $0.id == id }) else { return }
         plugins[i].isEnabled = enabled
         save()
+        onPluginsChanged?()
     }
 
     /// 手动运行一次（工具栏固定图标点击）：绕过 URL 匹配直接在当前页

@@ -24,6 +24,10 @@ struct Plugin: Identifiable, Codable {
     /// 扩展包自带的真实图标（PNG 数据，取 manifest icons 最大尺寸）。
     /// nil = 用 SF Symbol（toolbarIcon）。Optional = 旧数据解码安全。
     var iconPNG: Data?
+    /// background 脚本（service_worker/scripts 内联）。由
+    /// PluginBackgroundRuntime 在应用启动/插件启用时以常驻 headless webview
+    /// 运行（contextMenus/tabs 事件等）。nil = 无后台。Optional = 旧数据解码安全。
+    var backgroundCode: String?
     /// popup 的文档 origin（取 manifest host_permissions 第一个 https/http 条目）。
     /// 作为 loadHTMLString 的 baseURL——Chrome 扩展页面凭 host_permissions 可
     /// 跨域 fetch，Desire 的 popup 是 about:blank 文档，跨域 fetch 会被 CORS
@@ -31,7 +35,7 @@ struct Plugin: Identifiable, Codable {
     /// nil = baseURL nil（旧行为）。Optional = 旧数据解码安全。
     var popupBaseOrigin: String?
 
-    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil, iconPNG: Data? = nil, popupBaseOrigin: String? = nil) {
+    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil, iconPNG: Data? = nil, popupBaseOrigin: String? = nil, backgroundCode: String? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -49,6 +53,7 @@ struct Plugin: Identifiable, Codable {
         self.popupHTML = popupHTML
         self.iconPNG = iconPNG
         self.popupBaseOrigin = popupBaseOrigin
+        self.backgroundCode = backgroundCode
     }
 
     var isPinned: Bool { pinned ?? false }

@@ -71,6 +71,9 @@ class AppState: ObservableObject {
         syncStore.startAutoSync()
         // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。
         BatchMediaExportStore.shared.restoreIfNeeded()
+        // 插件 background 运行时：启用且带 backgroundCode 的插件起常驻宿主
+        //（内部异步加载；后续增/改/启停经 PluginStore.onPluginsChanged 对账）。
+        PluginBackgroundRuntime.shared.syncAll()
         // 远程控制：开关开着且已登录才连中继。
         remoteControlStore.startIfEnabled()
     }

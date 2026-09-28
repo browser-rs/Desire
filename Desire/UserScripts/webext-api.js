@@ -81,7 +81,14 @@
         id: "desire.webext",
         getManifest: function() {
             return { name: "Desire Extension Runtime", version: "1.0", manifest_version: 3 };
-        }
+        },
+        onInstalled: eventAPI("runtime.onInstalled")
+    };
+    var contextMenus = {
+        create: function(props) { return rpc("contextMenus", "create", [props || {}]); },
+        remove: function(menuId) { return rpc("contextMenus", "remove", [menuId]); },
+        removeAll: function() { return rpc("contextMenus", "removeAll", []); },
+        onClicked: eventAPI("contextMenus.onClicked")
     };
     var notifications = {
         create: function(options) { return rpc("notifications", "create", [options || {}]); }
@@ -89,6 +96,7 @@
 
     var browser = {
         storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
+        contextMenus: contextMenus,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -98,4 +106,5 @@
     if (!chrome.tabs) chrome.tabs = tabs;
     if (!chrome.runtime) chrome.runtime = runtime;
     if (!chrome.notifications) chrome.notifications = notifications;
+    if (!chrome.contextMenus) chrome.contextMenus = contextMenus;
 })();

@@ -715,6 +715,26 @@ final class AutomationServer {
                 } catch {
                     return try Self.json(["error": error.localizedDescription])
                 }
+            case ("GET", "/plugins/context-menus"):
+                let app = AppState.live
+                let enabled = Set(app?.pluginStore.plugins.filter { $0.isEnabled && $0.backgroundCode != nil }.map(\.id) ?? [])
+                let items = PluginContextMenuStore.shared.visibleItems(enabledPluginIDs: enabled)
+                return try Self.json(["menus": items.map { item -> [String: Any] in
+                    ["pluginId": item.pluginID.uuidString, "menuId": item.menuID,
+                     "title": item.title, "contexts": item.contexts]
+                }])
+            case ("POST", "/plugins/context-menus/click"):
+                guard let pluginID = Self.string(body, "pluginId").flatMap(UUID.init),
+                      let menuID = Self.string(body, "menuId") else {
+                    return try Self.json(["error": "missing pluginId/menuId"])
+                }
+                PluginBackgroundRuntime.shared.contextMenuClick(
+                    pluginID: pluginID, menuItemID: menuID,
+                    pageURL: Self.string(body, "pageUrl").flatMap(URL.init),
+                    linkURL: Self.string(body, "linkUrl").flatMap(URL.init),
+                    srcURL: Self.string(body, "srcUrl").flatMap(URL.init),
+                    selectionText: Self.string(body, "selectionText"))
+                return try Self.json(["ok": true])
             case ("POST", "/plugins/pin"):
                 let app = AppState.live
                 guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {

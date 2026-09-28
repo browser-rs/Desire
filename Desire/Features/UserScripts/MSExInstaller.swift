@@ -126,13 +126,20 @@ enum MSExInstaller {
         popupHTML = popupBaseDir.flatMap { dir in
             popupHTML.map { Self.inlinePopupResources(html: $0, baseDir: dir) }
         }
-        // background（service_worker/scripts）在 Plugin 模型无对应概念——忽略，
-        // 但在描述里注明（用户在面板里能看到这条限制）。
-        var effectiveDescription = description
-        if manifest["background"] != nil {
-            let note = String(localized: "Background scripts are not supported and were ignored.")
-            effectiveDescription = effectiveDescription.isEmpty ? note : effectiveDescription + "\n\n" + note
+        // background（service_worker/scripts）内联——由
+        // PluginBackgroundRuntime 以常驻 headless webview 运行
+        //（contextMenus/storage/notifications/事件都可用）。
+        var backgroundCode: String?
+        if let background = manifest["background"] as? [String: Any] {
+            if let serviceWorker = background["service_worker"] as? String {
+                backgroundCode = try? String(contentsOf: extractDir.appendingPathComponent(serviceWorker), encoding: .utf8)
+            } else if let scripts = background["scripts"] as? [String] {
+                backgroundCode = scripts.compactMap {
+                    try? String(contentsOf: extractDir.appendingPathComponent($0), encoding: .utf8)
+                }.joined(separator: "\n")
+            }
         }
+        let effectiveDescription = description
 
         // 真实图标：manifest icons{} 里最大的尺寸 → PNG 数据（工具栏渲染用；
         // 插件模型无图片文件概念，数据随 Plugin 持久化）。
@@ -162,7 +169,8 @@ enum MSExInstaller {
             icon: "puzzlepiece",
             popupHTML: popupHTML,
             iconPNG: iconPNG,
-            popupBaseOrigin: popupBaseOrigin
+            popupBaseOrigin: popupBaseOrigin,
+            backgroundCode: backgroundCode
         )
         // 同名重装 = 更新（替换旧条目；沿用旧 id —— storage 按 id
         // 命名空间，换 id 会孤儿化已存数据）。
@@ -175,7 +183,8 @@ enum MSExInstaller {
                 isEnabled: existing.isEnabled, createdAt: existing.createdAt,
                 pinned: existing.pinned, icon: plugin.icon, popupHTML: plugin.popupHTML,
                 iconPNG: iconPNG ?? existing.iconPNG,
-                popupBaseOrigin: popupBaseOrigin ?? existing.popupBaseOrigin)
+                popupBaseOrigin: popupBaseOrigin ?? existing.popupBaseOrigin,
+                backgroundCode: backgroundCode ?? existing.backgroundCode)
             store.update(updated)
         } else {
             store.add(plugin)

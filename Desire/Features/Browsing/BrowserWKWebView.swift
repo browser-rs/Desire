@@ -67,6 +67,41 @@ class BrowserWKWebView: WKWebView {
                 menu.addItem(copyImage)
             }
 
+            // 插件 contextMenus 项（R2 归一后续）：按当前上下文匹配
+            //（page 恒真 / link / image / selection），点击派发给所属插件的
+            // background。
+            let pluginMenus = PluginBackgroundRuntime.shared.contextMenus(for: self.url)
+                .filter { item in
+                    item.contexts.contains { ctx in
+                        switch ctx {
+                        case "page": return true
+                        case "link": return linkURL != nil
+                        case "image": return imageURL != nil || bgImageURL != nil
+                        case "selection": return selection != nil
+                        default: return false
+                        }
+                    }
+                }
+            if !pluginMenus.isEmpty {
+                menu.addItem(.separator())
+                for item in pluginMenus {
+                    let mi = NSMenuItem(title: item.title, action: #selector(self.runPluginContextMenuItem(_:)), keyEquivalent: "")
+                    mi.target = self
+                    let payload: [String: String] = [
+                        "pluginID": item.pluginID.uuidString,
+                        "menuID": item.menuID,
+                        "linkURL": linkURL?.absoluteString ?? "",
+                        "imageURL": (imageURL ?? bgImageURL)?.absoluteString ?? "",
+                        "selection": selection ?? "",
+                    ]
+                    if let data = try? JSONSerialization.data(withJSONObject: payload),
+                       let json = String(data: data, encoding: .utf8) {
+                        mi.representedObject = json
+                    }
+                    menu.addItem(mi)
+                }
+            }
+
             if let url = linkURL {
                 if imageURL != nil || bgImageURL != nil { menu.addItem(.separator()) }
                 let open = NSMenuItem(title: String(localized: "Open Link in New Tab"), action: #selector(self.openLinkInNewTab), keyEquivalent: "")
@@ -109,6 +144,21 @@ class BrowserWKWebView: WKWebView {
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         onOpenLinkInNewTab?(url)
+    }
+
+    /// 插件 contextMenus 项点击 → 派发给所属插件的 background。
+    @objc private func runPluginContextMenuItem(_ sender: NSMenuItem) {
+        guard let json = sender.representedObject as? String,
+              let data = json.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let pluginID = payload["pluginID"].flatMap(UUID.init),
+              let menuID = payload["menuID"] else { return }
+        PluginBackgroundRuntime.shared.contextMenuClick(
+            pluginID: pluginID, menuItemID: menuID,
+            pageURL: url,
+            linkURL: payload["linkURL"].flatMap(URL.init),
+            srcURL: payload["imageURL"].flatMap(URL.init),
+            selectionText: payload["selection"])
     }
 
     @objc private func openLinkInContainer(_ sender: NSMenuItem) {

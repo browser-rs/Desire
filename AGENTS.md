@@ -753,6 +753,14 @@ Features/Bookmarks/
   索引行数（零差异）、对话里 system 只有 1 条且在第 0 位、六个分层段落齐全、`<environment>`
   带出工作目录/下载目录/ffmpeg 状态。注意一次发送会来 **3 个请求**（正文、标题生成、收尾），
   按体积挑最大的那个。
+- **CHANGELOG 规范（2026-09-29 立，三次事故后）**：加条目**只用**
+  `python3 scripts/changelog.py add <Fixed|Added|Changed|Deprecated|Removed|Security>`
+  （条目从 stdin 读，heredoc 传入）——它会自动确保 `## [Unreleased]` 头存在、
+  `### <Type>` 段存在、条目追加到段尾，且**永不触碰已发布版本段**。
+  **禁止**手工或用 sed/python 直接 replace `## [Unreleased]` 头插条目——三次
+  事故（吃头、版本假头重复、重建丢条目险些残缺发版）全是这一机制。
+  `python3 scripts/changelog.py verify` 校验结构（版本头唯一/顺序/Unreleased
+  位置），release.sh prep 阶段会自动跑。发版改名与补新头由 release.sh 自动完成。
 - **CHANGELOG 的 `[Unreleased]` 会被发版改名**：`0.x.y: release —` 那一步把 `[Unreleased]`
   直接改成 `## [vX.Y.Z] - 日期`。发版**之后**的改动必须**另起**一段 `[Unreleased]`，不要
   接着往已发布的段里加（2026-09-23 踩：流式跟随的修复条目落进了已发布的 v0.3.12 段，而

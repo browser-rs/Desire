@@ -123,6 +123,9 @@ stage_prep() {
   read -r answer || answer=""
   [ "$answer" = "y" ] || die "放弃"
 
+  # CHANGELOG 结构闸门（2026-09-29 三次事故后立）：版本头唯一/顺序/无重复。
+  python3 scripts/changelog.py verify
+
   # 版本号：MARKETING_VERSION = $V；CURRENT_PROJECT_VERSION = 旧值 + 1
   local pbx="Desire.xcodeproj/project.pbxproj"
   local current_build
@@ -137,6 +140,16 @@ stage_prep() {
   if ! git diff --cached --quiet; then
     git commit -m "release(v$V): v$V — freeze changelog and bump version ($next_build)"
   fi
+  # 改名后自动补一个空壳 `## [Unreleased]`——发版后的新条目永远有落点，
+  # 不再需要人工/脚本去动版本头（2026-09-29 三次吃头事故的根治）。
+  python3 - <<'PYCH'
+from pathlib import Path
+p = Path("CHANGELOG.md")
+s = p.read_text()
+if "## [Unreleased]" not in s:
+    p.write_text("## [Unreleased]\n\n" + s)
+    print("已补空壳 [Unreleased] 段")
+PYCH
   git push origin main
   echo "已推送 $(git rev-parse --short HEAD)，构建号 → $next_build"
 }

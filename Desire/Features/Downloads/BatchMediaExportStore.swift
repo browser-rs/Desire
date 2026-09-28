@@ -312,6 +312,11 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].summary = "skipped"
             MediaExportStore.shared.cancel(id: jobID)
             persistUnfinished()
+            // P1-16：被 skip 的项若正是唯一在跑项，并发槽已空但没有任何
+            // 回调再碰这个批次（downloadSettled 被 skipped 短路）——必须
+            // 主动推进，否则批次永久卡 running。
+            pumpDownloads(batchID)
+            checkBatchSettled(batchID)
             return
         }
         batches[bi].items[ii].state = .skipped
@@ -910,6 +915,9 @@ final class BatchMediaExportStore: ObservableObject {
                 persistUnfinished()
                 return
             }
+            // P0-D：下载失败也烧 attempts——此前只有解析阶段递增，page 模式
+            // 下载失败 attempts 恒 0 → 重试判据恒真 → 无限循环，批次永不落定。
+            batches[bi].items[ii].attempts += 1
             batches[bi].items[ii].state = .failed
             batches[bi].items[ii].summary = error.localizedDescription
             Log.downloads.error("item failed: \(error.localizedDescription, privacy: .public)")

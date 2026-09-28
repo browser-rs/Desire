@@ -450,6 +450,7 @@ struct WebView: NSViewRepresentable {
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "elementPicker", "videoAdBlocked", "devConsole", "netEntry",
+            "otpDetect",
         ]
 
         func observe(_ webView: WKWebView) {
@@ -860,11 +861,20 @@ struct WebView: NSViewRepresentable {
             // 广告规则可能刚被改过（本地覆盖文件 / 远程包）：把页面里旧代数的
             // 隐藏规则换成本次解析出来的。user script 是 webview 创建时定格的，
             // 只有这条导航路径能把新规则送进已打开的标签页（同代则空操作）。
-            if let blocker = parent.state.videoAdBlocker, blocker.isEnabled {
-                webView.evaluateJavaScript(
-                    VideoAdRulesStore.shared.cssInstallScript(replaceStale: true),
-                    completionHandler: nil
-                )
+            if let blocker = parent.state.videoAdBlocker {
+                if blocker.isEnabled {
+                    webView.evaluateJavaScript(
+                        VideoAdRulesStore.shared.cssInstallScript(replaceStale: true),
+                        completionHandler: nil
+                    )
+                } else {
+                    // P1-14：关闭开关后，已开标签的隐藏 CSS 要反向移除——
+                    // 否则旧标签永远继续拦截（冻结脚本无移除路径）。
+                    webView.evaluateJavaScript(
+                        "(function(){ var s = document.getElementById('desire-video-ad-css'); if (s) s.remove(); })()",
+                        completionHandler: nil
+                    )
+                }
             }
             // New page — the sniffed media list belongs to the old one.
             parent.state.detectedMedia.removeAll()

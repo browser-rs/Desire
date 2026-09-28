@@ -176,17 +176,17 @@ Markdown 取消传播。
 # 四、优化批次计划（第八~十一批）
 
 ### 第八批：P0 六项 + 功能坏死 P1（预计 1 天）
-- [ ] P0-A Profile 隔离接线（addTab 兜底传 store；apply 同理）
-- [ ] P0-B 懒物化补全（apply 不传 url / 选中标签先取消在途再恢复）
-- [ ] P0-C 密码 service 属性 + 旧条目迁移
-- [ ] P0-D 批量 page 模式 attempts 递增
-- [ ] P0-E sequenceIV 删多余 insert
-- [ ] P0-F Agent 请求前未配对 tool_calls 清洗
-- [ ] P1-3 otpDetect 注册（一行）
-- [ ] P1-10 关键词路由大小写
-- [ ] P1-12 CRLF 转义补 \r
-- [ ] P1-14 信任开关 bump generation + 关闭开关反向清理
-- [ ] P1-16 skip downloading 项后 pump+check
+- [x] P0-A Profile 隔离接线（addTab 兜底传 store；apply 同理）
+- [x] P0-B 懒物化补全（apply 不传 url / 选中标签先取消在途再恢复）
+- [x] P0-C 密码 service 属性修复（旧无 service 条目**不做盲扫迁移**——无法区分本 app 与系统其他条目，误吞用户真实密码风险大于重存成本；受影响用户重存一次即可）
+- [x] P0-D 批量 page 模式 attempts 递增
+- [x] P0-E sequenceIV 删多余 insert
+- [x] P0-F Agent 请求前未配对 tool_calls 清洗
+- [x] P1-3 otpDetect 注册（一行）
+- [x] P1-10 关键词路由大小写
+- [x] P1-12 CRLF 转义补 \r
+- [x] P1-14 信任开关 bump generation + 关闭开关反向清理
+- [x] P1-16 skip downloading 项后 pump+check
 
 ### 第九批：P1 收尾（预计 1-2 天）
 - [ ] P1-1 看门狗恢复（beforeunload 分支补 arm）

@@ -95,8 +95,13 @@ final class VideoAdRulesStore: ObservableObject {
     /// 生效的远程源，按顺序取第一个可解析的：`remote/source.txt` →
     /// UserDefaults `videoAdRulesRemoteURL` → 编译期常量。
     var remoteURL: URL? {
-        if let text = try? String(contentsOf: Self.remoteSourceFileURL, encoding: .utf8),
-           let url = Self.parseURL(text) {
+        // P1-13：source.txt 的同步读盘按代数缓存（此前每次导航都读盘）。
+        if let cached = remoteSourceCache, cached.gen == generation {
+            return Self.parseURL(cached.source) ?? UserDefaults.standard.string(forKey: "videoAdRulesRemoteURL").flatMap(Self.parseURL) ?? Self.defaultRemoteURL
+        }
+        let text = (try? String(contentsOf: Self.remoteSourceFileURL, encoding: .utf8)) ?? ""
+        remoteSourceCache = (generation, text)
+        if let url = Self.parseURL(text) {
             return url
         }
         if let raw = UserDefaults.standard.string(forKey: "videoAdRulesRemoteURL"),
@@ -189,14 +194,32 @@ final class VideoAdRulesStore: ObservableObject {
     /// 让新规则重跑一遍。这样"改规则 → 重新加载 → 刷新页面"就真的生效，
     /// 不需要重开标签页（user script 只在 webview 创建时定格，这正是坑）。
     @Published private(set) var generation: Int = 0
+    /// P1-13：成品 CSS 安装脚本按 (代数, replaceStale) 缓存——此前每个标签
+    /// 每次导航都全量重建 44KB × 3 轮扫描，且 remoteURL 每次同步读盘。
+    private var cssInstallScriptCache: (gen: Int, replaceStale: Bool, script: String)?
+    private var remoteSourceCache: (gen: Int, source: String)?
 
     /// CSS 安装脚本。`replaceStale` 用于导航时的补投：页面里已有旧代数的
     /// `<style>` 就换掉，没有或代数相同就什么都不做（避免每页都重写 style）。
     func cssInstallScript(replaceStale: Bool) -> String {
+        if let cached = cssInstallScriptCache,
+           cached.gen == generation, cached.replaceStale == replaceStale {
+            return cached.script
+        }
+        let script = buildCSSInstallScript(replaceStale: replaceStale)
+        cssInstallScriptCache = (generation, replaceStale, script)
+        return script
+    }
+
+    private func buildCSSInstallScript(replaceStale: Bool) -> String {
         let css = VideoSite.allCases.map { self.css(for: $0) }.joined(separator: "\n")
         let escaped = css
             .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "'", with: "\'")
+            // P1-12：CRLF 一并转义——本地覆盖文件用 Windows 编辑器保存后
+            // 残留 \r，进单引号 JS 字符串字面量即 SyntaxError，8 站 CSS 全灭。
+            .replacingOccurrences(of: "\r\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\n")
             .replacingOccurrences(of: "\n", with: "\\n")
         let gen = generation
         let guardLine = replaceStale
@@ -255,6 +278,8 @@ final class VideoAdRulesStore: ObservableObject {
         }
         localOverrides = overrides
         generation += 1
+        cssInstallScriptCache = nil
+        remoteSourceCache = nil
     }
 
     private func read(_ url: URL) -> String? {
@@ -267,6 +292,11 @@ final class VideoAdRulesStore: ObservableObject {
         guard trusted != remoteScriptsTrusted else { return }
         remoteScriptsTrusted = trusted
         UserDefaults.standard.set(trusted, forKey: Self.trustKey)
+        // P1-14：已开标签的冻结脚本写的是旧语义（未信任=内置 JS），gen 不变则
+        // didFinish 补投被代数守卫挡回——远程 JS 永不生效。推进代数强制重投。
+        generation += 1
+        cssInstallScriptCache = nil
+        remoteSourceCache = nil
     }
 
     // MARK: - Remote bundle
@@ -314,6 +344,8 @@ final class VideoAdRulesStore: ObservableObject {
             remoteBundle = bundle
             remoteFetchedAt = Date()
             generation += 1
+            cssInstallScriptCache = nil
+            remoteSourceCache = nil
             UserDefaults.standard.set(remoteFetchedAt, forKey: Self.fetchedAtKey)
             lastError = nil
         } catch {

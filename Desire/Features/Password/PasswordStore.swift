@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 import LocalAuthentication
 import Security
 
@@ -202,14 +203,20 @@ class PasswordStore: ObservableObject {
         // Remove existing entry first
         deleteFromKeychain(domain: domain, username: username)
 
+        // P0-C：必须带 kSecAttrService——loadAll 按 service 过滤，缺了它写入的
+        // 条目重启后永远读不回来（存得进读不出，实测类数据丢失）。
         let query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
+            kSecAttrService as String: "me.siwi.Desire",
             kSecAttrServer as String: domain,
             kSecAttrAccount as String: username,
             kSecAttrProtocol as String: kSecAttrProtocolHTTPS,
             kSecValueData as String: passwordData,
         ]
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            Log.app.error("password keychain add failed: \(status, privacy: .public)")
+        }
     }
 
     private func findFromKeychain(domain: String, username: String) -> String? {

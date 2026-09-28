@@ -62,6 +62,47 @@ enum ContextCompaction {
         return out
     }
 
+    /// **全数组未配对 tool_calls 清洗**（P0-F）：工具循环中途被取消时，assistant
+    /// 的部分 tool_calls 已落结果、其余没有——原样发给 OpenAI 兼容服务会被以
+    /// "tool_calls must be followed by tool messages" 拒绝，**且之后每一轮都如此**
+    /// （会话报废）。为每个无结果的 tool_call_id 补一条 `[interrupted]` 工具消息
+    /// （紧跟其 assistant 之后，保持配对相邻），比剥掉调用更诚实——模型知道
+    /// 哪些动作被打断。
+    static func repairUnpairedToolCalls(_ messages: [AgentMessage]) -> [AgentMessage] {
+        var out: [AgentMessage] = []
+        var pendingIDs: [String] = []   // 尚未等到结果的 tool_call_id（按发出顺序）
+        for message in messages {
+            if message.role == .assistant, let calls = message.toolCalls, !calls.isEmpty {
+                out.append(message)
+                pendingIDs.append(contentsOf: calls.map(\.id))
+                continue
+            }
+            if message.role == .tool, let toolCallID = message.toolCallId {
+                if let idx = pendingIDs.firstIndex(of: toolCallID) {
+                    pendingIDs.remove(at: idx)
+                }
+                out.append(message)
+                continue
+            }
+            // 非工具消息出现在还有未配对调用时（用户中途插话等坏存储形态）：
+            // 先补齐配对再放行，维持 "assistant(tool_calls)…tool(result)" 相邻。
+            if !pendingIDs.isEmpty {
+                for orphan in pendingIDs {
+                    out.append(AgentMessage(role: .tool, content: "[interrupted]",
+                                            toolCallId: orphan, toolName: nil))
+                }
+                pendingIDs = []
+            }
+            out.append(message)
+        }
+        // 数组末尾仍悬空（被取消的最新形态）：逐个补齐。
+        for orphan in pendingIDs {
+            out.append(AgentMessage(role: .tool, content: "[interrupted]",
+                                    toolCallId: orphan, toolName: nil))
+        }
+        return out
+    }
+
     /// 被裁轮次的机械摘要：每轮一行"用户目标｜结论"。摘要有上限，更早的只留轮数 ——
     /// 目的是给模型"前文聊过什么"的坐标，不是复述内容。
     private static func digest(for dropped: [AgentMessage], limit: Int) -> String {

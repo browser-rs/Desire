@@ -770,7 +770,9 @@ class AgentSessionStore: ObservableObject {
         // 压缩并取回被裁轮次的机械摘要 —— 摘要并入开头 system 提示（"## Earlier
         // conversation (compacted)" 一节），模型仍知道前文聊过什么。
         let (kept, digest) = ContextCompaction.compactWithDigest(messages, budget: effectiveContextBudget)
-        var request = kept
+        // P0-F：先修未配对 tool_calls（工具循环中途取消的残留），再进压缩——
+        // 否则严格端点对之后每条请求都 400，会话报废。
+        var request = ContextCompaction.repairUnpairedToolCalls(kept)
 
         // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
         // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，

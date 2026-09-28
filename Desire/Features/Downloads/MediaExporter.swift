@@ -686,10 +686,13 @@ enum MediaExporter {
     /// Default IV when EXT-X-KEY omits one: the 128-bit big-endian media
     /// sequence number of the segment (per the HLS spec).
     private static func sequenceIV(_ sequence: Int) -> Data {
+        // HLS 规范：无 IV 属性时 IV = 64 位大端媒体序号左补零到 128 位。
+        // Data(count: 8) 的 8 个零即左填充——**不要再 insert**：曾多插 8 个零
+        // 变成 24 字节，CCCrypt 只读前 16（全零 IV），坏 IV 每段损坏前 16 字节
+        // 而 PKCS7 校验仍过 → 导出"成功"但花屏（P0-E，实证）。
         var bigEndianSequence = UInt64(sequence).bigEndian
         var iv = Data(count: 8)
         withUnsafeBytes(of: &bigEndianSequence) { iv.append(contentsOf: $0) }
-        iv.insert(contentsOf: [0, 0, 0, 0, 0, 0, 0, 0], at: 0)
         return iv
     }
 

@@ -94,7 +94,7 @@ class Tab: ObservableObject {
         browser.isPlayingAudio
     }
 
-    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
+    init(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil, loadsPage: Bool = true) {
         self.isIncognito = incognito
         self.containerID = containerID
         // Profile data store takes precedence over container (profile is a
@@ -105,8 +105,10 @@ class Tab: ObservableObject {
         if let url {
             urlString = url
             isOnNewTabPage = false
-            // 立即加载 URL，确保新标签页能够正确显示内容
-            if let validURL = URL(string: url) {
+            // loadsPage = false：会话恢复的**非选中**标签用——只记 URL 不发起
+            // 加载（挂起态首次 activate 时由 restoreSuspendedState 恢复）。
+            // 此前 init 立即 load，N 个标签启动即 N 个并发请求（P0-B）。
+            if loadsPage, let validURL = URL(string: url) {
                 browser.webView.load(URLRequest(url: validURL))
             }
         }
@@ -356,7 +358,10 @@ class TabManager: ObservableObject {
     }
 
     func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID, profileDataStore: profileDataStore)
+        // P0-A：显式参数缺省时兜底窗口的档案 store——此前该参数全仓无人传，
+        // Profile 的 cookie 隔离整条链路断在这里（切人物后登录态全进默认
+        // store，跨档案串档）。
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID, profileDataStore: profileDataStore ?? self.profileDataStore)
         defer {
             BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count])
             ExtensionEventHub.shared.fire("tabs.onCreated", tabID: tab.id, extra: ["url": url ?? "", "index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1])
@@ -654,10 +659,11 @@ class TabManager: ObservableObject {
 
         for (i, saved) in session.tabs.enumerated() {
             let url = saved.isOnNewTabPage ? nil : saved.url
-            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, containerID: saved.containerID)
+            let isSelected = i == selectedIdx
+            let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, containerID: saved.containerID, profileDataStore: profileDataStore, loadsPage: isSelected)
             tab.isPinned = saved.isPinned
 
-            if i == selectedIdx {
+            if isSelected {
                 applyEagerly(saved, to: tab)
             } else {
                 tab.suspendedInteractionState = saved.sessionState
@@ -676,6 +682,10 @@ class TabManager: ObservableObject {
     private func applyEagerly(_ saved: SavedTab, to tab: Tab) {
         var restoredInteractionState = false
         if let data = saved.sessionState {
+            // P0-B：Tab.init 已按 url 发出一次 fresh load——它会把紧随其后的
+            // interactionState 恢复作废（本函数注释里自己警告过的竞争）。先
+            // 停掉在途加载再恢复。
+            tab.browser.webView.stopLoading()
             // NSSecureCoding 解码：根对象实证为 NSData（WebKit 把
             // interactionState 归档为数据块），允许列表据此收窄。
             do {

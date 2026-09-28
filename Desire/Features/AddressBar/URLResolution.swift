@@ -83,7 +83,7 @@ enum URLResolution {
         let remainder = String(text[text.index(after: space)...]).trimmingCharacters(in: .whitespaces)
         guard !remainder.isEmpty else { return nil }
 
-        for engine in SearchEngine.allCases where firstWord == engine.rawValue {
+        for engine in SearchEngine.allCases where firstWord == engine.rawValue.lowercased() {
             return (SearchTarget(displayName: engine.rawValue, searchTemplate: engine.searchURL), remainder)
         }
         for engine in settings.customEngines where firstWord == engine.name.lowercased() {

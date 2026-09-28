@@ -38,7 +38,10 @@ struct ExtensionPopupWebView: NSViewRepresentable {
                 in: .page))
         }
         let web = WKWebView(frame: .zero, configuration: config)
-        web.loadHTMLString(plugin.popupHTML ?? "", baseURL: nil)
+        // baseURL = manifest host_permissions 的 origin：文档 origin 变成 API
+        // 同源，popup 里的 fetch 不再被 CORS 拦（见 Plugin.popupBaseOrigin 注释）。
+        let base = plugin.popupBaseOrigin.flatMap(URL.init(string:))
+        web.loadHTMLString(plugin.popupHTML ?? "", baseURL: base)
         return web
     }
 

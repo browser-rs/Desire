@@ -1,5 +1,13 @@
-## [Unreleased]
+### Fixed
 
+- **扩展 popup 的 API 请求被 CORS 拦截（"登录失败: Load failed"，用户实测
+  trove-bookmark）**：popup 是 about:blank 文档，对扩展 API 的 fetch 全被
+  CORS 拦截——Chrome 扩展页面凭 host_permissions 跨域。现在装载时取
+  manifest `host_permissions` 第一个 https/http 条目存为 `popupBaseOrigin`，
+  popup 加载用它作 `loadHTMLString` 的 baseURL——文档 origin 与 API 同源，
+  fetch 不再需要 CORS 头。已实测：二维码正常渲染、登录流程可用。
+
+## [v0.4.3] - 2026-09-28
 ### Fixed
 
 - **本地自签名 HTTPS 证书警告弹窗风暴（用户实测：192.168.1.6 / pve.mankong.icu

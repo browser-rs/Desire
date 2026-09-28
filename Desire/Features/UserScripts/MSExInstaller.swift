@@ -138,6 +138,19 @@ enum MSExInstaller {
         // 插件模型无图片文件概念，数据随 Plugin 持久化）。
         let iconPNG = Self.largestIconPNG(manifest: manifest, extractDir: extractDir)
 
+        // popup 文档 origin：host_permissions 第一个 https/http 条目去路径。
+        // Chrome 扩展页面凭 host_permissions 跨域 fetch；Desire 的 popup 用它
+        // 作 loadHTMLString 的 baseURL，让 API 调用变同源（否则被 CORS 拦截，
+        // 实测 trove-bookmark"登录失败: Load failed"）。
+        var popupBaseOrigin: String?
+        if let perms = manifest["host_permissions"] as? [String] {
+            let candidate = perms.first { $0.hasPrefix("https://") } ?? perms.first { $0.hasPrefix("http://") }
+            if let candidate, let url = URL(string: candidate.replacingOccurrences(of: "/*", with: "/")),
+               let host = url.host {
+                popupBaseOrigin = "\(url.scheme ?? "https")://\(host)\(url.port.map { ":\($0)" } ?? "")"
+            }
+        }
+
         let plugin = Plugin(
             name: name,
             description: effectiveDescription,
@@ -148,7 +161,8 @@ enum MSExInstaller {
             cssCode: cssChunks.joined(separator: "\n"),
             icon: "puzzlepiece",
             popupHTML: popupHTML,
-            iconPNG: iconPNG
+            iconPNG: iconPNG,
+            popupBaseOrigin: popupBaseOrigin
         )
         // 同名重装 = 更新（替换旧条目；沿用旧 id —— storage 按 id
         // 命名空间，换 id 会孤儿化已存数据）。
@@ -160,7 +174,8 @@ enum MSExInstaller {
                 runAt: plugin.runAt, jsCode: plugin.jsCode, cssCode: plugin.cssCode,
                 isEnabled: existing.isEnabled, createdAt: existing.createdAt,
                 pinned: existing.pinned, icon: plugin.icon, popupHTML: plugin.popupHTML,
-                iconPNG: iconPNG ?? existing.iconPNG)
+                iconPNG: iconPNG ?? existing.iconPNG,
+                popupBaseOrigin: popupBaseOrigin ?? existing.popupBaseOrigin)
             store.update(updated)
         } else {
             store.add(plugin)

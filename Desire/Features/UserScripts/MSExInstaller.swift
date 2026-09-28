@@ -102,21 +102,41 @@ enum MSExInstaller {
 
         // action.default_popup（mv3 在 action，v2 在 browser_action——都认）。
         var popupHTML: String?
+        var popupBaseDir: URL?
         if let action = manifest["action"] as? [String: Any],
            let popupPath = action["default_popup"] as? String {
-            popupHTML = try? String(contentsOf: extractDir.appendingPathComponent(popupPath), encoding: .utf8)
+            let popupURL = extractDir.appendingPathComponent(popupPath)
+            popupHTML = try? String(contentsOf: popupURL, encoding: .utf8)
+            popupBaseDir = popupURL.deletingLastPathComponent()
         } else if let action = manifest["browser_action"] as? [String: Any],
                   let popupPath = action["default_popup"] as? String {
-            popupHTML = try? String(contentsOf: extractDir.appendingPathComponent(popupPath), encoding: .utf8)
+            let popupURL = extractDir.appendingPathComponent(popupPath)
+            popupHTML = try? String(contentsOf: popupURL, encoding: .utf8)
+            popupBaseDir = popupURL.deletingLastPathComponent()
         }
 
         guard !jsChunks.isEmpty || !cssChunks.isEmpty || popupHTML != nil else {
             throw MSExError.noContent
         }
 
+        // R2 归一后续（Chrome 式从文件加载）：真实扩展的 popup 都引用外部
+        // css/js（如 trove-bookmark 的 ../lib/qrcode.min.js）——相对引用内联
+        // 进 HTML，否则 popup 弹出来是断链的白壳。基准目录 = **popup.html 所在
+        // 目录**（引用相对它解析，`../` 跳包根），不是 manifest 根。
+        popupHTML = popupBaseDir.flatMap { dir in
+            popupHTML.map { Self.inlinePopupResources(html: $0, baseDir: dir) }
+        }
+        // background（service_worker/scripts）在 Plugin 模型无对应概念——忽略，
+        // 但在描述里注明（用户在面板里能看到这条限制）。
+        var effectiveDescription = description
+        if manifest["background"] != nil {
+            let note = String(localized: "Background scripts are not supported and were ignored.")
+            effectiveDescription = effectiveDescription.isEmpty ? note : effectiveDescription + "\n\n" + note
+        }
+
         let plugin = Plugin(
             name: name,
-            description: description,
+            description: effectiveDescription,
             version: version,
             urlPatterns: matches.isEmpty ? ["*"] : matches,
             runAt: runAt,
@@ -141,6 +161,95 @@ enum MSExInstaller {
         }
         Log.userScripts.info("msex installed: \(name, privacy: .public) v\(version, privacy: .public)")
         return InstallResult(plugin: plugin)
+    }
+
+    // MARK: - popup 资源内联
+
+    /// 把 popup HTML 里的相对引用资源内联：`<link rel=stylesheet href>` →
+    /// `<style>`、`<script src>` → `<script>`。路径相对 popup HTML 所在目录
+    /// 解析（`../` 自然支持）；绝对 http(s)/data 引用保持原样（无法内联）。
+    /// 最多 3 轮——内联内容自身再引用更深资源极少见，封顶防失控。
+    ///
+    /// regex 用**原始字符串**（`#"..."#`）——普通字符串里 `\\b`/`\\s` 的双重
+    /// 转义是这段代码第一次落盘就坏掉的直接原因。
+    static func inlinePopupResources(html: String, baseDir: URL) -> String {
+        var out = html
+        for _ in 0..<3 {
+            var changed = false
+
+            // <script src="X"></script>（属性顺序：src 可能不在最后，按 tag 抓）
+            let scriptRegex = try? NSRegularExpression(
+                pattern: #"<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>\s*</script>"#,
+                options: [.caseInsensitive])
+            if let scriptRegex {
+                var result = ""
+                var last = out.startIndex
+                let ns = out as NSString
+                scriptRegex.enumerateMatches(in: out, range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+                    guard let match, let range = Range(match.range, in: out),
+                          let srcRange = Range(match.range(at: 1), in: out) else { return }
+                    let src = String(out[srcRange])
+                    if src.lowercased().hasPrefix("http://") || src.lowercased().hasPrefix("https://")
+                        || src.lowercased().hasPrefix("data:") {
+                        return // 保持原样
+                    }
+                    let fileURL = baseDir.appendingPathComponent(src)
+                    guard let code = try? String(contentsOf: fileURL, encoding: .utf8) else { return }
+                    // 内联的 JS 里若含 </script> 会截断 HTML——转义
+                    let safe = code.replacingOccurrences(of: "</script", with: #"<\/script"#)
+                    result += out[last..<range.lowerBound]
+                    result += "<script>\(safe)</script>"
+                    last = range.upperBound
+                    changed = true
+                }
+                result += out[last...]
+                out = result
+            }
+
+            // <link ... rel="stylesheet" ... href="X">（属性顺序不定，按 tag 解析）
+            let linkRegex = try? NSRegularExpression(
+                pattern: #"<link\b[^>]*>"#,
+                options: [.caseInsensitive])
+            if let linkRegex {
+                var result = ""
+                var last = out.startIndex
+                let ns = out as NSString
+                linkRegex.enumerateMatches(in: out, range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+                    guard let match, let range = Range(match.range, in: out) else { return }
+                    let tag = String(out[range])
+                    guard tag.lowercased().contains("stylesheet"),
+                          let href = Self.attribute("href", from: tag),
+                          !href.lowercased().hasPrefix("http://"),
+                          !href.lowercased().hasPrefix("https://"),
+                          !href.lowercased().hasPrefix("data:") else { return }
+                    let fileURL = baseDir.appendingPathComponent(href)
+                    guard let css = try? String(contentsOf: fileURL, encoding: .utf8) else { return }
+                    result += out[last..<range.lowerBound]
+                    result += "<style>\(css)</style>"
+                    last = range.upperBound
+                    changed = true
+                }
+                result += out[last...]
+                out = result
+            }
+
+            if !changed { break }
+        }
+        return out
+    }
+
+    /// 从 HTML 标签文本里取属性值（双/单引号皆可）。
+    private static func attribute(_ name: String, from tag: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\#(name)\s*=\s*["']?([^"' >]+)"#,
+            options: [.caseInsensitive]) else { return nil }
+        let ns = tag as NSString
+        // 捕获组只有 1 个（\#(name) 是字面插值不是组）——读 range(at: 2) 会
+        // NSException（harness 对真实扩展首跑即崩，已实证）。
+        guard let match = regex.firstMatch(in: tag, range: NSRange(location: 0, length: ns.length)),
+              match.range(at: 1).location != NSNotFound,
+              let range = Range(match.range(at: 1), in: tag) else { return nil }
+        return String(tag[range])
     }
 
     enum MSExError: LocalizedError {

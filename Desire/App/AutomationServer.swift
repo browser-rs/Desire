@@ -700,7 +700,12 @@ final class AutomationServer {
                     return try Self.json(["error": "file not found: \(path)"])
                 }
                 do {
-                    let result = try MSExInstaller.install(from: URL(fileURLWithPath: path), store: app.pluginStore)
+                    // 目录 = 已解压扩展（Chrome 式"从文件夹加载"）→ Safari 包管线
+                    var isDir: ObjCBool = false
+                    let isDirectory = FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
+                    let result = isDirectory
+                        ? try MSExInstaller.installSafariPackage(from: URL(fileURLWithPath: path), store: app.pluginStore)
+                        : try MSExInstaller.install(from: URL(fileURLWithPath: path), store: app.pluginStore)
                     return try Self.json([
                         "ok": true,
                         "id": result.plugin.id.uuidString,

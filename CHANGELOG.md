@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+### Added
+
+- **Chrome 式"从文件夹加载"已解压扩展**：`/plugins/install-msex` 与 Plugins
+  面板的"安装扩展包"按钮现在都接受**目录**（含 manifest.json 的任意文件夹，
+  即 Chrome 的 Load unpacked 流程）——目录走与 zip 相同的解析管线。
+- **popup 相对引用资源内联**：装载时把 popup.html 里的 `<link rel=stylesheet
+  href>` 与 `<script src>` 内联为 `<style>`/`<script>`（路径相对 popup.html
+  所在目录解析，支持 `../` 跳包根；http(s)/data 引用保持原样；最多 3 轮防失控）
+  ——真实扩展的 popup 都引用外部 css/js，此前裸内联会让弹窗变成断链白壳。
+  已用 trove-bookmark 真实扩展 E2E 验证（qrcode 库/业务 JS/样式全部内联，
+  popup 弹出即可用）。
+- 带 `background`（service_worker/scripts）的扩展装载成功但该部分忽略，
+  描述里注明这条限制（Plugin 模型无对应概念）。
+
+### Fixed
+
+- **扩展包装载的 attribute 正则捕获组越界**（NSException，OBJC 异常穿主 actor
+  会致僵尸态）：`href` 属性提取读了不存在的捕获组 2——正则只有一个组（组号
+  写代码时误把字面插值当成了组）。独立 harness 对真实扩展首跑即崩，已实证修复。
+
 ### Changed
 
 - **插件/扩展双系统归一（档位 B）**：Desire 此前有两套并行的扩展机制——

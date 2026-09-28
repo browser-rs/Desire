@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Background scripts are not supported and were ignored." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Background scripts are not supported and were ignored."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "background 脚本不受支持，已忽略。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "background 腳本不受支援，已忽略。"
+          }
+        }
+      }
+    },
     "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)" : {
       "localizations" : {
         "en" : {

@@ -96,8 +96,13 @@ struct PasswordPanel: View {
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.nameFieldStringValue = "desire-passwords.csv"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? passwordStore.exportCSV().write(to: url, atomically: true, encoding: .utf8)
-        importResult = "Exported to \(url.lastPathComponent)"
+        do {
+            try passwordStore.exportCSV().write(to: url, atomically: true, encoding: .utf8)
+            importResult = "Exported to \(url.lastPathComponent)"
+        } catch {
+            // 失败仍报成功会误导用户以为密码已导出（BUG-5）。
+            importResult = "Export failed: \(error.localizedDescription)"
+        }
     }
 
     private var filtered: [PasswordEntry] {

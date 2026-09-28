@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import SwiftUI
 // `@preconcurrency`: UNUserNotificationCenter is thread-safe but predates
 // Sendable annotations, which trips strict-concurrency captures.
@@ -535,7 +536,14 @@ class DownloadStore: ObservableObject {
                 destination = chosen
             }
         }
-        try? FileManager.default.moveItem(at: tempURL, to: destination)
+        do {
+            try FileManager.default.moveItem(at: tempURL, to: destination)
+        } catch {
+            // 静默吞掉的话 UI 显示完成、目标位置没有文件（BUG-5）。
+            Log.downloads.error("download move failed: \(error.localizedDescription, privacy: .public)")
+            fail(id: id, message: "Could not move file into place: \(error.localizedDescription)")
+            return
+        }
         downloads[i].fileURL = destination
         complete(id: id)
     }
@@ -679,7 +687,12 @@ private final class StoreDownloadDelegate: NSObject, URLSessionDownloadDelegate,
         // move it somewhere stable before hopping to the main actor.
         let stable = FileManager.default.temporaryDirectory
             .appendingPathComponent("desire-dl-\(UUID().uuidString)")
-        try? FileManager.default.moveItem(at: location, to: stable)
+        do {
+            try FileManager.default.moveItem(at: location, to: stable)
+        } catch {
+            // location 在本方法返回后即被删除——移动失败这个下载就丢了，必须留痕。
+            Log.downloads.error("download stash failed: \(error.localizedDescription, privacy: .public)")
+        }
         guard let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
         let response = downloadTask.response
         Task { @MainActor [weak store] in

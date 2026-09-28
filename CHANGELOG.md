@@ -1,3 +1,35 @@
+## [Unreleased]
+
+### Fixed
+
+- **全面体检第一批修复（报告见 docs/CODEBASE-AUDIT-2026-09-27.md，共 40+ 项分四批推进）**：
+  - 页内查找计数曾用**未修复的旧副本**（`walk.nodeValue` 抛错 → 计数恒 0）——
+    BrowsingActions 改调共享的 `WebView.findCountJS`，删除手抄 JS；
+  - 插件 document_idle 档位注入把插件 JS 做 `\'` 转义后塞进**函数体**——函数体里
+    `\'` 是非法 token，含单引号的插件必然 SyntaxError；转义整体删除（与
+    document_end 档位一致裸注入）；
+  - 标签自动挂起（30 分钟巡检）不豁免**正在播放音频**的标签——听歌半小时被静默
+    切歌；补齐与内存压力分支一致的豁免；
+  - `executeJS` 缺参返回裸 "Missing code"，不符合 `Error: ` 失败约定——机械核验
+    漏计，改走 `fail()`；
+  - 下载完成 `moveItem` 与密码 CSV 导出用 `try?` 吞错——失败仍报成功且零日志，
+    改 do/catch + 日志/失败状态。
+
+### Changed
+
+- **两座本地服务（自动化桥 / MCP）的 listener 与连接从主队列挪到专用串行队列**：
+  主 actor 被打瘫（ObjC 异常穿 async 帧的僵尸态，历史两次）时桥仍能收发——
+  此前"窗口照常渲染但全部端点超时"的结构性根因就此移除（回调各自跳回主 actor，
+  行为不变）。
+- **删除未接线的 `Features/Extensions/` 死子系统**（WebExtensionRegistry 集群，
+  722 行 / 3 文件，全仓仅自引用）——活着的插件系统是 `Features/UserScripts/`；
+  Safari 扩展导入四件不受影响。
+- `HeadlessMediaResolver`（批量下载解析器）：teardown/二次 load 时先解除挂起的
+  加载续体再摘 delegate——此前取消批量下载会让引擎 Task 永久挂起（续体泄漏）。
+- `BrowserWKWebView.requestInspector` 的 KVC 私有键 `_inspector` 加 `responds(to:)`
+  防护——macOS 未来移除该键时从 NSUnknownKeyException 直接 abort 变为安全 no-op
+  （2026-09-20 崩溃同型的最后残留）。
+
 ## [v0.4.2] - 2026-09-27
 
 ### Added

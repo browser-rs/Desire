@@ -221,7 +221,9 @@ class TabManager: ObservableObject {
         guard configured >= 0 else { return }
         let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
-        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito {
+        // 豁免：选中、分屏伙伴、固定、新标签页、无痕、**正在播放音频**（内存
+        // 压力分支一直有这条豁免；常规巡检漏过——听歌 30 分钟被静默切歌，BUG-3）。
+        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 if !tab.isSuspended {
                     tab.captureSuspendedState()

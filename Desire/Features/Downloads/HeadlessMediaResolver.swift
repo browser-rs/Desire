@@ -82,9 +82,17 @@ final class HeadlessMediaResolver: NSObject {
         resetCapture()
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                // 二次 load 时若旧续体还挂着（teardown 摘了 delegate 后 didFinish
+                // 永远不来），先以失败解除它——否则旧调用方永久挂起 + 续体泄漏
+                //（CONC-3）。
+                self.loadContinuation?.resume(throwing: URLError(.cancelled))
                 self.loadContinuation = continuation
                 self.webView.load(URLRequest(url: url))
             }
+        } catch is CancellationError {
+            return .failed("cancelled")
+        } catch let error as URLError where error.code == .cancelled {
+            return .failed("cancelled")
         } catch {
             return .failed("page failed to load: \(error.localizedDescription)")
         }
@@ -136,6 +144,10 @@ final class HeadlessMediaResolver: NSObject {
 
     func teardown() {
         scanTask?.cancel()
+        // 先解除挂起的 load 续体再摘 delegate——摘掉后 didFinish/didFail 不来，
+        // 不解除的话调用方（批量引擎的 Task）永久挂起（CONC-3）。
+        loadContinuation?.resume(throwing: URLError(.cancelled))
+        loadContinuation = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "mediaFound")
         webView.navigationDelegate = nil
         webView.removeFromSuperview()

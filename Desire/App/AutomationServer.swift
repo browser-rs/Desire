@@ -103,7 +103,10 @@ final class AutomationServer {
                 self?.handle(connection)
             }
         }
-        listener.start(queue: .main)
+        // 专用串行队列，**不再挂 .main**：主 actor 被打瘫（ObjC 异常穿 async 帧
+        // 的僵尸态发生过两次）时，桥必须还能收发——回调各自 Task { @MainActor }
+        // 跳回主 actor，Network.framework 本身线程安全（CONC-1）。
+        listener.start(queue: Self.bridgeQueue)
         Log.agent.info("automation server ready on 127.0.0.1:\(Self.port)")
     }
 
@@ -161,8 +164,11 @@ final class AutomationServer {
         return bytes.count - (headEnd + separator.count) >= contentLength
     }
 
+    /// 桥的网络事件队列（串行）。见 start() 里的注释：绝不挂 .main。
+    private nonisolated static let bridgeQueue = DispatchQueue(label: "me.siwi.Desire.automation-bridge")
+
     private func handle(_ connection: NWConnection) {
-        connection.start(queue: .main)
+        connection.start(queue: Self.bridgeQueue)
         receiveRequest(connection, accumulated: Data())
     }
 

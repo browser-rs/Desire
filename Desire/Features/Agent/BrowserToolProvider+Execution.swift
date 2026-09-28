@@ -1560,7 +1560,9 @@ extension BrowserToolProvider {
                                    args: ["timeout": timeout, "quietMs": quiet])
 
         case "executeJS":
-            guard let code = args["code"] as? String else { return "Missing code" }
+            // 失败约定：这里曾是裸 "Missing code"，机械核验按 `Error: ` 前缀
+            // 统计认不出它（BUG-4）。
+            guard let code = args["code"] as? String else { return Self.fail("Missing code") }
             let result = await eval(webView, code)
             if result.hasPrefix("Error: ") {
                 // ① 结果类型不可序列化（DOM 节点 / NodeList / Promise / 循环引用）：

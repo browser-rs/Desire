@@ -97,14 +97,13 @@ class PluginStore: ObservableObject {
             // 注入前置插件身份（0.3.3）：storage 等 API 按此命名空间。
             let prologue = "window.__desireExtID = '\(plugin.id.uuidString)';\n"
             if delay > 0 {
-                let escaped = code
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "'", with: "\\'")
-                    .replacingOccurrences(of: "\n", with: "\\n")
+                // ⚠️ 这里是**函数体**位置，不是字符串字面量——做过一段时间的
+                // `\'` 转义会把任何含单引号的插件代码变成 SyntaxError（函数体里
+                // `\'` 是非法 token，实测 BUG-2）。与 document_end 分支一样裸注入。
                 // 插件跑在隔离 desireExtensions world（0.2.13）：可访问
                 // browser.* 与页面 DOM，但页面 JS 看不到插件的全局。
                 webView.evaluateJavaScript(
-                    prologue + "setTimeout(function() { \(escaped) }, \(delay))",
+                    prologue + "setTimeout(function() { \(code) }, \(delay))",
                     in: nil, in: WebView.extensionWorld, completionHandler: nil)
             } else {
                 webView.evaluateJavaScript(

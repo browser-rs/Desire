@@ -161,7 +161,16 @@ class BrowserWKWebView: WKWebView {
     }
 
     func requestInspector() {
-        guard let inspector = value(forKey: "_inspector") as? NSObject else { return }
-        inspector.perform(Selector(("show")))
+        // KVC 防护（CONC-4）：`value(forKey: "_inspector")` 是私有键，某版 macOS
+        // 一旦移除即抛 NSUnknownKeyException 直接 abort（2026-09-20 崩溃同型；
+        // ObjC 异常穿 async 帧还会把主 actor 变僵尸）。responds(to:) 先探——
+        // 私有属性有合成 getter，键消失时这里安全返回 false。
+        let inspectorKey = Selector(("_inspector"))
+        guard responds(to: inspectorKey),
+              let inspector = value(forKey: "_inspector") as? NSObject else { return }
+        let show = Selector(("show"))
+        if inspector.responds(to: show) {
+            inspector.perform(show)
+        }
     }
 }

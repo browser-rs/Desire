@@ -65,14 +65,17 @@ final class MCPService {
                 self?.handle(connection)
             }
         }
-        listener.start(queue: .main)
+        // 同 AutomationServer：专用队列，主 actor 死时 MCP 桥仍存活（CONC-1）。
+        listener.start(queue: Self.bridgeQueue)
         Log.agent.info("mcp server ready on 127.0.0.1:\(Self.port)/mcp")
     }
 
     // MARK: - Connection handling
 
+    private nonisolated static let bridgeQueue = DispatchQueue(label: "me.siwi.Desire.mcp-bridge")
+
     private func handle(_ connection: NWConnection) {
-        connection.start(queue: .main)
+        connection.start(queue: Self.bridgeQueue)
         accumulate(connection, Data())
     }
 

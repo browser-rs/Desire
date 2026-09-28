@@ -301,18 +301,9 @@ extension BrowsingActions {
             self.findHasMatch = result.matchFound
             if result.matchFound { self.findCurrentIndex = 0 }
         }
-        let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        tab.browser.webView.evaluateJavaScript("""
-        (function() {
-            var t = '\(escaped)';
-            if (!t) return 0;
-            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
-            var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-            while (walk.nextNode()) { c += (walk.nodeValue.match(r) || []).length; }
-            return c;
-        })()
-        """) { [weak self] value, _ in
+        // 共享的计数 JS（WebView.findCountJS）：这里曾有一份手抄副本，用的还是
+        // `walk.nodeValue`（抛错 → 计数恒为 0）的旧写法——修复只落在了一份上。
+        tab.browser.webView.evaluateJavaScript(WebView.findCountJS(query: query)) { [weak self] value, _ in
             if let count = value as? Int {
                 DispatchQueue.main.async {
                     self?.findMatchCount = count

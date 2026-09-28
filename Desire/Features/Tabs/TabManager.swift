@@ -115,10 +115,65 @@ class Tab: ObservableObject {
                 self?.displayTitle = title
             }
             .store(in: &cancellables)
-        browser.objectWillChange
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
+        // R2-11：**选择性转发**。此前 browser 的所有 @Published 一律 send 给
+        // Tab → TabPillView/SelectedTabContent 全量重算；其中两个高频字段把整层
+        // UI 连坐：
+        //   • hoveredLinkURL（每掠过一个链接 2 发）——唯一消费者（链接预览条）
+        //     已抽成 LinkPreviewBar 子视图，自己观察 BrowserState，不经 Tab；
+        //   • detectedMedia（嗅探器每资源一发）——只有桥/工具**拉取式**读取，
+        //     无响应式消费者。
+        // 其余字段 SelectedTabContent 都响应式依赖（工具栏/进度条/错误页/阅读
+        // 模式/选择 AI 浮层…），保留转发。pageTitle 已有专属 sink（displayTitle）。
+        browser.$isSecure
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$pageZoom
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$isPlayingAudio
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$isMuted
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$isReadingMode
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$isReaderLoading
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$readerTitle
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$lastError
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$pendingOTPHint
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$pendingDangerousDownload
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$pendingBeforeUnload
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$isPickingElement
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$mixedContentTotal
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$mixedContentScripts
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$serverTrust
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$selectionAI
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        browser.$estimatedProgress
+            .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
     }
 }

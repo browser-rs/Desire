@@ -45,9 +45,15 @@ final class WindowRecorder: ObservableObject {
         }
 
         let scale: CGFloat = window.screen?.backingScaleFactor ?? 2
+        // R2-24：分辨率封顶 2560——5K 全屏 @2x ≈ 59MB/帧 BGRA，queueDepth=10
+        // 的缓冲池最坏数百 MB 峰值。长边 clamp 后等比缩放。
+        let rawWidth = scWindow.frame.width * scale
+        let rawHeight = scWindow.frame.height * scale
+        let longEdge = max(rawWidth, rawHeight)
+        let capped: CGFloat = longEdge > 2560 ? 2560 / longEdge : 1
         let config = SCStreamConfiguration()
-        config.width = Int(scWindow.frame.width * scale)
-        config.height = Int(scWindow.frame.height * scale)
+        config.width = Int((rawWidth * capped).rounded())
+        config.height = Int((rawHeight * capped).rounded())
         config.minimumFrameInterval = CMTime(value: 1, timescale: 30)   // 30 fps
         config.queueDepth = 10
         config.capturesAudio = false

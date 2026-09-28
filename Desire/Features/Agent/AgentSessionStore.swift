@@ -674,6 +674,14 @@ class AgentSessionStore: ObservableObject {
             title = "New Conversation"
         }
         conversationTitle = title
+        // R2-12 附带（正确性）：createdAt 此前每次保存都写成 now——会话"创建
+        // 时间"漂移为最后一次保存时间。已有 id 时沿用原值。
+        let createdAt: Date
+        if conversationId == id, let existing = conversationStore.conversations.first(where: { $0.id == id }) {
+            createdAt = existing.createdAt
+        } else {
+            createdAt = Date()
+        }
         // Persist WITHOUT image payloads — a few screenshots would balloon
         // the conversation JSON (and every launch's loadAll) to megabytes.
         // The text survives; images are session-scoped.
@@ -682,7 +690,7 @@ class AgentSessionStore: ObservableObject {
             copy.imageDataURIs = nil
             return copy
         }
-        let conv = Conversation(id: id, title: title, createdAt: Date(), updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory)
         conversationStore.save(conv)
     }
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use chrono::{NaiveDateTime, Utc};
 use tracing::warn;
 
@@ -37,19 +38,23 @@ pub async fn pull(
       .fetch_all(&state.pool)
       .await?
     }
-    (Some(ts), Some(id)) => {
+    (Some(ts), Some(_)) => {
+      // R2-22：复合游标的 OR 条件会让优化器放弃索引序扫描（每页 filesort 全
+      // 尾段）。改用 `updated_at >= ?` 单 range——InnoDB 二级索引隐含主键后缀，
+      // (updated_at, id) 天然有序，LIMIT 直接走索引序。代价：游标行本身与
+      // 同戳但 id 更小的已见行会重复返回——客户端（新版）按 (updated_at, id)
+      // 过滤已见行；旧客户端收到的是已应用行的幂等重放（同戳 LWW = applied
+      // 无写库），分页推进性不受影响（ORDER BY id 保证每页有更大 id）。
       sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
         "SELECT id, client_id, client_updated_at, deleted_at, \
          CAST(payload AS CHAR) AS payload_str, updated_at \
          FROM {table} \
-         WHERE user_id = ? AND domain = ? AND (updated_at > ? OR (updated_at = ? AND id > ?)) \
+         WHERE user_id = ? AND domain = ? AND updated_at >= ? \
          ORDER BY updated_at, id LIMIT ?",
       )))
       .bind(user_id)
       .bind(domain)
       .bind(ts)
-      .bind(ts)
-      .bind(id)
       .bind(PULL_LIMIT)
       .fetch_all(&state.pool)
       .await?
@@ -117,7 +122,10 @@ pub async fn push(
   let mut results = Vec::with_capacity(items.len());
   let now = Utc::now().naive_utc();
   let mut tx = state.pool.begin().await?;
-  for item in items {
+
+  // 先做全部条目的参数校验（此前与逐条查询交错；校验失败整个事务回滚，
+  // 语义不变）。同时收集 client_id 供批量取现存行。
+  for item in &items {
     let client_id = item.client_id.trim();
     if client_id.is_empty() || client_id.len() > 64 {
       return Err(AppError::Validation("client_id 须为 1-64 字符".into()));
@@ -133,17 +141,37 @@ pub async fn push(
         )));
       }
     }
+  }
+
+  // R2-23：现存行用**一条 IN 查询**取回（此前逐条 SELECT FOR UPDATE，400 条
+  // 块 = 400 次语句往返；写路径保持逐行以维持 LWW 仲裁与冲突回包语义）。
+  let placeholders = items
+    .iter()
+    .map(|_| "?")
+    .collect::<Vec<_>>()
+    .join(", ");
+  let existing_rows = sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
+    "SELECT id, client_id, client_updated_at, deleted_at, \
+     CAST(payload AS CHAR) AS payload_str, updated_at \
+     FROM {table} WHERE user_id = ? AND domain = ? AND client_id IN ({placeholders}) FOR UPDATE",
+  )))
+  .bind(user_id)
+  .bind(domain);
+  let mut query = existing_rows;
+  for item in &items {
+    query = query.bind(item.client_id.trim());
+  }
+  let existing_map: HashMap<String, SyncRowRaw> = query
+    .fetch_all(&mut *tx)
+    .await?
+    .into_iter()
+    .map(|row| (row.client_id.clone(), row))
+    .collect();
+
+  for item in items {
+    let client_id = item.client_id.trim();
     let client_at = clamp_client_stamp(item.client_updated_at, now);
-    let existing = sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
-      "SELECT id, client_id, client_updated_at, deleted_at, \
-       CAST(payload AS CHAR) AS payload_str, updated_at \
-       FROM {table} WHERE user_id = ? AND domain = ? AND client_id = ? FOR UPDATE",
-    )))
-    .bind(user_id)
-    .bind(domain)
-    .bind(client_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing = existing_map.get(client_id).cloned();
     let result = match existing {
       None => {
         let payload = if item.deleted { None } else { item.payload };

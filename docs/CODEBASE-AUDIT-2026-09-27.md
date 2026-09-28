@@ -486,11 +486,11 @@
 - [x] R2-24 UpdateChecker 延迟 + SyncStore 未登录不起监视
 
 ### 第七批：细水长流（随功能顺带）
-- [ ] R2-11 Tab 转发粒度收敛（收益最大、需小心梳理消费面）
-- [ ] R2-14 缩略图切标签不拍 + 懒重拍
+- [x] R2-11 Tab 转发粒度收敛（收益最大、需小心梳理消费面）
+- [x] R2-14 缩略图切标签不拍 + 懒重拍
 - [ ] R2-9 Markdown 解析结果跨会话缓存 / inlineCache LRU 化 / evidence 缩放
-- [ ] R2-16 reapplyAll 不再误删 FilterListStore 规则（正确性）
-- [ ] R2-17 帧注册幂等短路 / 悬停本地 @State
-- [ ] R2-21/22/23 Rust 三项（rate_limit 清扫 / pull 单 range / push 批量）
-- [ ] R2-24 MCP 结构化入口 / SSE 单趟编码 / WindowRecorder 分辨率 clamp
-- [ ] saveCurrentConversation createdAt 漂移（正确性）
+- [x] R2-16 reapplyAll 不再误删 FilterListStore 规则（正确性）——按持有的 ruleList 对象 remove（controller 的 removeContentRuleList 只有对象变体），EasyList 不再被静默抹掉
+- [x] R2-17 帧注册幂等短路 / 悬停本地 @State
+- [x] R2-21/22/23 Rust 三项——rate_limit 每小时清扫过期 key；pull 复合游标改 `>= ts` 单 range（**旧客户端幂等兼容**：重收行是同戳 LWW 无写库；新客户端按 (updatedAt,id) 过滤已见行 + 无进展断页）；push 的 SELECT 批量化（IN 一次取回，写路径保持逐行——ON DUPLICATE KEY 会重构 LWW 仲裁语义，刻意不做）
+- [x] R2-24 WindowRecorder 分辨率 clamp 2560（MCP 结构化入口/SSE 单趟编码留待 MCP 下次迭代——收益中、改动面大）
+- [x] saveCurrentConversation createdAt 漂移（正确性）

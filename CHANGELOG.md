@@ -136,6 +136,39 @@
   - **启动路径收尾**：UpdateChecker 延迟 4s 再发检查（启动窗口让位）；未登录
     不再启动同步 Timer/NWPathMonitor/唤醒观察者（登出即停，登录再启）。
 
+### Fixed
+
+- **体检第七批（细水长流收官，报告 docs/CODEBASE-AUDIT-2026-09-27.md ROUND-2）**：
+  - **社区过滤列表被静默抹掉（正确性）**：`ContentBlockerStore.reapplyAll` 的
+    `removeAllContentRuleLists()` 是 controller 级全清——本 store 每次刷新规则
+    都会把 FilterListStore 挂在同一 controller 上的 EasyList 等社区规则一并抹掉
+    且不补回。改为按持有的 ruleList 对象精确移除。
+  - **会话"创建时间"漂移（正确性）**：`saveCurrentConversation` 每次保存都把
+    createdAt 写成 now——已有会话沿用原值。
+  - **标签栏链接预览连坐整层重算（R2-11）**：Tab 曾把 BrowserState 的**全部**
+    @Published 转发给 UI——`hoveredLinkURL`（每掠过一个链接 2 发）与
+    `detectedMedia`（嗅探器每资源一发）高频连坐 SelectedTabContent（工具栏/
+    书签栏/HSplitView 整层）。现在只转发 17 个低频字段；链接预览条抽成自带
+    BrowserState 观察的 `LinkPreviewBar` 子视图，悬停高频变化只重算那一条缝。
+  - **切标签不再强制渲染快照（R2-14）**：`takeSnapshot(afterScreenUpdates:)`
+    是主线程渲染强制 flush——连续切标签 = 连续渲染；预览只在悬停 1s 时需要，
+    过期缩略图由悬停重拍自然覆盖。
+  - 中键胶囊帧注册幂等短路（窗口拖动期间每布局帧 ×N 个胶囊的字典写与闭包
+    分配省去）；Agent 证据截图缩到 ≤1200px 宽（此前未缩放 retina 位图 ×12
+    ≈ 峰值数百 MB 内存）。
+
+### Changed
+
+- **服务端/协议（需随下次服务端发版部署）**：同步 pull 的复合游标查询从
+  `> ts OR (= ts AND > id)` 改为 `>= ts` 单 range——OR 双 range 让 MySQL 放弃
+  索引序、每页对全尾段 filesort（历史重度用户数万行时每翻一页一次）。旧客户端
+  幂等兼容（重收行 = 同戳 LWW 无写库）；新客户端按 (updatedAt, id) 过滤已见行
+  并在游标无进展时断页。**push 的 SELECT 批量化**：IN 一次取回现存行（400 条
+  块的 400 次 FOR UPDATE 往返砍成 1 次；写路径保持逐行——ON DUPLICATE KEY 会
+  重构 LWW 仲裁语义，刻意不做）。**rate_limit 内存泄漏**：公网扫过无鉴权端点
+  的每个 IP 永久占一条 map 项——每小时清扫过期 key。
+- **录屏分辨率封顶 2560**（5K 全屏 @2x ≈ 59MB/帧 BGRA，缓冲池最坏数百 MB 峰值）。
+
 ## [v0.4.2] - 2026-09-27
 
 ### Added

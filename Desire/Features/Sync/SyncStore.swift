@@ -823,9 +823,23 @@ final class SyncStore: ObservableObject {
                 since: since, sinceID: sinceID, accessToken: token
             )
             if response.items.isEmpty { break }
-            applyRemotely { adapter.apply(response.items, master) }
+            // R2-22：服务端改为 `updated_at >= 游标`（单 range 走索引序）后，
+            // 游标行本身与同戳但 id 更小的已见行会重复返回——按 (updatedAt, id)
+            // 过滤掉。旧服务端（`> OR`语义）不会返回这类行，过滤为空操作：
+            // 新旧服务端都兼容。
+            var filtered = response.items
+            if let since, let sinceID {
+                filtered = response.items.filter { item in
+                    !(item.updatedAt == since && (item.id ?? 0) <= sinceID)
+                }
+            }
+            applyRemotely { adapter.apply(filtered, master) }
             if let last = response.items.last {
-                finalCursor = "\(last.updatedAt ?? "")|\(last.id ?? 0)"
+                let newCursor = "\(last.updatedAt ?? "")|\(last.id ?? 0)"
+                // 无进展断页：整页都是已见行时游标不动，必须退出（否则同页
+                // 无限拉取）。
+                if newCursor == finalCursor { break }
+                finalCursor = newCursor
                 since = last.updatedAt
                 sinceID = last.id
             }

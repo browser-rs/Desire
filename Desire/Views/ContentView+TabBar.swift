@@ -27,8 +27,10 @@ extension ContentView {
                 }
                 tabManager.selectTab(at: index)
                 showTabSwitcher = false
-                // 更新选中标签页的缩略图
-                thumbnailStore.updateSelectedTabThumbnail(tabManager.selectedTab)
+                // R2-14：切标签**不再拍快照**——takeSnapshot(afterScreenUpdates:)
+                // 是主线程渲染强制 flush，连续切标签 = 连续渲染。预览只在悬停
+                // 1s 时需要（TabBar 的 hover 路径会拍），过期缩略图由悬停重拍
+                // 自然覆盖。
             },
             onCloseTab: { index in
                 // 清除关闭标签页的缩略图缓存

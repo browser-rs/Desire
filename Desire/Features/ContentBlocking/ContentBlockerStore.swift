@@ -98,7 +98,12 @@ class ContentBlockerStore: ObservableObject {
     private func reapplyAll() {
         for box in registered {
             guard let c = box.controller else { continue }
-            c.removeAllContentRuleLists()
+            // R2-16（正确性）：`removeAllContentRuleLists()` 是 controller 级
+            // 全清——会把 **FilterListStore 挂在同一个 controller 上的
+            // EasyList 等社区规则一并抹掉且不补回**（每次本 store 刷新规则
+            // = 社区过滤列表静默失效）。只移除自己加的两条（按标识符）。
+            if let ad = adRuleList { c.remove(ad) }
+            if let tr = trackingRuleList { c.remove(tr) }
             apply(to: c)
         }
     }

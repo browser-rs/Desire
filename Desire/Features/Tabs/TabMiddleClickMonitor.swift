@@ -23,6 +23,9 @@ final class TabMiddleClickMonitor {
     private var monitor: Any?
 
     func register(frame: CGRect, for id: UUID, close: @escaping () -> Void) {
+        // R2-17：rect 不变的重复注册（窗口拖动/分栏拖动期间每布局帧一次 ×
+        // N 个胶囊）直接短路——省掉字典写与闭包分配。
+        if let existing = entries[id], existing.rect == frame { return }
         entries[id] = Entry(rect: frame, close: close)
         installIfNeeded()
     }

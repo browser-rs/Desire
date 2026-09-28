@@ -20,8 +20,25 @@ final class AgentEvidenceStore: ObservableObject {
     private var order: [String] = []
     private let cap = 12
 
+
+    /// 等比缩到目标宽度以内（宽 ≤ max 时原样返回，避免无谓重绘）。
+    private static func downscaled(_ image: NSImage, maxPixelWidth: CGFloat) -> NSImage {
+        let rep = image.representations.first
+        let pixelWidth = CGFloat(rep?.pixelsWide ?? Int(image.size.width))
+        guard pixelWidth > maxPixelWidth, image.size.width > 0 else { return image }
+        let scale = maxPixelWidth / pixelWidth
+        let target = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        let result = NSImage(size: target)
+        result.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: target))
+        result.unlockFocus()
+        return result
+    }
+
     func attach(_ image: NSImage, for callID: String) {
-        images[callID] = image
+        // R2-9：证据图缩到 ≤1200px 宽再存——此前存未缩放 retina 位图
+        //（~20-30MB/张 ×12 = 峰值数百 MB，而展示尺寸远小于此）。
+        images[callID] = Self.downscaled(image, maxPixelWidth: 1200)
         order.append(callID)
         while order.count > cap {
             let evicted = order.removeFirst()

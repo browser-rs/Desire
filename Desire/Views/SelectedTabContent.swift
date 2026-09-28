@@ -180,18 +180,10 @@ struct SelectedTabContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            if content.settings.showLinkPreview, let hoverURL = tab.browser.hoveredLinkURL, !tab.isOnNewTabPage {
-                HStack(spacing: 4) {
-                    Text(hoverURL)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 3)
-                .background(.bar)
+            // R2-11：链接预览条抽成自带观察的子视图——hoveredLinkURL 高频
+            // 变化只重算这一条缝，不再连坐整个 SelectedTabContent。
+            if content.settings.showLinkPreview, !tab.isOnNewTabPage {
+                LinkPreviewBar(browser: tab.browser)
             }
         }
     }
@@ -465,6 +457,31 @@ private struct WorkbenchGrid: View {
                     y += spacing
                 }
                 x += spacing
+            }
+        }
+    }
+}
+
+/// 底部链接预览条（R2-11）：唯一消费 `hoveredLinkURL` 的视图。自带
+/// BrowserState 观察——悬停高频变化只触发本视图重算，不再连坐
+/// SelectedTabContent（工具栏/书签栏/HSplitView 整层）。
+private struct LinkPreviewBar: View {
+    @ObservedObject var browser: BrowserState
+
+    var body: some View {
+        Group {
+            if let hoverURL = browser.hoveredLinkURL {
+                HStack(spacing: 4) {
+                    Text(hoverURL)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 3)
+                .background(.bar)
             }
         }
     }

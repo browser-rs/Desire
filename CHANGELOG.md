@@ -1,45 +1,16 @@
-### Fixed
-
-- **扩展 popup 的 API 请求被 CORS 拦截（"登录失败: Load failed"，用户实测
-  trove-bookmark）**：popup 是 about:blank 文档，对扩展 API 的 fetch 全被
-  CORS 拦截——Chrome 扩展页面凭 host_permissions 跨域。现在装载时取
-  manifest `host_permissions` 第一个 https/http 条目存为 `popupBaseOrigin`，
-  popup 加载用它作 `loadHTMLString` 的 baseURL——文档 origin 与 API 同源，
-  fetch 不再需要 CORS 头。已实测：二维码正常渲染、登录流程可用。
-
-## [v0.4.3] - 2026-09-28
-### Fixed
-
-- **本地自签名 HTTPS 证书警告弹窗风暴（用户实测：192.168.1.6 / pve.mankong.icu
-  疯狂弹窗）**：一次页面加载会对同一主机发起多次证书挑战（主框架 + 每个子资源
-  + 重定向）——批次三把警告从阻塞式 runModal 换成异步 sheet 后，这批挑战全部
-  各弹一张，弹窗成灾（此前被模态阻塞掩盖）。修复：
-  - **会话级信任例外**：点过一次"仍然继续"的主机，本会话内不再询问（Chrome
-    同语义）；
-  - **同主机挑战排队**：决策窗展示期间的后续挑战不再各弹各的，等第一次的
-    决定统一放行/取消；
-  - 例外是**会话级**（重启后重新询问）——持久化需要配套管理 UI，暂不做。
-
-## [v0.4.3] - 2026-09-28
-### Fixed
-
-- **扩展 popup 空白（双系统归一后续，用户实测反馈）**：popup 宿主把 webext-api
-  运行时（`chrome` 全局）注入**隔离 world**，而装载后 popup 的内联 `<script>`
-  跑在**页面世界**——`chrome` 在 popup 里是 undefined，首个 API 调用即抛，三个
-  初始 `hidden` 的视图永远不展开 = 空白弹窗。运行时改注入页面世界（popup 是
-  插件专用 webview，只加载自带 HTML，页面世界注入安全且与 Chrome 语义一致）。
-  独立 harness 实证：`.page` 注入后 `chrome` 为 object、storage 可用、内联的
-  QRCode 库生效。
+## [v0.4.4] - 2026-09-29
 
 ### Added
 
-- **扩展包真实图标**：装载时取 manifest `icons` 最大尺寸的 PNG 随插件持久化
-  （新增 `Plugin.iconPNG`），工具栏固定图标优先渲染真实图标、缺省回退
-  SF Symbol——此前永远是拼图占位符（用户实测反馈"图标不是插件图标"）。
-
-## [v0.4.3] - 2026-09-28
-### Added
-
+- **插件系统归一（档位 B）**：Desire 此前有两套并行的扩展机制——
+  `Features/UserScripts` 的 **Plugin 系统**（工具栏 ⇧⌘P 入口：JS/CSS 注入、
+  隔离 world、storage/tabs/notifications RPC、popup、.msex 装载）与
+  `Features/Extensions` 的 **SafariExtension 系统**（仅 content_scripts 注入，
+  background 加载函数写了没接线、无 popup/storage，入口只有命令面板）。现
+  归一到 Plugin 系统：Safari 扩展包装载并入 **MSExInstaller**
+  （`.safariextension` 目录 / 含 manifest.json 的目录 / zip·crx·xpi 均可装），
+  删除 `Features/Extensions/` 四文件（962 行）及全部接线。零数据迁移
+  （该系统从未被真实使用）。
 - **Chrome 式"从文件夹加载"已解压扩展**：`/plugins/install-msex` 与 Plugins
   面板的"安装扩展包"按钮现在都接受**目录**（含 manifest.json 的任意文件夹，
   即 Chrome 的 Load unpacked 流程）——目录走与 zip 相同的解析管线。
@@ -47,32 +18,52 @@
   href>` 与 `<script src>` 内联为 `<style>`/`<script>`（路径相对 popup.html
   所在目录解析，支持 `../` 跳包根；http(s)/data 引用保持原样；最多 3 轮防失控）
   ——真实扩展的 popup 都引用外部 css/js，此前裸内联会让弹窗变成断链白壳。
-  已用 trove-bookmark 真实扩展 E2E 验证（qrcode 库/业务 JS/样式全部内联，
-  popup 弹出即可用）。
-- 带 `background`（service_worker/scripts）的扩展装载成功但该部分忽略，
-  描述里注明这条限制（Plugin 模型无对应概念）。
+  已用 trove-bookmark 真实扩展 E2E 验证（qrcode 库/业务 JS/样式全部内联）。
+- **插件 background 脚本支持（补齐 Chrome 扩展的最后一块：右键菜单）**：
+  - 装载时内联 manifest `background`（service_worker / scripts）为
+    `Plugin.backgroundCode`；
+  - **PluginBackgroundRuntime**：每个启用且带后台的插件一个常驻 headless
+    webview（baseURL = host_permissions origin → 背景脚本 fetch 与 API 同源），
+    应用启动/插件启用时起、停用/卸载时停（PluginStore 变更回调对账）；
+  - **chrome.contextMenus**：`create`/`remove`/`removeAll` RPC +
+    `onClicked` 事件——原生右键菜单按上下文（page/link/image/selection）追加
+    插件菜单项，点击派发 `contextMenus.onClicked` 给所属插件的 background；
+  - `chrome.runtime.onInstalled` 每次 background 启动触发（配合原生 upsert
+    幂等，菜单跨重启存活）；`chrome.tabs.query` 对活动窗口可用；
+  - 桥端点：`GET /plugins/context-menus`、`POST /plugins/context-menus/click`。
+  - 已用 trove-bookmark E2E：装载后 background 启动、`保存到 trove` 菜单注册
+    （contexts page/link）、点击派发 ✓。
+- **扩展包真实图标**：装载时取 manifest `icons` 最大尺寸的 PNG 随插件持久化
+  （新增 `Plugin.iconPNG`），工具栏固定图标优先渲染真实图标、缺省回退
+  SF Symbol——此前永远是拼图占位符。
 
 ### Fixed
 
-- **扩展包装载的 attribute 正则捕获组越界**（NSException，OBJC 异常穿主 actor
-  会致僵尸态）：`href` 属性提取读了不存在的捕获组 2——正则只有一个组（组号
-  写代码时误把字面插值当成了组）。独立 harness 对真实扩展首跑即崩，已实证修复。
-
-### Changed
-
-- **插件/扩展双系统归一（档位 B）**：Desire 此前有两套并行的扩展机制——
-  `Features/UserScripts` 的 **Plugin 系统**（工具栏 ⇧⌘P 入口：JS/CSS 注入、
-  隔离 world、storage/tabs/notifications RPC、popup、.msex 装载）与
-  `Features/Extensions` 的 **SafariExtension 系统**（7 月与 Plugin 相隔四天的
-  平行尝试：仅 content_scripts 注入，background 加载函数写了没接线、无 popup
-  /storage，入口只有命令面板，存储零真实数据）。现归一到 Plugin 系统：
-  - Safari 扩展包装载并入 **MSExInstaller**：`.safariextension` 目录 / 含
-    manifest.json 的目录 / zip·crx·xpi 均可装（content_scripts 形状与 Chrome
-    MV3 相同，共享解析管线）；background 脚本无对应概念、忽略并在描述注明。
-  - **Plugins 面板新增"安装扩展包"按钮**——.msex 与 Safari 包同一入口。
-  - 删除 `Features/Extensions/` 四文件（962 行）及全部接线（面板 sheet、菜单项
-    "Extensions"、命令面板入口、`showExtensions` 命令、WebView 的
-    injectContentScripts 调用）。零数据迁移（该系统从未被真实使用）。
+- **扩展 popup 空白（用户实测 trove-bookmark）**：popup 宿主把 webext-api
+  运行时（`chrome` 全局）注入**隔离 world**，而装载后 popup 的内联 `<script>`
+  跑在**页面世界**——`chrome` 在 popup 里是 undefined，首个 API 调用即抛，三个
+  初始 `hidden` 的视图永远不展开 = 空白弹窗。运行时改注入页面世界（popup 是
+  插件专用 webview，只加载自带 HTML，页面世界注入安全且与 Chrome 语义一致）。
+  独立 harness 实证：`.page` 注入后 `chrome` 为 object、storage 可用、内联的
+  QRCode 库生效。
+- **扩展 popup 的 API 请求被 CORS 拦截（"登录失败: Load failed"）**：popup 是
+  about:blank 文档，对扩展 API 的 fetch 全被 CORS 拦截——Chrome 扩展页面凭
+  host_permissions 跨域。现在装载时取 manifest `host_permissions` 第一个
+  https/http 条目存为 `popupBaseOrigin`，popup 加载用它作 `loadHTMLString`
+  的 baseURL——文档 origin 与 API 同源，fetch 不再需要 CORS 头。已实测：
+  二维码正常渲染、登录流程可用。
+- **扩展包装载的 attribute 正则捕获组越界**（NSException，ObjC 异常穿主 actor
+  会致僵尸态）：`href` 属性提取读了不存在的捕获组 2——独立 harness 对真实
+  扩展首跑即崩，已实证修复。
+- **本地自签名 HTTPS 证书警告弹窗风暴（用户实测：192.168.1.6 / pve.mankong.icu
+  疯狂弹窗）**：一次页面加载会对同一主机发起多次证书挑战（主框架 + 每个子资源
+  + 重定向）——证书警告从阻塞式 runModal 换成异步 sheet 后，这批挑战全部
+  各弹一张，弹窗成灾（此前被模态阻塞掩盖）。修复：
+  - **会话级信任例外**：点过一次"仍然继续"的主机，本会话内不再询问（Chrome
+    同语义）；
+  - **同主机挑战排队**：决策窗展示期间的后续挑战不再各弹各的，等第一次的
+    决定统一放行/取消；
+  - 例外是**会话级**（重启后重新询问）——持久化需要配套管理 UI，暂不做。
 
 ## [v0.4.3] - 2026-09-28
 

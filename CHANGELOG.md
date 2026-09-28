@@ -30,6 +30,26 @@
   防护——macOS 未来移除该键时从 NSUnknownKeyException 直接 abort 变为安全 no-op
   （2026-09-20 崩溃同型的最后残留）。
 
+### Fixed
+
+- **体检第二批（主线程热点，报告 docs/CODEBASE-AUDIT-2026-09-27.md）**：
+  - 下载进度**零节流**修复：KVO/代理回调每秒数百次直写 `@Published` 数组（WebView
+    representable 也观察该 store），高速下载时全 app 重绘风暴、与 Agent 流式输出叠加
+    即"莫名卡顿"——节流到 150ms 一拍（终值不节流，速度按接受的采样间均值）。
+  - 设置页服务列表行在 body 里现读 Keychain（阻塞系统调用，Performance Diagnostics
+    点名过）→ `AgentPreferenceStore` 新增 `hasKeyByProfile` 预读发布，视图读发布值。
+
+### Changed
+
+- **`DiskStore.save` 的 JSON 编码从调用方线程移到后台任务**：TabManager 每 15s 的
+  会话持久化此前每拍在主线程编码多 MB JSON（含各标签 interactionState），是周期性
+  掉帧的直接来源；全部 DiskStore 热路径（会话/历史/书签/设置）一并受益。值经
+  `EncodableBox` 过隔离边界（值语义 + 独占所有权，安全论证见源码注释；不直接加
+  Sendable 约束的原因也在注释里——模块默认 MainActor 隔离会让 18 个 Model 全数
+  编译失败）。落盘防抖语义不变。
+- `DevToolsStore.jsRequestIDs` 加 4000 条上限（此前每条 fetch/XHR 都进、无淘汰，
+  长会话下无界增长）；`MediaExportStore.jobs` 超 100 条裁最旧终态任务。
+
 ## [v0.4.2] - 2026-09-27
 
 ### Added

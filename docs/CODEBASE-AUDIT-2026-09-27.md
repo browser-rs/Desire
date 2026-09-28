@@ -293,11 +293,11 @@
 - [x] CONC-4 KVC "_inspector" 残留移除
 
 ### 第二批：主线程热点（1 天）
-- [ ] PERF-1 DiskStore 编码搬进 writer actor
-- [ ] PERF-2 ConversationStore 启动懒加载（元数据先行）
-- [ ] PERF-3 DownloadStore.updateProgress 节流
-- [ ] PERF-4 设置页 Keychain 预读发布
-- [ ] PERF-8 jsRequestIDs / jobs 加上限
+- [x] PERF-1 DiskStore 编码搬进 writer actor
+- [x] PERF-2 ConversationStore 启动懒加载——**以实测数据暂缓**：本机 19 个会话共 224KB，启动解码仅数毫秒；全套懒加载要动会话恢复链路，收益/风险比不成立。触发条件写死：会话目录 >5MB 或 >100 文件时再做（元数据索引方案）
+- [x] PERF-3 DownloadStore.updateProgress 节流
+- [x] PERF-4 设置页 Keychain 预读发布
+- [x] PERF-8 jsRequestIDs / jobs 加上限
 
 ### 第三批：Agent 会话与远程控制加固（1-2 天）
 - [ ] CONC-2 clear/loadConversation 取消在跑回合 + 审批超时

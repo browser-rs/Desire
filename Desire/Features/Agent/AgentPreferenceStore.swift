@@ -97,6 +97,9 @@ class AgentPreferenceStore: ObservableObject {
             UserDefaults.standard.set(maxLoopIterations, forKey: "aiMaxLoopIterations")
         }
     }
+    /// **每个档案**是否已有 Key（PERF-4：设置页服务列表行此前在 body 里现读
+    /// Keychain——每行每帧一次阻塞系统调用；现在读这里，读写/切换时刷新）。
+    @Published private(set) var hasKeyByProfile: [UUID: Bool] = [:]
     /// 当前档案是否已有 API Key（由 `refreshKeyState()` 维护——Keychain 读是
     /// 系统调用，不放进每次渲染都求值的计算属性）。
     @Published private(set) var hasAPIKey: Bool = false
@@ -431,6 +434,11 @@ class AgentPreferenceStore: ObservableObject {
     /// `interactive: false` 用于启动路径：ACL 失配时失败成"无 Key"而不是卡死启动。
     func refreshKeyState(interactive: Bool = true) {
         hasAPIKey = loadAPIKey(interactive: interactive) != nil
+        // 逐档案刷新（档案数很小；非交互路径 ACL 失配时失败成"无 Key"——
+        // 与 hasAPIKey 同一取舍）。
+        for profile in profiles {
+            hasKeyByProfile[profile.id] = loadAPIKey(profileID: profile.id, interactive: interactive) != nil
+        }
     }
 
     // MARK: - Keychain primitives

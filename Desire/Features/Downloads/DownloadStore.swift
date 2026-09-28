@@ -177,7 +177,13 @@ class DownloadStore: ObservableObject {
 
     func updateProgress(id: UUID, totalBytes: Int64, downloadedBytes: Int64) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        // PERF-3：KVO/代理回调可能每秒数百次，每次都写 @Published 数组会触发
+        // 全 app 重绘风暴（WebView representable 也观察本 store）——节流到
+        // 150ms 一拍；终值（含未知总长的完成事件）不节流。速度按两次"接受
+        // 的采样"间均值算，精度足够。
         let now = Date()
+        let isFinal = totalBytes > 0 && downloadedBytes >= totalBytes
+        if !isFinal, now.timeIntervalSince(downloads[i].lastUpdateTime) < 0.15 { return }
         let elapsed = now.timeIntervalSince(downloads[i].lastUpdateTime)
         let oldBytes = downloads[i].downloadedBytes
         let newSpeed = elapsed > 0 ? Int64(Double(downloadedBytes - oldBytes) / elapsed) : downloads[i].speed

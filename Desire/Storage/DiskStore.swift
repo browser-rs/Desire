@@ -39,11 +39,25 @@ enum DiskStore {
     /// the debounce window, later writes to the same key win and earlier ones
     /// are dropped.
     nonisolated static func save<T: Encodable>(_ value: T, key: String) {
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        // Fire-and-forget: the writer actor debounces and serializes. Using a
-        // Task keeps this synchronous API callable from @MainActor stores
-        // without an `await` ripple.
-        Task { await writer.stage(data: data, key: key) }
+        // 编码发生在 writer actor 上，**不在调用方线程**（PERF-1）：TabManager 的
+        // 15s 会话持久化每拍要在主线程编码多 MB JSON（含各标签 interactionState），
+        // 是周期性掉帧的直接来源；ConversationStore/HistoryStore 等热路径同样受益。
+        // 失败静默的取舍不变。
+        //
+        // 装箱过隔离边界：本项目的 Model 全是**值类型**（struct/数组/字典），按值
+        // 传入后闭包持有独占副本，actor 上编码不存在共享可变状态——这是
+        // @unchecked 的安全论证。不直接给泛型加 Sendable 约束的原因：模块默认
+        // MainActor 隔离让 Model 的 Encodable conformance 变成 actor 隔离的，
+        // `& Sendable` 会让 18 个类型全数编译失败（其中 ShortcutMapping 依赖
+        // AppKit，无法 nonisolated 化）。
+        let box = EncodableBox(value: value)
+        // 编码与入库分两段：encode 在 detached 任务（nonisolated 上下文）跑，
+        // 只有 Data（确定 Sendable）进 actor——避免把"可能隔离的 Encodable
+        // conformance"带进 actor 隔离上下文（#IsolatedConformances 警告）。
+        Task.detached {
+            guard let data = try? JSONEncoder().encode(box.value) else { return }
+            await writer.stage(data: data, key: key)
+        }
     }
 
     /// Schedules a debounced removal of the file for `key`. No-op if missing.
@@ -83,6 +97,13 @@ enum DiskStore {
     /// Shared background writer. Lazily initialized; the first `save`/`remove`
     /// pays the actor allocation, subsequent calls reuse it.
     nonisolated private static let writer = DiskStoreWriter()
+}
+
+/// 值装箱（安全论证见 DiskStore.save）。`@unchecked` 的依据是"值语义 + 闭包
+/// 独占所有权"，不是这个声明本身——**只允许装箱值类型**；哪天要存 class 类型
+/// 必须回到调用方线程编码。
+fileprivate nonisolated struct EncodableBox<T>: @unchecked Sendable {
+    let value: T
 }
 
 /// Background actor that debounces and performs disk writes for `DiskStore`.

@@ -583,7 +583,9 @@ struct AgentSettingsSection: View {
         // `store.loadAPIKey(profileID:)`，等于每行每帧两次主线程 Keychain 调用
         // （Xcode 的 Performance Diagnostics 会报 "This method should not be called
         // on the main thread as it may lead to UI unresponsiveness"）。
-        let hasKey = store.loadAPIKey(profileID: profile.id) != nil
+        // PERF-4：读 store 预读发布的字典，不在 body 里现读 Keychain（阻塞
+        // 系统调用，Xcode Performance Diagnostics 点名过）。
+        let hasKey = store.hasKeyByProfile[profile.id] ?? false
         HStack(spacing: 8) {
             Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 12))

@@ -21,5 +21,6 @@ enum Log {
     static let extensions = Logger(subsystem: subsystem, category: "extensions")
     static let storage = Logger(subsystem: subsystem, category: "storage")
     static let userScripts = Logger(subsystem: subsystem, category: "user-scripts")
-    static let downloads = Logger(subsystem: subsystem, category: "downloads")
+    // nonisolated：下载代理回调（nonisolated 上下文）也要用 Logger 是 Sendable 的。
+    nonisolated static let downloads = Logger(subsystem: subsystem, category: "downloads")
 }

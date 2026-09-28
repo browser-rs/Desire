@@ -248,6 +248,13 @@ class DevToolsStore: ObservableObject {
     /// JS 侧生成的请求 id → store 的请求 id（fetch/XHR 钩子先 start、
     /// 再 complete/body 两次上报，需要把同一条请求串起来）。
     private var jsRequestIDs: [String: UUID] = [:]
+    /// PERF-8：jsRequestIDs 此前无淘汰（每条 fetch/XHR 都进，仅手动清除时清）
+    /// ——长会话 + 高频请求页面下无界增长。超限整体重建（条目随新流量重建）。
+    private func trimJSRequestIDs() {
+        if jsRequestIDs.count > 4000 {
+            jsRequestIDs.removeAll(keepingCapacity: true)
+        }
+    }
 
     /// 处理 `network-monitor.js` 上报的一条事件。
     ///
@@ -315,7 +322,10 @@ class DevToolsStore: ObservableObject {
                 requestBody: reqBody,
                 responseBody: respBody
             )
-            if let jsId { jsRequestIDs[jsId] = id }
+            if let jsId {
+            jsRequestIDs[jsId] = id
+            trimJSRequestIDs()
+        }
             if let status, status >= 400 { noticeFailure(of: id) }
             return
         }
@@ -347,7 +357,10 @@ class DevToolsStore: ObservableObject {
         if networkRequests.count > networkCap {
             networkRequests.removeFirst(networkRequests.count - networkCap)
         }
-        if let jsId { jsRequestIDs[jsId] = request.id }
+        if let jsId {
+            jsRequestIDs[jsId] = request.id
+            trimJSRequestIDs()
+        }
         if let status, status >= 400 { noticeFailure(of: request.id) }
     }
 

@@ -72,6 +72,7 @@ final class MediaExportStore: ObservableObject {
         let hint = fileNameHint?.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = (hint?.isEmpty == false ? hint! : (url.lastPathComponent.isEmpty ? (url.host ?? url.absoluteString) : url.lastPathComponent))
         jobs.append(Job(id: id, url: url, title: title, state: .running, startedAt: Date(), isSilent: !notify))
+        trimSettledJobs()
         if let completion { completions[id] = completion }
         if let progressHandler { progressHandlers[id] = progressHandler }
 
@@ -98,6 +99,16 @@ final class MediaExportStore: ObservableObject {
         }
         tasks[id] = task
         return id
+    }
+
+    /// PERF-8：jobs 只增不裁——批量重度用户列表无限增长。超 100 条时裁最旧
+    /// 的**终态**任务（running 绝不裁）。
+    private func trimSettledJobs() {
+        guard jobs.count > 100 else { return }
+        let settled = jobs.filter { $0.state != .running }
+        let toRemove = Set(settled.prefix(jobs.count - 100).map(\.id))
+        guard !toRemove.isEmpty else { return }
+        jobs.removeAll { toRemove.contains($0.id) }
     }
 
     func cancel(id: UUID) {

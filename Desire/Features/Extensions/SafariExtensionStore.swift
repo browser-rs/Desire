@@ -66,12 +66,22 @@ class SafariExtensionStore: ObservableObject {
 
     // MARK: - Content Script Injection
 
+    /// R2-13：内容脚本按 extensionID 缓存——此前**每次导航**都从扩展 bundle
+    /// 重读 JS/CSS 文件（扩展更新/重载时整体失效）。
+    private var contentScriptCache: [String: ([String], [String])] = [:]
+
     func injectContentScripts(into webView: WKWebView, for url: URL) {
         let matched = matchingExtensions(for: url)
 
         for extension_ in matched where extension_.isEnabled {
             do {
-                let (js, css) = try SafariExtensionImporter.loadContentScript(for: extension_)
+                let (js, css): ([String], [String])
+                if let cached = contentScriptCache[extension_.id.uuidString] {
+                    (js, css) = cached
+                } else {
+                    (js, css) = try SafariExtensionImporter.loadContentScript(for: extension_)
+                    contentScriptCache[extension_.id.uuidString] = (js, css)
+                }
                 injectJS(js, into: webView)
                 injectCSS(css, into: webView)
             } catch {

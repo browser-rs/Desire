@@ -590,39 +590,59 @@ class TabManager: ObservableObject {
     func apply(session: SavedSession, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) {
         tabs = []
 
-        for saved in session.tabs {
+        // R2-4：只有**选中标签**急切恢复；其余标签走现成的挂起机制——原始
+        // interactionState 数据直接挂到 `suspendedInteractionState`（不解码、
+        // 不 load），首次 activate 时由 selectTab → unsuspend →
+        // restoreSuspendedState 恢复。此前：主线程串行解码 N 份归档 + 未带
+        // 状态的标签立即 load（N 个并发请求哄抢），启动转圈随标签数线性恶化。
+        let selectedIdx = min(session.selectedIndex, max(0, session.tabs.count - 1))
+
+        for (i, saved) in session.tabs.enumerated() {
             let url = saved.isOnNewTabPage ? nil : saved.url
             let tab = Tab(url: url, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, containerID: saved.containerID)
             tab.isPinned = saved.isPinned
 
-            var restoredInteractionState = false
-            if let data = saved.sessionState {
-                // NSSecureCoding 解码：根对象实证为 NSData（WebKit 把
-                // interactionState 归档为数据块），允许列表据此收窄。
-                do {
-                    let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
-                    unarchiver.requiresSecureCoding = true
-                    let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
-                    if let state = state {
-                        tab.browser.webView.interactionState = state
-                        restoredInteractionState = true
-                    }
-                } catch {
-                    // 解码失败，忽略状态恢复
-                }
+            if i == selectedIdx {
+                applyEagerly(saved, to: tab)
+            } else {
+                tab.suspendedInteractionState = saved.sessionState
+                tab.suspendedURL = saved.isOnNewTabPage ? nil : saved.url.flatMap(URL.init(string:))
+                tab.isSuspended = true
             }
 
             tabs.append(tab)
-            // When interactionState restored, it already carries the page +
-            // history: a fresh load here would CANCEL the restoration and
-            // reduce the tab to a bare URL load (scroll/session state lost).
-            if !restoredInteractionState, !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
-                tab.suppressHistoryOnce = true
-                tab.browser.webView.load(URLRequest(url: parsed))
+        }
+
+        selectedIndex = selectedIdx
+    }
+
+    /// 选中标签的急切恢复（原 apply 循环体：解码 interactionState + 无状态
+    /// 时立即 load）。
+    private func applyEagerly(_ saved: SavedTab, to tab: Tab) {
+        var restoredInteractionState = false
+        if let data = saved.sessionState {
+            // NSSecureCoding 解码：根对象实证为 NSData（WebKit 把
+            // interactionState 归档为数据块），允许列表据此收窄。
+            do {
+                let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+                unarchiver.requiresSecureCoding = true
+                let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
+                if let state = state {
+                    tab.browser.webView.interactionState = state
+                    restoredInteractionState = true
+                }
+            } catch {
+                // 解码失败，忽略状态恢复
             }
         }
 
-        selectedIndex = min(session.selectedIndex, max(0, tabs.count - 1))
+        // When interactionState restored, it already carries the page +
+        // history: a fresh load here would CANCEL the restoration and
+        // reduce the tab to a bare URL load (scroll/session state lost).
+        if !restoredInteractionState, !saved.isOnNewTabPage, let urlString = saved.url, let parsed = URL(string: urlString) {
+            tab.suppressHistoryOnce = true
+            tab.browser.webView.load(URLRequest(url: parsed))
+        }
     }
 }
 

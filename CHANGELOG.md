@@ -114,6 +114,28 @@
   ConversationStore（此前每请求 new 一个 = 主 actor 全量读盘解码；trace 保留
   落盘兜底查已删除会话）。
 
+### Changed
+
+- **体检第六批（启动与服务层，报告 docs/CODEBASE-AUDIT-2026-09-27.md ROUND-2）**：
+  - **会话恢复懒物化**：多标签会话此前在主线程串行解码 N 份 interactionState
+    归档、未带状态的标签立即 load（N 个请求并发哄抢），启动转圈随标签数线性
+    恶化——现在只有**选中标签**急切恢复，其余走现成的挂起机制（原始归档数据
+    直挂 `suspendedInteractionState`），首次 activate 时由 selectTab →
+    unsuspend 自动恢复。整 webview 懒创建（挂起标签二级释放）仍在第七批。
+  - **EasyList 转换离开主线程**：ABP→JSON 纯函数转换（最多 60k 行、数 MB JSON；
+    编译失败的 sanitize 二分还会反复调）挪到后台任务；`updateList` 里"只为拿
+    ruleCount 的整表二次转换"删除（复用 compile 阶段计数）。`ABPRuleConverter`
+  标 nonisolated。
+  - **同步派生密钥缓存**：collect 每条数据都重新 HKDF 派生 + base64 解码主密钥
+    （2000 条书签 = 2000 次派生）→ 按 (master, domain, purpose) 缓存一次。
+  - **自评偏好实例轻量化**：`criticPreferences()` 此前每次自评 new 完整
+    AgentPreferenceStore（逐档案 Keychain 预读 = N 次 SecItem IPC）——新增
+    `skipKeyStateRefresh` 跳过（评审 Key 由其自身路径显式读）。
+  - **每导航重复 IO 缓存化**：Safari 扩展内容脚本按 extensionID 缓存（此前每次
+    导航从扩展 bundle 重读）；页面批注首见 URL 的同步读盘挪后台任务。
+  - **启动路径收尾**：UpdateChecker 延迟 4s 再发检查（启动窗口让位）；未登录
+    不再启动同步 Timer/NWPathMonitor/唤醒观察者（登出即停，登录再启）。
+
 ## [v0.4.2] - 2026-09-27
 
 ### Added

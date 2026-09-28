@@ -942,14 +942,18 @@ struct WebView: NSViewRepresentable {
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
             }
             // 页面批注恢复（0.3.7）：按 URL 文本锚定重新包裹高亮。
+            // R2-13：首见 URL 的读盘（DiskStore.load 同步 IO）挪后台任务，
+            // 读完再跳回主线程注入——不再占 didFinish 关键路径。
             if let url = webView.url?.absoluteString {
-                let highlights = AnnotationStore.shared.highlights(for: url)
-                    .map { ["text": $0.text, "colorIndex": $0.colorIndex] }
-                if !highlights.isEmpty,
-                   let data = try? JSONSerialization.data(withJSONObject: highlights),
-                   let json = String(data: data, encoding: .utf8) {
-                    webView.evaluateJavaScript(
-                        "__desireRestoreHighlights(\(json))", completionHandler: nil)
+                let store = AnnotationStore.shared
+                Task { @MainActor in
+                    let highlights = await store.highlightsInBackground(for: url)
+                        .map { ["text": $0.text, "colorIndex": $0.colorIndex] }
+                    guard !highlights.isEmpty,
+                          let data = try? JSONSerialization.data(withJSONObject: highlights),
+                          let json = String(data: data, encoding: .utf8) else { return }
+                    _ = try? await webView.evaluateJavaScript(
+                        "__desireRestoreHighlights(\(json))")
                 }
             }
             // 混合内容扫描（0.2.15 加固）：https 页面统计 http:// 子资源。

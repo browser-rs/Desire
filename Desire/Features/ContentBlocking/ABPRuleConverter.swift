@@ -13,7 +13,8 @@ import Foundation
 ///
 /// Unsupported (skipped + counted): `#@#` exception hiding (content blockers
 /// have no unhide), `$popup`/`$document`/`$csp`/unknown options.
-enum ABPRuleConverter {
+/// 纯 Foundation 转换逻辑——nonisolated 让它可在后台任务运行（R2-20）。
+nonisolated enum ABPRuleConverter {
     struct Result {
         let json: String
         let ruleCount: Int

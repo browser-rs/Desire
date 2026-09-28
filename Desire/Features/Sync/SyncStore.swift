@@ -84,7 +84,8 @@ final class SyncStore: ObservableObject {
     private var changeSyncDelay: TimeInterval = changeDebounceSeconds
     /// 网络可达性（离线时自动同步静默跳过；手动照常执行并如实报错）。
     private var isOnline = true
-    private let pathMonitor = NWPathMonitor()
+    private var pathMonitor = NWPathMonitor()
+    private var wakeObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
 
     // 常量 nonisolated：默认参数值等非隔离上下文也要读（Swift 6 下是错误）。
@@ -206,6 +207,7 @@ final class SyncStore: ObservableObject {
     }
 
     private func startNetworkMonitoring() {
+        guard pathMonitor.pathUpdateHandler == nil else { return }
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let online = path.status == .satisfied
             Task { @MainActor [weak self] in
@@ -221,7 +223,8 @@ final class SyncStore: ObservableObject {
     /// 睡眠唤醒后补一轮（其他设备睡眠期间的下发 + 本机积压上推）。
     /// 延 10 秒等网络栈就绪；离线则由 isOnline 门控自然跳过。
     private func observeWake() {
-        NSWorkspace.shared.notificationCenter.addObserver(
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -345,6 +348,21 @@ final class SyncStore: ObservableObject {
     // MARK: - 启动后的首次同步 + 定时器
 
     func startAutoSync() {
+        // R2-24：未登录不启 Timer/网络监视/唤醒观察者（此前 signed-out 也全启，
+        // 每 5min 空转一次 syncNow 仅 guard 返回）——登录成功（authenticate）时
+        // 再启，logout 时停。
+        guard case .signedIn = authState, hasSyncKey else { return }
+        startSyncInfrastructure()
+        // 启动首轮全脏：对账本地未上推的变更（含上次会话遗留的 tombstone）。
+        dirtyDomains = Set(SyncDomain.allCases)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            await self.syncNow(isAuto: true)
+        }
+    }
+
+    /// 定时器 + 网络监视 + 唤醒观察者（幂等）。登录成功路径调用。
+    private func startSyncInfrastructure() {
         if syncTimer == nil {
             syncTimer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
@@ -354,13 +372,18 @@ final class SyncStore: ObservableObject {
         }
         startNetworkMonitoring()
         observeWake()
-        guard case .signedIn = authState, hasSyncKey else { return }
-        // 启动首轮全脏：对账本地未上推的变更（含上次会话遗留的 tombstone）。
-        dirtyDomains = Set(SyncDomain.allCases)
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
-            await self.syncNow(isAuto: true)
+    }
+
+    /// 登出时停掉全部自动同步设施。
+    private func stopSyncInfrastructure() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+        pathMonitor.cancel()
+        pathMonitor = NWPathMonitor()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
         }
+        wakeObserver = nil
     }
 
     // MARK: - 登录 / 注册 / 退出

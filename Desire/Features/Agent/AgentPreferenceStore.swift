@@ -294,7 +294,7 @@ class AgentPreferenceStore: ObservableObject {
     func criticPreferences() -> AgentPreferenceStore? {
         guard let id = criticProfileID,
               profiles.contains(where: { $0.id == id }) else { return nil }
-        let store = AgentPreferenceStore()          // 读的是同一份落盘档案
+        let store = AgentPreferenceStore(skipKeyStateRefresh: true)  // 同一份落盘档案；Key 下面显式读
         guard store.profiles.contains(where: { $0.id == id }) else { return nil }
         // 评审档案**得真的能用**（有 Key）才用它：否则自评会因为 "API Key not configured"
         // 静默失败，用户看到的只是"自评不工作了"。这种情况退回当前档案——降级评审
@@ -328,7 +328,10 @@ class AgentPreferenceStore: ObservableObject {
     /// Legacy single-key account — checked once during migration.
     private let legacyKeychainAccount = "ai-api-key"
 
-    init() {
+    /// R2-6：criticPreferences 每次自评 new 一个实例——跳过逐档案 Keychain
+    /// 预读（N 次 SecItem IPC），评审路径只需要自己那个档案的 Key（显式读）。
+    init(skipKeyStateRefresh: Bool = false) {
+        self.skipKeyStateRefresh = skipKeyStateRefresh
         // 先把所有存储属性初始化完，再调用 self 方法（迁移里要读 Keychain）。
         profiles = []
         activeProfileID = nil
@@ -401,8 +404,12 @@ class AgentPreferenceStore: ObservableObject {
         // 全部初始化完成——可以调用 self 方法了。**非交互**：init 跑在
         // applicationWillFinishLaunching 的主线程上，这里若同步等一个显示不出来的
         // 授权窗，整个应用就死在启动里（2026-09-24）。
-        refreshKeyState(interactive: false)
+        if !skipKeyStateRefresh {
+            refreshKeyState(interactive: false)
+        }
     }
+
+    private let skipKeyStateRefresh: Bool
 
     /// 读当前档案（或指定档案）的 API Key。
     /// `interactive`：Keychain 条目的 ACL 不认当前构建（adhoc 重建 = 新 cdhash）时，

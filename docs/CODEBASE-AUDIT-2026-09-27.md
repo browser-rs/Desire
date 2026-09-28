@@ -478,12 +478,12 @@
 - [x] R2-12 地址栏防抖 + 剪贴板 COW bug（功能性，顺带）
 
 ### 第六批：启动与服务层（预计 1 天）
-- [ ] R2-4 会话恢复懒物化（只急切选中标签）
-- [ ] R2-18 SyncStore domainKey 缓存 + collect 挪后台
-- [ ] R2-20 ABP 转换挪 detached
-- [ ] R2-6 criticPreferences 轻量化
-- [ ] R2-13 扩展脚本/批注读盘缓存化
-- [ ] R2-24 UpdateChecker 延迟 + SyncStore 未登录不起监视
+- [x] R2-4 会话恢复懒物化（只急切选中标签）
+- [x] R2-18 SyncStore domainKey 缓存（HKDF 每项派生 → 每域一次；collect 整体挪后台留待书签/历史 stamp-diff 时一并做）
+- [x] R2-20 ABP 转换挪 detached
+- [x] R2-6 criticPreferences 轻量化
+- [x] R2-13 扩展脚本/批注读盘缓存化
+- [x] R2-24 UpdateChecker 延迟 + SyncStore 未登录不起监视
 
 ### 第七批：细水长流（随功能顺带）
 - [ ] R2-11 Tab 转发粒度收敛（收益最大、需小心梳理消费面）

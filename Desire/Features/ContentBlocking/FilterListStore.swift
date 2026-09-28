@@ -200,7 +200,9 @@ class FilterListStore: ObservableObject {
             }
             try? abp.write(to: rawFileURL(id), atomically: true, encoding: .utf8)
 
-            let count = ABPRuleConverter.convert(abp).ruleCount
+            // R2-20：此前这里又整表 convert 一次只为拿 ruleCount——用 compile
+            // 阶段已算好的计数。
+            let count = lastAttemptRuleCount ?? 0
             markMeta(id: id, lastUpdated: Date(), ruleCount: count)
             install(id: id, compiled: compiledList, lastUpdated: Date(), ruleCount: count)
             if let i = lists.firstIndex(where: { $0.id == id }) {
@@ -234,11 +236,19 @@ class FilterListStore: ObservableObject {
     }
 
     /// 一次转换 + 编译（带完整错误日志）。
-    private func attempt(store: WKContentRuleListStore, identifier: String, abp: String, includeHiding: Bool) async -> WKContentRuleList? {
-        let converted = ABPRuleConverter.convert(abp, includeHiding: includeHiding)
+    private func attempt(store: WKContentRuleListStore, identifier: String, abp: String, includeHiding: Bool) async -> (list: WKContentRuleList, ruleCount: Int)? {
+        // R2-20：ABP→JSON 是纯函数但量巨大（EasyList 最多 60k 行、数 MB JSON），
+        // sanitize 二分还会反复调它——挪到后台任务，只把结果带回主 actor 喂
+        // WebKit 编译。
+        let converted = await Task.detached(priority: .utility) {
+            ABPRuleConverter.convert(abp, includeHiding: includeHiding)
+        }.value
         guard converted.ruleCount > 0 else { return nil }
         do {
-            return try await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: converted.json)
+            guard let list = try await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: converted.json) else {
+                return nil
+            }
+            return (list, converted.ruleCount)
         } catch {
             let ns = error as NSError
             Log.contentBlocking.error("filter list compile failed (\(includeHiding ? "full" : "blocking-only", privacy: .public)): \(ns.domain, privacy: .public)/\(ns.code, privacy: .public) — \(ns.userInfo, privacy: .public) — json \(converted.json.count, privacy: .public)B")
@@ -286,6 +296,9 @@ class FilterListStore: ObservableObject {
         return (kept.joined(separator: "\n"), dropped)
     }
 
+    /// R2-20：attempt 阶段算好的规则数（updateList 用，免得整表再转一遍）。
+    private var lastAttemptRuleCount: Int?
+
     private func compile(id: String, abp: String) async -> WKContentRuleList? {
         guard let store = Self.ruleListStore() else {
             Log.contentBlocking.error("filter list \(id, privacy: .public) compile skipped: no content-rule store")
@@ -293,12 +306,14 @@ class FilterListStore: ObservableObject {
         }
         let identifier = Self.ruleListIdentifier(id)
         await removeStoredList(identifier)
-        if let list = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: true) {
-            return list
+        if let result = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: true) {
+            lastAttemptRuleCount = result.ruleCount
+            return result.list
         }
         await removeStoredList(identifier)
-        if let list = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: false) {
-            return list
+        if let result = await attempt(store: store, identifier: identifier, abp: abp, includeHiding: false) {
+            lastAttemptRuleCount = result.ruleCount
+            return result.list
         }
         // 两条路都失败：二分剔除 WebKit 不接受的规则，把剩下的编译出来（自愈）。
         await removeStoredList(identifier)
@@ -306,11 +321,12 @@ class FilterListStore: ObservableObject {
         guard !dropped.isEmpty else { return nil }
         Log.contentBlocking.error("filter list \(id, privacy: .public) dropped \(dropped.count, privacy: .public) unsupported rule(s); first: \(dropped.prefix(3).joined(separator: " | "), privacy: .public)")
         await removeStoredList(identifier)
-        guard let list = await attempt(store: store, identifier: identifier, abp: kept, includeHiding: true) else {
+        guard let result = await attempt(store: store, identifier: identifier, abp: kept, includeHiding: true) else {
             Log.contentBlocking.error("filter list \(id, privacy: .public) still fails after dropping \(dropped.count, privacy: .public) rule(s)")
             return nil
         }
-        return list
+        lastAttemptRuleCount = result.ruleCount
+        return result.list
     }
 
     // MARK: - Controller distribution

@@ -163,16 +163,33 @@ nonisolated enum SyncCrypto {
 
     // MARK: - 域派生密钥
 
+    /// R2-18：派生结果缓存——此前 collect 每**条**数据都重新 HKDF + base64
+    /// 解码主密钥（2000 条书签 = 2000 次派生）。密钥进程内不变，按
+    /// (master, domain, purpose) 缓存一次即可。
+    private static let keyCacheLock = NSLock()
+    private nonisolated(unsafe) static var keyCache: [String: SymmetricKey] = [:]
+
     private static func domainKey(
         _ masterKeyBase64: String, domain: SyncDomain, purpose: String
     ) throws -> SymmetricKey {
+        let cacheKey = "\(masterKeyBase64)/\(domain.rawValue)/\(purpose)"
+        keyCacheLock.lock()
+        if let cached = keyCache[cacheKey] {
+            keyCacheLock.unlock()
+            return cached
+        }
+        keyCacheLock.unlock()
         let master = try masterKey(masterKeyBase64)
-        return HKDF<SHA256>.deriveKey(
+        let key = HKDF<SHA256>.deriveKey(
             inputKeyMaterial: master,
             salt: Data("desire-sync".utf8),
             info: Data("desire-sync/v1/\(domain.rawValue)/\(purpose)".utf8),
             outputByteCount: 32
         )
+        keyCacheLock.lock()
+        keyCache[cacheKey] = key
+        keyCacheLock.unlock()
+        return key
     }
 
     // MARK: - 载荷加密(AES-256-GCM,combined = nonce+ct+tag)

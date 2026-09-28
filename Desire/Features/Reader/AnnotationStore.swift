@@ -39,6 +39,19 @@ final class AnnotationStore: ObservableObject {
         return loaded
     }
 
+    /// R2-13：didFinish 热路径用的变体——DiskStore.load 是同步 IO，挪到
+    /// 后台任务执行（缓存命中时同步返回）。结果照常写缓存。
+    func highlightsInBackground(for url: String) async -> [PageHighlight] {
+        let key = Self.bucketKey(for: url)
+        if let cached = pageHighlights[key] { return cached }
+        let keyCopy = key
+        let loaded = await Task.detached(priority: .utility) {
+            DiskStore.load([PageHighlight].self, key: keyCopy) ?? []
+        }.value
+        pageHighlights[key] = loaded
+        return loaded
+    }
+
     @discardableResult
     func add(url: String, text: String, colorIndex: Int) -> PageHighlight {
         let highlight = PageHighlight(id: UUID(), url: url, text: text,

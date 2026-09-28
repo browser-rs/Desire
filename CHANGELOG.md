@@ -76,6 +76,16 @@
   常驻 + 串行队列，不再每条日志开关一次文件。轮询保持 1s——降级轮询 ≤1s 延迟
   是产品规格，不做退避。
 
+### Fixed
+
+- **录屏功能自死锁修复（第二轮体检 ROUND2-P0，docs/CODEBASE-AUDIT-2026-09-27.md）**：
+  `WindowRecorder` 把同一条串行队列既当 ScreenCaptureKit 的 sampleHandlerQueue
+  又在回调里对它 `queue.sync`——对自身串行队列同步派发 = 教科书式死锁，**首帧即
+  卡死**：录屏产出 0 帧坏文件、`stopRecording` 永不返回。回调本就在该队列上，
+  改为直接执行；`finish()` 的 markAsFinished + finishWriting 一并进队列等真正
+  写完（此前 enqueue 即 resume，与残留 append 竞态；macOS 27 SDK 起
+  finishWriting() 已标 async，改用 completion 变体）。**待实测一次录屏验证产物**。
+
 ## [v0.4.2] - 2026-09-27
 
 ### Added

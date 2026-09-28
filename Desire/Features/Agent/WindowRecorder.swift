@@ -132,33 +132,37 @@ final class RecordingOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         guard input.isReadyForMoreMediaData else { return }
 
         // AVAssetWriter is not thread-safe: confine every writer interaction
-        // (and the sessionStarted/frameCount state) to this serial queue —
-        // finish() hops here too, so no cross-thread access remains.
-        queue.sync {
-            if !sessionStarted {
-                writer.startWriting()
-                writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-                sessionStarted = true
-            }
-            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-            let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-            if adaptor.append(pixelBuffer, withPresentationTime: time) {
-                frameCount += 1
-            }
+        // (and the sessionStarted/frameCount state) to this serial queue.
+        // 本回调**已经在** queue 上跑（addStreamOutput 的 sampleHandlerQueue 就是
+        // 它）——此前这里再 queue.sync 自身 = 教科书式 GCD 自死锁：首帧即卡死
+        // 交付队列，录屏产出 0 帧坏文件、stop() 等 finish 永不返回（第二轮体检
+        // ROUND2-P0，已实证）。直接裸执行即为正确的队列束缚。
+        if !sessionStarted {
+            writer.startWriting()
+            writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+            sessionStarted = true
+        }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        if adaptor.append(pixelBuffer, withPresentationTime: time) {
+            frameCount += 1
         }
     }
 
     /// Finalizes the movie; returns the file URL when writing succeeded.
     func finish() async -> URL? {
-        // markAsFinished + finishWriting run on the SAME serial queue as the
-        // sample-buffer callbacks (AVAssetWriter is single-thread by contract).
+        // markAsFinished + finishWriting 都在 sample 回调同一条串行队列上执行
+        //（AVAssetWriter 单线程契约）；continuation 等 finishWriting **真正完成**
+        // 才 resume——此前 enqueue 完就 resume，主线程的 finishWriting 与队列里
+        // 残留的 append 竞态（第二轮体检 ROUND2-P0 附带）。
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             queue.async {
                 self.input.markAsFinished()
+                // macOS 27 SDK 起 finishWriting() 是 async——用 completion 变体
+                // 在队列上等待真正写完。
+                self.writer.finishWriting { continuation.resume() }
             }
-            continuation.resume()
         }
-        await writer.finishWriting()
         let ok = writer.status == .completed
         if !ok {
             let status = writer.status.rawValue

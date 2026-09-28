@@ -10,7 +10,19 @@ class AddressSuggestionsModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
 
     /// Returns the pasteboard string as a URL when it looks like one.
+    /// R2-12：pasteboard 读取是跨进程 IPC，此前**每个击键**一次。2s 缓存窗口
+    /// （用户复制新链接后最多 2s 才进入候选，可接受）。
+    private static var clipboardCache: (value: String?, at: Date)?
     private static func clipboardURL() -> String? {
+        if let clipboardCache, Date().timeIntervalSince(clipboardCache.at) < 2 {
+            return clipboardCache.value
+        }
+        let value = readClipboardURL()
+        clipboardCache = (value, Date())
+        return value
+    }
+
+    private static func readClipboardURL() -> String? {
         guard let text = NSPasteboard.general.string(forType: .string)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty, text.contains("."),
@@ -47,12 +59,27 @@ class AddressSuggestionsModel: ObservableObject {
         currentQuery = nil
     }
 
+    /// R2-12：本地扫描防抖任务（此前每击键同步全量扫描 500 条历史 + 书签）。
+    private var localDebounceTask: Task<Void, Never>?
+
     func build(query: String,
                settings: Settings,
                bookmarks: BookmarkStore,
                history: HistoryStore) {
         searchTask?.cancel()
+        localDebounceTask?.cancel()
+        localDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+            self?.buildImmediate(query: query, settings: settings, bookmarks: bookmarks, history: history)
+        }
+    }
 
+    /// 100ms 防抖后的实际构建（原 build 体）。
+    private func buildImmediate(query: String,
+                                settings: Settings,
+                                bookmarks: BookmarkStore,
+                                history: HistoryStore) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             reset()
@@ -122,10 +149,9 @@ class AddressSuggestionsModel: ObservableObject {
             }
         }
 
-        suggestions = results
-        selectedIndex = 0
-
-        // Clipboard URL: if the pasteboard holds a URL, offer it first.
+        // R2-12（功能性）：剪贴板候选的插入必须发生在 `suggestions = results`
+        // **之前**——值类型赋值触发 COW 拷贝，此后改 `results` 不会出现在已发布
+        // 的数组里（剪贴板候选只有等网络建议回填才"偶尔出现"的根因）。
         if !isURL, let clipboardURL = Self.clipboardURL(), clipboardURL != trimmed {
             results.insert(AddressSuggestion(
                 kind: .navigate,
@@ -134,6 +160,8 @@ class AddressSuggestionsModel: ObservableObject {
                 domain: FaviconStore.domainKey(from: clipboardURL)
             ), at: 1)
         }
+        suggestions = results
+        selectedIndex = 0
 
         // Network suggestions only for search-shaped queries, only when the
         // user hasn't disabled suggestions, and only when the active engine

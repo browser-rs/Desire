@@ -467,15 +467,15 @@
 > 第一~四批见上文；以下为第二轮发现排出的新批次。
 
 ### 第五批：Agent 回合成本 + 每导航缓存（预计 1 天，P0/P1 密集）
-- [ ] R2-2 L2 摘要增量门控（每回合白打一次模型调用）
-- [ ] R2-3 UserScriptLoader 缓存（每次导航/建标签读盘）
-- [ ] R2-10 视频广告 CSS/JS 按 generation 缓存 + xpath 合并单次注入
-- [ ] R2-8 updateContextFraction 降到 1Hz 或增量表
-- [ ] R2-5 回合收尾挪 detached + memoryProcessedCount 快照写
-- [ ] R2-7 桥端点复用内存 ConversationStore
-- [ ] R2-19 DownloadStore failed 行纳入 trim
-- [ ] R2-15 遗留 runModal ×2
-- [ ] R2-12 地址栏防抖 + 剪贴板 COW bug（功能性，顺带）
+- [x] R2-2 L2 摘要增量门控（每回合白打一次模型调用）
+- [x] R2-3 UserScriptLoader 缓存（每次导航/建标签读盘）
+- [x] R2-10 视频广告 CSS/JS 按 generation 缓存 + xpath 合并单次注入
+- [x] R2-8 updateContextFraction 降到 1Hz 或增量表
+- [x] R2-5 memoryProcessedCount 快照写 + housekeeping 快照化（detached 部分收敛为快照隔离——critique 写会话消息须留在主 actor，避免与新回合交错插入）
+- [x] R2-7 桥端点复用内存 ConversationStore
+- [x] R2-19 DownloadStore failed 行纳入 trim
+- [x] R2-15 遗留 runModal ×2
+- [x] R2-12 地址栏防抖 + 剪贴板 COW bug（功能性，顺带）
 
 ### 第六批：启动与服务层（预计 1 天）
 - [ ] R2-4 会话恢复懒物化（只急切选中标签）

@@ -491,15 +491,19 @@ struct ContentView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        tabManager.addTab(
-            url: url.absoluteString,
-            javaScriptEnabled: settings.isJavaScriptEnabled,
-            contentBlocker: contentBlocker,
-            videoAdBlocker: videoAdBlocker,
-            autoPlayPolicy: settings.autoPlayPolicy,
-            newTabPosition: settings.newTabPosition
-        )
+        // R2-15：sheet 异步（runModal 冻结整个 app）。
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            tabManager.addTab(
+                url: url.absoluteString,
+                javaScriptEnabled: settings.isJavaScriptEnabled,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker,
+                autoPlayPolicy: settings.autoPlayPolicy,
+                newTabPosition: settings.newTabPosition
+            )
+        }
     }
 
     /// Bookmarks ▸ Add to Reading List：当前页入阅读列表（去重）。

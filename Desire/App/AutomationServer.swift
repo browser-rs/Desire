@@ -2785,7 +2785,8 @@ final class AutomationServer {
     @MainActor
     private static func searchConversations(query: String, limit: Int) -> [String: Any] {
         // 查询用**新实例读盘**（与 `/bookmarks` 同一约定），不碰 UI 持有的那份。
-        let store = ConversationStore()
+        // R2-7：复用内存 store（此前每请求 new 一个 = 主 actor 全量读盘解码）。
+        let store = AppState.live?.conversationStore ?? ConversationStore()
         let hits = store.search(query, limit: min(20, max(1, limit)))
         let iso = ISO8601DateFormatter()
         return ["query": query, "count": hits.count, "hits": hits.map { hit in
@@ -2829,7 +2830,7 @@ final class AutomationServer {
     @MainActor
     private static func usageStats(days: Int?) -> [String: Any] {
         // 查询用**读盘的新实例**（与 /conversations/search、/agent/trace 同一约定）。
-        let store = ConversationStore()
+        let store = AppState.live?.conversationStore ?? ConversationStore()
         let preference = AppState.live?.aiPreference
         let stats = UsageStats.derive(from: store.conversations,
                                       price: { preference?.usagePrice(for: $0) })
@@ -3064,12 +3065,20 @@ final class AutomationServer {
     /// 轨迹导出：一行一个回合的 JSONL（从会话派生，含每个工具的耗时）。
     @MainActor
     private static func agentTrace(conversation: String?, limit: Int?) -> [String: Any] {
-        let store = ConversationStore()
+        // R2-7：内存 store 优先；内存里没有（如按 id 找已落盘但未加载的）才
+        // 落盘新实例兜底。
+        let liveStore = AppState.live?.conversationStore
+        let store = liveStore ?? ConversationStore()
         var target: Conversation?
         if let conversation, let id = UUID(uuidString: conversation) {
             target = store.conversations.first { $0.id == id }
         } else if let id = AgentScheduler.shared.deliveryTarget?.conversationId {
             target = store.conversations.first { $0.id == id }
+        }
+        if target == nil, let conversation, let id = UUID(uuidString: conversation) {
+            // 内存里没有 → 落盘兜底（可能已从会话列表删除但文件还在）。
+            let diskStore = ConversationStore()
+            target = diskStore.conversations.first { $0.id == id }
         }
         guard let target else {
             return ["error": "no such conversation (pass ?conversation=<uuid> from /conversations/search)"]
@@ -3113,7 +3122,7 @@ final class AutomationServer {
         if session.setFeedback(normalized, for: id) {
             return ["ok": true, "messageId": messageId, "vote": normalized ?? "none", "scope": "live"]
         }
-        let store = ConversationStore()
+        let store = AppState.live?.conversationStore ?? ConversationStore()
         guard let conversation = store.conversations.first(where: { conv in
             conv.messages.contains { $0.id == id }
         }) else {

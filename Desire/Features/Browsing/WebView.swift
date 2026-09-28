@@ -921,14 +921,21 @@ struct WebView: NSViewRepresentable {
                     })();
                     """, completionHandler: nil)
                 }
-                for xpath in xpathRules {
-                    let escaped = xpath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-                    webView.evaluateJavaScript("""
-                    try {
-                        var el = document.evaluate('\(escaped)', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                        if (el) el.style.display = 'none';
-                    } catch(e) {}
-                    """, completionHandler: nil)
+                // R2-10：xpath 规则合并为一个脚本一次注入——此前每条规则单独
+                // 一次 evaluateJavaScript（规则多时成倍占用 WebKit 串行队列）。
+                if !xpathRules.isEmpty {
+                    let steps = xpathRules.map { xpath -> String in
+                        let escaped = xpath
+                            .replacingOccurrences(of: "\\", with: "\\")
+                            .replacingOccurrences(of: "'", with: "\'")
+                        return """
+                        try {
+                            var el = document.evaluate('\(escaped)', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                            if (el) el.style.display = 'none';
+                        } catch(e) {}
+                        """
+                    }.joined(separator: "\n")
+                    webView.evaluateJavaScript(steps, completionHandler: nil)
                 }
             }
             if parent.formAutofillStore.isConfigured {

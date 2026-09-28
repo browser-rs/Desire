@@ -54,13 +54,22 @@ enum UserScriptLoader {
         return scripts
     }
 
+    /// R2-3：打包资源运行期不变——缓存起来。此前每次导航的
+    /// dark-mode/sponsorblock 注入（didFinish）和每个新标签的 builtinScripts()
+    /// （10 个脚本约 90KB）都同步读盘，会话恢复时放大 N 倍。
+    /// 竞争的最坏后果 = 并发重复读盘一次（幂等），故 unsafe + 免锁可接受。
+    private nonisolated(unsafe) static var cache: [String: String] = [:]
+
     static func load(_ name: String) -> String {
+        if let cached = cache[name] { return cached }
         guard let url = Bundle.main.url(forResource: name, withExtension: "js") else {
             Log.userScripts.error("resource not found — UserScripts/\(name, privacy: .public).js")
             return ""
         }
         do {
-            return try String(contentsOf: url, encoding: .utf8)
+            let source = try String(contentsOf: url, encoding: .utf8)
+            cache[name] = source
+            return source
         } catch {
             Log.userScripts.error("failed to read UserScripts/\(name, privacy: .public).js: \(error.localizedDescription)")
             return ""

@@ -111,13 +111,15 @@ extension ContentView {
                 alert.accessoryView = tf
                 alert.addButton(withTitle: String(localized: "Create"))
                 alert.addButton(withTitle: String(localized: "Cancel"))
-                if alert.runModal() == .alertFirstButtonReturn {
+                // R2-15：sheet 异步（runModal 冻结整个 app）。
+                guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+                alert.beginSheetModal(for: window) { response in
+                    guard response == .alertFirstButtonReturn else { return }
                     let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty {
-                        let group = tabGroupStore.create(name: name)
-                        let tabId = tabManager.tabs[index].id
-                        tabGroupStore.addTab(tabId, to: group.id)
-                    }
+                    guard !name.isEmpty else { return }
+                    let group = tabGroupStore.create(name: name)
+                    let tabId = tabManager.tabs[index].id
+                    tabGroupStore.addTab(tabId, to: group.id)
                 }
             },
             onDuplicateTab: { index in

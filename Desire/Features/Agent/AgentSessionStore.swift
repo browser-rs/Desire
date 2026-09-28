@@ -139,10 +139,18 @@ class AgentSessionStore: ObservableObject {
     /// cleanly. The panel renders a queue strip from this.
     /// 更新"上下文占用比例"。口径与 `compactForContext` 相同（字符数 / 预算）；
     /// 按 (条数, 末条长度) 记忆，流式期间每 80ms 只多一次 O(n) 轻扫。
-    private func updateContextFraction() {
+    private var contextFractionLastComputeAt: Date = .distantPast
+
+    private func updateContextFraction(force: Bool = false) {
         let key = "\(messages.count)-\(messages.last?.content?.count ?? 0)"
         guard key != contextFractionStamp else { return }
         contextFractionStamp = key
+        // R2-8：流式期间末条长度每拍必变 → 上述 memo 每拍失配 → 每拍全量
+        // 字素计数（逼近 160k 预算的长对话 = 主线程每秒 12 次全量扫描）。
+        // 占比是显示值，1Hz 精度足够；回合结束时以 force 补一次终值。
+        let now = Date()
+        if !force, now.timeIntervalSince(contextFractionLastComputeAt) < 1.0 { return }
+        contextFractionLastComputeAt = now
         var total = 0
         for m in messages {
             total += m.content?.count ?? 0
@@ -250,6 +258,8 @@ class AgentSessionStore: ObservableObject {
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
     private var memoryProcessedCount = 0
+    /// R2-2：上次 L2 摘要时的消息数（增量门控）。
+    private var summarizedCount = 0
     /// Set once a model-generated conversation title exists (the fallback
     /// title is just the truncated first message).
     private var titleGenerated = false
@@ -579,6 +589,7 @@ class AgentSessionStore: ObservableObject {
             ) }
         }
         memoryProcessedCount = 0
+        summarizedCount = 0
         // The next conversation must be able to earn its own generated title.
         titleGenerated = false
         queuedMessages.removeAll()
@@ -644,6 +655,7 @@ class AgentSessionStore: ObservableObject {
         usagePromptTokens = 0
         usageCompletionTokens = 0
         memoryProcessedCount = messages.count
+        summarizedCount = messages.count
         // The stored title is final — either generated earlier or renamed by
         // the user in the history list. Never let title generation clobber it.
         titleGenerated = true
@@ -852,6 +864,7 @@ class AgentSessionStore: ObservableObject {
         // 收尾仍在同一个 task 里串行跑（不与下一轮抢 memoryProcessedCount）。
         isProcessing = false
         currentAction = nil
+        updateContextFraction(force: true)
 
         // Cancelled turns skip the post-work: a title generation would spend
         // one more model call on a conversation the user just walked away from.
@@ -1672,26 +1685,38 @@ class AgentSessionStore: ObservableObject {
     /// Extracts durable facts and refreshes the conversation summary once
     /// enough NEW turns accumulated since the last pass.
     private func runMemoryHousekeeping() async {
+        // R2-5：快照入参——housekeeping 的 await 期间 messages 可能已被下一
+        // 回合追加，所有判定与内容都以**进入时的快照**为准。
+        let snapshot = messages
+        let processedUpTo = snapshot.count
         guard preference.memoryLearning, !isCancelled,
-              messages.contains(where: { $0.role == .user }),
-              messages.contains(where: { $0.role == .assistant }) else { return }
+              snapshot.contains(where: { $0.role == .user }),
+              snapshot.contains(where: { $0.role == .assistant }) else { return }
 
-        if messages.count - memoryProcessedCount >= 4 {
+        if snapshot.count - memoryProcessedCount >= 4 {
             await MemoryExtractor.extractFacts(
                 preference: preference,
                 memory: AgentMemoryStore.shared,
-                messages: Array(messages.suffix(14))
+                messages: Array(snapshot.suffix(14))
             )
         }
-        if messages.count >= 12, let conversationId = conversationId {
+        // R2-2：摘要此前只有"≥12 条"的总量门槛、没有增量门控——对话过 12 条后
+        // **每个回合结束都重发一次 8k 字符的全量摘要请求**（纯闲聊也跑，用户
+        // 白付钱/额度）。与 facts 同款增量门控：新增 ≥6 条才重新摘要。
+        if messages.count >= 12, messages.count - summarizedCount >= 6,
+           let conversationId = conversationId {
             await MemoryExtractor.summarize(
                 preference: preference,
                 memory: AgentMemoryStore.shared,
                 conversationId: conversationId,
-                messages: Array(messages.suffix(40))
+                messages: Array(snapshot.suffix(40))
             )
+            summarizedCount = snapshot.count
         }
-        memoryProcessedCount = messages.count
+        // R2-5：推进到**快照数**而非 messages.count——housekeeping 的 await 期间
+        // 用户可能已发出下一回合（旧循环 isProcessing 交还后不再拦截），把新
+        // 回合的消息一并标成"已处理"会让那部分内容永远不被抽取。
+        memoryProcessedCount = max(memoryProcessedCount, processedUpTo)
     }
 
     // MARK: - Tool approval gating

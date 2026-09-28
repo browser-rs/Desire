@@ -162,7 +162,9 @@ class DownloadStore: ObservableObject {
     }
 
     private func trimCompletedRows() {
-        let terminal = downloads.filter { $0.state == .completed }
+        // R2-19：failed 也是终态——此前只裁 completed，离线批量下载留下的
+        // 数百条失败行永久驻留内存+磁盘（completedRowCap 对它不生效）。
+        let terminal = downloads.filter { $0.state == .completed || $0.state == .failed }
         guard terminal.count > Self.completedRowCap else { return }
         let victims = Set(terminal.suffix(terminal.count - Self.completedRowCap).map(\.id))
         downloads.removeAll { victims.contains($0.id) }

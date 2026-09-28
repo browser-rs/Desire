@@ -120,7 +120,6 @@ struct ContentView: View {
                 showHistory: $showHistory,
                 showBookmarks: $showBookmarks,
                 showPlugins: $showPlugins,
-                showExtensions: $showExtensions,
                 showElementBlock: $showElementBlock,
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
@@ -170,7 +169,6 @@ struct ContentView: View {
     @State var showHistory = false
     @State var showBookmarks = false
     @State var showPlugins = false
-    @State var showExtensions = false
     @State var showReadingList = false
     @State var showTabSwitcher = false
     /// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式缩略图网格。
@@ -421,12 +419,10 @@ struct ContentView: View {
             readingListStore: readingListStore,
             elementBlockStore: elementBlockStore,
             pluginStore: pluginStore,
-            extensionManager: appState.safariExtensionManager,
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,
             showSearchHistory: $showSearchHistory,
             showPlugins: $showPlugins,
-            showExtensions: $showExtensions,
             showReadingList: $showReadingList,
             showElementBlock: $showElementBlock,
             onNavigate: { url in

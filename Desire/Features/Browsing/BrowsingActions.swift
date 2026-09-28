@@ -426,7 +426,6 @@ extension BrowsingActions {
             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
-            extensionManager: nil,
             onOpenLinkInNewTab: { [weak self] url in
                 self?.tabManager.addTab(url: url.absoluteString,
                                         javaScriptEnabled: settings.isJavaScriptEnabled,

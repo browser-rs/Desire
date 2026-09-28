@@ -1,6 +1,50 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 .msex 插件包或 Safari 扩展（.safariextension 文件夹 / zip / crx / xpi）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 .msex 外掛包或 Safari 擴充功能（.safariextension 資料夾 / zip / crx / xpi）"
+          }
+        }
+      }
+    },
+    "Install Package" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Package"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装扩展包"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝擴充套件"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {

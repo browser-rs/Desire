@@ -107,7 +107,6 @@ class AppState: ObservableObject {
     var siteSettingsStore: SiteSettingsStore { system.siteSettingsStore }
     var devToolsStore: DevToolsStore { system.devToolsStore }
     var pluginStore: PluginStore { system.pluginStore }
-    var safariExtensionManager: SafariExtensionStore { system.safariExtensionManager }
 
     // MARK: - Session persistence wiring
 

@@ -82,7 +82,6 @@ class SystemState: ObservableObject {
         return store
     }()
     lazy var pluginStore = PluginStore()
-    lazy var safariExtensionManager = SafariExtensionStore()
     /// Single shared instance: menu commands, the window's hidden shortcut
     /// buttons, and the Settings editor must all observe the SAME object or
     /// customizations would not reach the menus (the settings editor used to

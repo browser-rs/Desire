@@ -15,13 +15,10 @@ struct PanelsRouter: ViewModifier {
     let readingListStore: ReadingListStore
     let elementBlockStore: ElementBlockStore
     let pluginStore: PluginStore
-    let extensionManager: SafariExtensionStore
-
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showSearchHistory: Bool
     @Binding var showPlugins: Bool
-    @Binding var showExtensions: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
 
@@ -57,11 +54,7 @@ struct PanelsRouter: ViewModifier {
                 guard isShown else { return }
                 showPlugins = false
                 PluginsWindowController.shared.show(pluginStore: pluginStore)
-            }
-            .sheet(isPresented: $showExtensions) {
-                SafariExtensionPanel(manager: extensionManager)
-            }
-            .sheet(isPresented: $showReadingList) {
+            }            .sheet(isPresented: $showReadingList) {
                 ReadingListPanel(store: readingListStore, onSelect: { url in
                     showReadingList = false
                     onNavigate(url)

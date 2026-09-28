@@ -52,7 +52,6 @@ struct CommandPalette: View {
             Entry(id: "cmd.showDownloads", title: "Show Downloads", subtitle: "View", icon: "arrow.down.circle", command: .showDownloads),
             Entry(id: "cmd.showSettings", title: "Settings", subtitle: "App", icon: "gearshape", command: .showSettings),
             Entry(id: "cmd.showPlugins", title: "Plugins", subtitle: "Tools", icon: "puzzlepiece", command: .showPlugins),
-            Entry(id: "cmd.showExtensions", title: "Extensions", subtitle: "Tools", icon: "puzzlepiece.extension", command: .showExtensions),
             Entry(id: "cmd.showElementBlock", title: "Element Blocker", subtitle: "Tools", icon: "eye.slash", command: .showElementBlock),
             Entry(id: "cmd.screenshot", title: "Screenshot Region…", subtitle: "Tools", icon: "camera.viewfinder", command: .screenshot),
             Entry(id: "cmd.toggleSidebar", title: "Toggle Sidebar", subtitle: "Tabs", icon: "sidebar.left", command: .toggleSidebar),

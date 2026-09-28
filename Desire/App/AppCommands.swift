@@ -208,7 +208,6 @@ struct AppCommands: Commands {
         CommandMenu("Tools") {
             Button("Plugins") { postCommand(.showPlugins) }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
-            Button("Extensions") { postCommand(.showExtensions) }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Divider()

@@ -130,7 +130,7 @@ enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings, showDownloads
-    case showPlugins, showExtensions, showElementBlock
+    case showPlugins, showElementBlock
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader
     case reload, forceReload, inspectElement, printPage, savePage

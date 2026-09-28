@@ -36,6 +36,30 @@ enum MSExInstaller {
             throw MSExError.unpack(err.suffix(200).description)
         }
 
+        return try installManifestedPackage(at: extractDir, store: store)
+    }
+
+    /// **Safari 扩展包**装载（双系统归一，2026-09-28）：`.safariextension` 目录 /
+    /// 任意含 manifest.json 的目录 / zip(crx/xpi) 均可——content_scripts 形状与
+    /// Chrome MV3 相同，共享同一条解析管线。background 脚本无对应概念，忽略
+    /// （在描述里注明）。
+    static func installSafariPackage(from url: URL, store: PluginStore) throws -> InstallResult {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else {
+            throw MSExError.noManifest
+        }
+
+        if isDir.boolValue {
+            return try installManifestedPackage(at: url, store: store)
+        }
+        // zip/crx/xpi 文件 → 解包后同管线
+        return try install(from: url, store: store)
+    }
+
+    /// 从**已就位的包目录**解析 manifest 并构造 Plugin（zip 与目录两路共用）。
+    private static func installManifestedPackage(at dir: URL, store: PluginStore) throws -> InstallResult {
+        let extractDir = dir
         let manifestURL = extractDir.appendingPathComponent("manifest.json")
         guard let manifestData = try? Data(contentsOf: manifestURL),
               let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any] else {

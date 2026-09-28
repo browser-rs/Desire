@@ -38,7 +38,6 @@ struct CommandDispatcher {
         var showHistory: Binding<Bool>
         var showBookmarks: Binding<Bool>
         var showPlugins: Binding<Bool>
-        var showExtensions: Binding<Bool>
         var showElementBlock: Binding<Bool>
         var showTabSwitcher: Binding<Bool>
         var showSidebar: Binding<Bool>
@@ -172,9 +171,6 @@ struct CommandDispatcher {
 
         case .showPlugins:
             bindings.showPlugins.wrappedValue = true
-
-        case .showExtensions:
-            bindings.showExtensions.wrappedValue = true
 
         case .showElementBlock:
             bindings.showElementBlock.wrappedValue = true

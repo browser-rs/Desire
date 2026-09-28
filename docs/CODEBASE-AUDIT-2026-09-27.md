@@ -182,7 +182,10 @@
 
 ## 四、架构债
 
-### ARCH-1 死代码：Features/Extensions/ 集群（722 行 / 3 文件）
+### ARCH-1 死代码：Features/Extensions/ 集群（722 行 / 3 文件）——✅ 已删（批次 1）；
+### ✅ 后续（2026-09-28 档位 B）：同目录幸存的 SafariExtension 四文件（962 行）也已归一删除——
+### 导入能力转为 MSExInstaller.installSafariPackage，入口统一进 Plugins 面板"安装扩展包"
+### ARCH-1 原始记录：Features/Extensions/ 集群（722 行 / 3 文件）
 - `WebExtensionRegistry.swift`（581 行）+ `WebExtension.swift`（93）+
   `WebExtensionMatcher.swift`（48）——全仓仅自引用（AGENTS 已认定未接线），
   且 Registry 里还留着会注入 WKUserContentController 的活代码路径，误接线风险

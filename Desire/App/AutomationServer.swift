@@ -2115,7 +2115,6 @@ final class AutomationServer {
         case "showDownloads": command = .showDownloads
         case "showSettings": command = .showSettings
         case "showPlugins": command = .showPlugins
-        case "showExtensions": command = .showExtensions
         case "showElementBlock": command = .showElementBlock
         case "bookmarkPage": command = .bookmarkPage
         case "toggleFullScreen": command = .toggleFullScreen

@@ -404,6 +404,14 @@ Features/Bookmarks/
   因卡顿或宽度失控被否；webview resize 的过场闪是 WebKit 引擎行为，
   与分隔条组件无关，`drawsBackground` 保持默认**不透明**（KVC 关闭
   会破坏旧帧拉伸、加剧闪烁）。
+- **插件系统归一（2026-09-28，档位 B）**：历史上三次平行尝试（Plugin 7/5 →
+  SafariExtension 7/9 → 0.3.3 给 Plugin 加 msex 装载器），现只保留 **Plugin
+  系统**（`Features/UserScripts/`）——`Features/Extensions/`（SafariExtension
+  四文件）已删除，其导入能力转为 **MSExInstaller.installSafariPackage**
+  （.safariextension 目录/含 manifest.json 的目录/zip·crx·xpi → 转成 Plugin，
+  background 脚本忽略）；Plugins 面板"安装扩展包"按钮统一入口。
+  **勿再以"Safari 扩展"名义新建平行系统**；`showExtensions` 命令/
+  SafariExtensionPanel 已随之移除。存储的两个坑见下。
 - **扩展/插件存储的两个坑（2026-09-21 实测）**：
   - **插件列表 = `PluginStore`（UserDefaults `desire.plugins`），存储后端 =
     `WebExtensionStore`（UserDefaults 的 `desire.webext.storage.<uuid>` 桶）**。

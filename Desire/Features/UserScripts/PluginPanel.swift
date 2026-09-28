@@ -104,8 +104,39 @@ struct PluginPanel: View {
             } label: {
                 Label("Import", systemImage: "square.and.arrow.up.on.square")
             }
+            // R2 归一：扩展包装载（.msex / .safariextension / zip·crx·xpi）——
+            // 原 Safari 扩展系统的导入能力并入此处（档位 B）。
+            Button {
+                installPackage()
+            } label: {
+                Label("Install Package", systemImage: "shippingbox")
+            }
         }
         .padding()
+    }
+
+    /// 扩展包装载：.msex（Chrome MV3 子集）与 Safari 扩展包（目录 /
+    /// .safariextension / zip·crx·xpi）共用 MSExInstaller 管线，落地为 Plugin。
+    private func installPackage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = String(localized: "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            var isDir: ObjCBool = false
+            let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+            if isDirectory {
+                _ = try MSExInstaller.installSafariPackage(from: url, store: store)
+            } else if url.pathExtension.lowercased() == "msex" {
+                _ = try MSExInstaller.install(from: url, store: store)
+            } else {
+                _ = try MSExInstaller.installSafariPackage(from: url, store: store)
+            }
+        } catch {
+            importError = error.localizedDescription
+        }
     }
 
     private func sectionHeader(_ title: LocalizedStringKey, count: Int) -> some View {

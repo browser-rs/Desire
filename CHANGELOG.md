@@ -1,3 +1,21 @@
+## [Unreleased]
+
+### Changed
+
+- **插件/扩展双系统归一（档位 B）**：Desire 此前有两套并行的扩展机制——
+  `Features/UserScripts` 的 **Plugin 系统**（工具栏 ⇧⌘P 入口：JS/CSS 注入、
+  隔离 world、storage/tabs/notifications RPC、popup、.msex 装载）与
+  `Features/Extensions` 的 **SafariExtension 系统**（7 月与 Plugin 相隔四天的
+  平行尝试：仅 content_scripts 注入，background 加载函数写了没接线、无 popup
+  /storage，入口只有命令面板，存储零真实数据）。现归一到 Plugin 系统：
+  - Safari 扩展包装载并入 **MSExInstaller**：`.safariextension` 目录 / 含
+    manifest.json 的目录 / zip·crx·xpi 均可装（content_scripts 形状与 Chrome
+    MV3 相同，共享解析管线）；background 脚本无对应概念、忽略并在描述注明。
+  - **Plugins 面板新增"安装扩展包"按钮**——.msex 与 Safari 包同一入口。
+  - 删除 `Features/Extensions/` 四文件（962 行）及全部接线（面板 sheet、菜单项
+    "Extensions"、命令面板入口、`showExtensions` 命令、WebView 的
+    injectContentScripts 调用）。零数据迁移（该系统从未被真实使用）。
+
 ## [v0.4.3] - 2026-09-28
 
 ### Fixed

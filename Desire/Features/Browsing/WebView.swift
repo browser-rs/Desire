@@ -315,7 +315,6 @@ struct WebView: NSViewRepresentable {
     var sponsorBlockEnabled: Bool = false
     /// 启用的 SponsorBlock 类别（随开关注入页面）。
     var sponsorBlockCategories: [String] = []
-    var extensionManager: SafariExtensionStore?
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
@@ -884,10 +883,6 @@ struct WebView: NSViewRepresentable {
                     "title": webView.title ?? parent.state.pageTitle,
                 ])
 
-                // Inject content scripts from Safari extensions
-                if let extensionManager = parent.extensionManager {
-                    extensionManager.injectContentScripts(into: webView, for: url)
-                }
             }
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
                 webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)

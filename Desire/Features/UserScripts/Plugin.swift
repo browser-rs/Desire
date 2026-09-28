@@ -21,8 +21,11 @@ struct Plugin: Identifiable, Codable {
     /// manifest v3 装载的 popup 页 HTML（0.3.3）。nil = 无 popup（点击
     /// 固定图标 = 运行一次）。
     var popupHTML: String?
+    /// 扩展包自带的真实图标（PNG 数据，取 manifest icons 最大尺寸）。
+    /// nil = 用 SF Symbol（toolbarIcon）。Optional = 旧数据解码安全。
+    var iconPNG: Data?
 
-    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil) {
+    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil, iconPNG: Data? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -38,6 +41,7 @@ struct Plugin: Identifiable, Codable {
         self.pinned = pinned
         self.icon = icon
         self.popupHTML = popupHTML
+        self.iconPNG = iconPNG
     }
 
     var isPinned: Bool { pinned ?? false }

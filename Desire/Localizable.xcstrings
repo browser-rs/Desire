@@ -1,72 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Background scripts are not supported and were ignored." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Background scripts are not supported and were ignored."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "background 脚本不受支持，已忽略。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "background 腳本不受支援，已忽略。"
-          }
-        }
-      }
-    },
-    "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择 .msex 插件包或 Safari 扩展（.safariextension 文件夹 / zip / crx / xpi）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇 .msex 外掛包或 Safari 擴充功能（.safariextension 資料夾 / zip / crx / xpi）"
-          }
-        }
-      }
-    },
-    "Install Package" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Install Package"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装扩展包"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安裝擴充套件"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "en" : {
@@ -3246,6 +3180,7 @@
       }
     },
     "API Permissions:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4033,6 +3968,7 @@
       }
     },
     "Background" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4050,6 +3986,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景"
+          }
+        }
+      }
+    },
+    "Background scripts are not supported and were ignored." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Background scripts are not supported and were ignored."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "background 脚本不受支持，已忽略。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "background 腳本不受支援，已忽略。"
           }
         }
       }
@@ -4116,6 +4074,116 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在執行的 ollama 服務地址。"
+          }
+        }
+      }
+    },
+    "Batch download cancelled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch download cancelled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载已取消"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次下載已取消"
+          }
+        }
+      }
+    },
+    "Batch download finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch download finished"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次下載完成"
+          }
+        }
+      }
+    },
+    "Batch download resumed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch download resumed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载已恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次下載已恢復"
+          }
+        }
+      }
+    },
+    "Batch download suspended" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch download suspended"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载已挂起"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次下載已暫停"
+          }
+        }
+      }
+    },
+    "Batch downloads restored" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch downloads restored"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载已恢复到队列"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次下載已恢復到佇列"
           }
         }
       }
@@ -5228,6 +5296,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇"
+          }
+        }
+      }
+    },
+    "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 .msex 插件包或 Safari 扩展（.safariextension 文件夹 / zip / crx / xpi）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 .msex 外掛包或 Safari 擴充功能（.safariextension 資料夾 / zip / crx / xpi）"
           }
         }
       }
@@ -6698,6 +6788,7 @@
       }
     },
     "Content Scripts" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7689,6 +7780,7 @@
       }
     },
     "CSS: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8838,6 +8930,7 @@
       }
     },
     "Details" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9350,138 +9443,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載失敗"
-          }
-        }
-      }
-    },
-    "Batch download finished" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch download finished"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载完成"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次下載完成"
-          }
-        }
-      }
-    },
-    "Batch download cancelled" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch download cancelled"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载已取消"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次下載已取消"
-          }
-        }
-      }
-    },
-    "Batch download suspended" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch download suspended"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载已挂起"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次下載已暫停"
-          }
-        }
-      }
-    },
-    "Batch download resumed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch download resumed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载已恢复"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次下載已恢復"
-          }
-        }
-      }
-    },
-    "Batch downloads restored" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch downloads restored"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载已恢复到队列"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次下載已恢復到佇列"
-          }
-        }
-      }
-    },
-    "Human verification required" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Human verification required"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要人工验证"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要人工驗證"
           }
         }
       }
@@ -10880,6 +10841,7 @@
       }
     },
     "Extension Information" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12775,6 +12737,7 @@
       }
     },
     "Host Permissions:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12953,6 +12916,28 @@
         }
       }
     },
+    "Human verification required" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Human verification required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要人工验证"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要人工驗證"
+          }
+        }
+      }
+    },
     "I'm looking at this page and want to ask:" : {
       "localizations" : {
         "en" : {
@@ -13112,6 +13097,7 @@
       }
     },
     "Import Extension" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13495,6 +13481,28 @@
         }
       }
     },
+    "Install Package" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Package"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装扩展包"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝擴充套件"
+          }
+        }
+      }
+    },
     "Install Update" : {
       "localizations" : {
         "en" : {
@@ -13720,6 +13728,7 @@
       }
     },
     "JS: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14616,6 +14625,7 @@
       }
     },
     "Matches: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16908,6 +16918,7 @@
       }
     },
     "No Safari Extensions Installed" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18389,6 +18400,7 @@
       }
     },
     "Page: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18845,6 +18857,7 @@
       }
     },
     "Permissions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20736,6 +20749,7 @@
       }
     },
     "Requires permissions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21613,6 +21627,7 @@
       }
     },
     "Safari Extensions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22273,6 +22288,7 @@
       }
     },
     "Script %lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22295,6 +22311,7 @@
       }
     },
     "Scripts: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23213,6 +23230,7 @@
       }
     },
     "Service Worker: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -27128,6 +27146,7 @@
       }
     },
     "Uninstall" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

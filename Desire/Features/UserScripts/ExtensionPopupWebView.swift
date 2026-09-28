@@ -21,15 +21,21 @@ struct ExtensionPopupWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         let content = config.userContentController
-        content.removeScriptMessageHandler(forName: "desireExt", contentWorld: WebView.extensionWorld)
-        content.add(context.coordinator, contentWorld: WebView.extensionWorld, name: "desireExt")
+        // ⚠️ 运行时必须注入**页面世界**（.page）——popup 的内联 <script>
+        // （装载时已把 popup.js 内联进 HTML）跑在页面世界，若把 chrome.*
+        // 注入隔离 world，popup 里 chrome 是 undefined，首个 API 调用即抛，
+        // 三个视图（初始全 hidden）永远不展开 = 空白弹窗（实测踩过）。
+        // 本 webview 只加载插件自带的 popup HTML，页面世界注入是安全的，
+        // 且与 Chrome 语义一致（popup 脚本直接可见 chrome.*）。
+        content.removeScriptMessageHandler(forName: "desireExt", contentWorld: .page)
+        content.add(context.coordinator, contentWorld: .page, name: "desireExt")
         let runtime = UserScriptLoader.load("webext-api")
         if !runtime.isEmpty {
             content.addUserScript(WKUserScript(
                 source: runtime + "\nwindow.__desireExtID = '\(plugin.id.uuidString)';",
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true,
-                in: WebView.extensionWorld))
+                in: .page))
         }
         let web = WKWebView(frame: .zero, configuration: config)
         web.loadHTMLString(plugin.popupHTML ?? "", baseURL: nil)
@@ -67,7 +73,7 @@ struct ExtensionPopupWebView: NSViewRepresentable {
                 }
                 message.webView?.evaluateJavaScript(
                     "window.__desireExt && window.__desireExt._resolve(\(id), \(error == nil), \(json))",
-                    in: nil, in: WebView.extensionWorld, completionHandler: nil)
+                    in: nil, in: .page, completionHandler: nil)
             }
 
             switch (ns, fn) {

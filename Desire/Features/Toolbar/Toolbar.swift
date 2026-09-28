@@ -349,7 +349,24 @@ struct Toolbar: View {
 
     // MARK: - Trailing Buttons
 
-    /// 固定到工具栏的插件图标（Chrome 式）。点击 = 在当前页运行一次。
+    /// 插件图标：优先扩展包自带 PNG（R2 归一），缺省回退 SF Symbol。
+    private func pluginIconView(_ plugin: Plugin) -> AnyView {
+        if let data = plugin.iconPNG, let image = NSImage(data: data) {
+            return AnyView(
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle()))
+        }
+        return AnyView(
+            Image(systemName: plugin.toolbarIcon)
+                .font(.system(size: 12))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle()))
+    }
+
     @ViewBuilder
     private var pinnedPluginsRow: some View {
         let pinned = pluginStore.plugins.filter { $0.isEnabled && $0.isPinned }
@@ -363,7 +380,7 @@ struct Toolbar: View {
                             onRunPlugin?(plugin)
                         }
                     } label: {
-                        Image(systemName: plugin.toolbarIcon)
+                        pluginIconView(plugin)
                             .font(.system(size: 12))
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
@@ -408,7 +425,7 @@ struct Toolbar: View {
             } else {
                 ForEach(Array(pluginStore.plugins.enumerated()), id: \.element.id) { index, plugin in
                     HStack(spacing: 10) {
-                        Image(systemName: plugin.toolbarIcon)
+                        pluginIconView(plugin)
                             .font(.system(size: 12))
                             .foregroundStyle(plugin.isEnabled ? appAccent : .secondary)
                             .frame(width: 22, height: 22)

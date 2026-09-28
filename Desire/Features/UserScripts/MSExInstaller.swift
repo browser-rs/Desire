@@ -134,6 +134,10 @@ enum MSExInstaller {
             effectiveDescription = effectiveDescription.isEmpty ? note : effectiveDescription + "\n\n" + note
         }
 
+        // 真实图标：manifest icons{} 里最大的尺寸 → PNG 数据（工具栏渲染用；
+        // 插件模型无图片文件概念，数据随 Plugin 持久化）。
+        let iconPNG = Self.largestIconPNG(manifest: manifest, extractDir: extractDir)
+
         let plugin = Plugin(
             name: name,
             description: effectiveDescription,
@@ -143,7 +147,8 @@ enum MSExInstaller {
             jsCode: jsChunks.joined(separator: "\n;\n"),
             cssCode: cssChunks.joined(separator: "\n"),
             icon: "puzzlepiece",
-            popupHTML: popupHTML
+            popupHTML: popupHTML,
+            iconPNG: iconPNG
         )
         // 同名重装 = 更新（替换旧条目；沿用旧 id —— storage 按 id
         // 命名空间，换 id 会孤儿化已存数据）。
@@ -154,13 +159,31 @@ enum MSExInstaller {
                 urlPatterns: plugin.urlPatterns, excludePatterns: plugin.excludePatterns,
                 runAt: plugin.runAt, jsCode: plugin.jsCode, cssCode: plugin.cssCode,
                 isEnabled: existing.isEnabled, createdAt: existing.createdAt,
-                pinned: existing.pinned, icon: plugin.icon, popupHTML: plugin.popupHTML)
+                pinned: existing.pinned, icon: plugin.icon, popupHTML: plugin.popupHTML,
+                iconPNG: iconPNG ?? existing.iconPNG)
             store.update(updated)
         } else {
             store.add(plugin)
         }
         Log.userScripts.info("msex installed: \(name, privacy: .public) v\(version, privacy: .public)")
         return InstallResult(plugin: plugin)
+    }
+
+    // MARK: - 图标
+
+    /// manifest icons{} 里最大的尺寸 → PNG 数据。解析失败静默返回 nil
+    ///（工具栏回退 SF Symbol）。
+    private static func largestIconPNG(manifest: [String: Any], extractDir: URL) -> Data? {
+        guard let icons = manifest["icons"] as? [String: String], !icons.isEmpty else { return nil }
+        let best = icons
+            .compactMap { (size, path) -> (Int, String)? in
+                guard let n = Int(size) else { return nil }
+                return (n, path)
+            }
+            .max(by: { $0.0 < $1.0 })?
+            .1
+        guard let best else { return nil }
+        return try? Data(contentsOf: extractDir.appendingPathComponent(best))
     }
 
     // MARK: - popup 资源内联

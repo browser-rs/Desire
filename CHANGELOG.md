@@ -1,5 +1,22 @@
 ## [Unreleased]
 
+### Fixed
+
+- **扩展 popup 空白（双系统归一后续，用户实测反馈）**：popup 宿主把 webext-api
+  运行时（`chrome` 全局）注入**隔离 world**，而装载后 popup 的内联 `<script>`
+  跑在**页面世界**——`chrome` 在 popup 里是 undefined，首个 API 调用即抛，三个
+  初始 `hidden` 的视图永远不展开 = 空白弹窗。运行时改注入页面世界（popup 是
+  插件专用 webview，只加载自带 HTML，页面世界注入安全且与 Chrome 语义一致）。
+  独立 harness 实证：`.page` 注入后 `chrome` 为 object、storage 可用、内联的
+  QRCode 库生效。
+
+### Added
+
+- **扩展包真实图标**：装载时取 manifest `icons` 最大尺寸的 PNG 随插件持久化
+  （新增 `Plugin.iconPNG`），工具栏固定图标优先渲染真实图标、缺省回退
+  SF Symbol——此前永远是拼图占位符（用户实测反馈"图标不是插件图标"）。
+
+## [v0.4.3] - 2026-09-28
 ### Added
 
 - **Chrome 式"从文件夹加载"已解压扩展**：`/plugins/install-msex` 与 Plugins

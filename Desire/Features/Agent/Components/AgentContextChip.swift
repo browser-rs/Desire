@@ -7,24 +7,24 @@ struct AgentContextChip: View {
     @ObservedObject var store: AgentSessionStore
 
     var body: some View {
-        if store.contextFraction >= 0.02 {
-            HStack(spacing: 3) {
-                Image(systemName: store.contextFraction >= 0.6 ? "exclamationmark.triangle.fill" : "gauge.medium")
-                    .font(.system(size: 9))
-                Text(verbatim: "\(Int((store.contextFraction * 100).rounded()))%")
-                    .font(.system(size: 10, design: .monospaced))
-            }
-            .foregroundStyle(color)
-            .padding(.horizontal, 9)
-            .frame(height: 26)
-            .background(
-                Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-            )
-            .overlay(
-                Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
-            )
-            .help(helpText)
+        // **常显**：0% 也是有效信息（用户明确要求三件套常在——曾按"≥2% 才显示"
+        // 做，新对话直接看不见这个 chip，用户截图追问"上下文容量也没有啊"）。
+        HStack(spacing: 3) {
+            Image(systemName: store.contextFraction >= 0.6 ? "exclamationmark.triangle.fill" : "gauge.medium")
+                .font(.system(size: 9))
+            Text(verbatim: "\(Int((store.contextFraction * 100).rounded()))%")
+                .font(.system(size: 10, design: .monospaced))
         }
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .frame(height: 26)
+        .background(
+            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+        )
+        .overlay(
+            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+        )
+        .help(helpText)
     }
 
     private var color: Color {

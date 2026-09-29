@@ -3192,6 +3192,50 @@
         }
       }
     },
+    "Anthropic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anthropic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anthropic"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anthropic"
+          }
+        }
+      }
+    },
+    "API Format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Format"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 格式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 格式"
+          }
+        }
+      }
+    },
     "API Key" : {
       "localizations" : {
         "en" : {
@@ -18362,6 +18406,9 @@
         }
       }
     },
+    "OpenAI" : {
+
+    },
     "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18858,28 +18905,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼產生器"
-          }
-        }
-      }
-    },
-    "API Format" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API Format"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 格式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 格式"
           }
         }
       }

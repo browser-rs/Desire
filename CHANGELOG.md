@@ -11,10 +11,7 @@
 - Agent 输入栏三件套布局（参照主流客户端）：上下文占用 chip（gauge %，60% 橙 / 85% 红，与头部状态行同源数据）摆在模型选择器左侧，新增"思考等级"下拉（🧠 关/低/中/最高）摆在右侧；思考等级非默认档时随请求发送 `reasoning_effort`（默认 off 不发送，保持请求体与旧版一致，避免不认识该参数的服务报 400）；模型选择器的下拉指示改为清晰可见的单向下箭头（原 7pt 双向箭头几乎不可见）
 - Agent 云端 provider 支持主流两种线协议：OpenAI 兼容（chat/completions，原有）与 Anthropic Messages API（/v1/messages）。服务档案新增"API 格式"选择（设置页编辑器分段选择 + 桥 /ai/profiles 的 apiFormat 字段），内置新增 Anthropic 预设（claude-sonnet-4-5）；AnthropicSSE 完整实现协议方言——system 顶层字段、user/assistant 严格交替、工具调用 tool_use/content_block 分片聚合、工具结果转 tool_result 块、截图 data-URI 转图片块、思考等级映射为 thinking.budget_tokens（开启时按协议要求省略 temperature 并抬高 max_tokens）、x-api-key + anthropic-version 头、模型列表拉取与用量上报（usage 记在消息上）同 OpenAI 路径对齐。假 Anthropic 端点 E2E 全通：114 工具 schema、tool_use→真执行→tool_result 往返、角色交替、usage 落盘
 
-
-
 ### Fixed
-
 - **打断对话后正在输出的消息丢失 + 误报空响应（用户实测）**：打断时流式循环
   的缓冲消息只带 reasoning 没有正文——补"（已取消）"完结标记后再 flush；
   被打断的回合不再进入空响应重试/不再追加"模型返回了空响应"错误（打断 ≠
@@ -30,24 +27,12 @@
 - 输入栏下拉箭头第三次修复（前两次加大字号均无效，实机截图证实）：根因是 macOS 26 的 Menu 渲染自定义 label 时吞掉尾部内容——箭头改画在 Menu 外层 overlay（label 右内边距预留 13pt 箭头位，overlay 上 allowsHitTesting(false) 让点击穿透给菜单）
 - 输入栏下拉箭头真根因（桥截图实测确认）：`menuIndicator(.hidden)` 不只隐藏系统指示，还会连带吞掉自定义 label 的尾部内容——自绘箭头 7.5/9.5pt 与 overlay 三个版本全部无效皆因此。修法：去掉 hidden 让系统画原生 ⌄（一行居中，图标-文字-指示），胶囊底/描边改挂 Menu 整体（label 会被菜单按钮再加工，边界不可靠）
 - 删除当前显示中的会话后面板残留+会话复活：删除只动了存储侧，面板内存还留着已删消息（用户实测"删除全部会话回到对话页，当前会话还在，其实已经删除了"），且下一回合收尾落盘会用内存里的 conversationId 把已删文件写回复活。现在三条删除路径（历史列表单删/多选删、桥 /conversations/delete、手机远程 deleteSession）都会在删到面板正在显示的会话时把面板重置回初始空态（handleConversationsDeleted → clear(summarizeMemory: false)——跳过 L2 记忆抽取，用户丢弃会话不应被沉淀成长期记忆）。桥端点 E2E 实测：删除后面板 0 消息、文件不复活
-
-
-
-
-
-
-
-### Fixed
-
 - **打断对话后思考动画不完结（用户实测）**：cancel 收尾补完结——尾部助手
   消息只有 reasoning 没有正文时补"（已取消）"标记并强制重渲染。
 - **navigate 频繁触发 Cloudflare 人工验证（用户实测）**：navigate 触发
   load 后立即返回，agent 读到挑战页判定失败 → 重试 → 挑战风暴。现在
   navigate 等主框架加载完成后检测挑战标记，最多等 15s 让 WebKit 自动通过
   managed challenge；仍在挑战则明确告知模型"需人工点击、勿重试"。
-
-### Fixed
-
 - **元素拾取取消后整页点击瘫痪（P0，虚报已修现真修）**：exit 脚本只删 style
   不摘三个 capture 监听器——取消拾取后整页点击被吞 + NotFoundError；重复进入
   拾取叠加多套监听。现在拾取器自带 `teardown`（挂 window 供 exit 调用），
@@ -83,7 +68,6 @@
 - **DevTools 悬停/改样式选择器转义**（0b3af49 声称修复的补齐——当时只改了
   inspectElement，highlight/mutate 两处漏了）。
 - 密码面板重做（用户反馈"布局不合理、粗糙"）：头部改为强调色锁形徽标 + 标题/条目数 + 图标操作组（生成/导入/导出 | 清空，清空为红色并保留确认弹窗），取代三行裸文字按钮；搜索框从 .searchable 的右上角孤挂改为与书签面板同语言的内嵌搜索行（可一键清空）；条目行重绘：域名首字母强调色徽标 + 域名/用户名两级排版 + 常驻操作钮（显示/复制用户名/复制密码/删除，复制成功图标短暂变对勾），显示密码改为等宽胶囊芯片；列表按保存时间最新在前；空状态带引导文案；导入/导出结果提示补三语
-
 
 ## [v0.4.5] - 2026-09-29
 ### Added

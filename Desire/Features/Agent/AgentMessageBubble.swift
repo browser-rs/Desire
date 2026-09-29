@@ -86,21 +86,18 @@ private struct UserBubble: View {
                         .shadow(color: appAccent.opacity(0.18), radius: 4, y: 1)
                 }
 
+                // 复制按钮必须在**同一个 hover 容器里**：曾放在气泡行外面的独立
+                // HStack，onHover 只罩着气泡——鼠标移到按钮上就离开 hover 区，
+                // 按钮随即消失且禁用点击，永远点不到（用户实测）。放进气泡的
+                // VStack（trailing 对齐 = 贴气泡右缘）后 hover 区域包含按钮本身。
+                CopyChip(text: text)
+                    .opacity(isHovering ? 1 : 0)
+                    .allowsHitTesting(isHovering)
             }
         }
         .padding(.horizontal, 12)
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
-
-        // 用户消息操作行（参照助手操作行）：复制按钮**在气泡下方**，不再
-        // 叠在文字上（用户实测反馈）。右对齐跟随气泡；hover 显隐与助手侧同款。
-        HStack(spacing: 4) {
-            Spacer(minLength: 8)
-            CopyChip(text: text)
-                .opacity(isHovering ? 1 : 0)
-                .allowsHitTesting(isHovering)
-        }
-        .frame(height: 18)
     }
 
     /// Decodes a data URI back to a thumbnail. Old conversations persist

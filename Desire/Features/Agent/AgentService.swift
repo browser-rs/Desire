@@ -288,7 +288,7 @@ struct CloudOpenAIProvider: ModelProvider {
                     req.setValue(sessionID, forHTTPHeaderField: "x-opencode-session")
                 }
 
-                req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature)
+                req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature, reasoningEffort: prefs.reasoningEffort)
 
                 #if DEBUG
                 Self.logRequest(url: url, model: prefs.model, messages: messages, tools: tools, body: req.httpBody)
@@ -312,7 +312,7 @@ struct CloudOpenAIProvider: ModelProvider {
         }
     }
 
-    static func buildBody(messages: [AgentMessage], tools: [AgentToolDef], model: String, maxTokens: Int, temperature: Double) -> Data? {
+    static func buildBody(messages: [AgentMessage], tools: [AgentToolDef], model: String, maxTokens: Int, temperature: Double, reasoningEffort: String = "off") -> Data? {
         var body: [String: Any] = [
             "model": model,
             "messages": messages.map(OpenAICompatSSE.encodeMessage),
@@ -320,6 +320,11 @@ struct CloudOpenAIProvider: ModelProvider {
             "max_tokens": maxTokens,
             "temperature": temperature,
         ]
+        // 思考等级只在用户显式选了档位时发送：OpenAI 兼容服务对不认识的参数
+        // 处理不一（有的忽略、有的直接 400），默认态必须保持请求体与旧版一致。
+        if reasoningEffort != "off" {
+            body["reasoning_effort"] = reasoningEffort
+        }
         if !tools.isEmpty {
             body["tools"] = tools.map(OpenAICompatSSE.encodeTool)
         }

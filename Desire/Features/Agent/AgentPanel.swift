@@ -393,6 +393,8 @@ struct AgentPanel: View {
                 isBrowsingHistory: historyIndex != nil,
                 voiceManager: voiceManager,
                 modelMenu: AnyView(AgentModelMenu(store: store, preference: store.preference)),
+                thinkingMenu: AnyView(AgentThinkingMenu(preference: store.preference)),
+                contextChip: AnyView(AgentContextChip(store: store)),
                 fullAccessPill: AnyView(AgentFullAccessPill(store: store))
             )
             .frame(maxWidth: Self.contentMaxWidth)

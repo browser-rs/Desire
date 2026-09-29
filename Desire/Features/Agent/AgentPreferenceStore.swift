@@ -84,6 +84,17 @@ class AgentPreferenceStore: ObservableObject {
     @Published var temperature: Double {
         didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
     }
+    /// 思考等级（reasoning effort）：输入栏"🧠 等级"下拉。"off" = 不随请求发送
+    /// 任何思考参数（部分服务对不认识的参数直接报 400，所以只有用户显式选了等级
+    /// 才发 `reasoning_effort`）。
+    @Published var reasoningEffort: String {
+        didSet {
+            guard Self.reasoningEfforts.contains(reasoningEffort) else { reasoningEffort = "off"; return }
+            UserDefaults.standard.set(reasoningEffort, forKey: "aiReasoningEffort")
+        }
+    }
+    /// 合法档位（OpenAI `reasoning_effort` 词汇 + off）。UI 与请求侧都以它为准。
+    static let reasoningEfforts = ["off", "low", "medium", "high"]
     // 说明：曾有一个跨服务共用的 `cachedModels`（UserDefaults `aiCachedModels`）给
     // 输入栏的模型下拉当缓存——但它不区分服务，切过服务之后上一个服务的模型会留在
     // 列表里（用户："不同 Provider 模型混在一起不合理"）。现在模型清单只认
@@ -346,6 +357,7 @@ class AgentPreferenceStore: ObservableObject {
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
+        reasoningEffort = UserDefaults.standard.string(forKey: "aiReasoningEffort") ?? "off"
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
         selfReviewEnabled = UserDefaults.standard.object(forKey: "agentSelfReview") as? Bool ?? true
         if let raw = UserDefaults.standard.string(forKey: "agentCriticProfile") {

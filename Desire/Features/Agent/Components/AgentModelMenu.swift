@@ -115,8 +115,11 @@ struct AgentModelMenu: View {
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 7, weight: .semibold))
+                // 单个下箭头（用户参照主流客户端反馈"看不出可以下拉"——原来的
+                // 7pt chevron.up.chevron.down 几乎不可见）。系统指示灯已由
+                // menuIndicator(.hidden) 关掉，避免双箭头。
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7.5, weight: .semibold))
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 9)

@@ -30,6 +30,10 @@ struct AgentInputBar: View {
     var voiceManager: VoiceInputManager? = nil
     /// Model/provider switcher capsule — right group, next to send.
     var modelMenu: AnyView = AnyView(EmptyView())
+    /// 思考等级下拉（🧠 等级 ⌄）— 模型选择器**右侧**（用户参照主流客户端布局）。
+    var thinkingMenu: AnyView = AnyView(EmptyView())
+    /// 上下文占用 chip（gauge %）— 模型选择器**左侧**；同源 store.contextFraction。
+    var contextChip: AnyView = AnyView(EmptyView())
     /// Inline FULL ACCESS toggle pill — left utility group.
     var fullAccessPill: AnyView = AnyView(EmptyView())
 
@@ -189,12 +193,16 @@ struct AgentInputBar: View {
             // Controls live in their OWN full-width row below the text —
             // beside a greedy TextEditor they'd all bunch to the right.
             // 统一间距：相邻控件一律 6pt（此前 4/6 混用，看起来忽紧忽松）。
+            // 右侧组按用户要求"上下文用量 · 模型 · 思考等级"三件排开（参照
+            // 主流客户端：gauge% 在模型左侧、🧠 等级在右侧）。
             HStack(spacing: 6) {
                 fullAccessPill
                 attachButton
                 micButton
                 Spacer(minLength: 6)
+                contextChip
                 modelMenu
+                thinkingMenu
                 sendButton
             }
             .padding(.horizontal, 6)

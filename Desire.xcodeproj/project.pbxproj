@@ -264,7 +264,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 483;
+				CURRENT_PROJECT_VERSION = 484;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = F8JZTX6J52;
 				ENABLE_APP_SANDBOX = NO;
@@ -281,7 +281,7 @@ INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used when a website request
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.4;
+				MARKETING_VERSION = 0.4.5;
 				PRODUCT_BUNDLE_IDENTIFIER = me.siwi.Desire;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -303,7 +303,7 @@ INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used when a website request
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 483;
+				CURRENT_PROJECT_VERSION = 484;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = F8JZTX6J52;
 				ENABLE_APP_SANDBOX = NO;
@@ -318,7 +318,7 @@ INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used when a website request
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.4;
+				MARKETING_VERSION = 0.4.5;
 				PRODUCT_BUNDLE_IDENTIFIER = me.siwi.Desire;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

@@ -3991,6 +3991,7 @@
       }
     },
     "Background scripts are not supported and were ignored." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

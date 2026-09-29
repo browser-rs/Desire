@@ -210,6 +210,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Element Blocker") { postCommand(.showElementBlock) }
+            Button("Password Manager") { postCommand(.showPasswordManager) }
             Divider()
             Button("Show Downloads") { postCommand(.showDownloads) }
                 .keyboardShortcut(binding("showDownloads", "j", .command))

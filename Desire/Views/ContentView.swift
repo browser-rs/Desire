@@ -121,6 +121,7 @@ struct ContentView: View {
                 showBookmarks: $showBookmarks,
                 showPlugins: $showPlugins,
                 showElementBlock: $showElementBlock,
+            showPasswordManager: $showPasswordManager,
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
                 isFindBarVisible: $isFindBarVisible,
@@ -175,6 +176,7 @@ struct ContentView: View {
     @State var showTabOverview = false
     @State var showSidebar = false
     @State var showElementBlock = false
+    @State var showPasswordManager = false
     @State var showSearchHistory = false
     @State var showUndoToast = false
     @State var mediaQueries: [MediaQueryItem] = []
@@ -418,6 +420,7 @@ struct ContentView: View {
             searchHistoryStore: searchHistoryStore,
             readingListStore: readingListStore,
             elementBlockStore: elementBlockStore,
+            passwordStore: passwordStore,
             pluginStore: pluginStore,
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,
@@ -425,6 +428,7 @@ struct ContentView: View {
             showPlugins: $showPlugins,
             showReadingList: $showReadingList,
             showElementBlock: $showElementBlock,
+            showPasswordManager: $showPasswordManager,
             onNavigate: { url in
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             },

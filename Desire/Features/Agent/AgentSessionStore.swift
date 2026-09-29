@@ -995,7 +995,16 @@ class AgentSessionStore: ObservableObject {
                     streamingVersion += 1
                 }
                 for try await event in stream {
-                    if isCancelled { flushTail(); return }
+                    if isCancelled {
+                        // 第十一批：打断后**直接完结**——只有 reasoning 没有正文
+                        // 时补可见的取消标记（否则 flushTail 会用空正文覆盖，用户
+                        // 看到的是"消息不见了"+ 一条空响应错误）。
+                        if assistantMsg != nil, (assistantMsg?.content ?? "").isEmpty {
+                            assistantMsg?.content = "（已取消）"
+                        }
+                        flushTail()
+                        return
+                    }
                     switch event {
                     case .text(let delta):
                         if assistantMsg == nil {
@@ -1125,6 +1134,9 @@ class AgentSessionStore: ObservableObject {
 
                 // 空回合判定：自动重试一次；再空就交给可见警告。
                 if hasContent { break }
+                // 第十一批：用户打断的回合直接退出——不重试、不报空响应错误
+                //（打断 ≠ 模型出错，报错误会误导且打断标记会被覆盖）。
+                if isCancelled { return }
                 emptyRetryAttempts += 1
                 if emptyRetryAttempts >= 2 { break }
                 assistantMsg = nil

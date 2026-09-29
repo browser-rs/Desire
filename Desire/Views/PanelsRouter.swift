@@ -14,6 +14,7 @@ struct PanelsRouter: ViewModifier {
     let searchHistoryStore: SearchHistoryStore
     let readingListStore: ReadingListStore
     let elementBlockStore: ElementBlockStore
+    let passwordStore: PasswordStore
     let pluginStore: PluginStore
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
@@ -21,6 +22,7 @@ struct PanelsRouter: ViewModifier {
     @Binding var showPlugins: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
+    @Binding var showPasswordManager: Bool
 
     /// Navigates the selected tab (panel selection callbacks).
     let onNavigate: (String) -> Void
@@ -62,6 +64,9 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showElementBlock) {
                 ElementBlockPanel(store: elementBlockStore, onStartPicker: onStartElementPicker, onClose: { showElementBlock = false })
+            }
+            .sheet(isPresented: $showPasswordManager) {
+                PasswordPanel(passwordStore: passwordStore)
             }
     }
 }

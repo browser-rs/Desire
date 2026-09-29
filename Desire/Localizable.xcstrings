@@ -111,6 +111,9 @@
         }
       }
     },
+    "…" : {
+
+    },
     "·" : {
       "localizations" : {
         "en" : {
@@ -286,6 +289,9 @@
           }
         }
       }
+    },
+    "\\(batch.finishedCount)/\\(batch.items.count)" : {
+
     },
     "#%@" : {
       "localizations" : {
@@ -1081,6 +1087,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld/%lld"
+          }
+        }
+      }
+    },
+    "%lld/%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld %3$@"
           }
         }
       }
@@ -5003,6 +5019,9 @@
           }
         }
       }
+    },
+    "Cancelled" : {
+
     },
     "Cannot Load Page" : {
       "comment" : "Error page title",
@@ -14805,6 +14824,9 @@
         }
       }
     },
+    "Media Exports" : {
+
+    },
     "Media Q" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15796,6 +15818,9 @@
           }
         }
       }
+    },
+    "No batch tasks" : {
+
     },
     "No Blocking Rules" : {
       "comment" : "Empty element blocker state",
@@ -21536,7 +21561,6 @@
       }
     },
     "Running" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24902,6 +24926,9 @@
         }
       }
     },
+    "Suspended" : {
+
+    },
     "Switch model / provider" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -27911,6 +27938,9 @@
           }
         }
       }
+    },
+    "Video Tasks" : {
+
     },
     "View" : {
       "comment" : "View menu title",

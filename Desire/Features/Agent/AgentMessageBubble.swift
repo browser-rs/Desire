@@ -88,17 +88,19 @@ private struct UserBubble: View {
 
             }
         }
-        .overlay(alignment: .topTrailing) {
-            // Hover affordance must NOT participate in layout — a
-            // conditionally inserted chip reflows the bubble (jitter).
-            if isHovering {
-                CopyChip(text: text)
-                    .offset(x: 6, y: -6)
-            }
-        }
         .padding(.horizontal, 12)
         .onHover { isHovering = $0 }
         .animation(.hoverFast, value: isHovering)
+
+        // 用户消息操作行（参照助手操作行）：复制按钮**在气泡下方**，不再
+        // 叠在文字上（用户实测反馈）。右对齐跟随气泡；hover 显隐与助手侧同款。
+        HStack(spacing: 4) {
+            Spacer(minLength: 8)
+            CopyChip(text: text)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+        }
+        .frame(height: 18)
     }
 
     /// Decodes a data URI back to a thumbnail. Old conversations persist

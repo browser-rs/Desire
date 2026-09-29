@@ -100,8 +100,21 @@ struct ExtensionPopupWebView: NSViewRepresentable {
                 WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
                     reply(result)
                 }
+            case ("tabs", "query"):
+                // R4-7：trove-bookmark 登录页需要当前标签（active tab 的 URL）。
+                let tm = TabSessionCoordinator.shared.activeTabManager
+                let tabs: [[String: Any]] = tm?.tabs.enumerated().map { index, t in
+                    [
+                        "id": t.id.uuidString,
+                        "index": index,
+                        "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                        "title": t.browser.pageTitle,
+                        "active": index == tm?.selectedIndex,
+                    ] as [String: Any]
+                } ?? []
+                reply(tabs)
             default:
-                reply(nil, error: "popup v1 supports storage/notifications only (got \(ns).\(fn))")
+                reply(nil, error: "popup v1 supports storage/notifications/tabs.query only (got \(ns).\(fn))")
             }
         }
     }

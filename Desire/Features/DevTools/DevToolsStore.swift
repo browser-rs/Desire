@@ -326,7 +326,7 @@ class DevToolsStore: ObservableObject {
             jsRequestIDs[jsId] = id
             trimJSRequestIDs()
         }
-            if let status, status >= 400 { noticeFailure(of: id) }
+            if let status, status >= 400 { noticeFailure(of: id, keepingStatus: true) }
             return
         }
         guard phase != "body" else { return }   // 没有对应请求的 body 事件忽略
@@ -361,7 +361,7 @@ class DevToolsStore: ObservableObject {
             jsRequestIDs[jsId] = request.id
             trimJSRequestIDs()
         }
-        if let status, status >= 400 { noticeFailure(of: request.id) }
+        if let status, status >= 400 { noticeFailure(of: request.id, keepingStatus: true) }
     }
 
     /// 最近的、同 URL（且同标签页）未完成的请求（PerformanceObserver 去重用）。
@@ -369,10 +369,14 @@ class DevToolsStore: ObservableObject {
         networkRequests.last { $0.url == url && $0.tabID == tabID && $0.statusCode == nil && !$0.failed }?.id
     }
 
-    private func noticeFailure(of id: UUID) {
+    private func noticeFailure(of id: UUID, keepingStatus: Bool = false) {
         guard let index = networkRequests.firstIndex(where: { $0.id == id }),
               !networkRequests[index].failed else { return }
-        networkRequests[index] = networkRequests[index].failed(error: networkRequests[index].statusText ?? "HTTP \(networkRequests[index].statusCode ?? 0)")
+        // P1-E：4xx/5xx 保留 statusCode/headers/body（此前全置 nil，Status 列
+        // 永远时钟，失败请求的核心信息丢失）。
+        networkRequests[index] = networkRequests[index].failed(
+            error: networkRequests[index].statusText ?? "HTTP \(networkRequests[index].statusCode ?? 0)",
+            keepingStatus: keepingStatus)
     }
 
     /// Application 页签的子页签（放到 store 里：既能跨面板重建保持，也便于
@@ -585,7 +589,7 @@ class DevToolsStore: ObservableObject {
             : "el.style.removeProperty('outline'); el.style.removeProperty('outline-offset');"
         let script = """
         (function() {
-            var el = document.querySelector('\(selector)');
+            var el = document.querySelector('\(Self.escapeJS(selector))');
             if (!el) return;
             \(body)
         })()
@@ -596,7 +600,7 @@ class DevToolsStore: ObservableObject {
     private func runElementMutation(selector: String, body: String, in webView: WKWebView) async {
         let script = """
         (function() {
-            var el = document.querySelector('\(selector)');
+            var el = document.querySelector('\(Self.escapeJS(selector))');
             if (!el) return 'not-found';
             \(body)
             return 'ok';

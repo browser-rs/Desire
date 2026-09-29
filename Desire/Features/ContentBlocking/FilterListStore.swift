@@ -107,7 +107,8 @@ class FilterListStore: ObservableObject {
                     self?.refresh(id: id)
                     return
                 }
-                self?.install(id: id, compiled: cached, lastUpdated: self?.metas[id]?.lastUpdated, ruleCount: self?.metas[id]?.ruleCount)
+                self?.install(id: id, compiled: cached, lastUpdated: self?.metas[id]?.lastUpdated,
+                              ruleCount: self?.metas[id]?.ruleCount, distribute: true)
                 self?.updateIfNeeded()
             }
         }
@@ -336,13 +337,19 @@ class FilterListStore: ObservableObject {
 
     // MARK: - Controller distribution
 
-    private func install(id: String, compiled: WKContentRuleList, lastUpdated: Date?, ruleCount: Int?) {
-        let had = self.compiled.updateValue(compiled, forKey: Self.ruleListIdentifier(id))
+    private func install(id: String, compiled: WKContentRuleList, lastUpdated: Date?, ruleCount: Int?, distribute: Bool = false) {
+        _ = self.compiled.updateValue(compiled, forKey: Self.ruleListIdentifier(id))
         if let i = lists.firstIndex(where: { $0.id == id }) {
             lists[i].lastUpdated = lastUpdated ?? lists[i].lastUpdated
             lists[i].ruleCount = ruleCount ?? lists[i].ruleCount
         }
-        _ = had
+        // P1（第三轮补修）：启动期从持久缓存恢复的列表也要挂回 controller——
+        // 此前 install 只写字典不分发，热启动（第二次启动起）已存在的 webview
+        // 整会话无社区列表拦截（updateIfNeeded 见 lastUpdated 新鲜不 refresh，
+        // 永远没有补挂机会）。
+        if distribute, lists.first(where: { $0.id == id })?.isEnabled == true {
+            addEverywhere(id: id, list: compiled)
+        }
     }
 
     private func addEverywhere(id: String, list: WKContentRuleList) {

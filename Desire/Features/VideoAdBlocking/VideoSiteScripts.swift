@@ -36,8 +36,11 @@ enum VideoSite: CaseIterable {
     }
 
     func matches(_ host: String) -> Bool {
-        for marker in hostMarkers where host.contains(marker) {
-            return true
+        // P1：精确域匹配（host == marker 或 host 以 ".marker" 结尾）——
+        // 此前 contains 子串匹配让 "x.com" 命中 netflix.com / xbox.com，
+        // Twitter 专用脚本在无关站点上执行。
+        for marker in hostMarkers {
+            if host == marker || host.hasSuffix("." + marker) { return true }
         }
         return false
     }
@@ -756,7 +759,7 @@ extension VideoSite {
         if (count > 0) POST({ site: 'tencent', count: count });
     }
     function skipAd() {
-        var skip = document.querySelector('.txp_ad_skip, .video_ad_skip, .c_ad_skip, [class*="skip"]');
+        var skip = document.querySelector('.txp_ad_skip, .txp_ad_secondskip, .video_ad_skip, .c_ad_skip');
         if (skip) { skip.click(); POST({ site: 'tencent', count: 1, action: 'skip' }); }
         // 只 seek **广告层里**的视频——正片视频永不触碰（广告态判定选择器
         // 失配时，旧写法照样误杀正片）。
@@ -768,7 +771,7 @@ extension VideoSite {
         }
     }
     function runAll() { removeAds(); skipAd(); }
-    var obs = new MutationObserver(runAll);
+    if (document.body) obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     if (document.body) obs.observe(document.body, { childList: true, subtree: true, attributes: true });
     [200,800,2000,5000,10000].forEach(function(t) { setTimeout(runAll, t); });
 })();
@@ -800,7 +803,7 @@ extension VideoSite {
         if (count > 0) POST({ site: 'iqiyi', count: count });
     }
     function skipAd() {
-        var skip = document.querySelector('.player-ad-skip, .video-ad-skip, [class*="skip"]');
+        var skip = document.querySelector('.player-ad-skip, .video-ad-skip, .qy-player-skip');
         if (skip) { skip.click(); POST({ site: 'iqiyi', count: 1, action: 'skip' }); }
         // 只 seek **广告层里**的视频——正片视频永不触碰（广告态判定选择器
         // 失配时，旧写法照样误杀正片）。
@@ -845,7 +848,7 @@ extension VideoSite {
         if (count > 0) POST({ site: 'youku', count: count });
     }
     function skipAd() {
-        var skip = document.querySelector('.player-ad-skip, [class*="skip"]');
+        var skip = document.querySelector('.player-ad-skip, .ykp-ad-skip');
         if (skip) { skip.click(); POST({ site: 'youku', count: 1, action: 'skip' }); }
         // 只 seek **广告层里**的视频——正片视频永不触碰（广告态判定选择器
         // 失配时，旧写法照样误杀正片）。
@@ -890,7 +893,7 @@ extension VideoSite {
         if (count > 0) POST({ site: 'mgtv', count: count });
     }
     function skipAd() {
-        var skip = document.querySelector('.player-ad-skip, [class*="skip"]');
+        var skip = document.querySelector('.player-ad-skip, .ykp-ad-skip');
         if (skip) { skip.click(); POST({ site: 'mgtv', count: 1, action: 'skip' }); }
         // 只 seek **广告层里**的视频——正片视频永不触碰（广告态判定选择器
         // 失配时，旧写法照样误杀正片）。

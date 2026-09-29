@@ -655,7 +655,7 @@ struct WebView: NSViewRepresentable {
                 (function() {
                     var f = document.querySelector('input[type=password]').closest('form');
                     if (!f) return;
-                    var u = f.querySelector('input[name=\(usernameName)], input[id=\(usernameName)], input[type=text], input[type=email]');
+                    var u = f.querySelector('input[name="\(usernameName)"], input[id="\(usernameName)"], input[type=text], input[type=email]');
                     if (u) u.value = '\(username)';
                     var p = f.querySelector('input[type=password]');
                     if (p) p.value = '\(password)';

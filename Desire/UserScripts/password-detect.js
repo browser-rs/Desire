@@ -31,12 +31,12 @@
         var username = form.querySelector('input[type=text], input[type=email], input[name*=user], input[name*=email], input[name*=mail], input[name*=login], input[name*=account]');
         if (!username) username = form.querySelector('input:not([type=password]):not([type=hidden])');
         var userVal = username ? username.value : '';
-        setTimeout(function() {
-            window.webkit.messageHandlers.passwordSave.postMessage({
-                username: userVal,
-                password: pwd.value
-            });
-        }, 500);
+        // P1：值在 submit 时已捕获——立即 post（原 500ms 定时器在快速登录时
+        // 随旧文档一起销毁，保存提示时灵时不灵）。
+        window.webkit.messageHandlers.passwordSave.postMessage({
+            username: userVal,
+            password: pwd.value
+        });
     }, true);
     /* OTP 检测（0.3.6）：验证码输入框出现时通知宿主弹提示条。 */
     function detectOTPField() {

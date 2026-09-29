@@ -277,16 +277,18 @@ struct NetworkRequest: Identifiable, Codable {
         )
     }
 
-    func failed(error: String) -> NetworkRequest {
+    func failed(error: String, keepingStatus: Bool = false) -> NetworkRequest {
+        // P1-E：4xx/5xx 的挑战需要保留 statusCode/headers/body——此前全置
+        // nil，Network 面板对失败请求永远显示时钟（无状态码）。
         let endTime = Date()
         let duration = endTime.timeIntervalSince(startTime)
         return NetworkRequest(
             id: id,
             url: url,
             method: method,
-            statusCode: nil,
-            statusText: nil,
-            mimeType: nil,
+            statusCode: keepingStatus ? statusCode : nil,
+            statusText: keepingStatus ? statusText : nil,
+            mimeType: mimeType,
             startTime: startTime,
             endTime: endTime,
             duration: duration,
@@ -294,9 +296,9 @@ struct NetworkRequest: Identifiable, Codable {
             fromCache: self.fromCache,
             size: self.size,
             requestHeaders: requestHeaders,
-            responseHeaders: nil,
+            responseHeaders: keepingStatus ? responseHeaders : nil,
             requestBody: requestBody,
-            responseBody: nil,
+            responseBody: keepingStatus ? responseBody : nil,
             resourceType: resourceType,
             failed: true,
             errorMessage: error,

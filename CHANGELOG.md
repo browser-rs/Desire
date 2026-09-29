@@ -1,3 +1,40 @@
+### Fixed
+
+- **元素拾取取消后整页点击瘫痪（P0，虚报已修现真修）**：exit 脚本只删 style
+  不摘三个 capture 监听器——取消拾取后整页点击被吞 + NotFoundError；重复进入
+  拾取叠加多套监听。现在拾取器自带 `teardown`（挂 window 供 exit 调用），
+  onPick 用 getElementById 判空、加 Esc 退出、重复注入先拆旧套。
+- **元素屏蔽 Undo 删错 id（P1）**：handleElementPicked 生成的 rule 与 store
+  入库的 rule 是两个 UUID——Undo 永远删不中，规则残留且元素在下次导航再次
+  被屏蔽。现在 add 返回实际入库的规则供 undo 引用。
+- **元素屏蔽规则删除无反注入（P1）**：删除规则只改 store，当前页与其他已开
+  标签的即时 style 残留——删除时反向移除对应 style。
+- **密码自动填充对括号形字段名静默失效（P1）**：`user[email]` 类字段名未加
+  引号直接进选择器 → querySelector SyntaxError 被吞。选择器值加引号。
+- **保存密码提示时灵时不灵（P1）**：500ms 延迟 post 在快速登录（响应快于
+  500ms，旧文档销毁）时定时器永不触发——立即 post（值 submit 时已捕获）。
+- **腾讯视频 observer 属性风暴（P1）**：`attributes: true` 无 filter——播放
+  器每帧 style 变更全量扫描；补 attributeFilter 对齐 B站。
+- **4 站通配 `[class*="skip"]` 点击收窄（P1）**：无广告判定时反复点击
+  "跳过片头/片尾"类控件 + 计数虚高——去掉通配，保留具名类。
+- **OTP 检测双链并行 + 无限自续（P2）**：命中时两链各 post 一次（提示条
+  重复拉起）；长驻 SPA 双链每 1.5s 永久轮询。改为单链 + 命中即停。
+- **视频规则单引号转义 no-op（P1-D 真修）**：`"'" → "'"` 在 Swift 里就是
+  裸引号——含 `'` 的用户规则打爆 8 站 CSS（批 9 修了 CRLF，漏了这条同型）。
+
+### Changed
+
+- **DevTools Network 404/500 保留状态信息（P1-E）**：failed() 此前把
+  statusCode/headers/body 全置 nil——失败请求 Status 列永远时钟。现在
+  HTTP 失败保留状态信息（真网络错误仍置空）。
+- **视频规则 CSS 安装脚本缓存双槽（P2-6）**：documentStart（false）与
+  didCommit（true）两种变体不再互相逐出。
+- **视频远程包刷新落盘降级（P2-7）**：磁盘写失败不再丢弃已成功抓取的包
+  （内存采纳 + 落盘 best-effort）。
+- **元素拾取重入去重（P2-11）**：同 (host, selector, xpath) 不再入库两份。
+- **DevTools 悬停/改样式选择器转义**（0b3af49 声称修复的补齐——当时只改了
+  inspectElement，highlight/mutate 两处漏了）。
+
 ## [v0.4.5] - 2026-09-29
 ### Added
 

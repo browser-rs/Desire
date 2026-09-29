@@ -67,7 +67,7 @@ enum URLResolution {
 
     /// Builds the final request URL for a search destination.
     static func searchURL(query: String, target: SearchTarget) -> URL? {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))) ?? query
         return URL(string: target.searchTemplate + encoded)
     }
 

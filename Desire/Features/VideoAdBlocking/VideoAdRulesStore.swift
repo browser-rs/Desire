@@ -215,7 +215,7 @@ final class VideoAdRulesStore: ObservableObject {
         let css = VideoSite.allCases.map { self.css(for: $0) }.joined(separator: "\n")
         let escaped = css
             .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\'")
+            .replacingOccurrences(of: "'", with: "\\'")
             // P1-12：CRLF 一并转义——本地覆盖文件用 Windows 编辑器保存后
             // 残留 \r，进单引号 JS 字符串字面量即 SyntaxError，8 站 CSS 全灭。
             .replacingOccurrences(of: "\r\n", with: "\\n")

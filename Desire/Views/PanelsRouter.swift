@@ -46,7 +46,7 @@ struct PanelsRouter: ViewModifier {
                 SearchHistoryPanel(store: searchHistoryStore, onSelect: { query in
                     showSearchHistory = false
                     let url = settings.searchURLTemplate
-                        + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
+                        + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))) ?? query)
                     onNavigate(url)
                 }, onClose: { showSearchHistory = false })
             }

@@ -95,6 +95,36 @@
 - **Agent/命令缩放不落盘（P2）**：Agent 与 ⌘命令的页面缩放此前不写
   `siteSettingsStore`——下次导航被 didCommit 打回，与手动缩放行为不一致。
 
+### Fixed
+
+- **视频广告拦截误伤正片（P0，第四轮核查）**：7/8 个支持站（B站/腾讯/爱奇艺/
+  优酷/芒果/TikTok）的 skipAd 无广告态判定——广告拦截默认开启时，
+  MutationObserver 持续触发把**正片无条件 seek 到结尾**（"直接播完"）。现在
+  各站 seek 前先检测已知广告容器存在；X 无可靠信号、删掉无条件 seek（宁可
+  漏拦不可错杀）。
+- **证书警告后遗漏的 Info.plist 声明（P0）**：网页请求摄像头/定位时宿主
+  缺 `NSCameraUsageDescription`/`NSLocationWhenInUseUsageDescription`——
+  TCC 层拒绝甚至崩溃（麦克风当初同课）。已补两键。
+- **扩展 popup 的 chrome.tabs.query 缺失（用户扩展实测）**：popup RPC 面补
+  `tabs.query`（trove-bookmark 登录页要取当前标签）；`background` 端补
+  `action.openPopup` 映射。
+- **地址栏回车/Esc 作用于旧标签（P0-2 第三轮）**：URLBarField 的 Coordinator
+  首建时捕获旧 tab 闭包、updateNSView 从不刷新——导航/粘贴/Esc 全落在后台
+  旧标签。每次更新刷新 coordinator 引用。
+- **自签名站以外的搜索编码（P1-C）**：查询词含 `&`/`+`/`=` 时被引擎当参数
+  分隔（"rock & roll" 只搜 "rock"）——四处拼接统一补转义。
+- **视频规则单引号转义 no-op（P1-D）**：`"'" → "'"` 在 Swift 里就是裸引号
+  ——用户规则含单引号时 8 站 CSS 全灭（与 CRLF 同型）。改为真转义。
+- **DevTools Network 面板 404/500 无状态码**：`noticeFailure` 走的
+  `failed(error:)` 把 statusCode/headers 全置 nil——Status 列永远时钟。
+  保留状态码信息。
+- **元素拾取器取消后监听器残留**（Esc 后页面点不动 + NotFoundError）+ 
+  **DevTools 悬停/改样式选择器未转义**（含引号选择器静默失效）。
+- **录屏 startWriting 失败（磁盘满）停止即崩**：加状态守卫。
+- 其他：页面批注读盘挪后台、扩展内容脚本缓存、DevTools pendingRequests
+  上限、console 重复消息丢对象 chip、网络监控 JS 大响应跳过、缩略图切标签
+  不拍、容器删除孤儿化告警、QuickDial/URL 判定（随第十一批部分落地）。
+
 ## [v0.4.4] - 2026-09-29
 
 ### Added

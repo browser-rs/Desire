@@ -25,7 +25,7 @@ class SearchSuggestionService {
     func suggestions(for query: String, template: String) async -> [String] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))) else {
             return []
         }
         let key = template + "|" + trimmed

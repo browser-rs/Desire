@@ -753,6 +753,9 @@ extension VideoSite {
     function skipAd() {
         var skip = document.querySelector('.txp_ad_skip, .video_ad_skip, .c_ad_skip, [class*="skip"]');
         if (skip) { skip.click(); POST({ site: 'tencent', count: 1, action: 'skip' }); }
+        // P0-G：仅在广告容器存在时 seek（旧代码无条件 seek 正片）。
+        var adShowing = !!document.querySelector('.txp_ad, .txp_ad_container, .txp-ui-ad-module');
+        if (!adShowing) return;
         var v = document.querySelector('video');
         if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
             try { v.currentTime = v.duration - 0.3; POST({ site: 'tencent', count: 1, action: 'seek' }); } catch(e) {}
@@ -793,6 +796,9 @@ extension VideoSite {
     function skipAd() {
         var skip = document.querySelector('.player-ad-skip, .video-ad-skip, [class*="skip"]');
         if (skip) { skip.click(); POST({ site: 'iqiyi', count: 1, action: 'skip' }); }
+        // P0-G：仅在广告容器存在时 seek（旧代码无条件 seek 正片）。
+        var adShowing = !!document.querySelector('.iqp-player-ad, .iqp-player-videolayer-ad');
+        if (!adShowing) return;
         var v = document.querySelector('video');
         if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
             try { v.currentTime = v.duration - 0.3; POST({ site: 'iqiyi', count: 1, action: 'seek' }); } catch(e) {}
@@ -834,6 +840,9 @@ extension VideoSite {
     function skipAd() {
         var skip = document.querySelector('.player-ad-skip, [class*="skip"]');
         if (skip) { skip.click(); POST({ site: 'youku', count: 1, action: 'skip' }); }
+        // P0-G：仅在广告容器存在时 seek（旧代码无条件 seek 正片）。
+        var adShowing = !!document.querySelector('.yk-ad-market, .advertise-layer, .kui-ad');
+        if (!adShowing) return;
         var v = document.querySelector('video');
         if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
             try { v.currentTime = v.duration - 0.3; POST({ site: 'youku', count: 1, action: 'seek' }); } catch(e) {}
@@ -875,6 +884,9 @@ extension VideoSite {
     function skipAd() {
         var skip = document.querySelector('.player-ad-skip, [class*="skip"]');
         if (skip) { skip.click(); POST({ site: 'mgtv', count: 1, action: 'skip' }); }
+        // P0-G：仅在广告容器存在时 seek（旧代码无条件 seek 正片）。
+        var adShowing = !!document.querySelector('.mgtv-ad, .ad-container, [class*="ad-tip"]');
+        if (!adShowing) return;
         var v = document.querySelector('video');
         if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
             try { v.currentTime = v.duration - 0.3; POST({ site: 'mgtv', count: 1, action: 'seek' }); } catch(e) {}
@@ -921,6 +933,9 @@ extension VideoSite {
     function skipAd() {
         var skip = document.querySelector('[data-e2e="skip-ad"], [class*="skipAd"], [class*="SkipAd"]');
         if (skip) { skip.click(); POST({ site: 'tiktok', count: 1, action: 'skip' }); }
+        // P0-G：仅在广告容器存在时 seek（旧代码无条件 seek 正片）。
+        var adShowing = !!document.querySelector('[class*="ad-container"], [class*="AdContainer"]');
+        if (!adShowing) return;
         var v = document.querySelector('video');
         if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
             try { v.currentTime = v.duration - 0.3; POST({ site: 'tiktok', count: 1, action: 'seek' }); } catch(e) {}
@@ -961,10 +976,8 @@ extension VideoSite {
         if (count > 0) POST({ site: 'twitter', count: count });
     }
     function skipAd() {
-        var v = document.querySelector('video');
-        if (v && v.duration > 0 && v.currentTime < v.duration - 0.5) {
-            try { v.currentTime = v.duration - 0.3; POST({ site: 'twitter', count: 1, action: 'seek' }); } catch(e) {}
-        }
+        // P0-G：X 无可靠广告容器信号——无条件 seek 正片的旧做法已删除
+        //（宁可漏拦不可错杀正片）。
     }
     function runAll() { removeAds(); skipAd(); }
     var obs = new MutationObserver(runAll);

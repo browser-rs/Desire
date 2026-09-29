@@ -356,7 +356,7 @@ struct SelectedTabContent: View {
                         content.suggestionModel.reset()
                         content.isUrlFocused = false
                         let url = content.settings.searchURLTemplate
-                            + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)
+                            + (query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))) ?? query)
                         actions.navigateToURL(url, for: tab)
                     }
                 )

@@ -46,6 +46,10 @@ struct URLBarField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
+        // 第三轮 P0-2：Coordinator 在首次创建时捕获了当时的 parent 闭包——切
+        // 标签后结构身份不变、不重建，submit/pasteAndGo/Esc 全部作用于**旧标
+        // 签**。每次更新刷新引用（Coordinator 持引用、闭包闭捕获 self）。
+        context.coordinator.parent = self
         // The field editor is always an NSTextView; typed as such because
         // `hasMarkedText()` (IME state) lives on NSTextInputClient, not NSText.
         let editor = nsView.currentEditor() as? NSTextView

@@ -486,11 +486,25 @@ final class BatchMediaExportStore: ObservableObject {
         resolvers[batchID]?.teardown()
         resolvers[batchID] = nil
         batchUserAgents[batchID] = nil
+        cleanOrphanParts(batchID)
         BatchVerifyWindowController.shared.dismiss()
         MediaExportStore.shared.deliverNote(
             String(localized: "Batch download cancelled"),
             body: saveRootDescription + "/" + batches[bi].folderName
         )
+    }
+
+    /// 第十批：清理批内文件夹残留的 `.part` 孤儿（取消/崩溃遗留）——只扫
+    /// 本批目录一层，命中 `.part` 后缀即删（目录专属本批，无误删风险）。
+    private func cleanOrphanParts(_ batchID: UUID) {
+        guard let bi = batches.firstIndex(where: { $0.id == batchID }) else { return }
+        let root = URL(fileURLWithPath: saveRootURL.path)
+            .appendingPathComponent(batches[bi].folderName, isDirectory: true)
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.lastPathComponent.hasSuffix(".part") {
+            try? fm.removeItem(at: entry)
+        }
     }
 
     private var saveRootDescription: String {
@@ -817,7 +831,7 @@ final class BatchMediaExportStore: ObservableObject {
                 return
             }
             if normalized.contains("换") || normalized.contains("位置") || normalized.contains("move") || normalized.contains("folder") {
-                if let picked = Self.pickDirectory() {
+                if let picked = await Self.pickDirectory() {
                     BatchMediaPreferences.baseDirectory = picked.path
                 }
             }
@@ -878,14 +892,21 @@ final class BatchMediaExportStore: ObservableObject {
     }
 
     @MainActor
-    private static func pickDirectory() -> URL? {
+    private static func pickDirectory() async -> URL? {
+        // 第十批：sheet 化（runModal 冻结整个 app——远程会话触发的提问
+        // 尤其恶劣：主线程上挂着整个远程桥等物理点击）。
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.message = "选择批量视频的保存位置（会记住这个偏好）"
         panel.directoryURL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
-        return panel.runModal() == .OK ? panel.directoryURL : nil
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return nil }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<URL?, Never>) in
+            panel.beginSheetModal(for: window) { response in
+                continuation.resume(returning: response == .OK ? panel.directoryURL : nil)
+            }
+        }
     }
 
     // MARK: - 结果回收与自动重试
@@ -991,6 +1012,7 @@ final class BatchMediaExportStore: ObservableObject {
         spaceMonitorTasks[batchID] = nil
         suspendedReasons[batchID] = nil
         persistUnfinished()
+        cleanOrphanParts(batchID)
         BatchVerifyWindowController.shared.dismiss()
 
         let batch = batches[bi]

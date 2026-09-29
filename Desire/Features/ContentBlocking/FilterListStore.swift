@@ -272,14 +272,19 @@ class FilterListStore: ObservableObject {
         var dropped: [String] = []
         for chunk in [Array(lines[..<mid]), Array(lines[mid...])] {
             let chunkText = chunk.joined(separator: "\n")
-            let converted = ABPRuleConverter.convert(chunkText, includeHiding: true)
+            // 第十批：转换挪后台（二分深度 14 × 每层 2 块 = 主线程最多几十遍
+            // 数 MB 转换）；probe 用完即删（此前每次自愈留一份 MB 级缓存残件）。
+            let converted = await Task.detached(priority: .utility) {
+                ABPRuleConverter.convert(chunkText, includeHiding: true)
+            }.value
             if converted.ruleCount == 0 { continue }   // 整块都是注释/不支持的行
             let probeID = identifier + "-probe"
             await removeStoredList(probeID)
             let ok: Bool
             do {
-                _ = try await store.compileContentRuleList(forIdentifier: probeID, encodedContentRuleList: converted.json)
-                ok = true
+                let probed = try await store.compileContentRuleList(forIdentifier: probeID, encodedContentRuleList: converted.json)
+                await removeStoredList(probeID)
+                ok = probed != nil
             } catch {
                 ok = false
             }

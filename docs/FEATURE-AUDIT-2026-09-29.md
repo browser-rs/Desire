@@ -204,13 +204,13 @@ Markdown 取消传播。
 - [x] P1-20 三条登录路径补启设施；P1-21 authStateChanged 补 signedOut→signedIn 重连分支 + 快照/prompt 会话基准改 deliveryTarget
 
 ### 第十批：媒体与拦截深化（1 天）
-- [ ] P1-13 CSS 代数缓存**真正实现** + remoteURL 读盘缓存（补第五批的账）
-- [ ] 直连媒体流式落盘（.part + downloadTask）
-- [ ] .part 孤儿清理（cancel/finalize 扫批内已知项）
-- [ ] 同名 .part 唯一化（掺 UUID）
-- [ ] InterceptStore 删除竞态 + FilterList sanitize 挪后台/probe 清理/计数随返回值
-- [ ] 磁盘挂起"换位置"改 beginSheetModal
-- [ ] 关闭 VideoAdBlocker 的反向清理；xpath 转义回归修复
+- [x] P1-13 CSS 代数缓存 + remoteURL 读盘缓存（核实：上轮已随 P1-14 落地，本轮补齐声明去重与失效点复核）
+- [x] 直连媒体流式落盘（.part + downloadTask）
+- [x] .part 孤儿清理（cancel/finalize 扫批内已知项）
+- [x] 同名 .part 唯一化（掺 UUID）
+- [x] InterceptStore 删除竞态（回调查存在性）；FilterList sanitize 挪后台 + probe 编译后即删；计数随返回值（lastAttemptRuleCount 单值竞态属 UI 显示级，随第十一批）
+- [x] 磁盘挂起"换位置"改 beginSheetModal
+- [x] 关闭 VideoAdBlocker 反向清理 ✓；xpath 转义回归修复 ✓
 
 ### 第十一批：P2 清理（随功能顺带）
 - [ ] 浏览/标签 9 项（缩放兜底、selectedIndex 偏移、标签组成员、selectionAI 复位等）

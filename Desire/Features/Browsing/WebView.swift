@@ -958,8 +958,8 @@ struct WebView: NSViewRepresentable {
                 if !xpathRules.isEmpty {
                     let steps = xpathRules.map { xpath -> String in
                         let escaped = xpath
-                            .replacingOccurrences(of: "\\", with: "\\")
-                            .replacingOccurrences(of: "'", with: "\'")
+                            .replacingOccurrences(of: "\\", with: "\\\\")
+                            .replacingOccurrences(of: "'", with: "\\'")
                         return """
                         try {
                             var el = document.evaluate('\(escaped)', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;

@@ -135,6 +135,12 @@ final class InterceptStore: ObservableObject {
                 return
             }
             Task { @MainActor in
+                // 第十批：编译回调（几十 ms）期间规则可能已被删除——先查存在
+                // 再分发，否则已删规则被 add 回所有 controller 常驻到重启。
+                guard self.rules.contains(where: { $0.id == rule.id }) else {
+                    Self.log.info("intercept: rule removed during compile — discarding")
+                    return
+                }
                 self.compiled[key] = list
                 self.addEverywhere(list: list, ruleID: rule.id)
                 Self.log.info("intercept: rule live (\(rule.kind.rawValue, privacy: .public) \(rule.urlFilter, privacy: .public))")

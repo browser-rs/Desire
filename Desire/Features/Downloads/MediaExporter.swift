@@ -107,13 +107,46 @@ enum MediaExporter {
         // 顺带把文本喂给 ffmpeg 判定，省掉重复请求。
         var directFile: (data: Data, response: URLResponse)?
         var playlistText: String?
+        var streamedLargeFile = false
         if url.pathExtension.lowercased() != "m3u8" {
+            // 第十批：直连媒体先探内容类型——视频/大文件**绝不**整段读进内存
+            //（2-4GB 视频原路径 = 数 GB 峰值内存，并发时 jetsam 风险），
+            // 交由下方 downloadTask 流式落 .part。小型/未知类型仍走内存路径。
+            var request = URLRequest(url: url)
+            if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
+            if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+            request.httpMethod = "HEAD"
+            let mimeHint: String?
+            if let (_, response) = try? await session.data(for: request) {
+                mimeHint = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")
+            } else {
+                mimeHint = nil
+            }
+            let looksLikeMedia = mimeHint?.hasPrefix("video/") == true
+                || mimeHint?.hasPrefix("audio/") == true
+                || ["mp4", "webm", "mkv", "mov", "m4v", "avi", "ts", "flv"].contains(url.pathExtension.lowercased())
+
+            if looksLikeMedia {
+                let fileURL = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
+                let result = try await streamDownloadToPart(
+                    url: url, referer: referer, userAgent: userAgent,
+                    finalURL: fileURL, mimeMP4: mimeHint?.contains("mp4") == true)
+                progress(1, 1, .segments)
+                streamedLargeFile = true
+                let verification = FFmpegExporter.probeSummary(fileURL: fileURL)
+                return Result(fileURL: fileURL, segmentCount: 1, bytes: result, warnings: [], verification: verification)
+            }
+
             let (data, response) = try await fetch(url: url, referer: referer, userAgent: userAgent)
             if let text = String(data: data, encoding: .utf8), text.contains("#EXTM3U") {
                 playlistText = text
             } else {
                 directFile = (data, response)
             }
+        }
+
+        if streamedLargeFile {
+            // 不可达（上方已 return）——编译器满足用
         }
 
         if let directFile {
@@ -460,7 +493,9 @@ enum MediaExporter {
         // Destination: .mp4 when fMP4 (EXT-X-MAP), else .ts (MPEG-TS).
         let isFMP4 = initSegment != nil && (initSegment!.pathExtension.lowercased() == "mp4" || initSegment!.pathExtension.lowercased() == "m4s")
         let finalURL = try destinationURL(for: playlistURL, hint: fileNameHint, isMP4: isFMP4, folderName: folderName, baseDirectory: baseDirectory)
-        let fileURL = finalURL.appendingPathExtension("part")
+        // UUID .part：同 final 名并发导出不交叉写（第十批）
+        let fileURL = finalURL.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
 
         FileManager.default.createFile(atPath: fileURL.path, contents: nil)
         let handle = try FileHandle(forWritingTo: fileURL)
@@ -536,7 +571,11 @@ enum MediaExporter {
     /// 所有下载一律写 `<final>.part`、成功后改名——崩溃/取消只留一个
     /// `.part`（下次尝试原地覆盖），不再产生 "-1" 后缀的残件链。
     private static func writePartAndFinalize(_ finalURL: URL, _ body: (URL) throws -> Void) throws {
-        let part = finalURL.appendingPathExtension("part")
+        // 第十批：.part 名掺 UUID——同名 final（两批同名文件夹并发）不再交叉
+        // 写同一个 .part；同目录保证 finalize 仍是 rename。崩溃残留 = 独立的
+        // UUID .part 文件（不覆盖他人），批量 cancel/finalize 扫 *.part 清理。
+        let part = finalURL.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
         do {
             try body(part)
             try finalizePart(part, final: finalURL)
@@ -547,7 +586,8 @@ enum MediaExporter {
     }
 
     private static func writePartAndFinalizeAsync(_ finalURL: URL, _ body: (URL) async throws -> FFmpegExporter.Outcome) async throws -> FFmpegExporter.Outcome {
-        let part = finalURL.appendingPathExtension("part")
+        let part = finalURL.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
         do {
             let outcome = try await body(part)
             try finalizePart(part, final: finalURL)
@@ -609,6 +649,27 @@ enum MediaExporter {
             n += 1
         }
         return candidate
+    }
+
+    /// 第十批：直连媒体流式下载到 `.part`（downloadTask 走磁盘，不占内存），
+    /// 成功后 finalize 改名。返回落盘字节数。
+    private static func streamDownloadToPart(
+        url: URL, referer: URL?, userAgent: String?,
+        finalURL: URL, mimeMP4: Bool
+    ) async throws -> Int64 {
+        var request = URLRequest(url: url)
+        if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
+        if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+        let (location, _) = try await session.download(for: request)
+        // URLSession 已内部流式落盘（临时文件）；move 到 UUID .part 再走统一
+        // finalize（同盘 rename 通常零拷贝）。
+        let part = finalURL.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
+        try? FileManager.default.removeItem(at: part)
+        try FileManager.default.moveItem(at: location, to: part)
+        try finalizePart(part, final: finalURL)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: finalURL.path)
+        return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
     // MARK: - Cookie 透传

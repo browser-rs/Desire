@@ -1,4 +1,20 @@
-## [v0.4.6] - 2026-09-29
+### Added
+
+- **批量视频下载：用户可指定保存目录（用户实测反馈）**：模型把绝对路径当
+  `folderName` 传时会被消毒成 Downloads 下的畸形文件夹——现在
+  `folderName`/`directory` 里的绝对路径自动拆为保存目录 + 子文件夹名
+  （随批持久化，不改全局偏好）；工具与桥同步加 `directory` 参数。
+- **批量视频下载并发量用户可调（默认 2）**：工具加 `maxConcurrent` 参数
+  （1-4），落 `batch.maxConcurrent` 偏好，`GET /media/batch/config` 可查改。
+
+### Fixed
+
+- **打断对话后思考动画不完结（用户实测）**：cancel 收尾补完结——尾部助手
+  消息只有 reasoning 没有正文时补"（已取消）"标记并强制重渲染。
+- **navigate 频繁触发 Cloudflare 人工验证（用户实测）**：navigate 触发
+  load 后立即返回，agent 读到挑战页判定失败 → 重试 → 挑战风暴。现在
+  navigate 等主框架加载完成后检测挑战标记，最多等 15s 让 WebKit 自动通过
+  managed challenge；仍在挑战则明确告知模型"需人工点击、勿重试"。
 
 ### Fixed
 

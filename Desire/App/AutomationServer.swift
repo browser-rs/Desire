@@ -3428,6 +3428,7 @@ final class AutomationServer {
         let folderName = Self.string(body, "folderName")
         let naming = Self.string(body, "naming")
         let force = body["force"] as? Bool ?? false
+        let directory = Self.string(body, "directory")
         let index = body["index"] as? Int
         switch mode {
         case "page":
@@ -3442,7 +3443,8 @@ final class AutomationServer {
                 userAgent: tab.browser.webView.customUserAgent,
                 folderName: folderName,
                 naming: naming,
-                force: force
+                force: force,
+                directory: directory
             )
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,
@@ -3458,7 +3460,8 @@ final class AutomationServer {
                 userAgent: nil,
                 folderName: folderName,
                 naming: naming,
-                force: force
+                force: force,
+                directory: directory
             )
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,

@@ -508,6 +508,14 @@ class AgentSessionStore: ObservableObject {
         // task stays suspended on its continuation forever (leak + the UI
         // question card never clears).
         UserPromptCenter.shared.cancel()
+        // 第十一批：打断后**直接完结**尾部助手消息——只含 reasoning 的消息
+        // 停在"思考中"形态，思考动画/展开框看起来还在进行。补一条可见的
+        // 取消标记并 bump 重渲染。
+        if let idx = messages.lastIndex(where: { $0.role == .assistant }),
+           (messages[idx].content ?? "").isEmpty {
+            messages[idx].content = "（已取消）"
+            streamingVersion += 1
+        }
         isPaused = false
     }
 

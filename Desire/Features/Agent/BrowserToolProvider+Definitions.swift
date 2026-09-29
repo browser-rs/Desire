@@ -196,6 +196,8 @@ extension BrowserToolProvider {
                     "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the page's host)"),
                     "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
                     "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
+                    "directory": AgentJSONSchemaValue(type: "string", description: "ABSOLUTE directory to save into (user-specified, e.g. /Volumes/SSD/videos) — overrides the default save location for this batch"),
+                    "maxConcurrent": AgentJSONSchemaValue(type: "number", description: "Max parallel downloads 1-4 (default 2)"),
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -206,6 +208,8 @@ extension BrowserToolProvider {
                     "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the first URL's host)"),
                     "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
                     "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
+                    "directory": AgentJSONSchemaValue(type: "string", description: "ABSOLUTE directory to save into (user-specified, e.g. /Volumes/SSD/videos) — overrides the default save location for this batch"),
+                    "maxConcurrent": AgentJSONSchemaValue(type: "number", description: "Max parallel downloads 1-4 (default 2)"),
                 ], required: ["urls"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

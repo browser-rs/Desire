@@ -46,6 +46,9 @@ struct BatchMediaBatch: Identifiable {
 
     let id: UUID
     let mode: Mode
+    /// 保存根目录（绝对路径）。nil = 用户全局偏好（默认 ~/Downloads）。
+    /// 用户在对话里显式指定的目录存这里——每批独立，不改全局偏好。
+    var saveRoot: String?
     let folderName: String
     var items: [BatchMediaItem]
     var state: BatchState = .running

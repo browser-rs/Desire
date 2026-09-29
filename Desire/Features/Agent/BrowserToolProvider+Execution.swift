@@ -255,6 +255,39 @@ extension BrowserToolProvider {
                 tab.urlString = u.absoluteString
             }
             webView.load(URLRequest(url: u))
+            // 第十一批：Cloudflare 挑战页自愈等待——load 返回即读页会看到
+            // "Just a moment" 挑战页，agent 判定失败 → 重试 → 触发更多挑战。
+            // 主框架加载完成后轮询标题（挑战通过即消失），最长 15s。仍在挑战
+            // 则明确告知模型需要人工处理，勿重试。
+            let cfMarkers = ["just a moment", "checking your browser",
+                             "verify you are human", "attention required", "请稍候"]
+            let deadline = Date().addingTimeInterval(15)
+            var challengeReported = false
+            while Date() < deadline {
+                if !webView.isLoading {
+                    let title = (webView.title ?? "").lowercased()
+                    if !challengeReported, !title.isEmpty,
+                       cfMarkers.contains(where: { title.contains($0) }) {
+                        challengeReported = true
+                    }
+                    // 挑战页标记出现过且已消失（标题不再匹配）→ 通过
+                    if challengeReported && !cfMarkers.contains(where: { title.contains($0) }) {
+                        break
+                    }
+                    // 从未出现挑战标记 → 正常页面，直接返回
+                    if !challengeReported, !title.isEmpty {
+                        break
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            if challengeReported {
+                let stillChallenge = cfMarkers.contains(where: { (webView.title ?? "").lowercased().contains($0) })
+                if stillChallenge {
+                    return "Navigated to \(url) — Cloudflare human-verification page is STILL showing. Ask the user to complete the check in the browser window. Do NOT retry navigation."
+                }
+                return "Navigated to \(url) — a Cloudflare check appeared and cleared automatically."
+            }
             return "Navigated to \(url)"
         case "goBack":
             guard webView.canGoBack else { return Self.fail("Cannot go back") }
@@ -792,7 +825,8 @@ extension BrowserToolProvider {
                 userAgent: webView.customUserAgent,
                 folderName: folderName,
                 naming: args["naming"] as? String,
-                force: (args["force"] as? Bool) ?? false
+                force: (args["force"] as? Bool) ?? false,
+                directory: args["directory"] as? String
             )
             let downloading = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -819,12 +853,16 @@ extension BrowserToolProvider {
             let requestedFolder = (args["folderName"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : URL(string: urls[0])?.host
+            if let mc = args["maxConcurrent"] as? Int, (1...4).contains(mc) {
+                BatchMediaPreferences.maxConcurrent = mc
+            }
             let batch = BatchMediaExportStore.shared.startListBatch(
                 pageURLs: urls,
                 userAgent: webView.customUserAgent,
                 folderName: folderName,
                 naming: args["naming"] as? String,
-                force: (args["force"] as? Bool) ?? false
+                force: (args["force"] as? Bool) ?? false,
+                directory: args["directory"] as? String
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }

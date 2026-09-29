@@ -86,7 +86,8 @@ final class BatchMediaExportStore: ObservableObject {
         userAgent: String?,
         folderName: String?,
         naming: String? = nil,
-        force: Bool = false
+        force: Bool = false,
+        directory: String? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planPageBatch(candidates: candidates)
@@ -109,7 +110,8 @@ final class BatchMediaExportStore: ObservableObject {
             items: items,
             skipped: plan.skipped,
             userAgent: userAgent,
-            force: force
+            force: force,
+            directory: directory
         )
     }
 
@@ -120,7 +122,8 @@ final class BatchMediaExportStore: ObservableObject {
         userAgent: String?,
         folderName: String?,
         naming: String? = nil,
-        force: Bool = false
+        force: Bool = false,
+        directory: String? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planListBatch(urls: pageURLs)
@@ -142,7 +145,8 @@ final class BatchMediaExportStore: ObservableObject {
             items: items,
             skipped: plan.skipped,
             userAgent: userAgent,
-            force: force
+            force: force,
+            directory: directory
         )
     }
 
@@ -153,10 +157,22 @@ final class BatchMediaExportStore: ObservableObject {
         items: [BatchMediaItem],
         skipped: [BatchMediaPlan.SkippedEntry],
         userAgent: String?,
-        force: Bool = false
+        force: Bool = false,
+        directory: String? = nil
     ) -> BatchMediaBatch {
+        // 用户/模型可能把**绝对路径**当 folderName 传（"存到 /Volumes/x"）——
+        // 直接消毒会把斜杠打成横杠、落在 Downloads 下的畸形文件夹。拆出
+        // 目录部分作为本批 saveRoot，末段才是子文件夹名。
+        var saveRootOverride: String?
+        var folderInput = folderName ?? ""
+        if let raw = folderInput.trimmingCharacters(in: .whitespacesAndNewlines) as String?,
+           raw.hasPrefix("/") {
+            let url = URL(fileURLWithPath: raw, isDirectory: true)
+            saveRootOverride = url.deletingLastPathComponent().path
+            folderInput = url.lastPathComponent
+        }
         let folder = BatchMediaPlan.sanitizedFileName(
-            from: folderName ?? "",
+            from: folderInput,
             fallback: "Desire-Batch-" + Self.folderTimestamp()
         )
         var batchItems = items
@@ -183,6 +199,7 @@ final class BatchMediaExportStore: ObservableObject {
         let batch = BatchMediaBatch(
             id: UUID(),
             mode: mode,
+            saveRoot: directory ?? saveRootOverride,
             folderName: folder,
             items: batchItems + skippedItems,
             state: .running,
@@ -498,7 +515,7 @@ final class BatchMediaExportStore: ObservableObject {
     /// 本批目录一层，命中 `.part` 后缀即删（目录专属本批，无误删风险）。
     private func cleanOrphanParts(_ batchID: UUID) {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }) else { return }
-        let root = URL(fileURLWithPath: saveRootURL.path)
+        let root = saveRootURL(for: batchID)
             .appendingPathComponent(batches[bi].folderName, isDirectory: true)
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
@@ -672,7 +689,7 @@ final class BatchMediaExportStore: ObservableObject {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running else { return }
         guard !isHalted(batchID) else { return }
-        if let free = volumeFreeBytes(at: saveRootURL), free < reserveBytes {
+        if let free = volumeFreeBytes(at: saveRootURL(for: batchID)), free < reserveBytes {
             suspend(batchID: batchID, reason: "disk free space (\(Self.gb(free)) GB) is below the reserve (\(BatchMediaPreferences.reserveGB) GB)")
             return
         }
@@ -702,7 +719,7 @@ final class BatchMediaExportStore: ObservableObject {
                 userAgent: userAgent,
                 fileNameHint: title,
                 folderName: folderName,
-                baseDirectory: BatchMediaPreferences.baseDirectory,
+                baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory,
                 notify: false,
                 completion: { [weak self] outcome in
                     self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
@@ -729,7 +746,11 @@ final class BatchMediaExportStore: ObservableObject {
         reserveBytes + 512 * 1_048_576
     }
 
-    private var saveRootURL: URL {
+    private func saveRootURL(for batchID: UUID) -> URL {
+        // 用户对话里显式指定的目录优先（随批持久化）；否则全局偏好/默认。
+        if let batch = batches.first(where: { $0.id == batchID }), let root = batch.saveRoot {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
         if let base = BatchMediaPreferences.baseDirectory {
             return URL(fileURLWithPath: base, isDirectory: true)
         }
@@ -755,10 +776,12 @@ final class BatchMediaExportStore: ObservableObject {
         itemProgress[itemID] = (done, total, unit)
         guard Date().timeIntervalSince(lastSpaceCheckAt) > 5 else { return }
         lastSpaceCheckAt = Date()
-        guard let free = volumeFreeBytes(at: saveRootURL), free < reserveBytes else { return }
-        // 在跑的项还在写盘——按 itemID 找回所属批次并挂起。
+        // 在跑的项还在写盘——按 itemID 找回所属批次并挂起（各批可能各有
+        // 自己的保存目录，逐一检查剩余空间）。
         for batch in batches where batch.state == .running {
             guard batch.items.contains(where: { $0.id == itemID }) else { continue }
+            let root = saveRootURL(for: batch.id)
+            guard let free = volumeFreeBytes(at: root), free < reserveBytes else { return }
             suspend(batchID: batch.id, reason: "disk free space (\(Self.gb(free)) GB) dropped below the reserve (\(BatchMediaPreferences.reserveGB) GB) while downloading")
             return
         }
@@ -863,7 +886,7 @@ final class BatchMediaExportStore: ObservableObject {
         guard suspendedReasons[batchID] != nil,
               let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running else { return }
-        guard let free = volumeFreeBytes(at: saveRootURL), free >= resumeBytes else { return }
+        guard let free = volumeFreeBytes(at: saveRootURL(for: batchID)), free >= resumeBytes else { return }
         let reason = suspendedReasons[batchID]
         suspendedReasons[batchID] = nil
         spaceMonitorTasks[batchID]?.cancel()

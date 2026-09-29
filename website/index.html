@@ -43,35 +43,74 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 下载；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；自动化桥接口。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome 式装载、Safari 扩展包导入）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；60+ 端点自动化桥。"
     },
     {
       "@type": "FAQPage",
       "mainEntity": [
         {
-          "@type": "Question",
-          "name": "Desire 是免费的吗？",
-          "acceptedAnswer": { "@type": "Answer", "text": "是。全部功能免费使用，安装包从 GitHub Releases 下载，无需注册即可使用所有本地功能；账号仅用于多设备同步。" }
+                    "@type": "Question",
+                    "name": "Desire 是免费的吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "是。全部功能免费使用，安装包从 GitHub Releases 下载。无需注册即可使用所有本地功能——账号只在你需要多设备同步时才出现。"
+                    }
         },
         {
-          "@type": "Question",
-          "name": "Desire 需要什么硬件和系统版本？",
-          "acceptedAnswer": { "@type": "Answer", "text": "Apple Silicon（arm64）Mac，macOS 26.5 及以上版本。" }
+                    "@type": "Question",
+                    "name": "需要什么硬件和系统版本？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Apple Silicon（arm64）Mac，macOS 26.5 及以上版本。"
+                    }
         },
         {
-          "@type": "Question",
-          "name": "打开时提示无法验证或已损坏怎么办？",
-          "acceptedAnswer": { "@type": "Answer", "text": "Desire 是未签名构建（无 Developer ID 证书）。把 Desire.app 拖进 /Applications 后，在终端执行一次 xattr -cr /Applications/Desire.app 移除隔离标记即可正常打开。" }
+                    "@type": "Question",
+                    "name": "打开时提示无法验证或“已损坏”怎么办？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Desire 是未签名构建（没有 Developer ID 证书）。把 Desire.app 拖进「应用程序」后，在终端执行一次 xattr -cr /Applications/Desire.app 移除隔离标记，即可正常打开。"
+                    }
         },
         {
-          "@type": "Question",
-          "name": "同步的数据安全吗？服务器能看到我的书签吗？",
-          "acceptedAnswer": { "@type": "Answer", "text": "同步采用端到端加密：密钥由你的密码在本机派生（PBKDF2 六十万轮），书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆与提示词八类数据（浏览历史默认关闭）加密后才上传，服务器只见密文，连条目 ID 都是不可逆标签。AI 对话永久保留在设备本地，不参与同步。" }
+                    "@type": "Question",
+                    "name": "AI 用什么模型？要额外付费吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "模型自带（BYOK）：任何 OpenAI 兼容服务、Anthropic 官方或同方言网关、本机 Ollama、macOS 端上模型都能接。思考等级可调，token 用量与成本按你填的单价在本机核算；模型服务本身的费用由各服务商收取。"
+                    }
         },
         {
-          "@type": "Question",
-          "name": "忘记同步密码会怎样？",
-          "acceptedAnswer": { "@type": "Answer", "text": "解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。" }
+                    "@type": "Question",
+                    "name": "同步的数据安全吗？服务器能看到我的书签吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "看不到。同步是端到端加密的：密钥由你的密码在本机派生（PBKDF2 六十万轮），八类数据（浏览历史默认关闭）加密后才上传，服务器只见密文，连条目 ID 都换成了不可逆标签。AI 对话永久保留在设备本地，不参与同步。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "能批量下载视频吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "能。把列表页拉成批量任务：逐个嗅探或逐页解析，可指定保存目录与并发数，支持断点续传、磁盘空间预留与失败自动重试；遇到人机验证会请你人工过一次，之后同批自动继续。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "支持 iPhone 吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "完整浏览器是 macOS 应用；iPhone 上有 Desire Remote——扫码配对后可以远程驱动 Mac 上正在运行的智能体：发消息、看进度、管理会话。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "忘记同步密码会怎样？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。"
+                    }
         }
       ]
     }
@@ -460,6 +499,59 @@
     max-width: 46em;
   }
 
+  /* ================= 模型接入 ================= */
+  .proto-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem 1.6rem;
+  }
+  .proto {
+    border: 1px solid var(--hairline);
+    border-top: 2px solid var(--ink);
+    background: var(--paper);
+    padding: 1.5rem 1.6rem;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .proto:hover { border-top-color: var(--cinnabar); transform: translateY(-2px); }
+  .proto .tag {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.2em;
+    color: var(--cinnabar);
+    display: block;
+    margin-bottom: 0.55rem;
+  }
+  .proto h3 {
+    font-family: var(--font-display);
+    font-size: 1.18rem;
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+  }
+  .proto p { font-size: 0.9rem; color: var(--ink-soft); }
+  .proto-note {
+    margin-top: 2rem;
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--cinnabar);
+    padding-left: 1.1rem;
+    max-width: 46em;
+  }
+
+  /* ================= 第二排小卡 ================= */
+  .mini-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2.1rem 2.6rem;
+  }
+  .mini { border-top: 1px solid var(--hairline-2); padding-top: 1.05rem; }
+  .mini h3 {
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    font-weight: 500;
+    margin-bottom: 0.38rem;
+  }
+  .mini p { font-size: 0.86rem; color: var(--ink-soft); }
+
   /* ================= 常见问题 ================= */
   .faq-list { border-top: 1px solid var(--hairline); }
   .faq-item { border-bottom: 1px solid var(--hairline); }
@@ -632,6 +724,8 @@
     .trace-grid { grid-template-columns: 1fr; gap: 2rem; }
     .e2e-steps { grid-template-columns: 1fr; gap: 1.8rem; }
     .dl-grid { grid-template-columns: 1fr; gap: 2.6rem; }
+    .proto-grid { grid-template-columns: 1fr; gap: 1.2rem; }
+    .mini-grid { grid-template-columns: 1fr; gap: 1.4rem; }
   }
 </style>
 </head>
@@ -644,6 +738,7 @@
     <nav class="main" aria-label="页面导航">
       <a href="#features">特性</a>
       <a href="#agent">智能体</a>
+      <a href="#models">模型</a>
       <a href="#e2e">加密</a>
       <a href="#faq">问答</a>
       <a href="#download">下载</a>
@@ -691,12 +786,12 @@
   <div class="ticker" aria-hidden="true">
     <div class="ticker-track">
       <ul>
-        <li>内置智能体</li><li>端到端加密同步</li><li>视频广告拦截</li><li>HLS 直下 MP4</li>
-        <li>多档案隔离</li><li>快捷键随心改</li><li>广告拦截</li><li>开发者工具</li>
+        <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
+        <li>密码管理器</li><li>插件系统</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
       <ul>
-        <li>内置智能体</li><li>端到端加密同步</li><li>视频广告拦截</li><li>HLS 直下 MP4</li>
-        <li>多档案隔离</li><li>快捷键随心改</li><li>广告拦截</li><li>开发者工具</li>
+        <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
+        <li>密码管理器</li><li>插件系统</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
     </div>
   </div>
@@ -736,7 +831,8 @@
           <span class="feature-no">03</span>
           <h3 class="feature-name">视频站，清净且能带走</h3>
           <p class="feature-desc">视频广告按站点规则拦截，<b>规则热插拔</b>、无需更新应用；
-            想收藏的 HLS 视频直下 MP4——本机装有 ffmpeg 便自动直连，音轨一个不丢。</p>
+            想收藏的 HLS 视频直下 MP4——本机装有 ffmpeg 便自动直连，音轨一个不丢；
+            整个列表页可以拉成批量任务：<b>指定目录与并发</b>、断点续传、磁盘空间预留，失败自动重试。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">04</span>
@@ -754,7 +850,8 @@
           <span class="feature-no">06</span>
           <h3 class="feature-name">给折腾的人</h3>
           <p class="feature-desc">Console 与 Network 按标签页归档，DOM 树逐层展开、请求可重放；
-            响应式模式模拟触屏视口。中键关标签、链接新开，都是顺手的默认。</p>
+            响应式模式模拟触屏视口。中键关标签、链接新开，都是顺手的默认。
+            还有 <b>MCP 服务器与客户端</b>、六十多个端点的自动化桥——Desire 本身就是你机器上的一个工具。</p>
         </div>
       </div>
     </div>
@@ -779,6 +876,78 @@
         <div class="t-step"><span>runCommand → 逐条执行并核对退出码</span><span class="ms">12.8s</span></div>
         <div class="t-step"><span>readFile → 比对输出与教程预期</span><span class="ms">0.1s</span></div>
         <div class="t-done">整理完毕，132 项校验全部通过 <span class="ok">✓</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 模型随你接 ================= -->
+  <section class="block" id="models">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">模型随你接</p>
+        <h2 class="title">Key 在你手里，<br>模型就该你说了算。</h2>
+      </div>
+      <div class="proto-grid">
+        <div class="proto reveal">
+          <span class="tag">OPENAI COMPATIBLE</span>
+          <h3>OpenAI 兼容</h3>
+          <p>OpenAI、DeepSeek、智谱、OpenRouter 与一切同形端点。每个服务各管各的 Key、端点与模型清单，切服务即切模型。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">ANTHROPIC</span>
+          <h3>Anthropic Messages</h3>
+          <p>Messages API 原生接入：官方 API 与同方言网关，工具调用与思考预算全按协议来。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">LOCAL</span>
+          <h3>本机 Ollama</h3>
+          <p>本地推理，对话不出这台机器——离线也能聊。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">ON-DEVICE</span>
+          <h3>端上 Foundation Models</h3>
+          <p>macOS 内置模型，零配置零费用，轻活儿随手派。</p>
+        </div>
+      </div>
+      <p class="proto-note reveal">
+        思考等级随请求下发（关 / 低 / 中 / 最高）；每一回合的 token 用量按你填的单价折算成钱，账单摊开给你看。
+        AI 对话只存在本机，不参与同步。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= 还有这些 ================= -->
+  <section class="block" id="more" style="padding-top:0;">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">还有这些</p>
+        <h2 class="title">打磨进缝隙里的第二排。</h2>
+      </div>
+      <div class="mini-grid">
+        <div class="mini reveal">
+          <h3>密码管理器</h3>
+          <p>站点保存与自动填充、强密码生成器、CSV 导入导出；凭据交给系统钥匙串保管。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>插件系统</h3>
+          <p>Chrome 式从文件夹直接装载，Safari 扩展包与 zip 也能导入；后台脚本与右键菜单照常工作。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>Desire Remote</h3>
+          <p>iPhone 扫码配对，把 Mac 上的智能体揣进口袋——发消息、看进度、管会话。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>MCP 双向</h3>
+          <p>既是 MCP 服务器，把页面能力暴露给别的助手；也是客户端，接入外部工具。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>定时任务与自动化桥</h3>
+          <p>预约回合按点跑，六十多个桥端点把重复劳动写成时间表。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>截图与录屏</h3>
+          <p>网页截图、窗口录屏随叫随到，产物直接进剪贴板或存档。</p>
+        </div>
       </div>
     </div>
   </section>
@@ -827,7 +996,7 @@
     <div class="wrap">
       <div class="sec-head reveal">
         <p class="kicker">常见问题</p>
-        <h2 class="title">问得最多的五件事。</h2>
+        <h2 class="title">问得最多的八件事。</h2>
       </div>
       <div class="faq-list">
         <details class="faq-item reveal" open>
@@ -839,12 +1008,24 @@
           <p>Apple Silicon（arm64）Mac，macOS 26.5 及以上版本。</p>
         </details>
         <details class="faq-item reveal">
-          <summary>打开时提示无法验证或"已损坏"怎么办？</summary>
+          <summary>打开时提示无法验证或“已损坏”怎么办？</summary>
           <p>Desire 是未签名构建（没有 Developer ID 证书）。把 Desire.app 拖进「应用程序」后，在终端执行一次 <code>xattr -cr /Applications/Desire.app</code> 移除隔离标记，即可正常打开。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>AI 用什么模型？要额外付费吗？</summary>
+          <p>模型自带（BYOK）：任何 OpenAI 兼容服务、Anthropic 官方或同方言网关、本机 Ollama、macOS 端上模型都能接。思考等级可调，token 用量与成本按你填的单价在本机核算；模型服务本身的费用由各服务商收取。</p>
         </details>
         <details class="faq-item reveal">
           <summary>同步的数据安全吗？服务器能看到我的书签吗？</summary>
           <p>看不到。同步是端到端加密的：密钥由你的密码在本机派生（PBKDF2 六十万轮），八类数据（浏览历史默认关闭）加密后才上传，服务器只见密文，连条目 ID 都换成了不可逆标签。AI 对话永久保留在设备本地，不参与同步。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>能批量下载视频吗？</summary>
+          <p>能。把列表页拉成批量任务：逐个嗅探或逐页解析，可指定保存目录与并发数，支持断点续传、磁盘空间预留与失败自动重试；遇到人机验证会请你人工过一次，之后同批自动继续。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>支持 iPhone 吗？</summary>
+          <p>完整浏览器是 macOS 应用；iPhone 上有 Desire Remote——扫码配对后可以远程驱动 Mac 上正在运行的智能体：发消息、看进度、管理会话。</p>
         </details>
         <details class="faq-item reveal">
           <summary>忘记同步密码会怎样？</summary>

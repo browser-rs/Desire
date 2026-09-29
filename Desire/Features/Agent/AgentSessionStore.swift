@@ -579,7 +579,9 @@ class AgentSessionStore: ObservableObject {
         saveCurrentConversation()
     }
 
-    func clear() {
+    /// `summarizeMemory: false` = 删除会话路径（`handleConversationsDeleted`）：
+    /// 用户丢弃会话 ≠ 想把它沉淀成长期记忆，跳过 L2 摘要抽取。
+    func clear(summarizeMemory: Bool = true) {
         // CONC-2：先停掉在跑的回合——此前只置 isProcessing = false，旧 loopTask
         // 会挂在审批/提问续体上永久泄漏，且新回合与旧循环交错写同一个 messages
         //（工具调用/结果配对被破坏）。舞步与 cancel() 一致。
@@ -594,7 +596,7 @@ class AgentSessionStore: ObservableObject {
         }
         // The conversation is about to disappear — capture its L2 summary
         // first so "新对话" doesn't erase what happened.
-        if preference.memoryLearning, messages.count >= 8, let cid = conversationId {
+        if summarizeMemory, preference.memoryLearning, messages.count >= 8, let cid = conversationId {
             let snapshot = messages
             Task { await MemoryExtractor.summarize(
                 preference: preference,
@@ -629,6 +631,17 @@ class AgentSessionStore: ObservableObject {
         // starts fresh (a prior tool chain shouldn't pin the new one to cloud).
         preference.routingLockedToCloud = false
         lastProviderUsed = nil
+    }
+
+    /// 删除路径的收尾（历史列表单删/多选删、桥 /conversations/delete、手机远程
+    /// deleteSession 共用）：被删集合包含**面板正在显示的会话**时，把面板重置回
+    /// 初始空态。此前只删了存储侧——面板内存还留着已删消息（用户实测"删除全部
+    /// 会话回到对话页，当前会话还在，其实已经删除了"），且下一回合收尾
+    /// `saveCurrentConversation` 会用内存里的 conversationId 把文件写回，
+    /// 已删除的会话被复活。
+    func handleConversationsDeleted(_ ids: Set<UUID>) {
+        guard let current = conversationId, ids.contains(current) else { return }
+        clear(summarizeMemory: false)
     }
 
     /// Called when a chat surface (sidebar or floating panel) becomes

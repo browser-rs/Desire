@@ -457,10 +457,12 @@ final class RemoteControlStore: ObservableObject {
             AgentScheduler.shared.deliveryTarget?.cancel()
             pushSnapshot(force: true)
         case "deleteSession":
-            // 手机端滑动删除：与桌面历史列表删除同一语义（delete 即移除，
-            // 面板正打开的会话不受影响——桌面端行为一致）
+            // 手机端滑动删除：与桌面历史列表删除同一语义（delete 即移除）；
+            // 删到面板正打开的会话时同步把面板重置回空态（此前桌面端也一样残留，
+            // 已修——不重置的话残留消息显示 + 下一回合落盘复活已删会话）。
             guard let app = AppState.live, let sid = inner.session, let id = UUID(uuidString: sid) else { return }
             app.conversationStore.delete(id)
+            AgentScheduler.shared.deliveryTarget?.handleConversationsDeleted([id])
             if remoteConversationID == sid {
                 remoteConversationID = nil
             }

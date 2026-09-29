@@ -239,6 +239,9 @@ struct AgentHistoryListView: View {
         alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             conversationStore.delete(ids)
+            // 删的是面板正在显示的会话（删全部必然包含）→ 面板重置回初始空态；
+            // 不重置的话残留消息还在显示，下一回合还会把已删文件写回复活。
+            sessionStore.handleConversationsDeleted(ids)
             selection.removeAll()
         }
     }

@@ -2841,9 +2841,10 @@ final class AutomationServer {
         var result: [String: Any] = ["ok": true, "deleted": hit.map { $0.uuidString }.sorted(),
                                      "missing": ids.subtracting(known).map { $0.uuidString }.sorted(),
                                      "scope": live != nil ? "live" : (AppState.live != nil ? "app" : "saved")]
-        // 删掉的是**正在面板里显示的**那个会话时如实说明：面板内存里还留着那些消息，
-        // 下一回合收尾落盘会把文件写回来（与历史列表里删当前会话的行为一致）。
-        if let liveID = live?.conversationId, hit.contains(liveID) {
+        // 删掉的是**正在面板里显示的**那个会话时，把面板重置回初始空态——
+        // 此前只删存储侧，面板残留已删消息且下一回合落盘会把文件写回复活。
+        if let live, let liveID = live.conversationId, hit.contains(liveID) {
+            live.handleConversationsDeleted(hit)
             result["liveConversationDeleted"] = true
         }
         return result

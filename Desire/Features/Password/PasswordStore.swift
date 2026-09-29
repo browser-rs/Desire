@@ -131,14 +131,33 @@ class PasswordStore: ObservableObject {
         var imported = 0
         let csv = csv.hasPrefix("\u{FEFF}") ? String(csv.dropFirst()) : csv
         var lines = csv.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        if let first = lines.first, first.lowercased().contains("username") && first.lowercased().contains("password") {
-            lines.removeFirst()
+
+        // P1-11：按**表头**映射列——此前写死 Chrome 列序（url/name/username/
+        // password），Firefox 导出（url,username,password,…）会把 username 当
+        // domain、时间戳当 password 真实写进 Keychain。
+        var col: (url: Int, username: Int, password: Int) = (1, 2, 3)  // Chrome 缺省
+        if let first = lines.first,
+           let header = parseCSVLine(first).map({ $0.lowercased() }) as [String]? {
+            func idx(_ keys: [String]) -> Int? {
+                header.firstIndex { h in keys.contains { h.contains($0) } }
+            }
+            if let u = idx(["url"]), let un = idx(["username", "login", "user"]),
+               let p = idx(["password"]) {
+                col = (u, un, p)
+            }
+            if header.contains("username") && header.contains("password") {
+                lines.removeFirst()
+            }
         }
+
         for line in lines {
             let fields = parseCSVLine(line)
-            guard fields.count >= 4, !fields[1].isEmpty, !fields[3].isEmpty else { continue }
+            guard fields.count > max(col.url, col.username, col.password) else { continue }
+            let rawURL = fields[col.url]
+            let username = fields[col.username]
+            let password = fields[col.password]
+            guard !username.isEmpty, !password.isEmpty else { continue }
             // Extract host from the URL column (may be full URL or bare domain).
-            let rawURL = fields[1]
             let host: String
             if let url = URL(string: rawURL), let h = url.host {
                 host = h
@@ -146,7 +165,7 @@ class PasswordStore: ObservableObject {
                 host = rawURL
             }
             guard !host.isEmpty else { continue }
-            save(domain: host, username: fields[2], password: fields[3])
+            save(domain: host, username: username, password: password)
             imported += 1
         }
         return imported

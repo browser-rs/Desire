@@ -64,8 +64,18 @@ struct URLBarField: NSViewRepresentable {
             context.coordinator.wasFocused = true
             context.coordinator.focusField()
         }
-        if !isFocused {
+        if !isFocused, context.coordinator.wasFocused {
+            // P1-8：Esc 置 isUrlFocused=false 后字段仍是真实 first responder
+            //（controlTextDidBeginEditing 不会再发）——不 resign 就是"半聚焦
+            // 僵尸态"：继续打字无下拉无高亮。这里补真正的失焦。
             context.coordinator.wasFocused = false
+            // 跳一帧：与 focusField 同理，避免在更新事务里动 first responder。
+            Task { @MainActor in
+                if let window = nsView.window, window.firstResponder === nsView
+                    || window.firstResponder === nsView.currentEditor() {
+                    window.makeFirstResponder(nil)
+                }
+            }
         }
     }
 

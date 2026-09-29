@@ -107,38 +107,47 @@ final class PageWatchStore: ObservableObject {
         isChecking = true
         defer { isChecking = false }
 
+        // P1-6：await 前捕获 watch 快照与 id——检查最长 ~12s，期间增删会令
+        // idx 失配（写穿到别的 watch，越界即崩）。写回全部按 id 定位；id 消失
+        // = 该 watch 已被删，丢弃本次结果。
         let watch = watches[idx]
+        let watchID = watch.id
         do {
             let text = try await fetchText(url: URL(string: watch.url)!, selector: watch.selector)
             let normalized = normalize(text)
-            watches[idx].lastCheckedAt = Date()
-            watches[idx].lastError = nil
+            guard let cur = watches.firstIndex(where: { $0.id == watchID }) else {
+                Self.log.info("page watch '\(watch.name, privacy: .public)' removed during check — discarding result")
+                return false
+            }
+            watches[cur].lastCheckedAt = Date()
+            watches[cur].lastError = nil
 
             let baseline = watch.previousText
             let changed = baseline != nil && baseline != normalized
             if changed {
-                watches[idx].changeCount += 1
-                watches[idx].lastChangedAt = Date()
-                watches[idx].previousText = String(normalized.prefix(Self.maxTextLength))
+                watches[cur].changeCount += 1
+                watches[cur].lastChangedAt = Date()
+                watches[cur].previousText = String(normalized.prefix(Self.maxTextLength))
                 let diff = "chars \(baseline?.count ?? 0) → \(normalized.count)"
                 save()
-                notifyChange(watch: watches[idx], diff: diff)
+                notifyChange(watch: watches[cur], diff: diff)
                 BridgeEventBus.shared.publish("pageWatchChanged", [
-                    "name": watches[idx].name,
-                    "url": watches[idx].url,
-                    "changeCount": watches[idx].changeCount,
+                    "name": watches[cur].name,
+                    "url": watches[cur].url,
+                    "changeCount": watches[cur].changeCount,
                     "diff": diff,
                 ])
             } else if baseline == nil {
-                watches[idx].previousText = String(normalized.prefix(Self.maxTextLength))
+                watches[cur].previousText = String(normalized.prefix(Self.maxTextLength))
                 save()
             } else {
                 save()
             }
             return changed
         } catch {
-            watches[idx].lastCheckedAt = Date()
-            watches[idx].lastError = error.localizedDescription
+            guard let cur = watches.firstIndex(where: { $0.id == watchID }) else { return false }
+            watches[cur].lastCheckedAt = Date()
+            watches[cur].lastError = error.localizedDescription
             save()
             Self.log.error("page watch '\(watch.name, privacy: .public)' failed: \(error.localizedDescription, privacy: .public)")
             return false

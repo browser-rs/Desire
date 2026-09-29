@@ -489,6 +489,11 @@ class AgentSessionStore: ObservableObject {
         // immediately instead of waiting for the next event/timeout.
         loopTask?.cancel()
         loopTask = nil
+        // C-5：被用户中途叫停的定时任务不能记成 success——以失败 outcome
+        // 冲掉 handlers（否则 Scheduler 的 RunRecord 永远停在 delivered）。
+        let handlers = turnFinishHandlers
+        turnFinishHandlers.removeAll()
+        handlers.forEach { $0(TurnOutcome(success: false, error: "cancelled by user")) }
         approvalTimeoutTask?.cancel()
         approvalTimeoutTask = nil
         // If waiting on an approval, resume the suspended continuation with
@@ -834,8 +839,10 @@ class AgentSessionStore: ObservableObject {
             lastTurnErrorText = nil
             await runTurn()
             // Turn finished — hand the outcome to registered handlers
-            // (scheduler run records for scheduled prompts).
-            let outcome = TurnOutcome(success: !turnFailed, error: lastTurnErrorText)
+            // (scheduler run records for scheduled prompts). 用户中途取消
+            // （turnFailed 未置）也不算 success（C-5）。
+            let outcome = TurnOutcome(success: !turnFailed && !isCancelled,
+                                      error: isCancelled ? "cancelled by user" : lastTurnErrorText)
             let handlers = turnFinishHandlers
             turnFinishHandlers.removeAll()
             handlers.forEach { $0(outcome) }
@@ -895,7 +902,9 @@ class AgentSessionStore: ObservableObject {
 
         // 自动自评（同上：在"忙碌"交还界面之后跑；失败静默，不影响回合结论）。
         if !isCancelled {
-            await runSelfReviewIfNeeded()
+            // P1-18：收尾期间用户可能已发出下一回合——自评按消息 id 定位写回，
+            // 不再读活体 lastIndex（写进新回合正在流式的消息 = 张冠李戴）。
+            await runSelfReviewIfNeeded(tailAssistantID: messages.last(where: { $0.role == .assistant })?.id)
         }
     }
 
@@ -1089,7 +1098,9 @@ class AgentSessionStore: ObservableObject {
                 // nothing has streamed yet, so a retry can never duplicate
                 // partial output.
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
-                if isCancelled { return }
+                // P1-17：Task.isCancelled 与共享标志解耦——cancel 后立即新发送
+                // 会重置共享标志，旧循环必须靠自身取消状态退出。
+                if isCancelled || Task.isCancelled { return }
                 do {
                     try await runStream()
                 } catch {
@@ -1137,7 +1148,7 @@ class AgentSessionStore: ObservableObject {
             // pause the loop (via a continuation) until the user decides.
             var ti = 0
             while ti < tcs.count {
-                if isCancelled { return }
+                if isCancelled || Task.isCancelled { return }
                 await waitWhilePaused()
 
                 // **只读段并行**：从当前位置起连续的 .readonly 工具互不改状态、也从不
@@ -1246,7 +1257,7 @@ class AgentSessionStore: ObservableObject {
 
     private func acquireApprovalSlot() async {
         while approvalSlotBusy {
-            if isCancelled { return }
+            if isCancelled || Task.isCancelled { return }
             try? await Task.sleep(nanoseconds: 80_000_000)
         }
         approvalSlotBusy = true
@@ -1670,12 +1681,18 @@ class AgentSessionStore: ObservableObject {
 
     /// 回合收尾的**自动**自评：只在"≥3 次工具调用或含高风险动作"的回合跑——普通闲聊
     /// 不打扰、也不多花一次模型调用。结果折叠挂在最后一条助手消息上。
-    private func runSelfReviewIfNeeded() async {
+    private func runSelfReviewIfNeeded(tailAssistantID: UUID?) async {
         guard preference.selfReviewEnabled else { return }
         let turn = currentTurnTrace()
         guard turn.toolCount >= 3 || turn.dangerous else { return }
         guard let critique = await runCritique(goal: turn.goal, trace: turn.trace) else { return }
-        guard let index = messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        // P1-18：按 id 定位写回——await 期间新回合可能已 append 助手消息，
+        // 活体 lastIndex 会把评语写进新回合正在流式的消息。
+        let index = tailAssistantID.flatMap { id in messages.lastIndex { $0.id == id && $0.role == .assistant } }
+        guard let index else {
+            Log.agent.info("self-review dropped: tail assistant message replaced during critique")
+            return
+        }
         messages[index].critique = critique
         streamingVersion += 1
         saveCurrentConversation()
@@ -1745,7 +1762,7 @@ class AgentSessionStore: ObservableObject {
         var pending: [(call: AgentToolCall, startedAt: Date)] = []
         for call in calls {
             let decision = await gate(toolCall: call, risk: .readonly)
-            if isCancelled { return }
+            if isCancelled || Task.isCancelled { return }
             switch decision {
             case .denied:
                 denied.append(AgentMessage(

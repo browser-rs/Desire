@@ -189,19 +189,19 @@ Markdown 取消传播。
 - [x] P1-16 skip downloading 项后 pump+check
 
 ### 第九批：P1 收尾（预计 1-2 天）
-- [ ] P1-1 看门狗恢复（beforeunload 分支补 arm）
-- [ ] P1-2 dismantle 顺序（先 stop 后摘 delegate）+ isLoading 复位
-- [ ] P1-4 elementPickIntent 还原机制
-- [ ] P1-5 分屏伙伴挂起恢复
-- [ ] P1-6 PageWatch idx 按 id 定位写回
-- [ ] P1-7 回车提交前校验候选归属
-- [ ] P1-8 Esc resignFirstResponder
-- [ ] P1-9/11 默认缩放兜底 / CSV 表头映射
-- [ ] P1-15 录屏 startWriting 失败守卫
-- [ ] P1-17 循环检查点补 Task.isCancelled
-- [ ] P1-18 自评/核验按 id 写回
-- [ ] P1-19 askUser 覆盖先 resume 旧
-- [ ] P1-20/21 登录后起同步设施 / 远程登录重连 + 会话基准
+- [x] P1-1 看门狗恢复（beforeunload 分支补 arm）
+- [x] P1-2 dismantle 顺序（先 stop 后摘 delegate）+ isLoading 复位
+- [x] P1-4 elementPickIntent 还原机制
+- [x] P1-5 分屏伙伴挂起恢复
+- [x] P1-6 PageWatch idx 按 id 定位写回
+- [x] P1-7 回车提交前校验候选归属
+- [x] P1-8 Esc resignFirstResponder
+- [x] P1-9 zoom 兜底读 defaultPageZoom；P1-11 CSV 按表头映射列（Chrome/Firefox/Safari 通吃）
+- [x] P1-15 录屏 startWriting 失败守卫
+- [x] 含 C-5：cancel 冲 turnFinishHandlers（失败 outcome）+ 取消回合不算 success
+- [x] P1-18 自评/核验按 id 写回
+- [x] P1-19 askUser 覆盖先 resume 旧
+- [x] P1-20 三条登录路径补启设施；P1-21 authStateChanged 补 signedOut→signedIn 重连分支 + 快照/prompt 会话基准改 deliveryTarget
 
 ### 第十批：媒体与拦截深化（1 天）
 - [ ] P1-13 CSS 代数缓存**真正实现** + remoteURL 读盘缓存（补第五批的账）

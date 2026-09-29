@@ -24,7 +24,11 @@ class SiteSettingsStore: ObservableObject {
     }
 
     func zoom(for domain: String) -> Double {
-        settings[domain]?.zoom ?? 1.0
+        // P1-9：无站点记录时兜底"默认页面缩放"设置——此前字面量 1.0，
+        // didCommit 每次导航都用它覆盖，设置里的默认缩放形同虚设。
+        settings[domain]?.zoom
+            ?? UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double
+            ?? 1.0
     }
 
     func setZoom(_ zoom: Double, for domain: String) {

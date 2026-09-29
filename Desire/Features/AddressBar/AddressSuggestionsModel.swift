@@ -39,7 +39,14 @@ class AddressSuggestionsModel: ObservableObject {
     /// typing, the stale response is dropped (replaces the old brittle
     /// `first.title == snapshot` guard, which broke whenever the first row
     /// re-sorted).
-    private var currentQuery: String?
+    /// 当前建议列表对应的查询词（P1-7：提交侧校验候选归属用——100ms 防抖
+    /// 窗口内回车，列表还是上一次击键的代次）。
+    private(set) var currentQuery: String?
+
+    /// P1-7：候选列表是否对应当前输入（防抖窗口内回车防旧代次提交）。
+    func ownsCurrentInput(from text: String) -> Bool {
+        currentQuery == text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var isEmpty: Bool { suggestions.isEmpty }
 

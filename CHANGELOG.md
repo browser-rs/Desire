@@ -29,6 +29,34 @@
   隐藏 CSS（此前旧标签永远继续拦截）。
 - **批量下载 skip 失速（P1-16）**：skip 唯一在跑的下载项后批次永久卡 running
   （并发槽空转、pending 永不启动）——skip 现在主动推进引擎。
+- **本地 HTTPS 证书例外 + 插件/远程/同步六连修（第三轮功能核查第九批）**：
+  - **自签名证书弹窗风暴**：一次加载对同一主机多次挑战（主框架+子资源+重定向），
+    异步 sheet 化后全部各弹各的（此前被模态阻塞掩盖）——会话级信任例外（点过
+    一次"仍然继续"不再问）+ 同主机挑战排队等首次决定；
+  - **主框架 30s 加载看门狗曾被 beforeunload 守卫闷死**（early-return 跳过
+    armLoadTimeout）——挂起的 TCP 永久白页，放行时补 arm；
+  - **切标签 isLoading 永久卡 true**：dismantle 先摘 delegate 再 stopLoading，
+    取消错误无人接收——顺序反转；
+  - **工具栏"元素屏蔽"拾取被 DevTools 永久劫持**：intent 用完不还原；
+  - **挂起标签设为分屏伙伴 = 右栏永久白屏**：显示前自动恢复；
+  - **PageWatch 检查中删 watch 写穿/越界**：按 id 定位写回，删了就丢结果；
+  - **地址栏 100ms 防抖窗口内回车提交上一次击键的候选**：提交前校验候选归属
+    （Toolbar/新标签两处），Esc 现在真正退出 first responder（半聚焦僵尸态
+    根因）；
+  - **默认页面缩放设置失效**（didCommit 用字面量 1.0 兜底）、**CSV 导入按
+    固定列位**（Firefox 导出写坏 Keychain 数据）——分别修复；
+  - **录屏零帧/磁盘满停止即崩**：startWriting 失败守卫 + finish 只在 .writing
+    态收尾；
+  - **Agent：cancel 后立即新发送旧循环复活**（检查点补 Task.isCancelled）、
+    **自评写进新回合消息**（按 id 写回）、**双 askUser 并行覆盖**（新问先解除
+    旧问）、**取消的定时任务记成 success + RunRecord 泄漏**（失败 outcome 冲
+    handlers）；
+  - **同步：应用内登录后 5min 定时 pull/断网补拉/唤醒观察全部不启动**（设施
+    只在启动时已登录才装）——三条登录路径补启；
+  - **远程：应用内登录后 WS 永不重连**（signedOut→signedIn 转换无人接管，
+    express 下行单腿）+ **手机消息落错会话**（会话基准从 stale 缓存改为面板
+    实际会话）。
+
 
 
 

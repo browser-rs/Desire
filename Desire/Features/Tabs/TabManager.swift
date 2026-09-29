@@ -320,7 +320,7 @@ class TabManager: ObservableObject {
         }
     }
 
-    private func unsuspend(_ tab: Tab) {
+    func unsuspend(_ tab: Tab) {
         guard tab.isSuspended else { return }
         tab.isSuspended = false
         tab.restoreSuspendedState()

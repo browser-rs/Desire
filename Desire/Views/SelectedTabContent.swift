@@ -385,6 +385,14 @@ private struct SplitPartnerPane: View {
     @ObservedObject var partner: Tab
     let content: ContentView
 
+    // P1-5：挂起的伙伴标签显示前先恢复——此前右栏永久白屏（挂起分支免疫
+    // sweep，用户唯一的"出路"是把它选为主栏，而那会解除分屏）。
+    private func unsuspendIfNeeded() {
+        if partner.isSuspended {
+            content.tabManager.unsuspend(partner)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
@@ -437,6 +445,7 @@ private struct SplitPartnerPane: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .id(partner.id)
         }
+        .onAppear { unsuspendIfNeeded() }
     }
 }
 

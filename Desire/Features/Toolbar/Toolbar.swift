@@ -223,7 +223,10 @@ struct Toolbar: View {
                     // 0 IS the typed-text action ("go to X" / "search for
                     // X"), so a fresh list commits what was typed; an empty
                     // list falls back to raw navigation.
-                    if let selected = suggestionModel.selected() {
+                    // P1-7：防抖窗口内列表可能是上一次击键的代次——只有
+                    // 归属当前输入才采用，否则按原文裸导航。
+                    if suggestionModel.ownsCurrentInput(from: editingURL),
+                       let selected = suggestionModel.selected() {
                         actions.suggestionSelect(selected)
                     } else {
                         let target = editingURL

@@ -151,6 +151,8 @@ final class SyncStore: ObservableObject {
         if let username = defaults.string(forKey: usernameKey),
            keychainReadData(accessAccount) != nil || keychainReadData(refreshAccount) != nil {
             authState = .signedIn(username: username)
+        startSyncInfrastructure()
+            startSyncInfrastructure()
         }
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date
         // 变更驱动：源 store 一动就标脏 + 排防抖同步。注意 AgentPreferenceStore

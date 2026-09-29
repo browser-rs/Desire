@@ -279,7 +279,8 @@ struct NewTabPage: View {
         // 回车优先打开**键盘高亮的候选**。第 0 行就是"搜索 / 前往 输入的内容"，
         // 所以没动过高亮时（刚输入完直接回车）行为与以前完全一致；
         // 用 ↑/↓ 选到书签、历史、其它建议时，回车就打开那一条。
-        if let selected = suggestionModel.selected() {
+        if suggestionModel.ownsCurrentInput(from: searchText),
+           let selected = suggestionModel.selected() {
             suggestionModel.reset()
             searchText = ""
             onNavigate(selected.url)

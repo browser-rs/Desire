@@ -499,6 +499,11 @@ struct WebView: NSViewRepresentable {
         func stopObserving() {
             observations.removeAll()
             let wv = parent.state.webView
+            // P1-2：先 stopLoading（此时 delegate 还在，-999 取消错误会被
+            // didFailProvisionalNavigation 接住、isLoading 正常复位），**再**
+            // 摘 delegate——顺序反了取消错误无人接收，isLoading 永久卡 true，
+            // 工具栏转圈永转。
+            wv.stopLoading()
             for name in Self.scriptMessageHandlers {
                 wv.configuration.userContentController.removeScriptMessageHandler(forName: name)
             }
@@ -510,7 +515,6 @@ struct WebView: NSViewRepresentable {
             wv.onOpenLinkInNewTab = nil
             wv.onOpenInContainer = nil
             wv.onSearchText = nil
-            wv.stopLoading()
         }
 
         /// WebExtension RPC（0.2.13）：隔离世界里 `browser.*` 的宿主侧。
@@ -725,6 +729,9 @@ struct WebView: NSViewRepresentable {
                     Task { [store = parent.devToolsStore, wv = parent.state.webView] in
                         await store.inspectElement(selector: selector, in: wv)
                     }
+                    // P1-4：用完还原默认意图——否则之后工具栏的"元素屏蔽"
+                    // 拾取被永远劫持进 DevTools 分支。
+                    parent.state.elementPickIntent = .block
                 case .ai:
                     if let aiHandler = parent.state.onAIElementPicked {
                         let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
@@ -1097,7 +1104,13 @@ struct WebView: NSViewRepresentable {
                navigationAction.navigationType == .linkActivated ||
                navigationAction.navigationType == .formSubmitted ||
                navigationAction.navigationType == .other {
-                runBeforeUnloadGuard(webView: webView) { allowed in
+                runBeforeUnloadGuard(webView: webView) { [weak self] allowed in
+                    // P1-1：这条 early-return 曾把底部的 armLoadTimeout 闷死
+                    // （仅剩 formResubmitted 可达）——挂起的 TCP 永久白页。
+                    // 放行时补 arm。
+                    if allowed, let self {
+                        self.armLoadTimeout(for: url)
+                    }
                     decisionHandler(allowed ? .allow : .cancel)
                 }
                 return

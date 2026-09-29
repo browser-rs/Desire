@@ -144,9 +144,14 @@ final class RecordingOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         // 交付队列，录屏产出 0 帧坏文件、stop() 等 finish 永不返回（第二轮体检
         // ROUND2-P0，已实证）。直接裸执行即为正确的队列束缚。
         if !sessionStarted {
-            writer.startWriting()
-            writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-            sessionStarted = true
+            // P1-15：startWriting 失败（磁盘满是典型）时置 failed 就走——
+            // 状态仍是 .unknown/.failed 时 markAsFinished 会抛 ObjC 异常。
+            if writer.startWriting() {
+                writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+                sessionStarted = true
+            } else {
+                Log.agent.error("recorder startWriting failed: \(self.writer.error?.localizedDescription ?? "nil", privacy: .public)")
+            }
         }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
@@ -163,10 +168,14 @@ final class RecordingOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         // 残留的 append 竞态（第二轮体检 ROUND2-P0 附带）。
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             queue.async {
-                self.input.markAsFinished()
-                // macOS 27 SDK 起 finishWriting() 是 async——用 completion 变体
-                // 在队列上等待真正写完。
-                self.writer.finishWriting { continuation.resume() }
+                // P1-15：只在 .writing 态收尾——零帧（sessionStarted=false）或
+                // startWriting 已失败时调用会抛 ObjC 异常。
+                if self.sessionStarted, self.writer.status == .writing {
+                    self.input.markAsFinished()
+                    self.writer.finishWriting { continuation.resume() }
+                    return
+                }
+                continuation.resume()
             }
         }
         let ok = writer.status == .completed

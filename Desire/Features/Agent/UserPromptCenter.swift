@@ -22,6 +22,12 @@ final class UserPromptCenter: ObservableObject {
     /// `answerTimeout` 无人回答则自动以超时标记解除（见 PendingUserQuestion）。
     func ask(_ question: String) async -> String {
         await withCheckedContinuation { continuation in
+            // P1-19：并行批（askUser 归 readonly 可并发）第二问会覆盖第一问
+            // 的 pending——旧续体只能等 600s 超时。先以标记解除旧问，保证
+            // 面板永远只显示一张卡且旧循环立刻醒来。
+            if let stale = pending {
+                stale.resume(with: "[superseded by a newer question]")
+            }
             let entry = PendingUserQuestion(question: question, continuation: continuation)
             pending = entry
             entry.scheduleTimeout(after: Self.answerTimeout)

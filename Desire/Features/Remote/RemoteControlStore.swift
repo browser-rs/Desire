@@ -422,7 +422,11 @@ final class RemoteControlStore: ObservableObject {
         case "prompt":
             let text = inner.text ?? ""
             guard !text.isEmpty else { return }
-            if let sid = inner.session, sid != remoteConversationID {
+            // P1-21：基准 = 面板**当前**会话（deliveryTarget 跟随桌面切换）。
+            // 此前比对 stale 的 remoteConversationID——手机在会话 A、桌面点开
+            // B 后，手机发的消息会静默落进 B。
+            let currentSessionID = remoteSession?.conversationId?.uuidString
+            if let sid = inner.session, sid != currentSessionID {
                 remoteConversationID = sid
                 openRemoteConversation()
             }
@@ -763,7 +767,9 @@ final class RemoteControlStore: ObservableObject {
         let frame = RemoteSnapshotFrame(
             t: "snapshot", messages: Array(messages),
             busy: session?.isProcessing ?? false,
-            session: remoteConversationID,
+            // P1-21：报面板**实际**会话（deliveryTarget 跟随桌面切换）而非
+            // 远程最后一次触达的 stale 缓存——手机高亮与会话流一致。
+            session: session?.conversationId?.uuidString ?? remoteConversationID,
             model: AppState.live?.aiPreference.model,
             contextPercent: session.map { Int(($0.contextFraction * 100).rounded()) },
             queueCount: session.map { $0.queuedMessages.count },

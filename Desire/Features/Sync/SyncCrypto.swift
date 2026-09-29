@@ -246,9 +246,10 @@ nonisolated enum SyncCrypto {
 
     public static func hmacClientID(
         _ realID: String, domain: SyncDomain, masterKeyBase64: String
-    ) -> String {
-        let key = (try? domainKey(masterKeyBase64, domain: domain, purpose: "client-id"))
-            ?? SymmetricKey(size: .bits256)
+    ) throws -> String {
+        // P2：此前派生失败静默回退**随机密钥**——同一真实 id 每轮算出不同
+        // client_id，tombstone 与反查表永不匹配 → 删除同步永久失效。fail-fast。
+        let key = try domainKey(masterKeyBase64, domain: domain, purpose: "client-id")
         let tag = HMAC<SHA256>.authenticationCode(for: Data(realID.utf8), using: key)
         return base64URL(Data(tag))
     }

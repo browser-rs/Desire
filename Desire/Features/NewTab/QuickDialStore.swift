@@ -71,7 +71,9 @@ class QuickDialStore: ObservableObject {
     }
 
     private func load() {
-        if let decoded = DiskStore.load([QuickDial].self, key: storageKey), !decoded.isEmpty {
+        // P2：区分"文件不存在"与"空数组"——空数组 = 用户删光了快拨，
+        // 尊重之（此前 `!decoded.isEmpty` 让删光后重启全量复活默认八枚）。
+        if let decoded = DiskStore.load([QuickDial].self, key: storageKey) {
             dials = normalizeTimestamps(decoded)
             pendingDeletions = DiskStore.load([UUID: Date].self, key: deletionsKey) ?? [:]
             return
@@ -97,7 +99,12 @@ class QuickDialStore: ObservableObject {
         guard scopeID != profileID else { return }
         save()
         scopeID = profileID
-        dials = normalizeTimestamps(DiskStore.load([QuickDial].self, key: scopedKey) ?? defaultDials)
+        // 同上：scopedKey 文件存在（即使空数组）即采信。
+        if let scoped = DiskStore.load([QuickDial].self, key: scopedKey) {
+            dials = normalizeTimestamps(scoped)
+        } else {
+            dials = normalizeTimestamps(defaultDials)
+        }
         pendingDeletions = DiskStore.load([UUID: Date].self, key: scopedDeletionsKey) ?? [:]
     }
 

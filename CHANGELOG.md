@@ -84,6 +84,17 @@
 
 
 
+- **同步密钥派生失败 fail-fast（P2）**：`hmacClientID` 此前派生失败静默回退
+  **随机密钥**——同一真实 id 每轮算出不同 client_id，tombstone 与反查表永不
+  匹配（删除同步永久失效、同条目每轮当新行 push）。改为抛错：密钥损坏 = 该域
+  对账失败并显示错误，而不是静默数据腐化。10 个调用点全部接入。
+- **QuickDial 删光后重启被默认八枚覆盖（P2）**：区分"文件不存在"与"空数组"
+  ——空数组 = 用户删光，尊重之。
+- **URL 判定（P2）**：`example.com/search?q=x` 这类无 scheme 但 host 可判定
+  的地址不再整串进搜索引擎（query/fragment 不参与判定）。
+- **Agent/命令缩放不落盘（P2）**：Agent 与 ⌘命令的页面缩放此前不写
+  `siteSettingsStore`——下次导航被 didCommit 打回，与手动缩放行为不一致。
+
 ## [v0.4.4] - 2026-09-29
 
 ### Added

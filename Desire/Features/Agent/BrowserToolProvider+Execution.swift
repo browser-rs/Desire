@@ -630,8 +630,13 @@ extension BrowserToolProvider {
                         panel.allowedContentTypes = [.pdf]
                         panel.begin { response in
                             if response == .OK, let url = panel.url {
-                                try? data.write(to: url)
-                                continuation.resume(returning: "PDF saved to \(url.lastPathComponent)")
+                                // BUG-5 同类：写盘失败仍报成功 = 静默丢文件。
+                                do {
+                                    try data.write(to: url)
+                                    continuation.resume(returning: "PDF saved to \(url.lastPathComponent)")
+                                } catch {
+                                    continuation.resume(returning: "Error saving PDF: \(error.localizedDescription)")
+                                }
                             } else {
                                 continuation.resume(returning: "PDF save cancelled")
                             }

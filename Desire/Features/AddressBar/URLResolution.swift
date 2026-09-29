@@ -97,11 +97,15 @@ enum URLResolution {
     /// is an alphabetic TLD. Rejects numbers like `1.5` / `3.14` (two numeric
     /// labels — a search term, not an address).
     private static func looksLikeURL(_ text: String) -> Bool {
-        guard !text.contains(" "), !text.contains("?"), !text.contains("#") else { return false }
-        if text == "localhost" || text.hasPrefix("localhost:") || text.hasPrefix("localhost/") {
+        // P2：host 部分能判定域名即放行 query/fragment——`example.com/search?q=x`
+        // 此前整串进搜索引擎（host 在 ?/# 之前，判定不受影响）。
+        let spaceStripped = text.split(separator: "?", maxSplits: 1).first.map(String.init)
+            .flatMap { $0.split(separator: "#", maxSplits: 1).first.map(String.init) } ?? text
+        guard !spaceStripped.contains(" ") else { return false }
+        if spaceStripped == "localhost" || spaceStripped.hasPrefix("localhost:") || spaceStripped.hasPrefix("localhost/") {
             return true
         }
-        let hostPart = text.split(separator: "/", maxSplits: 1).first.map(String.init) ?? text
+        let hostPart = spaceStripped.split(separator: "/", maxSplits: 1).first.map(String.init) ?? spaceStripped
         let host = hostPart.split(separator: ":").first.map(String.init) ?? hostPart
         let labels = host.split(separator: ".").map(String.init)
         guard labels.count >= 2, labels.allSatisfy({ !$0.isEmpty }) else { return false }

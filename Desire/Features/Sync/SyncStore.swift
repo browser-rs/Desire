@@ -858,7 +858,7 @@ final class SyncStore: ObservableObject {
         domain: SyncDomain, realID: String, clientUpdatedAt: Date, master: String
     ) -> SyncWireItem<SyncEncryptedPayload> {
         SyncWireItem(
-            clientId: SyncCrypto.hmacClientID(realID, domain: domain, masterKeyBase64: master),
+            clientId: (try? SyncCrypto.hmacClientID(realID, domain: domain, masterKeyBase64: master)) ?? "",
             clientUpdatedAt: clientUpdatedAt,
             deleted: true,
             payload: nil,
@@ -898,7 +898,7 @@ final class SyncStore: ObservableObject {
 
     private func clearBookmarksPending(_ serverIDs: Set<String>, master: String) {
         let real = bookmarkStore.pendingDeletions.keys.filter {
-            serverIDs.contains(SyncCrypto.hmacClientID($0.uuidString, domain: .bookmarks, masterKeyBase64: master))
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .bookmarks, masterKeyBase64: master)) ?? "")
         }
         bookmarkStore.clearPendingDeletions(Set(real.map(\.uuidString)))
     }
@@ -934,7 +934,7 @@ final class SyncStore: ObservableObject {
 
     private func clearQuickDialsPending(_ serverIDs: Set<String>, master: String) {
         let real = quickDialStore.pendingDeletions.keys.filter {
-            serverIDs.contains(SyncCrypto.hmacClientID($0.uuidString, domain: .quickDials, masterKeyBase64: master))
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .quickDials, masterKeyBase64: master)) ?? "")
         }
         quickDialStore.clearPendingDeletions(Set(real.map(\.uuidString)))
     }
@@ -970,7 +970,7 @@ final class SyncStore: ObservableObject {
 
     private func clearReadingListPending(_ serverIDs: Set<String>, master: String) {
         let real = readingListStore.pendingDeletions.keys.filter {
-            serverIDs.contains(SyncCrypto.hmacClientID($0.uuidString, domain: .readingList, masterKeyBase64: master))
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .readingList, masterKeyBase64: master)) ?? "")
         }
         readingListStore.clearPendingDeletions(Set(real.map(\.uuidString)))
     }
@@ -1094,12 +1094,12 @@ final class SyncStore: ObservableObject {
         var factHMAC: [String: UUID] = [:]
         var summaryHMAC: [String: UUID] = [:]
         for fact in snapshot.facts {
-            factHMAC[SyncCrypto.hmacClientID(fact.id.uuidString, domain: .agentMemory, masterKeyBase64: master)] = fact.id
+            factHMAC[(try? SyncCrypto.hmacClientID(fact.id.uuidString, domain: .agentMemory, masterKeyBase64: master)) ?? ""] = fact.id
         }
         for summary in snapshot.summaries {
-            summaryHMAC[SyncCrypto.hmacClientID(summary.id.uuidString, domain: .agentMemory, masterKeyBase64: master)] = summary.id
+            summaryHMAC[(try? SyncCrypto.hmacClientID(summary.id.uuidString, domain: .agentMemory, masterKeyBase64: master)) ?? ""] = summary.id
         }
-        let profileID = SyncCrypto.hmacClientID("profile", domain: .agentMemory, masterKeyBase64: master)
+        let profileID = (try? SyncCrypto.hmacClientID("profile", domain: .agentMemory, masterKeyBase64: master)) ?? ""
 
         var changes: [AgentMemoryChange] = []
         changes.reserveCapacity(items.count)
@@ -1149,7 +1149,7 @@ final class SyncStore: ObservableObject {
 
     private func clearAgentMemoryPending(_ serverIDs: Set<String>, master: String) {
         agentMemoryStore.clearPendingDeletions(serverIDs) { realID in
-            SyncCrypto.hmacClientID(realID, domain: .agentMemory, masterKeyBase64: master)
+            (try? SyncCrypto.hmacClientID(realID, domain: .agentMemory, masterKeyBase64: master)) ?? ""
         }
     }
 
@@ -1263,7 +1263,7 @@ final class SyncStore: ObservableObject {
 
     private func clearHistoryPending(_ serverIDs: Set<String>, master: String) {
         let real = historyStore.pendingDeletions.keys.filter {
-            serverIDs.contains(SyncCrypto.hmacClientID($0.uuidString, domain: .history, masterKeyBase64: master))
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .history, masterKeyBase64: master)) ?? "")
         }
         historyStore.clearPendingDeletions(Set(real))
     }
@@ -1281,7 +1281,7 @@ final class SyncStore: ObservableObject {
             envelope = nil
         }
         return SyncWireItem(
-            clientId: SyncCrypto.hmacClientID(realID, domain: domain, masterKeyBase64: master),
+            clientId: (try? SyncCrypto.hmacClientID(realID, domain: domain, masterKeyBase64: master)) ?? "",
             clientUpdatedAt: clientUpdatedAt ?? .distantPast,
             deleted: deleted,
             payload: envelope,

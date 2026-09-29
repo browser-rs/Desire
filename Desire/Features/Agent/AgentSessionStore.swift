@@ -204,7 +204,8 @@ class AgentSessionStore: ObservableObject {
             return
         }
         if let onTurnFinish { turnFinishHandlers.append(onTurnFinish) }
-        sendMessage("[定时任务 · \(taskName)] \(trimmed)")
+        // C-4：自动化提示不进用户输入历史（与桥的 recordHistory: false 同契约）。
+        sendMessage("[定时任务 · \(taskName)] \(trimmed)", recordHistory: false)
     }
 
     /// Soft cap on agent loop iterations to prevent runaway execution.
@@ -378,7 +379,7 @@ class AgentSessionStore: ObservableObject {
             AgentCrewStore.shared.resetUsage()
 
             if !isProcessing {
-                sendMessage(prompt)
+                sendMessage(prompt, recordHistory: false)
             } else {
                 queuedMessages.append(QueuedMessage(text: prompt, images: nil))
             }
@@ -451,7 +452,8 @@ class AgentSessionStore: ObservableObject {
         case .summarize, .translate, .summarizeComments, .summarizeChat:
             // These prompts instruct the agent to pull content via the
             // specialized tools (getComments / getConversation).
-            sendMessage(action.prompt)
+            // 固定按钮提示语不进用户输入历史（用户没打这些字）。
+            sendMessage(action.prompt, recordHistory: false)
         case .askAboutPage:
             awaitingQuestion = true
             Task {
@@ -1468,9 +1470,12 @@ class AgentSessionStore: ObservableObject {
                 currentAction = "subagent · \(tc.function.name)"
                 let target = webView ?? activeWebView ?? WKWebView()
                 let result = await toolProvider.execute(tc, in: target)
+                // 与主循环同款脱敏：子代理被委托的任务（cat 配置/curl -v）可能
+                // 带出凭据——原文发模型后可被复述进中间轮。
+                let redacted = SecretRedactor.redact(result)
                 subMessages.append(AgentMessage(
                     role: .tool,
-                    content: String(result.prefix(8000)),
+                    content: String(redacted.prefix(8000)),
                     toolCallId: tc.id,
                     toolName: tc.function.name
                 ))

@@ -517,14 +517,14 @@ do {
 
     // client_id HMAC:确定性、跨设备一致、跨域不同、不可反推但可重算匹配
     let realID = "0F0E3D2C-1111-2222-3333-445566778899"
-    let hmac1 = SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
-    let hmac2 = SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
+    let hmac1 = try! SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
+    let hmac2 = try! SyncCrypto.hmacClientID(realID, domain: .bookmarks, masterKeyBase64: master)
     eq("client_id HMAC 确定", hmac1, hmac2)
     check("client_id HMAC ≤64 字符(服务端列上限)", hmac1.count <= 64)
     check("client_id 跨域不同",
-          SyncCrypto.hmacClientID(realID, domain: .settings, masterKeyBase64: master) != hmac1)
+          try! SyncCrypto.hmacClientID(realID, domain: .settings, masterKeyBase64: master) != hmac1)
     check("不同真实 id 不同 HMAC",
-          SyncCrypto.hmacClientID(UUID().uuidString, domain: .bookmarks, masterKeyBase64: master) != hmac1)
+          try! SyncCrypto.hmacClientID(UUID().uuidString, domain: .bookmarks, masterKeyBase64: master) != hmac1)
 }
 
 // ---------- 云同步：Agent 记忆域（AgentMemorySync） ----------

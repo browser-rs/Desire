@@ -28,7 +28,8 @@ struct AgentThinkingMenu: View {
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 7.5, weight: .semibold))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .padding(.leading, 1)
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 9)

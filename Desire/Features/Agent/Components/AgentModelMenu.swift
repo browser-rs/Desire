@@ -115,14 +115,11 @@ struct AgentModelMenu: View {
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                // 单个下箭头（用户参照主流客户端反馈"看不出可以下拉"）。字号必须
-                // ≥9.5pt：7~7.5pt 的 chevron 在实机上几乎不可见（用户两轮截图实锤）。
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .padding(.leading, 1)
             }
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 9)
+            // 右内边距比左大 13pt：给外层 overlay 的箭头留位（见下）。
+            .padding(.leading, 9)
+            .padding(.trailing, 22)
             // 与输入栏其它控件同高、同描边；`.tint(.secondary)` 是为了挡住强调色
             // 渗进菜单标签——实测模型名会被染成强调色（用户强调色是红时像报错）。
             .frame(height: 26)
@@ -138,6 +135,17 @@ struct AgentModelMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // **箭头画在 Menu 外层**：放进 label HStack 尾部的 chevron，9.5pt/7.5pt
+        // 两轮实机截图都不可见——macOS 26 的 Menu 渲染自定义 label 时会吞掉尾部
+        // 内容，不是字号问题。overlay 在 Menu 渲染管线之外，必定上屏；
+        // allowsHitTesting(false) 让点击穿透给菜单本身。
+        .overlay(alignment: .trailing) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 7)
+                .allowsHitTesting(false)
+        }
         .help(preference.activeProfile.map { "\($0.name) · \(displayModel)" } ?? displayModel)
     }
 

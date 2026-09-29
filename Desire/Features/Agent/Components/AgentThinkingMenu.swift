@@ -27,12 +27,11 @@ struct AgentThinkingMenu: View {
                 Text(Self.title(for: preference.reasoningEffort))
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .padding(.leading, 1)
             }
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 9)
+            // 右内边距比左大 13pt：给外层 overlay 的箭头留位（同 AgentModelMenu）。
+            .padding(.leading, 9)
+            .padding(.trailing, 22)
             // 与模型选择器同一胶囊规格（26pt / 同底色 / 同描边）；.tint(.secondary)
             // 挡住强调色渗进菜单标签（同 AgentModelMenu 的实测教训）。
             .frame(height: 26)
@@ -47,6 +46,15 @@ struct AgentThinkingMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // 箭头画在 Menu 外层 overlay：label 内的尾部 chevron 在 macOS 26 的
+        // Menu 渲染里不可见（见 AgentModelMenu 注释）。
+        .overlay(alignment: .trailing) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 7)
+                .allowsHitTesting(false)
+        }
         .help(String(localized: "Thinking Level"))
     }
 

@@ -108,7 +108,7 @@ struct AgentModelMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .font(.system(size: 9, weight: .medium))
                 Text(displayModel)
@@ -116,36 +116,23 @@ struct AgentModelMenu: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .foregroundStyle(.secondary)
-            // 右内边距比左大 13pt：给外层 overlay 的箭头留位（见下）。
-            .padding(.leading, 9)
-            .padding(.trailing, 22)
-            // 与输入栏其它控件同高、同描边；`.tint(.secondary)` 是为了挡住强调色
-            // 渗进菜单标签——实测模型名会被染成强调色（用户强调色是红时像报错）。
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
             .frame(height: 26)
-            .background(
-                Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-            )
-            .overlay(
-                Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
-            )
-            .frame(maxWidth: 130)
+            .contentShape(Capsule())
         }
+        // 胶囊底/描边挂在 **Menu 整体**（不是 label 内）：label 会被系统的菜单
+        // 按钮"再加工"，只有 Menu 本体的 background/overlay 保证按真实边界绘制。
+        .background(
+            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+        )
+        .overlay(
+            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+        )
+        // 系统原生下拉指示（⌄）——此前 menuIndicator(.hidden) 把它关掉后自绘的
+        // 箭头也被一并吞掉（两轮截图证实）。让系统画，位置/间距/居中都是原生的。
         .tint(.secondary)
         .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        // **箭头画在 Menu 外层**：放进 label HStack 尾部的 chevron，9.5pt/7.5pt
-        // 两轮实机截图都不可见——macOS 26 的 Menu 渲染自定义 label 时会吞掉尾部
-        // 内容，不是字号问题。overlay 在 Menu 渲染管线之外，必定上屏；
-        // allowsHitTesting(false) 让点击穿透给菜单本身。
-        .overlay(alignment: .trailing) {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.trailing, 7)
-                .allowsHitTesting(false)
-        }
         .help(preference.activeProfile.map { "\($0.name) · \(displayModel)" } ?? displayModel)
     }
 

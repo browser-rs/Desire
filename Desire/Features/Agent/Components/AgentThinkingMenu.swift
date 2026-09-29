@@ -21,40 +21,27 @@ struct AgentThinkingMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 9, weight: .medium))
                 Text(Self.title(for: preference.reasoningEffort))
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
             }
-            .foregroundStyle(.secondary)
-            // 右内边距比左大 13pt：给外层 overlay 的箭头留位（同 AgentModelMenu）。
-            .padding(.leading, 9)
-            .padding(.trailing, 22)
-            // 与模型选择器同一胶囊规格（26pt / 同底色 / 同描边）；.tint(.secondary)
-            // 挡住强调色渗进菜单标签（同 AgentModelMenu 的实测教训）。
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
             .frame(height: 26)
-            .background(
-                Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-            )
-            .overlay(
-                Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
-            )
+            .contentShape(Capsule())
         }
+        // 胶囊底/描边挂 Menu 整体 + 系统原生下拉指示（同 AgentModelMenu）。
+        .background(
+            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+        )
+        .overlay(
+            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+        )
         .tint(.secondary)
         .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        // 箭头画在 Menu 外层 overlay：label 内的尾部 chevron 在 macOS 26 的
-        // Menu 渲染里不可见（见 AgentModelMenu 注释）。
-        .overlay(alignment: .trailing) {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.trailing, 7)
-                .allowsHitTesting(false)
-        }
         .help(String(localized: "Thinking Level"))
     }
 

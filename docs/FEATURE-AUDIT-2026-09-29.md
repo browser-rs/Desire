@@ -221,3 +221,54 @@ Markdown 取消传播。
 - [ ] 同步/远程/插件 9 项（去重滑动窗、runModal 改 sheet、重装覆盖语义、onInstalled
       以 didFinish 触发、hmac fail-fast、游标取 filtered.last、限流分桶、MCP 转义、指纹缺口）
 - [ ] P2-17 ffprobe 超时 + Process terminate 判空
+
+
+---
+
+# 第四轮挖掘（2026-09-29 追加）
+
+> 两路：**未扫过的子系统**（小目录七处、App 基础设施五件、DevTools 全量、
+> Screenshot、VideoSiteScripts、Agent UI 面板群、Sync UI、UserScripts/*.js）
+> 与**发布面/跨端一致性**（website/README/流程脚本/xcstrings/Info.plist）。
+> 25 项新发现，主体已修。
+
+## 已修（0b3af49 + 741c0ac 前置）
+
+- **P0-G 视频站 skipAd 误杀正片**（7/8 站无广告态判定，MutationObserver
+  持续触发无条件 seek 正片到结尾，默认开启）——各站 seek 前检测已知广告
+  容器；X 删掉无条件 seek。**待实测各站正片播放**。
+- **Info.plist 缺摄像头/定位用途声明**（网页请求路径完整但 TCC 层无声明，
+  麦克风当初同课）——已补两键。
+- popup RPC 补 `tabs.query`；background 补 `action.openPopup` 映射
+  （trove-bookmark 登录/右键两条主流程此前断）。
+- URLBarField Coordinator 陈旧 parent（回车/粘贴/Esc 作用旧标签）——
+  updateNSView 刷新引用。
+- 搜索 URL `&/+/=` 不转义（四处同款）——统一补。
+- VideoAdRulesStore 单引号转义 no-op（一条含 `'` 规则打爆 8 站 CSS）。
+- DevTools：404/500 无状态码（failed() 全置 nil）；拾取取消监听器残留；
+  悬停/改样式选择器未转义。
+- 录屏 startWriting 失败守卫；批注读盘挪后台；扩展脚本缓存；
+  pendingRequests 上限；console 重复保留对象 chip；network-monitor 大响应
+  跳过 body + 去重表淘汰；缩略图悬停才拍。
+- release.sh prep 自动同步 website 四处版本号（R4-11 根治）。
+
+## 遗留 P2（已记录未修）
+
+- DevTools 四个死文件（~833 行仅 Preview 引用）；Element 页 DOM 树不随
+  同标签导航刷新；collapseRepeats 丢对象 chip；completedFromJS statusText
+  死赋值；pendingRequests 无上限（已修，注：completed 残留仍在）。
+- network-monitor.js `hooked` 表已加淘汰；fetch 钩子大响应跳过 body。
+- 截图 ⌘⇧Z undo/redo 不分；保存失败 runModal 残留（AgentPanel 两处
+  NSOpenPanel runModal 同）。
+- TabGroupPanel 颜色选择死控件 + Open Group 只切一个标签；容器删除后
+  dataStore 孤儿化（残留标签继续用已除名 store）；BlockedElementRule
+  matches 过宽。
+- Agent UI：消息图片每 80ms 流式 flush 重解码 base64；截图 chip 双显一帧。
+- SyncQRLoginSheet status=2 pair nil 静默续轮；轮询错误无限重试。
+- UpdateChecker seenTag 行为（每次启动重现直到装上）需产品确认。
+- 第四轮报告（发布面）：R4-2 桥索引缺 5 个 SSE 事件、R4-3 本地回落启动
+  路径、R4-4 --from publish 死路、R4-8 ARCHITECTURE.md 失真、R4-12 website
+  "链接新开"语义存疑、R4-13 三处端点口径打架、R4-14 ROADMAP 0.3.10 补注、
+  R4-15 MSExInstaller 解包无超时、R4-17 release.sh 文案/缺参、R4-18 空壳
+  Unreleased 不入库、R4-19 ci.yml 选包无确定性——脚本类修复见 release.sh
+  部分落地（website 同步/verify 闸门/空壳补头已做）。

@@ -23,6 +23,7 @@ extension AutomationServer {
                     "builtin": profile.isBuiltin,
                     "active": store.activeProfileID == profile.id,
                     "hasKey": store.loadAPIKey(profileID: profile.id) != nil,
+                    "apiFormat": profile.format.rawValue,
                 ]
             },
         ]
@@ -37,7 +38,8 @@ extension AutomationServer {
         model: String,
         models: [String],
         headers: [String: String],
-        key: String?
+        key: String?,
+        apiFormat: String? = nil
     ) -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let store = app.aiPreference
@@ -53,12 +55,18 @@ extension AutomationServer {
             store.profiles[index].model = model
             if !models.isEmpty { store.profiles[index].modelList = models }
             if !headers.isEmpty { store.profiles[index].headers = headers }
+            if let apiFormat, let f = AIProviderProfile.APIFormat(rawValue: apiFormat) {
+                store.profiles[index].apiFormat = f
+            }
             profileID = id
         } else {
             let created = store.addProfile(name: name, endpoint: endpoint, model: model)
             if let index = store.profiles.firstIndex(where: { $0.id == created.id }) {
                 if !models.isEmpty { store.profiles[index].modelList = models }
                 if !headers.isEmpty { store.profiles[index].headers = headers }
+                if let apiFormat, let f = AIProviderProfile.APIFormat(rawValue: apiFormat) {
+                    store.profiles[index].apiFormat = f
+                }
             }
             profileID = created.id
         }
@@ -86,7 +94,7 @@ extension AutomationServer {
         }
         guard let profile else { return ["error": "no such profile"] }
         let key = store.loadAPIKey(profileID: profile.id) ?? ""
-        let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key)) ?? []
+        let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key, format: profile.format)) ?? []
         guard !models.isEmpty else {
             return ["error": "no models returned", "endpoint": profile.endpoint]
         }

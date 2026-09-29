@@ -9,22 +9,33 @@ import Foundation
 /// DeepSeek / 智谱 / OpenCode Go）就是 `isBuiltin` 的档案，用户加的每个网关
 /// 也是档案，各自独立。
 struct AIProviderProfile: Identifiable, Codable, Equatable {
+    /// 线协议格式：OpenAI 兼容（`chat/completions`）或 Anthropic（Messages API）。
+    enum APIFormat: String, Codable, CaseIterable {
+        case openai
+        case anthropic
+    }
+
     let id: UUID
     var name: String
-    /// 完整的 chat-completions URL（缺 `/chat/completions` 时请求前会补）。
+    /// 完整的 chat-completions / messages URL（缺尾段时请求前会补）。
     var endpoint: String
     var model: String
     /// 候选模型：预设 + 用户手输记下的 + 从 `/models` 拉回的。
     var modelList: [String]
     /// 额外请求头（自定义网关常见：租户 id、路由键…）。
-    /// `Authorization` / `Content-Type` 由请求构造方掌管，这里不参与。
+    /// `Authorization` / `Content-Type` / `x-api-key` 由请求构造方掌管，这里不参与。
     var headers: [String: String]
     /// 内置预设：可改、可复制，不可删。
     var isBuiltin: Bool
     var createdAt: Date
+    /// 线协议格式。Optional：旧档案无此字段解码为 nil，请求侧按 openai 处理。
+    var apiFormat: APIFormat?
     /// Keychain 账号。内置档案沿用 `ai-key-<providerID>`（升级后老 Key 直接
     /// 可用），自定义档案按 id 隔离（`ai-key-profile-<uuid>`）。
     var keychainAccount: String
+
+    /// 生效格式（nil 视为 openai）。
+    var format: APIFormat { apiFormat ?? .openai }
 
     init(
         id: UUID = UUID(),
@@ -35,6 +46,7 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
         headers: [String: String] = [:],
         isBuiltin: Bool = false,
         createdAt: Date = Date(),
+        apiFormat: APIFormat? = nil,
         keychainAccount: String? = nil
     ) {
         self.id = id
@@ -45,6 +57,7 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
         self.headers = headers
         self.isBuiltin = isBuiltin
         self.createdAt = createdAt
+        self.apiFormat = apiFormat
         self.keychainAccount = keychainAccount ?? "ai-key-profile-\(id.uuidString)"
     }
 
@@ -89,6 +102,15 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
                 modelList: ["glm-4-plus", "deepseek-chat", "claude-3-5-sonnet"],
                 isBuiltin: true,
                 keychainAccount: "ai-key-opencode-go"
+            ),
+            AIProviderProfile(
+                name: "Anthropic",
+                endpoint: "https://api.anthropic.com/v1/messages",
+                model: "claude-sonnet-4-5",
+                modelList: ["claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5"],
+                isBuiltin: true,
+                apiFormat: .anthropic,
+                keychainAccount: "ai-key-anthropic"
             ),
         ]
         // 老版本把"当前端点/模型"存在全局字段里：如果它与某个内置预设都对不上，

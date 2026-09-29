@@ -95,7 +95,11 @@ struct RoutingProvider: ModelProvider {
 
     private func concrete(for kind: ModelProviderKind) -> any ModelProvider {
         switch kind {
-        case .cloud:            return CloudOpenAIProvider()
+        case .cloud:
+            // 线协议跟当前档案走（Anthropic Messages / OpenAI 兼容）。
+            return prefs.activeProfile?.format == .anthropic
+                ? CloudAnthropicProvider()
+                : CloudOpenAIProvider()
         case .foundationModels: return FoundationModelsProvider()
         case .ollama:           return OllamaProvider()
         case .routing:          return CloudOpenAIProvider() // defensive; routing never routes to itself

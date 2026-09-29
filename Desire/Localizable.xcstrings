@@ -18862,6 +18862,28 @@
         }
       }
     },
+    "API Format" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Format"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 格式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 格式"
+          }
+        }
+      }
+    },
     "Password Manager" : {
       "localizations" : {
         "en" : {

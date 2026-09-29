@@ -182,7 +182,7 @@ struct AgentModelMenu: View {
         Task { @MainActor in
             defer { refreshingProfileIDs.remove(profile.id) }
             let key = preference.loadAPIKey(profileID: profile.id) ?? ""
-            let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key)) ?? []
+            let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key, format: profile.format)) ?? []
             guard !models.isEmpty else { return }
             preference.applyModelList(models, to: profile.id)
         }

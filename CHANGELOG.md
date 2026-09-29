@@ -9,6 +9,8 @@
 - **批量视频下载并发量用户可调（默认 2）**：工具加 `maxConcurrent` 参数
   （1-4），落 `batch.maxConcurrent` 偏好，`GET /media/batch/config` 可查改。
 - Agent 输入栏三件套布局（参照主流客户端）：上下文占用 chip（gauge %，60% 橙 / 85% 红，与头部状态行同源数据）摆在模型选择器左侧，新增"思考等级"下拉（🧠 关/低/中/最高）摆在右侧；思考等级非默认档时随请求发送 `reasoning_effort`（默认 off 不发送，保持请求体与旧版一致，避免不认识该参数的服务报 400）；模型选择器的下拉指示改为清晰可见的单向下箭头（原 7pt 双向箭头几乎不可见）
+- Agent 云端 provider 支持主流两种线协议：OpenAI 兼容（chat/completions，原有）与 Anthropic Messages API（/v1/messages）。服务档案新增"API 格式"选择（设置页编辑器分段选择 + 桥 /ai/profiles 的 apiFormat 字段），内置新增 Anthropic 预设（claude-sonnet-4-5）；AnthropicSSE 完整实现协议方言——system 顶层字段、user/assistant 严格交替、工具调用 tool_use/content_block 分片聚合、工具结果转 tool_result 块、截图 data-URI 转图片块、思考等级映射为 thinking.budget_tokens（开启时按协议要求省略 temperature 并抬高 max_tokens）、x-api-key + anthropic-version 头、模型列表拉取与用量上报（usage 记在消息上）同 OpenAI 路径对齐。假 Anthropic 端点 E2E 全通：114 工具 schema、tool_use→真执行→tool_result 往返、角色交替、usage 落盘
+
 
 
 ### Fixed

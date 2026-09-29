@@ -940,7 +940,8 @@ final class AutomationServer {
                     model: Self.string(body, "model") ?? "",
                     models: (body["models"] as? [String]) ?? [],
                     headers: (body["headers"] as? [String: String]) ?? [:],
-                    key: Self.string(body, "key")
+                    key: Self.string(body, "key"),
+                    apiFormat: Self.string(body, "apiFormat")
                 ))
             case ("POST", "/ai/models/fetch"):
                 return try await Self.json(Self.aiFetchModels(id: Self.string(body, "id")))

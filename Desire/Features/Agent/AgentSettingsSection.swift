@@ -56,6 +56,7 @@ struct AgentSettingsSection: View {
     @State private var draftKey = ""
     @State private var draftModels: [String] = []
     @State private var draftHeaders: [HeaderDraft] = []
+    @State private var draftFormat: AIProviderProfile.APIFormat = .openai
     @State private var newModelName = ""
     /// 成本段"添加模型"输入框的内容。
     @State private var newPriceModel = ""
@@ -673,7 +674,20 @@ struct AgentSettingsSection: View {
         VStack(alignment: .leading, spacing: 10) {
             editorField(String(localized: "Name"), text: $draftName, placeholder: "My gateway")
             editorField(String(localized: "Endpoint URL"), text: $draftEndpoint, placeholder: "https://host/v1/chat/completions")
-            draftModelPicker
+
+            // 线协议：OpenAI 兼容（chat/completions）或 Anthropic（Messages）。
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "API Format"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $draftFormat) {
+                    Text("OpenAI").tag(AIProviderProfile.APIFormat.openai)
+                    Text("Anthropic").tag(AIProviderProfile.APIFormat.anthropic)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+                .labelsHidden()
+            }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(String(localized: "API Key"))
@@ -898,6 +912,7 @@ struct AgentSettingsSection: View {
         draftKey = profile.flatMap { store.loadAPIKey(profileID: $0.id) } ?? ""
         draftModels = profile?.modelList ?? []
         draftHeaders = (profile?.headers ?? [:]).sorted { $0.key < $1.key }.map { HeaderDraft(name: $0.key, value: $0.value) }
+        draftFormat = profile?.format ?? .openai
         cloudTestStatus = nil
     }
 
@@ -924,12 +939,14 @@ struct AgentSettingsSection: View {
             store.profiles[index].model = draftModel
             store.profiles[index].modelList = draftModels
             store.profiles[index].headers = headers
+            store.profiles[index].apiFormat = draftFormat
             store.activeProfileID = id
         } else {
             let profile = store.addProfile(name: draftName, endpoint: endpoint, model: draftModel)
             if let index = store.profiles.firstIndex(where: { $0.id == profile.id }) {
                 store.profiles[index].modelList = draftModels
                 store.profiles[index].headers = headers
+                store.profiles[index].apiFormat = draftFormat
             }
             store.activeProfileID = profile.id
         }
@@ -947,8 +964,9 @@ struct AgentSettingsSection: View {
         isFetchingModels = true
         let endpoint = draftEndpoint
         let key = draftKey.isEmpty ? (store.loadAPIKey() ?? "") : draftKey
+        let format = draftFormat
         Task {
-            let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key)) ?? []
+            let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key, format: format)) ?? []
             isFetchingModels = false
             for model in models where !draftModels.contains(model) {
                 draftModels.append(model)

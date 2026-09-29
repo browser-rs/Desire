@@ -321,7 +321,11 @@ class AgentPreferenceStore: ObservableObject {
 
     var provider: any ModelProvider {
         switch providerKind {
-        case .cloud:            return CloudOpenAIProvider()
+        case .cloud:
+            // 线协议跟当前档案走：Anthropic Messages / OpenAI 兼容（主流两种）。
+            return activeProfile?.format == .anthropic
+                ? CloudAnthropicProvider()
+                : CloudOpenAIProvider()
         case .foundationModels: return FoundationModelsProvider()
         case .ollama:           return OllamaProvider()
         case .routing:          return RoutingProvider(prefs: self) { _ in }

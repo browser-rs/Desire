@@ -112,7 +112,26 @@
       }
     },
     "…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…"
+          }
+        }
+      }
     },
     "·" : {
       "localizations" : {
@@ -207,7 +226,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "（已快进）"
+            "value" : "(fast-forwarded)"
           }
         },
         "zh-Hans" : {
@@ -229,7 +248,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "（已跳过）"
+            "value" : "(skipped)"
           }
         },
         "zh-Hans" : {
@@ -251,7 +270,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "（首次点击防护）"
+            "value" : "(first-click guard)"
           }
         },
         "zh-Hans" : {
@@ -459,13 +478,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ is out — click to view the release notes."
+            "value" : "有新版本 %@ —— 点按查看发布说明。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ is out — click to view the release notes."
+            "value" : "有新版本 %@ —— 點按查看發布說明。"
           }
         }
       }
@@ -992,13 +1011,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld tools"
+            "value" : "%lld 个工具"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld tools"
+            "value" : "%lld 個工具"
           }
         }
       }
@@ -1029,20 +1048,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 条 · %2$lld 份摘要"
+            "state" : "translated",
+            "value" : "%1$lld items · %2$lld summaries"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 条 · %lld 份摘要"
+            "value" : "%1$lld 条 · %2$lld 份摘要"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 條 · %lld 份摘要"
+            "value" : "%1$lld 條 · %2$lld 份摘要"
           }
         }
       }
@@ -1087,16 +1106,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld/%lld"
-          }
-        }
-      }
-    },
-    "%lld/%lld %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld/%2$lld %3$@"
           }
         }
       }
@@ -5021,7 +5030,26 @@
       }
     },
     "Cancelled" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消"
+          }
+        }
+      }
     },
     "Cannot Load Page" : {
       "comment" : "Error page title",
@@ -14825,7 +14853,26 @@
       }
     },
     "Media Exports" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media Exports"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "媒体导出任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "媒體匯出任務"
+          }
+        }
+      }
     },
     "Media Q" : {
       "extractionState" : "stale",
@@ -15820,7 +15867,26 @@
       }
     },
     "No batch tasks" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No batch tasks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无批量任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無批次任務"
+          }
+        }
+      }
     },
     "No Blocking Rules" : {
       "comment" : "Empty element blocker state",
@@ -18584,6 +18650,116 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼產生器"
+          }
+        }
+      }
+    },
+    "Retry failed items" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry failed items"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试失败项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試失敗項"
+          }
+        }
+      }
+    },
+    "Cancel batch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel batch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消批次"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消批次"
+          }
+        }
+      }
+    },
+    "Ask questions, summarize pages,\ntranslate content, and more." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask questions, summarize pages,\ntranslate content, and more."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提问、总结网页、\n翻译内容，应有尽有。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提問、總結網頁、\n翻譯內容，應有盡有。"
+          }
+        }
+      }
+    },
+    "DevTools Panel Content" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DevTools Panel Content"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发者面板内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開發者面板內容"
+          }
+        }
+      }
+    },
+    "Password Manager" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password Manager"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼庫"
           }
         }
       }
@@ -24927,7 +25103,26 @@
       }
     },
     "Suspended" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suspended"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已挂起"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已擱置"
+          }
+        }
+      }
     },
     "Switch model / provider" : {
       "extractionState" : "stale",
@@ -27940,7 +28135,26 @@
       }
     },
     "Video Tasks" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video Tasks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片任務"
+          }
+        }
+      }
     },
     "View" : {
       "comment" : "View menu title",
@@ -28874,13 +29088,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "上一条提问还没有收到回答"
+            "value" : "The previous question hasn't received an answer yet"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "上一条提問還沒有收到回答"
+            "value" : "上一条提问还没有收到回答"
           }
         },
         "zh-Hant" : {
@@ -28940,7 +29154,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "优酷"
+            "value" : "Youku"
           }
         },
         "zh-Hans" : {
@@ -28962,7 +29176,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存"
+            "value" : "Save"
           }
         },
         "zh-Hans" : {
@@ -29028,7 +29242,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除"
+            "value" : "Delete"
           }
         },
         "zh-Hans" : {
@@ -29050,7 +29264,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "取消"
+            "value" : "Cancel"
           }
         },
         "zh-Hans" : {
@@ -29115,20 +29329,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "已拦截 %1$d 个 %2$@ 广告%3$@"
+            "state" : "translated",
+            "value" : "Blocked %1$d %2$@ ads%3$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已拦截 %d 个 %@ 广告%@"
+            "value" : "已拦截 %1$d 个 %2$@ 广告%3$@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已攔截 %d 個 %@ 廣告%@"
+            "value" : "已攔截 %1$d 個 %2$@ 廣告%3$@"
           }
         }
       }
@@ -29292,7 +29506,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "搜索或输入网址"
+            "value" : "Search or enter address"
           }
         },
         "zh-Hans" : {
@@ -29313,20 +29527,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "断点 %1$@ · @%2$lldx · %3$@"
+            "state" : "translated",
+            "value" : "Breakpoint %1$@ · @%2$lldx · %3$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "断点 %@ · @%lldx · %@"
+            "value" : "断点 %1$@ · @%2$lldx · %3$@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "斷點 %@ · @%lldx · %@"
+            "value" : "斷點 %1$@ · @%2$lldx · %3$@"
           }
         }
       }
@@ -29380,7 +29594,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "标题"
+            "value" : "Title"
           }
         },
         "zh-Hans" : {
@@ -29468,7 +29682,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "添加"
+            "value" : "Add"
           }
         },
         "zh-Hans" : {
@@ -29600,7 +29814,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "爱奇艺"
+            "value" : "iQIYI"
           }
         },
         "zh-Hans" : {
@@ -29644,7 +29858,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "视频"
+            "value" : "Video"
           }
         },
         "zh-Hans" : {
@@ -29688,7 +29902,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "继续回答"
+            "value" : "Continue response"
           }
         },
         "zh-Hans" : {
@@ -29710,7 +29924,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编辑"
+            "value" : "Edit"
           }
         },
         "zh-Hans" : {
@@ -29732,7 +29946,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "网址"
+            "value" : "URL"
           }
         },
         "zh-Hans" : {
@@ -29754,7 +29968,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "腾讯视频"
+            "value" : "Tencent Video"
           }
         },
         "zh-Hans" : {
@@ -29766,7 +29980,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "騰訊影片"
+            "value" : "騰訊視頻"
           }
         }
       }
@@ -29798,7 +30012,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "芒果TV"
+            "value" : "MangoTV"
           }
         },
         "zh-Hans" : {

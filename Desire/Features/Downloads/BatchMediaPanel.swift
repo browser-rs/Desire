@@ -139,13 +139,13 @@ struct BatchMediaPanel: View {
         let running = batch.state == .running && !store.isPaused(batch.id) && store.suspensionReason(batch.id) == nil
         HoverIcon(systemName: running ? "pause" : "play.fill", action: {
             if running { store.pause(batchID: batch.id) } else { store.resume(batchID: batch.id) }
-        }, help: running ? "Pause" : "Resume")
+        }, help: running ? String(localized: "Pause") : String(localized: "Resume"))
         HoverIcon(systemName: "arrow.clockwise", action: {
             store.retryFailed(batch.id)
-        }, help: "Retry failed items")
+        }, help: String(localized: "Retry failed items"))
         HoverIcon(systemName: "xmark", action: {
             store.cancel(batchID: batch.id)
-        }, help: "Cancel batch")
+        }, help: String(localized: "Cancel batch"))
     }
 
     // MARK: - 条目明细

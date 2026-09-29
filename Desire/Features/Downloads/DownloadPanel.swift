@@ -18,8 +18,12 @@ struct DownloadPanel: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DownloadStore
+    // 第十一批：批量视频任务观察入口（用户："批量任务没有观察入口"）。
+    @ObservedObject var batchStore = BatchMediaExportStore.shared
+    @ObservedObject var mediaStore = MediaExportStore.shared
 
     @State private var searchText = ""
+    @State private var showBatchTasks = false
 
     private var filteredDownloads: [DownloadItem] {
         guard !searchText.isEmpty else { return store.downloads }
@@ -42,11 +46,23 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            if !store.downloads.isEmpty {
-                filterBar
+            Picker("", selection: $showBatchTasks) {
+                Text(String(localized: "Downloads")).tag(false)
+                Text(String(localized: "Video Tasks")).tag(true)
             }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
             Divider()
-            content
+            if showBatchTasks {
+                BatchMediaPanel(store: batchStore, mediaStore: mediaStore)
+            } else {
+                if !store.downloads.isEmpty {
+                    filterBar
+                }
+                Divider()
+                content
+            }
         }
         .frame(width: 480, height: 520)
     }

@@ -126,6 +126,16 @@ stage_prep() {
   # CHANGELOG 结构闸门（2026-09-29 三次事故后立）：版本头唯一/顺序/无重复。
   python3 scripts/changelog.py verify
 
+  # 产品页四处版本号同步（R4-11：此前发版靠手动改 website，漏改必错）。
+  local website="website/index.html"
+  if [ -f "$website" ]; then
+    sed -i '' "s/\"softwareVersion\": \"[0-9.]*\"/\"softwareVersion\": \"$V\"/; \
+                s/下载 Desire <span class=\"ver\">v[0-9.]*<\/span>/下载 Desire <span class=\"ver\">v$V<\/span>/; \
+                s/当前版本 <b>v[0-9.]*<\/b>/当前版本 <b>v$V<\/b>/; \
+                s/Desire-v[0-9.]*-macos-arm64\.zip，双击解压即可。/Desire-v$V-macos-arm64.zip，双击解压即可。/" "$website"
+    echo "website 版本号已同步 → $V"
+  fi
+
   # 版本号：MARKETING_VERSION = $V；CURRENT_PROJECT_VERSION = 旧值 + 1
   local pbx="Desire.xcodeproj/project.pbxproj"
   local current_build

@@ -464,7 +464,12 @@ final class MCPService {
             guard result.contains(placeholder) else { continue }
             let rendered: String
             if let scalar = value as? String {
-                rendered = scalar.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? scalar
+                // 第十批：.urlQueryAllowed 含 & = + ? #——参数值里的这些字符
+                // 会改写 query 结构（findInPage 的 q=a&index=2 注入第二个参数）。
+                // 从 allowed 集合里剔除。
+                let allowed = CharacterSet.urlQueryAllowed
+                    .subtracting(CharacterSet(charactersIn: "&=#+?"))
+                rendered = scalar.addingPercentEncoding(withAllowedCharacters: allowed) ?? scalar
             } else {
                 rendered = "\(value)"
             }

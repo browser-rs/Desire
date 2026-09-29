@@ -125,6 +125,33 @@
   上限、console 重复消息丢对象 chip、网络监控 JS 大响应跳过、缩略图切标签
   不拍、容器删除孤儿化告警、QuickDial/URL 判定（随第十一批部分落地）。
 
+### Fixed
+
+- **视频广告拦截误杀正片（第四轮核查 P0-G，默认开启）**：7/8 个支持站
+  （B站/腾讯/爱奇艺/优酷/芒果/TikTok）的 skipAd 无广告态判定——MutationObserver
+  持续触发把**正片无条件 seek 到结尾**（"直接播完"）。现在各站 seek 前先检测
+  已知广告容器；X 无可靠信号、删掉无条件 seek（宁可漏拦不可错杀）。
+- **网页请求摄像头/定位时宿主缺用途声明（P0-R4）**：Info.plist 缺
+  `NSCameraUsageDescription`/`NSLocationWhenInUseUsageDescription`——TCC 层
+  拒绝甚至崩溃（麦克风当初同课）。已补两键。
+- **扩展 popup 缺 chrome.tabs.query（用户扩展 trove-bookmark 实测需要）**：
+  popup RPC 面补 tabs.query；background 端补 action.openPopup 映射。
+- **地址栏回车/Esc 作用于旧标签（P0）**：URLBarField Coordinator 首建时
+  捕获旧 tab 闭包且从不刷新——每次更新刷新引用。
+- **搜索查询含 &/+/= 被引擎截断（P1-C，四处）**："rock & roll" 只搜
+  "rock"——统一补转义。
+- **视频规则单引号转义 no-op（P1-D）**：含 `'` 的用户规则打爆 8 站 CSS
+  （与 CRLF 同型）。
+- **DevTools 404/500 无状态码**：failed() 把 statusCode/headers 全置 nil；
+  元素拾取取消后监听器残留；悬停/改样式选择器含引号静默失效。
+- **录屏磁盘满停止即崩**：startWriting 失败守卫 + finish 只在 .writing 态收尾。
+- 其他：页面批注读盘挪后台、扩展脚本缓存、DevTools pendingRequests 上限、
+  console 重复消息保留对象 chip、network-monitor 大响应跳过 body 采集 +
+  去重表淘汰、缩略图悬停才拍、QuickDial 删光尊重、URL 判定放行 query、
+  默认缩放生效、CSV 表头映射、定时/快捷提示语不进输入历史、子代理结果
+  脱敏、saveAsPDF 失败如实报、MCP resolvePath 补 query 转义、
+  release.sh prep 自动同步产品页四处版本号。
+
 ## [v0.4.4] - 2026-09-29
 
 ### Added

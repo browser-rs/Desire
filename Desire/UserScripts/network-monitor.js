@@ -19,10 +19,27 @@
     var MAX_BODY = 4096;
     var DEDUPE_MS = 2000;
 
+    // 第十批：去重表淘汰——超 600 条清最旧一半（此前每 URL 永驻）。
+    function trimHooked() {
+        var keys = Object.keys(hooked);
+        if (keys.length <= 600) return;
+        keys.sort(function(a, b) { return hooked[a] - hooked[b]; });
+        var drop = keys.slice(0, Math.floor(keys.length / 2));
+        for (var i = 0; i < drop.length; i++) delete hooked[drop[i]];
+    }
+
     function post(payload) {
         try {
             window.webkit.messageHandlers.netEntry.postMessage(payload);
         } catch (e) {}
+        // 第十批：去重表淘汰挂在 post 上（所有上报必经）——超 600 清最旧
+        // 一半，避免长会话每 URL 永驻。
+        var keys = Object.keys(hooked);
+        if (keys.length > 600) {
+            keys.sort(function(a, b) { return hooked[a] - hooked[b]; });
+            var drop = keys.slice(0, Math.floor(keys.length / 2));
+            for (var i = 0; i < drop.length; i++) delete hooked[drop[i]];
+        }
     }
 
     function clip(value) {
@@ -130,6 +147,18 @@
                 post({ phase: 'complete', jsId: id, url: url, method: method, resourceType: 'fetch',
                        status: response.status, responseHeaders: headers, duration: wall,
                        timing: { ttfb: wall, download: 0 } });
+                // 第十批：大响应跳过 body 采集——clone().text() 会把整个响应
+                // 读进内存再截 4096（视频/下载站内存翻倍、CPU 白烧）。
+                // Content-Length 超 256KB 或媒体流类型不采集。
+                var len = parseInt(headers['content-length'] || '0', 10);
+                var ctype = (headers['content-type'] || '').toLowerCase();
+                var skipBody = len > 262144 ||
+                    ctype.indexOf('video/') === 0 || ctype.indexOf('audio/') === 0;
+                if (skipBody) {
+                    post({ phase: 'body', jsId: id, url: url, resourceType: 'fetch',
+                           responseBody: null, bodySkipped: true, bodyLength: len });
+                    return;
+                }
                 try {
                     response.clone().text().then(function(text) {
                         post({ phase: 'body', jsId: id, url: url, resourceType: 'fetch',

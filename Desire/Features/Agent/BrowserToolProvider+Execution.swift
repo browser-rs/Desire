@@ -818,7 +818,9 @@ extension BrowserToolProvider {
             }
             let requestedFolder = (args["folderName"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : webView.url?.host
+            // **不再自动垫站点域名子夹**（用户实测"实现的非常混乱"）：没给
+            // folderName 就直落目标目录，配合分卷规则组织。
+            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : nil
             let batch = BatchMediaExportStore.shared.startPageBatch(
                 candidates: candidates.map { ($0.url, $0.kind, $0.mime, $0.isBlob) },
                 referer: webView.url,
@@ -853,7 +855,7 @@ extension BrowserToolProvider {
             }
             let requestedFolder = (args["folderName"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : URL(string: urls[0])?.host
+            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : nil
             if let mc = args["maxConcurrent"] as? Int, (1...4).contains(mc) {
                 BatchMediaPreferences.maxConcurrent = mc
             }

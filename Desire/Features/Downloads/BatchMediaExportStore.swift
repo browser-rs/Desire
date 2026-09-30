@@ -172,14 +172,14 @@ final class BatchMediaExportStore: ObservableObject {
         // 用户/模型可能把**绝对路径**当 folderName 传（"存到 /Volumes/x"）——
         // 直接消毒会把斜杠打成横杠、落在 Downloads 下的畸形文件夹。拆出
         // 目录部分作为本批 saveRoot，末段才是子文件夹名。
-        // **单一语义**（用户实测教训：一个意图被拆成 directory/folderName 两段，
-        // 组合方式不同落点就漂，还出过双层嵌套）：
-        //   · directory（或误传到 folderName 的绝对路径）= **精确目标目录**，
-        //     文件直接落在这里，不再叠加任何子文件夹；
-        //   · folderName 只有在没给 directory 时才有意义 = 默认下载根下的
-        //     子文件夹；点噪音（"." / ".."）= 没有，回退时间戳文件夹。
-        // 目标目录随批持久化（restore 此前丢 saveRoot——恢复后回落默认
-        // Downloads，用户实测），重启后仍下到原路径。
+        // **组合语义**（用户实测三轮定案）：directory 与 folderName **可以组合**——
+        //   · directory = 保存**父目录**（精确路径，展开 ~）；
+        //   · folderName = 其下的子文件夹名；与 directory 同给 → 父/子组合
+        //     （"/Volumes/sd" + "missav.ws" → /Volumes/sd/missav.ws，用户直觉）；
+        //     不给 → 直接落在 directory（不硬造子文件夹）；
+        //   · folderName 误传**绝对路径** = 等价 directory（整段直落）；
+        //   · 都不给 → 默认下载根 + 时间戳文件夹；folder 点噪音（"." / ".."）= 无。
+        // 目标目录随批持久化（restore 曾丢 saveRoot——恢复后回落默认 Downloads）。
         var saveRootOverride: String?
         if let dir = directory?.trimmingCharacters(in: .whitespacesAndNewlines),
            !dir.isEmpty, dir != "/" {
@@ -188,6 +188,7 @@ final class BatchMediaExportStore: ObservableObject {
         var folderInput = folderName ?? ""
         if let raw = folderInput.trimmingCharacters(in: .whitespacesAndNewlines) as String?,
            raw.hasPrefix("/"), raw != "/" {
+            // 绝对路径进 folderName = 整段就是目标目录（优先于 directory）
             saveRootOverride = NSString(string: raw).expandingTildeInPath
             folderInput = ""
         }
@@ -195,12 +196,10 @@ final class BatchMediaExportStore: ObservableObject {
         if folderProbe.isEmpty || folderProbe == "." || folderProbe == ".." {
             folderInput = ""
         }
-        let folder = saveRootOverride != nil
-            ? ""   // 有精确目标目录 = 直落，不叠子文件夹
-            : BatchMediaPlan.sanitizedFileName(
-                from: folderInput,
-                fallback: "Desire-Batch-" + Self.folderTimestamp()
-            )
+        let folder = BatchMediaPlan.sanitizedFileName(
+            from: folderInput,
+            fallback: saveRootOverride != nil ? "" : "Desire-Batch-" + Self.folderTimestamp()
+        )
         var batchItems = items
         var overflow = skipped
         if batchItems.count > Self.maxItemsPerBatch {

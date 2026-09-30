@@ -235,6 +235,14 @@ final class BatchMediaExportStore: ObservableObject {
         batches.insert(batch, at: 0)
         batchUserAgents[batch.id] = userAgent
         if force { forceDownloadBatches.insert(batch.id) }
+        blog(batch.id, String(
+            format: "批次开始：%@ 模式，%d 项 → %@%@，并发 %d，分卷 %@，命名 %@%@",
+            batch.mode.rawValue, batchItems.count, batch.saveRoot ?? BatchMediaPreferences.baseDirectory ?? "~/Downloads",
+            batch.folderName.isEmpty ? "" : "/" + batch.folderName,
+            BatchMediaPreferences.maxConcurrent,
+            batch.splitEvery.map { "每 \($0) 个文件一卷" } ?? "关",
+            BatchMediaPreferences.namingStyle.rawValue,
+            force ? "，force 重下" : ""))
         persistUnfinished()
         startEngine(batch.id)
         return batch
@@ -574,10 +582,12 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].state = .skipped
             batches[bi].items[ii].summary = "batch cancelled"
         }
+        blog(batchID, "（上上轮日志补记：非终态项收口为 skipped）")
         resolvers[batchID]?.teardown()
         resolvers[batchID] = nil
         batchUserAgents[batchID] = nil
         cleanOrphanParts(batchID)
+        blog(batchID, "批次取消")
         BatchVerifyWindowController.shared.dismiss()
         MediaExportStore.shared.deliverNote(
             String(localized: "Batch download cancelled"),
@@ -603,6 +613,11 @@ final class BatchMediaExportStore: ObservableObject {
     }
 
     // MARK: - 引擎
+
+    /// 批任务日志（面板可展开 / 桥 GET /media/batch/log）。
+    private func blog(_ batchID: UUID, _ line: String) {
+        BatchMediaLogStore.append(batchID, line)
+    }
 
     private func startEngine(_ batchID: UUID) {
         guard !engineRunning.contains(batchID) else { return }
@@ -751,6 +766,7 @@ final class BatchMediaExportStore: ObservableObject {
             let base = BatchMediaPlan.displayName(pageTitle: pageTitle, mediaURL: mediaURL, style: BatchMediaPreferences.namingStyle)
             batches[bi].items[ii].mediaURL = mediaURL
             batches[bi].items[ii].referer = sourceURL
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 解析完成 → \(mediaURL.absoluteString)" )
             // 以序号为底重建标题（重试时 title 已是上一轮的完整名字，直接
             // 叠加会翻倍——"01-Retry Episode-Retry Episode"，实测踩过）。
             batches[bi].items[ii].title = "\(batches[bi].items[ii].numberPrefix)-\(base)"
@@ -841,6 +857,7 @@ final class BatchMediaExportStore: ObservableObject {
             }
             let folderName = itemFolder.isEmpty ? nil : itemFolder
             let userAgent = batchUserAgents[batchID]
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 开始下载 → \(folderName.map { $0 + "/" } ?? "")\(batches[bi].items[ii].title)" )
             // 已下载索引：重跑同一列表不重复占盘（force 批次绕过）。
             // **智能判断**：索引命中还要验证落盘文件仍在——用户手动删除/
             // 移动过的话照常重新下载并刷新索引，而不是永远跳过。
@@ -849,9 +866,11 @@ final class BatchMediaExportStore: ObservableObject {
                 if FileManager.default.fileExists(atPath: downloaded) {
                     batches[bi].items[ii].state = .skipped
                     batches[bi].items[ii].summary = "already downloaded: \(downloaded)"
+                    blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 跳过（已下载过：\(downloaded)）")
                     Log.downloads.info("item skipped (already downloaded: \(downloaded, privacy: .public))")
                     continue
                 }
+                blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 索引命中但文件缺失，重新下载")
                 Log.downloads.info("index hit but file missing — re-downloading (\(downloaded, privacy: .public))")                
             }
             batches[bi].items[ii].state = .downloading
@@ -918,6 +937,11 @@ final class BatchMediaExportStore: ObservableObject {
     private func recordProgress(itemID: UUID, done: Int, total: Int, unit: MediaExporter.ProgressUnit) {
         itemProgress[itemID] = (done, total, unit)
         lastProgressAt[itemID] = Date()
+        // 合成（remux）阶段入日志：分片全部完成后的"黑盒期"从此可查。
+        if unit == .merging, done == 0,
+           let bi = batches.firstIndex(where: { $0.items.contains(where: { $0.id == itemID }) }) {
+            blog(batches[bi].id, "合成开始（remux/concat）")
+        }
         guard Date().timeIntervalSince(lastSpaceCheckAt) > 5 else { return }
         lastSpaceCheckAt = Date()
         // 在跑的项还在写盘——按 itemID 找回所属批次并挂起（各批可能各有
@@ -1035,6 +1059,7 @@ final class BatchMediaExportStore: ObservableObject {
         guard let free = volumeFreeBytes(at: saveRootURL(for: batchID)), free >= resumeBytes else { return }
         let reason = suspendedReasons[batchID]
         suspendedReasons[batchID] = nil
+        blog(batchID, "批次自动恢复（磁盘空间已回到预留线上方）")
         spaceMonitorTasks[batchID]?.cancel()
         spaceMonitorTasks[batchID] = nil
         Log.downloads.info("batch auto-resumed after disk space recovery (batch \(batchID.uuidString.prefix(8), privacy: .public))")
@@ -1093,6 +1118,8 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].state = .finished
             batches[bi].items[ii].summary = "\(result.fileURL.lastPathComponent), \(result.displayBytes)" +
                 (result.verification.map { ", ✓ \($0)" } ?? "")
+            let verifyText = result.verification.map { "，验证 ✓ \($0)" } ?? ""
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载完成：\(result.displayBytes)\(verifyText)，落盘 \(result.fileURL.path)")
             BatchDownloadedIndex.record(
                 urls: [batches[bi].items[ii].sourceURL.absoluteString, batches[bi].items[ii].mediaURL?.absoluteString ?? ""],
                 file: result.fileURL.path
@@ -1111,6 +1138,7 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].attempts += 1
             batches[bi].items[ii].state = .failed
             batches[bi].items[ii].summary = error.localizedDescription
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载失败（第 \(batches[bi].items[ii].attempts) 次尝试）：\(error.localizedDescription)")
             Log.downloads.error("item failed: \(error.localizedDescription, privacy: .public)")
         case .cancelled:
             if isHalted(batchID) {
@@ -1171,6 +1199,12 @@ final class BatchMediaExportStore: ObservableObject {
     private func finalize(_ batchID: UUID) {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }) else { return }
         batches[bi].state = .finished
+        let elapsed = Date().timeIntervalSince(batches[bi].createdAt)
+        let mins = Int(elapsed) / 60, secs = Int(elapsed) % 60
+        let doneN = batches[bi].items.filter { $0.state == .finished }.count
+        let failedN = batches[bi].items.filter { $0.state == .failed }.count
+        let skippedN = batches[bi].items.filter { $0.state == .skipped }.count
+        blog(batchID, String(format: "批次完成：成功 %d / 失败 %d / 跳过 %d，总耗时 %d 分 %d 秒", doneN, failedN, skippedN, mins, secs))
         engineTasks[batchID] = nil
         watchdogTasks[batchID] = nil
         engineRunning.remove(batchID)

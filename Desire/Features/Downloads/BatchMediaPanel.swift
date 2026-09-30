@@ -11,6 +11,8 @@ struct BatchMediaPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: BatchMediaExportStore
     @ObservedObject var mediaStore: MediaExportStore
+    /// 展开日志的批次集合（doc.text 图标 toggle）。
+    @State private var expandedLogIDs: Set<UUID> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -104,6 +106,10 @@ struct BatchMediaPanel: View {
             }
 
             itemRows(batch)
+
+            if expandedLogIDs.contains(batch.id) {
+                logView(batch)
+            }
         }
         .padding(12)
         .background(
@@ -144,6 +150,15 @@ struct BatchMediaPanel: View {
         HoverIcon(systemName: running ? "pause" : "play.fill", action: {
             if running { store.pause(batchID: batch.id) } else { store.resume(batchID: batch.id) }
         }, help: running ? String(localized: "Pause") : String(localized: "Resume"))
+        HoverIcon(systemName: "doc.text", action: {
+            withAnimation(.easeOut(duration: 0.15)) {
+                if expandedLogIDs.contains(batch.id) {
+                    expandedLogIDs.remove(batch.id)
+                } else {
+                    expandedLogIDs.insert(batch.id)
+                }
+            }
+        }, help: String(localized: "Download Log"))
         HoverIcon(systemName: "arrow.clockwise", action: {
             store.retryFailed(batch.id)
         }, help: String(localized: "Retry failed items"))
@@ -174,9 +189,17 @@ struct BatchMediaPanel: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     if let progress = store.progress(for: item.id) {
-                        Text("\(progress.done)/\(progress.total) \(progress.unit == .seconds ? "s" : "seg")")
-                            .font(.system(size: 10).monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        // 合成阶段：不再显示分片计数（此时分片已全部完成），
+                        // 显示"合成中"避免 UI 静止像假死。
+                        if progress.unit == .merging {
+                            Text(String(localized: "Merging…"))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("\(progress.done)/\(progress.total) \(progress.unit == .seconds ? "s" : "seg")")
+                                .font(.system(size: 10).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     // 逐项移除：排队/失败项可删（从队列移除）；成品不在此删
                     //（文件在盘上，删除文件超出面板语义）。
@@ -194,6 +217,46 @@ struct BatchMediaPanel: View {
             }
         }
         .padding(.leading, 14)
+    }
+
+    /// 批任务日志（展开区）：打开时刻的快照（BatchMediaLogStore 静态读），
+    /// 重开一次即刷新。mono 小字、自动滚到最新。
+    private func logView(_ batch: BatchMediaBatch) -> some View {
+        let entries = BatchMediaLogStore.entries(batch.id)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return Group {
+            if entries.isEmpty {
+                Text(String(localized: "No log entries yet"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 6)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(entries) { entry in
+                                Text(verbatim: "\(formatter.string(from: entry.at))  \(entry.line)")
+                                    .font(.system(size: 9.5, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .id(entry.id)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .frame(maxHeight: 160)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.black.opacity(0.25))
+                    )
+                    .onAppear {
+                        if let last = entries.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - 共用小组件

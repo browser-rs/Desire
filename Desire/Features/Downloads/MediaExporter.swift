@@ -24,6 +24,9 @@ enum MediaExporter {
     /// 进度计数的单位：ffmpeg 直连按秒、内置下载器按段。
     enum ProgressUnit: String {
         case segments, seconds
+        /// 分片全部下载完成后的合成（remux/concat）阶段——此前此阶段无任何
+        /// 进度上报，UI 静止像假死（用户实测"分段都下完了导出一直 running"）。
+        case merging
     }
 
     struct Result {
@@ -224,7 +227,13 @@ enum MediaExporter {
                 deadlineCheck: { guard Date() < deadline else { throw ExportError.timedOut } },
                 progress: progress
             )
-            return try await remuxToMP4IfNeeded(result, extraWarnings: warnings, deadline: deadline)
+            // 合成阶段单独上报进度（面板显示"合成中"），并给**独立短超时**：
+            // 合成是本地文件操作，卡住时不再挂满整个总时长上限。
+            progress(0, 1, .merging)
+            let remuxDeadline = min(deadline, Date().addingTimeInterval(15 * 60))
+            let final = try await remuxToMP4IfNeeded(result, extraWarnings: warnings, deadline: remuxDeadline)
+            progress(1, 1, .merging)
+            return final
         } catch is CancellationError {
             throw CancellationError()
         } catch {

@@ -54,26 +54,6 @@ struct DownloadPanel: View {
             Divider()
             if showBatchTasks {
                 BatchMediaPanel(store: batchStore, mediaStore: mediaStore)
-                    .overlay(alignment: .bottomTrailing) {
-                        Button {
-                            showBatchSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    Circle().fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-                                )
-                                .overlay(
-                                    Circle().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
-                                )
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Batch download settings")
-                        .padding(10)
-                    }
             } else {
                 if !store.downloads.isEmpty {
                     filterBar
@@ -147,6 +127,13 @@ struct DownloadPanel: View {
             statusSummary
 
             Spacer(minLength: 8)
+
+            // 批量下载设置齿轮：仅"视频任务"视图显示（用户需求：挪到顶部）。
+            if showBatchTasks {
+                HoverIcon(systemName: "gearshape", action: {
+                    showBatchSettings = true
+                }, help: "Batch download settings")
+            }
 
             HoverIcon(systemName: "folder", action: {
                 NSWorkspace.shared.open(store.downloadFolder)

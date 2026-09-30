@@ -347,6 +347,7 @@ final class AutomationServer {
         ep("GET", "/windows", "On-screen Desire windows (number for `screencapture -l<number>`, title, frame, isKey)", example: "…/windows")
         ep("POST", "/app/quit", "Graceful quit (same path as Cmd+Q: terminate → flush → exit)", example: "-d '{}'")
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
+        ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
         ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
@@ -1171,6 +1172,17 @@ final class AutomationServer {
                     kind: Self.string(body, "kind") ?? "list",
                     referer: Self.string(body, "referer")
                 ))
+            case ("GET", "/media/batch/log"):
+                guard let id = Self.string(query, "id"), let uuid = UUID(uuidString: id) else {
+                    return try Self.json(["error": "missing/invalid id"])
+                }
+                var lines = BatchMediaLogStore.entries(uuid).map { entry in
+                    "\(Self.logTime(entry.at)) \(entry.line)"
+                }
+                if let tail = Self.string(query, "tail").flatMap({ Int($0) }), tail > 0, lines.count > tail {
+                    lines = Array(lines.suffix(tail))
+                }
+                return try Self.json(["id": uuid.uuidString, "lines": lines])
             case ("GET", "/media/batch/history"):
                 return try Self.json(Self.downloadHistory())
             case ("GET", "/media/batch/config"):
@@ -3585,6 +3597,12 @@ final class AutomationServer {
             ]
         }
         return ["count": rows.count, "conversations": Array(rows)]
+    }
+
+    private static func logTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f.string(from: date)
     }
 
     /// 批次管理（桥直达，不再必须经智能体工具）：pause/resume/cancel/skip。

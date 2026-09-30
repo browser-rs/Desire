@@ -1859,6 +1859,9 @@
         }
       }
     },
+    "Access level — how much the agent may do without asking" : {
+
+    },
     "Account" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2626,6 +2629,28 @@
         }
       }
     },
+    "Agent needs your confirmation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent needs your confirmation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体需要你的确认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智慧體需要你的確認"
+          }
+        }
+      }
+    },
     "Agent Prompt" : {
       "localizations" : {
         "en" : {
@@ -2693,6 +2718,7 @@
       }
     },
     "Agent 需要你的确认" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2963,6 +2989,7 @@
       }
     },
     "All tools run without approval — including code execution" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3677,6 +3704,28 @@
         }
       }
     },
+    "Asks before changes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks before changes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改东西前先问你。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改東西前先問你。"
+          }
+        }
+      }
+    },
     "ASSISTANT" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3922,6 +3971,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動（雲端 + 端側）"
+          }
+        }
+      }
+    },
+    "Auto Edit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto Edit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动编辑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動編輯"
+          }
+        }
+      }
+    },
+    "Auto-approves page edits; system commands still ask." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-approves page edits; system commands still ask."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动执行页面编辑；系统命令仍会询问。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動執行頁面編輯；系統命令仍會詢問。"
           }
         }
       }
@@ -6849,6 +6942,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在設定中配置 Agent…"
+          }
+        }
+      }
+    },
+    "Confirm Before Changes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Before Changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变更前确认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更前確認"
           }
         }
       }
@@ -11803,6 +11918,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "獲取中…"
+          }
+        }
+      }
+    },
+    "Fewest confirmations." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fewest confirmations."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "减少确认次数。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減少確認次數。"
           }
         }
       }
@@ -19437,134 +19574,24 @@
         }
       }
     },
-    "Agent needs your confirmation" : {
+    "Access Level" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Agent needs your confirmation"
+            "value" : "Access Level"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "智能体需要你的确认"
+            "value" : "访问等级"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "智慧體需要你的確認"
-          }
-        }
-      }
-    },
-    "Confirm Before Changes" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Confirm Before Changes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "变更前确认"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "變更前確認"
-          }
-        }
-      }
-    },
-    "Asks before changes." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Asks before changes."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改东西前先问你。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改東西前先問你。"
-          }
-        }
-      }
-    },
-    "Auto Edit" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto Edit"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动编辑"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動編輯"
-          }
-        }
-      }
-    },
-    "Auto-approves page edits; system commands still ask." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto-approves page edits; system commands still ask."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动执行页面编辑；系统命令仍会询问。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動執行頁面編輯；系統命令仍會詢問。"
-          }
-        }
-      }
-    },
-    "Fewest confirmations." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fewest confirmations."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "减少确认次数。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "減少確認次數。"
+            "value" : "存取等級"
           }
         }
       }

@@ -16,6 +16,13 @@ import SwiftUI
 /// `SettingsWindowController`), so it has no `onDone` callback or fixed frame —
 /// the window's traffic-light close button is the only way out.
 struct SettingsView: View {
+    /// 设置页选中分区的外部可写状态（桥端点写入）。
+    @MainActor
+    final class SettingsSectionNavigator: ObservableObject {
+        static let shared = SettingsSectionNavigator()
+        @Published var selected: Section = .general
+    }
+
     enum Section: String, CaseIterable, Identifiable {
         case general
         case ai
@@ -71,7 +78,9 @@ struct SettingsView: View {
     @ObservedObject var privacyModeStore: PrivacyModeStore
     var shortcutStore: KeyboardShortcutStore
 
-    @State private var selectedSection: Section = .general
+    /// 选中分区**提升到导航状态**（桥 `POST /settings/section` 可写）——
+    /// 自动化验证设置页分区不再靠坐标点击侧栏。
+    @ObservedObject private var navigator = SettingsSectionNavigator.shared
 
     var body: some View {
         content
@@ -83,7 +92,7 @@ struct SettingsView: View {
 
     private var content: some View {
         NavigationSplitView {
-            List(Section.allCases, selection: $selectedSection) { section in
+            List(Section.allCases, selection: $navigator.selected) { section in
                 // 自绘行而不是 `Label`：侧栏各 SF Symbol 的固有宽度差别很大，
                 // 系统按图标原始宽度排版时标题起始位置会参差（"远程"那一项看着
                 // 就像错位了）。固定 18pt 图标列后所有标题左边缘对齐。
@@ -109,7 +118,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedSection {
+        switch navigator.selected {
         case .general:
             GeneralSettingsSection(
                 settings: settings,

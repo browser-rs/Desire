@@ -448,6 +448,7 @@ final class AutomationServer {
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
+        ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
         ep("GET", "/ads/stats", "Ad-blocking statistics (video-rule events only; see the stats panel)", example: "…/ads/stats")
         ep("POST", "/ads/stats/clear", "Reset ad-blocking statistics", example: "-d '{}'")
         ep("GET", "/media/batch", "Batch download progress (per-item states; needsHuman = waiting for a manual check in the popup window)", params: ["id?:uuid"], example: "…/media/batch")
@@ -1162,6 +1163,14 @@ final class AutomationServer {
                 return try Self.json(Self.downloadHistory())
             case ("GET", "/media/batch/config"):
                 return try Self.json(Self.batchMediaConfig())
+            case ("POST", "/settings/section"):
+                let raw = Self.string(body, "section") ?? ""
+                guard let section = SettingsView.Section(rawValue: raw) else {
+                    return try Self.json(["error": "unknown section; valid: \(SettingsView.Section.allCases.map(\.rawValue).joined(separator: "/"))"])
+                }
+                SettingsView.SettingsSectionNavigator.shared.selected = section
+                _ = try? Self.sendCommand(name: "showSettings", index: nil)
+                return try Self.json(["ok": true, "section": section.rawValue])
             case ("GET", "/ads/stats"):
                 return try Self.json(Self.adBlockStats())
             case ("POST", "/ads/stats/clear"):

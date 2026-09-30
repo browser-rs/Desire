@@ -34,20 +34,28 @@ struct BatchDownloadSettingsContent: View {
                     .padding(.bottom, 14)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 locationRow
+                SettingsRowDivider()
                 splitRow
+                SettingsRowDivider()
                 concurrencyRow
+                SettingsRowDivider()
                 reserveRow
+                SettingsRowDivider()
                 skipRow
+                SettingsRowDivider()
                 namingRow
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
 
             Text("Batch Download Defaults Footer")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 16)
+                .padding(.horizontal, 14)
 
             if isOnboarding {
                 HStack {
@@ -224,7 +232,7 @@ struct BatchDownloadSettingsContent: View {
             trailing()
                 .frame(minWidth: 150, alignment: .trailing)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 10)
     }
 
     private func chooseDirectory() {
@@ -244,16 +252,20 @@ struct BatchDownloadSettingsContent: View {
     }
 }
 
-/// 设置页包装（Settings ▸ 批量下载）。
+/// 设置页包装（Settings ▸ 批量下载）。**必须套 SettingsContainer**：
+/// 其它区块都经它限宽居中（720pt），裸 SettingsSection 会被拉满整窗宽、
+/// 行控件顶到窗口右缘并被截断（用户实测截图）。
 struct BatchDownloadSettingsSection: View {
     var body: some View {
-        SettingsSection(
-            title: String(localized: "Batch Downloads"),
-            subtitle: String(localized: "Defaults for batch video downloads — the agent can override per batch in chat."),
-            icon: "square.stack.3d.up"
-        ) {
-            BatchDownloadSettingsContent()
-                .padding(.vertical, 8)
+        SettingsContainer {
+            SettingsSection(
+                title: String(localized: "Batch Downloads"),
+                subtitle: String(localized: "Defaults for batch video downloads — the agent can override per batch in chat."),
+                icon: "square.stack.3d.up"
+            ) {
+                BatchDownloadSettingsContent()
+                    .padding(.vertical, 8)
+            }
         }
     }
 }

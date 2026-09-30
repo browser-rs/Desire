@@ -555,8 +555,11 @@ final class BatchMediaExportStore: ObservableObject {
     /// 摘出列表。running 批不适用（先 cancel）。此前已结束批次永远占着
     /// 面板、删除按钮是空操作（用户实测"删除无效"）。
     func removeSettled(batchID: UUID) {
+        // running 且**未暂停**的批次不能抽走（引擎在跑）；暂停态批次的
+        // 引擎已停（在途项已收回 pending），照删——模型/桥的 remove 对
+        // "恢复后暂停"的批次曾是静默空操作（restored 批 state=.running）。
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
-              batches[bi].state != .running else { return }
+              batches[bi].state != .running || pausedBatches.contains(batchID) else { return }
         engineTasks[batchID]?.cancel()
         engineTasks[batchID] = nil
         watchdogTasks[batchID]?.cancel()

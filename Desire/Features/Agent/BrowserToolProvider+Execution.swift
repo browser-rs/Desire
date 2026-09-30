@@ -818,10 +818,21 @@ extension BrowserToolProvider {
             }
             let requestedFolder = (args["folderName"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            let explicitDirectory = (args["directory"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             // 未指定文件夹时**自动垫站点域名子夹**：换站不混装（2026-09-30
-            // 用户定案恢复——曾误删，"下载换个网站就错乱了"）。指定了
-            // folderName/directory 则以指定为准。
-            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : webView.url?.host
+            // 用户定案恢复——曾误删，"下载换个网站就错乱了"）。**但只垫给
+            // 默认流**——用户指定了 directory 时该路径就是根目录，绝不再垫
+            // host 子夹（实测 directory=/Volumes/sd/missav.ws 被垫成
+            // …/missav.ws/missav.ws 嵌套，用户"位置搞错了"）。
+            let folderName: String?
+            if requestedFolder?.isEmpty == false {
+                folderName = requestedFolder
+            } else if explicitDirectory == nil || explicitDirectory!.isEmpty || explicitDirectory! == "/" {
+                folderName = webView.url?.host
+            } else {
+                folderName = nil
+            }
             let batch = BatchMediaExportStore.shared.startPageBatch(
                 candidates: candidates.map { ($0.url, $0.kind, $0.mime, $0.isBlob) },
                 referer: webView.url,
@@ -834,8 +845,10 @@ extension BrowserToolProvider {
             )
             let downloading = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
+            let dest = batch.saveRoot ?? (BatchMediaPreferences.baseDirectory ?? NSHomeDirectory() + "/Downloads")
+            let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
             var reply = """
-            Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName) (≤2 concurrent). \
+            Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(dest)\(leaf) (≤2 concurrent). \
             Failed items are retried automatically in the same batch/folder — do NOT fall back to downloadMedia for them. \
             Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
             """
@@ -856,7 +869,18 @@ extension BrowserToolProvider {
             }
             let requestedFolder = (args["folderName"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let folderName = (requestedFolder?.isEmpty == false) ? requestedFolder : URL(string: urls[0])?.host
+            let explicitDirectory = (args["directory"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // host 垫层只给默认流（同 downloadAllPageVideos）；指定 directory
+            // = 根目录直落，绝不嵌套（/Volumes/sd/missav.ws 事故）。
+            let folderName: String?
+            if requestedFolder?.isEmpty == false {
+                folderName = requestedFolder
+            } else if explicitDirectory == nil || explicitDirectory!.isEmpty || explicitDirectory! == "/" {
+                folderName = URL(string: urls[0])?.host
+            } else {
+                folderName = nil
+            }
             if let mc = args["maxConcurrent"] as? Int, (1...4).contains(mc) {
                 BatchMediaPreferences.maxConcurrent = mc
             }
@@ -871,8 +895,10 @@ extension BrowserToolProvider {
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
+            let dest = batch.saveRoot ?? (BatchMediaPreferences.baseDirectory ?? NSHomeDirectory() + "/Downloads")
+            let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
             var reply = """
-            Batch \(batch.id.uuidString.prefix(8)) started: \(queued) page(s) queued. Each page is loaded in a hidden browser \
+            Batch \(batch.id.uuidString.prefix(8)) started: \(queued) page(s) queued → \(dest)\(leaf). Each page is loaded in a hidden browser \
             (serialized, paced with the download slots so signed URLs never expire), the stream is captured and downloaded (≤2 concurrent). \
             Cloudflare checks pass automatically; an interactive one is clicked with real mouse events, and only falls back to waiting for the \
             user in a popup window if that fails. Failed items are retried automatically in the SAME batch/folder — do NOT fall back to \
@@ -955,7 +981,7 @@ extension BrowserToolProvider {
             }
             let batchID = batch.id
             guard let action = (args["action"] as? String)?.lowercased() else {
-                return Self.fail("Missing action (pause/resume/skip/add)")
+                return Self.fail("Missing action (pause/resume/skip/add/remove)")
             }
             switch action {
             case "pause":
@@ -991,8 +1017,13 @@ extension BrowserToolProvider {
                 return result.added == 0
                     ? "Nothing added (\(result.duplicates) duplicate/invalid URL(s) — they may already be in this batch)."
                     : "Added \(result.added) task(s) to the batch (\(result.duplicates) duplicates ignored). Numbering continues from the existing items."
+            case "remove":
+                store.removeSettled(batchID: batchID)
+                return store.batches.contains(where: { $0.id == batchID })
+                    ? Self.fail("Batch is still running — cancel it first (no remove action for running batches; pause then remove works)")
+                    : "Batch removed from the panel."
             default:
-                return Self.fail("Unknown action '\(action)' (pause/resume/skip/add)")
+                return Self.fail("Unknown action '\(action)' (pause/resume/skip/add/remove)")
             }
 
         case "downloadMedia":

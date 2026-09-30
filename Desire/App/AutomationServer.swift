@@ -3541,7 +3541,13 @@ final class AutomationServer {
             guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
                 return ["error": "too many urls (cap \(BatchMediaExportStore.maxItemsPerBatch))"]
             }
-            let hostFallback = (folderName?.isEmpty == false) ? folderName! : (URL(string: urls[0])?.host ?? "")
+            // host 垫层只给默认流：显式 directory = 根目录直落，不嵌套
+            // （与工具层 downloadVideoList 同一规矩）。
+            let trimmedDir = directory?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasDirectory = trimmedDir != nil && !(trimmedDir!.isEmpty) && trimmedDir! != "/"
+            let hostFallback: String? = (folderName?.isEmpty == false)
+                ? folderName
+                : (hasDirectory ? nil : URL(string: urls[0])?.host)
             let batch = BatchMediaExportStore.shared.startListBatch(
                 pageURLs: urls,
                 userAgent: nil,

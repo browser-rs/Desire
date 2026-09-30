@@ -884,14 +884,15 @@ extension BrowserToolProvider {
             // 散落三个目录——工具描述已禁止，这里给出规范入口）。
             let batches = BatchMediaExportStore.shared.batches
             let target: BatchMediaBatch?
-            if let rawID = args["batchId"] as? String,
-               let uuid = UUID(uuidString: rawID) {
-                target = batches.first(where: { $0.id == uuid })
+            if let rawID = args["batchId"] as? String, !rawID.isEmpty {
+                let (resolved, error) = Self.resolveBatch(rawID, in: batches)
+                if let error { return Self.fail(error) }
+                target = resolved
             } else {
                 target = batches.first(where: { $0.state == .finished })
             }
             guard let batch = target else {
-                return Self.fail("No matching finished batch (pass batchId from listBatchDownloads)")
+                return Self.fail("No matching finished batch (pass the [#xxxxxxxx] batchId from listBatchDownloads)")
             }
             let failedCount = batch.items.filter { $0.state == .failed }.count
             guard failedCount > 0 else {
@@ -906,7 +907,7 @@ extension BrowserToolProvider {
             guard !batches.isEmpty else { return "No batch downloads." }
             var lines: [String] = []
             for batch in batches.prefix(10) {
-                var line = "[\(batch.state.rawValue)] \(batch.folderName) (\(batch.mode.rawValue)) — \(batch.finishedCount)/\(batch.items.count) done → \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName)"
+                var line = "[#\(batch.id.uuidString.prefix(8).lowercased())] [\(batch.state.rawValue)] \(batch.folderName) (\(batch.mode.rawValue)) — \(batch.finishedCount)/\(batch.items.count) done → \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName)"
                 if store.isPaused(batch.id) { line += " — PAUSED (resume with manageBatchDownloads)" }
                 if let reason = store.suspensionReason(batch.id) {
                     line += " — SUSPENDED: \(reason) (auto-resumes when space recovers)"
@@ -917,7 +918,7 @@ extension BrowserToolProvider {
                 }
                 lines.append(line)
                 for item in batch.items.prefix(30) {
-                    var itemLine = "  · [\(item.state.rawValue)] \(item.title.isEmpty ? item.sourceURL.absoluteString : item.title)"
+                    var itemLine = "  · [#\(item.id.uuidString.prefix(8).lowercased())] [\(item.state.rawValue)] \(item.title.isEmpty ? item.sourceURL.absoluteString : item.title)"
                     if let progress = store.progress(for: item.id) {
                         itemLine += " (\(progress.done)/\(progress.total) \(progress.unit.rawValue))"
                     }
@@ -934,14 +935,18 @@ extension BrowserToolProvider {
             return lines.joined(separator: "\n")
 
         case "manageBatchDownloads":
-            guard let rawID = args["batchId"] as? String,
-                  let batchID = UUID(uuidString: rawID) else {
-                return Self.fail("Missing/invalid batchId (from listBatchDownloads)")
+            guard let rawID = args["batchId"] as? String, !rawID.isEmpty else {
+                return Self.fail("Missing batchId — call listBatchDownloads and copy the [#xxxxxxxx] id")
             }
+            let store = BatchMediaExportStore.shared
+            let (resolvedBatch, batchError) = Self.resolveBatch(rawID, in: store.batches)
+            guard let batch = resolvedBatch else {
+                return Self.fail(batchError ?? "invalid batchId")
+            }
+            let batchID = batch.id
             guard let action = (args["action"] as? String)?.lowercased() else {
                 return Self.fail("Missing action (pause/resume/skip/add)")
             }
-            let store = BatchMediaExportStore.shared
             switch action {
             case "pause":
                 store.pause(batchID: batchID)
@@ -950,11 +955,14 @@ extension BrowserToolProvider {
                 store.resume(batchID: batchID)
                 return "Batch resumed."
             case "skip":
-                guard let rawItem = args["itemId"] as? String,
-                      let itemID = UUID(uuidString: rawItem) else {
-                    return Self.fail("skip needs itemId (from listBatchDownloads)")
+                guard let rawItem = args["itemId"] as? String, !rawItem.isEmpty else {
+                    return Self.fail("skip needs itemId — the [#xxxxxxxx] id of an item in listBatchDownloads")
                 }
-                store.skip(batchID: batchID, itemID: itemID)
+                let (resolvedItem, itemError) = Self.resolveItem(rawItem, in: batch)
+                guard let item = resolvedItem else {
+                    return Self.fail(itemError ?? "invalid itemId")
+                }
+                store.skip(batchID: batchID, itemID: item.id)
                 return "Item skipped (removed from the queue)."
             case "add":
                 guard let urls = args["urls"] as? [String], !urls.isEmpty else {
@@ -1675,4 +1683,47 @@ extension BrowserToolProvider {
             : CGPoint(x: viewPoint.x, y: webView.bounds.height - viewPoint.y)
         return webView.convert(cocoaPoint, to: nil)
     }
+}
+
+// MARK: - 批量任务 id 解析
+
+extension BrowserToolProvider {
+// MARK: - 批量任务 id 解析
+
+/// 批次/条目 id 解析：完整 UUID 或大小写不敏感**前缀**。启动摘要与
+/// listBatchDownloads 只展示 8 位短 id——模型能拿到的就是它；此前严格
+/// UUID 解析让 manageBatchDownloads 永远失败（用户实测"批量任务根本
+/// 无法管理，一直报错"）。
+private static func resolveBatch(
+    _ rawID: String, in batches: [BatchMediaBatch]
+) -> (batch: BatchMediaBatch?, error: String?) {
+    if let uuid = UUID(uuidString: rawID), let b = batches.first(where: { $0.id == uuid }) {
+        return (b, nil)
+    }
+    let lowered = rawID.lowercased()
+    guard lowered.count >= 4 else {
+        return (nil, "batchId too short — call listBatchDownloads and copy the [#xxxxxxxx] id")
+    }
+    let hits = batches.filter { $0.id.uuidString.lowercased().hasPrefix(lowered) }
+    switch hits.count {
+    case 1: return (hits[0], nil)
+    case 0: return (nil, "No batch matches '\(rawID)' — call listBatchDownloads and copy the [#xxxxxxxx] id")
+    default: return (nil, "'\(rawID)' matches \(hits.count) batches — use a longer prefix")
+    }
+}
+
+private static func resolveItem(
+    _ rawID: String, in batch: BatchMediaBatch
+) -> (item: BatchMediaItem?, error: String?) {
+    if let uuid = UUID(uuidString: rawID), let it = batch.items.first(where: { $0.id == uuid }) {
+        return (it, nil)
+    }
+    let lowered = rawID.lowercased()
+    let hits = batch.items.filter { $0.id.uuidString.lowercased().hasPrefix(lowered) }
+    switch hits.count {
+    case 1: return (hits[0], nil)
+    case 0: return (nil, "No item matches '\(rawID)' — call listBatchDownloads and copy the item's [#xxxxxxxx] id")
+    default: return (nil, "'\(rawID)' matches \(hits.count) items — use a longer prefix")
+    }
+}
 }

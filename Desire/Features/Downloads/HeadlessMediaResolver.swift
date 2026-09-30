@@ -81,22 +81,41 @@ final class HeadlessMediaResolver: NSObject {
     func load(_ url: URL) async -> Outcome {
         resetCapture()
         do {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                // 二次 load 时若旧续体还挂着（teardown 摘了 delegate 后 didFinish
-                // 永远不来），先以失败解除它——否则旧调用方永久挂起 + 续体泄漏
-                //（CONC-3）。
-                self.loadContinuation?.resume(throwing: URLError(.cancelled))
-                self.loadContinuation = continuation
-                self.webView.load(URLRequest(url: url))
+            // **页面加载必须有超时**：服务器黑洞 / 代理失联会让 didFinish 永远
+            // 不来，串行解析队列在这里永久卡住——"一个卡住、全批卡住"
+            //（2026-09-30 用户实测强退）。60s 与 URLSession 请求超时对齐；
+            // 迟到的 didFinish 会 resume 掉挂着的续体（CONC-3 替换语义覆盖，
+            // 无重复 resume）。
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { try await self.awaitPageLoad(url: url) }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(60))
+                    throw URLError(.timedOut)
+                }
+                try await group.next()
+                group.cancelAll()
             }
         } catch is CancellationError {
             return .failed("cancelled")
         } catch let error as URLError where error.code == .cancelled {
             return .failed("cancelled")
+        } catch let error as URLError where error.code == .timedOut {
+            return .failed("page load timed out (60s)")
         } catch {
             return .failed("page failed to load: \(error.localizedDescription)")
         }
         return await awaitMedia(budget: Self.resolveBudgetSeconds, allowNeedsHuman: true)
+    }
+
+    private func awaitPageLoad(url: URL) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // 二次 load 时若旧续体还挂着（teardown 摘了 delegate 后 didFinish
+            // 永远不来），先以失败解除它——否则旧调用方永久挂起 + 续体泄漏
+            //（CONC-3）。
+            self.loadContinuation?.resume(throwing: URLError(.cancelled))
+            self.loadContinuation = continuation
+            self.webView.load(URLRequest(url: url))
+        }
     }
 
     /// 人工验证解除后，在已加载的页面上继续等媒体。

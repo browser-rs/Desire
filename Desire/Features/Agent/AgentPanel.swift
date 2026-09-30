@@ -365,7 +365,17 @@ struct AgentPanel: View {
                     pendingImages.remove(at: idx)
                 },
                 onSubmit: submit,
-                onCancel: { store.cancel() },
+                onCancel: {
+                    // 多 store 结构：流的主人未必是这个面板的 store（另一窗口/
+                    // 浮窗的回合在跑时，这里只有空闲 store）——单 cancel 自己
+                    // 是空操作（用户实测"开关窗口后打断无效"）。先记状态再停，
+                    // 自己在跑就只停自己，空闲则把其余还在跑的一并停掉。
+                    let wasProcessing = store.isProcessing
+                    store.cancel()
+                    if !wasProcessing {
+                        AgentScheduler.shared.cancelStreamingSessions(except: nil)
+                    }
+                },
                 onCancelQuestion: {
                     store.awaitingQuestion = false
                     store.cancel()

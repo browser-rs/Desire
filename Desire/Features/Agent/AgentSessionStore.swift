@@ -481,6 +481,7 @@ class AgentSessionStore: ObservableObject {
     }
 
     func cancel() {
+        Log.ai.info("turn cancelled by user (messages: \(self.messages.count))")
         isCancelled = true
         isProcessing = false
         currentAction = nil

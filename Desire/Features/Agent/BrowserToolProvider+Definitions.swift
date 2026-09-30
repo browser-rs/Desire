@@ -228,9 +228,9 @@ extension BrowserToolProvider {
                 name: "manageBatchDownloads",
                 description: "Manage a batch download queue: pause (in-flight items return to pending), resume, skip one item (remove from queue), or add new tasks to an existing batch (deduped, numbering continues). Use with listBatchDownloads to get batch/item ids. Queue edits the user asks for go here.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "batchId": AgentJSONSchemaValue(type: "string", description: "Batch UUID (from listBatchDownloads)"),
+                    "batchId": AgentJSONSchemaValue(type: "string", description: "Batch id — the [#xxxxxxxx] short id shown by listBatchDownloads (full UUID also accepted)"),
                     "action": AgentJSONSchemaValue(type: "string", description: "pause / resume / skip / add"),
-                    "itemId": AgentJSONSchemaValue(type: "string", description: "Item UUID (skip only)"),
+                    "itemId": AgentJSONSchemaValue(type: "string", description: "Item id — the [#xxxxxxxx] short id of an item row in listBatchDownloads"),
                     "urls": AgentJSONSchemaValue(type: "array", description: "URLs to append (add only): detail-page URLs for list-mode batches, media URLs for page-mode batches"),
                 ], required: ["batchId", "action"])
             )),

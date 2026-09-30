@@ -39,6 +39,8 @@ final class BatchMediaExportStore: ObservableObject {
     @Published private(set) var batches: [BatchMediaBatch] = []
 
     private var engineTasks: [UUID: Task<Void, Never>] = [:]
+    /// 槽位看门狗：单点卡死不该拖死整队（2026-09-30 用户实测）。
+    private var watchdogTasks: [UUID: Task<Void, Never>] = [:]
     /// 引擎循环是否在跑（暂停/挂起会让循环退出；恢复时据此决定要不要重启）。
     private var engineRunning: Set<UUID> = []
     /// list 模式的解析器（每批一个；page 模式不需要）。
@@ -63,6 +65,8 @@ final class BatchMediaExportStore: ObservableObject {
     /// 逐项进度（itemID → done/total/单位）。**不进 @Published**——段级
     /// 回调很密，发布会让桥/UI 跟着抖；快照读取时现取。
     private var itemProgress: [UUID: (done: Int, total: Int, unit: MediaExporter.ProgressUnit)] = [:]
+    /// 槽位看门狗依据：每个在跑项最近一次进度回调的时间。
+    private var lastProgressAt: [UUID: Date] = [:]
 
     /// 同批下载并发上限（用户可在 config 里调 1-4）。
     private var maxConcurrentDownloads: Int { BatchMediaPreferences.maxConcurrent }
@@ -350,6 +354,7 @@ final class BatchMediaExportStore: ObservableObject {
               !pausedBatches.contains(batchID) else { return }
         pausedBatches.insert(batchID)
         engineTasks[batchID]?.cancel()
+        watchdogTasks[batchID]?.cancel()
         pullBackInFlightItems(batchID, summary: "paused")
         persistUnfinished()
         Log.downloads.info("batch paused (batch \(batchID.uuidString.prefix(8), privacy: .public))")
@@ -481,7 +486,9 @@ final class BatchMediaExportStore: ObservableObject {
               batches[bi].state == .running else { return }
         batches[bi].state = .cancelled
         engineTasks[batchID]?.cancel()
+        watchdogTasks[batchID]?.cancel()
         engineTasks[batchID] = nil
+        watchdogTasks[batchID] = nil
         engineRunning.remove(batchID)
         diskAskInFlight.remove(batchID)
         pausedBatches.remove(batchID)
@@ -539,6 +546,33 @@ final class BatchMediaExportStore: ObservableObject {
         engineTasks[batchID] = Task { [weak self] in
             await self?.engineLoop(batchID)
             self?.engineRunning.remove(batchID)
+        }
+        watchdogTasks[batchID] = Task { [weak self] in
+            await self?.watchStalls(batchID)
+        }
+    }
+
+    /// 槽位看门狗：HLS/ffmpeg 项有进度回调——**超过 3 分钟没有任何进度推进**
+    /// 的在跑项，直接取消其导出任务（completion 以 failed 收场 → attempts
+    /// 递增、槽位释放、队列继续）。此前一个挂死的下载会占住并发槽到天荒地老，
+    /// "一个卡住、剩下的全卡住"。没有进度数据的项目（URLSession 直连单文件）
+    /// 不适用——它们由 URLSession 自身的请求/资源超时兜底。
+    private func watchStalls(_ batchID: UUID) async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(30))
+            if Task.isCancelled { return }
+            guard let bi = batches.firstIndex(where: { $0.id == batchID }),
+                  batches[bi].state == .running,
+                  !isHalted(batchID) else { return }
+            let now = Date()
+            for item in batches[bi].items where item.state == .downloading {
+                guard let at = lastProgressAt[item.id],
+                      now.timeIntervalSince(at) > 180,
+                      let jobID = item.jobID else { continue }
+                Log.downloads.error("item stalled (no progress for 3min) — cancelling its job to free the slot (batch \(batchID.uuidString.prefix(8), privacy: .public))")
+                lastProgressAt[item.id] = nil
+                MediaExportStore.shared.cancel(id: jobID)
+            }
         }
     }
 
@@ -611,10 +645,18 @@ final class BatchMediaExportStore: ObservableObject {
             if case .needsHuman = outcome {
                 // ② 自主通过不成 → 人工兜底：轮询挑战解除（用户在验证窗里
                 //    亲手完成）；该项被外部跳过则直接让位。
+                // 人工等待**不能无上限**：串行解析队列在此阻塞，用户不去点
+                // 的话整批永远停摆（2026-09-30 用户实测强退）。5 分钟没人处理
+                // 判失败，队列继续——事后 retryBatchDownloads 可补。
+                let verifyDeadline = Date().addingTimeInterval(300)
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(2))
                     if state(of: itemID, in: batchID) == .skipped { return }
                     if await resolver.refreshChallengeState() == false { break }
+                    if Date() > verifyDeadline {
+                        setState(batchID, itemID, .failed, summary: "verification not completed within 5 minutes — batch moved on; retry this item later")
+                        return
+                    }
                 }
                 if Task.isCancelled { return }
                 outcome = await resolver.awaitMedia()
@@ -774,6 +816,7 @@ final class BatchMediaExportStore: ObservableObject {
 
     private func recordProgress(itemID: UUID, done: Int, total: Int, unit: MediaExporter.ProgressUnit) {
         itemProgress[itemID] = (done, total, unit)
+        lastProgressAt[itemID] = Date()
         guard Date().timeIntervalSince(lastSpaceCheckAt) > 5 else { return }
         lastSpaceCheckAt = Date()
         // 在跑的项还在写盘——按 itemID 找回所属批次并挂起（各批可能各有
@@ -796,7 +839,9 @@ final class BatchMediaExportStore: ObservableObject {
               batches[bi].state == .running else { return }
         suspendedReasons[batchID] = reason
         engineTasks[batchID]?.cancel()
+        watchdogTasks[batchID]?.cancel()
         engineTasks[batchID] = nil
+        watchdogTasks[batchID] = nil
         engineRunning.remove(batchID)
         pullBackInFlightItems(batchID, summary: "suspended: disk reserve")
         persistUnfinished()
@@ -939,6 +984,7 @@ final class BatchMediaExportStore: ObservableObject {
               batches[bi].state == .running,
               let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }) else { return }
         itemProgress[itemID] = nil
+        lastProgressAt[itemID] = nil
         // 外部（skip）已定的终态不被回调改写。
         guard batches[bi].items[ii].state != .skipped else { return }
         switch outcome {
@@ -1025,6 +1071,7 @@ final class BatchMediaExportStore: ObservableObject {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }) else { return }
         batches[bi].state = .finished
         engineTasks[batchID] = nil
+        watchdogTasks[batchID] = nil
         engineRunning.remove(batchID)
         diskAskInFlight.remove(batchID)
         forceDownloadBatches.remove(batchID)

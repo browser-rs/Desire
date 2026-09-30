@@ -79,6 +79,17 @@ final class AgentScheduler: ObservableObject {
         return id
     }
 
+    /// 打断的**跨面板兜底**：每个窗口/浮窗各持一个会话 store（多 store 结构），
+    /// 可见面板的打断只 cancel 自己——若流跑在另一个 store 上（比如另一个
+    /// 窗口正在输出的回合），那个按钮就是空操作（用户实测"开关窗口后打断
+    /// 无效、只能强退"）。此方法停掉除指定外的所有还在跑的会话。
+    func cancelStreamingSessions(except keep: AgentSessionStore?) {
+        for entry in liveSessions() {
+            guard let store = entry.store, store !== keep, store.isProcessing else { continue }
+            store.cancel()
+        }
+    }
+
     func session(withID id: UUID) -> AgentSessionStore? {
         liveSessions().first(where: { $0.id == id })?.store
     }

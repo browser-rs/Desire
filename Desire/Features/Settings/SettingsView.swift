@@ -24,6 +24,7 @@ struct SettingsView: View {
         case privacy
         case autofill
         case keyboardShortcuts
+        case batchDownloads
 
         var id: String { rawValue }
 
@@ -38,6 +39,7 @@ struct SettingsView: View {
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
+            case .batchDownloads: "square.stack.3d.up"
             }
         }
 
@@ -50,6 +52,7 @@ struct SettingsView: View {
             case .privacy: "Privacy"
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
+            case .batchDownloads: "Batch Downloads"
             }
         }
     }
@@ -131,6 +134,8 @@ struct SettingsView: View {
             FormAutofillSettingsView(store: formAutofillStore)
         case .keyboardShortcuts:
             KeyboardShortcutsEditorView(store: shortcutStore)
+        case .batchDownloads:
+            BatchDownloadSettingsSection()
         }
     }
 }

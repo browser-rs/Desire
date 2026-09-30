@@ -57,6 +57,32 @@ enum BatchMediaPreferences {
         }
     }
 
+    /// **分卷规则（默认值）**：目标目录下每 N 个文件滚动 archivedNNN 子文件夹
+    /// （nil = 不分卷）。批的显式 `splitEvery` 参数优先；这里是无参数时的默认。
+    static var splitEvery: Int? {
+        get {
+            let raw = defaults.object(forKey: splitKey) as? Int ?? 0
+            return raw > 0 ? raw : nil
+        }
+        set {
+            let effective = (newValue ?? 0) > 0 ? newValue : nil
+            if let effective {
+                defaults.set(effective, forKey: splitKey)
+            } else {
+                defaults.removeObject(forKey: splitKey)
+            }
+        }
+    }
+
+    /// 首次进入"视频任务"面板时的设置引导已完成（不再自动弹出）。
+    static var onboardingDone: Bool {
+        get { defaults.bool(forKey: onboardingKey) }
+        set { defaults.set(newValue, forKey: onboardingKey) }
+    }
+
+    private static let onboardingKey = "batch.onboardingDone"
+    private static let splitKey = "batch.splitEvery"
+
     /// **磁盘预留空间（GB）**：保存位置剩余低于该值时挂起批次并提醒用户，
     /// 空间回到 `预留 + 512MB` 以上自动续跑——硬底线，不做"继续"绕过
     ///（防止把用户磁盘写满是目的，绕过就失去意义）。默认 5GB。

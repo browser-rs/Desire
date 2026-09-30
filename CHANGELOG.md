@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **批量下载用户引导与设置面板（用户需求）**：新增"批量下载"设置区块与首用引导——保存位置（目录选择/恢复默认）、分卷规则（开关 + 每 N 个文件 archivedNNN）、并发数量（1-4）、磁盘预留空间（GB）、跳过已下载、命名风格，六项默认参数即设即用并写入长期记忆；对话中智能体仍可按批覆盖（directory/splitEvery/maxConcurrent/naming 工具参数优先）。入口：设置 ▸ 批量下载；下载面板"视频任务"右下角齿轮；首次进入视频任务栏自动弹一次引导（完成打卡不再弹）。分卷作为默认偏好贯通引擎（批未显式指定时生效）；桥 /media/batch/config 新增 splitEvery。E2E：config 设 splitEvery=1 + baseDirectory 后起批不带参数 → 落点 prefs/Desire-Batch-*/archived001/01-*.mp4。附带修复：destinationURL 的穿越防御整串替换斜杠，会把分层分卷打成单层横杠长名——改为逐段消毒保留分层
+
 ### Changed
 
 - **批量下载路径语义重设计（用户实测"路径发成两段两个字段""指定 /Volumes/sd/missav.ws 却下错位置"）**：directory（或误传到 folderName 的绝对路径）= **精确目标目录，文件直接落那里**，不再叠加任何子文件夹——"我指定的路径就是下载位置"；folderName 仅在没给 directory 时作为默认下载根下的子文件夹，点噪音（"."/".."）回退时间戳文件夹。新增 **splitEvery 分卷规则**：目标目录下每 N 个文件滚动 archived001/002 子文件夹（如"每120个文件新建一个文件夹"），随批持久化、addItems 续号自动落对卷。**目标目录与分卷规则随批持久化并在重启恢复时保留**（此前 restore 丢 saveRoot——恢复后整批回落默认 Downloads）；恢复时 folder 保真（"" 直存原样保留，"." 噪音归位）。工具描述与桥 /media/batch 同步（bridge 新增 splitEvery）。修复 listBatchDownloads 输出写死默认目录、不反映批次真实落点的问题

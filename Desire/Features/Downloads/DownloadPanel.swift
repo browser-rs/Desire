@@ -20,6 +20,10 @@ struct DownloadPanel: View {
     @ObservedObject var store: DownloadStore
     // 第十一批：批量视频任务观察入口（用户："批量任务没有观察入口"）。
     @ObservedObject var batchStore = BatchMediaExportStore.shared
+    /// 批量下载默认参数面板（齿轮）+ 首次进入视频任务栏的引导。
+    @State private var showBatchSettings = false
+    @AppStorage("batch.onboardingDone") private var batchOnboardingDone = false
+    @State private var showBatchOnboarding = false
     @ObservedObject var mediaStore = MediaExportStore.shared
 
     @State private var searchText = ""
@@ -56,6 +60,26 @@ struct DownloadPanel: View {
             Divider()
             if showBatchTasks {
                 BatchMediaPanel(store: batchStore, mediaStore: mediaStore)
+                    .overlay(alignment: .bottomTrailing) {
+                        Button {
+                            showBatchSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle().fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                                )
+                                .overlay(
+                                    Circle().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+                                )
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Batch download settings")
+                        .padding(10)
+                    }
             } else {
                 if !store.downloads.isEmpty {
                     filterBar
@@ -65,6 +89,23 @@ struct DownloadPanel: View {
             }
         }
         .frame(width: 480, height: 520)
+        // 首次进入"视频任务"：弹一次默认参数引导（目录/分卷/并发/预留空间），
+        // 完成打卡后不再自动出现——之后随时点右下角齿轮再调。
+        .onChange(of: showBatchTasks) { _, shown in
+            if shown && !batchOnboardingDone && !showBatchOnboarding {
+                showBatchOnboarding = true
+            }
+        }
+        .sheet(isPresented: $showBatchOnboarding) {
+            BatchDownloadSettingsContent(isOnboarding: true)
+                .padding(22)
+                .frame(width: 520)
+        }
+        .sheet(isPresented: $showBatchSettings) {
+            BatchDownloadSettingsContent()
+                .padding(22)
+                .frame(width: 520)
+        }
     }
 
     // MARK: - Header

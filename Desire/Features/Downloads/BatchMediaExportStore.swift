@@ -226,7 +226,8 @@ final class BatchMediaExportStore: ObservableObject {
             id: UUID(),
             mode: mode,
             saveRoot: saveRootOverride,
-            splitEvery: ((splitEvery ?? 0) > 0 ? splitEvery : nil),
+            // 批未显式指定时回落用户默认（设置面板/引导里配置的）。
+            splitEvery: ((splitEvery ?? 0) > 0 ? splitEvery : nil) ?? BatchMediaPreferences.splitEvery,
             folderName: folder,
             items: batchItems + skippedItems,
             state: .running,

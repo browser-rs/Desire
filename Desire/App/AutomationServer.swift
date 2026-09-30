@@ -3569,12 +3569,16 @@ final class AutomationServer {
             "saveRoot": BatchMediaPreferences.baseDirectory ?? "~/Downloads",
             "skipDownloaded": BatchMediaPreferences.skipDownloaded,
             "maxConcurrent": BatchMediaPreferences.maxConcurrent,
+            "splitEvery": BatchMediaPreferences.splitEvery ?? 0,
         ]
     }
 
     private static func setBatchMediaConfig(body: [String: Any]) -> [String: Any] {
         if let reserve = body["reserveGB"] as? Int {
             BatchMediaPreferences.reserveGB = reserve
+        }
+        if let split = body["splitEvery"] as? Int {
+            BatchMediaPreferences.splitEvery = split > 0 ? split : nil
         }
         if let naming = Self.string(body, "naming"),
            let style = BatchMediaPlan.NamingStyle(rawValue: naming.lowercased()) {

@@ -632,9 +632,16 @@ enum MediaExporter {
         }
         var directory = parent
         if let folderName, !folderName.isEmpty {
-            // 批量下载按批次归档；目录名同样做消毒（防路径穿越）。
-            let folder = folderName.replacingOccurrences(of: "/", with: "-")
-            directory = parent.appendingPathComponent(folder, isDirectory: true)
+            // 批量下载按批次归档。folder 允许**分层**（分卷规则会拼
+            // "folder/archived001"）——逐段消毒（防路径穿越），整串替换
+            // 会把分层打成横杠、落点变成一层畸形长名。
+            directory = parent
+            for component in folderName.split(separator: "/") {
+                var comp = component.replacingOccurrences(of: ":", with: "-")
+                if comp == ".." { comp = "--" }
+                guard !comp.isEmpty else { continue }
+                directory = directory.appendingPathComponent(comp, isDirectory: true)
+            }
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         let ext = isMP4 ? "mp4" : (source.pathExtension.lowercased() == "mp4" ? "mp4" : "ts")

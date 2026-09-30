@@ -535,7 +535,7 @@ final class RemoteControlStore: ObservableObject {
             pushSnapshot(force: true)
         case "setFullAccess":
             guard let flag = inner.flag, let target = remoteSession else { return }
-            target.fullAccess = flag
+            target.accessLevel = flag ? .fullAccess : .confirmChanges
             pushSnapshot(force: true)
         case "capabilities":
             // 只读回包：Agent 能用的工具（含风险分级）+ 技能库。
@@ -652,6 +652,7 @@ final class RemoteControlStore: ObservableObject {
         var context: String? = nil
         /// FULL ACCESS：所有工具免审批（手机据此解释"为何不弹审批"）
         var fullAccess: Bool? = nil
+        var accessLevelName: String? = nil
         /// 上一轮已结束且末条是 assistant → 可重新生成
         var canRegenerate: Bool? = nil
         /// 快捷动作（Mac 为唯一文案来源，避免两端硬编码漂移）
@@ -783,6 +784,7 @@ final class RemoteControlStore: ObservableObject {
             queued: Self.queuedPayloads(session?.queuedMessages ?? []),
             context: session?.contextLabel,
             fullAccess: session?.fullAccess,
+            accessLevelName: session.map { $0.accessLevel.displayName },
             canRegenerate: Self.remoteCanRegenerate(session),
             quickActions: Self.quickActionPayloads(),
             paused: session?.isPaused ?? false,

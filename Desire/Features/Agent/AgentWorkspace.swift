@@ -52,7 +52,10 @@ final class AgentWorkspace: ObservableObject {
     /// Resolves a user/agent-supplied path: tilde expansion, relative paths
     /// against the workspace, and an allowlist check unless FULL ACCESS.
     func resolve(_ rawPath: String, write: Bool) -> FileAccess {
-        let fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
+        // 完全访问 = 旧键 true 且未显式设中间档（aiAccessLevel 2）。中间档
+        // （自动编辑）对文件路径仍按非完全访问管控——系统命令那条线才放开。
+        let fullAccess = !UserDefaults.standard.bool(forKey: "aiAccessLevelExists")
+            && UserDefaults.standard.bool(forKey: "aiFullAccess")
         let hasScheme = rawPath.contains("://")
         let expanded = (rawPath as NSString).expandingTildeInPath
         var url = URL(fileURLWithPath: expanded)

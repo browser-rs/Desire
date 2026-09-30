@@ -77,8 +77,56 @@ class AgentSessionStore: ObservableObject {
     /// `executeJS` — runs without approval prompts. The user has explicitly
     /// delegated all tool decisions to the agent. Persisted; the panel
     /// shows a prominent indicator while active.
-    @Published var fullAccess: Bool {
-        didSet { UserDefaults.standard.set(fullAccess, forKey: "aiFullAccess") }
+    /// 访问等级（从低到高）：变更前确认（默认，副作用工具逐次审批）→
+    /// 自动编辑（浏览器内编辑类自动通过，系统命令仍管控）→ 完全访问（全部
+    /// 静默）。持久化键沿用 aiFullAccess（false=确认 / true=完全），中间档
+    /// 用新键 aiAccessLevel 存。
+    enum AccessLevel: Int, Comparable, CaseIterable {
+        case confirmChanges = 0
+        case autoEdit = 1
+        case fullAccess = 2
+
+        static func < (l: AccessLevel, r: AccessLevel) -> Bool { l.rawValue < r.rawValue }
+
+        var displayName: String {
+            switch self {
+            case .confirmChanges: String(localized: "Confirm Before Changes")
+            case .autoEdit: String(localized: "Auto Edit")
+            case .fullAccess: String(localized: "Full Access")
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .confirmChanges: String(localized: "Asks before changes.")
+            case .autoEdit: String(localized: "Auto-approves page edits; system commands still ask.")
+            case .fullAccess: String(localized: "Fewest confirmations.")
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .confirmChanges: "hand.raised"
+            case .autoEdit: "checkmark.shield"
+            case .fullAccess: "exclamationmark.shield"
+            }
+        }
+    }
+
+    @Published var accessLevel: AccessLevel {
+        didSet {
+            UserDefaults.standard.set(accessLevel.rawValue, forKey: "aiAccessLevel")
+            UserDefaults.standard.set(true, forKey: "aiAccessLevelExists")
+            // 兼容旧读取方（Workspace/Remote 等）与旧键
+            UserDefaults.standard.set(accessLevel == .fullAccess, forKey: "aiFullAccess")
+        }
+    }
+
+    /// 兼容层：既有 fullAccess 判定点（Workspace/Remote/批恢复）一律等价于
+    /// 最高等级。
+    var fullAccess: Bool {
+        get { accessLevel == .fullAccess }
+        set { accessLevel = newValue ? .fullAccess : .confirmChanges }
     }
 
     /// Human-readable label of the provider that handled the most recent
@@ -182,7 +230,13 @@ class AgentSessionStore: ObservableObject {
     init(preference: AgentPreferenceStore, conversationStore: ConversationStore) {
         self.preference = preference
         self.conversationStore = conversationStore
-        fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
+        if let raw = UserDefaults.standard.object(forKey: "aiAccessLevel") as? Int,
+           let level = AccessLevel(rawValue: raw) {
+            accessLevel = level
+        } else {
+            // 旧安装迁移：旧键 true = 完全访问；false = 变更前确认
+            accessLevel = UserDefaults.standard.bool(forKey: "aiFullAccess") ? .fullAccess : .confirmChanges
+        }
         // Newest session wins scheduled-task delivery (multi-window).
         AgentScheduler.shared.deliveryTarget = self
         // Registry for per-window addressing (0.1.8).
@@ -1868,12 +1922,23 @@ class AgentSessionStore: ObservableObject {
         await acquireApprovalSlot()
         defer { approvalSlotBusy = false }
 
-        // FULL ACCESS: the user explicitly delegated every tool decision —
-        // including dangerous-tier executeJS — so nothing pauses.
-        if fullAccess { return .allowedOnce }
+        // 完全访问：用户显式委托全部工具决策——包括 dangerous 级 executeJS
+        // 与系统命令——全部静默。
+        if accessLevel == .fullAccess { return .allowedOnce }
 
         // Safe tools always run.
         if risk == .readonly { return .allowedOnce }
+
+        // 自动编辑：浏览器内的页面编辑类（navigate/click/fill/executeJS 等
+        // sideEffect 与 dangerous 的页面侧工具）自动通过；**系统命令例外**——
+        // runCommand 仍受命令级允许列表/审批管控（该层有自己的协商与持久
+        // 白名单，见 SystemCommandStore）。
+        if accessLevel == .autoEdit && toolCall.function.name != "runCommand" {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name,
+                decision: "allowed (auto-edit)", source: "access level")
+            return .allowedOnce
+        }
 
         // runCommand：**命令级允许列表**（系统访问）内的二进制免审批——用户
         // 批准过的命令不再每次问（"尽可能少让用户回答"）。FULL ACCESS 分支

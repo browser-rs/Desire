@@ -62,11 +62,16 @@ final class AdBlockStatsStore: ObservableObject {
         let key = (site?.isEmpty == false) ? site! : "unknown"
         perDomain[key, default: 0] += n
         if perDomain.count > Self.maxDomains {
-            // 挤掉计数最小的站（保留头部站点；总量守恒——被挤站的计数并入
-            // "other"，避免累计数与分站数对不上）。
-            if let smallest = perDomain.min(by: { $0.value < $1.value })?.key {
+            // 挤掉计数最小的**非 other** 站，其计数并入 other（总量守恒）；
+            // other 自己不做驱逐目标（自并合并不减键数，此前 map 超上限且
+            // 平局时反复自并）。
+            if let smallest = perDomain
+                .filter({ $0.key != "other" })
+                .min(by: { $0.value < $1.value })?.key {
                 let moved = perDomain.removeValue(forKey: smallest) ?? 0
                 perDomain["other", default: 0] += moved
+            } else if perDomain.count > Self.maxDomains {
+                perDomain.removeValue(forKey: key)
             }
         }
         recent.insert(
@@ -85,6 +90,12 @@ final class AdBlockStatsStore: ObservableObject {
         perDomain = [:]
         recent = []
         persist()
+    }
+
+    /// 读取前先滚动日期（面板/桥端点入口调用）：过了本地零点但还没发生
+    /// 新拦截事件时，todayCount 仍停在昨天——读取即归位。
+    func rollDay() {
+        rollDayIfNeeded()
     }
 
     /// 跨过本地零点：昨日计数归零，累计保留。

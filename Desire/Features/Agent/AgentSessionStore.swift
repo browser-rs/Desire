@@ -1929,11 +1929,22 @@ class AgentSessionStore: ObservableObject {
         // Safe tools always run.
         if risk == .readonly { return .allowedOnce }
 
-        // 自动编辑：浏览器内的页面编辑类（navigate/click/fill/executeJS 等
-        // sideEffect 与 dangerous 的页面侧工具）自动通过；**系统命令例外**——
-        // runCommand 仍受命令级允许列表/审批管控（该层有自己的协商与持久
-        // 白名单，见 SystemCommandStore）。
-        if accessLevel == .autoEdit && toolCall.function.name != "runCommand" {
+        // deny 规则**先于**任何等级快捷放行（显式拒绝优先于一切——此前
+        // autoEdit 分支在其前面，用户建的 deny 规则全部失效）。
+        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name),
+           policy == .deny {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name, decision: "denied (policy)", source: "policy")
+            return .denied
+        }
+
+        // 自动编辑：浏览器内的页面编辑类自动通过；**两个例外**——runCommand
+        // 受命令级允许列表/审批管控（该层有自己的协商与持久白名单，
+        // 见 SystemCommandStore）；fillLogin（填存档密码并提交登录）永远
+        // 显式确认（涉及凭据，自动放行违背该工具的风险注记）。
+        if accessLevel == .autoEdit,
+           toolCall.function.name != "runCommand",
+           toolCall.function.name != "fillLogin" {
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: toolCall.function.name,
                 decision: "allowed (auto-edit)", source: "access level")
@@ -1962,19 +1973,13 @@ class AgentSessionStore: ObservableObject {
             return .allowedOnce
         }
 
-        // 审批策略引擎（0.2.6）：持久化规则优先于内置白名单。deny 规则
-        // 对 dangerous 工具也生效（显式拒绝优先于一切）。
-        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name) {
-            switch policy {
-            case .deny:
-                ApprovalPolicyStore.shared.recordHistory(
-                    toolName: toolCall.function.name, decision: "denied (policy)", source: "policy")
-                return .denied
-            case .allow:
-                ApprovalPolicyStore.shared.recordHistory(
-                    toolName: toolCall.function.name, decision: "allowed (policy)", source: "policy")
-                return .allowedOnce
-            }
+        // 审批策略引擎（0.2.6）：deny 已在上面前置；这里只处理 allow 规则
+        // （dangerous 工具除外——它们的快捷放行不走 allow 规则）。
+        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name),
+           policy == .allow {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name, decision: "allowed (policy)", source: "policy")
+            return .allowedOnce
         }
 
         // Everything else pauses for the user.

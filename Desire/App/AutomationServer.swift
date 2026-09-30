@@ -823,9 +823,6 @@ final class AutomationServer {
                     limit: Self.string(query, "limit").flatMap { Int($0) } ?? 20))
             case ("GET", "/windows"):
                 return try Self.json(Self.windowsList())
-            case ("GET", "/conversations"):
-                return try Self.json(Self.conversationsList(
-                    limit: Self.string(query, "limit").flatMap { Int($0) } ?? 20))
             case ("GET", "/conversations/search"):
                 return try Self.json(Self.searchConversations(
                     query: Self.string(query, "q") ?? "",

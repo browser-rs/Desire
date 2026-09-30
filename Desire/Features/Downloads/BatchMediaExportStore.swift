@@ -41,6 +41,8 @@ final class BatchMediaExportStore: ObservableObject {
     private var engineTasks: [UUID: Task<Void, Never>] = [:]
     /// 槽位看门狗：单点卡死不该拖死整队（2026-09-30 用户实测）。
     private var watchdogTasks: [UUID: Task<Void, Never>] = [:]
+    /// 引擎代数：pause→resume 竞态里区分新旧任务（旧任务迟到退出不得摘新代的槽位）。
+    private var engineGeneration: [UUID: Int] = [:]
     /// 引擎循环是否在跑（暂停/挂起会让循环退出；恢复时据此决定要不要重启）。
     private var engineRunning: Set<UUID> = []
     /// list 模式的解析器（每批一个；page 模式不需要）。
@@ -354,10 +356,19 @@ final class BatchMediaExportStore: ObservableObject {
     /// downloading 的跳过 = 取消该单项任务。
     func skip(batchID: UUID, itemID: UUID) {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
-              batches[bi].state == .running,
               let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }) else { return }
         let state = batches[bi].items[ii].state
-        guard [.pending, .needsHuman, .downloading].contains(state) else { return }
+        // failed 项可移除（面板"从队列移除"对失败项此前是空操作）；已结束
+        // 批次里的排队/失败项同样可移（面板删除语义不要求批在跑）。
+        guard batches[bi].state == .running || state == .pending || state == .failed else { return }
+        guard [.pending, .needsHuman, .downloading, .failed].contains(state) else { return }
+        if state == .failed {
+            batches[bi].items[ii].state = .skipped
+            batches[bi].items[ii].summary = "skipped"
+            persistUnfinished()
+            checkBatchSettled(batchID)
+            return
+        }
         if state == .downloading, let jobID = batches[bi].items[ii].jobID {
             // downloadSettled 回调里按"已 skipped"短路，不会改写终态。
             batches[bi].items[ii].state = .skipped
@@ -549,6 +560,8 @@ final class BatchMediaExportStore: ObservableObject {
         resolvers[batchID]?.teardown()
         resolvers[batchID] = nil
         cleanOrphanParts(batchID)
+        BatchMediaLogStore.remove(batchID)
+        batchUserAgents[batchID] = nil
         batches.remove(at: bi)
         pausedBatches.remove(batchID)
         suspendedReasons[batchID] = nil
@@ -625,9 +638,16 @@ final class BatchMediaExportStore: ObservableObject {
         if batches.first(where: { $0.id == batchID })?.mode == .list, resolvers[batchID] == nil {
             resolvers[batchID] = HeadlessMediaResolver()
         }
+        let generation = engineGeneration[batchID] ?? 0
+        engineGeneration[batchID] = generation + 1
         engineTasks[batchID] = Task { [weak self] in
             await self?.engineLoop(batchID)
-            self?.engineRunning.remove(batchID)
+            // 代数门：只有仍属当前代的任务才摘 engineRunning 槽位——被
+            // cancel 的旧任务迟到退出不会误摘新代任务（否则又回到
+            // "槽位被占/被误摘"竞态）。
+            if let self, self.engineGeneration[batchID] == generation + 1 {
+                self.engineRunning.remove(batchID)
+            }
         }
         watchdogTasks[batchID] = Task { [weak self] in
             await self?.watchStalls(batchID)
@@ -1081,7 +1101,15 @@ final class BatchMediaExportStore: ObservableObject {
 
     /// 引擎循环已退（暂停/挂起导致）时重启；还在跑就不动。
     private func ensureEngine(_ batchID: UUID) {
-        guard !engineRunning.contains(batchID) else { return }
+        // 引擎任务被取消（pause）但还在等 resolver 的挂起续体返回（最长
+        // 60s）→ engineRunning 仍占位。resume 在这个窗口撞进来会误判
+        // "引擎还活着"而不重启，旧任务醒来后静默退出 → 批次永久停摆
+        //（实测 pause→resume 卡死）。取消中的任务视为死引擎，照常重启；
+        // 旧任务的收尾用代数门防误删新任务的槽位。
+        if engineRunning.contains(batchID),
+           let task = engineTasks[batchID], !task.isCancelled {
+            return
+        }
         startEngine(batchID)
     }
 
@@ -1147,8 +1175,14 @@ final class BatchMediaExportStore: ObservableObject {
                 persistUnfinished()
                 return
             }
-            batches[bi].items[ii].state = .skipped
-            batches[bi].items[ii].summary = "cancelled"
+            // **非挂起的取消** = 看门狗掐掉的单点卡死（用户 skip 预置的
+            // skipped 已在上面 guard 拦住）——按 failed 走 attempts/重试机器，
+            // 而不是直接 skipped（此前卡死项被永久跳过，与看门狗"failed 收场
+            // → attempts 递增、队列继续"的注释契约相反）。
+            batches[bi].items[ii].attempts += 1
+            batches[bi].items[ii].state = .failed
+            batches[bi].items[ii].summary = "download stalled (watchdog cancel)"
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 卡死被看门狗取消，按失败进入重试队列")
         }
         persistUnfinished()
         pumpDownloads(batchID)

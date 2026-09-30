@@ -126,7 +126,12 @@ final class SystemCommandStore: ObservableObject {
         workDirectory: URL? = nil
     ) async -> CommandResult {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
-        if !allowedBinaries.contains(name) {
+        // 完全访问（最高等级）：全部静默——协商问询跳过，直接执行。gate()
+        // 已按等级放行 runCommand，这里的 askUser 只在"变更前确认/自动编辑"
+        // 且 binary 未授权时出现。
+        if UserDefaults.standard.integer(forKey: "aiAccessLevel") == AgentSessionStore.AccessLevel.fullAccess.rawValue {
+            Log.agent.info("full access: binary '\(tool, privacy: .public)' runs without allowlist negotiation")
+        } else if !allowedBinaries.contains(name) {
             // **主动协商**：不再直接拒绝——问用户"是否加入允许列表并继续"。
             // 允许 → 永久入列并照常执行；拒绝/超时 → 带明确理由失败（模型
             // 据此换路）。此前只能失败并指路设置页，智能体被允许名单卡死

@@ -11,6 +11,7 @@ struct AdBlockPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+                .onAppear { stats.rollDay() }
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

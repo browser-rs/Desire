@@ -153,8 +153,10 @@ class TabThumbnailStore: ObservableObject {
     /// 现在把所有未过期的存活 tab 一并低频轮捕，hover 命中缓存几乎必然。
     func refreshAllVisible(tabs: [Tab]) {
         for tab in tabs where !tab.isOnNewTabPage && !tab.isSuspended && !tab.isLoading {
-            // 跳过未过期的（30s 内已拍过）
-            if let ts = thumbnailTimestamps[tab.id],
+            // 未过期**且缓存里真有图**才跳过——NSCache 可能驱逐了图但时间戳
+            // 还新鲜（此前驱逐后 ~25s 内拒绝重拍，hover 预览空白无法自愈）。
+            if thumbnail(for: tab.id) != nil,
+               let ts = thumbnailTimestamps[tab.id],
                Date().timeIntervalSince(ts) < expirationInterval - 5 { continue }
             captureThumbnail(for: tab)
         }

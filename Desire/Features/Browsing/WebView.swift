@@ -1008,8 +1008,8 @@ struct WebView: NSViewRepresentable {
             // 用户引发的取消（goBack/goForward/新导航打断旧加载 = -999）不是
             // 页面错误——写入 lastError 会让错误页盖住回退后的目标页（用户实测
             // "回退经常触发失败页"）。真正的失败由 didFailProvisionalNavigation
-            // 与看门狗上报。
-            if (error as? URLError)?.code == .cancelled { return }
+            // 与看门狗上报。raw-code 兜底：部分构建 URLError.code 不归一。
+            if (error as NSError).code == NSURLErrorCancelled { return }
             // Store the underlying `Error` so ErrorPageView can map
             // `URLError.code` to category-specific copy (TLS, offline, …)
             // instead of just dumping the raw localized description.

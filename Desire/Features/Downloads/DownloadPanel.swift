@@ -55,7 +55,12 @@ struct DownloadPanel: View {
                 Text(String(localized: "Video Tasks")).tag(true)
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
+            // 固定宽度：分段控件拉伸满行时两段松散、看着像两个独立按钮
+            //（用户实测"两个按钮不和谐"）；收拢成一个等宽整体。
+            .frame(width: 260)
             .padding(.horizontal, 12)
+            .padding(.top, 2)
             .padding(.bottom, 8)
             Divider()
             if showBatchTasks {

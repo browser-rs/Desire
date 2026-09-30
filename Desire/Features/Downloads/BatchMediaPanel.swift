@@ -76,7 +76,7 @@ struct BatchMediaPanel: View {
                     .lineLimit(1)
                 stateBadge(batch)
                 Spacer(minLength: 8)
-                Text("\\(batch.finishedCount)/\\(batch.items.count)")
+                Text("\(batch.finishedCount)/\(batch.items.count)")
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
             }

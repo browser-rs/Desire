@@ -50,19 +50,7 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            // 胶囊 Tab（系统 .segmented 的选中/未选两态观感割裂，与应用
-            // 设计语言不搭——用户实测"两个按钮不和谐"）。选中 = 强调色胶囊。
-            HStack(spacing: 6) {
-                segmentTab(String(localized: "Downloads"), selected: !showBatchTasks) {
-                    showBatchTasks = false
-                }
-                segmentTab(String(localized: "Video Tasks"), selected: showBatchTasks) {
-                    showBatchTasks = true
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 2)
-            .padding(.bottom, 8)
+            // 视图切换即头部本身：Tab 组并入标题行（方案 B），不再单独占一行
             Divider()
             if showBatchTasks {
                 BatchMediaPanel(store: batchStore, mediaStore: mediaStore)
@@ -114,24 +102,19 @@ struct DownloadPanel: View {
         }
     }
 
-    /// 面板顶部二选一胶囊 Tab：选中 = 强调色胶囊实底，未选 = 次级文字 + 细描边。
+    /// 面板顶部二选一 Tab 的**段**（容器胶囊见 header）：选中 = 强调色实底
+    /// 圆胶囊 + 白字半粗，未选 = 次级文字。
     private func segmentTab(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                .font(.system(size: 11.5, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? Color.white : Color.secondary)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
                 .background(
                     Capsule().fill(selected
                         ? AnyShapeStyle(appAccent)
-                        : AnyShapeStyle(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
-                )
-                .overlay(
-                    Capsule().stroke(
-                        selected ? AnyShapeStyle(Color.clear)
-                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(0.4)),
-                        lineWidth: 0.5)
+                        : AnyShapeStyle(Color.clear))
                 )
         }
         .buttonStyle(.plain)
@@ -141,13 +124,35 @@ struct DownloadPanel: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .center, spacing: 10) {
             Text("Downloads")
                 .font(.system(size: 14, weight: .semibold))
 
             statusSummary
 
             Spacer(minLength: 8)
+
+            // 视图切换 Tab（方案 B 单行紧凑）：容器胶囊 + 选中段强调色实底
+            HStack(spacing: 2) {
+                segmentTab(String(localized: "Downloads"), selected: !showBatchTasks) {
+                    showBatchTasks = false
+                }
+                segmentTab(String(localized: "Video Tasks"), selected: showBatchTasks) {
+                    showBatchTasks = true
+                }
+            }
+            .padding(3)
+            .background(
+                Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+            )
+            .overlay(
+                Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+            )
+
+            HoverIcon(systemName: "folder", action: {
+                NSWorkspace.shared.open(store.downloadFolder)
+            }, help: "Open Download Folder")
+            .offset(y: 3)
 
             HoverIcon(systemName: "folder", action: {
                 NSWorkspace.shared.open(store.downloadFolder)

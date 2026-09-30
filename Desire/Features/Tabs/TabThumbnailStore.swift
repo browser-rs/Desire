@@ -30,6 +30,14 @@ class TabThumbnailStore: ObservableObject {
     /// 正在捕获的 Tab ID 集合（避免重复捕获）
     private var capturingTabs: Set<UUID> = []
 
+    /// tab 源（ContentView init 注入）：批量刷新后台页用。
+    private var tabsProvider: (() -> [Tab])?
+
+    /// 注入标签页来源（ContentView init：`thumbnailStore.setTabsProvider { tabManager.tabs }`）。
+    func setTabsProvider(_ provider: @escaping () -> [Tab]) {
+        tabsProvider = provider
+    }
+
     init() {
         startUpdateTimer()
     }
@@ -140,13 +148,28 @@ class TabThumbnailStore: ObservableObject {
         captureThumbnail(for: tab)
     }
 
+    /// **后台标签页批量刷新**：15s 定时器只养着选中页——后台页 30s 过期后，
+    /// hover 才现场 takeSnapshot（跨进程 200ms+），用户实测"预览生成好慢"。
+    /// 现在把所有未过期的存活 tab 一并低频轮捕，hover 命中缓存几乎必然。
+    func refreshAllVisible(tabs: [Tab]) {
+        for tab in tabs where !tab.isOnNewTabPage && !tab.isSuspended && !tab.isLoading {
+            // 跳过未过期的（30s 内已拍过）
+            if let ts = thumbnailTimestamps[tab.id],
+               Date().timeIntervalSince(ts) < expirationInterval - 5 { continue }
+            captureThumbnail(for: tab)
+        }
+    }
+
     // MARK: - Private Methods
 
     private func startUpdateTimer() {
         updateTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                // 定时清理过期缩略图
+                // 定时清理过期缩略图 + 低频轮捕后台页（hover 预览秒开）
                 self?.cleanExpiredThumbnails()
+                guard let self, let provider = self.tabsProvider else { return }
+                let tabs = provider()
+                self.refreshAllVisible(tabs: tabs)
             }
         }
     }

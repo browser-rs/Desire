@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 struct GeneralSettingsSection: View {
@@ -826,18 +827,31 @@ private struct SystemSection: View {
 
     private func setAsDefaultBrowser() {
         let appURL = Bundle.main.bundleURL
+        // 串行设置两个 scheme：https 成功才设 http；http 失败（罕见但发生）
+        // 不再静默吞掉——重查一次实际状态而不是直接打勾。
         NSWorkspace.shared.setDefaultApplication(at: appURL, toOpenURLsWithScheme: "https") { error in
-            if error == nil {
-                NSWorkspace.shared.setDefaultApplication(at: appURL, toOpenURLsWithScheme: "http") { _ in
-                    isDefault = true
+            guard error == nil else {
+                Log.app.error("set default (https) failed: \(error!.localizedDescription, privacy: .public)")
+                return
+            }
+            NSWorkspace.shared.setDefaultApplication(at: appURL, toOpenURLsWithScheme: "http") { httpError in
+                if let httpError {
+                    Log.app.error("set default (http) failed: \(httpError.localizedDescription, privacy: .public)")
                 }
+                // 以系统实际状态为准，不假设成功
+                self.checkDefaultBrowser()
             }
         }
     }
+
     private func checkDefaultBrowser() {
-        let scheme = URL(string: "https://")!
-        if let appURL = NSWorkspace.shared.urlForApplication(toOpen: scheme) {
-            isDefault = appURL == Bundle.main.bundleURL
+        // http 与 https 都归 Desire 才算默认（外开网址走 http 的场景此前漏检）
+        let httpsURL = URL(string: "https://")!
+        let httpURL = URL(string: "http://")!
+        let isSelf = { (url: URL) in url == Bundle.main.bundleURL }
+        if let https = NSWorkspace.shared.urlForApplication(toOpen: httpsURL),
+           let http = NSWorkspace.shared.urlForApplication(toOpen: httpURL) {
+            isDefault = isSelf(https) && isSelf(http)
         }
     }
 }

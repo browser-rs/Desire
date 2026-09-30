@@ -1,3 +1,11 @@
+## [Unreleased]
+### Fixed
+
+- **导航回退触发失败页（用户实测"经常"）**：goBack/goForward 打断在途加载产生的取消错误（-999）被 didFail 直接写进 lastError——错误页盖住回退后的目标页。现在普通导航失败与 provisional 失败两条路径都识别用户引发的取消（部分 macOS 构建 URLError.code 不归一为 .cancelled，按原始 NSURLErrorCancelled 兜底）并不再置错
+- **设为默认浏览器状态不准（用户实测"从外面打开网址经常出问题"）**：https 设置成功即打勾、http 设置失败被静默吞掉——外部 http 链接仍归其它浏览器。现在串行设置后**重查系统实际状态**（http+https 双 scheme 都归 Desire 才显示 Default），失败进日志
+- **Tab hover 预览生成慢（用户实测）**：① 显示延迟 1s → 250ms；② 15s 定时器此前只养选中页——后台页 30s 过期后 hover 才现场跨进程抓帧（200ms+）；现在 ContentView 注入 tab 源、定时器低频轮捕全部存活页（跳过未过期/加载中），hover 命中缓存几乎必然秒开
+
+
 ## [v0.4.9] - 2026-09-30
 ### Fixed
 

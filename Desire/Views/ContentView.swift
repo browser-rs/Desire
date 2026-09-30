@@ -60,7 +60,10 @@ struct ContentView: View {
         _newTabSuggestionModel = StateObject(wrappedValue: AddressSuggestionsModel())
         _translationService = StateObject(wrappedValue: TranslationService())
         _responsiveDesignStore = StateObject(wrappedValue: ResponsiveDesignStore())
-        _thumbnailStore = StateObject(wrappedValue: TabThumbnailStore())
+        _thumbnailStore = StateObject(wrappedValue: {
+            let store = TabThumbnailStore()
+            return store
+        }())
         _aiSession = StateObject(wrappedValue: AgentSessionStore(
             preference: appState.aiPreference,
             conversationStore: appState.conversationStore
@@ -273,6 +276,8 @@ struct ContentView: View {
             appState.attach(tabManager: tabManager)
         })
         .onAppear {
+            // 后台标签页缩略图轮捕的 tab 源（hover 预览秒开，见 TabThumbnailStore）。
+            thumbnailStore.setTabsProvider { [tabManager] in tabManager.tabs }
             if aiFloatingPanel == nil {
                 aiFloatingPanel = AgentFloatingPanel(
                     store: aiSession,

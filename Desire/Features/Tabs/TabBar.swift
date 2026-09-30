@@ -476,9 +476,10 @@ private struct TabPillView: View {
         .onHover { hovering in
             isHovering = hovering
             if hovering && !tab.isOnNewTabPage {
-                // Delay showing preview (1 second)
+                // Delay showing preview: 1s → 250ms（用户实测"生成速度好慢"）——
+                // 缩略图已有后台定时缓存，hover 到达时多数直接命中。
                 hoverTimer?.invalidate()
-                hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
+                hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { _ in
                     Task { @MainActor in
                         onShowPreview(tab, pillFrame)
                         // Capture thumbnail on hover

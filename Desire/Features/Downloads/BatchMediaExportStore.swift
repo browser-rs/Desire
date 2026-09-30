@@ -518,6 +518,14 @@ final class BatchMediaExportStore: ObservableObject {
     private var didRestore = false
 
     /// 取消整批：终止引擎、取消在跑的下载、收起验证窗。
+    /// 更新批次的分卷规则（桥 manage add 的参数同步：追加任务的最新
+    /// 意图覆盖旧批次遗留的分卷设置）。0/nil = 不分卷。
+    func setSplitEvery(batchID: UUID, _ value: Int?) {
+        guard let idx = batches.firstIndex(where: { $0.id == batchID }) else { return }
+        batches[idx].splitEvery = (value ?? 0) > 0 ? value : nil
+        persistUnfinished()
+    }
+
     /// 从面板**移除已结束**的批次（finished/cancelled）：清孤儿 .part、
     /// 摘出列表。running 批不适用（先 cancel）。此前已结束批次永远占着
     /// 面板、删除按钮是空操作（用户实测"删除无效"）。

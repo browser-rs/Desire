@@ -3621,6 +3621,28 @@ final class AutomationServer {
             // 仅已结束批次：从面板列表移除（running 先 cancel）。
             store.removeSettled(batchID: batchID)
             return ["ok": true, "action": "removed", "batch": batchID.uuidString]
+        case "add":
+            // 追加任务的**最新参数同步进批次**（并发/分卷）——否则旧批次
+            // 的遗留参数（并发 1、分卷 2）绑架后续 12 部，模型只能逐项
+            // skip + 重建队列（用户实测的"骚操作"链）。
+            if let mc = body["maxConcurrent"] as? Int, (1...4).contains(mc) {
+                BatchMediaPreferences.maxConcurrent = mc
+            }
+            if let se = body["splitEvery"] as? Int {
+                store.setSplitEvery(batchID: batchID, se)
+            }
+            guard let urls = body["urls"] as? [String], !urls.isEmpty else {
+                return ["error": "add needs urls (array)"]
+            }
+            let result = store.addItems(
+                batchID: batchID,
+                pageURLs: batch.mode == .list ? urls : [],
+                mediaURLs: batch.mode == .page ? urls : [],
+                referer: nil
+            )
+            return ["ok": true, "added": result.added, "duplicates": result.duplicates,
+                    "maxConcurrent": BatchMediaPreferences.maxConcurrent,
+                    "splitEvery": batch.splitEvery ?? 0]
         case "skip":
             guard let rawItem = Self.string(body, "itemId") else {
                 return ["error": "skip needs itemId (from GET /media/batch items)"]

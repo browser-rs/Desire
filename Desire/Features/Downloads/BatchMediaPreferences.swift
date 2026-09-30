@@ -59,17 +59,18 @@ enum BatchMediaPreferences {
 
     /// **分卷规则（默认值）**：目标目录下每 N 个文件滚动 archivedNNN 子文件夹
     /// （nil = 不分卷）。批的显式 `splitEvery` 参数优先；这里是无参数时的默认。
+    /// 出厂默认 **120**（用户规则：每 120 个文件一卷）。显式关闭会存 0
+    /// （get 回 nil）——不能靠删键回默认，否则"关掉"与"未设置"无法区分。
     static var splitEvery: Int? {
         get {
-            let raw = defaults.object(forKey: splitKey) as? Int ?? 0
+            guard let raw = defaults.object(forKey: splitKey) as? Int else { return 120 }
             return raw > 0 ? raw : nil
         }
         set {
-            let effective = (newValue ?? 0) > 0 ? newValue : nil
-            if let effective {
-                defaults.set(effective, forKey: splitKey)
+            if let v = newValue, v > 0 {
+                defaults.set(v, forKey: splitKey)
             } else {
-                defaults.removeObject(forKey: splitKey)
+                defaults.set(0, forKey: splitKey)
             }
         }
     }

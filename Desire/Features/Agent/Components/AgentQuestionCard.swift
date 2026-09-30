@@ -6,6 +6,8 @@ struct AgentQuestionCard: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     let question: String
+    /// 快捷按钮（如 允许/拒绝）——比打字快；与文本输入并存。
+    var quickOptions: [String]? = nil
     let onAnswer: (String) -> Void
 
     @State private var answer = ""
@@ -17,7 +19,7 @@ struct AgentQuestionCard: View {
                 Image(systemName: "questionmark.bubble.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(appAccent)
-                Text("Agent 需要你的确认")
+                Text(String(localized: "Agent needs your confirmation"))
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
             }
@@ -25,6 +27,36 @@ struct AgentQuestionCard: View {
                 .font(.system(size: 12))
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+
+            // 显式快捷按钮（调用方传入，如 允许/拒绝）——比打字快。
+            if let quick = quickOptions, !quick.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(quick, id: \.self) { option in
+                        Button {
+                            onAnswer(option)
+                        } label: {
+                            Text(option)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundStyle(
+                                    option.contains("拒") || option.lowercased().contains("declin") || option.lowercased().contains("den")
+                                        ? AnyShapeStyle(.secondary)
+                                        : AnyShapeStyle(appAccent))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule().fill(
+                                        option.contains("拒") || option.lowercased().contains("declin") || option.lowercased().contains("den")
+                                            ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+                                            : AnyShapeStyle(appAccent.opacity(0.14)))
+                                )
+                                .overlay(
+                                    Capsule().stroke(appAccent.opacity(0.35), lineWidth: 0.6)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
 
             // Option detection: lines like "A) xxx" / "1、xxx" become
             // one-tap answer chips.

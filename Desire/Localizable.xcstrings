@@ -309,9 +309,6 @@
         }
       }
     },
-    "\\(batch.finishedCount)/\\(batch.items.count)" : {
-
-    },
     "#%@" : {
       "localizations" : {
         "en" : {
@@ -1931,6 +1928,28 @@
         }
       }
     },
+    "Ad Blocking" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ad Blocking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广告拦截"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "廣告攔截"
+          }
+        }
+      }
+    },
     "Ad blocking disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1996,6 +2015,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "廣告攔截規則"
+          }
+        }
+      }
+    },
+    "Ad Blocking Stats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ad Blocking Stats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广告拦截统计"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "廣告攔截統計"
           }
         }
       }
@@ -2607,6 +2648,28 @@
         }
       }
     },
+    "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent wants to run '%@', which is not in the system access allowlist. Type allow to add it permanently and continue; anything else declines."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体想运行“%@”，它还不在系统访问允许列表里。回复“允许”将其永久加入并继续；回复其他内容则拒绝。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智慧體想執行「%@」，它還不在系統存取允許清單裡。回覆「允許」將其永久加入並繼續；回覆其他內容則拒絕。"
+          }
+        }
+      }
+    },
     "Agent 能力" : {
       "localizations" : {
         "en" : {
@@ -2873,6 +2936,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部標籤頁"
+          }
+        }
+      }
+    },
+    "All Time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "累计"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "累計"
           }
         }
       }
@@ -4247,6 +4332,7 @@
       }
     },
     "Batch download settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6025,6 +6111,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除排隊的訊息"
+          }
+        }
+      }
+    },
+    "Clear Stats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Stats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清零统计"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清零統計"
           }
         }
       }
@@ -9948,6 +10056,28 @@
         }
       }
     },
+    "Download Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載日誌"
+          }
+        }
+      }
+    },
     "Downloading…" : {
       "comment" : "Download in progress",
       "localizations" : {
@@ -12983,6 +13113,28 @@
         }
       }
     },
+    "Hard cap for a single download task; 0 = no limit. Long videos on slow networks may need this raised." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard cap for a single download task; 0 = no limit. Long videos on slow networks may need this raised."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单个下载任务的总时长上限；0 = 不限制。慢网络下的长视频可能需要调大。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單個下載任務的總時長上限；0 = 不限制。慢網絡下的長影片可能需要調大。"
+          }
+        }
+      }
+    },
     "Hide" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15502,6 +15654,9 @@
         }
       }
     },
+    "Merging…" : {
+
+    },
     "Messages (%lld)" : {
       "localizations" : {
         "en" : {
@@ -15565,6 +15720,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "麥克風"
+          }
+        }
+      }
+    },
+    "min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分鐘"
           }
         }
       }
@@ -16381,6 +16558,28 @@
         }
       }
     },
+    "No ads blocked yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ads blocked yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有拦截记录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有攔截記錄"
+          }
+        }
+      }
+    },
     "No application can open this link" : {
       "localizations" : {
         "en" : {
@@ -16981,6 +17180,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mac 上沒有活躍的 Agent 會話"
+          }
+        }
+      }
+    },
+    "No log entries yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No log entries yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無日誌"
           }
         }
       }
@@ -19216,354 +19437,24 @@
         }
       }
     },
-    "Ad Blocking Stats" : {
+    "Agent needs your confirmation" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ad Blocking Stats"
+            "value" : "Agent needs your confirmation"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "广告拦截统计"
+            "value" : "智能体需要你的确认"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "廣告攔截統計"
-          }
-        }
-      }
-    },
-    "Ad Blocking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ad Blocking"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "广告拦截"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "廣告攔截"
-          }
-        }
-      }
-    },
-    "Clear Stats" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear Stats"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清零统计"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清零統計"
-          }
-        }
-      }
-    },
-    "This resets the counters and the recent list. It cannot be undone." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This resets the counters and the recent list. It cannot be undone."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "将清零全部计数与最近拦截列表，不可恢复。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "將清零全部計數與最近攔截列表，不可恢復。"
-          }
-        }
-      }
-    },
-    "All Time" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Time"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "累计"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "累計"
-          }
-        }
-      }
-    },
-    "Top Sites" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Top Sites"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "站点排行"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "站點排行"
-          }
-        }
-      }
-    },
-    "Recent Blocks" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recent Blocks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近拦截"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近攔截"
-          }
-        }
-      }
-    },
-    "No ads blocked yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No ads blocked yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有拦截记录"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有攔截記錄"
-          }
-        }
-      }
-    },
-    "Stats Scope Note" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Counts come from the built-in per-site video ad rules (skip / seek / first-click guard). EasyList filtering runs inside the WebKit engine, which offers no per-request callback to count from."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "计数来自内置的按站点视频广告规则（跳过 / 快进 / 首次点击防护）。EasyList 过滤在 WebKit 引擎内执行，没有可计数的逐请求回调。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "計數來自內建的按站點影片廣告規則（跳過 / 快轉 / 首次點擊防護）。EasyList 過濾在 WebKit 引擎內執行，沒有可計數的逐請求回呼。"
-          }
-        }
-      }
-    },
-    "Time Limit (min)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Time Limit (min)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "时长上限（分钟）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時長上限（分鐘）"
-          }
-        }
-      }
-    },
-    "Hard cap for a single download task; 0 = no limit. Long videos on slow networks may need this raised." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hard cap for a single download task; 0 = no limit. Long videos on slow networks may need this raised."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "单个下载任务的总时长上限；0 = 不限制。慢网络下的长视频可能需要调大。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "單個下載任務的總時長上限；0 = 不限制。慢網絡下的長影片可能需要調大。"
-          }
-        }
-      }
-    },
-    "min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分鐘"
-          }
-        }
-      }
-    },
-    "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent wants to run '%@', which is not in the system access allowlist. Type allow to add it permanently and continue; anything else declines."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "智能体想运行“%@”，它还不在系统访问允许列表里。回复“允许”将其永久加入并继续；回复其他内容则拒绝。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "智慧體想執行「%@」，它還不在系統存取允許清單裡。回覆「允許」將其永久加入並繼續；回覆其他內容則拒絕。"
-          }
-        }
-      }
-    },
-    "Remove from list" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove from list"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从列表移除"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從列表移除"
-          }
-        }
-      }
-    },
-    "Download Log" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download Log"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下载日志"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下載日誌"
-          }
-        }
-      }
-    },
-    "No log entries yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No log entries yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无日志"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無日誌"
+            "value" : "智慧體需要你的確認"
           }
         }
       }
@@ -20966,6 +20857,28 @@
         }
       }
     },
+    "Recent Blocks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent Blocks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近拦截"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近攔截"
+          }
+        }
+      }
+    },
     "Recent Searches" : {
       "localizations" : {
         "en" : {
@@ -21546,6 +21459,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從分組移除"
+          }
+        }
+      }
+    },
+    "Remove from list" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from list"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从列表移除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從列表移除"
           }
         }
       }
@@ -25700,6 +25635,28 @@
         }
       }
     },
+    "Stats Scope Note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counts come from the built-in per-site video ad rules (skip / seek / first-click guard). EasyList filtering runs inside the WebKit engine, which offers no per-request callback to count from."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "计数来自内置的按站点视频广告规则（跳过 / 快进 / 首次点击防护）。EasyList 过滤在 WebKit 引擎内执行，没有可计数的逐请求回调。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計數來自內建的按站點影片廣告規則（跳過 / 快轉 / 首次點擊防護）。EasyList 過濾在 WebKit 引擎內執行，沒有可計數的逐請求回呼。"
+          }
+        }
+      }
+    },
     "Status" : {
       "localizations" : {
         "en" : {
@@ -27560,6 +27517,28 @@
         }
       }
     },
+    "This resets the counters and the recent list. It cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This resets the counters and the recent list. It cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将清零全部计数与最近拦截列表，不可恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將清零全部計數與最近攔截列表，不可恢復。"
+          }
+        }
+      }
+    },
     "This shortcut conflicts with: %@" : {
       "localizations" : {
         "en" : {
@@ -27735,6 +27714,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "時間"
+          }
+        }
+      }
+    },
+    "Time Limit (min)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time Limit (min)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时长上限（分钟）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時長上限（分鐘）"
           }
         }
       }
@@ -28004,6 +28005,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工具"
+          }
+        }
+      }
+    },
+    "Top Sites" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Sites"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "站点排行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "站點排行"
           }
         }
       }

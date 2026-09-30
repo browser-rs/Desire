@@ -242,7 +242,7 @@ struct AgentPanel: View {
             }
 
             if let question = promptCenter.pending {
-                AgentQuestionCard(question: question.question) { answer in
+                AgentQuestionCard(question: question.question, quickOptions: question.quickOptions) { answer in
                     promptCenter.answer(answer)
                 }
                 .frame(maxWidth: Self.contentMaxWidth)

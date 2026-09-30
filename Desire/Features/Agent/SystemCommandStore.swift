@@ -134,7 +134,10 @@ final class SystemCommandStore: ObservableObject {
             let question = String(
                 format: String(localized: "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines."),
                 tool)
-            let answer = await UserPromptCenter.shared.ask(question)
+            Log.agent.info("allowlist negotiation: asking user to approve '\(tool, privacy: .public)'")
+            let answer = await UserPromptCenter.shared.ask(
+                question, quickOptions: ["允许", "拒绝"])
+            Log.agent.info("allowlist negotiation: answer received '\(answer, privacy: .public)' (len \(answer.count))")
             let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let approved = normalized.contains("允许") || normalized.contains("allow")
                 || normalized == "y" || normalized == "yes"

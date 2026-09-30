@@ -20,7 +20,7 @@ final class UserPromptCenter: ObservableObject {
     /// Suspends the calling tool until the user answers (or cancels — the
     /// answer is then a marker string the agent can understand). 超过
     /// `answerTimeout` 无人回答则自动以超时标记解除（见 PendingUserQuestion）。
-    func ask(_ question: String) async -> String {
+    func ask(_ question: String, quickOptions: [String]? = nil) async -> String {
         await withCheckedContinuation { continuation in
             // P1-19：并行批（askUser 归 readonly 可并发）第二问会覆盖第一问
             // 的 pending——旧续体只能等 600s 超时。先以标记解除旧问，保证
@@ -28,7 +28,9 @@ final class UserPromptCenter: ObservableObject {
             if let stale = pending {
                 stale.resume(with: "[superseded by a newer question]")
             }
-            let entry = PendingUserQuestion(question: question, continuation: continuation)
+            let entry = PendingUserQuestion(
+                question: question, continuation: continuation,
+                quickOptions: quickOptions)
             pending = entry
             entry.scheduleTimeout(after: Self.answerTimeout)
         }
@@ -50,12 +52,18 @@ final class UserPromptCenter: ObservableObject {
 final class PendingUserQuestion: Identifiable {
     let id = UUID()
     let question: String
+    /// 快捷按钮（如 允许/拒绝）——nil = 纯文本问答。
+    let quickOptions: [String]?
     private var continuation: CheckedContinuation<String, Never>?
     fileprivate var timeoutTask: Task<Void, Never>?
 
-    init(question: String, continuation: CheckedContinuation<String, Never>) {
+    init(
+        question: String, continuation: CheckedContinuation<String, Never>,
+        quickOptions: [String]? = nil
+    ) {
         self.question = question
         self.continuation = continuation
+        self.quickOptions = quickOptions
     }
 
     /// 兜底超时：长时间无人回答就以标记解除挂起（回合不至于无限等）。

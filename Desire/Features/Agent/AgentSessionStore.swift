@@ -1875,6 +1875,20 @@ class AgentSessionStore: ObservableObject {
         // Safe tools always run.
         if risk == .readonly { return .allowedOnce }
 
+        // runCommand：**命令级允许列表**（系统访问）内的二进制免审批——用户
+        // 批准过的命令不再每次问（"尽可能少让用户回答"）。FULL ACCESS 分支
+        // 更早返回，语义不受影响。危险级豁免白名单的旧规则不再适用 runCommand
+        // （它的安全闸在命令级名单：不在名单的会弹审批，批准即入列）。
+        if toolCall.function.name == "runCommand",
+           let args = try? JSONSerialization.jsonObject(with: Data(toolCall.function.arguments.utf8)) as? [String: Any],
+           let tool = args["tool"] as? String,
+           SystemCommandStore.shared.allowedBinaries.contains(tool.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: "runCommand",
+                decision: "allowed (binary allowlist: \(tool))", source: "binary allowlist")
+            return .allowedOnce
+        }
+
         // Whitelisted side-effect tools run without prompting. Dangerous
         // tools are exempt from the whitelist and always prompt.
         if risk != .dangerous && preference.allowedTools.contains(toolCall.function.name) {
@@ -1944,6 +1958,15 @@ class AgentSessionStore: ObservableObject {
             toolName: approval.toolCall.function.name,
             decision: decision == .deny ? "denied" : "allowed",
             source: "ui")
+
+        // runCommand 被批准 = 用户认可这条命令 → binary 顺带入系统访问
+        // 允许列表（下次同类命令免审批）。 Dangerous 层级也入列——审批卡
+        // 上展示的就是完整命令行，批准即信任。
+        if decision != .deny, approval.toolCall.function.name == "runCommand",
+           let args = try? JSONSerialization.jsonObject(with: Data(approval.toolCall.function.arguments.utf8)) as? [String: Any],
+           let tool = args["tool"] as? String {
+            SystemCommandStore.shared.allow(tool)
+        }
 
         let outcome: ApprovalOutcome
         switch decision {

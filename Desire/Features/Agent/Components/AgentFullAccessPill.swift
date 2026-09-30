@@ -44,20 +44,22 @@ struct AgentFullAccessPill: View {
         .animation(.hoverFast, value: store.accessLevel)
         .popover(isPresented: $showPicker, arrowEdge: .bottom) {
             accessPicker
-                .padding(10)
-                .frame(width: 264)
+                .padding(9)
+                .frame(width: 280)
         }
     }
 
     // MARK: - 选择面板（自绘）
 
     private var accessPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(String(localized: "Access Level"))
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(.system(size: 9.5, weight: .semibold))
                 .foregroundStyle(.tertiary)
-                .padding(.leading, 8)
-                .padding(.bottom, 2)
+                .textCase(.uppercase)
+                .kerning(0.6)
+                .padding(.leading, 10)
+                .padding(.bottom, 3)
             ForEach(AgentSessionStore.AccessLevel.allCases, id: \.self) { option in
                 accessRow(option)
             }
@@ -73,32 +75,33 @@ struct AgentFullAccessPill: View {
             HStack(spacing: 10) {
                 // 图标章：选中档墨底反白，未选中档灰底
                 Image(systemName: option.icon)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 24, height: 24)
                     .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6.5, style: .continuous)
                             .fill(isSelected
                                 ? AnyShapeStyle(Color(nsColor: .textBackgroundColor).opacity(0.9))
                                 : AnyShapeStyle(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
                     )
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 0.5) {
                     Text(option.displayName)
-                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
                         .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                     Text(option.subtitle)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)

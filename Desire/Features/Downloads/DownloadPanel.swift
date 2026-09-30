@@ -110,7 +110,7 @@ struct DownloadPanel: View {
                 .font(.system(size: 11.5, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? Color.white : Color.secondary)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 5)
+                .padding(.vertical, 4)
                 .background(
                     Capsule().fill(selected
                         ? AnyShapeStyle(appAccent)
@@ -125,14 +125,8 @@ struct DownloadPanel: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text("Downloads")
-                .font(.system(size: 14, weight: .semibold))
-
-            statusSummary
-
-            Spacer(minLength: 8)
-
-            // 视图切换 Tab（方案 B 单行紧凑）：容器胶囊 + 选中段强调色实底
+            // 视图切换 Tab **贴左**（页签名即视图名，"下载"大标题与 Tab 里的
+            // "下载"重复，省去）；全头部统一 28pt 高。
             HStack(spacing: 2) {
                 segmentTab(String(localized: "Downloads"), selected: !showBatchTasks) {
                     showBatchTasks = false
@@ -142,6 +136,7 @@ struct DownloadPanel: View {
                 }
             }
             .padding(3)
+            .frame(height: 28)
             .background(
                 Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
             )
@@ -149,15 +144,13 @@ struct DownloadPanel: View {
                 Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
             )
 
-            HoverIcon(systemName: "folder", action: {
-                NSWorkspace.shared.open(store.downloadFolder)
-            }, help: "Open Download Folder")
-            .offset(y: 3)
+            statusSummary
+
+            Spacer(minLength: 8)
 
             HoverIcon(systemName: "folder", action: {
                 NSWorkspace.shared.open(store.downloadFolder)
             }, help: "Open Download Folder")
-            .offset(y: 3)
 
             Menu {
                 Button("Pause All") { store.pauseAll() }

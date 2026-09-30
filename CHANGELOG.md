@@ -3,6 +3,8 @@
 
 - **批量下载落点与追加语义终版（用户实测连环反馈后定案）**：① directory 精确直落 + folderName 可组合（directory/folderName → 父/子；都给即 /Volumes/sd + missav.ws 的直觉形态）——此前"directory 同给时 folderName 被忽略"过度纠偏；② manageBatchDownloads 的 add 现在会把**最新参数同步进被追加的批次**（maxConcurrent/splitEvery），旧批次遗留参数（并发 1、分卷 2）不再绑架追加任务——此前模型只能逐项 skip + 重建队列（用户实测的"骚操作"链）；③ 移除工具侧"站点域名自动子文件夹"回落——已按用户决定恢复（见前条），此项为该轮中间态的清理。桥 E2E：directory 直落 archived001、组合 site/archived001、add 同步参数 全通
 - **视频任务面板两处显示修复（用户实测截图）**：① 批次卡的完成计数显示的是原文 `(batch.finishedCount)/(batch.items.count)`——源码里反斜杠写成双转义、Swift 当字面量文本，从头到尾就没插值过；改为真插值（11/12 正确显示）。② 顶部"下载 / 视频任务"分段控件拉伸满行、两段松散像两个独立按钮——收拢为固定宽度等宽整体控件
+- 下载面板头部重排（用户实测三轮反馈）：视图切换 Tab 组贴左（页签名即视图名，去掉与之重复的"下载"大标题）；header 里重复贴了两次的文件夹按钮删除一个；全头部元素统一 28pt 高
+
 
 
 ### Added

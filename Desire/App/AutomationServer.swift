@@ -3446,7 +3446,8 @@ final class AutomationServer {
                 folderName: folderName,
                 naming: naming,
                 force: force,
-                directory: directory
+                directory: directory,
+                splitEvery: (body["splitEvery"] as? Int)
             )
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,
@@ -3463,7 +3464,8 @@ final class AutomationServer {
                 folderName: folderName,
                 naming: naming,
                 force: force,
-                directory: directory
+                directory: directory,
+                splitEvery: (body["splitEvery"] as? Int)
             )
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,

@@ -49,6 +49,9 @@ struct BatchMediaBatch: Identifiable {
     /// 保存根目录（绝对路径）。nil = 用户全局偏好（默认 ~/Downloads）。
     /// 用户在对话里显式指定的目录存这里——每批独立，不改全局偏好。
     var saveRoot: String?
+    /// 分卷规则：目标目录下每 N 个文件滚动一个 archivedNNN 子文件夹
+    /// （用户指定 "/Volumes/sd/missav.ws 每 120 个文件新建一个文件夹"）。
+    var splitEvery: Int?
     let folderName: String
     var items: [BatchMediaItem]
     var state: BatchState = .running

@@ -196,8 +196,9 @@ extension BrowserToolProvider {
                     "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the page's host)"),
                     "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
                     "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
-                    "directory": AgentJSONSchemaValue(type: "string", description: "ABSOLUTE directory to save into (user-specified, e.g. /Volumes/SSD/videos) — overrides the default save location for this batch"),
+                    "directory": AgentJSONSchemaValue(type: "string", description: "EXACT destination directory (user-specified absolute path, e.g. /Volumes/SD/shows) — files land DIRECTLY there, no extra subfolder, and the batch remembers this path across restarts. When set, ignore folderName entirely. Do NOT split one user path into directory+folderName."),
                     "maxConcurrent": AgentJSONSchemaValue(type: "number", description: "Max parallel downloads 1-4 (default 2)"),
+                    "splitEvery": AgentJSONSchemaValue(type: "number", description: "Rolling archive: after every N files start a numbered subfolder (archived001, archived002…) under the destination — e.g. 120 when the user says 每120个文件新建一个文件夹"),
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -208,8 +209,9 @@ extension BrowserToolProvider {
                     "folderName": AgentJSONSchemaValue(type: "string", description: "Optional subfolder of the save location for this batch (default: the first URL's host)"),
                     "naming": AgentJSONSchemaValue(type: "string", description: "File naming: clean (collapse repeated title templates, DEFAULT) / code (ID/code first, e.g. MOV-2024001) / title (raw page title). A value the user asked for becomes the remembered preference"),
                     "force": AgentJSONSchemaValue(type: "boolean", description: "true = re-download even if the downloaded index says the URL was saved before (default false)"),
-                    "directory": AgentJSONSchemaValue(type: "string", description: "ABSOLUTE directory to save into (user-specified, e.g. /Volumes/SSD/videos) — overrides the default save location for this batch"),
+                    "directory": AgentJSONSchemaValue(type: "string", description: "EXACT destination directory (user-specified absolute path, e.g. /Volumes/SD/shows) — files land DIRECTLY there, no extra subfolder, and the batch remembers this path across restarts. When set, ignore folderName entirely. Do NOT split one user path into directory+folderName."),
                     "maxConcurrent": AgentJSONSchemaValue(type: "number", description: "Max parallel downloads 1-4 (default 2)"),
+                    "splitEvery": AgentJSONSchemaValue(type: "number", description: "Rolling archive: after every N files start a numbered subfolder (archived001, archived002…) under the destination — e.g. 120 when the user says 每120个文件新建一个文件夹"),
                 ], required: ["urls"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

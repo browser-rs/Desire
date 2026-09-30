@@ -93,7 +93,11 @@ struct BatchMediaPanel: View {
                         // 打开本批保存目录（saveRoot 优先，缺省 ~/Downloads）
                         let root = batch.saveRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
                             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads", isDirectory: true)
-                        NSWorkspace.shared.open(root.appendingPathComponent(batch.folderName, isDirectory: true))
+                        // folder 为空 = 目录直存（无子文件夹），打开目标目录本身。
+                        let target = batch.folderName.isEmpty
+                            ? root
+                            : root.appendingPathComponent(batch.folderName, isDirectory: true)
+                        NSWorkspace.shared.open(target)
                     }
                 Spacer(minLength: 8)
                 controls(batch)
@@ -225,8 +229,9 @@ struct BatchMediaPanel: View {
     }
 
     private func savePathDisplay(_ batch: BatchMediaBatch) -> String {
-        // 显示用：自定义目录显示完整路径；缺省显示 ~/Downloads/<folder>
-        if let root = batch.saveRoot { return root + "/" + batch.folderName }
-        return "~" + "/Downloads/" + batch.folderName
+        // 显示用：folder 为空 = 目录直存（只显示目录本身）；缺省 ~/Downloads/<folder>
+        let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
+        if let root = batch.saveRoot { return root + leaf }
+        return "~" + "/Downloads" + leaf
     }
 }

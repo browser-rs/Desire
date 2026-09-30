@@ -193,7 +193,11 @@ private struct AssistantBubble: View {
                         )
                     }
 
-                    if !hasVisibleContent {
+                    // **只在流式尾部画等待点**：空正文的助手消息一旦不是
+                    // 尾部（回合已被打断/结束），继续画点就是永久"思考中"
+                    // 假象（用户多次实测：打断后思考动画还在）。非尾部且无
+                    // 内容的消息安静地什么都不画。
+                    if !hasVisibleContent && isStreamingTail {
                         AgentTypingIndicator()
                             .padding(.vertical, 4)
                     } else if isStreamingTail {

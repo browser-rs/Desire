@@ -995,6 +995,13 @@ class AgentSessionStore: ObservableObject {
                 var lastFlush = Date.distantPast
                 func flushTail() {
                     updateContextFraction()
+                    // **取消态兜底**：cancel() 把（已取消）写进 messages 数组，
+                    // 但循环本地的 assistantMsg 看不到那次写入——缓冲里最后
+                    // 几个事件触发的 flush 会用空正文把它覆盖回去，思考动画
+                    // 因此"打不断"（竞态实测）。任何 flush 在取消态都先补标记。
+                    if isCancelled, let msg = assistantMsg, (msg.content ?? "").isEmpty {
+                        assistantMsg?.content = "（已取消）"
+                    }
                     // 模型名在这里落（而不是在 .model 事件里直接写）：事件可能早于
                     // 助手消息出现（首个 chunk 就带 model、而正文还没到），统一在
                     // 每次 flush 时按当前已知值盖章，谁先到都不会漏。

@@ -91,7 +91,8 @@ final class BatchMediaExportStore: ObservableObject {
         folderName: String?,
         naming: String? = nil,
         force: Bool = false,
-        directory: String? = nil
+        directory: String? = nil,
+        splitEvery: Int? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planPageBatch(candidates: candidates)
@@ -115,7 +116,8 @@ final class BatchMediaExportStore: ObservableObject {
             skipped: plan.skipped,
             userAgent: userAgent,
             force: force,
-            directory: directory
+            directory: directory,
+            splitEvery: splitEvery
         )
     }
 
@@ -127,7 +129,8 @@ final class BatchMediaExportStore: ObservableObject {
         folderName: String?,
         naming: String? = nil,
         force: Bool = false,
-        directory: String? = nil
+        directory: String? = nil,
+        splitEvery: Int? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planListBatch(urls: pageURLs)
@@ -150,7 +153,8 @@ final class BatchMediaExportStore: ObservableObject {
             skipped: plan.skipped,
             userAgent: userAgent,
             force: force,
-            directory: directory
+            directory: directory,
+            splitEvery: splitEvery
         )
     }
 
@@ -162,29 +166,41 @@ final class BatchMediaExportStore: ObservableObject {
         skipped: [BatchMediaPlan.SkippedEntry],
         userAgent: String?,
         force: Bool = false,
-        directory: String? = nil
+        directory: String? = nil,
+        splitEvery: Int? = nil
     ) -> BatchMediaBatch {
         // 用户/模型可能把**绝对路径**当 folderName 传（"存到 /Volumes/x"）——
         // 直接消毒会把斜杠打成横杠、落在 Downloads 下的畸形文件夹。拆出
         // 目录部分作为本批 saveRoot，末段才是子文件夹名。
+        // **单一语义**（用户实测教训：一个意图被拆成 directory/folderName 两段，
+        // 组合方式不同落点就漂，还出过双层嵌套）：
+        //   · directory（或误传到 folderName 的绝对路径）= **精确目标目录**，
+        //     文件直接落在这里，不再叠加任何子文件夹；
+        //   · folderName 只有在没给 directory 时才有意义 = 默认下载根下的
+        //     子文件夹；点噪音（"." / ".."）= 没有，回退时间戳文件夹。
+        // 目标目录随批持久化（restore 此前丢 saveRoot——恢复后回落默认
+        // Downloads，用户实测），重启后仍下到原路径。
         var saveRootOverride: String?
+        if let dir = directory?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !dir.isEmpty, dir != "/" {
+            saveRootOverride = NSString(string: dir).expandingTildeInPath
+        }
         var folderInput = folderName ?? ""
         if let raw = folderInput.trimmingCharacters(in: .whitespacesAndNewlines) as String?,
-           raw.hasPrefix("/") {
-            let url = URL(fileURLWithPath: raw, isDirectory: true)
-            saveRootOverride = url.deletingLastPathComponent().path
-            folderInput = url.lastPathComponent
+           raw.hasPrefix("/"), raw != "/" {
+            saveRootOverride = NSString(string: raw).expandingTildeInPath
+            folderInput = ""
         }
-        // "." / ".." 这类路径噪音 = "没有子文件夹"——清空交给 fallback，
-        // 否则会字面生成一个叫 "." 的文件夹（12 部平铺进 Downloads 根）。
         let folderProbe = folderInput.trimmingCharacters(in: .whitespacesAndNewlines)
         if folderProbe.isEmpty || folderProbe == "." || folderProbe == ".." {
             folderInput = ""
         }
-        let folder = BatchMediaPlan.sanitizedFileName(
-            from: folderInput,
-            fallback: "Desire-Batch-" + Self.folderTimestamp()
-        )
+        let folder = saveRootOverride != nil
+            ? ""   // 有精确目标目录 = 直落，不叠子文件夹
+            : BatchMediaPlan.sanitizedFileName(
+                from: folderInput,
+                fallback: "Desire-Batch-" + Self.folderTimestamp()
+            )
         var batchItems = items
         var overflow = skipped
         if batchItems.count > Self.maxItemsPerBatch {
@@ -209,7 +225,8 @@ final class BatchMediaExportStore: ObservableObject {
         let batch = BatchMediaBatch(
             id: UUID(),
             mode: mode,
-            saveRoot: directory ?? saveRootOverride,
+            saveRoot: saveRootOverride,
+            splitEvery: ((splitEvery ?? 0) > 0 ? splitEvery : nil),
             folderName: folder,
             items: batchItems + skippedItems,
             state: .running,
@@ -404,6 +421,10 @@ final class BatchMediaExportStore: ObservableObject {
         let userAgent: String?
         var force: Bool = false
         var items: [PersistedItem]
+        // 用户指定的目标目录与分卷规则必须随批存活——此前 restore 丢
+        // saveRoot，恢复后整批回落默认 Downloads（用户实测）。
+        var saveRoot: String? = nil
+        var splitEvery: Int? = nil
     }
 
     private static let persistenceKey = "batch-media-unfinished"
@@ -422,7 +443,8 @@ final class BatchMediaExportStore: ObservableObject {
                         title: item.title, numberPrefix: item.numberPrefix,
                         state: item.state.rawValue, summary: item.summary, attempts: item.attempts
                     )
-                }
+                },
+                saveRoot: batch.saveRoot, splitEvery: batch.splitEvery
             )
         }
         if pending.isEmpty {
@@ -465,8 +487,17 @@ final class BatchMediaExportStore: ObservableObject {
                         attempts: item.attempts
                     )
                 }
+                // 旧持久化没有 saveRoot/splitEvery（optional 解码 nil）。
+                // folder 恢复**保真**：""（目录直存）原样保留，只有 "." 类
+                // 噪音归位为时间戳文件夹——恢复不得改变批次落点。
+                let rawFolder = persistedBatch.folderName
+                let folder = (rawFolder == "." || rawFolder == ".." || rawFolder == "/")
+                    ? "Desire-Batch-" + Self.folderTimestamp()
+                    : rawFolder
                 let batch = BatchMediaBatch(
-                    id: persistedBatch.id, mode: mode, folderName: persistedBatch.folderName,
+                    id: persistedBatch.id, mode: mode,
+                    saveRoot: persistedBatch.saveRoot, splitEvery: persistedBatch.splitEvery,
+                    folderName: folder,
                     items: items, state: .running, createdAt: persistedBatch.createdAt
                 )
                 batches.append(batch)
@@ -749,7 +780,16 @@ final class BatchMediaExportStore: ObservableObject {
             let itemID = batches[bi].items[ii].id
             let title = batches[bi].items[ii].title
             let referer = batches[bi].items[ii].referer
-            let folderName = batches[bi].folderName
+            // 分卷规则：每 splitEvery 个非跳过项滚动一个 archivedNNN 子文件夹
+            //（序号 = 该项之前的非跳过项数，与 01- 02- 编号同序，addItems 续号
+            // 自动落对卷）。folder 为空 = 目录直存，只有分卷层。
+            var itemFolder = batches[bi].folderName
+            if let split = batches[bi].splitEvery, split > 0 {
+                let ordinal = batches[bi].items[..<ii].filter { $0.state != .skipped }.count
+                let rolling = String(format: "archived%03d", ordinal / split + 1)
+                itemFolder = itemFolder.isEmpty ? rolling : itemFolder + "/" + rolling
+            }
+            let folderName = itemFolder.isEmpty ? nil : itemFolder
             let userAgent = batchUserAgents[batchID]
             // 已下载索引：重跑同一列表不重复占盘（force 批次绕过）。
             if !forceDownloadBatches.contains(batchID), BatchMediaPreferences.skipDownloaded,

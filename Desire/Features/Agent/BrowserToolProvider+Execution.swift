@@ -826,7 +826,8 @@ extension BrowserToolProvider {
                 folderName: folderName,
                 naming: args["naming"] as? String,
                 force: (args["force"] as? Bool) ?? false,
-                directory: args["directory"] as? String
+                directory: args["directory"] as? String,
+                splitEvery: args["splitEvery"] as? Int
             )
             let downloading = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -862,7 +863,8 @@ extension BrowserToolProvider {
                 folderName: folderName,
                 naming: args["naming"] as? String,
                 force: (args["force"] as? Bool) ?? false,
-                directory: args["directory"] as? String
+                directory: args["directory"] as? String,
+                splitEvery: args["splitEvery"] as? Int
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -907,7 +909,12 @@ extension BrowserToolProvider {
             guard !batches.isEmpty else { return "No batch downloads." }
             var lines: [String] = []
             for batch in batches.prefix(10) {
-                var line = "[#\(batch.id.uuidString.prefix(8).lowercased())] [\(batch.state.rawValue)] \(batch.folderName) (\(batch.mode.rawValue)) — \(batch.finishedCount)/\(batch.items.count) done → \(BatchMediaPreferences.baseDirectory ?? "~/Downloads")/\(batch.folderName)"
+                // 落点按批次**实际**的 saveRoot/folder 拼接（此前写死默认目录，
+                // 用户指定 directory 时列表显示的是错误位置）。
+                let dest = batch.saveRoot ?? (BatchMediaPreferences.baseDirectory ?? NSHomeDirectory() + "/Downloads")
+                let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
+                var line = "[#\(batch.id.uuidString.prefix(8).lowercased())] [\(batch.state.rawValue)] \(batch.folderName.isEmpty ? "(directory itself)" : batch.folderName) (\(batch.mode.rawValue)) — \(batch.finishedCount)/\(batch.items.count) done → \(dest)\(leaf)"
+                if let split = batch.splitEvery, split > 0 { line += " — rolling archive: every \(split) files → archivedNNN subfolder" }
                 if store.isPaused(batch.id) { line += " — PAUSED (resume with manageBatchDownloads)" }
                 if let reason = store.suspensionReason(batch.id) {
                     line += " — SUSPENDED: \(reason) (auto-resumes when space recovers)"

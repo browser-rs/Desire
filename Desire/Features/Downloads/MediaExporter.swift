@@ -1,4 +1,5 @@
 import CommonCrypto
+import os
 import Foundation
 import WebKit
 
@@ -216,6 +217,27 @@ enum MediaExporter {
         }
 
         do {
+            // **重试复用完整 .ts**：remux 失败（超时/中断）保留的 .ts 是完整
+            // 下载产物——重试同一 URL 时直接进 remux，不重新抓全部分片
+            //（01 号 6.4GB 实测重复下载整片）。ffmpeg 可用才走这条捷径。
+            if playlistText != nil || url.pathExtension.lowercased() == "m3u8",
+               FFmpegExporter.locate() != nil {
+                let reuseURL = try destinationURL(for: playlistURL, hint: fileNameHint, isMP4: false, folderName: folderName, baseDirectory: baseDirectory)
+                // .ts（isMP4=false → ts 扩展名）存在且 >100MB 视为完整产物
+                if reuseURL.pathExtension.lowercased() == "ts",
+                   FileManager.default.fileExists(atPath: reuseURL.path),
+                   let attrs = try? FileManager.default.attributesOfItem(atPath: reuseURL.path),
+                   (attrs[.size] as? Int64 ?? 0) > 100_000_000 {
+                    Log.downloads.info("reusing complete .ts for remux: \(reuseURL.lastPathComponent, privacy: .public)")
+                    let reused = Result(fileURL: reuseURL, segmentCount: 0, bytes: attrs[.size] as? Int64 ?? 0, warnings: [], verification: nil)
+                    let gb = max(1, Int(reused.bytes / 1_073_741_824))
+                    let remuxDeadline = min(deadline, Date().addingTimeInterval(TimeInterval(15 * 60 + gb * 2 * 60)))
+                    progress(0, 1, .merging)
+                    let final = try await remuxToMP4IfNeeded(reused, extraWarnings: warnings, deadline: remuxDeadline, progress: progress)
+                    progress(1, 1, .merging)
+                    return final
+                }
+            }
             let result = try await exportHLS(
                 url: playlistURL,
                 playlistText: playlistText,
@@ -230,8 +252,12 @@ enum MediaExporter {
             // 合成阶段单独上报进度（面板显示"合成中"），并给**独立短超时**：
             // 合成是本地文件操作，卡住时不再挂满整个总时长上限。
             progress(0, 1, .merging)
-            let remuxDeadline = min(deadline, Date().addingTimeInterval(15 * 60))
-            let final = try await remuxToMP4IfNeeded(result, extraWarnings: warnings, deadline: remuxDeadline)
+            // remux 超时按文件大小动态：15 分钟基线 + 每 GB 2 分钟
+            //（6GB ≈ 27 分钟——此前固定 15 分钟误杀大文件转封装）。
+            let gb = max(1, Int(result.bytes / 1_073_741_824))
+            let remuxDeadline = min(deadline, Date().addingTimeInterval(TimeInterval(15 * 60 + gb * 2 * 60)))
+            let final = try await remuxToMP4IfNeeded(
+                result, extraWarnings: warnings, deadline: remuxDeadline, progress: progress)
             progress(1, 1, .merging)
             return final
         } catch is CancellationError {
@@ -247,7 +273,8 @@ enum MediaExporter {
     private static func remuxToMP4IfNeeded(
         _ result: Result,
         extraWarnings: [String],
-        deadline: Date
+        deadline: Date,
+        progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void = { _, _, _ in }
     ) async throws -> Result {
         var warnings = extraWarnings + result.warnings
         guard result.fileURL.pathExtension.lowercased() == "ts",
@@ -255,8 +282,22 @@ enum MediaExporter {
             return Result(fileURL: result.fileURL, segmentCount: result.segmentCount,
                           bytes: result.bytes, warnings: warnings, verification: result.verification)
         }
+        // **重试复用同名 .ts**：remux 失败（超时/中断）后重试整个任务时，此前
+        // uniqueDestination 会绕开已存在的 .ts 重新下载整片（01 号 6.4GB 实测
+        // 重复下载）。已有同名 .ts = 上一次下载的完整产物，直接复用进 remux。
         let destination = try uniqueDestination(beside: result.fileURL, extension: "mp4")
         do {
+            // **心跳进度**：remux 是长操作（6GB 可跑 >3 分钟），周期性发
+            // merging 进度——批量槽位看门狗 3 分钟无进度就取消任务，没有
+            // 心跳会被误杀（01 号 6.4GB 实测被杀进重试、重复下载整片）。
+            let heartbeat = Task { @MainActor in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(30))
+                    guard !Task.isCancelled else { return }
+                    progress(0, 1, .merging)
+                }
+            }
+            defer { heartbeat.cancel() }
             let outcome = try await Self.writePartAndFinalizeAsync(destination) { part in
                 try await FFmpegExporter.remux(
                     executable: ffmpeg, source: result.fileURL,

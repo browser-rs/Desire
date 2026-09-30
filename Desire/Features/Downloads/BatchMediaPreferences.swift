@@ -41,7 +41,8 @@ enum BatchMediaPreferences {
         }
         set {
             defaults.set(newValue.rawValue, forKey: namingKey)
-            remember("批量下载命名风格 = \(namingStyleDescription(newValue))")
+            remember("批量下载命名风格 = \(namingStyleDescription(newValue))",
+                     supersedePrefix: "批量下载命名风格 = ")
         }
     }
 
@@ -52,7 +53,8 @@ enum BatchMediaPreferences {
         set {
             defaults.set(newValue, forKey: baseDirectoryKey)
             if let newValue {
-                remember("批量下载保存位置 = \(newValue)（之后的批次默认存这里）")
+                remember("批量下载保存位置 = \(newValue)（之后的批次默认存这里）",
+                         supersedePrefix: "批量下载保存位置 = ")
             }
         }
     }
@@ -69,8 +71,11 @@ enum BatchMediaPreferences {
         set {
             if let v = newValue, v > 0 {
                 defaults.set(v, forKey: splitKey)
+                remember("批量下载分卷规则 = 每 \(v) 个文件一卷（archivedNNN）",
+                         supersedePrefix: "批量下载分卷规则 = ")
             } else {
                 defaults.set(0, forKey: splitKey)
+                remember("批量下载分卷规则 = 关闭", supersedePrefix: "批量下载分卷规则 = ")
             }
         }
     }
@@ -87,7 +92,15 @@ enum BatchMediaPreferences {
     /// nonisolated：错误文案（非隔离上下文）也要读它；只碰 UserDefaults。
     nonisolated static var exportTimeoutMinutes: Int {
         get { UserDefaults.standard.object(forKey: Self.exportTimeoutKey) as? Int ?? 120 }
-        set { UserDefaults.standard.set(max(0, min(newValue, 600)), forKey: Self.exportTimeoutKey) }
+        set {
+            UserDefaults.standard.set(max(0, min(newValue, 600)), forKey: Self.exportTimeoutKey)
+            let text = newValue > 0 ? "\(newValue) 分钟" : "不限制"
+            Task { @MainActor in
+                BatchMediaPreferences.remember(
+                    "批量下载时长上限 = \(text)（单个任务超时判失败）",
+                    supersedePrefix: "批量下载时长上限 = ")
+            }
+        }
     }
 
     private nonisolated static let exportTimeoutKey = "media.exportTimeoutMinutes"
@@ -122,13 +135,20 @@ enum BatchMediaPreferences {
         switch style {
         case .clean: "清洗标题（折叠站点模板重复段，60 字符内）"
         case .title: "页面标题原样"
-        case .code: "番号/代号优先（如 MOV-2024001，无代号退回清洗标题）"
+        case .code: "番号/代号优先（无代号退回清洗标题）"
         }
     }
 
-    /// 偏好写入长期记忆（去重由 addFact 负责；失败静默——记忆是辅助通道，
-    /// UserDefaults 才是引擎读的真相）。
-    private static func remember(_ content: String) {
-        AgentMemoryStore.shared.addFact(content: content, category: "preference")
+    /// 偏好写入长期记忆：**同前缀的旧事实先删再加**（supersede）。addFact 的
+    /// 近似去重挡不住"保存位置 = /tmp/roll2"→"= /tmp/tl-e2e"这类**值变化**的
+    /// 事实（相似度不足），自动化/E2E 反复写配置就在记忆里堆干扰条目
+    ///（用户实测截图）。失败静默——记忆是辅助通道，UserDefaults 才是引擎
+    /// 读的真相。
+    private static func remember(_ content: String, supersedePrefix prefix: String) {
+        let memory = AgentMemoryStore.shared
+        for fact in memory.factsSnapshot where fact.content.hasPrefix(prefix) {
+            memory.removeFact(fact.id)
+        }
+        memory.addFact(content: content, category: "preference")
     }
 }

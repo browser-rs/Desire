@@ -2,7 +2,8 @@
 
 > 为 macOS 而生的 AI 浏览器（Apple Silicon，macOS 26.5+，免费，SwiftUI + WebKit）。
 > 内置 AI 智能体：百余个真实浏览器工具（导航/点击/填表/截图/PDF/HLS 媒体导出/
-> executeJS/runCommand），子代理并行（Tab Crew）、定时任务、按工具的审批策略。
+> executeJS/runCommand），子代理并行（Tab Crew）、定时任务、按工具的审批策略；
+> 智能体面板可停靠侧栏，也可独立为浮窗。
 > 云同步端到端加密：密钥由用户密码本机派生（PBKDF2 60 万轮）包裹随机 DEK，
 > 书签树、快速拨号、阅读列表、快捷键、设置、Agent 记忆、Agent 提示词、浏览历史
 > 八类目可选同步（浏览历史 opt-in 默认关闭，服务端专表 + 90 天保留期）；服务器只见密文，条目 ID 为不可逆 HMAC 标签；AI 对话永留设备本地、

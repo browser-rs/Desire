@@ -448,6 +448,8 @@ final class AutomationServer {
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
+        ep("GET", "/ads/stats", "Ad-blocking statistics (video-rule events only; see the stats panel)", example: "…/ads/stats")
+        ep("POST", "/ads/stats/clear", "Reset ad-blocking statistics", example: "-d '{}'")
         ep("GET", "/media/batch", "Batch download progress (per-item states; needsHuman = waiting for a manual check in the popup window)", params: ["id?:uuid"], example: "…/media/batch")
         ep("POST", "/media/batch/cancel", "Cancel a whole batch", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         ep("POST", "/media/batch/skip", "Skip one pending/needsHuman item", params: ["id:uuid", "itemId:uuid"], example: "-d '{\"id\":\"…\",\"itemId\":\"…\"}'")
@@ -1160,6 +1162,11 @@ final class AutomationServer {
                 return try Self.json(Self.downloadHistory())
             case ("GET", "/media/batch/config"):
                 return try Self.json(Self.batchMediaConfig())
+            case ("GET", "/ads/stats"):
+                return try Self.json(Self.adBlockStats())
+            case ("POST", "/ads/stats/clear"):
+                AdBlockStatsStore.shared.clear()
+                return try Self.json(["ok": true])
             case ("POST", "/media/batch/config"):
                 return try Self.json(Self.setBatchMediaConfig(body: body))
             case ("GET", "/profiles"):
@@ -2163,6 +2170,7 @@ final class AutomationServer {
         case "stopLoading": command = .stopLoading
         case "toggleTabOverview": command = .toggleTabOverview
         case "toggleAgentPanel": command = .toggleAgentPanel
+        case "showAdBlockStats": command = .showAdBlockStats
         case "toggleSplitView": command = .toggleSplitView
         case "toggleDevTools": command = .toggleDevTools
         case "addToReadingList": command = .addToReadingList
@@ -3558,6 +3566,24 @@ final class AutomationServer {
         return ["history": entries.map { url, entry -> [String: Any] in
             ["url": url, "file": entry.file, "at": ISO8601DateFormatter().string(from: entry.at)]
         }]
+    }
+
+    /// 广告拦截统计（与面板同源 AdBlockStatsStore）。
+    private static func adBlockStats() -> [String: Any] {
+        let stats = AdBlockStatsStore.shared
+        return [
+            "total": stats.total,
+            "today": stats.todayCount,
+            "perDomain": stats.perDomain,
+            "recent": stats.recent.prefix(20).map { event in
+                [
+                    "at": event.at.timeIntervalSince1970,
+                    "site": event.site,
+                    "count": event.count,
+                    "action": event.action,
+                ] as [String: Any]
+            },
+        ]
     }
 
     /// 批量下载的人性化配置（预留空间 / 命名 / 保存位置）。

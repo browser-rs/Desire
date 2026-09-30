@@ -22,6 +22,7 @@ struct PanelsRouter: ViewModifier {
     @Binding var showPlugins: Bool
     @Binding var showReadingList: Bool
     @Binding var showElementBlock: Bool
+    @Binding var showAdBlockStats: Bool
     @Binding var showPasswordManager: Bool
 
     /// Navigates the selected tab (panel selection callbacks).
@@ -64,6 +65,9 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showElementBlock) {
                 ElementBlockPanel(store: elementBlockStore, onStartPicker: onStartElementPicker, onClose: { showElementBlock = false })
+            }
+            .sheet(isPresented: $showAdBlockStats) {
+                AdBlockPanel()
             }
             .sheet(isPresented: $showPasswordManager) {
                 PasswordPanel(passwordStore: passwordStore)

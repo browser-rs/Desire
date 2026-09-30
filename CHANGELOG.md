@@ -2,6 +2,8 @@
 ### Added
 
 - **批量下载用户引导与设置面板（用户需求）**：新增"批量下载"设置区块与首用引导——保存位置（目录选择/恢复默认）、分卷规则（开关 + 每 N 个文件 archivedNNN）、并发数量（1-4）、磁盘预留空间（GB）、跳过已下载、命名风格，六项默认参数即设即用并写入长期记忆；对话中智能体仍可按批覆盖（directory/splitEvery/maxConcurrent/naming 工具参数优先）。入口：设置 ▸ 批量下载；下载面板"视频任务"右下角齿轮；首次进入视频任务栏自动弹一次引导（完成打卡不再弹）。分卷作为默认偏好贯通引擎（批未显式指定时生效）；桥 /media/batch/config 新增 splitEvery。E2E：config 设 splitEvery=1 + baseDirectory 后起批不带参数 → 落点 prefs/Desire-Batch-*/archived001/01-*.mp4。附带修复：destinationURL 的穿越防御整串替换斜杠，会把分层分卷打成单层横杠长名——改为逐段消毒保留分层
+- **广告拦截统计与面板**：新增 AdBlockStatsStore（累计 / 今日按日滚动 / 分站点计数上限 60 站溢出并入 other / 最近 100 条事件，DiskStore 防抖持久化）+ 广告拦截面板（Tools 菜单"广告拦截统计"入口；今日/累计大数字、站点排行条形图、最近拦截流水、清零确认，数据 init 即载支持离屏快照）。统计口径诚实标注在面板内：仅内置视频广告规则（跳过/快进/首次点击防护）有逐次事件，EasyList 在 WebKit 引擎内执行无逐请求回调。桥新增 GET /ads/stats 与 POST /ads/stats/clear。E2E：恢复会话中的 YouTube 页真实上报 7 次拦截并出现在 /ads/stats
+
 
 ### Changed
 

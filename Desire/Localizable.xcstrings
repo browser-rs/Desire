@@ -4180,6 +4180,28 @@
         }
       }
     },
+    "Batch Download Defaults Footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These are the defaults for batch downloads. In chat, the agent can still override save location, concurrency, splitting and naming per batch."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些是批量下载的默认参数。对话中让智能体下批量任务时，仍可按批覆盖保存位置、并发、分卷与命名。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些是批量下載的預設參數。對話中讓智慧體下批量任務時，仍可按批覆寫儲存位置、並行、分卷與命名。"
+          }
+        }
+      }
+    },
     "Batch download finished" : {
       "localizations" : {
         "en" : {
@@ -4224,6 +4246,72 @@
         }
       }
     },
+    "Batch download settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch download settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下載設定"
+          }
+        }
+      }
+    },
+    "Batch Download Setup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch Download Setup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下載設定"
+          }
+        }
+      }
+    },
+    "Batch Download Setup Subtitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the defaults once: save location, split rule, concurrency and disk reserve. They apply to every batch you start in chat; the agent can still override per batch."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先把默认参数设好：保存位置、分卷规则、并发数量与磁盘预留。之后在对话里下的批量任务都以这些为默认；需要时也可以让智能体按批覆盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先把預設參數設好：儲存位置、分卷規則、並行數量與磁碟預留。之後在對話裡下的批量任務都以這些為預設；需要時也可以讓智能體按批覆寫。"
+          }
+        }
+      }
+    },
     "Batch download suspended" : {
       "localizations" : {
         "en" : {
@@ -4242,6 +4330,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批次下載已暫停"
+          }
+        }
+      }
+    },
+    "Batch Downloads" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch Downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下载"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量下載"
           }
         }
       }
@@ -5516,6 +5626,28 @@
         }
       }
     },
+    "Choose where batch downloads go" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose where batch downloads go"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择批量下载的保存位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇批量下載的儲存位置"
+          }
+        }
+      }
+    },
     "Choose…" : {
       "localizations" : {
         "en" : {
@@ -5534,6 +5666,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇…"
+          }
+        }
+      }
+    },
+    "Clean" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清洗"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清洗"
+          }
+        }
+      }
+    },
+    "Clean collapses repeated site title templates; code puts the ID first." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean collapses repeated site title templates; code puts the ID first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清洗：折叠站点标题模板的重复段；代号：代号优先。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清洗：摺疊站點標題模板的重複段；代號：代號優先。"
           }
         }
       }
@@ -6258,7 +6434,6 @@
     },
     "Code" : {
       "comment" : "Remote control",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6522,6 +6697,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "計算樣式（%lld）"
+          }
+        }
+      }
+    },
+    "Concurrency" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concurrency"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "并发数量"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並行數量"
           }
         }
       }
@@ -8466,6 +8663,28 @@
         }
       }
     },
+    "Default (~/Downloads)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default (~/Downloads)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认（~/Downloads）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設（~/Downloads）"
+          }
+        }
+      }
+    },
     "Default Browser" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8555,6 +8774,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新開標籤頁的預設縮放。"
+          }
+        }
+      }
+    },
+    "Defaults for batch video downloads — the agent can override per batch in chat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Defaults for batch video downloads — the agent can override per batch in chat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量视频下载的默认参数——对话中智能体可按批覆盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量影片下載的預設參數——對話中智慧體可按批覆寫。"
           }
         }
       }
@@ -11458,6 +11699,28 @@
         }
       }
     },
+    "files per folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "files per folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "个文件一卷"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個檔案一卷"
+          }
+        }
+      }
+    },
     "Files you download show up here." : {
       "localizations" : {
         "en" : {
@@ -13034,6 +13297,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有什麼可以幫你？"
+          }
+        }
+      }
+    },
+    "How many videos download at the same time." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How many videos download at the same time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时下载的视频数量。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時下載的影片數量。"
           }
         }
       }
@@ -15572,6 +15857,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名稱（如：Wikipedia）"
+          }
+        }
+      }
+    },
+    "Naming Style" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naming Style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命名风格"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命名風格"
           }
         }
       }
@@ -18909,508 +19216,200 @@
         }
       }
     },
-    "Batch Download Setup" : {
+    "Ad Blocking Stats" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Batch Download Setup"
+            "value" : "Ad Blocking Stats"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "批量下载设置"
+            "value" : "广告拦截统计"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "批量下載設定"
+            "value" : "廣告攔截統計"
           }
         }
       }
     },
-    "Batch Download Setup Subtitle" : {
+    "Ad Blocking" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Set the defaults once: save location, split rule, concurrency and disk reserve. They apply to every batch you start in chat; the agent can still override per batch."
+            "value" : "Ad Blocking"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先把默认参数设好：保存位置、分卷规则、并发数量与磁盘预留。之后在对话里下的批量任务都以这些为默认；需要时也可以让智能体按批覆盖。"
+            "value" : "广告拦截"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先把預設參數設好：儲存位置、分卷規則、並行數量與磁碟預留。之後在對話裡下的批量任務都以這些為預設；需要時也可以讓智能體按批覆寫。"
+            "value" : "廣告攔截"
           }
         }
       }
     },
-    "Save Location" : {
+    "Clear Stats" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save Location"
+            "value" : "Clear Stats"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存位置"
+            "value" : "清零统计"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存位置"
+            "value" : "清零統計"
           }
         }
       }
     },
-    "Where finished videos go. The agent can override this per batch in chat." : {
+    "This resets the counters and the recent list. It cannot be undone." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Where finished videos go. The agent can override this per batch in chat."
+            "value" : "This resets the counters and the recent list. It cannot be undone."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "成品视频的落点。对话中智能体可按批覆盖。"
+            "value" : "将清零全部计数与最近拦截列表，不可恢复。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "成品影片的落點。對話中智慧體可按批覆寫。"
+            "value" : "將清零全部計數與最近攔截列表，不可恢復。"
           }
         }
       }
     },
-    "Default (~/Downloads)" : {
+    "All Time" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Default (~/Downloads)"
+            "value" : "All Time"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "默认（~/Downloads）"
+            "value" : "累计"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "預設（~/Downloads）"
+            "value" : "累計"
           }
         }
       }
     },
-    "Reset to Default" : {
+    "Top Sites" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reset to Default"
+            "value" : "Top Sites"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢复默认"
+            "value" : "站点排行"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢復預設"
+            "value" : "站點排行"
           }
         }
       }
     },
-    "Split Rule" : {
+    "Recent Blocks" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Split Rule"
+            "value" : "Recent Blocks"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "分卷规则"
+            "value" : "最近拦截"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "分卷規則"
+            "value" : "最近攔截"
           }
         }
       }
     },
-    "Start a fresh archivedNNN subfolder after every N files." : {
+    "No ads blocked yet" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start a fresh archivedNNN subfolder after every N files."
+            "value" : "No ads blocked yet"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每 N 个文件后开一个新的 archivedNNN 子文件夹。"
+            "value" : "还没有拦截记录"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每 N 個檔案後開一個新的 archivedNNN 子資料夾。"
+            "value" : "還沒有攔截記錄"
           }
         }
       }
     },
-    "files per folder" : {
+    "Stats Scope Note" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "files per folder"
+            "value" : "Counts come from the built-in per-site video ad rules (skip / seek / first-click guard). EasyList filtering runs inside the WebKit engine, which offers no per-request callback to count from."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "个文件一卷"
+            "value" : "计数来自内置的按站点视频广告规则（跳过 / 快进 / 首次点击防护）。EasyList 过滤在 WebKit 引擎内执行，没有可计数的逐请求回调。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "個檔案一卷"
-          }
-        }
-      }
-    },
-    "Concurrency" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Concurrency"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "并发数量"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "並行數量"
-          }
-        }
-      }
-    },
-    "How many videos download at the same time." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How many videos download at the same time."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同时下载的视频数量。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同時下載的影片數量。"
-          }
-        }
-      }
-    },
-    "Reserve Space (GB)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reserve Space (GB)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "预留空间（GB）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預留空間（GB）"
-          }
-        }
-      }
-    },
-    "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剩余空间低于该值时暂停批次并提醒你；空间恢复后自动续跑。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剩餘空間低於該值時暫停批次並提醒你；空間恢復後自動續跑。"
-          }
-        }
-      }
-    },
-    "Skip Already Downloaded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skip Already Downloaded"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跳过已下载"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跳過已下載"
-          }
-        }
-      }
-    },
-    "Re-running the same list skips files saved before (per-batch force can bypass)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Re-running the same list skips files saved before (per-batch force can bypass)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重跑同一列表时跳过已保存过的文件（单批可用 force 绕过）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重跑同一列表時跳過已儲存過的檔案（單批可用 force 繞過）。"
-          }
-        }
-      }
-    },
-    "Naming Style" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Naming Style"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命名风格"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命名風格"
-          }
-        }
-      }
-    },
-    "Clean collapses repeated site title templates; code puts the ID first." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clean collapses repeated site title templates; code puts the ID first."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清洗：折叠站点标题模板的重复段；代号：代号优先。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清洗：摺疊站點標題模板的重複段；代號：代號優先。"
-          }
-        }
-      }
-    },
-    "Clean" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clean"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清洗"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清洗"
-          }
-        }
-      }
-    },
-    "Batch Download Defaults Footer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "These are the defaults for batch downloads. In chat, the agent can still override save location, concurrency, splitting and naming per batch."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这些是批量下载的默认参数。对话中让智能体下批量任务时，仍可按批覆盖保存位置、并发、分卷与命名。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這些是批量下載的預設參數。對話中讓智慧體下批量任務時，仍可按批覆寫儲存位置、並行、分卷與命名。"
-          }
-        }
-      }
-    },
-    "Choose where batch downloads go" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose where batch downloads go"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择批量下载的保存位置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇批量下載的儲存位置"
-          }
-        }
-      }
-    },
-    "Batch Downloads" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch Downloads"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下載"
-          }
-        }
-      }
-    },
-    "Defaults for batch video downloads — the agent can override per batch in chat." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Defaults for batch video downloads — the agent can override per batch in chat."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量视频下载的默认参数——对话中智能体可按批覆盖。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量影片下載的預設參數——對話中智慧體可按批覆寫。"
-          }
-        }
-      }
-    },
-    "Batch download settings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch download settings"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下载设置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量下載設定"
+            "value" : "計數來自內建的按站點影片廣告規則（跳過 / 快轉 / 首次點擊防護）。EasyList 過濾在 WebKit 引擎內執行，沒有可計數的逐請求回呼。"
           }
         }
       }
@@ -19659,6 +19658,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部暫停"
+          }
+        }
+      }
+    },
+    "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩余空间低于该值时暂停批次并提醒你；空间恢复后自动续跑。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘空間低於該值時暫停批次並提醒你；空間恢復後自動續跑。"
           }
         }
       }
@@ -20627,6 +20648,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新執行上一條訊息"
+          }
+        }
+      }
+    },
+    "Re-running the same list skips files saved before (per-batch force can bypass)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-running the same list skips files saved before (per-batch force can bypass)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重跑同一列表时跳过已保存过的文件（单批可用 force 绕过）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重跑同一列表時跳過已儲存過的檔案（單批可用 force 繞過）。"
           }
         }
       }
@@ -21668,6 +21711,28 @@
         }
       }
     },
+    "Reserve Space (GB)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reserve Space (GB)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预留空间（GB）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預留空間（GB）"
+          }
+        }
+      }
+    },
     "Reset" : {
       "comment" : "Reset button",
       "localizations" : {
@@ -21777,6 +21842,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回復預設"
+          }
+        }
+      }
+    },
+    "Reset to Default" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset to Default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復預設"
           }
         }
       }
@@ -22744,6 +22831,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存按鍵"
+          }
+        }
+      }
+    },
+    "Save Location" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存位置"
           }
         }
       }
@@ -25167,6 +25276,28 @@
         }
       }
     },
+    "Skip Already Downloaded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Already Downloaded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过已下载"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳過已下載"
+          }
+        }
+      }
+    },
     "Skip YouTube Sponsor Segments" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -25281,6 +25412,28 @@
         }
       }
     },
+    "Split Rule" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split Rule"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分卷规则"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分卷規則"
+          }
+        }
+      }
+    },
     "Split View" : {
       "localizations" : {
         "en" : {
@@ -25322,6 +25475,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "贊助與自我宣傳"
+          }
+        }
+      }
+    },
+    "Start a fresh archivedNNN subfolder after every N files." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a fresh archivedNNN subfolder after every N files."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 N 个文件后开一个新的 archivedNNN 子文件夹。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 N 個檔案後開一個新的 archivedNNN 子資料夾。"
           }
         }
       }
@@ -29347,6 +29522,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案與截圖的預設儲存位置。"
+          }
+        }
+      }
+    },
+    "Where finished videos go. The agent can override this per batch in chat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where finished videos go. The agent can override this per batch in chat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成品视频的落点。对话中智能体可按批覆盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成品影片的落點。對話中智慧體可按批覆寫。"
           }
         }
       }

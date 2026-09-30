@@ -97,6 +97,8 @@ extension ContentView {
                 }
                 videoAdBlockerToast = String(format: String(localized: "已拦截 %d 个 %@ 广告%@"), count, siteName, actionSuffix)
                 scheduleVideoAdBlockerToastReset()
+                // 聚合统计（广告拦截面板的数据源）：站点 key 原样入库。
+                AdBlockStatsStore.shared.record(count: count, site: site, action: action)
             },
             onInspectedElement: { element in
                 devToolsStore.setInspectedElement(element)

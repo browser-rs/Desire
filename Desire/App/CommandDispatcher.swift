@@ -40,6 +40,7 @@ struct CommandDispatcher {
         var showPlugins: Binding<Bool>
         var showElementBlock: Binding<Bool>
         var showPasswordManager: Binding<Bool>
+        var showAdBlockStats: Binding<Bool>
         var showTabSwitcher: Binding<Bool>
         var showSidebar: Binding<Bool>
         var isFindBarVisible: Binding<Bool>
@@ -175,6 +176,8 @@ struct CommandDispatcher {
 
         case .showElementBlock:
             bindings.showElementBlock.wrappedValue = true
+        case .showAdBlockStats:
+            bindings.showAdBlockStats.wrappedValue = true
         case .showPasswordManager:
             bindings.showPasswordManager.wrappedValue = true
 

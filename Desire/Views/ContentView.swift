@@ -122,6 +122,7 @@ struct ContentView: View {
                 showPlugins: $showPlugins,
                 showElementBlock: $showElementBlock,
             showPasswordManager: $showPasswordManager,
+            showAdBlockStats: $showAdBlockStats,
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
                 isFindBarVisible: $isFindBarVisible,
@@ -176,6 +177,7 @@ struct ContentView: View {
     @State var showTabOverview = false
     @State var showSidebar = false
     @State var showElementBlock = false
+    @State var showAdBlockStats = false
     @State var showPasswordManager = false
     @State var showSearchHistory = false
     @State var showUndoToast = false
@@ -428,6 +430,7 @@ struct ContentView: View {
             showPlugins: $showPlugins,
             showReadingList: $showReadingList,
             showElementBlock: $showElementBlock,
+            showAdBlockStats: $showAdBlockStats,
             showPasswordManager: $showPasswordManager,
             onNavigate: { url in
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }

@@ -3754,6 +3754,7 @@ final class AutomationServer {
             "skipDownloaded": BatchMediaPreferences.skipDownloaded,
             "maxConcurrent": BatchMediaPreferences.maxConcurrent,
             "splitEvery": BatchMediaPreferences.splitEvery ?? 0,
+            "exportTimeoutMinutes": BatchMediaPreferences.exportTimeoutMinutes,
         ]
     }
 
@@ -3763,6 +3764,9 @@ final class AutomationServer {
         }
         if let split = body["splitEvery"] as? Int {
             BatchMediaPreferences.splitEvery = split > 0 ? split : nil
+        }
+        if let timeout = body["exportTimeoutMinutes"] as? Int {
+            BatchMediaPreferences.exportTimeoutMinutes = timeout
         }
         if let naming = Self.string(body, "naming"),
            let style = BatchMediaPlan.NamingStyle(rawValue: naming.lowercased()) {

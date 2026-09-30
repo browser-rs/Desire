@@ -38,7 +38,10 @@ enum FFmpegExporter {
             case .launchFailed(let reason): "Could not start ffmpeg: \(reason)"
             case .failed(let code, let diagnostics):
                 diagnostics.isEmpty ? "ffmpeg exited with code \(code)" : "ffmpeg exited with code \(code): \(diagnostics)"
-            case .timedOut: "Export exceeded the 30-minute time limit"
+            case .timedOut:
+                BatchMediaPreferences.exportTimeoutMinutes > 0
+                    ? "Export exceeded the \(BatchMediaPreferences.exportTimeoutMinutes)-minute time limit"
+                    : "Export timed out"
             }
         }
     }

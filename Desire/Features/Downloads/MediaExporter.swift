@@ -65,7 +65,10 @@ enum MediaExporter {
             case .unsupportedEncryption(let method): "Playlist uses unsupported encryption: \(method)"
             case .tooManySegmentFailures: "Too many segments failed to download"
             case .noSegmentsDownloaded: "Every segment failed to download — nothing was saved"
-            case .timedOut: "Export exceeded the 30-minute time limit"
+            case .timedOut:
+                BatchMediaPreferences.exportTimeoutMinutes > 0
+                    ? "Export exceeded the \(BatchMediaPreferences.exportTimeoutMinutes)-minute time limit"
+                    : "Export timed out"
             case .fallbackFailed(let notes, let underlying):
                 ([underlying] + notes).joined(separator: " — ")
             }
@@ -101,7 +104,12 @@ enum MediaExporter {
         progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
         let started = Date()
-        let deadline = started.addingTimeInterval(30 * 60)
+        // 总时长上限可配置（默认 30 分钟，0 = 不限）——长视频/慢网络不再被
+        // 写死的 30 分钟切掉（用户实测两个任务跑满 30 分钟失败）。
+        let limitMinutes = BatchMediaPreferences.exportTimeoutMinutes
+        let deadline = limitMinutes > 0
+            ? started.addingTimeInterval(TimeInterval(limitMinutes * 60))
+            : .distantFuture
 
         // 非 .m3u8 也要抓一次：没有该后缀的播放列表靠这一步发现（原逻辑）。
         // 顺带把文本喂给 ffmpeg 判定，省掉重复请求。

@@ -80,6 +80,16 @@ enum BatchMediaPreferences {
         set { defaults.set(newValue, forKey: onboardingKey) }
     }
 
+    /// **单个下载任务的总时长上限（分钟）**：HLS/直连/ffmpeg 共用一条 deadline，
+    /// 到点判 `.timedOut` 失败（可重试）。默认 30；0 = 不限制——长视频/慢网络
+    /// 不再被写死的 30 分钟切掉（用户实测两个任务跑满 30 分钟失败）。
+    /// nonisolated：错误文案（非隔离上下文）也要读它；只碰 UserDefaults。
+    nonisolated static var exportTimeoutMinutes: Int {
+        get { UserDefaults.standard.object(forKey: Self.exportTimeoutKey) as? Int ?? 30 }
+        set { UserDefaults.standard.set(max(0, min(newValue, 600)), forKey: Self.exportTimeoutKey) }
+    }
+
+    private nonisolated static let exportTimeoutKey = "media.exportTimeoutMinutes"
     private static let onboardingKey = "batch.onboardingDone"
     private static let splitKey = "batch.splitEvery"
 

@@ -21,6 +21,7 @@ struct BatchDownloadSettingsContent: View {
     @State private var reserveGB: Int = BatchMediaPreferences.reserveGB
     @State private var skipDownloaded: Bool = BatchMediaPreferences.skipDownloaded
     @State private var naming: BatchMediaPlan.NamingStyle = BatchMediaPreferences.namingStyle
+    @State private var timeoutText: String = String(BatchMediaPreferences.exportTimeoutMinutes)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -42,6 +43,8 @@ struct BatchDownloadSettingsContent: View {
                 concurrencyRow
                 SettingsRowDivider()
                 reserveRow
+                SettingsRowDivider()
+                timeoutRow
                 SettingsRowDivider()
                 skipRow
                 SettingsRowDivider()
@@ -174,6 +177,38 @@ struct BatchDownloadSettingsContent: View {
             }
             .onChange(of: reserveGB) { _, n in
                 BatchMediaPreferences.reserveGB = n
+            }
+        }
+    }
+
+    private var timeoutRow: some View {
+        settingsRow(
+            String(localized: "Time Limit (min)"),
+            subtitle: String(localized: "Hard cap for a single download task; 0 = no limit. Long videos on slow networks may need this raised.")
+        ) {
+            HStack(spacing: 4) {
+                TextField("", text: $timeoutText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12).monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 52)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor).opacity(0.7))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                    )
+                Text(String(localized: "min"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .onChange(of: timeoutText) { _, text in
+                let n = Int(text.trimmingCharacters(in: .whitespaces)) ?? 30
+                BatchMediaPreferences.exportTimeoutMinutes = n
             }
         }
     }

@@ -726,6 +726,7 @@ class AgentSessionStore: ObservableObject {
         conversationId = conv.id
         conversationTitle = conv.title
         inputHistory = conv.inputHistory ?? []   // 每个对话记自己的输入历史
+        AgentPlanStore.shared.restore(conversationID: conv.id.uuidString, conv.planSteps)
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
@@ -770,7 +771,10 @@ class AgentSessionStore: ObservableObject {
             copy.imageDataURIs = nil
             return copy
         }
-        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory)
+        // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
+        // 回合收尾的常规保存自然带上）；无会话（conversationId=nil）读不到。
+        let planSteps = AgentPlanStore.shared.steps(for: id.uuidString)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps)
         conversationStore.save(conv)
     }
 

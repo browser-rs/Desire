@@ -4,11 +4,14 @@ import Foundation
 /// A multi-step task checklist the agent maintains via the `updatePlan`
 /// tool — the user sees live progress (pending / in-progress / done) in the
 /// panel, the way modern coding agents render their todo lists.
-struct AgentPlanStep: Identifiable {
-    let id = UUID()
+struct AgentPlanStep: Identifiable, Codable {
+    /// 视图标识而已，不参与编解码（每次载入新生成）。
+    var id = UUID()
     let content: String
     /// pending | in_progress | done
     let status: String
+
+    private enum CodingKeys: String, CodingKey { case content, status }
 }
 
 @MainActor
@@ -41,6 +44,21 @@ final class AgentPlanStore: ObservableObject {
             plansByConversation[oldest] = nil
         }
         lastUpdated = Date()
+    }
+
+    /// 从会话文件恢复（启动后 loadConversation / resumeLatest 走这里）——
+    /// 计划随会话落盘，重开聊天记录计划还在。
+    func restore(conversationID: String, _ steps: [AgentPlanStep]?) {
+        guard let steps, !steps.isEmpty else { return }
+        let id = conversationID
+        if plansByConversation[id] == nil {
+            insertionOrder.append(id)
+        }
+        plansByConversation[id] = steps
+        while insertionOrder.count > Self.capacity {
+            let oldest = insertionOrder.removeFirst()
+            plansByConversation[oldest] = nil
+        }
     }
 
     /// 同一会话重开（regenerate）：清该会话的计划，等模型重新 updatePlan。

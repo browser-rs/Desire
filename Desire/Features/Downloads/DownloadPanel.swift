@@ -50,15 +50,16 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Picker("", selection: $showBatchTasks) {
-                Text(String(localized: "Downloads")).tag(false)
-                Text(String(localized: "Video Tasks")).tag(true)
+            // 胶囊 Tab（系统 .segmented 的选中/未选两态观感割裂，与应用
+            // 设计语言不搭——用户实测"两个按钮不和谐"）。选中 = 强调色胶囊。
+            HStack(spacing: 6) {
+                segmentTab(String(localized: "Downloads"), selected: !showBatchTasks) {
+                    showBatchTasks = false
+                }
+                segmentTab(String(localized: "Video Tasks"), selected: showBatchTasks) {
+                    showBatchTasks = true
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            // 固定宽度：分段控件拉伸满行时两段松散、看着像两个独立按钮
-            //（用户实测"两个按钮不和谐"）；收拢成一个等宽整体。
-            .frame(width: 260)
             .padding(.horizontal, 12)
             .padding(.top, 2)
             .padding(.bottom, 8)
@@ -111,6 +112,30 @@ struct DownloadPanel: View {
                 .padding(22)
                 .frame(width: 520)
         }
+    }
+
+    /// 面板顶部二选一胶囊 Tab：选中 = 强调色胶囊实底，未选 = 次级文字 + 细描边。
+    private func segmentTab(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.white : Color.secondary)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule().fill(selected
+                        ? AnyShapeStyle(appAccent)
+                        : AnyShapeStyle(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+                )
+                .overlay(
+                    Capsule().stroke(
+                        selected ? AnyShapeStyle(Color.clear)
+                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(0.4)),
+                        lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     // MARK: - Header

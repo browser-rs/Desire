@@ -518,6 +518,28 @@ final class BatchMediaExportStore: ObservableObject {
     private var didRestore = false
 
     /// 取消整批：终止引擎、取消在跑的下载、收起验证窗。
+    /// 从面板**移除已结束**的批次（finished/cancelled）：清孤儿 .part、
+    /// 摘出列表。running 批不适用（先 cancel）。此前已结束批次永远占着
+    /// 面板、删除按钮是空操作（用户实测"删除无效"）。
+    func removeSettled(batchID: UUID) {
+        guard let bi = batches.firstIndex(where: { $0.id == batchID }),
+              batches[bi].state != .running else { return }
+        engineTasks[batchID]?.cancel()
+        engineTasks[batchID] = nil
+        watchdogTasks[batchID]?.cancel()
+        watchdogTasks[batchID] = nil
+        spaceMonitorTasks[batchID]?.cancel()
+        spaceMonitorTasks[batchID] = nil
+        resolvers[batchID]?.teardown()
+        resolvers[batchID] = nil
+        cleanOrphanParts(batchID)
+        batches.remove(at: bi)
+        pausedBatches.remove(batchID)
+        suspendedReasons[batchID] = nil
+        forceDownloadBatches.remove(batchID)
+        persistUnfinished()
+    }
+
     func cancel(batchID: UUID) {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running else { return }
@@ -789,7 +811,24 @@ final class BatchMediaExportStore: ObservableObject {
             if let split = batches[bi].splitEvery, split > 0 {
                 let number = Int(batches[bi].items[ii].numberPrefix)
                     ?? (batches[bi].items[..<ii].filter { $0.state != .skipped }.count + 1)
-                let rolling = String(format: "archived%03d", (number - 1) / split + 1)
+                var part = (number - 1) / split + 1
+                // **智能顺延**：候选卷的**实际文件数**已满（≥ split，.part 残件
+                // 不计）则滚到下一卷——跨批次共用同一目录、用户手工放过文件、
+                // 跳过造成的错位都能自愈（"144 个文件了还没分卷"就是各批编号
+                // 都不足 N、按编号永远滚不起来的场景）。
+                let fm = FileManager.default
+                let folderRoot = batches[bi].folderName.isEmpty
+                    ? saveRootURL(for: batchID)
+                    : saveRootURL(for: batchID).appendingPathComponent(batches[bi].folderName, isDirectory: true)
+                while part < 999 {
+                    let candidate = folderRoot.appendingPathComponent(
+                        String(format: "archived%03d", part), isDirectory: true)
+                    let occupied = (try? fm.contentsOfDirectory(atPath: candidate.path))?
+                        .filter { !$0.hasSuffix(".part") }.count ?? 0
+                    if occupied < split { break }
+                    part += 1
+                }
+                let rolling = String(format: "archived%03d", part)
                 itemFolder = itemFolder.isEmpty ? rolling : itemFolder + "/" + rolling
             }
             let folderName = itemFolder.isEmpty ? nil : itemFolder

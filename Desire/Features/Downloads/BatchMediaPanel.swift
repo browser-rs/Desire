@@ -148,8 +148,16 @@ struct BatchMediaPanel: View {
             store.retryFailed(batch.id)
         }, help: String(localized: "Retry failed items"))
         HoverIcon(systemName: "xmark", action: {
-            store.cancel(batchID: batch.id)
-        }, help: String(localized: "Cancel batch"))
+            if batch.state == .running {
+                store.cancel(batchID: batch.id)
+            } else {
+                // 已结束批次：删除 = 从面板移除（清孤儿残件）。此前对已结束
+                // 批次是空操作（用户实测"删除无效"）。
+                store.removeSettled(batchID: batch.id)
+            }
+        }, help: batch.state == .running
+            ? String(localized: "Cancel batch")
+            : String(localized: "Remove from list"))
     }
 
     // MARK: - 条目明细
@@ -169,6 +177,13 @@ struct BatchMediaPanel: View {
                         Text("\(progress.done)/\(progress.total) \(progress.unit == .seconds ? "s" : "seg")")
                             .font(.system(size: 10).monospacedDigit())
                             .foregroundStyle(.secondary)
+                    }
+                    // 逐项移除：排队/失败项可删（从队列移除）；成品不在此删
+                    //（文件在盘上，删除文件超出面板语义）。
+                    if item.state == .pending || item.state == .failed {
+                        HoverIcon(systemName: "minus.circle", action: {
+                            store.skip(batchID: batch.id, itemID: item.id)
+                        }, help: String(localized: "Remove from queue"))
                     }
                 }
                 .padding(.vertical, 2)

@@ -126,8 +126,23 @@ final class SystemCommandStore: ObservableObject {
         workDirectory: URL? = nil
     ) async -> CommandResult {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
-        guard allowedBinaries.contains(name) else {
-            return .failure("Binary '\(tool)' is not allowlisted. The user can add it in Settings → Agent → System Access. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))")
+        if !allowedBinaries.contains(name) {
+            // **主动协商**：不再直接拒绝——问用户"是否加入允许列表并继续"。
+            // 允许 → 永久入列并照常执行；拒绝/超时 → 带明确理由失败（模型
+            // 据此换路）。此前只能失败并指路设置页，智能体被允许名单卡死
+            //（用户实测 mv/df 连续被拒）。
+            let question = String(
+                format: String(localized: "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines."),
+                tool)
+            let answer = await UserPromptCenter.shared.ask(question)
+            let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let approved = normalized.contains("允许") || normalized.contains("allow")
+                || normalized == "y" || normalized == "yes"
+            guard approved else {
+                return .failure("Binary '\(tool)' is not allowlisted and the user declined to add it. Do not retry this command — ask the user how to proceed. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))")
+            }
+            allow(tool)
+            Log.agent.info("binary '\(tool, privacy: .public)' added to the allowlist via user-approved agent request")
         }
         guard let executable = resolve(name) else {
             return .failure("'\(tool)' is allowlisted but not installed (searched \(Self.searchPaths.joined(separator: ", "))). Try: brew install \(name == "brew" ? "" : name)")

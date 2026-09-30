@@ -347,7 +347,7 @@ final class AutomationServer {
         ep("GET", "/windows", "On-screen Desire windows (number for `screencapture -l<number>`, title, frame, isKey)", example: "…/windows")
         ep("POST", "/app/quit", "Graceful quit (same path as Cmd+Q: terminate → flush → exit)", example: "-d '{}'")
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
-        ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
+        ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
         ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
@@ -3605,7 +3605,7 @@ final class AutomationServer {
         }
         let batchID = batch.id
         guard let action = Self.string(body, "action")?.lowercased() else {
-            return ["error": "missing action (pause/resume/cancel/skip)"]
+            return ["error": "missing action (pause/resume/cancel/skip/remove)"]
         }
         switch action {
         case "pause":
@@ -3617,6 +3617,10 @@ final class AutomationServer {
         case "cancel":
             store.cancel(batchID: batchID)
             return ["ok": true, "action": "cancelled", "batch": batchID.uuidString]
+        case "remove":
+            // 仅已结束批次：从面板列表移除（running 先 cancel）。
+            store.removeSettled(batchID: batchID)
+            return ["ok": true, "action": "removed", "batch": batchID.uuidString]
         case "skip":
             guard let rawItem = Self.string(body, "itemId") else {
                 return ["error": "skip needs itemId (from GET /media/batch items)"]
@@ -3632,7 +3636,7 @@ final class AutomationServer {
             store.skip(batchID: batchID, itemID: item.id)
             return ["ok": true, "action": "skipped", "item": item.id.uuidString]
         default:
-            return ["error": "unknown action '\(action)' (pause/resume/cancel/skip)"]
+            return ["error": "unknown action '\(action)' (pause/resume/cancel/skip/remove)"]
         }
     }
 

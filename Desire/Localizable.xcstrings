@@ -19480,6 +19480,50 @@
         }
       }
     },
+    "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent wants to run '%@', which is not in the system access allowlist. Type allow to add it permanently and continue; anything else declines."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体想运行“%@”，它还不在系统访问允许列表里。回复“允许”将其永久加入并继续；回复其他内容则拒绝。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智慧體想執行「%@」，它還不在系統存取允許清單裡。回覆「允許」將其永久加入並繼續；回覆其他內容則拒絕。"
+          }
+        }
+      }
+    },
+    "Remove from list" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from list"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从列表移除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從列表移除"
+          }
+        }
+      }
+    },
     "Password Manager" : {
       "localizations" : {
         "en" : {

@@ -3475,10 +3475,11 @@ final class AutomationServer {
             guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
                 return ["error": "too many urls (cap \(BatchMediaExportStore.maxItemsPerBatch))"]
             }
+            let hostFallback = (folderName?.isEmpty == false) ? folderName! : (URL(string: urls[0])?.host ?? "")
             let batch = BatchMediaExportStore.shared.startListBatch(
                 pageURLs: urls,
                 userAgent: nil,
-                folderName: folderName,
+                folderName: hostFallback,
                 naming: naming,
                 force: force,
                 directory: directory,

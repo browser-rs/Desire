@@ -780,24 +780,32 @@ final class BatchMediaExportStore: ObservableObject {
             let itemID = batches[bi].items[ii].id
             let title = batches[bi].items[ii].title
             let referer = batches[bi].items[ii].referer
-            // 分卷规则：每 splitEvery 个非跳过项滚动一个 archivedNNN 子文件夹
-            //（序号 = 该项之前的非跳过项数，与 01- 02- 编号同序，addItems 续号
-            // 自动落对卷）。folder 为空 = 目录直存，只有分卷层。
+            // 分卷规则：每 splitEvery 个文件滚动一个 archivedNNN 子文件夹。
+            // 卷号按**文件编号**（01→第1卷、121→第2卷）而非"非跳过序数"——
+            // 重跑同一列表时前面的项会被"已下载"跳过，按序数算会让
+            // 121-240 错落进 archived001（与上一批的 1-120 混住，实测推演）。
+            // 编号解析不出才退回序数。folder 为空 = 目录直存，只有分卷层。
             var itemFolder = batches[bi].folderName
             if let split = batches[bi].splitEvery, split > 0 {
-                let ordinal = batches[bi].items[..<ii].filter { $0.state != .skipped }.count
-                let rolling = String(format: "archived%03d", ordinal / split + 1)
+                let number = Int(batches[bi].items[ii].numberPrefix)
+                    ?? (batches[bi].items[..<ii].filter { $0.state != .skipped }.count + 1)
+                let rolling = String(format: "archived%03d", (number - 1) / split + 1)
                 itemFolder = itemFolder.isEmpty ? rolling : itemFolder + "/" + rolling
             }
             let folderName = itemFolder.isEmpty ? nil : itemFolder
             let userAgent = batchUserAgents[batchID]
             // 已下载索引：重跑同一列表不重复占盘（force 批次绕过）。
+            // **智能判断**：索引命中还要验证落盘文件仍在——用户手动删除/
+            // 移动过的话照常重新下载并刷新索引，而不是永远跳过。
             if !forceDownloadBatches.contains(batchID), BatchMediaPreferences.skipDownloaded,
                let downloaded = BatchDownloadedIndex.file(for: mediaURL.absoluteString) {
-                batches[bi].items[ii].state = .skipped
-                batches[bi].items[ii].summary = "already downloaded: \(downloaded)"
-                Log.downloads.info("item skipped (already downloaded: \(downloaded, privacy: .public))")
-                continue
+                if FileManager.default.fileExists(atPath: downloaded) {
+                    batches[bi].items[ii].state = .skipped
+                    batches[bi].items[ii].summary = "already downloaded: \(downloaded)"
+                    Log.downloads.info("item skipped (already downloaded: \(downloaded, privacy: .public))")
+                    continue
+                }
+                Log.downloads.info("index hit but file missing — re-downloading (\(downloaded, privacy: .public))")                
             }
             batches[bi].items[ii].state = .downloading
             running += 1

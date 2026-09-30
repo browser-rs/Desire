@@ -175,6 +175,12 @@ final class BatchMediaExportStore: ObservableObject {
             saveRootOverride = url.deletingLastPathComponent().path
             folderInput = url.lastPathComponent
         }
+        // "." / ".." 这类路径噪音 = "没有子文件夹"——清空交给 fallback，
+        // 否则会字面生成一个叫 "." 的文件夹（12 部平铺进 Downloads 根）。
+        let folderProbe = folderInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if folderProbe.isEmpty || folderProbe == "." || folderProbe == ".." {
+            folderInput = ""
+        }
         let folder = BatchMediaPlan.sanitizedFileName(
             from: folderInput,
             fallback: "Desire-Batch-" + Self.folderTimestamp()

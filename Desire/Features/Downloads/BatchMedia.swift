@@ -232,6 +232,14 @@ enum BatchMediaPlan {
     static func sanitizedFileName(from raw: String, fallback: String = "video") -> String {
         var base = raw
         if let queryStart = base.firstIndex(of: "?") { base = String(base[..<queryStart]) }
+        // 路径噪音（"." / ".." / 纯斜杠）不是名字——回到 fallback。此前 "."
+        // 被当成合法文件夹名放行，整批 12 部平铺进 ~/Downloads 根
+        //（用户实测"下载错位置"）。
+        let probe = base.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "")
+        if probe.isEmpty || probe == "." || probe == ".." {
+            return fallback
+        }
         base = base
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")

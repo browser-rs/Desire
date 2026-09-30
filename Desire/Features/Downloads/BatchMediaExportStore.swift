@@ -48,6 +48,11 @@ final class BatchMediaExportStore: ObservableObject {
     /// list 模式的解析器（每批一个；page 模式不需要）。
     private var resolvers: [UUID: HeadlessMediaResolver] = [:]
     private var batchUserAgents: [UUID: String] = [:]
+    /// 分卷寻址游标（batchID → 当前卷号 + 已分配到该卷的文件数）。
+    /// 批首做一次寻卷，之后每条 O(1) 命中；计满顺延并对新卷做一次实数校验。
+    /// **分配计数在 MainActor 上串行**——并发槽位同时探测同一卷的
+    /// "都看到 occ<N → 都落进去"超装竞态也被它顺带关掉。
+    private var volumeCursors: [UUID: (part: Int, count: Int)] = [:]
 
     // MARK: 暂停 / 挂起
 
@@ -548,6 +553,7 @@ final class BatchMediaExportStore: ObservableObject {
     func setSplitEvery(batchID: UUID, _ value: Int?) {
         guard let idx = batches.firstIndex(where: { $0.id == batchID }) else { return }
         batches[idx].splitEvery = (value ?? 0) > 0 ? value : nil
+        volumeCursors[batchID] = nil  // 规则变了，旧游标计数失义，下一条重新寻卷
         persistUnfinished()
     }
 
@@ -571,6 +577,7 @@ final class BatchMediaExportStore: ObservableObject {
         cleanOrphanParts(batchID)
         BatchMediaLogStore.remove(batchID)
         batchUserAgents[batchID] = nil
+        volumeCursors[batchID] = nil
         batches.remove(at: bi)
         pausedBatches.remove(batchID)
         suspendedReasons[batchID] = nil
@@ -856,32 +863,39 @@ final class BatchMediaExportStore: ObservableObject {
             let title = batches[bi].items[ii].title
             let referer = batches[bi].items[ii].referer
             // 分卷规则：每 splitEvery 个文件滚动一个 archivedNNN 子文件夹。
-            // 卷号按**文件编号**（01→第1卷、121→第2卷）而非"非跳过序数"——
-            // 重跑同一列表时前面的项会被"已下载"跳过，按序数算会让
-            // 121-240 错落进 archived001（与上一批的 1-120 混住，实测推演）。
-            // 编号解析不出才退回序数。folder 为空 = 目录直存，只有分卷层。
+            // **智能寻卷（批内游标）**：批首条目做一次寻卷（从 001 起找第一个
+            // 实际文件数 < split 的卷，.part 残件不计——跨批共用目录/手工放
+            // 文件/跳过错位都自愈），之后每个条目 **O(1) 命中**：游标计数
+            // +1，计满才顺延并对新卷做一次实数校验。此前每个条目都从编号
+            // 推导的候选卷起逐卷探测，SD 卡上每条都是真实 IO 往返；编号与
+            // 占用两套规则并存还会互相矛盾（跳过/补挂后编号与落卷错位）——
+            // 现在占用是唯一事实，编号只管文件命名。folder 为空 = 目录直存。
             var itemFolder = batches[bi].folderName
             if let split = batches[bi].splitEvery, split > 0 {
-                let number = Int(batches[bi].items[ii].numberPrefix)
-                    ?? (batches[bi].items[..<ii].filter { $0.state != .skipped }.count + 1)
-                var part = (number - 1) / split + 1
-                // **智能顺延**：候选卷的**实际文件数**已满（≥ split，.part 残件
-                // 不计）则滚到下一卷——跨批次共用同一目录、用户手工放过文件、
-                // 跳过造成的错位都能自愈（"144 个文件了还没分卷"就是各批编号
-                // 都不足 N、按编号永远滚不起来的场景）。
                 let fm = FileManager.default
                 let folderRoot = batches[bi].folderName.isEmpty
                     ? saveRootURL(for: batchID)
                     : saveRootURL(for: batchID).appendingPathComponent(batches[bi].folderName, isDirectory: true)
-                while part < 999 {
-                    let candidate = folderRoot.appendingPathComponent(
-                        String(format: "archived%03d", part), isDirectory: true)
-                    let occupied = (try? fm.contentsOfDirectory(atPath: candidate.path))?
-                        .filter { !$0.hasSuffix(".part") }.count ?? 0
-                    if occupied < split { break }
-                    part += 1
+                func occupancy(_ part: Int) -> Int {
+                    (try? fm.contentsOfDirectory(
+                        at: folderRoot.appendingPathComponent(
+                            String(format: "archived%03d", part), isDirectory: true),
+                        includingPropertiesForKeys: nil))?
+                        .filter { !$0.lastPathComponent.hasSuffix(".part") }.count ?? 0
                 }
-                let rolling = String(format: "archived%03d", part)
+                var cursor = volumeCursors[batchID]
+                if cursor == nil {
+                    var part = 1
+                    while part < 999, occupancy(part) >= split { part += 1 }
+                    cursor = (part: part, count: occupancy(part))
+                }
+                if cursor!.count >= split {
+                    cursor!.part += 1
+                    cursor!.count = occupancy(cursor!.part)
+                }
+                cursor!.count += 1
+                volumeCursors[batchID] = cursor!
+                let rolling = String(format: "archived%03d", cursor!.part)
                 itemFolder = itemFolder.isEmpty ? rolling : itemFolder + "/" + rolling
             }
             let folderName = itemFolder.isEmpty ? nil : itemFolder

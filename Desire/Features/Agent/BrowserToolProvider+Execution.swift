@@ -1157,7 +1157,10 @@ extension BrowserToolProvider {
                 steps.append(AgentPlanStep(content: String(content.prefix(120)), status: status))
             }
             guard !steps.isEmpty else { return Self.fail("No valid steps") }
-            AgentPlanStore.shared.set(steps)
+            // 计划归属发起回合的会话（面板按各自会话读取，不互相污染）。
+            AgentPlanStore.shared.set(
+                steps,
+                conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 

@@ -598,7 +598,7 @@ class AgentSessionStore: ObservableObject {
               let lastUser = messages.lastIndex(where: { $0.role == .user }),
               lastUser < messages.count - 1 else { return }
         messages.removeSubrange((lastUser + 1)...)
-        AgentPlanStore.shared.clear()
+        AgentPlanStore.shared.clear(conversationID: conversationId?.uuidString)
         processingStartedAt = Date()
         isProcessing = true
         isCancelled = false
@@ -668,7 +668,7 @@ class AgentSessionStore: ObservableObject {
         isPaused = false
         usagePromptTokens = 0
         usageCompletionTokens = 0
-        AgentPlanStore.shared.clear()
+        // 新对话的计划自然为空（按会话分存），旧会话的计划保留——切回可见。
         UserPromptCenter.shared.cancel()
         messages.removeAll()
         conversationId = nil
@@ -731,9 +731,6 @@ class AgentSessionStore: ObservableObject {
         isNewChatIntentional = false
         // Queued input belonged to the previous conversation's turn.
         queuedMessages.removeAll()
-        // 计划清单同样属于上一会话——不清会让面板（与远程手机端）显示
-        // 上一个会话残留的任务清单。
-        AgentPlanStore.shared.clear()
         isPaused = false
         usagePromptTokens = 0
         usageCompletionTokens = 0

@@ -159,9 +159,11 @@ struct AgentPanel: View {
                 .background(Color.red.opacity(0.08))
             }
 
-            // Live task checklist from the updatePlan tool.
-            if !planStore.steps.isEmpty {
-                AgentPlanView(steps: planStore.steps)
+            // Live task checklist from the updatePlan tool（按本面板会话读取，
+            // 切换对话跟随显示对应计划）。
+            let activePlan = planStore.steps(for: store.conversationId?.uuidString)
+            if !activePlan.isEmpty {
+                AgentPlanView(steps: activePlan)
             }
 
             // Live progress of delegated subagents (spawnSubagent).

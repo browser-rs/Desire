@@ -21,19 +21,30 @@ struct AgentPlanView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            ForEach(steps) { step in
-                HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: iconName(step.status))
-                        .font(.system(size: 11))
-                        .foregroundStyle(iconColor(step.status))
-                        .frame(width: 14)
-                    Text(step.content)
-                        .font(.system(size: 11.5, weight: step.status == "in_progress" ? .semibold : .regular))
-                        .foregroundStyle(step.status == "done" ? Color.secondary : Color.primary)
-                        .strikethrough(step.status == "done")
-                        .fixedSize(horizontal: false, vertical: true)
+            // **高度封顶 + 内部滚动**：计划块是非滚动固定区，12 步 ×长文案
+            // 能把浮窗的 fitting 高度顶破最小尺寸——窗口高度因此锁死无法
+            // 调节（用户实测：计划在则高度不可调，切换对话后恢复）。封顶后
+            // 固定区有界，超出的步骤在卡内滚动。
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(steps) { step in
+                        HStack(alignment: .top, spacing: 7) {
+                            Image(systemName: iconName(step.status))
+                                .font(.system(size: 11))
+                                .foregroundStyle(iconColor(step.status))
+                                .frame(width: 14)
+                            Text(step.content)
+                                .font(.system(size: 11.5, weight: step.status == "in_progress" ? .semibold : .regular))
+                                .foregroundStyle(step.status == "done" ? Color.secondary : Color.primary)
+                                .strikethrough(step.status == "done")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxHeight: 176)
+            .scrollIndicators(.hidden)
         }
         .padding(10)
         .background(

@@ -786,7 +786,7 @@ final class RemoteControlStore: ObservableObject {
             elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil,
             approval: Self.approvalPayload(session?.pendingApproval),
             question: Self.questionPayload(UserPromptCenter.shared.pending),
-            plan: Self.planPayload(),
+            plan: Self.planPayload(session?.conversationId?.uuidString),
             subagents: Self.subagentPayloads(session?.runningSubagents ?? []),
             queued: Self.queuedPayloads(session?.queuedMessages ?? []),
             context: session?.contextLabel,
@@ -839,9 +839,9 @@ final class RemoteControlStore: ObservableObject {
             timeout: Int(UserPromptCenter.answerTimeout))
     }
 
-    /// `updatePlan` 清单：最多 20 步、每步截 120。
-    private static func planPayload() -> [RemoteSnapshotFrame.PlanStepPayload]? {
-        let steps = AgentPlanStore.shared.steps
+    /// `updatePlan` 清单：最多 20 步、每步截 120（按会话读取——计划跟着会话走）。
+    private static func planPayload(_ conversationID: String?) -> [RemoteSnapshotFrame.PlanStepPayload]? {
+        let steps = AgentPlanStore.shared.steps(for: conversationID)
         guard !steps.isEmpty else { return nil }
         return steps.prefix(20).map {
             RemoteSnapshotFrame.PlanStepPayload(

@@ -344,6 +344,10 @@ final class AutomationServer {
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
         ep("POST", "/panel", "Open/close an app panel (downloads, devtools+tab)", params: ["name:string", "show?:bool", "tab?:string"], example: #"-d '{"name":"devtools","tab":"network"}'"#)
+        ep("GET", "/windows", "On-screen Desire windows (number for `screencapture -l<number>`, title, frame, isKey)", example: "…/windows")
+        ep("POST", "/app/quit", "Graceful quit (same path as Cmd+Q: terminate → flush → exit)", example: "-d '{}'")
+        ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
+        ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
         ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
@@ -813,6 +817,14 @@ final class AutomationServer {
                 return try Self.json(Self.agentTrace(
                     conversation: Self.string(query, "conversation"),
                     limit: Int(Self.string(query, "limit") ?? "")))
+            case ("GET", "/conversations"):
+                return try Self.json(Self.conversationsList(
+                    limit: Self.string(query, "limit").flatMap { Int($0) } ?? 20))
+            case ("GET", "/windows"):
+                return try Self.json(Self.windowsList())
+            case ("GET", "/conversations"):
+                return try Self.json(Self.conversationsList(
+                    limit: Self.string(query, "limit").flatMap { Int($0) } ?? 20))
             case ("GET", "/conversations/search"):
                 return try Self.json(Self.searchConversations(
                     query: Self.string(query, "q") ?? "",
@@ -1173,9 +1185,16 @@ final class AutomationServer {
                 return try Self.json(["ok": true, "section": section.rawValue])
             case ("GET", "/ads/stats"):
                 return try Self.json(Self.adBlockStats())
+            case ("POST", "/app/quit"):
+                // 优雅退出（与 Cmd+Q 同路径：applicationShouldTerminate → flush）。
+                // 测试收尾用，替代 shell 里的 pkill（强杀会丢防抖写盘窗口）。
+                NSApp.terminate(nil)
+                return try Self.json(["ok": true, "quitting": true])
             case ("POST", "/ads/stats/clear"):
                 AdBlockStatsStore.shared.clear()
                 return try Self.json(["ok": true])
+            case ("POST", "/media/batch/manage"):
+                return try Self.json(Self.batchManage(body: body))
             case ("POST", "/media/batch/config"):
                 return try Self.json(Self.setBatchMediaConfig(body: body))
             case ("GET", "/profiles"):
@@ -2279,6 +2298,44 @@ final class AutomationServer {
         // 且需要临时切一下 live store 的 activePanel（渲染完立刻还原）。
         if name == "devtools" {
             return try await devToolsSnapshot(tab: tab)
+        }
+        if name == "adblock" || name == "passwords" || name == "batch" {
+            // 三个离屏可渲染面板：数据都在单例/共享 store 里，init 即载。
+            guard let app = AppState.live else { return ["error": "app state not ready"] }
+            let size = NSSize(width: max(320, width ?? 440), height: max(320, height ?? 520))
+            let rootView: AnyView
+            switch name {
+            case "adblock": rootView = AnyView(AdBlockPanel())
+            case "passwords": rootView = AnyView(PasswordPanel(passwordStore: app.passwordStore))
+            default: rootView = AnyView(BatchMediaPanel(
+                store: BatchMediaExportStore.shared,
+                mediaStore: MediaExportStore.shared))
+            }
+            let host = NSHostingView(
+                rootView: rootView
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+                ?? NSApp.effectiveAppearance
+            host.layoutSubtreeIfNeeded()
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(70))
+                host.needsLayout = true
+                host.layoutSubtreeIfNeeded()
+            }
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+                return ["error": "bitmap alloc failed"]
+            }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return ["error": "encode failed"]
+            }
+            let path = NSHomeDirectory() + "/desire_\(name)_panel.png"
+            try png.write(to: URL(fileURLWithPath: path))
+            return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
         if name == "agentstats" {
             // Agent 面板的"使用统计"页：同样当场渲染（面板在主窗分栏里）。尺寸可指定——
@@ -3493,6 +3550,92 @@ final class AutomationServer {
         }
     }
 
+    /// 本应用在屏窗口清单。`number` 可直接喂给 `screencapture -l<number>`，
+    /// 替代此前"swift 脚本查 CGWindowList"的 shell 往返。
+    private static func windowsList() -> [String: Any] {
+        let windows = NSApp.windows.compactMap { window -> [String: Any]? in
+            guard window.isVisible else { return nil }
+            let frame = window.frame
+            return [
+                "number": window.windowNumber,
+                "title": window.title,
+                "frame": [
+                    "x": frame.origin.x, "y": frame.origin.y,
+                    "w": frame.width, "h": frame.height,
+                ] as [String: Double],
+                "isKey": window.isKeyWindow,
+                "isFullScreen": window.styleMask.contains(.fullScreen),
+            ]
+        }
+        return ["count": windows.count, "windows": windows]
+    }
+
+    /// 会话清单（最新在前）：测试后清理的配套——id/title/首条摘要直接给，
+    /// 不用再翻盘上文件。配合 POST /conversations/delete 使用。
+    private static func conversationsList(limit: Int) -> [String: Any] {
+        let store = AppState.live?.conversationStore ?? ConversationStore()
+        let rows = store.conversations.prefix(max(1, limit)).map { conv -> [String: Any] in
+            let first = conv.messages.first(where: { $0.role == .user })?.content ?? ""
+            return [
+                "id": conv.id.uuidString,
+                "title": conv.title,
+                "updatedAt": ISO8601DateFormatter().string(from: conv.updatedAt),
+                "messages": conv.messages.count,
+                "firstMessage": String(first.prefix(80)),
+            ]
+        }
+        return ["count": rows.count, "conversations": Array(rows)]
+    }
+
+    /// 批次管理（桥直达，不再必须经智能体工具）：pause/resume/cancel/skip。
+    /// batchId 支持 8 位短前缀（与 listBatchDownloads 展示一致）。
+    private static func batchManage(body: [String: Any]) -> [String: Any] {
+        let store = BatchMediaExportStore.shared
+        guard let rawID = Self.string(body, "batchId"), !rawID.isEmpty else {
+            return ["error": "missing batchId (see GET /media/batch)"]
+        }
+        let lowered = rawID.lowercased()
+        let hits = store.batches.filter {
+            $0.id.uuidString == rawID || $0.id.uuidString.lowercased().hasPrefix(lowered)
+        }
+        guard hits.count == 1, let batch = hits.first else {
+            return ["error": hits.isEmpty
+                ? "no batch matches '\(rawID)'"
+                : "'\(rawID)' matches \(hits.count) batches — use a longer prefix"]
+        }
+        let batchID = batch.id
+        guard let action = Self.string(body, "action")?.lowercased() else {
+            return ["error": "missing action (pause/resume/cancel/skip)"]
+        }
+        switch action {
+        case "pause":
+            store.pause(batchID: batchID)
+            return ["ok": true, "action": "paused", "batch": batchID.uuidString]
+        case "resume":
+            store.resume(batchID: batchID)
+            return ["ok": true, "action": "resumed", "batch": batchID.uuidString]
+        case "cancel":
+            store.cancel(batchID: batchID)
+            return ["ok": true, "action": "cancelled", "batch": batchID.uuidString]
+        case "skip":
+            guard let rawItem = Self.string(body, "itemId") else {
+                return ["error": "skip needs itemId (from GET /media/batch items)"]
+            }
+            let itemHits = batch.items.filter {
+                $0.id.uuidString == rawItem || $0.id.uuidString.lowercased().hasPrefix(rawItem.lowercased())
+            }
+            guard itemHits.count == 1, let item = itemHits.first else {
+                return ["error": itemHits.isEmpty
+                    ? "no item matches '\(rawItem)'"
+                    : "'\(rawItem)' matches \(itemHits.count) items — use a longer prefix"]
+            }
+            store.skip(batchID: batchID, itemID: item.id)
+            return ["ok": true, "action": "skipped", "item": item.id.uuidString]
+        default:
+            return ["error": "unknown action '\(action)' (pause/resume/cancel/skip)"]
+        }
+    }
+
     /// 批次快照（全部或按 id）：批次级聚合（各状态计数、暂停/挂起态）+
     /// 逐项进度（done/total/单位）。
     private static func batchMediaSnapshot(id: String?) throws -> [String: Any] {
@@ -3504,17 +3647,22 @@ final class AutomationServer {
         return ["batches": batches.map { batch -> [String: Any] in
             var counts: [String: Int] = [:]
             for item in batch.items { counts[item.state.rawValue, default: 0] += 1 }
+            // 落点按批次真实 saveRoot 拼接（folder 空 = 目录直存）。
+            let dest = batch.saveRoot ?? (BatchMediaPreferences.baseDirectory ?? NSHomeDirectory() + "/Downloads")
+            let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
             var row: [String: Any] = [
                 "id": batch.id.uuidString,
                 "mode": batch.mode.rawValue,
                 "state": batch.state.rawValue,
                 "folder": batch.folderName,
+                "destination": dest + leaf,
                 "finished": batch.finishedCount,
                 "total": batch.items.count,
                 "counts": counts,
                 "createdAt": ISO8601DateFormatter().string(from: batch.createdAt),
                 "paused": store.isPaused(batch.id),
             ]
+            if let split = batch.splitEvery, split > 0 { row["splitEvery"] = split }
             if let reason = store.suspensionReason(batch.id) { row["suspended"] = reason }
             row["items"] = batch.items.map { item -> [String: Any] in
                 var itemRow: [String: Any] = [

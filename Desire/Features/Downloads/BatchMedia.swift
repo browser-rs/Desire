@@ -28,6 +28,10 @@ struct BatchMediaItem: Identifiable {
     var summary: String?
     /// 对应 `MediaExportStore` 的单文件任务（进度与取消的中转）。
     var jobID: UUID?
+    /// 已下完整的 .ts 中间产物路径（下载开始时登记；合成失败/中断后重试
+    /// 直接复用它进 remux，不再重新下载整片——01 号 6.4GB 实测重复下载）。
+    /// 最终 .mp4 产出成功后清空。
+    var tsFileURL: String?
     /// 引擎跑过几次（签名 URL 过期等失败要换新地址自动重试；
     /// 达到上限才算终局失败——真实站点 12 部批量实测：403 过期
     /// 靠模型手动开重试批次，文件因此散落三个目录）。

@@ -433,6 +433,7 @@ final class BatchMediaExportStore: ObservableObject {
         var state: String
         var summary: String?
         var attempts: Int
+        var tsFileURL: String? = nil
     }
 
     private struct PersistedBatch: Codable {
@@ -463,7 +464,8 @@ final class BatchMediaExportStore: ObservableObject {
                         id: item.id, sourceURL: item.sourceURL.absoluteString,
                         mediaURL: item.mediaURL?.absoluteString, referer: item.referer?.absoluteString,
                         title: item.title, numberPrefix: item.numberPrefix,
-                        state: item.state.rawValue, summary: item.summary, attempts: item.attempts
+                        state: item.state.rawValue, summary: item.summary, attempts: item.attempts,
+                        tsFileURL: item.tsFileURL
                     )
                 },
                 saveRoot: batch.saveRoot, splitEvery: batch.splitEvery
@@ -506,6 +508,7 @@ final class BatchMediaExportStore: ObservableObject {
                         numberPrefix: item.numberPrefix,
                         state: state,
                         summary: summary,
+                        tsFileURL: item.tsFileURL,
                         attempts: item.attempts
                     )
                 }
@@ -898,6 +901,36 @@ final class BatchMediaExportStore: ObservableObject {
             }
             batches[bi].items[ii].state = .downloading
             running += 1
+            // **复用已下完整 .ts**：上次下载完成但合成失败/中断（.ts 完好在
+            // 盘）→ 直接进合成，不重新抓全部分片（01 号 6.4GB 实测重复下载）。
+            // **先查上次登记的 tsFileURL**（随批次落盘持久化）——文件还在就
+            // 绝不覆盖、绝不重下；智能分卷这轮算出的候选卷可能已变，覆盖
+            // 会让旧 .ts 变孤儿、整片白下。
+            if let tsPath = batches[bi].items[ii].tsFileURL,
+               FileManager.default.fileExists(atPath: tsPath) {
+                blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 复用已下完整 .ts，直接进合成：\(tsPath)")
+                let remuxJobID = MediaExportStore.shared.startRemuxOnly(
+                    tsURL: URL(fileURLWithPath: tsPath),
+                    sourceURL: mediaURL,
+                    fileNameHint: title,
+                    folderName: folderName,
+                    baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory,
+                    completion: { [weak self] outcome in
+                        self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
+                    },
+                    progressHandler: { [weak self] done, total, unit in
+                        self?.recordProgress(itemID: itemID, done: done, total: total, unit: unit)
+                    }
+                )
+                batches[bi].items[ii].jobID = remuxJobID
+                continue
+            }
+            // 无可复用：登记**本轮**预期 .ts 落点（下载完成 rename 到此；下次
+            // 失败重试从这里找回）。落点解析失败只放弃复用（tsFileURL=nil
+            // 走正常下载），不让整项失败。
+            batches[bi].items[ii].tsFileURL = (try? MediaExporter.candidateTSPath(
+                for: mediaURL, hint: title, folderName: folderName,
+                baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory))?.path
             let jobID = MediaExportStore.shared.start(
                 url: mediaURL,
                 referer: referer,

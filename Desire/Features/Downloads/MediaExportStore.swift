@@ -111,6 +111,50 @@ final class MediaExportStore: ObservableObject {
         jobs.removeAll { toRemove.contains($0.id) }
     }
 
+    /// **仅合成**任务：.ts 已完整在盘（上次下载完成但合成失败/中断），重试
+    /// 直接进 remux——不再重新下载整片（01 号 6.4GB 实测重复下载）。
+    @discardableResult
+    func startRemuxOnly(
+        tsURL: URL,
+        sourceURL: URL,
+        fileNameHint: String?,
+        folderName: String? = nil,
+        baseDirectory: String? = nil,
+        completion: ((JobOutcome) -> Void)? = nil,
+        progressHandler: ((Int, Int, MediaExporter.ProgressUnit) -> Void)? = nil
+    ) -> UUID {
+        let id = UUID()
+        let hint = fileNameHint?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = (hint?.isEmpty == false ? hint! : tsURL.lastPathComponent)
+        jobs.append(Job(id: id, url: sourceURL, title: title, state: .running, startedAt: Date(), isSilent: true))
+        trimSettledJobs()
+        if let completion { completions[id] = completion }
+        if let progressHandler { progressHandlers[id] = progressHandler }
+
+        let task = Task { [weak self] in
+            do {
+                // 超时：15 分钟基线 + 每 GB 2 分钟（.ts 已在盘，按实际大小算）
+                let size = ((try? FileManager.default.attributesOfItem(atPath: tsURL.path))?[.size] as? Int64) ?? 0
+                let gb = max(1, Int(size / 1_073_741_824))
+                let deadline = Date().addingTimeInterval(TimeInterval(15 * 60 + gb * 2 * 60))
+                let result = try await MediaExporter.remuxExistingTS(
+                    tsURL, deadline: deadline
+                ) { [weak self] done, total, unit in
+                    self?.progressHandlers[id]?(done, total, unit)
+                }
+                self?.finish(id: id, result: result)
+            } catch is CancellationError {
+                self?.cancelJob(id: id)
+            } catch let error as URLError where error.code == .cancelled {
+                self?.cancelJob(id: id)
+            } catch {
+                self?.fail(id: id, error: error)
+            }
+        }
+        tasks[id] = task
+        return id
+    }
+
     func cancel(id: UUID) {
         tasks[id]?.cancel()
         tasks[id] = nil

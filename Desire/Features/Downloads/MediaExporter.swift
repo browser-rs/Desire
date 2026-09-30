@@ -268,6 +268,25 @@ enum MediaExporter {
         }
     }
 
+    /// 批量下载在**开始下载前**登记 .ts 预期落点用：与下载完成 rename 的
+    /// 路径同一套推导（下载完成 rename 到此；合成失败/中断后重试凭登记的
+    /// 路径直接复用进 remux，不再重新下载整片）。
+    static func candidateTSPath(for mediaURL: URL, hint: String?, folderName: String?,
+                                baseDirectory: String?) throws -> URL {
+        try destinationURL(for: mediaURL, hint: hint, isMP4: false,
+                           folderName: folderName, baseDirectory: baseDirectory)
+    }
+
+    /// remux-only 任务入口：对**已下完整**的 .ts 直接合成（重试复用场景）。
+    /// mp4 落在 .ts 旁边（`uniqueDestination(beside:)`），不重新推导卷。
+    static func remuxExistingTS(_ ts: URL, deadline: Date,
+                                progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void = { _, _, _ in }
+    ) async throws -> Result {
+        let size = ((try? FileManager.default.attributesOfItem(atPath: ts.path))?[.size] as? Int64) ?? 0
+        let result = Result(fileURL: ts, segmentCount: 0, bytes: size, warnings: [], verification: nil)
+        return try await remuxToMP4IfNeeded(result, extraWarnings: [], deadline: deadline, progress: progress)
+    }
+
     /// 手写下载器产出 `.ts`（live、或 ffmpeg 直连失败）时，装了 ffmpeg 就顺手
     /// 转封装成 MP4——用户要的是能直接播的 mp4，不是 mpegts。
     private static func remuxToMP4IfNeeded(

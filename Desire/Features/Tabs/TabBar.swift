@@ -45,7 +45,7 @@ struct TabBar: View {
     let windowSessionID: String
     /// Derived from TabThumbnailStore: thumbnail image for a tab.
     let tabThumbnail: (UUID) -> NSImage?
-    let onCaptureThumbnail: (Tab) -> Void
+    let onCaptureThumbnail: (Tab, ((NSImage?) -> Void)?) -> Void
     let onCreateGroup: (Int) -> Void
     let onDuplicateTab: (Int) -> Void
     /// 分屏浏览（0.2.15）：右栏标签的下标（nil = 未分屏）+ 切换动作。
@@ -361,7 +361,7 @@ private struct TabPillView: View {
     let onRemoveFromGroup: (UUID) -> Void
     let onAddToGroup: (UUID, UUID) -> Void
     /// Derived from TabThumbnailStore: captures a thumbnail for `tab`.
-    let onCaptureThumbnail: (Tab) -> Void
+    let onCaptureThumbnail: (Tab, ((NSImage?) -> Void)?) -> Void
     let onMoveTab: (Int, Int) -> Void
     let onShowPreview: (Tab, CGRect) -> Void
     let onUpdatePreview: (Tab) -> Void
@@ -482,8 +482,13 @@ private struct TabPillView: View {
                 hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { _ in
                     Task { @MainActor in
                         onShowPreview(tab, pillFrame)
-                        // Capture thumbnail on hover
-                        onCaptureThumbnail(tab)
+                        // 缓存 miss → 现场抓帧：完成回调**主动推给预览面板**——
+                        // 此前 fire-and-forget，快照到达后没人再调 onUpdatePreview，
+                        // 预览停在"加载中"直到下次 hover（用户实测截图）。
+                        onCaptureThumbnail(tab) { image in
+                            guard image != nil else { return }
+                            onUpdatePreview(tab)
+                        }
                         onUpdatePreview(tab)
                     }
                 }

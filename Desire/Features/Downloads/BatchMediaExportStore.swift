@@ -365,6 +365,7 @@ final class BatchMediaExportStore: ObservableObject {
         if state == .failed {
             batches[bi].items[ii].state = .skipped
             batches[bi].items[ii].summary = "skipped"
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 失败项被移出队列")
             persistUnfinished()
             checkBatchSettled(batchID)
             return
@@ -373,6 +374,7 @@ final class BatchMediaExportStore: ObservableObject {
             // downloadSettled 回调里按"已 skipped"短路，不会改写终态。
             batches[bi].items[ii].state = .skipped
             batches[bi].items[ii].summary = "skipped"
+            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载中项被跳过（取消其任务）")
             MediaExportStore.shared.cancel(id: jobID)
             persistUnfinished()
             // P1-16：被 skip 的项若正是唯一在跑项，并发槽已空但没有任何
@@ -384,6 +386,7 @@ final class BatchMediaExportStore: ObservableObject {
         }
         batches[bi].items[ii].state = .skipped
         batches[bi].items[ii].summary = "skipped"
+        blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 排队项被移出队列")
         persistUnfinished()
         pumpDownloads(batchID)
         checkBatchSettled(batchID)

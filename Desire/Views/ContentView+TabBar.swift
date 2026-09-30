@@ -104,7 +104,9 @@ extension ContentView {
             windowSessionID: sessionID?.uuidString ?? "pending-session",
             // Derived from TabThumbnailStore — TabBar no longer holds the store.
             tabThumbnail: { thumbnailStore.thumbnail(for: $0) },
-            onCaptureThumbnail: { thumbnailStore.captureThumbnail(for: $0) },
+            onCaptureThumbnail: { tab, completion in
+                thumbnailStore.captureThumbnail(for: tab, completion: completion)
+            },
             onCreateGroup: { index in
                 let alert = NSAlert()
                 alert.messageText = String(localized: "New Tab Group")

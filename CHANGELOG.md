@@ -5,6 +5,10 @@
 - **设为默认浏览器状态不准（用户实测"从外面打开网址经常出问题"）**：https 设置成功即打勾、http 设置失败被静默吞掉——外部 http 链接仍归其它浏览器。现在串行设置后**重查系统实际状态**（http+https 双 scheme 都归 Desire 才显示 Default），失败进日志
 - **Tab hover 预览生成慢（用户实测）**：① 显示延迟 1s → 250ms；② 15s 定时器此前只养选中页——后台页 30s 过期后 hover 才现场跨进程抓帧（200ms+）；现在 ContentView 注入 tab 源、定时器低频轮捕全部存活页（跳过未过期/加载中），hover 命中缓存几乎必然秒开
 - **迭代复盘审计（v0.4.7→HEAD 全量）修复 9 项**：① 完全访问的文件路径放行在显式改过一次等级后永久失效（Workspace 读"等级键存在与否"而非实际等级，与 gate() 判定分叉）；② 看门狗掐掉卡死项落成 skipped 而非 failed——跳过重试、注释契约相反，改按失败进入重试队列；③ 批量日志从不删除（每批一份 json 永久留盘 + 进程内缓存无界）——removeSettled 时一并清理并补 batchUserAgents 释放；④ pause→resume 竞态可永久停摆 list 批次（引擎任务被取消但等 resolver 续体返回期间 engineRunning 占位，resume 误判存活不重启）——引擎代数门：取消中的任务视为死引擎照常重启，迟到退出不误摘新代槽位；⑤ 自动编辑等级绕过 deny 规则且静默放行 fillLogin（存档密码提交登录）——deny 前置到所有等级判定之前，fillLogin 列入例外；⑥ 失败项"从队列移除"空操作（skip 拒收 failed 且要求批在跑）——skip 扩展支持 failed 与已结束批次；⑦ 广告统计 perDomain 驱逐可把 other 当目标（自并合并不减键数、上限失效）——驱逐限定非 other；⑧ 广告统计"今日"跨零点不刷新直到下一个事件——读取路径主动滚日；⑨ didFail 镜像补 raw-code -999 兜底（部分构建上回退到已提交导航的取消仍会误报错误页）；另：重复的 /conversations 路由 case 删除、hover 缩略图轮捕对 NSCache 驱逐自愈、完全访问下系统命令跳过协商（与文案一致）、manageBatchDownloads 工具 schema 补 add 参数
+- **Tab 预览缓存 miss 时永远停在"加载中"**：hover 触发现场抓帧是 fire-and-forget——快照 ~200ms 后到达没人推给预览面板，用户看到"加载中"直到下次 hover（桥实测截图实锤）。现在抓帧完成回调主动推图给预览面板；配合后台轮捕，预览两个节拍内必然出图
+- 批量日志补 skip 事件（此前跳过无日志行：失败项移除/下载中项跳过/排队项移出）
+- 手机远程新增 setAccessLevel 内层帧（三档直达，不再只有完全访问两态开关）
+
 
 
 

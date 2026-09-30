@@ -537,6 +537,13 @@ final class RemoteControlStore: ObservableObject {
             guard let flag = inner.flag, let target = remoteSession else { return }
             target.accessLevel = flag ? .fullAccess : .confirmChanges
             pushSnapshot(force: true)
+        case "setAccessLevel":
+            // 手机端直接选三档之一（level ∈ confirm/autoEdit/full——Int rawValue）。
+            guard let raw = inner.text.flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }),
+                  let level = AgentSessionStore.AccessLevel(rawValue: raw),
+                  let target = remoteSession else { return }
+            target.accessLevel = level
+            pushSnapshot(force: true)
         case "capabilities":
             // 只读回包：Agent 能用的工具（含风险分级）+ 技能库。
             sendInnerRaw(Self.capabilitiesFrame())

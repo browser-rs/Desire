@@ -26,6 +26,10 @@ enum BrowserErrorTranslator {
              .cannotFindHost,
              .dnsLookupFailed:
             return String(localized: "Server Unreachable")
+        case .fileDoesNotExist,
+             .fileIsDirectory,
+             .noPermissionsToReadFile:
+            return String(localized: "File Not Found")
         case .cancelled:
             // `.cancelled` fires every time the user navigates away (back,
             // forward, address-bar load), so it's not really an error —
@@ -58,6 +62,11 @@ enum BrowserErrorTranslator {
              .cannotFindHost,
              .dnsLookupFailed:
             return String(localized: "The server didn't respond. The site may be down, or a firewall is blocking the connection. Try reloading, or open the same URL in Safari to test.")
+        case .fileDoesNotExist,
+             .fileIsDirectory,
+             .noPermissionsToReadFile:
+            // 拖入/地址栏打开的本地文件被移动、删除或改名后刷新的场景。
+            return String(localized: "The local file doesn't exist (or can't be read). It may have been moved, renamed, or deleted since it was opened.")
         default:
             return base
         }
@@ -81,6 +90,10 @@ enum BrowserErrorTranslator {
              .cannotFindHost,
              .dnsLookupFailed:
             return "antenna.radiowaves.left.and.right.slash"
+        case .fileDoesNotExist,
+             .fileIsDirectory,
+             .noPermissionsToReadFile:
+            return "doc.questionmark"
         default:
             return "exclamationmark.triangle"
         }

@@ -274,6 +274,11 @@ class AgentSessionStore: ObservableObject {
     /// reported where available; Foundation Models reports nothing).
     @Published private(set) var usagePromptTokens = 0
     @Published private(set) var usageCompletionTokens = 0
+    /// **检查点恢复**：当前会话文件里回合未正常收尾（崩溃/强杀残留）。
+    /// loadConversation 时从 turnActive 读入；继续/放弃后清除。
+    @Published private(set) var hasInterruptedTurn = false
+    /// 回合进行中（落盘到 Conversation.turnActive）。
+    private var turnCheckpointActive = false
     /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
     @Published private(set) var lastPromptTokens = 0
     /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
@@ -491,6 +496,36 @@ class AgentSessionStore: ObservableObject {
         return true
     }
 
+    /// **检查点恢复**：上一回合被打断（工具结果缺失处由请求组装补
+    /// "[interrupted]"——P0-F 机制），不重复追加用户消息，直接重启循环，
+    /// 模型看到中断标记后自行续做或重做缺失的工具。
+    @discardableResult
+    func resumeInterruptedTurn() -> Bool {
+        guard !isProcessing, hasInterruptedTurn else { return false }
+        hasInterruptedTurn = false
+        turnCheckpointActive = true
+        isProcessing = true
+        isCancelled = false
+        refreshContextLabel()
+        streamingTokenCount = 0
+        streamingTokensPerSecond = 0
+        processingStartedAt = Date()
+        memoryProcessedCount = messages.count
+        summarizedCount = messages.count
+        saveCurrentConversation()   // 落盘 turnActive=true + 冲掉旧标志
+        loopTask = Task { await processLoop() }
+        return true
+    }
+
+    /// 放弃被打断的回合：只清标志（悬空的 tool_calls 由请求组装的
+    /// "[interrupted]" 清洗兜底，会话始终有效）。
+    func discardInterruptedTurn() {
+        guard hasInterruptedTurn else { return }
+        hasInterruptedTurn = false
+        turnCheckpointActive = false
+        saveCurrentConversation()
+    }
+
     /// Removes everything waiting in the send queue (queue strip ✕ button).
     func clearQueuedMessages() {
         queuedMessages.removeAll()
@@ -671,6 +706,8 @@ class AgentSessionStore: ObservableObject {
         usagePromptTokens = 0
         usageCompletionTokens = 0
         // 新对话的计划自然为空（按会话分存），旧会话的计划保留——切回可见。
+        hasInterruptedTurn = false
+        turnCheckpointActive = false
         UserPromptCenter.shared.cancel()
         messages.removeAll()
         conversationId = nil
@@ -729,6 +766,9 @@ class AgentSessionStore: ObservableObject {
         conversationTitle = conv.title
         inputHistory = conv.inputHistory ?? []   // 每个对话记自己的输入历史
         AgentPlanStore.shared.restore(conversationID: conv.id.uuidString, conv.planSteps)
+        // 检查点：上次回合没走到收尾（标志残留）→ 面板提示继续/放弃。
+        hasInterruptedTurn = conv.turnActive == true
+        turnCheckpointActive = false   // 内存态复位；继续时由 resume 重新置位落盘
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
@@ -776,7 +816,7 @@ class AgentSessionStore: ObservableObject {
         // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
         // 回合收尾的常规保存自然带上）；无会话（conversationId=nil）读不到。
         let planSteps = AgentPlanStore.shared.steps(for: id.uuidString)
-        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive)
         conversationStore.save(conv)
     }
 
@@ -954,6 +994,8 @@ class AgentSessionStore: ObservableObject {
         // 症状：会话文件里最后一条回答缺失、轨迹（读盘渲染）里 `answer` 永远为空、
         // 强杀进程即丢。这里无条件保存一次，覆盖 `runTurn` 的**每一条**退出路径
         // （最终回答 / 报错 / 迭代上限 / 取消）。
+        // 检查点：回合已定局（含取消）→ 清"进行中"标志，恢复提示不再出现。
+        turnCheckpointActive = false
         saveCurrentConversation()
 
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型
@@ -997,6 +1039,9 @@ class AgentSessionStore: ObservableObject {
         // runaway execution while allowing genuinely long multi-step tasks.
         var iterations = 0
         var hitIterationCap = false
+        // 检查点：回合开工即落盘"进行中"——此后任何一步都有断点可循。
+        turnCheckpointActive = true
+        saveCurrentConversation()
 
         while !isCancelled && iterations < maxIterations {
             iterations += 1
@@ -1022,6 +1067,8 @@ class AgentSessionStore: ObservableObject {
             // inside the throttled flush (~12 fps), which is also the display
             // granularity of the status line.
             var assistantMsg: AgentMessage?
+            // usage chunk 先于正文到达的兜底桶（创建消息时回填）。
+            var pendingStreamUsage = AgentUsage()
             var hasContent = false
             var pendingTokenCount = 0
             var rateWindowStart = Date()
@@ -1086,7 +1133,13 @@ class AgentSessionStore: ObservableObject {
                     switch event {
                     case .text(let delta):
                         if assistantMsg == nil {
-                            assistantMsg = AgentMessage(role: .assistant, content: "")
+                            var fresh = AgentMessage(role: .assistant, content: "")
+                            if pendingStreamUsage.totalTokens > 0 {
+                                fresh.promptTokens = pendingStreamUsage.promptTokens
+                                fresh.completionTokens = pendingStreamUsage.completionTokens
+                                pendingStreamUsage = AgentUsage()
+                            }
+                            assistantMsg = fresh
                             messages.append(assistantMsg!)
                         }
                         assistantMsg!.content = (assistantMsg!.content ?? "") + delta
@@ -1106,7 +1159,13 @@ class AgentSessionStore: ObservableObject {
                         // 思考过程：与正文同一条节流路径落进同一条消息（面板里折叠展示）。
                         // **不算 hasContent**——只回了思考、没有正文，仍然算空回合（会提示）。
                         if assistantMsg == nil {
-                            assistantMsg = AgentMessage(role: .assistant, content: "")
+                            var fresh = AgentMessage(role: .assistant, content: "")
+                            if pendingStreamUsage.totalTokens > 0 {
+                                fresh.promptTokens = pendingStreamUsage.promptTokens
+                                fresh.completionTokens = pendingStreamUsage.completionTokens
+                                pendingStreamUsage = AgentUsage()
+                            }
+                            assistantMsg = fresh
                             messages.append(assistantMsg!)
                         }
                         assistantMsg!.reasoning = (assistantMsg!.reasoning ?? "") + delta
@@ -1123,7 +1182,13 @@ class AgentSessionStore: ObservableObject {
                         }
                     case .toolCall(let call):
                         if assistantMsg == nil {
-                            assistantMsg = AgentMessage(role: .assistant, content: "")
+                            var fresh = AgentMessage(role: .assistant, content: "")
+                            if pendingStreamUsage.totalTokens > 0 {
+                                fresh.promptTokens = pendingStreamUsage.promptTokens
+                                fresh.completionTokens = pendingStreamUsage.completionTokens
+                                pendingStreamUsage = AgentUsage()
+                            }
+                            assistantMsg = fresh
                             messages.append(assistantMsg!)
                         }
                         assistantMsg!.toolCalls = (assistantMsg!.toolCalls ?? []) + [call]
@@ -1137,10 +1202,14 @@ class AgentSessionStore: ObservableObject {
                         usageCompletionTokens += completion
                         if prompt > 0 { lastPromptTokens = prompt }
                         // 也记在这次调用的助手消息上（随会话落盘）——成本要从**历史**
-                        // 会话里算出来，而这条用量派生不出来。累加与上面的会话计数器同口径。
+                        // 会话里算出来，而这条用量派生不出来。usage chunk 可能先于
+                        // 正文（个别网关首个 chunk 就带）→ 先挂 pending，消息创建时回填。
                         if assistantMsg != nil {
                             assistantMsg!.promptTokens = (assistantMsg!.promptTokens ?? 0) + prompt
                             assistantMsg!.completionTokens = (assistantMsg!.completionTokens ?? 0) + completion
+                        } else {
+                            pendingStreamUsage.promptTokens += prompt
+                            pendingStreamUsage.completionTokens += completion
                         }
                     case .model(let name):
                         reportedModel = name
@@ -1640,7 +1709,7 @@ class AgentSessionStore: ObservableObject {
 
     /// 一次自评调用：**同一个模型、不带工具、只看轨迹**。失败或取消返回 nil
     /// （自评永远不能把一轮正常回合变成失败）。
-    func runCritique(goal: String, trace: String) async -> String? {
+    func runCritique(goal: String, trace: String, onUsage: ((Int, Int) -> Void)? = nil) async -> String? {
         guard !goal.isEmpty, !trace.isEmpty else { return nil }
         let request: [AgentMessage] = [
             AgentMessage(role: .system, content: Self.critiquePrompt),
@@ -1653,7 +1722,11 @@ class AgentSessionStore: ObservableObject {
         do {
             for try await event in reviewer.stream(messages: request, tools: [], prefs: reviewingPrefs) {
                 if isCancelled { return nil }
-                if case .text(let delta) = event { text += delta }
+                switch event {
+                case .text(let delta): text += delta
+                case .usage(let prompt, let completion): onUsage?(prompt, completion)
+                default: break
+                }
             }
         } catch {
             Log.agent.info("self-review call failed: \(error.localizedDescription, privacy: .public)")
@@ -1788,7 +1861,10 @@ class AgentSessionStore: ObservableObject {
         guard preference.selfReviewEnabled else { return }
         let turn = currentTurnTrace()
         guard turn.toolCount >= 3 || turn.dangerous else { return }
-        guard let critique = await runCritique(goal: turn.goal, trace: turn.trace) else { return }
+        guard let critique = await runCritique(
+            goal: turn.goal, trace: turn.trace,
+            onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailAssistantID) }
+        ) else { return }
         // P1-18：按 id 定位写回——await 期间新回合可能已 append 助手消息，
         // 活体 lastIndex 会把评语写进新回合正在流式的消息。
         let index = tailAssistantID.flatMap { id in messages.lastIndex { $0.id == id && $0.role == .assistant } }
@@ -1801,12 +1877,31 @@ class AgentSessionStore: ObservableObject {
         saveCurrentConversation()
     }
 
+    // MARK: - 旁路调用成本记账
+
+    /// 旁路模型调用（标题/记忆整理/自评）的 token 归账：记到**本回合的
+    /// 尾助手消息**（按 id 定位——await 期间新回合可能已开始，P1-18 同款
+    /// 防护）并累加会话计数器。`AgentUsage.of` 对任何带 token 的消息计数，
+    /// 面板与统计因此自动包含旁路成本（此前只算主循环，数字偏小）。
+    private func attributeBypassUsage(_ prompt: Int, _ completion: Int, to tailID: UUID?) {
+        guard prompt > 0 || completion > 0 else { return }
+        usagePromptTokens += prompt
+        usageCompletionTokens += completion
+        if prompt > 0 { lastPromptTokens = prompt }
+        guard let tailID,
+              let idx = messages.lastIndex(where: { $0.id == tailID && $0.role == .assistant }) else { return }
+        messages[idx].promptTokens = (messages[idx].promptTokens ?? 0) + prompt
+        messages[idx].completionTokens = (messages[idx].completionTokens ?? 0) + completion
+    }
+
     private func generateTitleIfNeeded() async {
         guard !titleGenerated, messages.count >= 2,
               messages.contains(where: { $0.role == .user }) else { return }
         titleGenerated = true
+        let tailID = messages.last(where: { $0.role == .assistant })?.id
         guard let title = await MemoryExtractor.generateTitle(
-            preference: preference, messages: Array(messages.prefix(6))
+            preference: preference, messages: Array(messages.prefix(6)),
+            onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
         ) else { return }
         conversationTitle = title
         saveCurrentConversation()
@@ -1824,10 +1919,12 @@ class AgentSessionStore: ObservableObject {
               snapshot.contains(where: { $0.role == .assistant }) else { return }
 
         if snapshot.count - memoryProcessedCount >= 4 {
+            let tailID = snapshot.last(where: { $0.role == .assistant })?.id
             await MemoryExtractor.extractFacts(
                 preference: preference,
                 memory: AgentMemoryStore.shared,
-                messages: Array(snapshot.suffix(14))
+                messages: Array(snapshot.suffix(14)),
+                onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
             )
         }
         // R2-2：摘要此前只有"≥12 条"的总量门槛、没有增量门控——对话过 12 条后
@@ -1835,11 +1932,13 @@ class AgentSessionStore: ObservableObject {
         // 白付钱/额度）。与 facts 同款增量门控：新增 ≥6 条才重新摘要。
         if messages.count >= 12, messages.count - summarizedCount >= 6,
            let conversationId = conversationId {
+            let tailID = snapshot.last(where: { $0.role == .assistant })?.id
             await MemoryExtractor.summarize(
                 preference: preference,
                 memory: AgentMemoryStore.shared,
                 conversationId: conversationId,
-                messages: Array(snapshot.suffix(40))
+                messages: Array(snapshot.suffix(40)),
+                onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
             )
             summarizedCount = snapshot.count
         }

@@ -355,6 +355,45 @@ struct AgentPanel: View {
                 .padding(.bottom, 2)
             }
 
+            // 检查点恢复：上回合被打断（崩溃/强杀残留标志）→ 继续/放弃。
+            if store.hasInterruptedTurn && !store.isProcessing {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("上一次的回合被中断")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button {
+                        store.resumeInterruptedTurn()
+                    } label: {
+                        Text("继续回合")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        store.discardInterruptedTurn()
+                    } label: {
+                        Text("放弃")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(appAccent.opacity(0.06))
+                )
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 2)
+            }
+
             AgentInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,

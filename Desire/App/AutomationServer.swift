@@ -470,11 +470,13 @@ final class AutomationServer {
         ep("GET", "/media/batch/config", "Batch download preferences (disk reserve GB / naming / save root)", example: "…/media/batch/config")
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
+        ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("GET", "/agent/prompt", "Pending user question (agent askUser / batch low-disk-space ask)", example: "…/agent/prompt")
         ep("POST", "/agent/prompt/answer", "Answer the pending question (free text; the asker interprets it)", params: ["text:string"], example: #"-d '{"text":"继续"}'"#)
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
+        ep("POST", "/agent/resume", "Checkpoint resume: continue a turn that was interrupted by a crash/force-quit (action=resume) or clear the marker (action=discard)", params: ["action:resume|discard", "window?:string"], example: #"-d '{"action":"resume"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
@@ -1269,6 +1271,31 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("POST", "/agent/new"):
+                // 开新会话（面板"新对话"按钮同路径：store.clear()——旧会话
+                // 文件不动）。E2E/自动化从这里拿干净的会话。
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                session.clear()
+                return try Self.json(["ok": true])
+            case ("POST", "/agent/resume"):
+                // 检查点恢复：继续被打断的回合 / 放弃（清标志）。
+                let action = Self.string(body, "action") ?? "resume"
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                switch action {
+                case "resume":
+                    let ok = session.resumeInterruptedTurn()
+                    return try Self.json(["ok": ok, "busy": session.isProcessing,
+                                          "hasInterruptedTurn": session.hasInterruptedTurn])
+                case "discard":
+                    session.discardInterruptedTurn()
+                    return try Self.json(["ok": true, "hasInterruptedTurn": session.hasInterruptedTurn])
+                default:
+                    return try Self.json(["error": "action must be resume or discard"])
+                }
             case ("GET", "/ads/rules"):
                 return try Self.json(Self.adRules(host: Self.string(body, "host") ?? Self.string(query, "host")))
             case ("POST", "/ads/rules/clear"):
@@ -3275,6 +3302,7 @@ final class AutomationServer {
         return [
             "messages": Array(messages),
             "busy": session.isProcessing,
+            "hasInterruptedTurn": session.hasInterruptedTurn,
             // 输入历史（按对话保存，面板 ↑/↓ 翻阅的那份）
             "inputHistory": Array(session.inputHistory.suffix(20)),
         ]

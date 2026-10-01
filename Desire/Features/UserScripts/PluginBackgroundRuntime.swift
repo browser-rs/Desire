@@ -174,10 +174,26 @@ final class PluginBackgroundRuntime: NSObject {
                         .replacingOccurrences(of: "\\", with: "\\\\")
                         .replacingOccurrences(of: "\"", with: "\\\"")
                     json = "\"\(escaped)\""
-                } else if let payload,
-                          let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-                          let str = String(data: data, encoding: .utf8) {
-                    json = str
+                } else if let payload {
+                    // **顶层必须是数组/字典**：JSONSerialization 对标量顶层抛的
+                    // 是 ObjC 异常，try? 拦不住（进程直接 FAULT——storage.get
+                    // 返回字符串、contextMenus.create 返回菜单 id 都踩）。
+                    // 标量手动字符串化，容器才走 JSONSerialization。
+                    switch payload {
+                    case let scalar as String:
+                        json = JSString.literal(scalar)
+                    case let bool as Bool:
+                        json = bool ? "true" : "false"
+                    case let number as NSNumber:
+                        json = number.stringValue
+                    default:
+                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                           let str = String(data: data, encoding: .utf8) {
+                            json = str
+                        } else {
+                            json = "null"
+                        }
+                    }
                 } else {
                     json = "null"
                 }

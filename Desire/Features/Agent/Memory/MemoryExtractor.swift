@@ -13,10 +13,13 @@ enum MemoryExtractor {
 
     /// Extracts durable USER facts (preferences, habits, corrections) from
     /// the conversation tail and merges them into the memory store.
+    /// `onUsage(prompt, completion)`：旁路调用的 token 上报——面板/统计此前
+    /// 少记这部分（标题/记忆整理/自评都走额外模型调用）。
     static func extractFacts(
         preference: AgentPreferenceStore,
         memory: AgentMemoryStore,
-        messages: [AgentMessage]
+        messages: [AgentMessage],
+        onUsage: ((Int, Int) -> Void)? = nil
     ) async {
         guard preference.memoryLearning else { return }
         let transcript = transcript(of: messages, maxChars: 6000)
@@ -42,7 +45,7 @@ enum MemoryExtractor {
         \(transcript)
         """
 
-        let text = await collectText(preference: preference, system: system, user: user)
+        let text = await collectText(preference: preference, system: system, user: user, onUsage: onUsage)
         guard let data = jsonPayload(from: text),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             log.debug("memory extraction: no parseable JSON returned")
@@ -76,7 +79,8 @@ enum MemoryExtractor {
         preference: AgentPreferenceStore,
         memory: AgentMemoryStore,
         conversationId: UUID,
-        messages: [AgentMessage]
+        messages: [AgentMessage],
+        onUsage: ((Int, Int) -> Void)? = nil
     ) async {
         guard preference.memoryLearning else { return }
         let transcript = transcript(of: messages, maxChars: 8000)
@@ -90,21 +94,24 @@ enum MemoryExtractor {
         let text = await collectText(
             preference: preference,
             system: system,
-            user: transcript
+            user: transcript,
+            onUsage: onUsage
         )
         memory.upsertSummary(conversationId: conversationId, summary: String(text.prefix(600)))
     }
 
     /// Generates a short conversation title in the user's language.
     static func generateTitle(
-        preference: AgentPreferenceStore, messages: [AgentMessage]
+        preference: AgentPreferenceStore, messages: [AgentMessage],
+        onUsage: ((Int, Int) -> Void)? = nil
     ) async -> String? {
         let transcript = transcript(of: messages, maxChars: 2000)
         guard !transcript.isEmpty else { return nil }
         let text = await collectText(
             preference: preference,
             system: "Generate a conversation title of at most 6 words in the user's language. Plain text only, no quotes, no period.",
-            user: transcript
+            user: transcript,
+            onUsage: onUsage
         )
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
@@ -132,7 +139,8 @@ enum MemoryExtractor {
     }
 
     private static func collectText(
-        preference: AgentPreferenceStore, system: String, user: String
+        preference: AgentPreferenceStore, system: String, user: String,
+        onUsage: ((Int, Int) -> Void)? = nil
     ) async -> String {
         var output = ""
         let messages = [
@@ -142,7 +150,11 @@ enum MemoryExtractor {
         let provider = preference.provider
         do {
             for try await event in provider.stream(messages: messages, tools: [], prefs: preference) {
-                if case .text(let delta) = event { output += delta }
+                switch event {
+                case .text(let delta): output += delta
+                case .usage(let prompt, let completion): onUsage?(prompt, completion)
+                default: break
+                }
             }
         } catch {
             log.debug("memory call failed: \(error.localizedDescription, privacy: .public)")

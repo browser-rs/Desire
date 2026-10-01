@@ -11,4 +11,8 @@ struct Conversation: Identifiable, Codable {
     var inputHistory: [String]?
     /// updatePlan 的任务清单（计划跟着会话走：切回/重启后恢复）。
     var planSteps: [AgentPlanStep]?
+    /// **回合进行中检查点**：回合开始置 true 随保存落盘，回合结束（含
+    /// 报错/上限/取消）清除。崩溃/强杀后该标志残留 = 回合被打断，重新
+    /// 打开时面板给出"继续/放弃"（检查点恢复）。
+    var turnActive: Bool?
 }

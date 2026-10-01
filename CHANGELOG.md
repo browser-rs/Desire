@@ -1,4 +1,9 @@
 ## [Unreleased]
+### Added
+
+- Agent 检查点恢复：回合开工即落盘"进行中"标志（随会话文件持久化），崩溃/强杀后重新打开会话时面板给出"继续回合/放弃"——继续不重复追加用户消息，工具结果缺失处由 [interrupted] 清洗兜底，模型自行续做；桥 POST /agent/resume（resume|discard）+ GET /agent/messages 带 hasInterruptedTurn；新增 POST /agent/new
+- 旁路模型调用成本记账：标题生成/记忆整理（facts/summary）/自评 critic 的 token 用量按回合归账到尾助手消息（此前全部丢弃，对话成本与统计页明显少报）；usage chunk 先于正文到达时挂 pending 桶回填
+
 ### Removed
 
 - 删除 BookmarkStore.importFromHTML 与其私有解析器（无引用死副本；活着的导入路径是 BookmarkImportService 四路解析）
@@ -49,6 +54,8 @@
 - 表单自动填充值统一 JSString 转义（旧实现只转义单引号——值含反斜杠或换行时注入即语法错，地址字段带换行很常见）
 - 标签组创建的颜色选择接通（此前是死控件：点击无处理、✓ 永远钉在第一格、create 从不传 colorIndex）
 - 远程 pull/push 限流按 user+device 分桶——此前按 user 共桶，Mac 1s 轮询吃掉 60/min，第三台控制器必然触顶
+- 插件 background runtime 的 RPC 回包对标量负载（storage.get 返回字符串、contextMenus.create 返回菜单 id）手动字符串化——JSONSerialization 对非容器顶层抛 ObjC 异常且 try? 拦不住，整进程 FAULT（用户实测崩溃）
+
 
 
 

@@ -22,6 +22,8 @@ struct BlockedElementRule: Identifiable, Codable {
             let domain = String(urlPattern.dropFirst(2))
             return host == domain || host.hasSuffix("." + domain)
         }
-        return host.contains(urlPattern)
+        // 旧实现 host.contains(urlPattern) 过宽——"example.com" 会命中
+        // "notexample.com"。改为后缀点分语义（子域命中，碰巧含子串不命中）。
+        return host == urlPattern || host.hasSuffix("." + urlPattern)
     }
 }

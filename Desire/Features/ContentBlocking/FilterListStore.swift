@@ -113,6 +113,13 @@ class FilterListStore: ObservableObject {
             }
         }
         updateIfNeeded()
+        // 长驻会话：每 24h 重查一次（规则源每日更新——启动一次后 7 天不查
+        // 会让规则陈旧到失去意义）。
+        Timer.scheduledTimer(withTimeInterval: 24 * 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateIfNeeded()
+            }
+        }
     }
 
     // MARK: - Public API

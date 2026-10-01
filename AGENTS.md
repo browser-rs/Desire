@@ -1204,6 +1204,11 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   `rustup component add` 报 "up to date"）——修法
   `rustup toolchain uninstall stable && rustup toolchain install stable`；复发同法。
 
+- **禁止修改 /Applications/Desire.app（2026-10-01 用户暴怒级立规）**：**/Applications 里的
+  Desire.app 是用户自己升级管理的——绝对禁止 rm/cp/覆盖/xattr/移动等任何写操作**（哪怕"备份了
+  会恢复"也不行——用户升级后的新版本会被旧备份覆盖）。E2E 测试一律用**独立进程跑构建产物**
+  （`open <DerivedData 或 /tmp 构建路径> --args --automation`），需要 /Applications 前置条件的功能
+  （自更新 canSelfUpdate）= 临时目录构建 + 隔离环境，或明确不测该分支。读取/查询版本号允许。
 - **测试数据清理铁律（2026-09-25 差点误删事故后立规）**：① **禁止无条件 `DELETE FROM users`**
   ——清理必须带测试标记（`WHERE username LIKE 'smoke\_%' OR ...`），且只在本地 dev 库执行；
   ② **对 app 做 E2E 前必须先把服务器地址钉回本地**（`POST /sync/server {"baseURL":"http://127.0.0.1:18090"}`），

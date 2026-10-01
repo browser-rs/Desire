@@ -7,6 +7,8 @@
 
 - 下载面板如实反映本地文件状态：完成行对应的文件被用户从磁盘删除后，显示"File deleted"徽章并将 Open/Show in Finder 替换为"Download Again"（按来源 URL 重新发起）；Show in Finder 在文件已删时退化为打开所在文件夹
 - 主框架导航落到已知文件类型（zip/dmg/pdf/mp4 等）时在 action 阶段预判下载——配合下载转换失败静默，页面平滑留在原处不再闪错误页（衔接修复的另一半）
+- 插件 API 面扩充：alarms（create/clear/clearAll/get/getAll/onAlarm，宿主 Timer 调度、周期性 alarm 自动重排）、windows.getAll（窗口+标签快照）、downloads.download/search（映射 DownloadStore）、action.setBadgeText/setTitle（占位存储）、tabs.update/get（激活/置顶/URL 加载）——content script 与 background 侧 handler 同步接入
+
 
 ### Fixed
 

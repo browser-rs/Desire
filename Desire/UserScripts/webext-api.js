@@ -173,10 +173,31 @@
     var notifications = {
         create: function(options) { return rpc("notifications", "create", [options || {}]); }
     };
+    var alarms = {
+        create: function(name, info) { return rpc("alarms", "create", [name || "", info || {}]); },
+        clear: function(name) { return rpc("alarms", "clear", [name || ""]); },
+        clearAll: function() { return rpc("alarms", "clearAll", []); },
+        get: function(name) { return rpc("alarms", "get", [name || ""]); },
+        getAll: function() { return rpc("alarms", "getAll", []); },
+        onAlarm: eventAPI("alarms.onAlarm")
+    };
+    var action = {
+        setBadgeText: function(details) { return rpc("action", "setBadgeText", [details || {}]); },
+        setTitle: function(details) { return rpc("action", "setTitle", [details || {}]); }
+    };
+    var windows = {
+        getAll: function() { return rpc("windows", "getAll", []); },
+        create: function(props) { return rpc("windows", "create", [props || {}]); }
+    };
+    var downloads = {
+        download: function(options) { return rpc("downloads", "download", [options || {}]); },
+        search: function(query) { return rpc("downloads", "search", [query || {}]); }
+    };
 
     var browser = {
         storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
-        contextMenus: contextMenus,
+        contextMenus: contextMenus, alarms: alarms, action: action,
+        windows: windows, downloads: downloads,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -187,4 +208,8 @@
     if (!chrome.runtime) chrome.runtime = runtime;
     if (!chrome.notifications) chrome.notifications = notifications;
     if (!chrome.contextMenus) chrome.contextMenus = contextMenus;
+    if (!chrome.alarms) chrome.alarms = alarms;
+    if (!chrome.action) chrome.action = action;
+    if (!chrome.windows) chrome.windows = windows;
+    if (!chrome.downloads) chrome.downloads = downloads;
 })();

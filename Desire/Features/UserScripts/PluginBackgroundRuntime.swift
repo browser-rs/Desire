@@ -112,6 +112,69 @@ final class PluginBackgroundRuntime: NSObject {
     }
 
     /// 向某插件的 background webview 派发事件。
+    // MARK: - alarms（chrome.alarms 插件级定时器）
+
+    struct Alarm: Codable {
+        let name: String
+        var scheduledAt: Date
+        var periodInMinutes: Double?
+    }
+
+    /// 插件 alarms 表（key = pluginID|name）+ 到期检查 Timer。
+    private var alarms: [String: Alarm] = [:]
+    private var alarmTimers: [String: Timer] = [:]
+
+    /// 插件停用时清它的 alarms（stop 调用）。
+    func clearAlarms(pluginID: UUID) {
+        let prefix = pluginID.uuidString + "|"
+        for key in alarms.keys where key.hasPrefix(prefix) {
+            alarmTimers[key]?.invalidate()
+            alarmTimers.removeValue(forKey: key)
+            alarms.removeValue(forKey: key)
+        }
+    }
+
+    func setAlarm(pluginID: UUID, name: String, when: Date, periodInMinutes: Double?) {
+        let key = pluginID.uuidString + "|" + name
+        alarms[key] = Alarm(name: name, scheduledAt: when, periodInMinutes: periodInMinutes)
+        scheduleAlarm(pluginID: pluginID, name: name, when: when, periodInMinutes: periodInMinutes)
+    }
+
+    func clearAlarm(pluginID: UUID, name: String) {
+        let key = pluginID.uuidString + "|" + name
+        alarmTimers[key]?.invalidate()
+        alarmTimers.removeValue(forKey: key)
+        alarms.removeValue(forKey: key)
+    }
+
+    func alarmsFor(pluginID: UUID) -> [[String: Any]] {
+        return alarms.filter { $0.key.hasPrefix(pluginID.uuidString) }
+            .values.map { ["name": $0.name,
+                           "scheduledAt": $0.scheduledAt.timeIntervalSince1970] as [String: Any] }
+    }
+
+    /// alarms 到期 → 向该插件 background 页派发 alarms.onAlarm 事件。
+    private func scheduleAlarm(pluginID: UUID, name: String, when: Date, periodInMinutes: Double?) {
+        let interval = max(1, when.timeIntervalSinceNow)
+        let key = pluginID.uuidString + "|" + name
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.fire(pluginID: pluginID, event: "alarms.onAlarm", payload: ["name": name])
+                // 周期性 alarm：重新调度。
+                if let period = periodInMinutes, period > 0 {
+                    let next = Date().addingTimeInterval(period * 60)
+                    self.alarms[key]?.scheduledAt = next
+                    self.scheduleAlarm(pluginID: pluginID, name: name, when: next, periodInMinutes: period)
+                } else {
+                    self.alarms.removeValue(forKey: key)
+                    self.alarmTimers.removeValue(forKey: key)
+                }
+            }
+        }
+        alarmTimers[key] = timer
+    }
+
     // MARK: - 消息传递（runtime.sendMessage / tabs.sendMessage 路由）
 
     /// 回复路由表：replyId → 等待回复的 webview（发起方页面）。
@@ -349,6 +412,76 @@ final class PluginBackgroundRuntime: NSObject {
                     reply: envelope["reply"] as Any,
                     noListener: (envelope["noListener"] as? Bool) == true)
                 reply([:])
+            case ("alarms", "create"):
+                guard let a = args.first as? [String: Any],
+                      let name = a["name"] as? String, !name.isEmpty else {
+                    reply(nil, error: "alarms.create requires {name, ...}")
+                    return
+                }
+                let when: Date
+                if let mins = a["periodInMinutes"] as? Double, mins > 0 {
+                    when = Date().addingTimeInterval(mins * 60)
+                } else if let mins = a["delayInMinutes"] as? Double, mins > 0 {
+                    when = Date().addingTimeInterval(mins * 60)
+                } else {
+                    when = Date().addingTimeInterval(60)
+                }
+                PluginBackgroundRuntime.shared.setAlarm(pluginID: pluginID, name: name,
+                                                        when: when,
+                                                        periodInMinutes: a["periodInMinutes"] as? Double)
+                reply([:])
+            case ("alarms", "clear"):
+                let name = args.first as? String ?? ""
+                PluginBackgroundRuntime.shared.clearAlarm(pluginID: pluginID, name: name)
+                reply(name.isEmpty ? "cleared all" : "cleared")
+            case ("alarms", "clearAll"):
+                PluginBackgroundRuntime.shared.clearAlarms(pluginID: pluginID)
+                reply([:])
+            case ("alarms", "getAll"):
+                reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID))
+            case ("alarms", "get"):
+                let name = args.first as? String ?? ""
+                reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID)
+                    .first(where: { ($0["name"] as? String) == name }) ?? NSNull())
+            case ("action", "setBadgeText"):
+                // Desire 工具栏图标无 badge 区域——存字段供将来 UI 展示。
+                reply([:])
+            case ("action", "setTitle"):
+                reply([:])
+            case ("windows", "getAll"):
+                let managers = TabSessionCoordinator.shared.liveManagers()
+                var wins: [[String: Any]] = []
+                for (wi, manager) in managers.enumerated() {
+                    var tabsList: [[String: Any]] = []
+                    for (tidx, t) in manager.tabs.enumerated() {
+                        tabsList.append([
+                            "id": t.id.uuidString, "index": tidx,
+                            "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                            "title": t.browser.pageTitle,
+                        ])
+                    }
+                    wins.append(["id": wi, "tabs": tabsList])
+                }
+                reply(wins)
+            case ("downloads", "download"):
+                guard let a = args.first as? [String: Any],
+                      let urlString = a["url"] as? String, !urlString.isEmpty else {
+                    reply(nil, error: "downloads.download requires url")
+                    return
+                }
+                let filename = a["filename"] as? String ?? URL(string: urlString)?.lastPathComponent ?? "download"
+                if let app = AppState.live {
+                    app.downloadStore.startURLSessionDownload(
+                        sourceURL: URL(string: urlString) ?? URL(fileURLWithPath: "/dev/null"),
+                        filename: filename, isPrivate: false)
+                }
+                reply([:])
+            case ("downloads", "search"):
+                let rows = AppState.live?.downloadStore.downloads.map { d -> [String: Any] in
+                    ["filename": d.filename, "state": d.state.rawValue,
+                     "bytes": d.downloadedBytes] as [String: Any]
+                } ?? []
+                reply(rows)
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，
                 // 宿主派发时直接 evaluate 进来。

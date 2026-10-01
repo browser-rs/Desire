@@ -121,6 +121,17 @@ struct SelectedTabContent: View {
                     HSplitView {
                         mainPane
                             .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+                            // **文件拖入直接打开**（对齐 Safari/Chrome）：pdf/mp4/
+                            // html 等拖进页面即在本标签打开。只接管 file URL 的
+                            // SwiftUI drop session——网页内部的拖放（拖图上传、
+                            // 拖拽排序）走 webview 自己的 session，互不干扰。
+                            .dropDestination(for: URL.self) { urls, _ in
+                                guard let fileURL = urls.first,
+                                      fileURL.isFileURL,
+                                      Self.isOpenableFile(fileURL) else { return false }
+                                openDroppedFile(fileURL)
+                                return true
+                            }
 
                         if let partner = content.tabManager.splitPartner, partner.id != tab.id {
                             SplitPartnerPane(partner: partner, content: content)
@@ -186,6 +197,36 @@ struct SelectedTabContent: View {
                 LinkPreviewBar(browser: tab.browser)
             }
         }
+    }
+
+    // MARK: - 文件拖入打开
+
+    /// 可直接在标签页内打开的文件类型（pdf→内建查看器；音视频/图片/HTML→
+    /// WKWebView 原生渲染）。其它扩展名不接管（zip 等交系统/网页语义）。
+    static func isOpenableFile(_ url: URL) -> Bool {
+        switch url.pathExtension.lowercased() {
+        case "pdf", "html", "htm", "xhtml",
+             "mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac",
+             "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func openDroppedFile(_ url: URL) {
+        // PDF 走内建查看器（文件已在本地，无需下载步骤）。
+        if url.pathExtension.lowercased() == "pdf" {
+            tab.browser.pdfViewerFileName = url.lastPathComponent
+            tab.browser.pdfViewerReturnURL = nil   // 关闭 = 回空白页（拖入无原页）
+            tab.browser.pdfViewerURL = url
+            return
+        }
+        // 其余（html/音视频/图片/txt）= file:// 导航，WKWebView 原生渲染。
+        tab.isOnNewTabPage = false
+        tab.isSuspended = false
+        tab.urlString = url.absoluteString
+        tab.browser.webView.load(URLRequest(url: url))
     }
 
     // MARK: - 主内容区（HSplitView 首个子视图）

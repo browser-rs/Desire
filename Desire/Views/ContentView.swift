@@ -82,7 +82,8 @@ struct ContentView: View {
             elementBlockStore: appState.elementBlockStore,
             devToolsStore: appState.devToolsStore,
             contentBlocker: appState.contentBlocker,
-            videoAdBlocker: appState.videoAdBlocker
+            videoAdBlocker: appState.videoAdBlocker,
+            downloadStore: appState.downloadStore
         ))
     }
 
@@ -614,43 +615,17 @@ struct ContentView: View {
     /// ⌘S / File ▸ Save Page: captures the current page as a webarchive into
     /// the download folder, recorded as a completed download row.
     func savePage() {
-        guard let tab = tabManager.selectedTab,
-              let url = tab.browser.webView.url,
-              !tab.isOnNewTabPage else { return }
-        tab.browser.webView.createWebArchiveData { result in
-            switch result {
-            case .success(let data):
-                let rawTitle = tab.browser.webView.title ?? tab.browser.pageTitle
-                let sanitized = rawTitle
-                    .components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>"))
-                    .joined(separator: "-")
-                    .trimmingCharacters(in: .whitespaces)
-                let destination = self.downloadStore.uniqueURL(
-                    for: (sanitized.isEmpty ? "page" : sanitized) + ".webarchive"
+        b.savePage(for: tabManager.selectedTab) { outcome in
+            switch outcome {
+            case .saved:
+                self.actionToast = StatusBarToast(
+                    icon: "arrow.down.doc.fill",
+                    text: String(localized: "Page Saved")
                 )
-                do {
-                    try data.write(to: destination)
-                    let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int64)
-                        ?? Int64(data.count)
-                    self.downloadStore.add(item: DownloadItem(
-                        id: UUID(), filename: destination.lastPathComponent, fileURL: destination,
-                        totalBytes: size, downloadedBytes: size, state: .completed,
-                        error: nil, cancel: nil, sourceURL: url
-                    ))
-                    self.actionToast = StatusBarToast(
-                        icon: "arrow.down.doc.fill",
-                        text: String(localized: "Page Saved")
-                    )
-                } catch {
-                    self.actionToast = StatusBarToast(
-                        icon: "exclamationmark.triangle.fill",
-                        text: error.localizedDescription
-                    )
-                }
-            case .failure(let error):
+            case .failed(let message):
                 self.actionToast = StatusBarToast(
                     icon: "exclamationmark.triangle.fill",
-                    text: error.localizedDescription
+                    text: message
                 )
             }
         }

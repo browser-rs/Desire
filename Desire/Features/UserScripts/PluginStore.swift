@@ -87,14 +87,10 @@ class PluginStore: ObservableObject {
         let (js, css) = injectionCode(for: url)
 
         for (_, code) in css {
-            let escaped = code
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-                .replacingOccurrences(of: "\n", with: "\\n")
             webView.evaluateJavaScript("""
             (function() {
                 var s = document.createElement('style');
-                s.textContent = '\(escaped)';
+                s.textContent = \(JSString.literal(code));
                 document.head.appendChild(s);
             })();
             """, completionHandler: nil)

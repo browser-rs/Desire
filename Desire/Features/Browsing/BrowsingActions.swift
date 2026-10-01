@@ -27,6 +27,7 @@ class BrowsingActions: ObservableObject {
     /// blockers into every new tab's webview configuration).
     let contentBlocker: ContentBlockerStore
     let videoAdBlocker: VideoAdBlocker
+    let downloadStore: DownloadStore
 
     // MARK: - Published results (observed by ContentView)
 
@@ -52,7 +53,8 @@ class BrowsingActions: ObservableObject {
         elementBlockStore: ElementBlockStore,
         devToolsStore: DevToolsStore,
         contentBlocker: ContentBlockerStore,
-        videoAdBlocker: VideoAdBlocker
+        videoAdBlocker: VideoAdBlocker,
+        downloadStore: DownloadStore
     ) {
         self.tabManager = tabManager
         self.settings = settings
@@ -64,6 +66,7 @@ class BrowsingActions: ObservableObject {
         self.devToolsStore = devToolsStore
         self.contentBlocker = contentBlocker
         self.videoAdBlocker = videoAdBlocker
+        self.downloadStore = downloadStore
     }
 
     // MARK: - Launch tabs
@@ -293,6 +296,48 @@ extension BrowsingActions {
 // MARK: - Find in page
 
 extension BrowsingActions {
+    /// ⌘S 存页（从 ContentView 组合根搬入——写盘/落库归动作层，View 只剩
+    /// 把结果映射成 toast；ARCH-3）。
+    enum PageSaveOutcome {
+        case saved
+        case failed(String)
+    }
+
+    func savePage(for tab: Tab?, completion: @escaping (PageSaveOutcome) -> Void) {
+        guard let tab,
+              let url = tab.browser.webView.url,
+              !tab.isOnNewTabPage else { return }
+        tab.browser.webView.createWebArchiveData { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let data):
+                let rawTitle = tab.browser.webView.title ?? tab.browser.pageTitle
+                let sanitized = rawTitle
+                    .components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>"))
+                    .joined(separator: "-")
+                    .trimmingCharacters(in: .whitespaces)
+                let destination = self.downloadStore.uniqueURL(
+                    for: (sanitized.isEmpty ? "page" : sanitized) + ".webarchive"
+                )
+                do {
+                    try data.write(to: destination)
+                    let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int64)
+                        ?? Int64(data.count)
+                    self.downloadStore.add(item: DownloadItem(
+                        id: UUID(), filename: destination.lastPathComponent, fileURL: destination,
+                        totalBytes: size, downloadedBytes: size, state: .completed,
+                        error: nil, cancel: nil, sourceURL: url
+                    ))
+                    completion(.saved)
+                } catch {
+                    completion(.failed(error.localizedDescription))
+                }
+            case .failure(let error):
+                completion(.failed(error.localizedDescription))
+            }
+        }
+    }
+
     func findAll(query: String, in tab: Tab) {
         let config = WKFindConfiguration()
         config.wraps = false
@@ -356,12 +401,11 @@ extension BrowsingActions {
         if alert.runModal() == .alertFirstButtonReturn {
             let rule = BlockedElementRule(urlPattern: host, cssSelector: cssSelector, xpath: xpath)
             elementBlockStore.add(cssSelector: cssSelector, xpath: xpath, urlPattern: host)
-            let escapedCss = cssSelector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
             tab.browser.webView.evaluateJavaScript("""
             (function() {
                 var s = document.createElement('style');
                 s.id = 'desire-blocked-\(rule.id.uuidString)';
-                s.textContent = '\(escapedCss) { display: none !important; }';
+                s.textContent = \(JSString.literal("\(cssSelector) { display: none !important; }"));
                 document.head.appendChild(s);
             })();
             """, completionHandler: nil)

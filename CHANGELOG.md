@@ -5,6 +5,10 @@
 - page_context 段加提示注入围栏：页面内容声明为不可信数据 + 边界标记，页面内的指令式文本不再当系统指令执行
 - Keychain 访问收口共享 KeychainService（四处历史实现两两不同、Remote 的 service 名硬编码）：非交互 LAContext 语义统一，隐窗授权/ACL 类修复此后只改一处；行为不变（service 过滤、非交互启动读、失败状态码可记日志）
 - 观察链补全（架构审计 ARCH-4）：ContentView 直接观察 settings（改主题/强调色不再靠"恰好有别的重绘"）、ResponsiveDesignBar 观察 store（预设清单变更可重绘）、地址建议的最近搜索段抽成自持 store 的子视图（新增历史即重绘）
+- JS 字符串转义统一 JSString.literal（此前五处手写转义链各处理一部分，\r/\n/U+2028 进字面量即语法错）：收口 10 处注入点（查找计数/元素屏蔽/插件 CSS/密码回填/DevTools RPC 错误回包/xpath 等），并补上审计漏掉的 passwordDetect 用户名字段名裸插值；带 13 项单测
+- ⌘S 存页从组合根搬进 BrowsingActions（写盘/落库归动作层，View 只剩结果映射 toast）；设置页"测试连接"两份手写 URLRequest 收口 AIConnectivity（鉴权头/超时/opencode 会话头/服务器错误回显统一）；阅读器设置抽独立文件
+- 挂起标签二级挂起（安全子集）：快照 LRU 上限 12 份，超出的最旧挂起标签释放交互状态快照（恢复退回干净 URL 重载）——重会话下快照不再吃掉挂起省出的内存；webview 骨架的完全释放需"恢复时重建 webview"，另行立项
+
 
 
 

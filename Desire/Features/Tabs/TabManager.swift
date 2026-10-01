@@ -291,6 +291,8 @@ class TabManager: ObservableObject {
             }
         }
 
+        deepSuspendIfNeeded()
+
         // Memory watermark: suspend LRU background tabs when the system
         // reports memory pressure. Exemptions: selected, pinned, incognito,
         // playing audio, split partner.
@@ -308,6 +310,24 @@ class TabManager: ObservableObject {
             }
         }
     }
+
+    /// 二级挂起（PERF-9 安全子集）：快照 Data 并不小（interactionState 含
+    /// back/forward 历史、滚动、表单——重页可到 MB 级），挂起省下的页面内存
+    /// 会被快照吃回去。LRU 保留 `deepSnapshotCap` 份，超出的最旧挂起标签
+    /// 释放快照——恢复时退回干净 URL 重载（restoreSuspendedState 既有回退）。
+    /// webview 骨架与 handler 的真正释放需要"恢复时重建 webview"的手术
+    /// （BrowserState.webView 是 let），另行立项勿在本路径盲改。
+    private func deepSuspendIfNeeded() {
+        let withSnapshot = tabs
+            .filter { $0.isSuspended && $0.suspendedInteractionState != nil }
+            .sorted { $0.lastAccessed > $1.lastAccessed }
+        for tab in withSnapshot.dropFirst(Self.deepSnapshotCap) {
+            tab.suspendedInteractionState = nil
+            Log.tabs.info("deep suspend: released snapshot for LRU tab beyond cap")
+        }
+    }
+
+    static let deepSnapshotCap = 12
 
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isIncognito {

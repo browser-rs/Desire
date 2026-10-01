@@ -1024,36 +1024,17 @@ struct AgentSettingsSection: View {
 
     // MARK: - Test connection
 
+    /// 探针统一在 AIConnectivity（服务层）——这两份手写 URLRequest 曾各自
+    /// 漂移（ARCH-3）。ollama 的成功文案保留 "Connected"（StatusPill 判据）。
     private func testOllama() {
         isTestingOllama = true
         ollamaTestStatus = nil
         Task {
             defer { isTestingOllama = false }
-            let base = store.ollamaHost
-            let urlStr = base.hasSuffix("/chat/completions") ? base : base + "/chat/completions"
-            guard let url = URL(string: urlStr) else {
-                ollamaTestStatus = "Invalid host"
-                return
-            }
-            var req = URLRequest(url: url)
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.timeoutInterval = 10
-            req.httpBody = try? JSONSerialization.data(withJSONObject: [
-                "model": store.ollamaModel,
-                "messages": [["role": "user", "content": "Respond with 'ok'"]],
-                "max_tokens": 10,
-            ])
-            do {
-                let (_, response) = try await URLSession.shared.data(for: req)
-                if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    ollamaTestStatus = "Connected"
-                } else if let http = response as? HTTPURLResponse {
-                    ollamaTestStatus = "HTTP \(http.statusCode)"
-                }
-            } catch {
-                ollamaTestStatus = "Failed: \(error.localizedDescription)"
-            }
+            let result = await AIConnectivity.probe(
+                endpoint: store.ollamaHost, model: store.ollamaModel,
+                apiKey: nil, timeout: 10, includeStreamFalse: false)
+            ollamaTestStatus = result == "Connected ✓" ? "Connected" : result
         }
     }
 
@@ -1067,44 +1048,11 @@ struct AgentSettingsSection: View {
             let key = editing ? draftKey : (store.loadAPIKey() ?? "")
             let endpoint = editing ? draftEndpoint : store.endpoint
             let model = editing ? draftModel : store.model
-
             let urlStr = endpoint.hasSuffix("/chat/completions") ? endpoint : endpoint + "/chat/completions"
-            guard let url = URL(string: urlStr) else {
-                cloudTestStatus = "Invalid endpoint"
-                return
-            }
-
-            var req = URLRequest(url: url)
-            req.httpMethod = "POST"
-            req.timeoutInterval = 15
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            if urlStr.contains("opencode") {
-                let sid = UserDefaults.standard.string(forKey: "aiOpencodeSessionID")
-                    ?? UUID().uuidString
-                UserDefaults.standard.set(sid, forKey: "aiOpencodeSessionID")
-                req.setValue(sid, forHTTPHeaderField: "x-opencode-session")
-            }
-            req.httpBody = try? JSONSerialization.data(withJSONObject: [
-                "model": model,
-                "messages": [["role": "user", "content": "Respond with 'ok'"]],
-                "max_tokens": 10,
-                "stream": false,
-            ])
-
-            do {
-                let (data, response) = try await URLSession.shared.data(for: req)
-                let body = String(data: data, encoding: .utf8) ?? ""
-                if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                    cloudTestStatus = "Connected ✓"
-                } else if let http = response as? HTTPURLResponse {
-                    // Show the server's error message so the user knows WHY.
-                    let serverMsg = body.prefix(200)
-                    cloudTestStatus = "HTTP \(http.statusCode): \(serverMsg)"
-                }
-            } catch {
-                cloudTestStatus = "Failed: \(error.localizedDescription)"
-            }
+            cloudTestStatus = await AIConnectivity.probe(
+                endpoint: endpoint, model: model, apiKey: key,
+                timeout: 15,
+                opencodeSessionHeader: urlStr.contains("opencode"))
         }
     }
 }

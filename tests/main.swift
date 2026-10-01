@@ -806,6 +806,26 @@ do {
           pagePlan2.skipped.first?.reason.contains("master playlist") == true)
 }
 
+// MARK: - JSString.literal（五处手写转义收口）
+
+func testJSString() {
+    eq("普通字符串带引号", JSString.literal("hello"), "\"hello\"")
+    eq("反斜杠", JSString.literal("a\\b"), "\"a\\\\b\"")
+    eq("双引号", JSString.literal("say \"hi\""), "\"say \\\"hi\\\"\"")
+    eq("单引号原样（JS 双引号字面量内合法）", JSString.literal("it's"), "\"it's\"")
+    eq("换行", JSString.literal("a\nb"), "\"a\\nb\"")
+    eq("回车（CRLF 规则文件的凶手）", JSString.literal("a\rb"), "\"a\\rb\"")
+    eq("制表", JSString.literal("a\tb"), "\"a\\tb\"")
+    eq("U+2028 行分隔符", JSString.literal("a\u{2028}b"), "\"a\\u2028b\"")
+    eq("U+2029 段分隔符", JSString.literal("a\u{2029}b"), "\"a\\u2029b\"")
+    eq("控制字符", JSString.literal("a\u{01}b"), "\"a\\u0001b\"")
+    eq("多字节安全", JSString.literal("中文🎉"), "\"中文🎉\"")
+    eq("空串", JSString.literal(""), "\"\"")
+    check("CRLF 组合不再破坏字面量",
+          JSString.literal("rule\r\nnext") == "\"rule\\r\\nnext\"")
+}
+testJSString()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -815,3 +835,4 @@ if !failures.isEmpty {
     exit(1)
 }
 print("全部通过 ✓")
+

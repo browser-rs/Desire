@@ -346,11 +346,9 @@ struct WebView: NSViewRepresentable {
     /// a boolean — the text lives on `walk.currentNode.nodeValue` (using
     /// `walk.nodeValue` throws, which used to zero the match count).
     static func findCountJS(query: String) -> String {
-        let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
         return """
         (function() {
-            var t = '\(escaped)';
+            var t = \(JSString.literal(query));
             if (!t) return 0;
             var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
             var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
@@ -376,13 +374,11 @@ struct WebView: NSViewRepresentable {
     /// JS that removes an element-block `<style>` rule by its ID, then
     /// restores the hidden elements. Used by the undo-toast overlay.
     static func undoBlockJS(ruleId: UUID, selector: String) -> String {
-        let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
         return """
         (function() {
             var s = document.getElementById('desire-blocked-\(ruleId.uuidString)');
             if (s) s.remove();
-            document.querySelectorAll('\(escaped)').forEach(function(el) { el.style.display = ''; });
+            document.querySelectorAll(\(JSString.literal(selector))).forEach(function(el) { el.style.display = ''; });
         })();
         """
     }
@@ -533,10 +529,9 @@ struct WebView: NSViewRepresentable {
                 guard let id else { return }
                 let json: String
                 if let error {
-                    let escaped = error
-                        .replacingOccurrences(of: "\\", with: "\\\\")
-                        .replacingOccurrences(of: "\"", with: "\\\"")
-                    json = "\"\(escaped)\""
+                    // JSString.literal 的转义集（\\ \" \n \r \uXXXX…）是 JSON
+                    // 字符串转义的兼容超集——手工两段式曾漏 \r/\u2028。
+                    json = JSString.literal(error)
                 } else if let payload,
                           let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
                           let str = String(data: data, encoding: .utf8) {
@@ -647,18 +642,20 @@ struct WebView: NSViewRepresentable {
                        let host = parent.state.webView.url?.host {
                 let entries = parent.passwordStore.find(domain: host)
                 guard !entries.isEmpty else { return }
-                // Escape \ before ' — a raw backslash inside a secret would be
-                // re-interpreted by the JS string literal.
-                let username = entries[0].username.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-                let password = entries[0].password.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                // 秘密进 JS 字符串字面量统一走 JSString.literal（旧两段式
+                // 转义漏 \n/\r/\u2028——密码含这些字符时整段注入即语法错）。
+                let username = JSString.literal(entries[0].username)
+                let password = JSString.literal(entries[0].password)
+                let nameLiteral = JSString.literal(usernameName)
                 let js = """
                 (function() {
                     var f = document.querySelector('input[type=password]').closest('form');
                     if (!f) return;
-                    var u = f.querySelector('input[name="\(usernameName)"], input[id="\(usernameName)"], input[type=text], input[type=email]');
-                    if (u) u.value = '\(username)';
+                    var nameLit = \(nameLiteral);
+                    var u = f.querySelector('input[name="' + nameLit + '"], input[id="' + nameLit + '"], input[type=text], input[type=email]');
+                    if (u) u.value = \(username);
                     var p = f.querySelector('input[type=password]');
-                    if (p) p.value = '\(password)';
+                    if (p) p.value = \(password);
                 })();
                 """
                 parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
@@ -734,10 +731,9 @@ struct WebView: NSViewRepresentable {
                     parent.state.elementPickIntent = .block
                 case .ai:
                     if let aiHandler = parent.state.onAIElementPicked {
-                        let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
                         parent.state.webView.evaluateJavaScript("""
                         (function() {
-                            var el = document.querySelector('\(escaped)');
+                            var el = document.querySelector(\(JSString.literal(selector)));
                             return el ? el.outerHTML.substring(0, 2000) : '';
                         })()
                         """) { result, _ in
@@ -948,7 +944,7 @@ struct WebView: NSViewRepresentable {
                     (function() {
                         var s = document.createElement('style');
                         s.id = 'desire-blocked-selectors';
-                        s.textContent = '\(css.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'"))';
+                        s.textContent = \(JSString.literal(css));
                         document.head.appendChild(s);
                     })();
                     """, completionHandler: nil)
@@ -957,12 +953,9 @@ struct WebView: NSViewRepresentable {
                 // 一次 evaluateJavaScript（规则多时成倍占用 WebKit 串行队列）。
                 if !xpathRules.isEmpty {
                     let steps = xpathRules.map { xpath -> String in
-                        let escaped = xpath
-                            .replacingOccurrences(of: "\\", with: "\\\\")
-                            .replacingOccurrences(of: "'", with: "\\'")
                         return """
                         try {
-                            var el = document.evaluate('\(escaped)', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                            var el = document.evaluate(\(JSString.literal(xpath)), document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                             if (el) el.style.display = 'none';
                         } catch(e) {}
                         """

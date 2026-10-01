@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 本地文件链接的打开方式重构：action 阶段按扩展名分类当场处理——归档/安装类（zip/dmg/exe 等）直接进下载面板（不再依赖"导航→转下载→失败静默"的补丁链），PDF 走内建查看器，音视频/图片交给 WebKit 渲染；无扩展名的文件仍由响应 mime 兜底转下载
+
 ### Added
 
 - 下载面板如实反映本地文件状态：完成行对应的文件被用户从磁盘删除后，显示"File deleted"徽章并将 Open/Show in Finder 替换为"Download Again"（按来源 URL 重新发起）；Show in Finder 在文件已删时退化为打开所在文件夹

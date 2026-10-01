@@ -537,16 +537,25 @@ struct WebView: NSViewRepresentable {
         /// `stopObserving()`. Single source of truth: `addScriptMessageHandler`
         /// throws NSException on a duplicate name (crashing at layout time),
         /// so the two lists must never drift apart.
-        /// 已知"点开即下载/查看"的文件扩展名（小写）。action 阶段预判用。
-        private static let fileLinkExtensions: Set<String> = [
-            "zip", "rar", "7z", "tar", "gz", "dmg", "pkg", "exe", "msi", "iso",
-            "pdf", "mp4", "m4v", "mov", "webm", "mkv", "mp3", "m4a", "wav", "flac", "aac", "ogg",
-            "epub", "apk",
+        enum FileLinkKind {
+            case download      // 归档/安装类：进下载面板
+            case pdfViewer     // PDF：内建查看器
+        }
+
+        /// 归档/安装类扩展名（点开语义 = 下载保存；不猜渲染类格式——
+        /// 音视频/图片让 WebKit 播，PDF 单独分流查看器，其余格式靠
+        /// navigationResponse 的 mime 兜底转下载）。
+        private static let archiveExtensions: Set<String> = [
+            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz",
+            "dmg", "pkg", "exe", "msi", "iso", "apk", "deb", "rpm",
         ]
 
-        /// 链接 URL 的路径扩展名是否为已知文件类型。
-        static func looksLikeFileLink(_ url: URL) -> Bool {
-            fileLinkExtensions.contains(url.pathExtension.lowercased())
+        /// 链接 URL 的文件类型分类（无扩展名/不认识的格式返回 nil）。
+        static func classifyFileLink(_ url: URL) -> FileLinkKind? {
+            let ext = url.pathExtension.lowercased()
+            if ext == "pdf" { return .pdfViewer }
+            if archiveExtensions.contains(ext) { return .download }
+            return nil
         }
 
         private static let scriptMessageHandlers = [
@@ -1235,15 +1244,29 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
-            // **文件链接预判下载**（衔接关键）：链接本身就是文件（zip/dmg/exe/
-            // pdf/mp4…）时，在 action 阶段直接置 suppress 并交由 navigationResponse
-            // 的 .download 路径处理——随后的 frame-load-interrupted 失败（下载转换
-            // 的正常收尾）被静默，页面平滑留在原地，不再闪错误页。
+            // **文件链接当场处理**（衔接正解）：链接本身就是文件时按类型分流，
+            // 取消导航、页面平滑留在原地——完全不进入"导航→转下载→失败"的
+            // 中间态（此前靠 suppress 静默失败是补丁；白名单猜不全也是错，
+            // 无扩展名的文件仍由 navigationResponse 的 mime 兜底转下载）。
+            //   · 归档/安装类 → 直接进下载面板（进度/暂停/恢复齐全）；
+            //   · PDF → 内建查看器（presentPDFViewer 下载到临时文件）；
+            //   · 音视频/图片 → 让 WebKit 播/渲染（allow，不改）。
             if navigationAction.targetFrame?.isMainFrame == true,
                navigationAction.navigationType == .linkActivated
                    || navigationAction.navigationType == .other,
-               Self.looksLikeFileLink(url) {
-                suppressNextFailError = true
+               let kind = Self.classifyFileLink(url) {
+                switch kind {
+                case .download:
+                    parent.downloadStore.startURLSessionDownload(
+                        sourceURL: url,
+                        filename: url.lastPathComponent,
+                        isPrivate: parent.state.isIncognito)
+                case .pdfViewer:
+                    parent.state.presentPDFViewer(
+                        for: url, suggestedName: url.lastPathComponent)
+                }
+                decisionHandler(.cancel)
+                return
             }
 
             // **iframe breakout 拦截**（视频站防跳转）：子框架里的脚本试图把

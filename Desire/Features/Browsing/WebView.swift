@@ -1217,6 +1217,24 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            // **iframe breakout 拦截**（视频站防跳转）：子框架里的脚本试图把
+            // **主框架**导航到第三方域（window.top.location = …）——正片播放器
+            // 被广告/验证中间页顶掉，用户看到的是"换 server 后触发验证、播放失败"。
+            // 判据：发起 frame 非主框架 + 目标是主框架 + 目标域与当前页域无父子关系。
+            // 放行：用户直接点击链接（linkActivated 会开新页走别的路径）。
+            if navigationAction.sourceFrame.isMainFrame == false,
+               navigationAction.targetFrame?.isMainFrame == true,
+               navigationAction.navigationType != .linkActivated,
+               let currentHost = webView.url?.host,
+               let targetHost = url.host,
+               currentHost != targetHost,
+               !currentHost.hasSuffix("." + targetHost),
+               !targetHost.hasSuffix("." + currentHost) {
+                Log.app.info("iframe breakout blocked: \(targetHost, privacy: .public)")
+                decisionHandler(.cancel)
+                return
+            }
+
             // HTTPS 升级
             // Only upgrade when the user navigated to the URL by clicking a
             // link / typing into the address bar (`.linkActivated`,

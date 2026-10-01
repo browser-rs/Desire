@@ -63,7 +63,7 @@ class PluginStore: ObservableObject {
         guard plugin.isEnabled, !plugin.jsCode.isEmpty else { return false }
         webView.evaluateJavaScript(
             "window.__desireExtID = '\(plugin.id.uuidString)';\n" + plugin.jsCode,
-            in: nil, in: WebView.extensionWorld, completionHandler: nil)
+            in: nil, in: WebView.pluginWorld(plugin.id), completionHandler: nil)
         return true
     }
 
@@ -104,14 +104,14 @@ class PluginStore: ObservableObject {
                 // ⚠️ 这里是**函数体**位置，不是字符串字面量——做过一段时间的
                 // `\'` 转义会把任何含单引号的插件代码变成 SyntaxError（函数体里
                 // `\'` 是非法 token，实测 BUG-2）。与 document_end 分支一样裸注入。
-                // 插件跑在隔离 desireExtensions world（0.2.13）：可访问
-                // browser.* 与页面 DOM，但页面 JS 看不到插件的全局。
+                // 插件跑在**每插件独立 world**：可访问 browser.* 与页面 DOM，
+                // 但页面 JS 看不到插件的全局；插件之间也互相隔离。
                 webView.evaluateJavaScript(
                     prologue + "setTimeout(function() { \(code) }, \(delay))",
-                    in: nil, in: WebView.extensionWorld, completionHandler: nil)
+                    in: nil, in: WebView.pluginWorld(plugin.id), completionHandler: nil)
             } else {
                 webView.evaluateJavaScript(
-                    prologue + code, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+                    prologue + code, in: nil, in: WebView.pluginWorld(plugin.id), completionHandler: nil)
             }
         }
     }

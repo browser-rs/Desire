@@ -1096,7 +1096,7 @@ final class AutomationServer {
                 return try await Self.json(Self.execute(
                     Self.string(body, "js") ?? "",
                     index: Self.index(body),
-                    world: Self.string(body, "world")))
+                    world: Self.string(body, "world") ?? "main"))
             case ("POST", "/panel"):
                 return try Self.json(Self.panel(
                     name: Self.string(body, "name") ?? "",
@@ -2318,17 +2318,32 @@ final class AutomationServer {
     /// Runs JS in the page and returns the result. Synthetic-event driven
     /// tests (middle click, keyboard) go through here.
     private static func execute(_ js: String, index: Int?,
-                                world: String? = nil) async throws -> [String: Any] {
+                                world: String = "main") async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         // world=extension → 在插件隔离世界执行（调试插件 content script 必需——
         // 主世界探针看不到 extensionWorld 的 __desireExt 状态）。
         let result: Any? = await withCheckedContinuation { continuation in
-            if world == "extension" {
+            if world.hasPrefix("plugin:") {
+                // 指定插件 world（plugin:<uuid>）——调试插件 content script。
+                let uuidPart = world.dropFirst("plugin:".count)
+                guard let uuid = UUID(uuidString: String(uuidPart)) else {
+                    continuation.resume(returning: ["error": "bad plugin world id"])
+                    return
+                }
+                tab.browser.webView.evaluateJavaScript(
+                    js, in: nil, in: WebView.pluginWorld(uuid),
+                    completionHandler: { result in
+                        switch result {
+                        case .success(let value): continuation.resume(returning: value ?? NSNull())
+                        case .failure: continuation.resume(returning: NSNull())
+                        }
+                    })
+            } else if world == "extension" {
                 tab.browser.webView.evaluateJavaScript(
                     js, in: nil, in: WebView.extensionWorld,
                     completionHandler: { result in
                         switch result {
-                        case .success(let value): continuation.resume(returning: value)
+                        case .success(let value): continuation.resume(returning: value ?? NSNull())
                         case .failure: continuation.resume(returning: NSNull())
                         }
                     })

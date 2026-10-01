@@ -77,7 +77,6 @@ final class PluginBackgroundRuntime: NSObject {
         let web = WKWebView(frame: .zero, configuration: config)
         web.loadHTMLString("<html><body></body></html>", baseURL: base)
         hosts[plugin.id] = Host(plugin: plugin, webView: web, coordinator: coordinator)
-
         // onInstalled 的派发移到 Coordinator 收到 addListener("runtime.onInstalled")
         // 的那一刻（确定性）；插件不注册监听器就无需派发——无消费者的
         // evaluate 只是丢进空页。
@@ -158,8 +157,10 @@ final class PluginBackgroundRuntime: NSObject {
 
     /// 回复回投：把 onMessage 的回复送回发起方（按 replyId 查路由表）。
     func deliverReply(replyId: String, ok: Bool, reply: Any?, noListener: Bool) {
-        guard let target = pendingReplies.removeValue(forKey: replyId) else { return }
-        let js = "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), \(ok), \(quotedJSON(reply)), \(noListener))"
+        Log.userScripts.info("deliverReply: \(replyId, privacy: .public) ok=\(ok, privacy: .public)")
+        guard let target = self.pendingReplies.removeValue(forKey: replyId) else { return }
+        let replyJSON = quotedJSON(reply ?? NSNull())
+        let js = "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), \(ok), \(replyJSON), \(noListener))"
         target.evaluateJavaScript(js, completionHandler: nil)
     }
 
@@ -317,6 +318,7 @@ final class PluginBackgroundRuntime: NSObject {
                 PluginContextMenuStore.shared.removeAll(pluginID: pluginID)
                 reply([:])
             case ("runtime", "sendMessageToTab"):
+                Log.userScripts.info("bg handler: sendMessageToTab \(args.count, privacy: .public) args")
                 // background/popup → 页面：tabId 寻址投递，回复经 sendReply 回本页。
                 guard args.count >= 2,
                       let tabIDString = args[0] as? String,
@@ -344,7 +346,7 @@ final class PluginBackgroundRuntime: NSObject {
                 PluginBackgroundRuntime.shared.deliverReply(
                     replyId: args[0] as? String ?? "",
                     ok: (envelope["ok"] as? Bool) == true,
-                    reply: envelope["reply"],
+                    reply: envelope["reply"] as Any,
                     noListener: (envelope["noListener"] as? Bool) == true)
                 reply([:])
             case ("events", "addListener"):

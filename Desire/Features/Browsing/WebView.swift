@@ -240,6 +240,18 @@ class BrowserState: ObservableObject {
         if let extScript = UserScriptLoader.extensionAPIScript() {
             config.userContentController.addUserScript(extScript)
         }
+        // 每插件独立 world 也各注入一份（消息传递/background 通信在此 world
+        // 跑——插件间身份与全局互不覆盖）。启动后新装的插件由 observe() 的
+        // per-plugin handler 注册补齐；user script 是 webview 定格的，新插件
+        // 的 world script 会在下一次导航的 webview 上生效（与 content script
+        // 注入的时序一致）。
+        if let pluginStore = AppState.live?.pluginStore {
+            for plugin in pluginStore.plugins where plugin.isEnabled {
+                if let script = UserScriptLoader.extensionAPIScript() {
+                    config.userContentController.addUserScript(script)
+                }
+            }
+        }
 
         webView = Self.makeWebView(configuration: config)
         // Cookie-policy changes must reach this OPEN page too.
@@ -430,6 +442,12 @@ struct WebView: NSViewRepresentable {
     /// 看不到（也不能伪造）`browser.*`；DOM 共享，JS 全局隔离。
     static let extensionWorld = WKContentWorld.world(name: "desireExtensions")
 
+    /// 每插件独立 world（扩展间隔离：`__desireExtID` 等身份变量不再互相覆盖）。
+    /// handler 需注册到每个插件的 world（observe() 循环注册）。
+    static func pluginWorld(_ id: UUID) -> WKContentWorld {
+        WKContentWorld.world(name: "desirePlugin-" + id.uuidString)
+    }
+
     // Computed (not `static let`) so the file is read from the bundle lazily
     // on first use rather than at type-init time, before Bundle.main is ready.
     static var pickerJS: String { UserScriptLoader.load("element-picker") }
@@ -500,6 +518,9 @@ struct WebView: NSViewRepresentable {
 
     func updateNSView(_ nsView: WebViewContainer, context: Context) {
         context.coordinator.parent = self
+        // per-plugin world 的 desireExt handler 是 webview 创建后装的插件才有的——
+        // webview 复用不会重跑 makeNSView/observe，这里幂等补注册（remove-before-add）。
+        context.coordinator.registerPluginWorldHandlers(nsView.webView, coordinator: context.coordinator)
     }
 
     static func dismantleNSView(_ nsView: WebViewContainer, coordinator: Coordinator) {
@@ -579,6 +600,10 @@ struct WebView: NSViewRepresentable {
             contentController.removeScriptMessageHandler(
                 forName: "desireExt", contentWorld: WebView.extensionWorld)
             contentController.add(self, contentWorld: WebView.extensionWorld, name: "desireExt")
+            // 每插件独立 world（插件间身份隔离）：desireExt handler 同样注册到
+            // 各插件 world——PluginStore.inject 的 content script 在那些 world
+            // 里 postMessage，同一个 Coordinator 按消息体路由。
+            registerPluginWorldHandlers(webView, coordinator: self)
             // 快速切标签会重建 representable（stopObserving 摘过 hub 注册）——
             // 只要页面曾声明过监听，observe 时重新入册。
             if parent.state.hasExtensionTabListeners {
@@ -608,6 +633,19 @@ struct WebView: NSViewRepresentable {
         // 已整体移除——勿再引入。chrome 收起（只在站点整屏时）在
         // ContentView/SelectedTabContent（isSiteFullScreen）。
 
+        /// per-plugin world 的 desireExt handler 注册（幂等）。webview 复用时
+        /// observe 不重跑——新装插件的 world 在这里补注册。
+        func registerPluginWorldHandlers(_ webView: WKWebView, coordinator: Coordinator) {
+            let contentController = webView.configuration.userContentController
+            guard let pluginStore = AppState.live?.pluginStore else { return }
+            for plugin in pluginStore.plugins where plugin.isEnabled && !plugin.jsCode.isEmpty {
+                let world = WebView.pluginWorld(plugin.id)
+                contentController.removeScriptMessageHandler(
+                    forName: "desireExt", contentWorld: world)
+                contentController.add(coordinator, contentWorld: world, name: "desireExt")
+            }
+        }
+
         func stopObserving() {
             observations.removeAll()
             let wv = parent.state.webView
@@ -632,7 +670,7 @@ struct WebView: NSViewRepresentable {
         /// WebExtension RPC（0.2.13）：隔离世界里 `browser.*` 的宿主侧。
         /// 协议：{id, ns, fn, args[]} → `_resolve(id, ok, payloadJSON)`，
         /// payload 以 JSON 字面量内嵌（存储值已在 set 时校验可序列化）。
-        private func handleExtensionMessage(_ body: Any) {
+        private func handleExtensionMessage(_ body: Any, world: WKContentWorld) {
             guard let dict = body as? [String: Any],
                   let ns = dict["ns"] as? String,
                   let fn = dict["fn"] as? String else { return }
@@ -657,7 +695,7 @@ struct WebView: NSViewRepresentable {
                 }
                 let js = "window.__desireExt && window.__desireExt._resolve(\(id), \(error == nil), \(json))"
                 parent.state.webView.evaluateJavaScript(
-                    js, in: nil, in: WebView.extensionWorld, completionHandler: nil)
+                    js, in: nil, in: world, completionHandler: nil)
             }
 
             switch (ns, fn) {
@@ -707,6 +745,7 @@ struct WebView: NSViewRepresentable {
                 }
                 reply([:])
             case ("runtime", "sendMessageToBackground"):
+                Log.userScripts.info("page handler: sendMessageToBackground from \(extID ?? "nil", privacy: .public)")
                 // 页面 → background：消息路由（见 PluginBackgroundRuntime）。
                 // extID = 发起插件的身份；tabID = 本页面所在标签（sender 用）。
                 // 回复目标 = 本页 webview（parent.state.webView，reply 闭包同款）。
@@ -755,7 +794,15 @@ struct WebView: NSViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "desireExt" {
                 // Isolated-world WebExtension RPC (see extensionWorld).
-                handleExtensionMessage(message.body)
+                // per-plugin world 的消息同样进这条路径（world 由 ext 推导）。
+                let world: WKContentWorld
+                if let ext = (message.body as? [String: Any])?["ext"] as? String,
+                   let uuid = UUID(uuidString: ext) {
+                    world = WebView.pluginWorld(uuid)
+                } else {
+                    world = WebView.extensionWorld
+                }
+                handleExtensionMessage(message.body, world: world)
             } else if message.name == "otpDetect", let dict = message.body as? [String: String] {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {

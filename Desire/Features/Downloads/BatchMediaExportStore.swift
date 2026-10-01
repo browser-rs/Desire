@@ -182,7 +182,7 @@ final class BatchMediaExportStore: ObservableObject {
         // **组合语义**（用户实测三轮定案）：directory 与 folderName **可以组合**——
         //   · directory = 保存**父目录**（精确路径，展开 ~）；
         //   · folderName = 其下的子文件夹名；与 directory 同给 → 父/子组合
-        //     （"/Volumes/sd" + "missav.ws" → /Volumes/sd/missav.ws，用户直觉）；
+        //     （"/Volumes/盘" + "站点名" → /Volumes/盘/站点名，用户直觉）；
         //     不给 → 直接落在 directory（不硬造子文件夹）；
         //   · folderName 误传**绝对路径** = 等价 directory（整段直落）；
         //   · 都不给 → 默认下载根 + 时间戳文件夹；folder 点噪音（"." / ".."）= 无。

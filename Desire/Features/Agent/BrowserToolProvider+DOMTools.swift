@@ -111,8 +111,8 @@ extension BrowserToolProvider {
             // 未指定文件夹时**自动垫站点域名子夹**：换站不混装（2026-09-30
             // 用户定案恢复——曾误删，"下载换个网站就错乱了"）。**但只垫给
             // 默认流**——用户指定了 directory 时该路径就是根目录，绝不再垫
-            // host 子夹（实测 directory=/Volumes/sd/missav.ws 被垫成
-            // …/missav.ws/missav.ws 嵌套，用户"位置搞错了"）。
+            // host 垫层无视已指定的 directory（用户实测：指定目录下
+            // 又被垫出一层同名子夹，"位置搞错了"）。
             let folderName: String?
             if requestedFolder?.isEmpty == false {
                 folderName = requestedFolder
@@ -160,7 +160,7 @@ extension BrowserToolProvider {
             let explicitDirectory = (args["directory"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             // host 垫层只给默认流（同 downloadAllPageVideos）；指定 directory
-            // = 根目录直落，绝不嵌套（/Volumes/sd/missav.ws 事故）。
+            // = 根目录直落，绝不嵌套（同名子夹嵌套事故）。
             let folderName: String?
             if requestedFolder?.isEmpty == false {
                 folderName = requestedFolder

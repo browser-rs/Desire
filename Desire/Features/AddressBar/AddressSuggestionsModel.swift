@@ -82,8 +82,9 @@ class AddressSuggestionsModel: ObservableObject {
         }
     }
 
-    /// 100ms 防抖后的实际构建（原 build 体）。
-    private func buildImmediate(query: String,
+    /// 100ms 防抖后的实际构建（原 build 体）。桥端点（无击键时序）直接调
+    /// 这一个同步入口。
+    func buildImmediate(query: String,
                                 settings: Settings,
                                 bookmarks: BookmarkStore,
                                 history: HistoryStore) {

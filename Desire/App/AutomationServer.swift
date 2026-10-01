@@ -3033,8 +3033,9 @@ final class AutomationServer {
     private static func suggest(query: String) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let model = AddressSuggestionsModel()
-        model.build(query: query, settings: app.settings,
-                    bookmarks: app.bookmarkStore, history: app.historyStore)
+        // build() 带 100ms 防抖（击键路径专用）——桥同步读会拿到空数组。
+        model.buildImmediate(query: query, settings: app.settings,
+                             bookmarks: app.bookmarkStore, history: app.historyStore)
         return ["suggestions": model.suggestions.map { s -> [String: Any] in
             ["kind": s.kind.rawValue, "title": s.title, "url": s.url]
         }]

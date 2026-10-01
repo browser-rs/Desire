@@ -155,7 +155,16 @@ enum BatchMediaPlan {
     /// 按画质标记取最高——"按最高清晰度下载"是用户的明确偏好。同 kind 取
     /// 先发现的。返回 nil 表示页面无可下载媒体。
     static func pickBestResource(_ resources: [MediaResource]) -> MediaResource? {
-        let downloadable = resources.filter { !$0.isBlob && !isDASH(urlString: $0.url, mime: $0.mime) }
+        var downloadable = resources
+            .filter { !$0.isBlob && !isDASH(urlString: $0.url, mime: $0.mime) }
+            .filter { !isAdSlotResource($0.url) }
+        // 协议相对地址（//cdn…，广告脚本/部分站点模板常见）就地补 https:——
+        // 下载器对无 scheme 的 URL 直接报"不支持的URL"（批量列表全灭事故根因）。
+        downloadable = downloadable.map { r in
+            r.url.hasPrefix("//") ? MediaResource(url: "https:" + r.url, kind: r.kind,
+                                                  mime: r.mime, sizeBytes: r.sizeBytes,
+                                                  source: r.source, detectedAt: r.detectedAt) : r
+        }
         let priority = ["stream", "video", "audio"]
         for kind in priority {
             let candidates = downloadable.filter { $0.kind.rawValue == kind }
@@ -178,6 +187,16 @@ enum BatchMediaPlan {
 
     /// 越大越优先：master 形态 1_000_000 底分 + 画质；带画质标记的变体按
     /// 画质数排；都无标记按原顺序（0 平分，max 遇平分取先出现者）。
+    /// 广告位资源：URL 路径含 IAB 标准展示广告尺寸（300x250/728x90 等）——
+    /// 部分站点的详情页"正片"实为页面广告视频（如 300x250.medium.mp4），
+    /// 是批量全灭事故的第二根因：就算 URL 归一了，下载下来的也是广告。
+    static func isAdSlotResource(_ urlString: String) -> Bool {
+        // IAB 常见展示位尺寸 + medium/low 画质后缀组合。
+        let patterns = ["300x250", "728x90", "160x600", "336x280", "970x250",
+                        "468x60", "320x50", "300x600", "970x90"]
+        return patterns.contains { urlString.lowercased().contains($0) }
+    }
+
     static func scoreStream(_ urlString: String) -> Int {
         if let quality = qualityMarker(in: urlString) {
             return quality

@@ -904,6 +904,31 @@ func testHistoryScore() {
 }
 testHistoryScore()
 
+// MARK: - 广告位过滤 + 协议相对 URL 归一
+
+func testAdSlotAndProtocolRelative() {
+    func res(_ url: String) -> MediaResource {
+        MediaResource(url: url, kind: .video, mime: "video/mp4",
+                      sizeBytes: 0, source: "dom", detectedAt: Date())
+    }
+    let ad = BatchMediaPlan.pickBestResource([
+        res("//cdn.storagexhd.com/files/video/9653-0-300x250.medium.mp4"),
+        res("https://cdn.example.com/files/real-1080p.mp4"),
+    ])
+    check("广告位资源被排除，正片入选",
+          ad != nil && ad!.url == "https://cdn.example.com/files/real-1080p.mp4")
+    let onlyAd = BatchMediaPlan.pickBestResource([
+        res("//cdn.storagexhd.com/files/video/9653-0-300x250.medium.mp4"),
+    ])
+    check("只有广告位时返回 nil（不假装成功）", onlyAd == nil)
+    // 协议相对归一：下载器对无 scheme 报"不支持的URL"
+    let protoRel = BatchMediaPlan.pickBestResource([
+        res("//cdn.example.com/video/full.mp4"),
+    ])
+    check("协议相对 URL 补 https:", protoRel?.url == "https://cdn.example.com/video/full.mp4")
+}
+testAdSlotAndProtocolRelative()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

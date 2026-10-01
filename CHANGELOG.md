@@ -8,6 +8,8 @@
 - JS 字符串转义统一 JSString.literal（此前五处手写转义链各处理一部分，\r/\n/U+2028 进字面量即语法错）：收口 10 处注入点（查找计数/元素屏蔽/插件 CSS/密码回填/DevTools RPC 错误回包/xpath 等），并补上审计漏掉的 passwordDetect 用户名字段名裸插值；带 13 项单测
 - ⌘S 存页从组合根搬进 BrowsingActions（写盘/落库归动作层，View 只剩结果映射 toast）；设置页"测试连接"两份手写 URLRequest 收口 AIConnectivity（鉴权头/超时/opencode 会话头/服务器错误回显统一）；阅读器设置抽独立文件
 - 挂起标签二级挂起（安全子集）：快照 LRU 上限 12 份，超出的最旧挂起标签释放交互状态快照（恢复退回干净 URL 重载）——重会话下快照不再吃掉挂起省出的内存；webview 骨架的完全释放需"恢复时重建 webview"，另行立项
+- 搜索建议空结果不再缓存（瞬时网络抖动曾把空数组在 LRU 槽里赖住，该词此后拿不到候选）；删除 DevTools 四个死文件（833 行，仅 Preview 引用）；QuickDial 清空被默认八枚复活与 saveAsPDF 假成功两项审计核对为已修（勿重复报）
+
 
 
 

@@ -37,11 +37,15 @@ class SearchSuggestionService {
         do {
             let (data, _) = try await Self.session.data(from: url)
             let result = Self.parse(data)
-            cache[key] = result
-            cacheOrder.append(key)
-            if cacheOrder.count > cacheLimit, let evicted = cacheOrder.first {
-                cacheOrder.removeFirst()
-                cache[evicted] = nil
+            // 空结果**不缓存**：瞬时抖动（网络/服务）会把空数组在 LRU 32 槽
+            // 里赖住，这个词此后一直拿不到候选；不缓存则下一次击键自然重试。
+            if !result.isEmpty {
+                cache[key] = result
+                cacheOrder.append(key)
+                if cacheOrder.count > cacheLimit, let evicted = cacheOrder.first {
+                    cacheOrder.removeFirst()
+                    cache[evicted] = nil
+                }
             }
             return result
         } catch {

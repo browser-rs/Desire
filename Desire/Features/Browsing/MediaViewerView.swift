@@ -90,6 +90,17 @@ struct MediaViewerView: View {
         }
         .onAppear { start() }
         .onDisappear { teardown() }
+        // 空格 = 播放/暂停（键盘流；AVPlayerView 自带控制条之外的快捷键）。
+        .focusable()
+        .onKeyPress(.space, phases: .down) { _ in
+            guard let player else { return .ignored }
+            if player.timeControlStatus == .playing {
+                player.pause()
+            } else {
+                player.play()
+            }
+            return .handled
+        }
     }
 
     private func start() {

@@ -25,6 +25,14 @@ struct FindBar: View {
                     onFindAll()
                 }
                 .onSubmit { onFindNext() }
+                .onKeyPress(.return, phases: .down) { press in
+                    // Shift+Enter = 上一个（主流查找栏键盘流）。
+                    if press.modifiers.contains(.shift) {
+                        onFindPrevious()
+                        return .handled
+                    }
+                    return .ignored
+                }
 
             if findMatchCount > 0 && !findString.isEmpty {
                 Text("\(findCurrentIndex + 1) / \(findMatchCount)")

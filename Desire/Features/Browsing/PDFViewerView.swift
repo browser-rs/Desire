@@ -86,7 +86,10 @@ struct PDFViewerView: View {
     }
 }
 
-/// PDFKit 包装（缩放经 scaleEffect——PDFView 自带手势与 SwiftUI 手势冲突）。
+/// PDFKit 包装。缩放**双向**：± 按钮/重置写 scaleFactor；PDFView 自带的
+/// 捏合/⌘滚轮缩放经 NotificationCenter（PDFViewScaleChanged）回写 @State——
+/// 单向写会在每次 SwiftUI 刷新时覆盖用户手势缩放（旧实现 userInteracted
+/// 从未置 true，等于从未生效）。
 private struct PDFKitRepresentedView: NSViewRepresentable {
     let document: PDFDocument
     @Binding var zoom: CGFloat
@@ -95,20 +98,32 @@ private struct PDFKitRepresentedView: NSViewRepresentable {
         let view = PDFView()
         view.autoScales = true
         view.document = document
+        context.coordinator.view = view
+        context.coordinator.onScale = { [weak view] in
+            guard let view else { return }
+            zoom = view.scaleFactor
+        }
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.scaleChanged),
+            name: .PDFViewScaleChanged,
+            object: view)
         return view
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
         if view.document !== document { view.document = document }
-        view.scaleFactor = zoom
-        // 手动缩放后不再覆盖（用户手势优先）。
-        if context.coordinator.userInteracted { return }
-        view.scaleFactor = zoom
+        // 只在外部 zoom 值与视图实际值偏差明显时回写（防抖动循环）。
+        if abs(view.scaleFactor - zoom) > 0.01 {
+            view.scaleFactor = zoom
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator {
-        var userInteracted = false
+        weak var view: PDFView?
+        var onScale: (() -> Void)?
+        @objc func scaleChanged() { onScale?() }
     }
 }

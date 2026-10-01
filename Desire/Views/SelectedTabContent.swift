@@ -25,6 +25,8 @@ import os
 /// 面板内部不得再设固定 `.frame(width:)`。
 struct SelectedTabContent: View {
 
+    /// 文件拖入悬停（dropDestination isTargeted）——高亮描边 + 顶部提示。
+    @State private var isFileHovered = false
     /// 本容器（工具栏 + 内容）的全局原点：把地址栏的全局 frame 折算成相对偏移用。
     @State private var containerGlobalX: CGFloat = 0
     @State private var containerGlobalY: CGFloat = 0
@@ -126,11 +128,33 @@ struct SelectedTabContent: View {
                             // SwiftUI drop session——网页内部的拖放（拖图上传、
                             // 拖拽排序）走 webview 自己的 session，互不干扰。
                             .dropDestination(for: URL.self) { urls, _ in
+                                isFileHovered = false
                                 guard let fileURL = urls.first,
                                       fileURL.isFileURL,
                                       Self.isOpenableFile(fileURL) else { return false }
                                 openDroppedFile(fileURL)
                                 return true
+                            } isTargeted: { targeted in
+                                isFileHovered = targeted
+                            }
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(appAccent.opacity(0.55), lineWidth: 2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .opacity(isFileHovered ? 1 : 0)
+                            )
+                            .overlay(alignment: .top) {
+                                if isFileHovered {
+                                    Text("松开在此标签页打开")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 5)
+                                        .background(Capsule().fill(appAccent))
+                                        .foregroundStyle(.white)
+                                        .padding(.top, 10)
+                                        .transition(.opacity)
+                                }
                             }
 
                         if let partner = content.tabManager.splitPartner, partner.id != tab.id {

@@ -141,6 +141,7 @@ struct HistoryPanel: View {
                                 EntryRow(
                                     title: entry.title,
                                     subtitle: entry.url,
+                                    badgeText: entry.visitCount > 1 ? "×\(entry.visitCount)" : nil,
                                     action: { onSelect(entry.url) }
                                 )
                                 .swipeActions(edge: .trailing) {

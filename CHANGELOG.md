@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.5.0] - 2026-10-01
 ### Added
 
 - Agent 检查点恢复：回合开工即落盘"进行中"标志（随会话文件持久化），崩溃/强杀后重新打开会话时面板给出"继续回合/放弃"——继续不重复追加用户消息，工具结果缺失处由 [interrupted] 清洗兜底，模型自行续做；桥 POST /agent/resume（resume|discard）+ GET /agent/messages 带 hasInterruptedTurn；新增 POST /agent/new

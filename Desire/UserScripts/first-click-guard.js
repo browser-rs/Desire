@@ -56,7 +56,9 @@
             if (node.closest) {
                 if (node.closest('iframe[src*="challenges.cloudflare.com"], ' +
                     'iframe[src*="hcaptcha.com"], iframe[src*="captcha" i], ' +
-                    '.cf-turnstile, .h-captcha, ' +
+                    'iframe[src*="recaptcha"], iframe[src*="geetest"], iframe[src*="dun.163"], ' +
+                    '.cf-turnstile, .h-captcha, .g-recaptcha, .geetest_panel, .geetest_holder, ' +
+                    '[id*="recaptcha"], [class*="recaptcha"], ' +
                     '[class*="captcha" i], [id*="captcha" i], [class*="challenge" i], ' +
                     '[class*="verify" i], [id*="verify" i]')) return true;
             }

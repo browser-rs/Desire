@@ -34,6 +34,127 @@
   },
   {
     "trigger": {
+      "url-filter": ".*google\\.com/recaptcha.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*gstatic\\.com/recaptcha.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*recaptcha\\.net.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*geetest\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*dun\\.163\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*dun\\.163yun\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*captcha\\.qq\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*tencentmeet\\.|.*captcha\\.gtimg\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*cf\\.aliyun\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*captcha\\.-?open\\.aliyuncs\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*vaptcha\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
       "url-filter": ".*",
       "load-type": [
         "third-party"

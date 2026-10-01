@@ -37,7 +37,13 @@ struct UpdateBannerView: View {
                         checker.installNow()
                     } label: {
                         HStack(spacing: 4) {
-                            if checker.installState == .downloading || checker.installState == .installing {
+                            if checker.installState == .downloading {
+                                ProgressView().controlSize(.mini)
+                                if checker.downloadProgress > 0 {
+                                    Text("\(Int(checker.downloadProgress * 100))%")
+                                        .font(.system(size: 10, design: .monospaced))
+                                }
+                            } else if checker.installState == .installing {
                                 ProgressView().controlSize(.mini)
                             }
                             Text(installButtonTitle)

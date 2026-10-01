@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- 自动更新三处加固：安装失败后按钮可重试（此前 guard 只放行 .failed("")——永假，失败后无声失效）；zip 下载改流式落盘+边下边算 SHA256（不再整包进内存）并按 5% 步进发布进度（更新横幅显示百分比）；新增桥 POST /update/install（检查→安装组合入口，自动化/远程可驱动自更新）。全链 E2E（假 GitHub 端点）：下载→SHA256 校验→替换 /Applications→重启 成功；哈希错正确拒装且不崩
+
 ### Added
 
 - 多窗口 Agent（0.1.8 挂账转正）：listWindows 工具列出全部窗口（会话短 id + 窗口标题 + 忙闲 + 是否本窗）；navigate/switchTab/readTab 支持 window 参数跨窗操作（短 id 定位，找不到明确报错）；提示词 environment 在多窗口时注入窗口清单（标记"你的窗口"）；Agent 面板头部显示本窗口名（>1 窗口时）；桥 /agent/windows 返回真实窗口标题。每窗口本就有独立的会话/TabManager/surface（WindowToolSurface），本次补齐的是"模型看见并跨到别的窗口"这半边

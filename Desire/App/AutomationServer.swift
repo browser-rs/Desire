@@ -471,6 +471,7 @@ final class AutomationServer {
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
+        ep("POST", "/update/install", "Self-update: download the latest release zip, verify SHA256, replace /Applications bundle, relaunch (only when installed in /Applications)", example: "-d '{}'")
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
         ep("POST", "/agent/cancel", "Stop the running turn (same as Esc in the panel)", example: "-d '{}'")
         ep("GET", "/agent/prompt", "Pending user question (agent askUser / batch low-disk-space ask)", example: "…/agent/prompt")
@@ -1271,6 +1272,9 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("POST", "/update/install"):
+                UpdateChecker.shared.startCheckThenInstall()
+                return try Self.json(["ok": true, "started": true])
             case ("POST", "/agent/new"):
                 // 开新会话（面板"新对话"按钮同路径：store.clear()——旧会话
                 // 文件不动）。E2E/自动化从这里拿干净的会话。

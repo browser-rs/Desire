@@ -42,6 +42,8 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
     }
 
     @Published private(set) var installState: InstallState = .idle
+    /// 下载进度（0…1；按 5% 步进更新——UI 转圈/百分比用）。
+    @Published private(set) var downloadProgress: Double = 0
 
     /// 只有装在 /Applications 的正式包才可自更新（DerivedData 调试包
     /// 替换没有意义且会被 Xcode 覆盖）。
@@ -49,8 +51,22 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
         Bundle.main.bundleURL.path.hasPrefix("/Applications/")
     }
 
+    /// 先检查再安装（桥 /update/install）：无 release 信息时先跑一次检查。
+    func startCheckThenInstall() {
+        Task { [weak self] in
+            guard let self else { return }
+            if latestTag == nil { await check() }
+            installNow()
+        }
+    }
+
     func installNow() {
-        guard installState == .idle || installState == .failed("") else { return }
+        // .failed 可重试（此前 guard 只放行 .failed("")——永假，失败后按钮
+        // 永远无声失效）；downloading/installing/readyToRelaunch 中不可重入。
+        switch installState {
+        case .idle, .failed: break
+        default: return
+        }
         guard canSelfUpdate else {
             installState = .failed("Move Desire to /Applications to enable in-app updates")
             return
@@ -59,6 +75,7 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
             installState = .failed("No release info")
             return
         }
+        downloadProgress = 0
         installState = .downloading
         Task { await install(tag: tag) }
     }
@@ -96,17 +113,36 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
                 .split(separator: " ").first.map(String.init)
             guard let expectedHash, expectedHash.count == 64 else { throw UpdateError.noChecksum }
 
-            // 3) 下载 zip 并校验。
-            let (zipData, _) = try await URLSession.shared.data(for: URLRequest(url: URL(string: zipURL)!))
-            let digest = SHA256.hash(data: zipData).map { String(format: "%02x", $0) }.joined()
-            guard digest == expectedHash.lowercased() else { throw UpdateError.checksumMismatch }
-
-            // 4) 解包找 Desire.app。
+            // 3) 下载 zip：**流式落盘 + 边下边算 SHA256**（不整包进内存；
+            // 体量增长后内存峰值不再翻倍）。
             let tmp = FileManager.default.temporaryDirectory
                 .appendingPathComponent("desire-update-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
             let zipPath = tmp.appendingPathComponent("update.zip")
-            try zipData.write(to: zipPath)
+            var sha = SHA256()
+            let (zipBytes, zipResponse) = try await URLSession.shared.bytes(for: URLRequest(url: URL(string: zipURL)!))
+            guard (zipResponse as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.noAssets }
+            var expectedTotal: Int64 = -1
+            if let http = zipResponse as? HTTPURLResponse, let len = http.value(forHTTPHeaderField: "Content-Length"),
+               let parsed = Int64(len) { expectedTotal = parsed }
+            var received: Int64 = 0
+            var lastReported = -1.0
+            for try await byte in zipBytes {
+                sha.update(data: [byte])
+                received += 1
+                let fraction = expectedTotal > 0 ? Double(received) / Double(expectedTotal) : 0
+                // 进度按 5% 步进发布（面板/横幅转圈即可，不必每字节刷）。
+                if fraction - lastReported >= 0.05 {
+                    lastReported = fraction
+                    await MainActor.run { [weak self] in
+                        guard let self else { return }
+                        if case .downloading = self.installState {} else { return }
+                        self.downloadProgress = fraction
+                    }
+                }
+            }
+            let digest = sha.finalize().map { String(format: "%02x", $0) }.joined()
+            guard digest == expectedHash.lowercased() else { throw UpdateError.checksumMismatch }
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
             proc.arguments = ["-x", "-k", zipPath.path, tmp.path]
@@ -117,6 +153,7 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
             guard FileManager.default.fileExists(atPath: newAppURL.path) else { throw UpdateError.unpack }
 
             // 5) 替换 /Applications/Desire.app。
+            downloadProgress = 1
             installState = .installing
             let destination = Bundle.main.bundleURL
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: newAppURL)
@@ -155,7 +192,11 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
     private static let seenTagKey = "update.seenTag"
     /// 发布页（设置里的“查看发布页”按钮也要用，所以不是 private）。
     static let releasesURL = URL(string: "https://github.com/browser-rs/Desire/releases/latest")!
-    private static let apiURL = URL(string: "https://api.github.com/repos/browser-rs/Desire/releases/latest")!
+    /// E2E/调试：defaults write me.siwi.Desire update.apiURL <url> 覆盖
+    /// （自动更新链路由此可离线验证；生产不设置 = GitHub 正式端点）。
+    private static let apiURL = URL(
+        string: UserDefaults.standard.string(forKey: "update.apiURL")
+            ?? "https://api.github.com/repos/browser-rs/Desire/releases/latest")!
 
     private static let log = Log.app
     private var checkTask: Task<Void, Never>?

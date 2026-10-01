@@ -518,9 +518,11 @@ class AgentSessionStore: ObservableObject {
         }
     }
 
-    func sendFollowUp(_ text: String) {
+    func sendFollowUp(_ text: String, images: [String]? = nil) {
         awaitingQuestion = false
-        sendMessage(text)
+        // 附件同走：问题卡回答也可能带截图（此前只发文本、pendingImages 被
+        // 面板清掉后静默丢失）。
+        sendMessage(text, images: images)
     }
 
     func addContext(html: String, selector: String) {

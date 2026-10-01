@@ -22,8 +22,12 @@ extension BrowserToolProvider {
     /// 把任意 JS 结果**转成可返回给模型的字符串**：DOM 节点给 outerHTML、类数组给
     /// 长度 + 前几项预览、对象走 JSON（失败退 String）。`executeJS` 遇到"返回结果的
     /// 类型不受支持"时用它重跑——那正是把模型逼去 runCommand（再超时 120s）的源头。
-    static func jsStringifyScript(_ code: String) -> String {
-        """
+    /// - Parameter expressionForm: true = 代码按**表达式**包裹 `(code)`（裸表达式
+    ///   如 `document.title` 能直接取值）；false = 按**语句块**包裹 `{ code }`
+    ///   （`return x` / `var x=1` 等语句走这里，return 值照常拿到）。
+    static func jsStringifyScript(_ code: String, expressionForm: Bool = false) -> String {
+        let wrapped = expressionForm ? "( " + code + " )" : "{ " + code + " }"
+        return """
         function __desirePreview(value) {
             if (value === undefined) return 'undefined';
             if (value === null) return 'null';
@@ -47,16 +51,41 @@ extension BrowserToolProvider {
         }
         let __desireValue;
         try {
-            __desireValue = await (async () => { __DESIRE_CODE__ })();
+            __desireValue = await (async () => __DESIRE_CODE__)();
         } catch (e) {
             return 'Error: ' + (e && e.message ? e.message : String(e));
         }
-        if (__desireValue === undefined) {
-            try { __desireValue = await (async () => (__DESIRE_CODE__))(); } catch (e) {}
-        }
         return __desirePreview(__desireValue);
         """
-        .replacingOccurrences(of: "__DESIRE_CODE__", with: code)
+        .replacingOccurrences(of: "__DESIRE_CODE__", with: wrapped)
+    }
+
+    /// executeJS 的单次执行结果。parseFailed 只在**表达式形态解析失败**
+    /// （整个 body 未执行）时出现——调用方据此回退语句形态。
+    private enum JSRunOutcome {
+        case value(String)
+        case parseFailed(String)
+    }
+
+    /// `executeJS` 的单次执行：callAsyncJavaScript 跑包装器（预览转换 +
+    /// 异常带 message），解析失败区分为 parseFailed，运行时失败按失败约定返回。
+    private func runJSOnce(_ webView: WKWebView, code: String, expressionForm: Bool) async -> JSRunOutcome {
+        do {
+            let out = try await webView.callAsyncJavaScript(
+                Self.jsStringifyScript(code, expressionForm: expressionForm),
+                arguments: [:], in: nil, contentWorld: .page
+            ) as? String
+            return .value(out?.isEmpty == false ? out! : "Executed (no return value)")
+        } catch {
+            let ns = error as NSError
+            let detail = ns.userInfo["WKJavaScriptExceptionMessage"] as? String
+                ?? ns.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+                ?? error.localizedDescription
+            if expressionForm, detail.contains("SyntaxError") {
+                return .parseFailed(detail)
+            }
+            return .value(Self.fail("JS exception — \(detail)"))
+        }
     }
 
     /// 工具失败的**统一约定**：失败一律返回 `Error: ` 前缀的文本。
@@ -242,7 +271,20 @@ extension BrowserToolProvider {
 
         // --- Navigation ---
         case "navigate":
-            guard let url = args["url"] as? String, let u = URL(string: url) else { return Self.fail("Invalid URL") }
+            guard let url = args["url"] as? String, !url.isEmpty else { return Self.fail("Missing url") }
+            // 无 scheme 输入照地址栏惯例补全（example.com → https://…）；
+            // 不像 URL 的输入**明确失败**——此前 `URL(string:"example.com")`
+            // 构造成功但 load 静默失败，回包"已导航"（假成功，模型无从重试）。
+            let resolvedURL: String
+            if url.range(of: #"^[a-zA-Z][a-zA-Z0-9+.-]*://"#, options: .regularExpression) != nil,
+               URL(string: url) != nil {
+                resolvedURL = url
+            } else if let upgraded = URLResolution.upgradedSchemelessURL(url) {
+                resolvedURL = upgraded
+            } else {
+                return Self.fail("Invalid URL '\(url.prefix(80))' — add a scheme (https://…), or use a search tool for keywords")
+            }
+            guard let u = URL(string: resolvedURL) else { return Self.fail("Invalid URL") }
             // Mirror BrowsingActions.navigateToURL's state sync. `load` alone
             // is invisible when the tab sits on an overlay: isOnNewTabPage
             // is STORED state (the NewTabPage keeps covering the webview),
@@ -1658,30 +1700,27 @@ extension BrowserToolProvider {
             // 失败约定：这里曾是裸 "Missing code"，机械核验按 `Error: ` 前缀
             // 统计认不出它（BUG-4）。
             guard let code = args["code"] as? String else { return Self.fail("Missing code") }
-            let result = await eval(webView, code)
-            if result.hasPrefix("Error: ") {
-                // ① 结果类型不可序列化（DOM 节点 / NodeList / Promise / 循环引用）：
-                // `evaluateJavaScript` 只回一句"返回结果的类型不受支持"，模型看不懂也
-                // 没法继续（实测它因此改用 runCommand，然后超时 120s，把整轮拖垮）。
-                // 用包装器重跑一次，把值转成字符串再返回。
-                if let text = try? await webView.callAsyncJavaScript(
-                    Self.jsStringifyScript(code), arguments: [:], in: nil, contentWorld: .page
-                ) as? String, !text.isEmpty, !text.hasPrefix("Error: ") {
+            // **单次执行**：工具代码可能带副作用（点击/提交/改 DOM）——旧实现
+            // 在失败回退时把同一份代码再跑 1-2 次（包装器重跑拿可序列化值 +
+            // 裸跑拿异常信息），副作用翻倍。现在只跑一次：
+            //  · 表达式形态优先（裸表达式 `document.title` 直接取值；DOM 节点等
+            //    不可序列化结果由包装器转字符串——曾把模型逼去 runCommand 超时）；
+            //  · 表达式形态报 **SyntaxError** = 解析期失败、**尚未执行任何代码**，
+            //    回退语句形态安全（`return x` 等语句代码走这里）；
+            //  · 运行时错误绝不重跑——异常信息经包装器 catch 直接带出
+            //    （WKJavaScriptExceptionMessage 的拿法保留在这一条路径里）。
+            switch await runJSOnce(webView, code: code, expressionForm: true) {
+            case .value(let text):
+                return text
+            case .parseFailed:
+                // 表达式形态解析失败（尚未执行任何代码）→ 语句形态。
+                switch await runJSOnce(webView, code: code, expressionForm: false) {
+                case .value(let text):
                     return text
-                }
-                // ② 真的是异常：用 callAsyncJavaScript 拿 WKJavaScriptExceptionMessage。
-                do {
-                    _ = try await webView.callAsyncJavaScript(
-                        code, arguments: [:], in: nil, contentWorld: .page
-                    )
-                } catch {
-                    let ns = error as NSError
-                    if let detail = ns.userInfo["WKJavaScriptExceptionMessage"] as? String {
-                        return "Error: JS exception — \(detail)"
-                    }
+                case .parseFailed(let message):
+                    return Self.fail("JS exception — \(message)")
                 }
             }
-            return result.isEmpty ? "Executed (no return value)" : result
 
         default:
             // MCP-bridged tools ride the same dispatch path with the same

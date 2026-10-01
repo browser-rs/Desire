@@ -8,6 +8,7 @@ OUT="$(mktemp -d)/puretests"
 SOURCES=(
   Desire/Features/Agent/AgentMessage.swift
   Desire/Features/Agent/AgentToolSchema.swift
+  Desire/Features/Agent/AgentPlanStep.swift
   Desire/Features/Agent/Conversation.swift
   Desire/Features/Agent/ModelPrice.swift
   Desire/Features/Agent/AgentUsage.swift

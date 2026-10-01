@@ -96,6 +96,16 @@ enum URLResolution {
     /// `localhost[:port]`, a dotted IPv4 literal, or a host whose last label
     /// is an alphabetic TLD. Rejects numbers like `1.5` / `3.14` (two numeric
     /// labels — a search term, not an address).
+    /// Agent 的 navigate 工具复用地址栏的无 scheme 启发式：`example.com`
+    /// 补 https://（localhost / IPv4 字面量补 http://）；不像 URL 的输入返回
+    /// nil——此前 `URL(string:)` 对无 scheme 字符串照样构造成功、load 静默
+    /// 失败、回包"已导航"（假成功）。
+    static func upgradedSchemelessURL(_ text: String) -> String? {
+        guard looksLikeURL(text) else { return nil }
+        let candidate = (prefersPlainHTTP(text) ? "http://" : "https://") + text
+        return URL(string: candidate) != nil ? candidate : nil
+    }
+
     private static func looksLikeURL(_ text: String) -> Bool {
         // P2：host 部分能判定域名即放行 query/fragment——`example.com/search?q=x`
         // 此前整串进搜索引擎（host 在 ?/# 之前，判定不受影响）。

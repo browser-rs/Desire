@@ -82,11 +82,22 @@ class BookmarkStore: ObservableObject {
     }
 
     func remove(_ bookmark: Bookmark) {
+        // **子树墓碑**：删文件夹若只记文件夹一条墓碑，子项 id 从不上报——
+        // 其他设备收不到子项删除，会用自己的子项把文件夹"救活"（跨设备
+        // 删除竞态、根部复活）。删除前先取**树上当前节点**（含最新子树），
+        // 整棵子树的 id 全部记墓碑。
+        let node = bookmarks.find { $0.id == bookmark.id } ?? bookmark
+        for id in Self.subtreeIDs(node) { pendingDeletions[id] = Date() }
         _ = bookmarks.remove(id: bookmark.id)
-        pendingDeletions[bookmark.id] = Date()
         saveDeletions()
         rebuildURLIndex()
         save()
+    }
+
+    private static func subtreeIDs(_ root: Bookmark) -> [UUID] {
+        var ids = [root.id]
+        for child in root.children { ids.append(contentsOf: subtreeIDs(child)) }
+        return ids
     }
 
     func update(_ bookmark: Bookmark) {

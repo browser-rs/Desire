@@ -394,11 +394,19 @@ final class RemoteControlStore: ObservableObject {
     }
 
     /// express 与 pull 共用入口：按行 id 去重 → 解密 → 业务帧。
+    /// 去重集**滑动窗淘汰**（超限丢最旧的 100 条）——此前集满 500 一次性
+    /// `removeAll()`，窗口内 WS 与 pull 重叠投递的旧行全部重新可命中，
+    /// 重放 = 重复派活（消息重复发送/会话重复打开）。
     private func ingestInboxItems(_ items: [SyncAPIClient.RemoteInboxPullItem]) {
         for item in items {
             guard !processedInboxIDs.contains(item.id) else { continue }
             processedInboxIDs.insert(item.id)
-            if processedInboxIDs.count > 500 { processedInboxIDs.removeAll() }
+            processedInboxOrder.append(item.id)
+            if processedInboxOrder.count > 500 {
+                let evict = processedInboxOrder.prefix(100)
+                processedInboxOrder.removeFirst(100)
+                for id in evict { processedInboxIDs.remove(id) }
+            }
             if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
                 Self.remoteDebug("inner ← \(String(inner.prefix(100)))")
                 handleInnerFrame(inner)
@@ -1036,6 +1044,8 @@ final class RemoteControlStore: ObservableObject {
     private var pollInFlight = false
     /// 已处理过的帧 id（express 先到时，兜底 pull 的同 id 行直接跳过）
     private var processedInboxIDs: Set<Int64> = []
+    /// 去重集的插入序（淘汰最旧用；Set 无序）。
+    private var processedInboxOrder: [Int64] = []
     private func pollInbox() {
         guard isEnabled, case .signedIn = syncStore.authState, !pollInFlight else { return }
         pollInFlight = true

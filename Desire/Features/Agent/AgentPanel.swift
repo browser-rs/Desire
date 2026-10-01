@@ -693,7 +693,7 @@ struct AgentPanel: View {
         inputText = ""
         pendingImages = []
         if store.awaitingQuestion {
-            store.sendFollowUp(text)
+            store.sendFollowUp(text, images: images)
         } else {
             store.sendMessage(text, images: images)
         }

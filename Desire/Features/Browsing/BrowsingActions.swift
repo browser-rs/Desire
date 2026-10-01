@@ -111,9 +111,36 @@ extension BrowsingActions {
             urlString = searchURL.absoluteString
         }
         guard let url = URL(string: urlString) else { return }
+        // 本地媒体/PDF 走专用查看器（AVPlayer/PDFKit）——WKWebView 对
+        // file:// 媒体不渲染，直接 load 会落"插件处理的加载"错误页
+        //（用户实测：地址栏输入 mp4 路径回车）。
+        if url.isFileURL, SelectedTabContent.isOpenableFile(url) {
+            openLocalFileInTab(url, for: target)
+            return
+        }
         target.isOnNewTabPage = false
         target.urlString = urlString
         target.browser.webView.load(URLRequest(url: url))
+    }
+
+    /// 本地文件在标签页内打开（地址栏/拖入共用）：pdf → PDF 查看器、
+    /// 音视频 → AVPlayer 查看器、其余可渲染类型 → file:// 导航。
+    func openLocalFileInTab(_ url: URL, for tab: Tab) {
+        let ext = url.pathExtension.lowercased()
+        if ext == "pdf" {
+            tab.browser.pdfViewerFileName = url.lastPathComponent
+            tab.browser.pdfViewerReturnURL = tab.browser.webView.url
+            tab.browser.pdfViewerURL = url
+            return
+        }
+        if SelectedTabContent.mediaExtensions.contains(ext) {
+            tab.browser.mediaViewerFileName = url.lastPathComponent
+            tab.browser.mediaViewerURL = url
+            return
+        }
+        tab.isOnNewTabPage = false
+        tab.urlString = url.absoluteString
+        tab.browser.webView.load(URLRequest(url: url))
     }
 
     func loadHome(for tab: Tab) {

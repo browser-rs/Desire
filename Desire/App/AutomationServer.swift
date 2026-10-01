@@ -1550,6 +1550,27 @@ final class AutomationServer {
             return ["error": "unresolvable input"]
         }
         guard let url = URL(string: finalURL) else { return ["error": "bad url"] }
+        // 本地媒体/PDF 走专用查看器（与地址栏 navigateToURL 同一规矩——
+        // WKWebView 对 file:// 媒体不渲染，直接 load 落"插件处理的加载"错误页）。
+        if url.isFileURL, SelectedTabContent.isOpenableFile(url) {
+            let browser = tab.browser
+            let ext = url.pathExtension.lowercased()
+            await MainActor.run {
+                if ext == "pdf" {
+                    browser.pdfViewerFileName = url.lastPathComponent
+                    browser.pdfViewerReturnURL = browser.webView.url
+                    browser.pdfViewerURL = url
+                } else if SelectedTabContent.mediaExtensions.contains(ext) {
+                    browser.mediaViewerFileName = url.lastPathComponent
+                    browser.mediaViewerURL = url
+                } else {
+                    tab.isOnNewTabPage = false
+                    tab.urlString = finalURL
+                    browser.webView.load(URLRequest(url: url))
+                }
+            }
+            return ["ok": true, "navigatedTo": finalURL, "viewer": true]
+        }
         tab.isOnNewTabPage = false
         tab.urlString = finalURL
         tab.browser.webView.load(URLRequest(url: url))

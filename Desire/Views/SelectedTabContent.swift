@@ -203,6 +203,9 @@ struct SelectedTabContent: View {
 
     /// 可直接在标签页内打开的文件类型（pdf→内建查看器；音视频/图片/HTML→
     /// WKWebView 原生渲染）。其它扩展名不接管（zip 等交系统/网页语义）。
+    /// 音视频扩展名 → 本地媒体查看器（AVPlayer，不走 WKWebView 媒体管线）。
+    static let mediaExtensions: Set<String> = ["mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac"]
+
     static func isOpenableFile(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
         case "pdf", "html", "htm", "xhtml",
@@ -215,18 +218,8 @@ struct SelectedTabContent: View {
     }
 
     private func openDroppedFile(_ url: URL) {
-        // PDF 走内建查看器（文件已在本地，无需下载步骤）。
-        if url.pathExtension.lowercased() == "pdf" {
-            tab.browser.pdfViewerFileName = url.lastPathComponent
-            tab.browser.pdfViewerReturnURL = nil   // 关闭 = 回空白页（拖入无原页）
-            tab.browser.pdfViewerURL = url
-            return
-        }
-        // 其余（html/音视频/图片/txt）= file:// 导航，WKWebView 原生渲染。
-        tab.isOnNewTabPage = false
-        tab.isSuspended = false
-        tab.urlString = url.absoluteString
-        tab.browser.webView.load(URLRequest(url: url))
+        // 与地址栏共用一份本地文件打开实现（BrowsingActions）。
+        content.b.openLocalFileInTab(url, for: tab)
     }
 
     // MARK: - 主内容区（HSplitView 首个子视图）
@@ -239,6 +232,12 @@ struct SelectedTabContent: View {
                     fileURL: pdfURL,
                     fileName: tab.browser.pdfViewerFileName,
                     onBack: { tab.browser.dismissPDFViewer() }
+                )
+            } else if let mediaURL = tab.browser.mediaViewerURL {
+                MediaViewerView(
+                    fileURL: mediaURL,
+                    fileName: tab.browser.mediaViewerFileName,
+                    onBack: { tab.browser.mediaViewerURL = nil }
                 )
             } else if tab.browser.isPDFLoading {
                 VStack(spacing: 10) {

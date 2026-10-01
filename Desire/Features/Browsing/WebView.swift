@@ -114,6 +114,11 @@ class BrowserState: ObservableObject {
     @Published var pdfViewerReturnURL: URL?
     /// PDF 下载中（主框架 PDF 导航的过渡态——渲染进度条而非白页）。
     @Published var isPDFLoading = false
+    /// **本地媒体查看器**（拖入 mp4/mov/webm/mp3 等）：AVPlayer 直接播
+    /// 本地文件——不走 WKWebView file:// 媒体管线（受播放策略/进程状态
+    /// 影响，实测出现过元数据不加载的假死且报错不可见）。
+    @Published var mediaViewerURL: URL?
+    @Published var mediaViewerFileName = ""
     /// 展示用文件名。
     @Published var pdfViewerFileName = ""
     @Published var isReaderLoading = false

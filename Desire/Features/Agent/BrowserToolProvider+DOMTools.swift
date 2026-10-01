@@ -420,6 +420,18 @@ extension BrowserToolProvider {
                 : "Blocked \(applied.count) element(s) on \(urlPattern) (hidden now and on every future load of this host)"
             if !skipped.isEmpty { report += "; \(skipped.count) already blocked" }
             if !blockedRequests.isEmpty { report += "; \(blockedRequests.count) request filter(s) added" }
+
+            // **学习闭环**：站点广告画像沉淀进长期记忆（同一 host 旧画像被
+            // 替换，不堆积）。AI 下次在该站工作时会从记忆里"想起"这个站的
+            // 广告结构；记忆随云同步 → 跨设备共享学到的经验。host 为通配符
+            // "*" 时不沉淀（无站点语义）。
+            if urlPattern != "*", !applied.isEmpty {
+                let profile = "Site ads profile: \(urlPattern) — blocked selectors: "
+                    + applied.prefix(6).joined(separator: " ; ")
+                AgentMemoryStore.shared.removeFacts(containing: "Site ads profile: \(urlPattern)")
+                AgentMemoryStore.shared.addFact(
+                    content: profile, category: "fact", scope: "global")
+            }
             return report
 
         case "listMediaExports":

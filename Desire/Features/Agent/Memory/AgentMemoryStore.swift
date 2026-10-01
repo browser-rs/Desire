@@ -79,6 +79,16 @@ final class AgentMemoryStore: ObservableObject {
 
     /// Adds a fact, skipping near-duplicates of what's already known.
     /// Newest first, hard cap keeps the archive (and prompt block) bounded.
+    /// 删除内容包含指定子串的事实（按前缀 supersede 用），并记录删除墓碑
+    /// （同步到其它设备）。
+    func removeFacts(containing substring: String) {
+        let doomed = archive.facts.filter { $0.content.contains(substring) }
+        guard !doomed.isEmpty else { return }
+        for fact in doomed { recordDeletion(fact.id.uuidString) }
+        archive.facts.removeAll { fact in doomed.contains(where: { $0.id == fact.id }) }
+        save()
+    }
+
     func addFact(content: String, category: String, scope: String = "global") {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 4 else { return }

@@ -105,6 +105,17 @@ class BrowserState: ObservableObject {
     @Published var isPlayingAudio: Bool = false
     @Published var isMuted: Bool = false
     @Published var isReadingMode = false
+    /// **内建 PDF 查看器**：主框架导航落 PDF 且 WKWebView 不显示时，取消
+    /// 导航、下载到本地临时文件、置此 URL——SelectedTabContent 渲染
+    /// PDFViewerView（PDFKit）。nil = 非 PDF 查看态。关闭 = 置 nil 并回
+    /// 原 URL（viewerReturnURL）。
+    @Published var pdfViewerURL: URL?
+    /// PDF 查看器关闭时返回的页面地址。
+    @Published var pdfViewerReturnURL: URL?
+    /// PDF 下载中（主框架 PDF 导航的过渡态——渲染进度条而非白页）。
+    @Published var isPDFLoading = false
+    /// 展示用文件名。
+    @Published var pdfViewerFileName = ""
     @Published var isReaderLoading = false
     @Published var readerTitle = ""
     @Published var readerContent = ""
@@ -244,6 +255,52 @@ class BrowserState: ObservableObject {
         // the configuration.)
         applyDesktopSafariUA(to: view)
         return view
+    }
+
+    /// 下载 PDF 到临时目录并进入查看器状态（重复查看同一 URL 复用已下文件，
+    /// 带 HEAD 式大小/日期校验的成本太高——临时目录由系统清）。
+    func presentPDFViewer(for url: URL, suggestedName: String) {
+        let safeName = suggestedName.isEmpty ? url.lastPathComponent : suggestedName
+        let local = FileManager.default.temporaryDirectory
+            .appendingPathComponent("desire-pdf-" + UUID().uuidString.prefix(8)
+                + "-" + safeName)
+        isPDFLoading = true
+        pdfViewerURL = nil
+        pdfViewerReturnURL = webView.url
+        Task { [weak self] in
+            do {
+                var req = URLRequest(url: url)
+                req.timeoutInterval = 60
+                let (data, response) = try await URLSession.shared.data(for: req)
+                guard (response as? HTTPURLResponse)?.statusCode == 200 || response.url == url else {
+                    throw URLError(.badServerResponse)
+                }
+                try data.write(to: local, options: .atomic)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    isPDFLoading = false
+                    pdfViewerURL = local
+                    self.pdfViewerFileName = safeName
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    isPDFLoading = false
+                    // 回退原行为：直接再 load（落地白页，同旧版），但给出提示。
+                    pdfViewerURL = nil
+                    lastError = error
+                }
+            }
+        }
+    }
+
+    /// 退出 PDF 查看器：清状态，回到进入前的页面。
+    func dismissPDFViewer() {
+        pdfViewerURL = nil
+        if let back = pdfViewerReturnURL {
+            pdfViewerReturnURL = nil
+            webView.load(URLRequest(url: back))
+        }
     }
 
     /// **二级挂起的 webview 重建**（PERF-9 完整版）：释放旧 WKWebView 骨架
@@ -1253,6 +1310,16 @@ struct WebView: NSViewRepresentable {
                     responseHeaders: headers,
                     responseBody: nil
                 )
+            }
+            // 内建 PDF 查看器（对齐 Safari）：WKWebView 不渲染 application/pdf
+            // （实测主框架导航落白页）——拦下、下载临时文件、PDFKit 展示。
+            if navigationResponse.isForMainFrame,
+               navigationResponse.response.mimeType == "application/pdf",
+               let url = navigationResponse.response.url {
+                parent.state.presentPDFViewer(for: url, suggestedName:
+                    navigationResponse.response.suggestedFilename ?? url.lastPathComponent)
+                decisionHandler(.cancel)
+                return
             }
             if !navigationResponse.canShowMIMEType {
                 // 高危类型落地确认（0.2.15 加固）：安装器/可执行脚本/磁盘

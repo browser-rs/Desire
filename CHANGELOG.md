@@ -6,6 +6,9 @@
 ### Added
 
 - 多窗口 Agent（0.1.8 挂账转正）：listWindows 工具列出全部窗口（会话短 id + 窗口标题 + 忙闲 + 是否本窗）；navigate/switchTab/readTab 支持 window 参数跨窗操作（短 id 定位，找不到明确报错）；提示词 environment 在多窗口时注入窗口清单（标记"你的窗口"）；Agent 面板头部显示本窗口名（>1 窗口时）；桥 /agent/windows 返回真实窗口标题。每窗口本就有独立的会话/TabManager/surface（WindowToolSurface），本次补齐的是"模型看见并跨到别的窗口"这半边
+- 内建 PDF 查看器（对齐 Safari 的标签页内 PDF 预览）：主框架导航落 application/pdf 时取消导航、下载到临时文件、PDFKit 标签页内渲染（缩放/百分比/回原页/Preview 打开）——此前是白页只能下载后外部打开
+- 下载文件名冲突策略（对齐 Chrome/Safari）：设置 ▸ Downloads ▸ Duplicate Files——自动重命名（默认，原唯一行为）/替换现有文件/每次询问；保存面板选了同名文件时落盘前移走旧文件（moveItem 不覆盖）
+
 
 
 ## [v0.5.0] - 2026-10-01

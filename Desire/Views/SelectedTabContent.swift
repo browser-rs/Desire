@@ -193,7 +193,21 @@ struct SelectedTabContent: View {
     @ViewBuilder
     private var mainPane: some View {
         Group {
-            if tab.browser.isReadingMode {
+            if let pdfURL = tab.browser.pdfViewerURL {
+                PDFViewerView(
+                    fileURL: pdfURL,
+                    fileName: tab.browser.pdfViewerFileName,
+                    onBack: { tab.browser.dismissPDFViewer() }
+                )
+            } else if tab.browser.isPDFLoading {
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("Loading PDF…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if tab.browser.isReadingMode {
                 ReaderView(
                     title: tab.browser.readerTitle,
                     contentHTML: tab.browser.readerContent,

@@ -44,6 +44,8 @@ class DownloadStore: ObservableObject {
     var pausedCount: Int { downloads.filter { $0.isPaused }.count }
 
     init() {
+        conflictPolicyRaw = UserDefaults.standard.string(forKey: "download.conflictPolicy")
+            ?? ConflictPolicy.rename.rawValue
         downloadFolder = DownloadStore.defaultDownloadsURL()
         if let custom = DownloadStore.resolveBookmarkedFolder(bookmarkKey: bookmarkKey) {
             downloadFolder = custom.url
@@ -128,6 +130,33 @@ class DownloadStore: ObservableObject {
         accessedURL = nil
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
         downloadFolder = DownloadStore.defaultDownloadsURL()
+    }
+
+    /// 文件名冲突策略（对齐 Chrome/Safari 的"下载重复文件时"设置）。
+    enum ConflictPolicy: String, CaseIterable {
+        case rename   // 追加 " 2"、" 3"（默认——此前唯一行为）
+        case replace  // 覆盖旧文件
+        case ask      // 每次询问
+    }
+
+    @Published var conflictPolicyRaw: String {
+        didSet { UserDefaults.standard.set(conflictPolicyRaw, forKey: "download.conflictPolicy") }
+    }
+
+    var conflictPolicy: ConflictPolicy {
+        get { ConflictPolicy(rawValue: conflictPolicyRaw) ?? .rename }
+        set { conflictPolicyRaw = newValue.rawValue }
+    }
+
+    /// 目标解析（按策略）：rename/ask 都先给"不撞"的名字（ask 若用户在
+    /// 询问条里选了替换，DestinationResolver 再换回原名）；replace 直接原名。
+    func resolveDestination(for filename: String) -> URL {
+        switch conflictPolicy {
+        case .replace:
+            return downloadFolder.appendingPathComponent(filename)
+        case .rename, .ask:
+            return FilePathing.uniqueURL(in: downloadFolder, for: filename)
+        }
     }
 
     func uniqueURL(for filename: String) -> URL {
@@ -522,7 +551,7 @@ class DownloadStore: ObservableObject {
             return
         }
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
-        var destination = uniqueURL(for: downloads[i].filename)
+        var destination = resolveDestination(for: downloads[i].filename)
         // 设置 ▸ Downloads ▸ Ask where to save each file：落盘前弹保存
         // 面板（此时已有完整文件名建议，比 Safari 在开始时猜名字更准）。
         if UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false {

@@ -274,6 +274,22 @@ struct GeneralSettingsSection: View {
                         action: { downloadStore.chooseDownloadFolder() }
                     )
                     SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Duplicate Files",
+                        subtitle: "What to do when a download has the same name as an existing file.",
+                        systemImage: "doc.on.doc",
+                        selection: $downloadStore.conflictPolicyRaw,
+                        options: DownloadStore.ConflictPolicy.allCases.map(\.rawValue),
+                        label: { policy in
+                            switch DownloadStore.ConflictPolicy(rawValue: policy) {
+                            case .rename: String(localized: "Rename automatically")
+                            case .replace: String(localized: "Replace existing file")
+                            case .ask: String(localized: "Ask every time")
+                            case nil: policy
+                            }
+                        }
+                    )
+                    SettingsRowDivider()
                     FolderPathRow(
                         title: "Screenshot Save Location",
                         subtitle: "Where captured screenshots are written.",

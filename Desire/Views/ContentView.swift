@@ -304,80 +304,30 @@ struct ContentView: View {
                 StartupMetric.markFirstWindowInteractive()
             }
             if tabManager.tabs.isEmpty {
-                // Bind this window to a persistent session identity (the
-                // binding write is what SwiftUI persists for the window).
                 if sessionID == nil { sessionID = UUID() }
-                guard let sid = sessionID else { return }
-                let sessionKey = TabSessionCoordinator.shared.sessionKey(for: sid)
-                tabManager.sessionKey = sessionKey
-
-                // 拖出接纳：本窗口由"标签拖出"创建，暂存区的标签直接吸收，
-                // 不走会话恢复/新建流程。
-                if let staged = TabTransfer.take(for: sid) {
-                    tabManager.absorb(staged)
-                    return
-                }
-
-                if tabManager.restoreSession(
-                    forKey: sessionKey,
-                    javaScriptEnabled: settings.isJavaScriptEnabled,
-                    contentBlocker: contentBlocker,
-                    videoAdBlocker: videoAdBlocker
-                ) {
-                    // This window's own tabs are back.
-                } else if !appState.hasRestoredSession {
-                    // First window with no own session. macOS 26 never
-                    // persists SwiftUI window VALUES (no Saved Application
-                    // State is written for SwiftUI scenes), so this window
-                    // always arrives with a fresh UUID and its "own" session
-                    // can never exist — without adoption, every launch
-                    // opened blank despite a perfectly good saved session.
-                    // Adopt the most recent session from the termination
-                    // index (continue where you left off).
-                    appState.hasRestoredSession = true
-                    if settings.startupBehavior == .restoreSession,
-                       let lastKey = TabSessionCoordinator.shared.mostRecentSessionKey(),
-                       lastKey != sessionKey,
-                       let session = TabSessionCoordinator.shared.session(forKey: lastKey),
-                       !session.tabs.isEmpty {
-                        // 崩溃回收（0.3.8）：上次异常终止——提示用户已恢复
-                        // 到崩溃前最后写入的会话（非上次干净退出时的）。
-                        if TabSessionCoordinator.shared.launchedAfterCrash {
+                // 会话恢复编排（ARCH-8 抽出）：绑定身份 → 拖出接纳 → 恢复
+                // 本窗口会话 / 采纳最近会话（含崩溃提示回调）/ 兜底新标签。
+                if let restored = SessionRestore.run(
+                    for: tabManager,
+                    context: .init(
+                        tabManager: tabManager,
+                        appState: appState,
+                        settings: settings,
+                        contentBlocker: contentBlocker,
+                        videoAdBlocker: videoAdBlocker,
+                        existingSessionID: sessionID,
+                        onCrashRestoreNotice: {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                                 actionToast = StatusBarToast(
                                     icon: "arrow.counterclockwise.circle",
                                     text: String(localized: "Restored session after an unexpected quit")
                                 )
                             }
-                        }
-                        // Re-bind the window to the adopted identity so all
-                        // future persists land on the same session file.
-                        tabManager.sessionKey = lastKey
-                        tabManager.apply(
-                            session: session,
-                            javaScriptEnabled: settings.isJavaScriptEnabled,
-                            contentBlocker: contentBlocker,
-                            videoAdBlocker: videoAdBlocker
-                        )
-                        // Deliberately NOT pruning here: consuming the index
-                        // would leave the next launch with nothing to adopt.
-                        // This window now persists under `lastKey`, and the
-                        // next clean quit rewrites the index with it.
-                    } else {
-                        TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
-                        if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
-                            tabManager.apply(
-                                session: legacy,
-                                javaScriptEnabled: settings.isJavaScriptEnabled,
-                                contentBlocker: contentBlocker,
-                                videoAdBlocker: videoAdBlocker
-                            )
-                        } else {
-                            b.openFreshTab()
-                        }
-                    }
-                } else {
-                    b.openFreshTab()
+                        },
+                        openFreshTab: { b.openFreshTab() }
+                    )
+                ) {
+                    sessionID = restored
                 }
             }
         }

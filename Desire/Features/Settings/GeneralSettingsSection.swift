@@ -169,7 +169,7 @@ struct GeneralSettingsSection: View {
                 SettingsRowDivider()
                 SettingsToggleRow(
                     "Block Video Ads",
-                    subtitle: "Hide player and in-feed ad slots on YouTube, Bilibili, Tencent Video, iQIYI, Youku and Mango TV. Applies to the next page load.",
+                    subtitle: "Hide player and in-feed ad slots on YouTube, Bilibili, Tencent Video, iQIYI, Youku, Mango TV and more — plus generic player-ad CSS, anti-adblock counters, and first-click hijack protection. Applies to the next page load.",
                     systemImage: "rectangle.slash",
                     isOn: Binding(
                         get: { videoAdBlocker.isEnabled },

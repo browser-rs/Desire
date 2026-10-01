@@ -273,7 +273,14 @@ enum FFmpegExporter {
 
         let watchdog = Task {
             let remaining = deadline.timeIntervalSinceNow
-            if remaining > 0 { try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000)) }
+            // "不限时"（deadline=.distantFuture）时 remaining ~7.9e18 秒，
+            // ×1e9 远超 UInt64.max → Double 转换运行时陷阱直接崩（用户实测
+            // 不限时模式跑大视频必崩）。钳到 100 年（watchdog 语义 = 到点
+            // 才 terminate，钳大数 = 实际永不触发，正确）。
+            let clampedSeconds = min(max(remaining, 0), 3_153_600_000)   // 100 年
+            if clampedSeconds > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(clampedSeconds * 1_000_000_000))
+            }
             guard !Task.isCancelled else { return }
             collector.markTimedOut()
             process.terminate()

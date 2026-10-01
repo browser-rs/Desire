@@ -2792,6 +2792,9 @@
         }
       }
     },
+    "AI Ad Blocking" : {
+
+    },
     "AI Agent Panel" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8182,6 +8185,9 @@
         }
       }
     },
+    "Couldn't play this file" : {
+
+    },
     "Couldn't read this session file" : {
       "localizations" : {
         "en" : {
@@ -11985,6 +11991,9 @@
         }
       }
     },
+    "File Not Found" : {
+
+    },
     "File not found on the server (404)" : {
       "localizations" : {
         "en" : {
@@ -12958,7 +12967,6 @@
     },
     "Go Back" : {
       "comment" : "Keyboard shortcut",
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18962,6 +18970,9 @@
       }
     },
     "Open in Preview" : {
+
+    },
+    "Open in QuickTime Player" : {
 
     },
     "Open in Safari" : {
@@ -27133,6 +27144,9 @@
         }
       }
     },
+    "The local file doesn't exist (or can't be read). It may have been moved, renamed, or deleted since it was opened." : {
+
+    },
     "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
       "localizations" : {
         "en" : {
@@ -27622,6 +27636,9 @@
           }
         }
       }
+    },
+    "This page is infested with ads. Run findAdCandidates to scan it, pick the REAL ad elements (skip anything that looks like actual content or the page's own player), and block them with blockElements for this site. Report what you blocked in one short line." : {
+
     },
     "This page may not have a readable article format." : {
       "localizations" : {
@@ -30924,6 +30941,9 @@
           }
         }
       }
+    },
+    "松开在此标签页打开" : {
+
     },
     "标题" : {
       "localizations" : {

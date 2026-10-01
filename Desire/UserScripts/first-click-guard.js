@@ -55,8 +55,10 @@
         while (node && node !== document.body && hops < 6) {
             if (node.closest) {
                 if (node.closest('iframe[src*="challenges.cloudflare.com"], ' +
-                    'iframe[src*="hcaptcha.com"], .cf-turnstile, .h-captcha, ' +
-                    '[class*="captcha" i], [id*="captcha" i], [class*="challenge" i]')) return true;
+                    'iframe[src*="hcaptcha.com"], iframe[src*="captcha" i], ' +
+                    '.cf-turnstile, .h-captcha, ' +
+                    '[class*="captcha" i], [id*="captcha" i], [class*="challenge" i], ' +
+                    '[class*="verify" i], [id*="verify" i]')) return true;
             }
             node = node.parentElement;
             hops++;

@@ -1,6 +1,39 @@
 [
   {
     "trigger": {
+      "url-filter": ".*challenges\\.cloudflare\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*hcaptcha\\.com.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*[/?=]captcha.*",
+      "load-type": [
+        "third-party"
+      ]
+    },
+    "action": {
+      "type": "ignore-previous-rules"
+    }
+  },
+  {
+    "trigger": {
       "url-filter": ".*",
       "load-type": [
         "third-party"

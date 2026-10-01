@@ -9,6 +9,7 @@ enum AgentQuickAction: CaseIterable {
     case translate
     case summarizeComments
     case summarizeChat
+    case blockAds
 
     var title: String {
         switch self {
@@ -17,6 +18,7 @@ enum AgentQuickAction: CaseIterable {
         case .translate: String(localized: "Translate")
         case .summarizeComments: String(localized: "Summarize Comments")
         case .summarizeChat: String(localized: "Summarize Chat")
+        case .blockAds: String(localized: "AI Ad Blocking")
         }
     }
 
@@ -27,6 +29,7 @@ enum AgentQuickAction: CaseIterable {
         case .translate: "translate"
         case .summarizeComments: "bubble.left.and.text.bubble.right"
         case .summarizeChat: "message.badge.filled.fill"
+        case .blockAds: "shield.lefthalf.filled.badge.plus"
         }
     }
 
@@ -39,6 +42,8 @@ enum AgentQuickAction: CaseIterable {
             String(localized: "Use the getComments tool to read this page's comments, then summarize the main viewpoints, points of agreement and disagreement, and the overall sentiment.")
         case .summarizeChat:
             String(localized: "Use the getConversation tool to read this chat, then summarize what has been discussed and draft a suitable reply for me to send.")
+        case .blockAds:
+            String(localized: "This page is infested with ads. Run findAdCandidates to scan it, pick the REAL ad elements (skip anything that looks like actual content or the page's own player), and block them with blockElements for this site. Report what you blocked in one short line.")
         }
     }
 
@@ -50,6 +55,7 @@ enum AgentQuickAction: CaseIterable {
         case .translate: "translate"
         case .summarizeComments: "summarizeComments"
         case .summarizeChat: "summarizeChat"
+        case .blockAds: "blockAds"
         }
     }
 
@@ -549,9 +555,9 @@ class AgentSessionStore: ObservableObject {
 
     func performQuickAction(_ action: AgentQuickAction) {
         switch action {
-        case .summarize, .translate, .summarizeComments, .summarizeChat:
+        case .summarize, .translate, .summarizeComments, .summarizeChat, .blockAds:
             // These prompts instruct the agent to pull content via the
-            // specialized tools (getComments / getConversation).
+            // specialized tools (getComments / getConversation / findAdCandidates).
             // 固定按钮提示语不进用户输入历史（用户没打这些字）。
             sendMessage(action.prompt, recordHistory: false)
         case .askAboutPage:

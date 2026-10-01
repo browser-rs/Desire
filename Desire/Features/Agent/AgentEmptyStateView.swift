@@ -179,6 +179,7 @@ private extension AgentQuickAction {
         case .translate: return "Translate to Chinese"
         case .summarizeComments: return "What the comment section says"
         case .summarizeChat: return "Recap + draft a reply"
+        case .blockAds: return "Detect and block ads on this site"
         }
     }
 }

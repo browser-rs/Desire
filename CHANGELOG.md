@@ -13,6 +13,9 @@
 - ⌘S 存页从组合根搬进 BrowsingActions（写盘/落库归动作层，View 只剩结果映射 toast）；设置页"测试连接"两份手写 URLRequest 收口 AIConnectivity（鉴权头/超时/opencode 会话头/服务器错误回显统一）；阅读器设置抽独立文件
 - 挂起标签二级挂起（安全子集）：快照 LRU 上限 12 份，超出的最旧挂起标签释放交互状态快照（恢复退回干净 URL 重载）——重会话下快照不再吃掉挂起省出的内存；webview 骨架的完全释放需"恢复时重建 webview"，另行立项
 - 搜索建议空结果不再缓存（瞬时网络抖动曾把空数组在 LRU 槽里赖住，该词此后拿不到候选）；删除 DevTools 四个死文件（833 行，仅 Preview 引用）；QuickDial 清空被默认八枚复活与 saveAsPDF 假成功两项审计核对为已修（勿重复报）
+- 防撞文件名循环统一 FilePathing.uniqueURL（下载/截图两份手写拷贝收口一处）；桥端点时间戳统一共享 ISO8601 formatter（此前现场 new 十余次）；自动化端口字面量收口 AutomationServer.hostPort/baseURL（散布 4 处）
+- 插件 background 的 runtime.onInstalled 改确定性触发：页面注册监听时桥本就上报宿主，收到即派发——此前 300ms 延迟是启发式，background 代码加载慢时监听器未注册、事件凭空丢失
+
 
 
 

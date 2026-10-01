@@ -76,15 +76,9 @@ final class PluginBackgroundRuntime: NSObject {
         web.loadHTMLString("<html><body></body></html>", baseURL: base)
         hosts[plugin.id] = Host(plugin: plugin, webView: web, coordinator: coordinator)
 
-        // onInstalled：每次启动都触发（差异已记录在类注释）。延迟一拍确保
-        // 事件监听器（atDocumentEnd 的 background 代码）先注册完成。
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self, self.hosts[plugin.id] != nil else { return }
-            self.fire(pluginID: plugin.id, event: "runtime.onInstalled",
-                      payload: ["reason": "install"])
-            Log.userScripts.info("plugin background started: \(plugin.id.uuidString.prefix(8), privacy: .public)")
-        }
+        // onInstalled 的派发移到 Coordinator 收到 addListener("runtime.onInstalled")
+        // 的那一刻（确定性）；插件不注册监听器就无需派发——无消费者的
+        // evaluate 只是丢进空页。
     }
 
     private func stop(_ id: UUID) {
@@ -235,6 +229,15 @@ final class PluginBackgroundRuntime: NSObject {
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，
                 // 宿主派发时直接 evaluate 进来。
+                // **onInstalled 确定性触发**：页面侧注册监听这一刻桥会上报，
+                // 收到即派发——此前 300ms 延迟是启发式，atDocumentEnd 的
+                // background 代码慢一点监听器就还没注册、事件凭空丢失。
+                if let name = args.first as? String, name == "runtime.onInstalled" {
+                    // 消息自带 webView（即本插件的 background 页），直接回注。
+                    _ = try? await message.webView?.evaluateJavaScript(
+                        "window.__desireExt && window.__desireExt._fire(\"runtime.onInstalled\", {\"reason\":\"install\"});")
+                    Log.userScripts.info("plugin background started: \(self.pluginID.uuidString.prefix(8), privacy: .public)")
+                }
                 reply([:])
             case ("tabs", "query"):
                 // background 无窗口上下文——查活动窗口的标签快照（与桥同源）。

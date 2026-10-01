@@ -691,7 +691,7 @@ private struct DeveloperSection: View {
                 bridgeRow(
                     title: "Automation Bridge",
                     detail: launchedWithAutomation
-                        ? "Running on 127.0.0.1:8799 (launch with --automation)."
+                        ? "Running on \(AutomationServer.hostPort) (launch with --automation)."
                         : "Inactive. Relaunch with --automation to enable.",
                     active: launchedWithAutomation
                 )

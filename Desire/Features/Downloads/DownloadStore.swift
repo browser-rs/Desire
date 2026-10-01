@@ -131,17 +131,7 @@ class DownloadStore: ObservableObject {
     }
 
     func uniqueURL(for filename: String) -> URL {
-        let base = downloadFolder.appendingPathComponent(filename)
-        guard FileManager.default.fileExists(atPath: base.path) else { return base }
-        let ext = (filename as NSString).pathExtension
-        let stem = (filename as NSString).deletingPathExtension
-        var i = 2
-        while true {
-            let candidateName = ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
-            let candidate = downloadFolder.appendingPathComponent(candidateName)
-            guard FileManager.default.fileExists(atPath: candidate.path) else { return candidate }
-            i += 1
-        }
+        FilePathing.uniqueURL(in: downloadFolder, for: filename)
     }
 
     /// 完成行内存上限（0.3.4）：列表是展示用历史，超限裁掉最旧的完成

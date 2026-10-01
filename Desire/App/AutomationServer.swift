@@ -74,7 +74,11 @@ final class AutomationServer {
     static let shared = AutomationServer()
 
     private var listener: NWListener?
-    private static let port: UInt16 = 8799
+    nonisolated static let port: UInt16 = 8799
+    /// "127.0.0.1:8799" 文案与判定统一从这里取（ARCH-7：字面量曾散布 4 处）。
+    /// nonisolated：非隔离上下文（索引构建/Extract 判定）也要取。
+    nonisolated static let hostPort = "127.0.0.1:\(port)"
+    nonisolated static let baseURL = "http://\(hostPort)"
 
     private init() {}
 
@@ -320,7 +324,7 @@ final class AutomationServer {
         func ep(_ method: String, _ path: String, _ description: String, params: [String] = [], example: String) {
             eps.append(["method": method, "path": path, "description": description,
                         "params": params,
-                        "example": "curl -s \(method == "GET" ? "" : "-X \(method) ")http://127.0.0.1:8799\(path) → \(example)"])
+                        "example": "curl -s \(method == "GET" ? "" : "-X \(method) ")\(baseURL)\(path) → \(example)"])
         }
         // Browsing
         ep("GET", "/state", "All tabs (index/title/url/incognito/selected) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
@@ -507,7 +511,7 @@ final class AutomationServer {
         ]
         return [
             "service": "Desire Automation Bridge",
-            "baseUrl": "http://127.0.0.1:8799",
+            "baseUrl": baseURL,
             "auth": "optional — launch with `--automation-token <token>`, send `Authorization: Bearer <token>`",
             "events": ["transport": "SSE", "path": "/events", "kinds": events],
             "endpoints": endpointCatalog,
@@ -2134,7 +2138,7 @@ final class AutomationServer {
             "remoteURL": store.remoteURL?.absoluteString ?? "",
             "remoteVersion": store.appliedRemoteVersion ?? "",
             "remoteFetchedAt": store.remoteFetchedAt.map {
-                ISO8601DateFormatter().string(from: $0)
+                ISO.string(from: $0)
             } ?? "",
             "remoteScriptsTrusted": store.remoteScriptsTrusted,
             "isRefreshing": store.isRefreshing,
@@ -2896,10 +2900,9 @@ final class AutomationServer {
         // R2-7：复用内存 store（此前每请求 new 一个 = 主 actor 全量读盘解码）。
         let store = AppState.live?.conversationStore ?? ConversationStore()
         let hits = store.search(query, limit: min(20, max(1, limit)))
-        let iso = ISO8601DateFormatter()
         return ["query": query, "count": hits.count, "hits": hits.map { hit in
             ["id": hit.id.uuidString, "title": hit.title,
-             "updatedAt": iso.string(from: hit.updatedAt),
+             "updatedAt": ISO.string(from: hit.updatedAt),
              "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
         }]
     }
@@ -2964,12 +2967,11 @@ final class AutomationServer {
         ]
         payload["cost"] = stats.cost as Any
         if let peak = stats.peakDay {
-            payload["peakDay"] = ISO8601DateFormatter().string(from: peak)
+            payload["peakDay"] = ISO.string(from: peak)
         }
         if let days, days > 0 {
-            let iso = ISO8601DateFormatter()
             payload["days"] = stats.recentDays(min(days, 366)).map { day -> [String: Any] in
-                ["date": iso.string(from: day.id), "tokens": day.tokens, "turns": day.turns,
+                ["date": ISO.string(from: day.id), "tokens": day.tokens, "turns": day.turns,
                  "byModel": day.byModel]
             }
         }
@@ -3410,7 +3412,7 @@ final class AutomationServer {
                     "updating": list.isUpdating,
                     "source": list.sourceURL.absoluteString,
                 ]
-                if let last = list.lastUpdated { row["lastUpdated"] = ISO8601DateFormatter().string(from: last) }
+                if let last = list.lastUpdated { row["lastUpdated"] = ISO.string(from: last) }
                 if let count = list.ruleCount { row["ruleCount"] = count }
                 if let error = list.errorText { row["error"] = error }
                 return row
@@ -3489,10 +3491,10 @@ final class AutomationServer {
                     "title": job.title,
                     "state": job.state.rawValue,
                     "url": job.url.absoluteString,
-                    "startedAt": ISO8601DateFormatter().string(from: job.startedAt),
+                    "startedAt": ISO.string(from: job.startedAt),
                 ]
                 if let summary = job.summary { row["summary"] = summary }
-                if let finished = job.finishedAt { row["finishedAt"] = ISO8601DateFormatter().string(from: finished) }
+                if let finished = job.finishedAt { row["finishedAt"] = ISO.string(from: finished) }
                 return row
             },
         ]
@@ -3594,7 +3596,7 @@ final class AutomationServer {
             return [
                 "id": conv.id.uuidString,
                 "title": conv.title,
-                "updatedAt": ISO8601DateFormatter().string(from: conv.updatedAt),
+                "updatedAt": ISO.string(from: conv.updatedAt),
                 "messages": conv.messages.count,
                 "firstMessage": String(first.prefix(80)),
             ]
@@ -3706,7 +3708,7 @@ final class AutomationServer {
                 "finished": batch.finishedCount,
                 "total": batch.items.count,
                 "counts": counts,
-                "createdAt": ISO8601DateFormatter().string(from: batch.createdAt),
+                "createdAt": ISO.string(from: batch.createdAt),
                 "paused": store.isPaused(batch.id),
             ]
             if let split = batch.splitEvery, split > 0 { row["splitEvery"] = split }
@@ -3769,7 +3771,7 @@ final class AutomationServer {
             .sorted { $0.value.at > $1.value.at }
             .prefix(200)
         return ["history": entries.map { url, entry -> [String: Any] in
-            ["url": url, "file": entry.file, "at": ISO8601DateFormatter().string(from: entry.at)]
+            ["url": url, "file": entry.file, "at": ISO.string(from: entry.at)]
         }]
     }
 
@@ -4084,10 +4086,9 @@ final class AutomationServer {
 
     private static func searchMemory(query: String) throws -> [String: Any] {
         let results = AgentMemoryStore.shared.searchFacts(query: query)
-        let formatter = ISO8601DateFormatter()
         return ["results": results.map { f -> [String: Any] in
             ["id": f.id.uuidString, "content": f.content, "category": f.category,
-             "pinned": f.pinned, "scope": f.scope, "updatedAt": formatter.string(from: f.updatedAt)]
+             "pinned": f.pinned, "scope": f.scope, "updatedAt": ISO.string(from: f.updatedAt)]
         }]
     }
 
@@ -4105,7 +4106,6 @@ final class AutomationServer {
 
     private static func memorySnapshot() -> [String: Any] {
         let store = AgentMemoryStore.shared
-        let formatter = ISO8601DateFormatter()
         return [
             "profile": [
                 "name": store.profileSnapshot.name, "language": store.profileSnapshot.language,
@@ -4113,7 +4113,7 @@ final class AutomationServer {
             ],
             "facts": store.factsSnapshot.map { f -> [String: Any] in
                 ["id": f.id.uuidString, "content": f.content, "category": f.category,
-                 "pinned": f.pinned, "scope": f.scope, "updatedAt": formatter.string(from: f.updatedAt)]
+                 "pinned": f.pinned, "scope": f.scope, "updatedAt": ISO.string(from: f.updatedAt)]
             },
             "summaries": store.summariesCount,
         ]
@@ -4190,13 +4190,12 @@ final class AutomationServer {
         if let name, !name.isEmpty {
             runs = runs.filter { $0.taskName.lowercased() == name.lowercased() }
         }
-        let formatter = ISO8601DateFormatter()
         let rows = runs.prefix(count).map { r -> [String: Any] in
             [
                 "id": r.id.uuidString,
                 "task": r.taskName,
-                "firedAt": formatter.string(from: r.firedAt),
-                "finishedAt": r.finishedAt.map(formatter.string(from:)) ?? "",
+                "firedAt": ISO.string(from: r.firedAt),
+                "finishedAt": r.finishedAt.map(ISO.string(from:)) ?? "",
                 "status": r.status,
                 "success": r.success ?? NSNull(),
                 "error": r.error ?? "",
@@ -4229,10 +4228,9 @@ final class AutomationServer {
     }
 
     private static func approvalHistory(count: Int) throws -> [String: Any] {
-        let formatter = ISO8601DateFormatter()
         let rows = ApprovalPolicyStore.shared.history.prefix(count).map { h -> [String: Any] in
             ["tool": h.toolName, "decision": h.decision, "source": h.source,
-             "at": formatter.string(from: h.createdAt)]
+             "at": ISO.string(from: h.createdAt)]
         }
         return ["history": Array(rows)]
     }

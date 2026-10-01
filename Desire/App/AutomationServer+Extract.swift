@@ -46,7 +46,7 @@ extension AutomationServer {
             .compactMap { $0.url.isEmpty ? nil : URL(string: $0.url) }
             .filter { url in
                 guard !url.absoluteString.contains("127.0.0.1:8877"),
-                      !url.absoluteString.contains("127.0.0.1:8799") else { return false }
+                      !url.absoluteString.contains(AutomationServer.hostPort) else { return false }
                 return url.absoluteString.lowercased().contains(patternSubstring.lowercased())
             }
         var added = 0

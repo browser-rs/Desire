@@ -755,19 +755,9 @@ final class ScreenshotOverlayView: NSView {
         }
     }
 
-    /// Pick a non-colliding URL inside `folder` for `filename`, appending " 2", " 3", …
+    /// Pick a non-colliding URL inside `folder` for `filename`（共享实现）。
     private func uniqueURL(in folder: URL, for filename: String) -> URL {
-        let base = folder.appendingPathComponent(filename)
-        guard FileManager.default.fileExists(atPath: base.path) else { return base }
-        let ext = (filename as NSString).pathExtension
-        let stem = (filename as NSString).deletingPathExtension
-        var i = 2
-        while true {
-            let candidateName = ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
-            let candidate = folder.appendingPathComponent(candidateName)
-            guard FileManager.default.fileExists(atPath: candidate.path) else { return candidate }
-            i += 1
-        }
+        FilePathing.uniqueURL(in: folder, for: filename)
     }
 
     private func copyImage() {

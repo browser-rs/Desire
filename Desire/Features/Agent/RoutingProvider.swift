@@ -17,12 +17,8 @@ import FoundationModels
 /// (non-persistent; resets each launch) because `RoutingProvider` itself is
 /// a value type reconstructed on every `stream()` call.
 ///
-/// Selection rules (first match wins):
-/// 1. Tool chain in progress (`!tools.isEmpty` AND history contains tool
-///    messages / tool calls) → tool-capable: cloud first, Ollama fallback.
-/// 2. Local-eligible prompt (summary/translate/tldr keywords, no tools) →
-///    Foundation Models first, then Ollama, then cloud.
-/// 3. Default → cloud.
+/// Selection rules live in `RoutingDecision` (pure, unit-tested). This type
+/// gathers the availability signals and maps the target to a concrete provider.
 ///
 /// Availability gate: cloud requires an API key; Foundation Models requires
 /// `SystemLanguageModel.availability == .available`; Ollama is always
@@ -46,39 +42,32 @@ struct RoutingProvider: ModelProvider {
     // MARK: - Decision
 
     private func decide(messages: [AgentMessage], tools: [AgentToolDef]) -> ModelProviderKind {
-        // Rule 1: once we've entered a tool chain, stay tool-capable.
-        // `tools` is non-empty on every call of a tool-use conversation,
-        // and tool-result messages appear after the first tool executes.
-        let hasToolTraffic = messages.contains { $0.role == .tool || !($0.toolCalls ?? []).isEmpty }
-        if prefs.routingLockedToCloud || (!tools.isEmpty && hasToolTraffic) {
+        let input = RoutingDecision.Input(
+            hasToolTraffic: messages.contains { $0.role == .tool || !($0.toolCalls ?? []).isEmpty },
+            toolsOffered: !tools.isEmpty,
+            lockedToCloud: prefs.routingLockedToCloud,
+            lastUserPrompt: messages.last(where: { $0.role == .user })?.content,
+            contextChars: messages.reduce(0) { $0 + ($1.content?.count ?? 0) },
+            foundationAvailable: foundationAvailable,
+            ollamaConfigured: ollamaConfigured,
+            hasCloudKey: prefs.hasAPIKey,
+            costAware: prefs.costAwareRouting
+        )
+        // 锁语义 = "留在有工具能力的提供方"（原实现规则 1 命中即锁，
+        // 即便回落到 Ollama 也锁）——不是"结果为云才锁"。
+        if input.lockedToCloud || (input.toolsOffered && input.hasToolTraffic) {
             prefs.routingLockedToCloud = true
-            return toolCapableFallback()
         }
-
-        // Rule 2: local-eligible prompt. Only when no tools are offered —
-        // a summarization that *can* call tools might, and then rule 1 applies.
-        if tools.isEmpty, let lastUser = messages.last(where: { $0.role == .user })?.content?.lowercased(),
-           Self.looksLocalEligible(lastUser) {
-            if foundationAvailable { return .foundationModels }
-            if ollamaConfigured { return .ollama }
-            // No local option available → cloud.
-            return .cloud
-        }
-
-        // Rule 3: default.
-        return .cloud
+        let target = RoutingDecision.decide(input)
+        return map(target)
     }
 
-    /// Picks a tool-capable provider, preferring cloud (richer models for
-    /// multi-step reasoning) and falling back to Ollama (also supports tools).
-    /// Foundation Models is never considered here (text-only).
-    private func toolCapableFallback() -> ModelProviderKind {
-        if prefs.hasAPIKey { return .cloud }
-        if ollamaConfigured { return .ollama }
-        // No tool-capable provider configured. Return cloud anyway so the
-        // provider surfaces a clear `.noAPIKey` error to the user, rather
-        // than silently degrading to a text-only model that ignores tools.
-        return .cloud
+    private func map(_ target: RoutingDecision.Target) -> ModelProviderKind {
+        switch target {
+        case .cloud: return .cloud
+        case .foundationModels: return .foundationModels
+        case .ollama: return .ollama
+        }
     }
 
     // MARK: - Availability
@@ -104,19 +93,5 @@ struct RoutingProvider: ModelProvider {
         case .ollama:           return OllamaProvider()
         case .routing:          return CloudOpenAIProvider() // defensive; routing never routes to itself
         }
-    }
-
-    /// Heuristic: does this prompt look like a pure text task suited to a
-    /// small local model (summarization/translation)? Conservative — when
-    /// in doubt, returns false so the cloud default applies.
-    private static func looksLocalEligible(_ prompt: String) -> Bool {
-        let keywords = [
-            // English
-            "summarize", "summary", "tldr", "tl;dr", "recap",
-            "translate", "translation",
-            // Chinese
-            "总结", "摘要", "概括", "翻译", "简述",
-        ]
-        return keywords.contains { prompt.contains($0) }
     }
 }

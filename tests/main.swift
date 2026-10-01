@@ -826,6 +826,52 @@ func testJSString() {
 }
 testJSString()
 
+// MARK: - RoutingDecision（成本感知路由决策矩阵）
+
+func testRoutingDecision() {
+    func d(_ mutate: (inout RoutingDecision.Input) -> Void) -> RoutingDecision.Target {
+        var input = RoutingDecision.Input()
+        mutate(&input)
+        return RoutingDecision.decide(input)
+    }
+    // Rule 1: 工具链粘滞
+    eq("工具链 → 云", d({ $0.toolsOffered = true; $0.hasToolTraffic = true; $0.hasCloudKey = true }), .cloud)
+    eq("锁定 → 云（无 key 回落 ollama）", d({ $0.lockedToCloud = true; $0.ollamaConfigured = true }), .ollama)
+    eq("工具链无 key 无 ollama → 仍云（错误可见）", d({ $0.toolsOffered = true; $0.hasToolTraffic = true }), .cloud)
+    // Rule 2: 关键词命中 → 本地优先
+    eq("关键词+foundation 可用 → 本地", d({
+        $0.lastUserPrompt = "总结这段话"; $0.foundationAvailable = true; $0.hasCloudKey = true
+    }), .foundationModels)
+    eq("关键词、foundation 不可用 → ollama", d({
+        $0.lastUserPrompt = "translate this"; $0.ollamaConfigured = true; $0.hasCloudKey = true
+    }), .ollama)
+    eq("关键词、本地全不可用 → 云", d({ $0.lastUserPrompt = "总结" ; $0.hasCloudKey = true }), .cloud)
+    // Rule 2 扩面（成本感知开启）：简单短文本
+    eq("成本感知：短文本 → 本地", d({
+        $0.costAware = true; $0.lastUserPrompt = "今天天气如何"; $0.foundationAvailable = true
+    }), .foundationModels)
+    eq("成本感知：长文本 → 云", d({
+        $0.costAware = true
+        $0.lastUserPrompt = String(repeating: "长", count: 300)
+        $0.foundationAvailable = true; $0.hasCloudKey = true
+    }), .cloud)
+    eq("成本感知：上下文超限 → 云", d({
+        $0.costAware = true; $0.lastUserPrompt = "你好"
+        $0.contextChars = 5000; $0.foundationAvailable = true; $0.hasCloudKey = true
+    }), .cloud)
+    eq("成本感知关闭：短文本 → 云（默认保守）", d({
+        $0.lastUserPrompt = "今天天气如何"; $0.foundationAvailable = true; $0.hasCloudKey = true
+    }), .cloud)
+    // 工具流量在场：即使关键词命中也不进本地（粘滞优先）
+    eq("有工具流量时关键词无效", d({
+        $0.toolsOffered = true; $0.hasToolTraffic = true; $0.hasCloudKey = true
+        $0.lastUserPrompt = "总结"
+    }), .cloud)
+    // Rule 3: 默认云
+    eq("默认 → 云", d({ $0.hasCloudKey = true }), .cloud)
+}
+testRoutingDecision()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

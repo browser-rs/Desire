@@ -339,6 +339,13 @@ struct AgentSettingsSection: View {
                     systemImage: "brain.head.profile",
                     isOn: $store.memoryLearning
                 )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Cost-Aware Routing",
+                    subtitle: String(localized: "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud."),
+                    systemImage: "scalemass",
+                    isOn: $store.costAwareRouting
+                )
             }
 
             // MARK: - Allowed Tools

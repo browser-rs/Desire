@@ -70,6 +70,12 @@ class AgentPreferenceStore: ObservableObject {
     @Published var memoryLearning: Bool {
         didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
     }
+    /// **成本感知路由**：开启后，路由器把"简单短文本"的纯文本回合（无工具、
+    /// 上下文小）也交给免费的本地模型（Foundation Models / Ollama），云端留给
+    /// 复杂回合——省钱但不牺牲复杂任务质量。关闭时只有关键词命中才走本地。
+    @Published var costAwareRouting: Bool {
+        didSet { UserDefaults.standard.set(costAwareRouting, forKey: "aiCostAwareRouting") }
+    }
     /// Subtle chime when an agent turn completes successfully.
     @Published var completionSound: Bool {
         didSet { UserDefaults.standard.set(completionSound, forKey: "aiCompletionSound") }
@@ -359,6 +365,7 @@ class AgentPreferenceStore: ObservableObject {
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
+        costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         reasoningEffort = UserDefaults.standard.string(forKey: "aiReasoningEffort") ?? "off"

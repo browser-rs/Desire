@@ -3,6 +3,8 @@
 
 - Agent 检查点恢复：回合开工即落盘"进行中"标志（随会话文件持久化），崩溃/强杀后重新打开会话时面板给出"继续回合/放弃"——继续不重复追加用户消息，工具结果缺失处由 [interrupted] 清洗兜底，模型自行续做；桥 POST /agent/resume（resume|discard）+ GET /agent/messages 带 hasInterruptedTurn；新增 POST /agent/new
 - 旁路模型调用成本记账：标题生成/记忆整理（facts/summary）/自评 critic 的 token 用量按回合归账到尾助手消息（此前全部丢弃，对话成本与统计页明显少报）；usage chunk 先于正文到达时挂 pending 桶回填
+- 成本感知路由：路由决策抽成纯函数 RoutingDecision（单测覆盖决策矩阵），新增"成本感知路由"开关——开启后简单短文本的纯文本回合（无工具、上下文小）交给免费的本地模型（Foundation Models / Ollama），云端留给复杂与工具回合；关闭时维持原关键词命中才走本地的保守行为
+
 
 ### Removed
 

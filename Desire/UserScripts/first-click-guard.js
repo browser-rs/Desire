@@ -46,13 +46,33 @@
         return null;
     }
 
-    /// 浮层判据：定位 + 覆盖视口相当比例 + 不在播放器里面。
+    /// 站点验证组件（Turnstile/hCaptcha/质询容器）：不是广告劫持——
+    /// 把它当浮层隐藏会让验证永远无法完成、站点反复弹验证（死循环，
+    /// 用户实测"播放第一次点击总调验证、然后验证死循环无法播放"）。
+    function isVerificationUI(el) {
+        var node = el;
+        var hops = 0;
+        while (node && node !== document.body && hops < 6) {
+            if (node.closest) {
+                if (node.closest('iframe[src*="challenges.cloudflare.com"], ' +
+                    'iframe[src*="hcaptcha.com"], .cf-turnstile, .h-captcha, ' +
+                    '[class*="captcha" i], [id*="captcha" i], [class*="challenge" i]')) return true;
+            }
+            node = node.parentElement;
+            hops++;
+        }
+        return false;
+    }
+
+    /// 浮层判据：定位 + 覆盖视口相当比例 + 不在播放器里面 + 不是验证组件。
     function looksLikeOverlay(el, player) {
         if (!el || !player) return false;
         if (player.contains(el)) return false;              // 播放器自己的控件不算
+        if (isVerificationUI(el)) return false;             // 验证组件放行
         var layer = positionedAncestor(el);
         if (!layer) return false;
         if (player.contains(layer)) return false;
+        if (isVerificationUI(layer)) return false;
         var rect = layer.getBoundingClientRect();
         var area = rect.width * rect.height;
         var viewport = window.innerWidth * window.innerHeight;
@@ -70,6 +90,12 @@
         // 只在视频页生效：没有 <video> 的页面完全不干预（避免影响正常浏览）。
         var player = document.querySelector('video');
         if (!player) return;
+
+        var earlyTarget = event.target;
+        if (earlyTarget && earlyTarget.closest && isVerificationUI(earlyTarget)) {
+            return;   // 验证组件上的点击整条流程放行（不置 handled、不禁弹窗）
+        }
+
         handled = true;
 
         // ① 首次点击期间禁掉脚本弹窗。

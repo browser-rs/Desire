@@ -7,6 +7,9 @@ struct TabGroupPanel: View {
 
     @State private var newGroupName = ""
     @State private var showCreateGroup = false
+    /// 创建表单里选中的颜色（此前选择区是死控件：点击无处理、✓ 永远钉在 0、
+    /// create 从不传 colorIndex——所有组都落默认色）。
+    @State private var selectedColorIndex = 0
 
     private let colors: [Color] = [
         .blue, .purple, .pink, .red, .orange, .yellow,
@@ -142,21 +145,20 @@ struct TabGroupPanel: View {
                         .fill(colors[index])
                         .frame(width: 24, height: 24)
                         .overlay {
-                            if index == 0 {
+                            if index == selectedColorIndex {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                         }
-                        .onTapGesture {
-                            // Color selection would be implemented here
-                        }
+                        .onTapGesture { selectedColorIndex = index }
                 }
             }
 
             HStack(spacing: 12) {
                 Button("Cancel") {
                     newGroupName = ""
+                    selectedColorIndex = 0
                     showCreateGroup = false
                 }
                 .buttonStyle(.plain)
@@ -165,8 +167,9 @@ struct TabGroupPanel: View {
                 Button("Create") {
                     let name = newGroupName.trimmingCharacters(in: .whitespaces)
                     if !name.isEmpty {
-                        _ = store.create(name: name)
+                        _ = store.create(name: name, colorIndex: selectedColorIndex)
                         newGroupName = ""
+                        selectedColorIndex = 0
                         showCreateGroup = false
                     }
                 }

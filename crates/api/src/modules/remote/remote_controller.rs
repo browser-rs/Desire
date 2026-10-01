@@ -155,8 +155,10 @@ pub async fn pull_inbox(
     Ok(v) => v,
     Err(resp) => return resp,
   };
+  // 限流按 **user+device 分桶**：Mac 链路 1s 一拍就吃 60/min，多台控制器
+  // 共用一个 user 桶时第三台设备必然触顶（P2：150/min 只容 2 设备）。
   if !state.rate_limiter.allow(
-    &format!("remote-pull-{}", claims.sub),
+    &format!("remote-pull-{}-{}", claims.sub, &device_id),
     150,
     std::time::Duration::from_secs(60),
   ) {
@@ -193,7 +195,7 @@ pub async fn push_frame(
     return api_err(AppError::Validation("invalid payload".into()));
   }
   if !state.rate_limiter.allow(
-    &format!("remote-push-{}", claims.sub),
+    &format!("remote-push-{}-{}", claims.sub, &device_id),
     240,
     std::time::Duration::from_secs(60),
   ) {

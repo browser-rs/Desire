@@ -56,16 +56,12 @@ class FormAutofillStore: ObservableObject {
 
 private extension FormAutofillProfile {
     func toJSON() -> String {
-        let gn = givenName.replacingOccurrences(of: "'", with: "\\'")
-        let fn = familyName.replacingOccurrences(of: "'", with: "\\'")
-        let em = email.replacingOccurrences(of: "'", with: "\\'")
-        let ph = phone.replacingOccurrences(of: "'", with: "\\'")
-        let or = organization.replacingOccurrences(of: "'", with: "\\'")
-        let sa = streetAddress.replacingOccurrences(of: "'", with: "\\'")
-        let ci = city.replacingOccurrences(of: "'", with: "\\'")
-        let st = state.replacingOccurrences(of: "'", with: "\\'")
-        let zc = zipCode.replacingOccurrences(of: "'", with: "\\'")
-        let co = country.replacingOccurrences(of: "'", with: "\\'")
-        return "{gn:'\(gn)',fn:'\(fn)',em:'\(em)',ph:'\(ph)',or:'\(or)',sa:'\(sa)',ci:'\(ci)',st:'\(st)',zc:'\(zc)',co:'\(co)'}"
+        // 统一走 JSString.literal（旧手写只转义单引号——值含反斜杠或换行
+        // 时整段注入即语法错；地址字段带换行很常见）。
+        "{gn:\(JSString.literal(givenName)),fn:\(JSString.literal(familyName)),"
+        + "em:\(JSString.literal(email)),ph:\(JSString.literal(phone)),"
+        + "or:\(JSString.literal(organization)),sa:\(JSString.literal(streetAddress)),"
+        + "ci:\(JSString.literal(city)),st:\(JSString.literal(state)),"
+        + "zc:\(JSString.literal(zipCode)),co:\(JSString.literal(country))}"
     }
 }

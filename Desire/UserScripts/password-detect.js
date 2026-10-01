@@ -35,7 +35,10 @@
         // 随旧文档一起销毁，保存提示时灵时不灵）。
         window.webkit.messageHandlers.passwordSave.postMessage({
             username: userVal,
-            password: pwd.value
+            password: pwd.value,
+            // 提交**发起页**的 origin：submit 会触发导航，Swift 收到消息时
+            // 读 webView.url 已是新页——凭据会被记到别的域名下。
+            origin: location.origin
         });
     }, true);
     /* OTP 检测（0.3.6）：验证码输入框出现时通知宿主弹提示条。 */

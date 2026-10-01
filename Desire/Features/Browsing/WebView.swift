@@ -661,8 +661,13 @@ struct WebView: NSViewRepresentable {
                 parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
             } else if message.name == "passwordSave", let dict = message.body as? [String: String],
                        let username = dict["username"], let password = dict["password"],
-                       !username.isEmpty, !password.isEmpty,
-                       let host = parent.state.webView.url?.host {
+                       !username.isEmpty, !password.isEmpty {
+                // 域名 = 提交**发起页**的 origin（脚本随消息带来）。submit 后
+                // 导航立刻开始，此刻 webView.url 多半已是新页——用它会记错域
+                // （跨域跳转/SSO 回跳都踩）。旧会话的脚本没带 origin 才回落。
+                let host = URL(string: dict["origin"] ?? "")?.host
+                    ?? parent.state.webView.url?.host
+                guard let host else { return }
                 if parent.passwordStore.isSuppressed(domain: host) { return }
                 let existing = parent.passwordStore.find(domain: host)
                 // Same username + same password = an ordinary re-login, not
@@ -881,6 +886,9 @@ struct WebView: NSViewRepresentable {
             }
             // New page — the sniffed media list belongs to the old one.
             parent.state.detectedMedia.removeAll()
+            // 选区 AI 条同属旧页（选区/坐标已不存在）——不清会一直悬在
+            // 新页面上（P2：selectionAI 不随导航清除）。
+            parent.state.selectionAI = nil
             parent.state.isSecure = webView.url?.scheme == "https"
             pendingUpgrades.removeAll()
             if let host = webView.url?.host {

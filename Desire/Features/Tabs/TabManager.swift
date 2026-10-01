@@ -459,6 +459,12 @@ class TabManager: ObservableObject {
         if tab.id == splitPartnerID {
             splitPartnerID = nil
         }
+        // 关闭选中**左侧**的标签：remove 后同一 selectedIndex 指到右移一位
+        // 的标签——用户正看的标签没动、高亮却跳走了（Chrome/Safari 惯例 =
+        // 保持所见，选中索引随删除左移一格）。
+        if index < selectedIndex {
+            selectedIndex -= 1
+        }
         if selectedIndex >= tabs.count {
             selectedIndex = tabs.count - 1
         }
@@ -914,7 +920,16 @@ final class TabSessionCoordinator {
             return newestSessionFileKey()
         }
         guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return nil }
-        return index.last
+        // **跳过无文件的 key**：纯无痕窗口的可存标签为空，15s tick 会
+        // `DiskStore.remove` 自己的会话文件，但 index（上次干净退出写的）
+        // 仍列着它的 key——`index.last` 若恰是它，"继续上次会话"就采纳了
+        // 一个空 key、真正最新的会话反而不被采纳（P2：纯无痕窗口删自己
+        // 会话文件的余波）。
+        let fm = FileManager.default
+        return index.last {
+            fm.fileExists(atPath: DiskStore.directory
+                .appendingPathComponent("\($0).json").path)
+        }
     }
 
     /// 启动哨兵：进程起来即置位；prepareForTermination 清除。

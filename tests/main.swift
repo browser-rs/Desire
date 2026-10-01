@@ -912,13 +912,13 @@ func testAdSlotAndProtocolRelative() {
                       sizeBytes: 0, source: "dom", detectedAt: Date())
     }
     let ad = BatchMediaPlan.pickBestResource([
-        res("//cdn.storagexhd.com/files/video/9653-0-300x250.medium.mp4"),
+        res("//cdn.example-ads.com/files/video/9653-0-300x250.medium.mp4"),
         res("https://cdn.example.com/files/real-1080p.mp4"),
     ])
     check("广告位资源被排除，正片入选",
           ad != nil && ad!.url == "https://cdn.example.com/files/real-1080p.mp4")
     let onlyAd = BatchMediaPlan.pickBestResource([
-        res("//cdn.storagexhd.com/files/video/9653-0-300x250.medium.mp4"),
+        res("//cdn.example-ads.com/files/video/9653-0-300x250.medium.mp4"),
     ])
     check("只有广告位时返回 nil（不假装成功）", onlyAd == nil)
     // 协议相对归一：下载器对无 scheme 报"不支持的URL"

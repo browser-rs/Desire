@@ -230,6 +230,7 @@ struct DownloadPanel: View {
             fileTypeFilter
             groupByControl
         }
+        .padding(.top, 12)
         .padding(.horizontal, 14)
         .padding(.bottom, 10)
     }

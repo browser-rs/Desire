@@ -1106,6 +1106,12 @@ struct WebView: NSViewRepresentable {
             // "回退经常触发失败页"）。真正的失败由 didFailProvisionalNavigation
             // 与看门狗上报。raw-code 兜底：部分构建 URLError.code 不归一。
             if (error as NSError).code == NSURLErrorCancelled { return }
+            // 下载转换（didBecome download 已置 suppress）收尾时的
+            // frame-load-interrupted 同样不是错误——不置 lastError。
+            if suppressNextFailError {
+                suppressNextFailError = false
+                return
+            }
             // Store the underlying `Error` so ErrorPageView can map
             // `URLError.code` to category-specific copy (TLS, offline, …)
             // instead of just dumping the raw localized description.
@@ -1385,7 +1391,11 @@ struct WebView: NSViewRepresentable {
             disarmLoadTimeout()
             // The watchdog's own stopLoading cancels the navigation (-999);
             // keep the meaningful timedOut error it already injected.
-            if suppressNextFailError, (error as? URLError)?.code == .cancelled {
+            if suppressNextFailError,
+               (error as? URLError)?.code == .cancelled
+                   || (error as NSError).domain == "WebKitErrorDomain" {
+                // -999（取消）或 WKError 域（frame load interrupted——下载转换
+                // 的收尾形态）都不是页面错误。
                 suppressNextFailError = false
                 parent.isLoading = false
                 return
@@ -1670,6 +1680,11 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
             download.delegate = self
+            // 主框架导航转下载时 WebKit 会以 frame-load-interrupted 收尾这次
+            // 导航——那是下载的正常形态，不是页面错误。置 suppress 让随后的
+            // didFail(Provisional) 静默（此前错误页盖住当前页，用户实测
+            // GitHub release 下载"页面变成无法加载"而文件实际已下完）。
+            suppressNextFailError = true
             let filename = download.originalRequest?.url?.lastPathComponent ?? String(localized: "Download")
             let sourceURL = download.originalRequest?.url
             let id = UUID()

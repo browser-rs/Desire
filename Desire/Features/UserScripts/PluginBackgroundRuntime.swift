@@ -40,6 +40,7 @@ final class PluginBackgroundRuntime: NSObject {
         guard let store = AppState.live?.pluginStore else { return }
         wireStoreChanges(store)
         let enabled = Set(store.plugins.filter { $0.isEnabled && $0.backgroundCode != nil }.map(\.id))
+        Log.userScripts.info("plugin syncAll: \(store.plugins.count) plugins, \(enabled.count) with background")
         // 停：已启动但插件被删/停/不再带后台
         for id in hosts.keys where !enabled.contains(id) {
             stop(id)
@@ -51,6 +52,7 @@ final class PluginBackgroundRuntime: NSObject {
     }
 
     private func start(_ plugin: Plugin) {
+        Log.userScripts.info("plugin start attempt: \(plugin.id.uuidString.prefix(8), privacy: .public)")
         guard let code = plugin.backgroundCode, !code.isEmpty else { return }
         let coordinator = Coordinator(pluginID: plugin.id)
         let config = WKWebViewConfiguration()
@@ -111,6 +113,78 @@ final class PluginBackgroundRuntime: NSObject {
     }
 
     /// 向某插件的 background webview 派发事件。
+    // MARK: - 消息传递（runtime.sendMessage / tabs.sendMessage 路由）
+
+    /// 回复路由表：replyId → 等待回复的 webview（发起方页面）。
+    private var pendingReplies: [String: WKWebView] = [:]
+
+    /// 页面 → background：把消息投给指定插件的 background 页 onMessage。
+    /// 无人监听或插件无 background 时立即回 "noListener"。
+    func deliverToBackground(pluginID: UUID, message: Any, sender: [String: Any],
+                             replyId: String, replyWebView: WKWebView) {
+        guard let host = hosts[pluginID] else {
+            replyNoListener(replyId, to: replyWebView)
+            return
+        }
+        pendingReplies[replyId] = replyWebView
+        Log.userScripts.info("deliverToBackground: \(pluginID.uuidString.prefix(8), privacy: .public) replyId=\(replyId, privacy: .public)")
+        var parts: [String] = ["window.__desireExt && window.__desireExt._runtimeMessage("]
+        parts.append(Self.quoted(replyId))
+        parts.append(", ")
+        parts.append(quotedJSON(message))
+        parts.append(", ")
+        parts.append(quotedJSON(sender))
+        parts.append(");")
+        let js = parts.joined()
+        // background 页的 chrome.* 在 .page 世界（与 popup 同理），必须指定 world。
+        host.webView.evaluateJavaScript(js, in: nil, in: .page, completionHandler: nil)
+    }
+
+    /// background → 页面：把消息投给指定 tab 的页面世界 onMessage。
+    /// 找不到该 tab 或该页未注册监听（页面脚本会在无监听时回 noListener）→ 回 noListener 给 background。
+    func deliverToTab(tabID: UUID, pluginID: UUID, message: Any, sender: [String: Any],
+                      replyId: String, fromWebView: WKWebView) {
+        guard let box = tabWebViews.first(where: { $0.tabID == tabID }), let web = box.webView else {
+            fromWebView.evaluateJavaScript(
+                "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), false, null, true)",
+                completionHandler: nil)
+            return
+        }
+        pendingReplies[replyId] = fromWebView
+        let js = "window.__desireExt && window.__desireExt._tabsMessage("
+            + Self.quoted(replyId) + ", " + quotedJSON(message) + ", " + quotedJSON(sender) + ");"
+        web.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    /// 回复回投：把 onMessage 的回复送回发起方（按 replyId 查路由表）。
+    func deliverReply(replyId: String, ok: Bool, reply: Any?, noListener: Bool) {
+        guard let target = pendingReplies.removeValue(forKey: replyId) else { return }
+        let js = "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), \(ok), \(quotedJSON(reply)), \(noListener))"
+        target.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    /// 注册 tab → webview 映射（内容脚本插件注入页面时登记，供 tabs.sendMessage 寻址）。
+    func registerTabWebview(_ tabID: UUID, webView: WKWebView) {
+        tabWebViews.removeAll { $0.tabID == tabID }
+        tabWebViews.append(TabWebBox(tabID: tabID, webView: webView))
+        if tabWebViews.count > 50 { tabWebViews.removeFirst(tabWebViews.count - 50) }
+    }
+
+    private struct TabWebBox { let tabID: UUID; weak var webView: WKWebView? }
+    private var tabWebViews: [TabWebBox] = []
+
+    private func replyNoListener(_ replyId: String, to webview: WKWebView) {
+        webview.evaluateJavaScript(
+            "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), false, null, true)",
+            completionHandler: nil)
+    }
+
+    private func quotedJSON(_ value: Any) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: value, options: []),
+              let str = String(data: data, encoding: .utf8) else { return "null" }
+        return str
+    }
+
     func fire(pluginID: UUID, event: String, payload: [String: Any?]) {
         guard let host = hosts[pluginID] else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
@@ -241,6 +315,37 @@ final class PluginBackgroundRuntime: NSObject {
                 reply([:])
             case ("contextMenus", "removeAll"):
                 PluginContextMenuStore.shared.removeAll(pluginID: pluginID)
+                reply([:])
+            case ("runtime", "sendMessageToTab"):
+                // background/popup → 页面：tabId 寻址投递，回复经 sendReply 回本页。
+                guard args.count >= 2,
+                      let tabIDString = args[0] as? String,
+                      let tabUUID = UUID(uuidString: tabIDString) else {
+                    reply(nil, error: "sendMessageToTab requires (tabId, message)")
+                    return
+                }
+                let routedReplyId = "tab-\(id ?? 0)-\(UUID().uuidString)"
+                guard let fromWeb = message.webView else {
+                    reply(nil, error: "no webview")
+                    return
+                }
+                PluginBackgroundRuntime.shared.deliverToTab(
+                    tabID: tabUUID, pluginID: pluginID,
+                    message: args[1], sender: ["fromBackground": true],
+                    replyId: routedReplyId,
+                    fromWebView: fromWeb)
+                reply([:])
+            case ("runtime", "sendReply"):
+                // 页面侧 onMessage 的回复回投（background 发起的 sendMessageToTab）。
+                guard args.count >= 2, let envelope = args[1] as? [String: Any] else {
+                    reply(nil, error: "sendReply requires (replyId, envelope)")
+                    return
+                }
+                PluginBackgroundRuntime.shared.deliverReply(
+                    replyId: args[0] as? String ?? "",
+                    ok: (envelope["ok"] as? Bool) == true,
+                    reply: envelope["reply"],
+                    noListener: (envelope["noListener"] as? Bool) == true)
                 reply([:])
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，

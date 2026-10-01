@@ -78,7 +78,7 @@ extension ContentView {
                         historyStore.updateEntryTitle(url: targetURL, title: fresh)
                     }
                 }
-                pluginStore.inject(into: tab.browser.webView, for: url)
+                pluginStore.inject(into: tab.browser.webView, for: url, tabID: tab.id)
             },
             onElementPicked: { cssSelector, xpath in
                 handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab)

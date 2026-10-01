@@ -534,7 +534,7 @@ extension BrowsingActions {
                 } else if !tab.isIncognito {
                     self?.historyStore.addEntry(url: url.absoluteString, title: title)
                 }
-                pluginStore.inject(into: tab.browser.webView, for: url)
+                pluginStore.inject(into: tab.browser.webView, for: url, tabID: tab.id)
             },
             onElementPicked: { cssSelector, xpath in
                 onElementPicked(cssSelector, xpath, tab)

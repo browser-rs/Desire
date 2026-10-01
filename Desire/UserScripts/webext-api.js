@@ -75,14 +75,94 @@
         remove: function(ids) { return rpc("tabs", "remove", [ids]); },
         onCreated: eventAPI("tabs.onCreated"),
         onRemoved: eventAPI("tabs.onRemoved"),
-        onActivated: eventAPI("tabs.onActivated")
+        onActivated: eventAPI("tabs.onActivated"),
+        // background/popup → 页面：宿主经 _tabsMessage 投递进本页。
+        sendMessage: function(tabId, msg) {
+            return rpc("tabs", "sendMessage", [tabId, msg === undefined ? null : msg]);
+        },
+        onMessage: tabsOnMessage
     };
+    // 宿主 → 本页：投递 tabs.sendMessage 的消息（background 发起，回复经 sendReply）。
+    window.__desireExt._tabsMessage = function(replyId, msg, sender) {
+        tabsOnMessage._dispatch(msg, sender, replyId);
+    };
+    // 宿主 → 本页：投递 runtime.sendMessage 广播（background → 页面场景，罕见但语义完整）。
+    window.__desireExt._runtimeMessage = function(replyId, msg, sender) {
+        runtimeOnMessage._dispatch(msg, sender, replyId);
+    };
+    // 消息传递：onMessage listener 收 (msg, sender, sendResponse)。
+    // sendResponse 用返回值同步回复，或返回 true 后异步调 sendResponse。
+    var onMessageAPI = function() {
+        var cbs = [];
+        return {
+            addListener: function(cb) {
+                cbs.push(cb);
+                window.webkit.messageHandlers.desireExt.postMessage({
+                    ns: "events", fn: "addListener", args: ["runtime.onMessage"]
+                });
+            },
+            removeListener: function(cb) {
+                var i = cbs.indexOf(cb); if (i >= 0) cbs.splice(i, 1);
+            },
+            _dispatch: function(msg, sender, replyId) {
+                var done = false;
+                for (var i = 0; i < cbs.length; i++) {
+                    (function(cb) {
+                        try {
+                            var r = cb(msg, sender, function(reply) {
+                                if (done) return; done = true;
+                                window.webkit.messageHandlers.desireExt.postMessage({
+                                    ns: "runtime", fn: "sendReply",
+                                    args: [replyId, { ok: true, reply: reply === undefined ? null : reply }],
+                                    ext: window.__desireExtID || null
+                                });
+                            });
+                            // 返回 true = 异步回复；否则同步用返回值回复。
+                            if (r !== true && !done) {
+                                done = true;
+                                window.webkit.messageHandlers.desireExt.postMessage({
+                                    ns: "runtime", fn: "sendReply",
+                                    args: [replyId, { ok: true, reply: r === undefined ? null : r }],
+                                    ext: window.__desireExtID || null
+                                });
+                            }
+                        } catch (e) {
+                            if (!done) {
+                                done = true;
+                                window.webkit.messageHandlers.desireExt.postMessage({
+                                    ns: "runtime", fn: "sendReply",
+                                    args: [replyId, { ok: false, reply: String(e) }],
+                                    ext: window.__desireExtID || null
+                                });
+                            }
+                        }
+                    })(cbs[i]);
+                }
+                if (!cbs.length) {
+                    // 无人监听：立即告知宿主（宿主据此回复 "no listener"）。
+                    window.webkit.messageHandlers.desireExt.postMessage({
+                        ns: "runtime", fn: "sendReply",
+                        args: [replyId, { ok: false, reply: null, noListener: true }],
+                        ext: window.__desireExtID || null
+                    });
+                }
+            }
+        };
+    };
+    var runtimeOnMessage = onMessageAPI();
+    var tabsOnMessage = onMessageAPI();
+
     var runtime = {
         id: "desire.webext",
         getManifest: function() {
             return { name: "Desire Extension Runtime", version: "1.0", manifest_version: 3 };
         },
-        onInstalled: eventAPI("runtime.onInstalled")
+        onInstalled: eventAPI("runtime.onInstalled"),
+        // 发消息给本插件的 background 页（promise 回复）。
+        sendMessage: function(msg) {
+            return rpc("runtime", "sendMessageToBackground", [msg === undefined ? null : msg]);
+        },
+        onMessage: runtimeOnMessage
     };
     var contextMenus = {
         create: function(props) { return rpc("contextMenus", "create", [props || {}]); },

@@ -706,6 +706,33 @@ struct WebView: NSViewRepresentable {
                     ExtensionEventHub.shared.register(parent.state)
                 }
                 reply([:])
+            case ("runtime", "sendMessageToBackground"):
+                // 页面 → background：消息路由（见 PluginBackgroundRuntime）。
+                // extID = 发起插件的身份；tabID = 本页面所在标签（sender 用）。
+                // 回复目标 = 本页 webview（parent.state.webView，reply 闭包同款）。
+                guard let ext = extID.flatMap(UUID.init(uuidString:)) else {
+                    reply(nil, error: "no extension identity")
+                    return
+                }
+                let msg = args.first ?? NSNull()
+                let sender: [String: Any] = ["tab": parent.tabID.uuidString,
+                                             "url": parent.state.webView.url?.absoluteString ?? ""]
+                let replyId = UUID().uuidString
+                PluginBackgroundRuntime.shared.deliverToBackground(
+                    pluginID: ext, message: msg, sender: sender,
+                    replyId: replyId, replyWebView: parent.state.webView)
+                // 回复经 {ns:"runtime", fn:"sendReply"} 异步送达（replyId 路由）。
+            case ("runtime", "sendReply"):
+                // onMessage 的回复回投（页面 ↔ background 双向共用此通道）。
+                let parts = (args.first as? [Any]) ?? []
+                let replyId = parts.count > 0 ? String(describing: parts[0]) : ""
+                let envelope = parts.count > 1 ? (parts[1] as? [String: Any]) ?? [:] : [:]
+                PluginBackgroundRuntime.shared.deliverReply(
+                    replyId: replyId,
+                    ok: (envelope["ok"] as? Bool) == true,
+                    reply: envelope["reply"],
+                    noListener: (envelope["noListener"] as? Bool) == true)
+                // 该 handler 无 reply 语义（不是 rpc 请求）。
             default:
                 reply(nil, error: "unknown \(ns).\(fn)")
             }

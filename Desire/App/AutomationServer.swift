@@ -344,7 +344,7 @@ final class AutomationServer {
         ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
         ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
         ep("GET", "/agent/stats", "Token usage statistics derived from saved conversations (same code as the panel's Usage page)", params: ["days?:int (include the daily series)"], example: "…/agent/stats?days=30")
-        ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
+        ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int", "world?:string(main|extension)"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
         // Panels & chrome
         ep("POST", "/panel", "Open/close an app panel (downloads, devtools+tab)", params: ["name:string", "show?:bool", "tab?:string"], example: #"-d '{"name":"devtools","tab":"network"}'"#)
@@ -1093,7 +1093,10 @@ final class AutomationServer {
             case ("POST", "/downloads/resume"):
                 return try Self.json(Self.resumeDownload(Self.string(body, "id")))
             case ("POST", "/execute"):
-                return try await Self.json(Self.execute(Self.string(body, "js") ?? "", index: Self.index(body)))
+                return try await Self.json(Self.execute(
+                    Self.string(body, "js") ?? "",
+                    index: Self.index(body),
+                    world: Self.string(body, "world")))
             case ("POST", "/panel"):
                 return try Self.json(Self.panel(
                     name: Self.string(body, "name") ?? "",
@@ -2314,11 +2317,27 @@ final class AutomationServer {
 
     /// Runs JS in the page and returns the result. Synthetic-event driven
     /// tests (middle click, keyboard) go through here.
-    private static func execute(_ js: String, index: Int?) async throws -> [String: Any] {
+    private static func execute(_ js: String, index: Int?,
+                                world: String? = nil) async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        // world=extension → 在插件隔离世界执行（调试插件 content script 必需——
+        // 主世界探针看不到 extensionWorld 的 __desireExt 状态）。
         let result: Any? = await withCheckedContinuation { continuation in
-            tab.browser.webView.evaluateJavaScript(js) { result, _ in
-                continuation.resume(returning: result)
+            if world == "extension" {
+                tab.browser.webView.evaluateJavaScript(
+                    js, in: nil, in: WebView.extensionWorld,
+                    completionHandler: { result in
+                        switch result {
+                        case .success(let value): continuation.resume(returning: value)
+                        case .failure: continuation.resume(returning: NSNull())
+                        }
+                    })
+            } else {
+                tab.browser.webView.evaluateJavaScript(
+                    js,
+                    completionHandler: { value, _ in
+                        continuation.resume(returning: value ?? NSNull())
+                    })
             }
         }
         return ["result": result ?? NSNull()]

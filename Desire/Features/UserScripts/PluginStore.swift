@@ -83,7 +83,7 @@ class PluginStore: ObservableObject {
         return (js, css)
     }
 
-    func inject(into webView: WKWebView, for url: URL) {
+    func inject(into webView: WKWebView, for url: URL, tabID: UUID? = nil) {
         let (js, css) = injectionCode(for: url)
 
         for (_, code) in css {

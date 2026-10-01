@@ -351,6 +351,10 @@ class TabManager: ObservableObject {
         return tabs[selectedIndex]
     }
 
+    /// 多窗口 Agent 的窗口标识：跟随选中标签标题（NSWindow.title 未被
+    /// SwiftUI 场景维护——用它做稳定可读的窗口名）。
+    var windowTitle: String { selectedTab?.displayTitle ?? "新标签页" }
+
     /// The tab shown in the split pane, if any (id may go stale across
     /// churn — every mutating path below clears it).
     var splitPartner: Tab? {

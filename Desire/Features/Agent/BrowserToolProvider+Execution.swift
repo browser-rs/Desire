@@ -67,6 +67,17 @@ extension BrowserToolProvider {
         case parseFailed(String)
     }
 
+    /// 多窗口 Agent：按 `window` 参数（会话短 id / 全 id）解析目标窗口的
+    /// TabManager。返回 nil = 参数缺失或找不到（调用方决定回落自己窗口或报错）。
+    func resolveWindowTarget(_ raw: String?) -> TabManager? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let lowered = raw.lowercased()
+        let sessions = AgentScheduler.shared.liveSessions()
+        guard let target = sessions.first(where: { $0.id.uuidString.lowercased().hasPrefix(lowered) }),
+              let tm = target.store?.boundTabManager else { return nil }
+        return tm
+    }
+
     /// `executeJS` 的单次执行：callAsyncJavaScript 跑包装器（预览转换 +
     /// 异常带 message），解析失败区分为 parseFailed，运行时失败按失败约定返回。
     func runJSOnce(_ webView: WKWebView, code: String, expressionForm: Bool) async -> JSRunOutcome {
@@ -166,6 +177,18 @@ extension BrowserToolProvider {
         if let handled = await executeDOMAndSystemTools(call, args: args, surface: surface, in: webView) { return handled }
         switch call.function.name {
         // --- Utilities ---
+        case "listWindows":
+            let ownTM = surface.tabManager
+            let rows = AgentScheduler.shared.liveSessions()
+            guard !rows.isEmpty else { return Self.fail("No agent windows registered") }
+            let lines = rows.map { entry -> String in
+                let ownMark = entry.store?.boundTabManager === ownTM ? " (your window)" : ""
+                let busy = entry.store?.isProcessing == true ? " — busy" : ""
+                let title = entry.windowTitle ?? entry.displayLabel
+                return "[\(entry.id.uuidString.prefix(8))] \(title)\(ownMark)\(busy)"
+            }
+            return "Agent windows:\n" + lines.joined(separator: "\n")
+
         case "wait":
             // Capped so a misbehaving plan can't stall the loop for minutes.
             let ms = min(args["ms"] as? Int ?? 1000, 60_000)

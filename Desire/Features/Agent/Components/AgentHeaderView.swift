@@ -27,6 +27,17 @@ struct AgentHeaderView: View {
             brandMark
 
             VStack(alignment: .leading, spacing: 0) {
+                // 多窗口 Agent：>1 窗口时显示本窗口名（面板归属一目了然，
+                // "在窗口 2 执行"这类指令的锚点）。
+                if let windowName = store.windowTitle,
+                   AgentScheduler.shared.liveSessions().count > 1 {
+                    Text(windowName)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help("This panel is bound to this window")
+                }
                 Text("Agent")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)

@@ -161,6 +161,13 @@ class AgentSessionStore: ObservableObject {
     /// without this it deallocates as soon as `configure(with:)` returns
     /// and every tool call fails with "Tool surface not configured".
     private var toolSurface: (any BrowserToolSurface)?
+    /// 本会话绑定的窗口标签集（多窗口 Agent 的目标解析用；nil = 未配置）。
+    var boundTabManager: TabManager? { toolSurface?.tabManager }
+    /// 所属窗口标题（configure 时快照；窗口标题随活动标签变——每次回合
+    /// 开始由 promptBuilder 取最新值经 updateWindowTitle 刷新）。
+    private(set) var windowTitle: String?
+    /// 注册表 id（提示词窗口清单标记"你的窗口"）。
+    private(set) var registryID: UUID?
     private weak var webView: WKWebView?
     private var isCancelled = false
     private var loopTask: Task<Void, Never>?
@@ -240,7 +247,7 @@ class AgentSessionStore: ObservableObject {
         // Newest session wins scheduled-task delivery (multi-window).
         AgentScheduler.shared.deliveryTarget = self
         // Registry for per-window addressing (0.1.8).
-        AgentScheduler.shared.registerSession(self)
+        registryID = AgentScheduler.shared.registerSession(self, windowTitle: nil)
     }
 
     /// Entry point for `AgentScheduler` firings: starts (or queues) a turn
@@ -393,6 +400,10 @@ class AgentSessionStore: ObservableObject {
     func configure(with surface: BrowserToolSurface) {
         toolSurface = surface
         toolProvider.attach(surface: surface)
+        if let tm = surface.tabManager {
+            windowTitle = tm.windowTitle
+            AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
+        }
         // Tab Crew（0.3.1）：作业组全部落定 → 把各子任务报告聚合成一条
         // 提示送回领队消息流（领队忙则排队，空闲则直接开一轮聚合播报）。
         AgentCrewStore.shared.onCrewSettled = { [weak self] crew in
@@ -935,7 +946,8 @@ class AgentSessionStore: ObservableObject {
             downloadsPath: AgentPromptBuilder.downloadsPath,
             ffmpegAvailable: FFmpegExporter.isAvailable,
             ffmpegPath: FFmpegExporter.locate()?.path,
-            pageContext: pageContext
+            pageContext: pageContext,
+            ownSessionID: registryID
         ))
         let notesBlock = notes.isEmpty
             ? ""
@@ -1041,6 +1053,9 @@ class AgentSessionStore: ObservableObject {
         var hitIterationCap = false
         // 检查点：回合开工即落盘"进行中"——此后任何一步都有断点可循。
         turnCheckpointActive = true
+        // 窗口标题跟随选中标签——回合开始刷一次注册表快照。
+        windowTitle = boundTabManager?.windowTitle
+        AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
         saveCurrentConversation()
 
         while !isCancelled && iterations < maxIterations {

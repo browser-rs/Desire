@@ -20,10 +20,20 @@ extension BrowserToolProvider {
             // Cross-tab perception: snapshot another tab's page without
             // switching. Suspended tabs are blanked webviews — say so
             // instead of returning an empty snapshot.
+            // window 参数 = 读**另一窗口**的第 index 个标签（多窗口 Agent）。
+            let readManager: TabManager?
+            if let win = args["window"] as? String, !win.isEmpty {
+                readManager = resolveWindowTarget(win)
+                if readManager == nil {
+                    return Self.fail("Unknown window '\(win.prefix(8))' — call listWindows for valid ids")
+                }
+            } else {
+                readManager = surface.tabManager
+            }
             guard let index = args["index"] as? Int,
-                  let tabs = surface.tabManager?.tabs,
+                  let tabs = readManager?.tabs,
                   tabs.indices.contains(index) else {
-                return Self.fail("Invalid tab index (use listTabs)")
+                return Self.fail("Invalid tab index (use listTabs\(args["window"] != nil ? " — with window, indexes are THAT window's" : ""))")
             }
             let target = tabs[index]
             guard !target.isSuspended else {
@@ -135,18 +145,32 @@ extension BrowserToolProvider {
                 return Self.fail("Invalid URL '\(url.prefix(80))' — add a scheme (https://…), or use a search tool for keywords")
             }
             guard let u = URL(string: resolvedURL) else { return Self.fail("Invalid URL") }
+            // 多窗口：window 参数（会话短 id）指定目标窗口——用**它**的选中
+            // 标签执行；缺省 = 自己窗口。找不到该窗口则明确报错。
+            var targetManager = surface.tabManager
+            if let win = args["window"] as? String, !win.isEmpty {
+                guard let tm = resolveWindowTarget(win) else {
+                    return Self.fail("Unknown window '\(win.prefix(8))' — call listWindows for valid ids")
+                }
+                targetManager = tm
+            }
+            guard let targetManager else { return Self.fail("No window attached") }
             // Mirror BrowsingActions.navigateToURL's state sync. `load` alone
             // is invisible when the tab sits on an overlay: isOnNewTabPage
             // is STORED state (the NewTabPage keeps covering the webview),
             // and an unmounted webview has no navigation delegate to update
             // urlString — so the DOM loads, snapshots read real content, and
             // the user still sees the new-tab page.
-            if let tab = surface.tabManager?.tabs.first(where: { $0.browser.webView === webView }) {
+            // 跨窗目标：优先目标窗口的选中标签（其 webview 承载导航）。
+            let targetTab = targetManager.tabs.first(where: { $0.browser.webView === webView })
+                ?? targetManager.selectedTab
+            if let tab = targetTab {
                 tab.isOnNewTabPage = false
                 tab.isSuspended = false
                 tab.urlString = u.absoluteString
             }
-            webView.load(URLRequest(url: u))
+            let targetWebView = targetTab?.browser.webView ?? webView
+            targetWebView.load(URLRequest(url: u))
             // 第十一批：Cloudflare 挑战页自愈等待——load 返回即读页会看到
             // "Just a moment" 挑战页，agent 判定失败 → 重试 → 触发更多挑战。
             // 主框架加载完成后轮询标题（挑战通过即消失），最长 15s。仍在挑战
@@ -249,10 +273,23 @@ extension BrowserToolProvider {
             return "Crew cancelled"
 
         case "switchTab":
+            // window 参数 = 目标窗口（缺省自己窗口）。
+            let switchManager: TabManager?
+            if let win = args["window"] as? String, !win.isEmpty {
+                switchManager = resolveWindowTarget(win)
+                if switchManager == nil {
+                    return Self.fail("Unknown window '\(win.prefix(8))' — call listWindows for valid ids")
+                }
+            } else {
+                switchManager = surface.tabManager
+            }
             guard let index = args["index"] as? Int,
-                  index >= 0, index < (surface.tabManager?.tabs.count ?? 0) else { return Self.fail("Invalid tab index") }
-            surface.tabManager?.selectTab(at: index)
-            return "Switched to tab \(index)"
+                  index >= 0, index < (switchManager?.tabs.count ?? 0) else { return Self.fail("Invalid tab index") }
+            switchManager?.selectTab(at: index)
+            let switched = switchManager?.tabs[index]
+            let titleSuffix = switched.map { " — " + $0.displayTitle } ?? ""
+            let windowSuffix = args["window"] != nil ? " (other window)" : ""
+            return "Switched to tab \(index)\(titleSuffix)\(windowSuffix)"
 
         case "closeOtherTabs":
             // Keep the selected tab, close the rest of THIS window.

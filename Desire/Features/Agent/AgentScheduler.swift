@@ -61,8 +61,13 @@ final class AgentScheduler: ObservableObject {
         weak var store: AgentSessionStore?
         let registeredAt: Date
         let index: Int
+        /// 所属 NSWindow 的 title（注册时快照；仅展示用）。
+        var windowTitle: String?
 
-        var displayLabel: String { "Window \(index + 1)" }
+        var displayLabel: String {
+            if let windowTitle, !windowTitle.isEmpty { return windowTitle }
+            return "Window \(index + 1)"
+        }
     }
 
     private final class WeakBox {
@@ -70,13 +75,19 @@ final class AgentScheduler: ObservableObject {
         init(_ store: AgentSessionStore) { self.store = store }
     }
 
-    private var registered: [(id: UUID, box: WeakBox, at: Date)] = []
+    private var registered: [(id: UUID, box: WeakBox, at: Date, title: String?)] = []
 
     @discardableResult
-    func registerSession(_ store: AgentSessionStore) -> UUID {
+    func registerSession(_ store: AgentSessionStore, windowTitle: String? = nil) -> UUID {
         let id = UUID()
-        registered.append((id, WeakBox(store), Date()))
+        registered.append((id, WeakBox(store), Date(), windowTitle))
         return id
+    }
+
+    /// 刷新某会话的窗口标题（窗口标题随活动标签变化——onAppear/换窗时刷）。
+    func updateWindowTitle(_ store: AgentSessionStore, title: String?) {
+        guard let idx = registered.firstIndex(where: { $0.box.store === store }) else { return }
+        registered[idx] = (registered[idx].id, registered[idx].box, registered[idx].at, title)
     }
 
     /// 打断的**跨面板兜底**：每个窗口/浮窗各持一个会话 store（多 store 结构），
@@ -97,8 +108,15 @@ final class AgentScheduler: ObservableObject {
     func liveSessions() -> [RegisteredSession] {
         registered.removeAll { $0.box.store == nil }
         return registered.enumerated().map { index, entry in
-            RegisteredSession(id: entry.id, store: entry.box.store, registeredAt: entry.at, index: index)
+            RegisteredSession(id: entry.id, store: entry.box.store,
+                              registeredAt: entry.at, index: index,
+                              windowTitle: entry.title)
         }
+    }
+
+    /// 某会话所属 TabManager 的快照（跨窗工具的目标解析用）。
+    func tabManager(for sessionID: UUID) -> TabManager? {
+        session(withID: sessionID)?.boundTabManager
     }
 
     private static let storageKey = "agent-scheduled-tasks"

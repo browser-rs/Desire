@@ -104,6 +104,11 @@ extension BrowserToolProvider {
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listWindows",
+                description: "List browser windows with their agent session ids (multi-window). Each entry: id (pass as the window parameter of navigate/switchTab/readTab etc. to act on THAT window), title (its current tab), busy. Operations without a window parameter act on YOUR OWN window.",
+                parameters: AgentJSONSchema(type: "object", properties: [:], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "updatePlan", description: "Maintain a VISIBLE task checklist for multi-step work. Send the FULL step list every time with per-step status (pending / in_progress / done); the user watches progress live. Required for any task with 3+ steps — update after each step completes.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "steps": AgentJSONSchemaValue(type: "array", description: "Full step list", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [

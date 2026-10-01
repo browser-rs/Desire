@@ -28,6 +28,9 @@ enum AgentPromptBuilder {
         var ffmpegAvailable: Bool = false
         var ffmpegPath: String?
         var pageContext: String?      // fresh compact page summary
+        /// 本会话在 AgentScheduler 注册表中的 id（多窗口 Agent 的窗口清单
+        /// 里标记"你的窗口"用；nil = 不注入窗口清单）。
+        var ownSessionID: UUID?
     }
 
     /// Downloads 目录（`downloadMedia` / `stopRecording` 的落点）。
@@ -91,6 +94,18 @@ enum AgentPromptBuilder {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
         environment.append("Current time: \(formatter.string(from: Date()))")
+        // 多窗口 Agent：>1 个窗口时列出窗口清单（id 短码 + 标题 + 是否本窗），
+        // 模型用 listWindows / window 参数跨窗操作。
+        let sessions = AgentScheduler.shared.liveSessions()
+        if sessions.count > 1, let own = input.ownSessionID {
+            let lines = sessions.map { entry -> String in
+                let ownMark = entry.id == own ? " ← your window" : ""
+                let title = entry.windowTitle ?? entry.displayLabel
+                return "\(entry.id.uuidString.prefix(8)): \(title)\(ownMark)"
+            }
+            environment.append("Browser windows (pass \"window\" to navigate/switchTab/readTab to act on one):\n"
+                + lines.joined(separator: "\n"))
+        }
         sections.append("<environment>\n\(environment.joined(separator: "\n"))\n</environment>")
 
         if let page = input.pageContext, !page.isEmpty {

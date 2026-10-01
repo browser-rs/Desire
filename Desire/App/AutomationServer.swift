@@ -3322,7 +3322,7 @@ final class AutomationServer {
             guard let session = entry.store else { return ["id": entry.id.uuidString] }
             return [
                 "id": entry.id.uuidString,
-                "label": entry.displayLabel,
+                "label": entry.windowTitle ?? entry.displayLabel,
                 "busy": session.isProcessing,
                 "pendingApproval": session.pendingApproval != nil,
                 "messages": session.messages.count,

@@ -577,6 +577,13 @@ private struct DownloadRow: View {
                 Text(formatBytes(item.totalBytes)).monospacedDigit()
                 Text("·").foregroundStyle(.tertiary)
                 Text(timeText(item.startTime))
+                // 文件被用户从磁盘删除后如实标注（很常见），并给"重新下载"。
+                if let url = item.fileURL,
+                   !FileManager.default.fileExists(atPath: url.path) {
+                    Text("·").foregroundStyle(.tertiary)
+                    Text(String(localized: "File deleted"))
+                        .foregroundStyle(.orange)
+                }
             }
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
@@ -602,8 +609,16 @@ private struct DownloadRow: View {
                 rowButton("play.fill", help: "Resume", tint: appAccent) { store.resume(id: item.id) }
                 rowButton("xmark", help: "Cancel") { store.remove(id: item.id) }
             case .completed:
-                rowButton("arrow.up.forward.app", help: "Open", tint: appAccent) { store.openFile(item) }
-                rowButton("folder", help: "Show in Finder") { store.revealInFinder(item) }
+                if let url = item.fileURL,
+                   !FileManager.default.fileExists(atPath: url.path) {
+                    // 文件已被本地删除：Open/Finder 是空操作——给"重新下载"。
+                    rowButton("arrow.clockwise", help: "Download Again", tint: appAccent) {
+                        store.redownload(item)
+                    }
+                } else {
+                    rowButton("arrow.up.forward.app", help: "Open", tint: appAccent) { store.openFile(item) }
+                    rowButton("folder", help: "Show in Finder") { store.revealInFinder(item) }
+                }
                 rowButton("trash", help: "Remove from List") { store.remove(id: item.id) }
             case .failed:
                 // 可操作的状态给可见按钮，而不是只藏在 hover 里。

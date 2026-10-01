@@ -471,13 +471,32 @@ class DownloadStore: ObservableObject {
         }
     }
 
+    /// 重新下载（文件被本地删除后的 completed 行入口）：按原来源 URL 重新发起。
+    func redownload(_ item: DownloadItem) {
+        guard let url = item.sourceURL else { return }
+        remove(id: item.id)
+        startURLSessionDownload(sourceURL: url, filename: item.filename,
+                                isPrivate: item.isPrivate)
+    }
+
+    /// 完成行对应的本地文件是否还在（用户会清理 Downloads——面板要如实反映）。
+    func fileExists(_ item: DownloadItem) -> Bool {
+        guard let url = item.fileURL else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
     func revealInFinder(_ item: DownloadItem) {
         guard let url = item.fileURL else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        if FileManager.default.fileExists(atPath: url.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            // 文件已被删除：退化到打开所在文件夹（目录通常仍在）。
+            NSWorkspace.shared.activateFileViewerSelecting([downloadFolder])
+        }
     }
 
     func openFile(_ item: DownloadItem) {
-        guard let url = item.fileURL else { return }
+        guard let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) else { return }
         NSWorkspace.shared.open(url)
     }
 

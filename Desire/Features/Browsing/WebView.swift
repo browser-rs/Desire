@@ -537,6 +537,18 @@ struct WebView: NSViewRepresentable {
         /// `stopObserving()`. Single source of truth: `addScriptMessageHandler`
         /// throws NSException on a duplicate name (crashing at layout time),
         /// so the two lists must never drift apart.
+        /// 已知"点开即下载/查看"的文件扩展名（小写）。action 阶段预判用。
+        private static let fileLinkExtensions: Set<String> = [
+            "zip", "rar", "7z", "tar", "gz", "dmg", "pkg", "exe", "msi", "iso",
+            "pdf", "mp4", "m4v", "mov", "webm", "mkv", "mp3", "m4a", "wav", "flac", "aac", "ogg",
+            "epub", "apk",
+        ]
+
+        /// 链接 URL 的路径扩展名是否为已知文件类型。
+        static func looksLikeFileLink(_ url: URL) -> Bool {
+            fileLinkExtensions.contains(url.pathExtension.lowercased())
+        }
+
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
@@ -1221,6 +1233,17 @@ struct WebView: NSViewRepresentable {
                     decisionHandler(allowed ? .allow : .cancel)
                 }
                 return
+            }
+
+            // **文件链接预判下载**（衔接关键）：链接本身就是文件（zip/dmg/exe/
+            // pdf/mp4…）时，在 action 阶段直接置 suppress 并交由 navigationResponse
+            // 的 .download 路径处理——随后的 frame-load-interrupted 失败（下载转换
+            // 的正常收尾）被静默，页面平滑留在原地，不再闪错误页。
+            if navigationAction.targetFrame?.isMainFrame == true,
+               navigationAction.navigationType == .linkActivated
+                   || navigationAction.navigationType == .other,
+               Self.looksLikeFileLink(url) {
+                suppressNextFailError = true
             }
 
             // **iframe breakout 拦截**（视频站防跳转）：子框架里的脚本试图把

@@ -1,4 +1,9 @@
 ## [Unreleased]
+### Added
+
+- 下载面板如实反映本地文件状态：完成行对应的文件被用户从磁盘删除后，显示"File deleted"徽章并将 Open/Show in Finder 替换为"Download Again"（按来源 URL 重新发起）；Show in Finder 在文件已删时退化为打开所在文件夹
+- 主框架导航落到已知文件类型（zip/dmg/pdf/mp4 等）时在 action 阶段预判下载——配合下载转换失败静默，页面平滑留在原处不再闪错误页（衔接修复的另一半）
+
 ### Fixed
 
 - 主框架导航转下载时页面误报"无法加载/帧框加载已中断"（用户实测：GitHub release 点下载，文件已下完但页面直接变错误页）——下载转换引发的 frame-load-interrupted 失败不再写入页面错误，页面停留原地，下载静默完成

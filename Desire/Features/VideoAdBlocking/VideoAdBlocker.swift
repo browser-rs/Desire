@@ -93,6 +93,16 @@ class VideoAdBlocker: ObservableObject {
         )
     }
 
+    /// 反"反广告拦截"（`UserScripts/anti-adblock.js`）：bait 元素伪装 +
+    /// "请关闭广告拦截器"提示层隐藏。文档结束注入（检测库跑在 DOM 之后）。
+    func documentEndAntiAdblockScript() -> WKUserScript {
+        WKUserScript(
+            source: UserScriptLoader.load("anti-adblock"),
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+    }
+
     /// 首次点击劫持防护（`UserScripts/first-click-guard.js`）：视频页上"播放键上盖
     /// 透明层，第一次点击弹广告/跳广告"的通用对策。**主框架、文档开始**注入——必须
     /// 比页面自己的点击处理器先注册，捕获阶段才拦得住。

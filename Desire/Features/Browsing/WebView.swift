@@ -226,6 +226,7 @@ class BrowserState: ObservableObject {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartGuardScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
+            config.userContentController.addUserScript(videoAdBlocker.documentEndAntiAdblockScript())
         }
 
         // Desire's own always-on user scripts, centralized in

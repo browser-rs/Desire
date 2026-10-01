@@ -19,6 +19,8 @@ class FilterListStore: ObservableObject {
         let name: String
         let subtitle: String
         let sourceURL: URL
+        /// 备用源（主源被墙/宕机时按序尝试）。
+        var mirrorURLs: [URL] = []
         var isEnabled: Bool
         var lastUpdated: Date?
         var ruleCount: Int?
@@ -38,9 +40,22 @@ class FilterListStore: ObservableObject {
         // China list is ON by default: it is the single highest-value
         // first-run feature, and the fetch/compile runs in the background.
         ListState(id: "easylist-china", name: "EasyList China", subtitle: "中文广告过滤（国内网站）",
-                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylistchina.txt")!, isEnabled: true),
+                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylistchina.txt")!,
+                  mirrorURLs: [URL(string: "https://cdn.jsdelivr.net/gh/easylist/easylistchina@master/easylistchina.txt")!],
+                  isEnabled: true),
         ListState(id: "easylist", name: "EasyList", subtitle: "国际广告过滤（英文网站）",
-                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylist.txt")!, isEnabled: true),
+                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylist.txt")!,
+                  mirrorURLs: [URL(string: "https://cdn.jsdelivr.net/gh/easylist/easylist@master/easylist.txt")!],
+                  isEnabled: true),
+        ListState(id: "adguard-annoyances", name: "Annoyances（弹窗/横幅）", subtitle: "Cookie 横幅、新闻通讯弹窗、社交浮层、全屏插播（AdGuard 维护）",
+                  sourceURL: URL(string: "https://filters.adtidy.org/extension_filters/annoyances.txt")!,
+                  mirrorURLs: [URL(string: "https://cdn.jsdelivr.net/gh/AdguardTeam/FiltersRegistry@master/filters/filter_14_Annoyances/filter_14_Annoyances.txt")!],
+                  isEnabled: false),
+        // Annoyances（AdGuard 维护）：cookie 横幅/新闻通讯弹窗/社交浮层/全屏插播——
+        // 社区共识的"第二张列表"（与主广告列表互补不重叠）。默认关（会隐藏部分
+        // 网站的提示类元素，尊重用户选择）。
+        ListState(id: "adguard-annoyances", name: "Annoyances（弹窗/横幅）", subtitle: "Cookie 横幅、新闻通讯弹窗、社交浮层、全屏插播（AdGuard 维护）",
+                  sourceURL: URL(string: "https://filters.adtidy.org/extension_filters/annoyances.txt")!, isEnabled: false),
     ]
 
     private var compiled: [String: WKContentRuleList] = [:]
@@ -185,6 +200,43 @@ class FilterListStore: ObservableObject {
     // MARK: - Update pipeline
 
     private func updateList(id: String, sourceURL: URL) async {
+        // 主源 + 镜像按序尝试（主源被墙/宕机/劫持成 HTML 时自动落镜像）。
+        var candidates = [sourceURL]
+        if let def = lists.first(where: { $0.id == id }) {
+            candidates.append(contentsOf: def.mirrorURLs)
+        }
+        for candidate in candidates {
+            do {
+                if let result = try await fetchAndCompile(id: id, from: candidate) {
+                    install(id: id, compiled: result.compiled,
+                            lastUpdated: Date(), ruleCount: result.count,
+                            distribute: true)
+                    await MainActor.run { [weak self] in
+                        guard let i = self?.lists.firstIndex(where: { $0.id == id }) else { return }
+                        self?.lists[i].isUpdating = false
+                        self?.lists[i].errorText = nil
+                    }
+                    Log.contentBlocking.info("filter list \(id, privacy: .public) updated from mirror/primary — \(result.count) rules")
+                    return
+                }
+            } catch {
+                Log.app.error("filter list update failed from \(candidate.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                continue
+            }
+        }
+        await MainActor.run { [weak self] in
+            guard let i = self?.lists.firstIndex(where: { $0.id == id }) else { return }
+            self?.lists[i].isUpdating = false
+            self?.lists[i].errorText = "All sources failed (primary + mirrors)"
+        }
+    }
+
+    private struct FetchResult {
+        let compiled: WKContentRuleList
+        let count: Int
+    }
+
+    private func fetchAndCompile(id: String, from sourceURL: URL) async throws -> FetchResult? {
         do {
             var request = URLRequest(url: sourceURL)
             request.timeoutInterval = 30
@@ -207,28 +259,12 @@ class FilterListStore: ObservableObject {
                               userInfo: [NSLocalizedDescriptionKey: "Compilation failed"])
             }
             try? abp.write(to: rawFileURL(id), atomically: true, encoding: .utf8)
-
-            // R2-20：此前这里又整表 convert 一次只为拿 ruleCount——用 compile
-            // 阶段已算好的计数。
             let count = lastAttemptRuleCount ?? 0
             markMeta(id: id, lastUpdated: Date(), ruleCount: count)
-            install(id: id, compiled: compiledList, lastUpdated: Date(), ruleCount: count)
-            if let i = lists.firstIndex(where: { $0.id == id }) {
-                lists[i].isUpdating = false
-                lists[i].errorText = nil
-            }
-            if lists.first(where: { $0.id == id })?.isEnabled == true {
-                addEverywhere(id: id, list: compiledList)
-            }
-            Log.contentBlocking.info("filter list \(id, privacy: .public) updated — \(count) rules")
-        } catch {
-            if let i = lists.firstIndex(where: { $0.id == id }) {
-                lists[i].isUpdating = false
-                lists[i].errorText = error.localizedDescription
-            }
-            Log.contentBlocking.error("filter list \(id, privacy: .public) update failed: \(error.localizedDescription)")
+            return FetchResult(compiled: compiledList, count: count)
         }
     }
+
 
     /// Compiles with element hiding; on failure retries blocking-only so one
     /// bad selector can't take the whole list down.

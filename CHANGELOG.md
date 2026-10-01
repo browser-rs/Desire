@@ -8,6 +8,8 @@
 - 广告拦截三轮强化（能力基线抬升）：① 内置 Ads 域名规则 22 → 80 条（补二线广告交换、弹窗/跳转网络、分析型追踪、国内常见广告域——EasyList 的网络层兜底）；② EasyList 订阅默认启用（此前默认关，国际拦截开箱即用，6 万条 cosmetic+网络规则）；③ 视频广告拦截新增**通用 CSS 层**——各家播放器通用的前贴/暂停/角标广告 class 名（video-ad/preroll/pause-ad 等），叠加在每站专属规则之外，所有视频站受益
 - 拦截规则自动更新补周期触发：启动时查一次后，长驻会话每 24h 再查（规则源每日更新，此前启动之后 7 天内不再检查）；元素屏蔽规则的 host 匹配改后缀点分语义（此前 contains 子串匹配——"example.com" 的规则会误命中 "notexample.com"）
 - 设置页视频广告拦截行的说明更新（提及通用播放器 CSS、反反拦截与首击劫持防护——本轮能力的用户可见入口）
+- 规则列表更新加镜像 fallback：主源（easylist-downloads.adblockplus.org，国内常被墙/劫持成 HTML）失败或返回非规则内容时，自动依次尝试 jsDelivr CDN 托管的镜像（EasyList/EasyList China/Annoyances 三列表配齐）；新增 Annoyances 订阅（AdGuard 维护的 Cookie 横幅/弹窗/社交浮层过滤，默认关尊重用户选择）
+
 
 
 

@@ -220,6 +220,8 @@ struct HistorySyncPayload: Codable, Equatable {
     var title: String
     var timestamp: Date
     var updatedAt: Date?
+    /// 访问次数（地址栏建议频率加权；旧远端/本地缺键 → 1，兼容解码）。
+    var visitCount: Int = 1
 }
 
 /// 值本体(带类型标签的 JSON)。

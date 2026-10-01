@@ -143,18 +143,25 @@ class AddressSuggestionsModel: ObservableObject {
             }
         }
 
-        for h in history.entries {
-            if results.count >= maxResults { break }
-            if seen.contains(h.url) { continue }
-            if h.title.lowercased().contains(trimmed.lowercased()) || h.url.lowercased().contains(trimmed.lowercased()) {
-                seen.insert(h.url)
-                results.append(AddressSuggestion(
-                    kind: .history,
-                    title: h.title,
-                    url: h.url,
-                    domain: FaviconStore.domainKey(from: h.url)
-                ))
+        // 历史候选按 **评分（新近×频率）** 排序后取满位——纯时间倒序会让
+        // 高频站点被一次性历史淹没（Chrome 式"最常且最近"）。
+        let now = Date()
+        let matched = history.entries
+            .filter { !seen.contains($0.url) }
+            .filter {
+                $0.title.lowercased().contains(trimmed.lowercased())
+                    || $0.url.lowercased().contains(trimmed.lowercased())
             }
+            .sorted { $0.suggestionScore(now: now) > $1.suggestionScore(now: now) }
+        for h in matched {
+            if results.count >= maxResults { break }
+            seen.insert(h.url)
+            results.append(AddressSuggestion(
+                kind: .history,
+                title: h.title,
+                url: h.url,
+                domain: FaviconStore.domainKey(from: h.url)
+            ))
         }
 
         // R2-12（功能性）：剪贴板候选的插入必须发生在 `suggestions = results`

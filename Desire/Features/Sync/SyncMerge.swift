@@ -387,7 +387,8 @@ enum HistorySync {
 
     static func payload(_ entry: HistoryEntry) -> HistorySyncPayload {
         HistorySyncPayload(id: entry.id, url: entry.url, title: entry.title,
-                           timestamp: entry.timestamp, updatedAt: entry.updatedAt)
+                           timestamp: entry.timestamp, updatedAt: entry.updatedAt,
+                           visitCount: entry.visitCount)
     }
 
     static func merge(
@@ -400,12 +401,14 @@ enum HistorySync {
             updatedAtOf: { $0.updatedAt },
             make: { _, payload, at in
                 HistoryEntry(id: payload.id, url: payload.url, title: payload.title,
-                             timestamp: payload.timestamp, updatedAt: at)
+                             timestamp: payload.timestamp, updatedAt: at,
+                             visitCount: payload.visitCount)
             },
             update: { entry, payload, at in
                 entry.url = payload.url
                 entry.title = payload.title
                 entry.updatedAt = at
+                entry.visitCount = payload.visitCount
             }
         )
     }

@@ -10,6 +10,7 @@ SOURCES=(
   Desire/Features/Agent/AgentToolSchema.swift
   Desire/Features/Agent/AgentPlanStep.swift
   Desire/App/JSString.swift
+  Desire/Features/History/HistoryEntry.swift
   Desire/Features/Agent/RoutingDecision.swift
   Desire/Features/Agent/Conversation.swift
   Desire/Features/Agent/ModelPrice.swift
@@ -23,7 +24,6 @@ SOURCES=(
   Desire/Features/Downloads/BatchMedia.swift
   Desire/Features/NewTab/QuickDial.swift
   Desire/Features/ReadingList/ReadingListItem.swift
-  Desire/Features/History/HistoryEntry.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Agent/Memory/MemoryModels.swift
   Desire/Features/Sync/SyncCrypto.swift

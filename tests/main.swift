@@ -872,6 +872,38 @@ func testRoutingDecision() {
 }
 testRoutingDecision()
 
+// MARK: - 历史建议评分（新近×频率）
+
+func testHistoryScore() {
+    let now = Date()
+    func entry(_ count: Int, hoursAgo: Double) -> HistoryEntry {
+        HistoryEntry(id: UUID(), url: "https://x.com/\(count)-\(hoursAgo)", title: "t",
+                     timestamp: now.addingTimeInterval(-hoursAgo * 3600), updatedAt: nil,
+                     visitCount: count)
+    }
+    // 高频旧站 vs 低频新站：频率平方根加权下，每天 5 次的常去站（昨天访问）
+    // 反超一小时前路过一次的——这正是"常去站不被一次性历史淹没"的设计目标。
+    let frequent = entry(20, hoursAgo: 30)
+    let once = entry(1, hoursAgo: 1)
+    check("常去站（20 次/昨天）反超路过站（1 次/1 小时前）",
+          frequent.suggestionScore(now: now) > once.suggestionScore(now: now))
+    // 同新近：高频 > 低频
+    let sameA = entry(1, hoursAgo: 2)
+    let sameB = entry(10, hoursAgo: 2)
+    check("同新近时频率占优", sameB.suggestionScore(now: now) > sameA.suggestionScore(now: now))
+    // 平方根收敛：20 次只比 1 次高 ~4.5 倍，不是 20 倍（防霸榜）
+    let ratio = entry(20, hoursAgo: 2).suggestionScore(now: now) / entry(1, hoursAgo: 2).suggestionScore(now: now)
+    check("频率增益按平方根收敛（4.0~4.5 之间）", ratio > 4.0 && ratio < 4.6)
+    // 一周前的衰减（recency = 1/(1+168/24) = 1/8 = 0.125）
+    let week = entry(1, hoursAgo: 168)
+    check("一周前衰减到 0.1~0.2", week.suggestionScore(now: now) > 0.1 && week.suggestionScore(now: now) < 0.2)
+    // visitCount 兼容：默认 1
+    let legacy = HistoryEntry(id: UUID(), url: "https://x.com/legacy", title: "t",
+                              timestamp: now, updatedAt: nil)
+    eq("旧文件缺键解码后 visitCount=1", legacy.visitCount, 1)
+}
+testHistoryScore()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

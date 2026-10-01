@@ -30,6 +30,24 @@ class HistoryStore: ObservableObject {
     }
 
     func addEntry(url: String, title: String) {
+        // **重复访问就地累计**：同一 URL 提到最前 + visitCount+1 + 标题校正，
+        // 不再每访一条（同 URL 十条把建议列表挤满的根源；历史语义 = 每站
+        // 一行带次数，与 Chrome 一致）。id 不变 → 云同步 LWW 按行更新。
+        if let idx = entries.firstIndex(where: { $0.url == url }) {
+            entries[idx].visitCount += 1
+            entries[idx].timestamp = Date()
+            entries[idx].updatedAt = Date()
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, entries[idx].title != trimmed {
+                entries[idx].title = trimmed
+            }
+            if idx != 0 {
+                let entry = entries.remove(at: idx)
+                entries.insert(entry, at: 0)
+            }
+            save()
+            return
+        }
         let entry = HistoryEntry(id: UUID(), url: url, title: title,
                                  timestamp: Date(), updatedAt: Date())
         entries.insert(entry, at: 0)

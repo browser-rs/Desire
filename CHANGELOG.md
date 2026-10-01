@@ -12,6 +12,9 @@
 
 - 主框架导航转下载时页面误报"无法加载/帧框加载已中断"（用户实测：GitHub release 点下载，文件已下完但页面直接变错误页）——下载转换引发的 frame-load-interrupted 失败不再写入页面错误，页面停留原地，下载静默完成
 - 下载面板搜索行与头部补间距
+- 插件消息传递（runtime.sendMessage/onMessage、tabs.sendMessage/onMessage）全链打通：background 页 → 页面 onMessage 的派发与回复回投经 .page 世界注入（background 页 chrome.* 与宿主 handler 同处 page world——此前 extension world 注入导致消息静默丢失）；每插件独立 WKContentWorld（插件间身份/全局不再互相覆盖，修复多插件同页 __desireExtID 被最后一个覆盖的问题）
+- execute 桥新增 world 参数（main/extension/plugin:<uuid>）——调试插件 content script 必需（主世界探针看不到插件隔离世界的状态）
+
 
 
 ## [v0.5.2] - 2026-10-01

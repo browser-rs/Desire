@@ -251,6 +251,7 @@ class BrowserState: ObservableObject {
                     config.userContentController.addUserScript(script)
                 }
             }
+            Log.userScripts.info("webview init: injected webext-api into \(pluginStore.plugins.filter { $0.isEnabled }.count, privacy: .public) plugin world(s)")
         }
 
         webView = Self.makeWebView(configuration: config)
@@ -434,6 +435,8 @@ struct WebView: NSViewRepresentable {
     var onInspectedElement: ((InspectedElement) -> Void)?
     /// WebExtension API（0.2.13）：tabs.* 的宿主窗口通道。
     var onQueryTabs: (() -> [[String: Any]])?
+    /// WebExtension tabs.update/get 用：返回本窗口的 TabManager。
+    var onTabManager: (() -> TabManager?)?
     var onCreateTab: ((String) -> Void)?
     var onRemoveTab: ((String) -> Void)?
     @ObservedObject var elementBlockStore: ElementBlockStore
@@ -638,11 +641,16 @@ struct WebView: NSViewRepresentable {
         func registerPluginWorldHandlers(_ webView: WKWebView, coordinator: Coordinator) {
             let contentController = webView.configuration.userContentController
             guard let pluginStore = AppState.live?.pluginStore else { return }
+            var registered = 0
             for plugin in pluginStore.plugins where plugin.isEnabled && !plugin.jsCode.isEmpty {
                 let world = WebView.pluginWorld(plugin.id)
                 contentController.removeScriptMessageHandler(
                     forName: "desireExt", contentWorld: world)
                 contentController.add(coordinator, contentWorld: world, name: "desireExt")
+                registered += 1
+            }
+            if registered > 0 {
+                Log.userScripts.info("plugin world handlers registered: \(registered, privacy: .public)")
             }
         }
 
@@ -671,6 +679,10 @@ struct WebView: NSViewRepresentable {
         /// 协议：{id, ns, fn, args[]} → `_resolve(id, ok, payloadJSON)`，
         /// payload 以 JSON 字面量内嵌（存储值已在 set 时校验可序列化）。
         private func handleExtensionMessage(_ body: Any, world: WKContentWorld) {
+            let dictForLog = body as? [String: Any]
+            let nsText = dictForLog?["ns"] as? String ?? "?"
+            let fnText = dictForLog?["fn"] as? String ?? "?"
+            Log.userScripts.info("ext handler: \(nsText, privacy: .public)/\(fnText, privacy: .public)")
             guard let dict = body as? [String: Any],
                   let ns = dict["ns"] as? String,
                   let fn = dict["fn"] as? String else { return }
@@ -734,6 +746,48 @@ struct WebView: NSViewRepresentable {
                 } else {
                     reply(nil, error: "tabs.remove requires id(s)")
                 }
+            case ("tabs", "update"):
+                // Chrome 语义：updateProperties {active, url, pinned}（tabId 从 args[0]）。
+                guard args.count >= 2,
+                      let tabIDString = args[0] as? String,
+                      let props = args[1] as? [String: Any],
+                      let tm = parent.onTabManager?(),
+                      let target = tm.tabs.first(where: { $0.id.uuidString == tabIDString }),
+                      let idx = tm.tabs.firstIndex(where: { $0.id == target.id }) else {
+                    reply(nil, error: "tabs.update requires (tabId, props) with a valid tab")
+                    return
+                }
+                if let active = props["active"] as? Bool, active { tm.selectTab(at: idx) }
+                if let pinned = props["pinned"] as? Bool { target.isPinned = pinned }
+                if let urlString = props["url"] as? String, let u = URL(string: urlString) {
+                    target.urlString = urlString
+                    target.browser.webView.load(URLRequest(url: u))
+                }
+                reply([:])
+            case ("tabs", "get"):
+                guard let tabIDString = args.first as? String,
+                      let tm = parent.onTabManager?(),
+                      let t = tm.tabs.first(where: { $0.id.uuidString == tabIDString }),
+                      let idx = tm.tabs.firstIndex(where: { $0.id == t.id }) else {
+                    reply(nil, error: "no such tab")
+                    return
+                }
+                reply(["id": t.id.uuidString, "index": idx,
+                       "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                       "title": t.browser.pageTitle,
+                       "active": idx == tm.selectedIndex,
+                       "incognito": t.isIncognito, "pinned": t.isPinned])
+            case ("windows", "getAll"):
+                let managers = TabSessionCoordinator.shared.liveManagers()
+                let wins = managers.enumerated().map { wi, manager -> [String: Any] in
+                    ["id": wi,
+                     "tabs": manager.tabs.enumerated().map { tidx, t in
+                         ["id": t.id.uuidString, "index": tidx,
+                          "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                          "title": t.browser.pageTitle] as [String: Any]
+                     }]
+                }
+                reply(Array(wins))
             case ("notifications", "create"):
                 WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
                     reply(result)

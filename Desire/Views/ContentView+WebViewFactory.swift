@@ -117,6 +117,7 @@ extension ContentView {
                     ] as [String: Any]
                 }
             },
+            onTabManager: { [weak tabManager] in tabManager },
             onCreateTab: { urlString in
                 // 继承来源标签身份（与"在新标签打开链接"一致）。
                 tabManager.addTab(url: urlString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID)

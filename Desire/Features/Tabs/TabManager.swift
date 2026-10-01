@@ -832,6 +832,12 @@ final class TabSessionCoordinator {
 
     func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
 
+    /// 全部存活窗口的 TabManager（webext windows.getAll 用；弱引用自动清理）。
+    func liveManagers() -> [TabManager] {
+        managers.removeAll { $0.manager == nil }
+        return managers.compactMap(\.manager)
+    }
+
     /// 按窗口会话 UUID 查找 TabManager（跨窗口标签迁移用）。
     func manager(forSession sessionID: UUID) -> TabManager? {
         let key = sessionKey(for: sessionID)

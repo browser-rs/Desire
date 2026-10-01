@@ -466,46 +466,17 @@ class AgentPreferenceStore: ObservableObject {
 
     // MARK: - Keychain primitives
 
+    // Keychain 原语收口到共享 KeychainService（隐窗授权修复只改一处）。
     private func keychainRead(account: String, interactive: Bool = true) -> String? {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        if !interactive {
-            // kSecUseAuthenticationUI 的现代替代：interactionNotAllowed 的 LAContext
-            // 让失配的 ACL 直接失败而不是弹授权申请。
-            let context = LAContext()
-            context.interactionNotAllowed = true
-            query[kSecUseAuthenticationContext as String] = context
-        }
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let key = String(data: data, encoding: .utf8) else { return nil }
-        return key
+        KeychainService.readString(account: account, service: keychainService, interactive: interactive)
     }
 
     private func keychainWrite(data: Data, account: String) {
-        keychainDelete(account: account)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-        ]
-        SecItemAdd(query as CFDictionary, nil)
+        KeychainService.write(data, account: account, service: keychainService)
     }
 
     private func keychainDelete(account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
+        KeychainService.delete(account: account, service: keychainService)
     }
 
     /// A previously persisted copy of a BUILT-IN default prompt (never

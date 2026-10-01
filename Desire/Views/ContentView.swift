@@ -50,6 +50,10 @@ struct ContentView: View {
     init(appState: AppState, sessionID: Binding<UUID?>) {
         self.appState = appState
         _sessionID = sessionID
+        // OBSERVED：body 直接读 settings.appearanceTheme/accentColor 等发布字段，
+        // 普通计算属性不转发 objectWillChange——改主题/强调色的刷新此前靠
+        // "恰好有别的重绘"（ARCH-4）。
+        _settings = ObservedObject(wrappedValue: appState.settings)
         _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
         _bookmarkStore = ObservedObject(wrappedValue: appState.bookmarkStore)
         _passwordStore = ObservedObject(wrappedValue: appState.passwordStore)
@@ -83,7 +87,8 @@ struct ContentView: View {
     }
 
     // Convenience accessors for shared stores
-    var settings: Settings { appState.settings }
+    /// OBSERVED（init 里从 appState 装配）：body 读它的发布字段。
+    @ObservedObject var settings: Settings
     var contentBlocker: ContentBlockerStore { appState.contentBlocker }
     /// OBSERVED so the password-save notice bar reacts to pendingSave.
     @ObservedObject var passwordStore: PasswordStore

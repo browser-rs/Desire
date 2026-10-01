@@ -1331,32 +1331,13 @@ final class RemoteControlStore: ObservableObject {
 
     // MARK: - Keychain（范式同 SyncStore；非交互读）
 
+    // Keychain 原语收口到共享 KeychainService（service 名此前硬编码在此）。
     private func keychainRead(_ account: String) -> String? {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: "me.siwi.Desire",
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        query[kSecUseAuthenticationContext as String] = context
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        KeychainService.readString(account: account, interactive: false)
     }
 
     private func keychainWrite(_ value: String, account: String) {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: "me.siwi.Desire",
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
-        query[kSecValueData as String] = Data(value.utf8)
-        SecItemAdd(query as CFDictionary, nil)
+        KeychainService.write(value, account: account)
     }
 }
 

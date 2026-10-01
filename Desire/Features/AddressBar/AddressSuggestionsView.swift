@@ -14,32 +14,30 @@ struct AddressSuggestionsView: View {
 
     @State private var showSearchHistory = false
 
-    private var recentSearches: [SearchHistory] {
-        guard let store = searchHistoryStore else { return [] }
-        return store.entries.prefix(5).map { $0 }
-    }
-
     var body: some View {
-        if model.suggestions.isEmpty && recentSearches.isEmpty {
+        // 搜索历史的读取**整体挪进 SearchHistorySection**（它自己
+        // `@ObservedObject` 持有 store）——此前在父视图直接读 `store.entries`
+        // （发布字段），搜索历史新增时下拉不会重绘（ARCH-4 同型）。
+        if !model.suggestions.isEmpty {
+            suggestionCard
+        } else if let store = searchHistoryStore {
+            SearchHistorySection(
+                store: store,
+                onSelect: { query in onSearchHistorySelect?(query) })
+        } else {
             // No rows at all (fresh focus before typing) — render nothing
             // instead of a stray stroked card.
             EmptyView()
-        } else {
-            suggestionCard
         }
     }
 
     private var suggestionCard: some View {
         ScrollViewReader { proxy in
             VStack(alignment: .leading, spacing: 0) {
-                if !recentSearches.isEmpty && model.suggestions.isEmpty {
-                    searchHistorySection
-                } else {
-                    ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                        row(for: suggestion, at: index)
-                        if index < model.suggestions.count - 1 {
-                            Divider()
-                        }
+                ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                    row(for: suggestion, at: index)
+                    if index < model.suggestions.count - 1 {
+                        Divider()
                     }
                 }
             }
@@ -62,46 +60,7 @@ struct AddressSuggestionsView: View {
         }
     }
 
-    private var searchHistorySection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Recent Searches")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                Spacer()
-            }
-            Divider()
-            ForEach(recentSearches) { entry in
-                HStack(spacing: 10) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                    Text(entry.query)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(entry.engine)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Capsule())
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onSearchHistorySelect?(entry.query)
-                }
-                if entry.id != recentSearches.last?.id {
-                    Divider()
-                }
-            }
-        }
-    }
+
 
     @ViewBuilder
     private func row(for suggestion: AddressSuggestion, at index: Int) -> some View {
@@ -192,6 +151,57 @@ struct AddressSuggestionsView: View {
                 .clipShape(Capsule())
                 .foregroundStyle(.secondary)
         default:
+            EmptyView()
+        }
+    }
+}
+
+/// 最近搜索段：**自己观察** SearchHistoryStore（父视图只持普通引用，
+/// 不观察就不会因新增历史而重绘）。
+private struct SearchHistorySection: View {
+    @ObservedObject var store: SearchHistoryStore
+    var onSelect: (String) -> Void
+
+    var body: some View {
+        let recent = store.entries.prefix(5).map { $0 }
+        if !recent.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Recent Searches")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    Spacer()
+                }
+                Divider()
+                ForEach(recent) { entry in
+                    HStack(spacing: 10) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
+                        Text(entry.query)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(entry.engine)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12))
+                            .clipShape(Capsule())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onSelect(entry.query) }
+                    if entry.id != recent.last?.id {
+                        Divider()
+                    }
+                }
+            }
+        } else {
             EmptyView()
         }
     }

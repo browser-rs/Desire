@@ -224,72 +224,29 @@ class PasswordStore: ObservableObject {
 
         // P0-C：必须带 kSecAttrService——loadAll 按 service 过滤，缺了它写入的
         // 条目重启后永远读不回来（存得进读不出，实测类数据丢失）。
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrService as String: "me.siwi.Desire",
-            kSecAttrServer as String: domain,
-            kSecAttrAccount as String: username,
-            kSecAttrProtocol as String: kSecAttrProtocolHTTPS,
-            kSecValueData as String: passwordData,
-        ]
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = KeychainService.write(passwordData, account: username,
+                                           service: serviceName, server: domain,
+                                           httpsProtocol: true)
         if status != errSecSuccess {
             Log.app.error("password keychain add failed: \(status, privacy: .public)")
         }
     }
 
     private func findFromKeychain(domain: String, username: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: domain,
-            kSecAttrAccount as String: username,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let password = String(data: data, encoding: .utf8) else { return nil }
-        return password
+        // 旧语义保留：按 server+account 查找、不过滤 service（service: nil）。
+        KeychainService.readString(account: username, service: nil, server: domain, interactive: true)
     }
 
     private func deleteFromKeychain(domain: String, username: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: domain,
-            kSecAttrAccount as String: username,
-        ]
-        SecItemDelete(query as CFDictionary)
+        KeychainService.delete(account: username, service: nil, server: domain)
     }
 
     private func loadAll() {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            // Scope to OUR service name — an unfiltered kSecMatchLimitAll
-            // query sweeps OTHER apps' internet passwords (and floods the
-            // user with keychain access prompts).
-            kSecAttrService as String: serviceName,
-            kSecReturnAttributes as String: true,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-        ]
-        // init 在启动路径上跑：条目 ACL 失配（adhoc 重建换路径/换 cdhash）时，
-        // 交互读会向 SecurityAgent 申请授权，而那个授权窗可能永远不渲染——
-        // 同步等它 = 应用死在启动里（2026-09-24，agent API key 同款教训）。
-        // 非交互失败 = 面板显示为空，用户重新保存/授权一次即恢复。
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        query[kSecUseAuthenticationContext as String] = context
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let items = result as? [[String: Any]] else { return }
-
-        entries = items.compactMap { dict in
-            guard let domain = dict[kSecAttrServer as String] as? String,
-                  let username = dict[kSecAttrAccount as String] as? String,
-                  let passwordData = dict[kSecValueData as String] as? Data,
-                  let password = String(data: passwordData, encoding: .utf8) else { return nil }
-            return PasswordEntry(id: UUID(), domain: domain, username: username, password: password, createdAt: Date())
+        // init 在启动路径上跑 → 非交互枚举（ACL 失配失败成空面板，
+        // 用户重存/授权一次即恢复——2026-09-24 隐窗授权教训）。
+        entries = KeychainService.readAll(service: serviceName).map {
+            PasswordEntry(id: UUID(), domain: $0.server, username: $0.account,
+                          password: String(data: $0.data, encoding: .utf8) ?? "", createdAt: Date())
         }
     }
 }

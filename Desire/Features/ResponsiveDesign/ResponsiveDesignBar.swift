@@ -5,7 +5,9 @@ struct ResponsiveDesignBar: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @Binding var config: ResponsiveConfig
-    let responsiveStore: ResponsiveDesignStore
+    /// OBSERVED：body 读 presets/allPresets（发布字段），普通引用不重绘
+    /// （预设清单变了工具条纹丝不动）。
+    @ObservedObject var responsiveStore: ResponsiveDesignStore
     var onScreenshot: (() -> Void)?
     var mediaQueries: [MediaQueryItem]
 

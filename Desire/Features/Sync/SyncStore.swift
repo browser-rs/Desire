@@ -1351,45 +1351,21 @@ final class SyncStore: ObservableObject {
 
     // MARK: - Keychain（照 AgentPreferenceStore 的既有范式）
 
-    /// 非交互读:ACL 失配时宁可读不到（显示未配置），不许同步等一个看不见的授权窗。
+    /// Keychain 原语收口到共享 KeychainService（全部非交互——同步启动/
+    /// 回合中路径绝不等授权窗）。
     private func keychainReadData(_ account: String) -> Data? {
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        query[kSecUseAuthenticationContext as String] = context
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return data
+        KeychainService.read(account: account, service: keychainService, interactive: false)
     }
 
     private func keychainReadString(_ account: String) -> String? {
-        keychainReadData(account).flatMap { String(data: $0, encoding: .utf8) }
+        KeychainService.readString(account: account, service: keychainService, interactive: false)
     }
 
     private func keychainWrite(_ data: Data, account: String) {
-        keychainDelete(account)
-        let attributes: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-        ]
-        SecItemAdd(attributes as CFDictionary, nil)
+        KeychainService.write(data, account: account, service: keychainService)
     }
 
     private func keychainDelete(_ account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassInternetPassword,
-            kSecAttrServer as String: keychainService,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
+        KeychainService.delete(account: account, service: keychainService)
     }
 }

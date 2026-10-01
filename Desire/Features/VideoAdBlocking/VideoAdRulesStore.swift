@@ -211,8 +211,26 @@ final class VideoAdRulesStore: ObservableObject {
         return script
     }
 
+    /// **通用视频广告 CSS 层**（所有视频站叠加，不受本地覆盖影响）：
+    /// 各家播放器通用的前贴/暂停/角标广告 class 名与常见广告容器——
+    /// 站点专属规则由 per-site CSS/本地覆盖负责，这里只收"放之四海皆准"的。
+    static let commonVideoAdCSS = """
+    /* 通用播放器广告容器 */
+    .video-ad, .video-ads, .ad-video, .ads-video,
+    .preroll-ad, .pre-roll, .ad-preroll, .video-ad-container,
+    .video-ad-overlay, .ad-overlay, .vast-ad, .vast-container,
+    .ad-break, .ad-container, .ad-wrapper, .ad-slot-video,
+    .player-ad, .player-ad-container, .player-ad-overlay,
+    /* 暂停/角标广告 */
+    .pause-ad, .pause-ads, .video-pause-ad, .corner-ad, .logo-ad,
+    /* 国内站点常见命名 */
+    .a_ad, .ad-video-box, .v-ad, .play-ad
+    { display: none !important; }
+    """
+
     private func buildCSSInstallScript(replaceStale: Bool) -> String {
-        let css = VideoSite.allCases.map { self.css(for: $0) }.joined(separator: "\n")
+        let css = Self.commonVideoAdCSS + "\n" +
+            VideoSite.allCases.map { self.css(for: $0) }.joined(separator: "\n")
         let escaped = css
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")

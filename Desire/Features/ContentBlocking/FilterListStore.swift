@@ -40,7 +40,7 @@ class FilterListStore: ObservableObject {
         ListState(id: "easylist-china", name: "EasyList China", subtitle: "中文广告过滤（国内网站）",
                   sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylistchina.txt")!, isEnabled: true),
         ListState(id: "easylist", name: "EasyList", subtitle: "国际广告过滤（英文网站）",
-                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylist.txt")!, isEnabled: false),
+                  sourceURL: URL(string: "https://easylist-downloads.adblockplus.org/easylist.txt")!, isEnabled: true),
     ]
 
     private var compiled: [String: WKContentRuleList] = [:]

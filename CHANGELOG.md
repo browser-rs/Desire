@@ -9,6 +9,8 @@
 - 拦截规则自动更新补周期触发：启动时查一次后，长驻会话每 24h 再查（规则源每日更新，此前启动之后 7 天内不再检查）；元素屏蔽规则的 host 匹配改后缀点分语义（此前 contains 子串匹配——"example.com" 的规则会误命中 "notexample.com"）
 - 设置页视频广告拦截行的说明更新（提及通用播放器 CSS、反反拦截与首击劫持防护——本轮能力的用户可见入口）
 - 规则列表更新加镜像 fallback：主源（easylist-downloads.adblockplus.org，国内常被墙/劫持成 HTML）失败或返回非规则内容时，自动依次尝试 jsDelivr CDN 托管的镜像（EasyList/EasyList China/Annoyances 三列表配齐）；新增 Annoyances 订阅（AdGuard 维护的 Cookie 横幅/弹窗/社交浮层过滤，默认关尊重用户选择）
+- 错误页加"返回上一页"按钮：重定向/验证链中途失败时不再把用户钉死在错误页（此前只有 Reload，会重放失败的跳转）
+
 
 
 

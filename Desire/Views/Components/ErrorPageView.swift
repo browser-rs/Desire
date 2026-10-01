@@ -130,6 +130,16 @@ struct ErrorPageView: View {
                 }
                 .buttonStyle(.borderedProminent)
 
+                // 返回上一页：跳转链中途失败的场景（验证/重定向链），
+                // 只有 Reload 会把用户钉死在错误页。
+                if !tab.browser.webView.backForwardList.backList.isEmpty {
+                    Button("Go Back") {
+                        tab.browser.lastError = nil
+                        tab.browser.webView.goBack()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
                 Button("Open in Safari") {
                     if let url = URL(string: tab.urlString) {
                         NSWorkspace.shared.open(url)

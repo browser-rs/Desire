@@ -710,8 +710,11 @@ struct AgentPanel: View {
         panel.title = "Export Conversation"
         panel.nameFieldStringValue = "\(store.conversationTitle ?? "conversation").md"
         panel.allowedContentTypes = [.plainText]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? lines.write(to: url, atomically: true, encoding: .utf8)
+        // 非阻塞（PERF-6）：runModal 冻结整个 app。
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? lines.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     // MARK: - Submit
@@ -746,12 +749,15 @@ struct AgentPanel: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]
-        guard panel.runModal() == .OK else { return }
-        let uris = panel.urls.compactMap { url -> String? in
-            guard let image = NSImage(contentsOf: url) else { return nil }
-            return ImageAttachment.dataURI(from: image)
+        // 非阻塞（PERF-6）。
+        panel.begin { response in
+            guard response == .OK else { return }
+            let uris = panel.urls.compactMap { url -> String? in
+                guard let image = NSImage(contentsOf: url) else { return nil }
+                return ImageAttachment.dataURI(from: image)
+            }
+            self.pendingImages.append(contentsOf: uris)
         }
-        pendingImages.append(contentsOf: uris)
     }
 
     private func dropImages(_ providers: [NSItemProvider]) async {

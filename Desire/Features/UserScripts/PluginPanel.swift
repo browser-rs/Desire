@@ -123,19 +123,22 @@ struct PluginPanel: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.message = String(localized: "Choose a .msex package or a Safari extension (.safariextension folder / zip / crx / xpi)")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            var isDir: ObjCBool = false
-            let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
-            if isDirectory {
-                _ = try MSExInstaller.installSafariPackage(from: url, store: store)
-            } else if url.pathExtension.lowercased() == "msex" {
-                _ = try MSExInstaller.install(from: url, store: store)
-            } else {
-                _ = try MSExInstaller.installSafariPackage(from: url, store: store)
+        // 非阻塞（PERF-6）：runModal 冻结整个 app（Agent 回合/远程全停）。
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                var isDir: ObjCBool = false
+                let isDirectory = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+                if isDirectory {
+                    _ = try MSExInstaller.installSafariPackage(from: url, store: self.store)
+                } else if url.pathExtension.lowercased() == "msex" {
+                    _ = try MSExInstaller.install(from: url, store: self.store)
+                } else {
+                    _ = try MSExInstaller.installSafariPackage(from: url, store: self.store)
+                }
+            } catch {
+                importError = error.localizedDescription
             }
-        } catch {
-            importError = error.localizedDescription
         }
     }
 

@@ -751,7 +751,8 @@ final class ScreenshotOverlayView: NSView {
             try ScreenshotCapture.writePNG(composed, to: target)
             onResult?(.saved(target))
         } catch {
-            NSAlert(error: error).runModal()
+            // 非阻塞（PERF-6）：runModal 冻结全 app；失败经 toast 报告。
+            onResult?(.failed(error.localizedDescription))
         }
     }
 

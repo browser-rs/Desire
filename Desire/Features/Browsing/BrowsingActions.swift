@@ -191,6 +191,8 @@ extension BrowsingActions {
                     self.screenshotToast = String(format: String(localized: "Saved to %@"), url.lastPathComponent)
                 case .copied:
                     self.screenshotToast = String(localized: "Copied to clipboard")
+                case .failed(let message):
+                    self.screenshotToast = "⚠️ " + message
                 }
                 if self.screenshotToast != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in

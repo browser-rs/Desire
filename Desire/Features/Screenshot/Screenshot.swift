@@ -98,4 +98,6 @@ enum ScreenshotResult: Sendable {
     case cancelled
     case saved(URL)
     case copied
+    /// 保存失败（磁盘满/权限）——不再 runModal 冻结全 app，走 toast。
+    case failed(String)
 }

@@ -70,7 +70,9 @@ final class PendingDangerousDownload {
 
 @MainActor
 class BrowserState: ObservableObject {
-    let webView: BrowserWKWebView
+    /// 二级挂起会**重建**此视图（释放旧骨架、换上空白新视图）——除本类型
+    /// 的 rebuildWebView() 外不得赋值；读取方照旧（非 optional，永不 nil）。
+    private(set) var webView: BrowserWKWebView
     /// This page runs in an incognito tab (non-persistent data store).
     /// Downloads created here are tagged private so they never reach the
     /// shared download history on disk.
@@ -222,19 +224,49 @@ class BrowserState: ObservableObject {
             config.userContentController.addUserScript(extScript)
         }
 
-        webView = BrowserWKWebView(frame: .zero, configuration: config)
+        webView = Self.makeWebView(configuration: config)
         // Cookie-policy changes must reach this OPEN page too.
         PrivacyModeStore.shared.registerWebView(webView)
-        webView.allowsBackForwardNavigationGestures = true
-        webView.allowsLinkPreview = true
         // drawsBackground 保持默认（不透明）：0.3.9 曾用 KVC 关掉它试图
         // 消 resize 过场闪（8a880f6），历轮实测均未通过——透明内容让
         // WebKit 无法只拉伸旧帧过渡 resize，每帧合成页面背景反而加剧
-        // 闪烁。勿再关闭。
+        // 闪烁。勿再关闭。（UA/手势等实例级设置集中在 makeWebView。）
+    }
+
+    /// 统一的 webview 构造（init 与二级挂起重建共用）：UA、手势等
+    /// 实例级设置全部集中在这。
+    private static func makeWebView(configuration: WKWebViewConfiguration) -> BrowserWKWebView {
+        let view = BrowserWKWebView(frame: .zero, configuration: configuration)
+        view.allowsBackForwardNavigationGestures = true
+        view.allowsLinkPreview = true
         // Set the full Safari 26.5 UA on the WKWebView instance itself.
         // (See `applyDesktopSafariUA(to:)` for why this is on the view, not
         // the configuration.)
-        Self.applyDesktopSafariUA(to: webView)
+        applyDesktopSafariUA(to: view)
+        return view
+    }
+
+    /// **二级挂起的 webview 重建**（PERF-9 完整版）：释放旧 WKWebView 骨架
+    /// （13 个 script handler + 全套 userScript + WebKit 内部结构——挂起省
+    /// 页面内存，骨架此前却常驻），换上同配置的空白新视图。挂起标签的
+    /// UI 已是 SuspendedTabView（webview 不在视图层，representable 已
+    /// dismantle、handler 已摘），工具路径对挂起标签本就拒绝——重建对
+    /// 它们不可见。恢复 = Tab.restoreSuspendedState 的既有 URL 重载，
+    /// makeNSView 重新 observe（remove-before-add 幂等）。Cookie 策略
+    /// 注册照 init 同款：旧的随释放消亡（弱引用 box），新的注册。
+    func rebuildWebView() {
+        let config = webView.configuration
+        let old = webView
+        // 摘掉旧视图上的 delegate（stopObserving 只在 representable
+        // dismantle 跑——挂起态它已经跑过；这里兜底再摘，幂等）。
+        old.stopLoading()
+        old.navigationDelegate = nil
+        old.uiDelegate = nil
+        let fresh = Self.makeWebView(configuration: config)
+        PrivacyModeStore.shared.registerWebView(fresh)
+        fresh.loadHTMLString("", baseURL: nil)
+        webView = fresh
+        objectWillChange.send()
     }
 
     /// Records a sniffed media resource: dedupe by URL (refresh in place),

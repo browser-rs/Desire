@@ -311,23 +311,41 @@ class TabManager: ObservableObject {
         }
     }
 
-    /// 二级挂起（PERF-9 安全子集）：快照 Data 并不小（interactionState 含
-    /// back/forward 历史、滚动、表单——重页可到 MB 级），挂起省下的页面内存
-    /// 会被快照吃回去。LRU 保留 `deepSnapshotCap` 份，超出的最旧挂起标签
-    /// 释放快照——恢复时退回干净 URL 重载（restoreSuspendedState 既有回退）。
-    /// webview 骨架与 handler 的真正释放需要"恢复时重建 webview"的手术
-    /// （BrowserState.webView 是 let），另行立项勿在本路径盲改。
+    /// 二级挂起（PERF-9 完整版）：两级释放都做——
+    /// ① 快照 LRU 上限 `deepSnapshotCap` 份，超出的最旧挂起标签释放
+    ///    interactionState（恢复退回干净 URL 重载）；
+    /// ② webview 骨架重建：挂起标签超过 `deepRebuildCap` 后，最旧的挂起
+    ///    标签调 `BrowserState.rebuildWebView()`——旧 WKWebView（13 个
+    ///    script handler + 全套 userScript + WebKit 内部结构）真正释放，
+    ///    换上同配置空白视图。挂起态 UI 是 SuspendedTabView、representable
+    ///    已 dismantle（handler 已摘），工具路径对挂起标签拒绝——重建对
+    ///    外不可见；恢复走既有 URL 重载，makeNSView 重新 observe。
     private func deepSuspendIfNeeded() {
-        let withSnapshot = tabs
-            .filter { $0.isSuspended && $0.suspendedInteractionState != nil }
+        let suspended = tabs
+            .filter { $0.isSuspended }
             .sorted { $0.lastAccessed > $1.lastAccessed }
+
+        let withSnapshot = suspended.filter { $0.suspendedInteractionState != nil }
         for tab in withSnapshot.dropFirst(Self.deepSnapshotCap) {
             tab.suspendedInteractionState = nil
-            Log.tabs.info("deep suspend: released snapshot for LRU tab beyond cap")
+        }
+
+        // 骨架重建：最近的 `deepRebuildCap` 个挂起标签保留原 webview
+        // （快速恢复），更旧的逐个重建。
+        for tab in suspended.dropFirst(Self.deepRebuildCap) {
+            // file:// 页面（webarchive/本地预览）不重建——它们的恢复依赖
+            // 视图内状态而非 URL 重载，重建后打不开。
+            if tab.browser.webView.url?.isFileURL == true { continue }
+            tab.browser.rebuildWebView()
+        }
+        if suspended.count > Self.deepRebuildCap {
+            Log.tabs.info("deep suspend: rebuilt webview skeleton for \(suspended.count - Self.deepRebuildCap) LRU tab(s)")
         }
     }
 
     static let deepSnapshotCap = 12
+    /// 保留原 webview 骨架的挂起标签数（LRU 头部）。
+    static let deepRebuildCap = 6
 
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isIncognito {

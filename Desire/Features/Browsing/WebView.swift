@@ -1383,26 +1383,28 @@ struct WebView: NSViewRepresentable {
             let host = webView.url?.host ?? ""
             guard !host.isEmpty else { return }
             eventPollingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+                Log.agent.info("DPP event poll: timer fired")
                 Task { @MainActor [weak self] in
-                    guard let self, !webView.isLoading else { return }
+                    guard let self else { return }
+                    Log.agent.info("DPP event poll: checking, isLoading=\(webView.isLoading, privacy: .public)")
+                    guard !webView.isLoading else { return }
                     // 只在 URL 匹配时检查（防跨页触发）
                     guard webView.url?.absoluteString == url || webView.url?.host == host else { return }
                     for (eventName, selector) in events {
                         let eventKey = host + ":" + eventName
                         guard !self.firedEvents.contains(eventKey) else { continue }
                         let checkJS = "!!document.querySelector(\(JSString.literal(selector)))"
-                        Task { @MainActor in
-                            let matched: Bool = await withCheckedContinuation { cont in
-                                webView.evaluateJavaScript(checkJS) { result, _ in
-                                    cont.resume(returning: (result as? Bool) == true)
-                                }
+                        let matched: Bool = await withCheckedContinuation { cont in
+                            webView.evaluateJavaScript(checkJS) { result, _ in
+                                cont.resume(returning: (result as? Bool) == true)
                             }
-                            guard matched else { return }
-                            self.firedEvents.insert(eventKey)
-                            PageEventHub.shared.handleEvent(
-                                host: host, eventName: eventName,
-                                detail: ["selector": selector, "url": url])
                         }
+                        guard matched else { continue }
+                        Log.agent.info("DPP event poll: MATCHED \(eventName, privacy: .public) on \(host, privacy: .public)")
+                        self.firedEvents.insert(eventKey)
+                        PageEventHub.shared.handleEvent(
+                            host: host, eventName: eventName,
+                            detail: ["selector": selector, "url": url])
                     }
                 }
             }
@@ -1438,11 +1440,9 @@ struct WebView: NSViewRepresentable {
             stored.revisedAt = Date()
             parent.state.pageProtocol = stored.isEmpty ? nil : stored
             Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public)")
-            // DPP 事件轮询（Timer 定期检查声明的事件选择器是否命中——
-            // MutationObserver 在 .page world 的 postMessage 不可靠）。
-            if !stored.events.isEmpty {
-                installEventPolling(events: stored.events, webView: webView)
-            }
+            // DPP events 命中检测改在 fetchCompactPageContext 里做（每次
+            // agent 回合检查，比 Timer 轮询更省且可靠——每次都拿到最新页面状态）。
+            // installEventPolling 方法保留供将来需要主动推送时使用。
             if protocol_.isEmpty == false {
                 Log.agent.info("DPP parsed: views=\(protocol_.views.count, privacy: .public) actions=\(protocol_.actions.count, privacy: .public) form=page")
             }

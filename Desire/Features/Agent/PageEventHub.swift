@@ -78,7 +78,11 @@ final class PageEventHub {
 
     /// 事件驱动回合：组装 DPP 上下文 + 策略 prompt → 发给 agent。
     private func triggerAgentTurn(for event: PendingEvent) {
-        guard let session = AgentScheduler.shared.deliveryTarget else { return }
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            Self.log.info("DPP event trigger: no delivery target")
+            return
+        }
+        Self.log.info("DPP event trigger: sending prompt to agent")
         let prompt = Self.buildEventPrompt(event: event, mode: mode(for: event.host))
         session.sendMessage(prompt, recordHistory: false)
     }

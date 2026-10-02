@@ -3,6 +3,8 @@
 
 - **DPP 协议增强**：`pageAction` 工具（声明式动作执行：fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）；事件驱动（Timer 轮询 + PageEventHub + per-site 三档模式 off/draft/auto + 事件风暴防护）；navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）；ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器问题）。
 - **AI Auto-Clean 拦截结果 toast**：自动拦截后 UI 顶部显示橙色 toast（"AI auto-blocked N element(s) on host"），用户实时看到 AI 拦了什么；默认提示词新增 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）。
+- **DPP 二期完善**：`page_context` 增强——DPP events 命中检测（每次 Agent 回合自动检查 events 声明的选择器是否在当前页面命中，命中即告知模型 "[DPP Events Active]"）；设置页 AI Auto-Clean toast 反馈（自动拦截后 UI 顶部橙色胶囊提示）；默认提示词新增 DPP 协议页指引（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）；navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）；事件驱动 Timer 轮询 + PageEventHub 基建（per-site off/draft/auto 三档模式 + 事件去重/频率上限）。
+
 
 
 

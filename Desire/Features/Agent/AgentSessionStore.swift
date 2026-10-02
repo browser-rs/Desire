@@ -935,7 +935,8 @@ class AgentSessionStore: ObservableObject {
               let text = obj["text"], !text.isEmpty else { return nil }
         let title = obj["title"] ?? ""
         var result = "[Current page] \(title) — \(url.absoluteString)\n\(text)"
-        // DPP 协议站点：注入结构化摘要（视图清单 + 声明动作），模型免猜结构。
+        // DPP 协议站点：注入结构化摘要 + **检测 events 命中**（事件信息附加
+        // 到上下文，模型看到就知道页面有新审批/新消息等需要响应）。
         if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.pageProtocol, !dpp.isEmpty {
             var dppLines: [String] = []
             if !dpp.views.isEmpty {
@@ -948,6 +949,22 @@ class AgentSessionStore: ObservableObject {
                 dppLines.append("Actions (pageAction): " + dpp.actions.map(\.name).joined(separator: "; "))
             }
             result += "\n[DPP] This page declares a Desire Page Protocol:\n" + dppLines.joined(separator: "\n")
+            // DPP events 命中检测：在当前页面上检查 events 声明的选择器
+            if !dpp.events.isEmpty, let wv = activeWebView {
+                var eventHits: [String] = []
+                for (eventName, selector) in dpp.events {
+                    let checkJS = "!!document.querySelector(\(JSString.literal(selector)))"
+                    let raw: Any? = await withCheckedContinuation { (cont: CheckedContinuation<Any?, Never>) in
+                        wv.evaluateJavaScript(checkJS) { result, _ in cont.resume(returning: result) }
+                    }
+                    if (raw as? Bool) == true {
+                        eventHits.append(eventName)
+                    }
+                }
+                if !eventHits.isEmpty {
+                    result += "\n[DPP Events Active] " + eventHits.joined(separator: ", ")
+                }
+            }
         }
         return result
     }

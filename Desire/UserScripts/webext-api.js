@@ -193,11 +193,26 @@
         download: function(options) { return rpc("downloads", "download", [options || {}]); },
         search: function(query) { return rpc("downloads", "search", [query || {}]); }
     };
+    // i18n：宿主侧无 _locales 数据库（插件包内容未持久化文件系统），按
+    // Chrome 无翻译时的 fallback 语义返回 key 本身；substitutions 占位替换。
+    var i18n = {
+        getMessage: function(key, substitutions) {
+            var text = key || "";
+            if (substitutions) {
+                var subs = Array.isArray(substitutions) ? substitutions : [substitutions];
+                for (var i = 0; i < subs.length; i++) {
+                    text = text.split("$" + (i + 1)).join(String(subs[i]));
+                }
+            }
+            return text;
+        },
+        getUILanguage: function() { return navigator.language || "en"; }
+    };
 
     var browser = {
         storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
         contextMenus: contextMenus, alarms: alarms, action: action,
-        windows: windows, downloads: downloads,
+        windows: windows, downloads: downloads, i18n: i18n,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -212,4 +227,5 @@
     if (!chrome.action) chrome.action = action;
     if (!chrome.windows) chrome.windows = windows;
     if (!chrome.downloads) chrome.downloads = downloads;
+    if (!chrome.i18n) chrome.i18n = i18n;
 })();

@@ -788,6 +788,73 @@ struct WebView: NSViewRepresentable {
                      }]
                 }
                 reply(Array(wins))
+            case ("scripting", "executeScript"):
+                // MV3 动态注入（简化版：code 注入到 extension world；files[]
+                // 需要插件包文件系统访问，暂不支持）。
+                guard let details = args.first as? [String: Any],
+                      let code = details["code"] as? String, !code.isEmpty else {
+                    reply(nil, error: "executeScript requires code")
+                    return
+                }
+                parent.state.webView.evaluateJavaScript(
+                    code, in: nil, in: WebView.extensionWorld,
+                    completionHandler: { result in
+                        if case .success(let value) = result {
+                            reply(value ?? NSNull())
+                        } else {
+                            reply(NSNull())
+                        }
+                    })
+            case ("cookies", "getAll"):
+                let filterURL = (args.first as? [String: Any])?["url"]
+                    .flatMap { $0 as? String }.flatMap { URL(string: $0) }
+                parent.state.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                    var list: [[String: Any]] = []
+                    for c in cookies {
+                        if let fu = filterURL {
+                            guard c.domain.hasSuffix(fu.host ?? "#")
+                                  || fu.host?.hasSuffix(c.domain) == true else { continue }
+                        }
+                        list.append(["domain": c.domain, "name": c.name,
+                                     "value": c.value, "path": c.path,
+                                     "secure": c.isSecure] as [String: Any])
+                    }
+                    reply(list)
+                }
+            case ("cookies", "get"):
+                guard let details = args.first as? [String: Any],
+                      let name = details["name"] as? String else {
+                    reply(nil, error: "cookies.get requires name")
+                    return
+                }
+                parent.state.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                    let hit = cookies.first { $0.name == name }
+                    reply(hit.map { ["domain": $0.domain, "name": $0.name,
+                                     "value": $0.value, "path": $0.path] }
+                          ?? NSNull())
+                }
+            case ("cookies", "set"):
+                guard let setDetails = args.first as? [String: Any],
+                      let name = setDetails["name"] as? String,
+                      let value = setDetails["value"] as? String,
+                      let domain = setDetails["domain"] as? String else {
+                    reply(nil, error: "cookies.set requires name/value/domain")
+                    return
+                }
+                let siteURL = (setDetails["url"] as? String).flatMap { URL(string: $0) }
+                    ?? URL(string: "https://\(domain)")
+                var props = [HTTPCookiePropertyKey.domain: domain,
+                             HTTPCookiePropertyKey.name: name,
+                             HTTPCookiePropertyKey.value: value,
+                             HTTPCookiePropertyKey.path: setDetails["path"] as? String ?? "/",
+                             HTTPCookiePropertyKey.secure: "1"]
+                if let cookie = HTTPCookie(properties: props) {
+                    parent.state.webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) {
+                        reply([:])
+                    }
+                } else {
+                    reply(nil, error: "cookie construction failed")
+                }
             case ("notifications", "create"):
                 WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
                     reply(result)

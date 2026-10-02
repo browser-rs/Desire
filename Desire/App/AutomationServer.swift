@@ -1498,6 +1498,16 @@ final class AutomationServer {
             case ("POST", "/skills/delete"):
                 return try Self.json(Self.deleteSkill(name: Self.string(body, "name") ?? ""))
             case ("POST", "/skills/import"):
+                // path（本地 zip/目录/md）优先；否则 url（远程单 md）。
+                if let path = Self.string(body, "path"), !path.isEmpty {
+                    do {
+                        let skill = try SkillStore.shared.importArchive(at: URL(fileURLWithPath: path))
+                        return try Self.json(["ok": true, "name": skill.name,
+                                              "multiFile": skill.directory != nil])
+                    } catch {
+                        return try Self.json(["error": error.localizedDescription])
+                    }
+                }
                 return try await Self.json(Self.importSkill(
                     name: Self.string(body, "name") ?? "",
                     url: Self.string(body, "url") ?? ""

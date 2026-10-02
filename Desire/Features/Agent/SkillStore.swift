@@ -97,6 +97,119 @@ final class SkillStore: ObservableObject {
         skills = loaded.sorted { $0.name < $1.name }
     }
 
+    // MARK: - 导入（zip / 目录 / 单 md，2026-10-02 多文件配套）
+
+    enum ImportError: LocalizedError {
+        case unsupported
+        case noSkill
+        case unpack(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupported: "Only .zip archives, skill directories, or .md files can be imported"
+            case .noSkill: "No SKILL.md or .md file found in the package"
+            case .unpack(let detail): "Couldn't unpack: \(detail)"
+            }
+        }
+    }
+
+    /// 统一导入入口：zip 解包（ditto）、目录直装、单 md 拷贝。技能名 =
+    /// SKILL.md frontmatter name / 目录名 / 文件名。同名 = 覆盖更新。
+    @discardableResult
+    func importArchive(at url: URL) throws -> Skill {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else {
+            throw ImportError.noSkill
+        }
+        let staging = fm.temporaryDirectory
+            .appendingPathComponent("skill-import-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+
+        var sourceDir: URL?
+        var singleFile: URL?
+        if isDir.boolValue {
+            // 目录：SKILL.md 在根 = 目录 skill；单 md = 散文件
+            if fm.fileExists(atPath: url.appendingPathComponent("SKILL.md").path) {
+                sourceDir = url
+            } else {
+                let mds = (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil))?
+                    .filter { $0.pathExtension.lowercased() == "md" } ?? []
+                guard let md = mds.first else { throw ImportError.noSkill }
+                singleFile = md
+            }
+        } else if url.pathExtension.lowercased() == "zip" {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            proc.arguments = ["-x", "-k", url.path, staging.path]
+            let errPipe = Pipe()
+            proc.standardError = errPipe
+            try proc.run()
+            proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else {
+                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                throw ImportError.unpack(String(err.suffix(200)))
+            }
+            // 解包后：根 SKILL.md / 根单 md / 唯一子目录的 SKILL.md
+            if fm.fileExists(atPath: staging.appendingPathComponent("SKILL.md").path) {
+                sourceDir = staging
+            } else {
+                let children = (try? fm.contentsOfDirectory(at: staging, includingPropertiesForKeys: nil)) ?? []
+                let subdirs = children.filter {
+                    (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+                }
+                let withSkill = subdirs.first {
+                    fm.fileExists(atPath: $0.appendingPathComponent("SKILL.md").path)
+                }
+                if let withSkill {
+                    sourceDir = withSkill
+                } else {
+                    let mds = children.filter { $0.pathExtension.lowercased() == "md" }
+                    guard let md = mds.first else { throw ImportError.noSkill }
+                    singleFile = md
+                }
+            }
+        } else if url.pathExtension.lowercased() == "md" {
+            singleFile = url
+        } else {
+            throw ImportError.unsupported
+        }
+
+        // 落位：目录整拷 / 单 md 拷贝；同名先删（= 更新）。
+        let installed: Skill
+        if let dir = sourceDir {
+            // 技能名 = SKILL.md frontmatter name（有则用）；否则目录名。
+            let skillFile = dir.appendingPathComponent("SKILL.md")
+            let text = try String(contentsOf: skillFile, encoding: .utf8)
+            let frontmatterName = Self.parse(text, url: skillFile).name
+            let name = (frontmatterName != skillFile.lastPathComponent)
+                ? frontmatterName : dir.lastPathComponent
+            let target = Self.directory.appendingPathComponent(name, isDirectory: true)
+            if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+            try fm.copyItem(at: dir, to: target)
+            let description = Self.parse(text, url: skillFile).description
+            installed = Skill(name: name, description: description,
+                              url: target.appendingPathComponent("SKILL.md"), directory: target)
+        } else if let md = singleFile {
+            let text = try String(contentsOf: md, encoding: .utf8)
+            let parsed = Self.parse(text, url: md)
+            // parse 回落的名字 = md 文件名（可能是 imported.md 这种无语义名）
+            // —— 无 frontmatter name 时用源文件名（去扩展名）。
+            let finalName = parsed.name == md.lastPathComponent
+                ? md.deletingPathExtension().lastPathComponent
+                : parsed.name
+            let target = Self.directory.appendingPathComponent("\(finalName).md")
+            try text.write(to: target, atomically: true, encoding: .utf8)
+            installed = Skill(name: finalName, description: parsed.description, url: target)
+        } else {
+            throw ImportError.noSkill
+        }
+        reload()
+        Self.log.info("skill imported: \(installed.name, privacy: .public) (\(installed.directory != nil ? "directory" : "file", privacy: .public))")
+        return installed
+    }
+
     func body(for name: String) -> String? {
         guard let skill = skills.first(where: { $0.name == name }) else { return nil }
         return try? String(contentsOf: skill.url, encoding: .utf8)

@@ -7,6 +7,8 @@
 
 DPP 审计三修复（P0）：① **审批闸门接线**——`pageAction` 在动作声明 `effects: "outbound"` 或 `danger: true` 时强制升级 dangerous 审批（此前按工具名分类 sideEffect，白名单/自动编辑档下任意站点的发消息/下单类动作零提示执行）；审批卡显示 host·动作·描述·effects。② **解析容错**——单字段结构不符只丢该字段并记 warnings（此前规范原文的 events 对象形态 `{watch,…}` 与 context 数组会让整份协议静默丢弃）；JS 归一化把对象形态 events 展平为 watch 选择器；`actions.run` 非字符串时字符串化兜底；warnings 经日志与 `/protocol/inspect` 透出。③ **L1/L0 选择器**——L1 条目集合打同一 `data-dpp-items` 标记（此前只锚第一个条目的 `:scope` 相对路径，document 级求值命中 `<html>`，抽取返回空数据假成功）；容器自身即条目时用锚点（此前 `*` 扫全文档）；ignore 多 class 正则修复（`/\\s+/` 字面反斜杠）；ignore-only 页面不再整体失效；pageExtract 支持逗号回退选择器与 `@text` 语义（L0 JSON-LD 字段此前恒空）。
 DPP 工具与事件链路修复：`pageAction` 步骤异常不再吞掉报假成功（步骤失败返回 `Error: ` 前缀与已完成步骤清单，符合失败统一约定），补 required 参数校验、`precondition` 前置检查、`waitFor`/`hover`/`pressKey` 步骤，`upload` 明确报不支持；`pageExtract` 分页合并改结构化数组去重（空页不再拼出 `[,]` 非法 JSON），截断改按条目数（500）不再把 JSON 从中间切断；`PageEventHub` 频率上限改 60s 滑动窗口（此前进程生命周期累计 10 次后该站点事件永久静默）；页面事件 observer 改"匹配数 0→正"跳变语义 + 500ms 节流（此前匹配存在期间每次 DOM 变动都发消息）；导航开始即清 DPP 协议缓存（修复跨页执行上一页动作声明的竞态窗口）；`PageEventHub` 模式持久化对齐（初始化读回 `dpp.eventModes`，删除无人写入的 `dpp.eventMode.<host>` 死路径）。
+非 DPP 页面不再每次导航刷一行 "DPP decode error"（解析器对无协议页返回字面 `null`，此前走了错误日志路径）。
+
 
 
 ### Added

@@ -1388,6 +1388,12 @@ struct WebView: NSViewRepresentable {
                 Log.agent.info("DPP parse: JS result nil or not string")
                 return
             }
+            // 无协议页面解析器返回字面 "null"——这是常态不是错误，安静置空
+            //（此前每个普通页面都刷一行 decode error）。
+            if raw == "null" {
+                parent.state.pageProtocol = nil
+                return
+            }
             do {
                 let parsed = try JSONDecoder().decode(DesireProtocol.self, from: data)
                 var stored = parsed

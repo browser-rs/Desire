@@ -107,6 +107,17 @@ final class PluginBackgroundRuntime: NSObject {
         return PluginContextMenuStore.shared.visibleItems(enabledPluginIDs: enabled)
     }
 
+    /// 插件的包资源目录名（runScripting 读 files[] 用）。
+    func resourcesPath(for pluginID: UUID) -> String? {
+        guard let store = AppState.live?.pluginStore else { return nil }
+        return store.plugins.first(where: { $0.id == pluginID })?.resourcesPath
+    }
+
+    /// 插件 background webview（调试/桥 bg-eval 用；无背景宿主 = nil）。
+    func backgroundWebview(for pluginID: UUID) -> WKWebView? {
+        hosts[pluginID]?.webView
+    }
+
     /// 原生右键菜单点击 → 派发 contextMenus.onClicked 给所属插件的
     /// background webview。
     func contextMenuClick(pluginID: UUID, menuItemID: String,
@@ -122,7 +133,150 @@ final class PluginBackgroundRuntime: NSObject {
         Log.userScripts.info("contextMenus.onClicked dispatched: \(menuItemID, privacy: .public)")
     }
 
-    /// 向某插件的 background webview 派发事件。
+    /// 向某插件的 background webview 派发事件（payload 任意 JSON 形状——
+    /// Chrome 多参事件传数组，`_fire` 按位展开；字典/标量单参）。
+    func fire(pluginID: UUID, event: String, payload: Any) {
+        guard let host = hosts[pluginID] else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let json = String(data: data, encoding: .utf8) else { return }
+        host.webView.evaluateJavaScript(
+            "window.__desireExt && window.__desireExt._fire(\(Self.quoted(event)), \(json));",
+            in: nil, in: .page, completionHandler: nil)
+    }
+
+    /// 广播事件给全部 background 页（tabs.onUpdated 这类全局事件）。
+    func fireAll(event: String, payload: Any) {
+        for id in hosts.keys {
+            fire(pluginID: id, event: event, payload: payload)
+        }
+    }
+
+    // MARK: - tabs API 宿主侧（页面/背景 handler 共用，防两处漂移）
+
+    static func tabSnapshot(_ t: Tab, index: Int, active: Bool) -> [String: Any] {
+        ["id": t.id.uuidString, "index": index,
+         "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+         "title": t.browser.pageTitle,
+         "active": active, "incognito": t.isIncognito, "pinned": t.isPinned]
+    }
+
+    static func tabsSnapshot(_ tm: TabManager?) -> [[String: Any]] {
+        guard let tm else { return [] }
+        return tm.tabs.enumerated().map { index, t in
+            tabSnapshot(t, index: index, active: index == tm.selectedIndex)
+        }
+    }
+
+    static func findTab(_ tm: TabManager?, _ tabIDString: String?) -> (tab: Tab, index: Int)? {
+        guard let tm, let s = tabIDString, let id = UUID(uuidString: s),
+              let idx = tm.tabs.firstIndex(where: { $0.id == id }) else { return nil }
+        return (tm.tabs[idx], idx)
+    }
+
+    /// tabs.update {active, url, pinned}。返回错误文案，nil = 成功。
+    @discardableResult
+    static func updateTab(_ tm: TabManager?, tabIDString: String?, props: [String: Any]) -> String? {
+        guard let hit = findTab(tm, tabIDString) else { return "no such tab" }
+        if let active = props["active"] as? Bool, active { tm?.selectTab(at: hit.index) }
+        if let pinned = props["pinned"] as? Bool { hit.tab.isPinned = pinned }
+        if let urlString = props["url"] as? String, !urlString.isEmpty, let u = URL(string: urlString) {
+            hit.tab.urlString = urlString
+            hit.tab.browser.webView.load(URLRequest(url: u))
+        }
+        return nil
+    }
+
+    /// tabs.reload（tabId 缺省 = 活动标签）。
+    static func reloadTab(_ tm: TabManager?, tabIDString: String?) -> String? {
+        let hit: (tab: Tab, index: Int)?
+        if let tabIDString, !tabIDString.isEmpty, tabIDString != "null" {
+            hit = findTab(tm, tabIDString)
+        } else if let tm {
+            guard !tm.tabs.isEmpty else { return "no such tab" }
+            hit = (tm.tabs[tm.selectedIndex], tm.selectedIndex)
+        } else {
+            hit = nil
+        }
+        guard let hit else { return "no such tab" }
+        hit.tab.browser.webView.reload()
+        return nil
+    }
+
+    /// 按 tabID 解析 webview（先查登记表，再枚举活窗口——后台标签无登记也找得到）。
+    static func webview(for tabID: UUID) -> WKWebView? {
+        if let box = shared.tabWebViews.first(where: { $0.tabID == tabID }), let wv = box.webView {
+            return wv
+        }
+        for manager in TabSessionCoordinator.shared.liveManagers() {
+            if let t = manager.tabs.first(where: { $0.id == tabID }) {
+                return t.browser.webView
+            }
+        }
+        return nil
+    }
+
+    /// chrome.scripting.executeScript / insertCSS 宿主侧（页面/背景 handler
+    /// 共用）。executeScript 收 code|files[]，insertCSS 收 css|files[]；文件
+    /// 从插件包资源目录读（PluginResources）。target.tabId 缺省 = 调用方所在
+    /// 页（fallbackWebView）。求值一律落该插件的 per-plugin world——内容脚本
+    /// 世界 chrome.* 可用，DOM 共享（insertCSS 建的 <style> 直接落页面）。
+    static func runScripting(details: [String: Any], pluginID: UUID, resourcesPath: String?,
+                             isCSS: Bool, fallbackWebView: WKWebView?,
+                             completion: @escaping @MainActor (Any?, String?) -> Void) {
+        let target = details["target"] as? [String: Any]
+        let webview: WKWebView?
+        if let tabIDString = target?["tabId"] as? String, let tabID = UUID(uuidString: tabIDString) {
+            guard let resolved = Self.webview(for: tabID) else {
+                completion(nil, "no such tab")
+                return
+            }
+            webview = resolved
+        } else {
+            webview = fallbackWebView
+        }
+        guard let webview else {
+            completion(nil, "scripting requires target.tabId or a page context")
+            return
+        }
+        do {
+            let code: String
+            if let files = details["files"] as? [String], !files.isEmpty {
+                let parts = try files.map {
+                    try PluginResources.readTextFile(resourcesPath: resourcesPath, relativePath: $0)
+                }
+                code = parts.joined(separator: "\n;\n")
+            } else if isCSS, let css = details["css"] as? String, !css.isEmpty {
+                code = css
+            } else if let js = details["code"] as? String, !js.isEmpty {
+                code = js
+            } else {
+                completion(nil, isCSS ? "insertCSS requires css or files" : "executeScript requires code or files")
+                return
+            }
+            let finalJS: String
+            if isCSS {
+                // 尾值必须是干净标量：appendChild 返回 DOM 元素，会作为求值
+                // 结果一路传进 reply 的 JSONSerialization（对 ObjC 对象抛的
+                // 是 ObjC 异常 try? 拦不住、进程 abort，实测）——结尾补空串。
+                finalJS = "(function(){var s=document.createElement('style');s.textContent="
+                    + JSString.literal(code) + ";document.head.appendChild(s);})();'';"
+            } else {
+                // 与 PluginStore.inject 同理：world 的 user script 是 webview
+                // 定格的，插件后装时 world 里没有 chrome.*——幂等前置运行时。
+                let runtime = UserScriptLoader.load("webext-api")
+                finalJS = (runtime.isEmpty ? "" : runtime + "\n") + code
+            }
+            webview.evaluateJavaScript(finalJS, in: nil, in: WebView.pluginWorld(pluginID)) { result in
+                switch result {
+                case .success(let value): completion(value, nil)
+                case .failure(let error): completion(nil, error.localizedDescription)
+                }
+            }
+        } catch {
+            completion(nil, error.localizedDescription)
+        }
+    }
+
     // MARK: - alarms（chrome.alarms 插件级定时器）
 
     struct Alarm: Codable {
@@ -350,15 +504,6 @@ final class PluginBackgroundRuntime: NSObject {
         return str
     }
 
-    func fire(pluginID: UUID, event: String, payload: [String: Any?]) {
-        guard let host = hosts[pluginID] else { return }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-              let json = String(data: data, encoding: .utf8) else { return }
-        host.webView.evaluateJavaScript(
-            "window.__desireExt && window.__desireExt._fire(\(Self.quoted(event)), \(json));",
-            completionHandler: nil)
-    }
-
     private static func quoted(_ s: String) -> String {
         let escaped = s
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -426,10 +571,14 @@ final class PluginBackgroundRuntime: NSObject {
                     case let number as NSNumber:
                         json = number.stringValue
                     default:
-                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                        if JSONSerialization.isValidJSONObject(payload),
+                           let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
                            let str = String(data: data, encoding: .utf8) {
                             json = str
                         } else {
+                            // 非 JSON 容器（DOM 节点等 Objective-C 对象）：
+                            // dataWithJSONObject 对它抛的是 ObjC 异常，try?
+                            // 拦不住、进程直接 abort——必须先 isValid。
                             json = "null"
                         }
                     }
@@ -620,21 +769,91 @@ final class PluginBackgroundRuntime: NSObject {
                     Log.userScripts.info("plugin background started: \(self.pluginID.uuidString.prefix(8), privacy: .public)")
                 }
                 reply([:])
+            case ("events", "addListener"):
+                // background webview 是事件的唯一接收方——无需登记，
+                // 宿主派发时直接 evaluate 进来。
+                // **onInstalled 确定性触发**：页面侧注册监听这一刻桥会上报，
+                // 收到即派发——此前 300ms 延迟是启发式，atDocumentEnd 的
+                // background 代码慢一点监听器就还没注册、事件凭空丢失。
+                if let name = args.first as? String, name == "runtime.onInstalled" {
+                    // 消息自带 webView（即本插件的 background 页），直接回注。
+                    _ = try? await message.webView?.evaluateJavaScript(
+                        "window.__desireExt && window.__desireExt._fire(\"runtime.onInstalled\", {\"reason\":\"install\"});")
+                    Log.userScripts.info("plugin background started: \(self.pluginID.uuidString.prefix(8), privacy: .public)")
+                }
+                reply([:])
             case ("tabs", "query"):
                 // background 无窗口上下文——查活动窗口的标签快照（与桥同源）。
-                let tm = TabSessionCoordinator.shared.activeTabManager
-                let tabs: [[String: Any]] = tm?.tabs.enumerated().map { index, t in
-                    [
-                        "id": t.id.uuidString,
-                        "index": index,
-                        "url": t.browser.webView.url?.absoluteString ?? t.urlString,
-                        "title": t.browser.pageTitle,
-                        "active": index == tm?.selectedIndex,
-                        "incognito": t.isIncognito,
-                        "pinned": t.isPinned,
-                    ] as [String: Any]
-                } ?? []
-                reply(tabs)
+                reply(PluginBackgroundRuntime.tabsSnapshot(TabSessionCoordinator.shared.activeTabManager))
+            case ("tabs", "create"):
+                if let url = (args.first as? [String: Any])?["url"] as? String, !url.isEmpty {
+                    TabSessionCoordinator.shared.activeTabManager?.addTab(url: url)
+                    reply([:])
+                } else {
+                    reply(nil, error: "tabs.create requires {url}")
+                }
+            case ("tabs", "remove"):
+                guard let tm = TabSessionCoordinator.shared.activeTabManager else {
+                    reply(nil, error: "no active window")
+                    return
+                }
+                let ids: [String]
+                if let single = args.first as? String { ids = [single] }
+                else if let many = args.first as? [String] { ids = many }
+                else { ids = [] }
+                guard !ids.isEmpty else {
+                    reply(nil, error: "tabs.remove requires id(s)")
+                    return
+                }
+                // 逐个按 id 现查 index（删一个 index 全动，快照索引会错位）。
+                for idString in ids {
+                    if let idx = tm.tabs.firstIndex(where: { $0.id.uuidString == idString }) {
+                        tm.closeTab(at: idx)
+                    }
+                }
+                reply([:])
+            case ("tabs", "update"):
+                guard let props = args.count > 1 ? args[1] as? [String: Any] : nil else {
+                    reply(nil, error: "tabs.update requires (tabId, props)")
+                    return
+                }
+                if let err = PluginBackgroundRuntime.updateTab(TabSessionCoordinator.shared.activeTabManager,
+                                            tabIDString: args.first as? String, props: props) {
+                    reply(nil, error: err)
+                } else {
+                    reply([:])
+                }
+            case ("tabs", "get"):
+                if let hit = PluginBackgroundRuntime.findTab(TabSessionCoordinator.shared.activeTabManager,
+                                          args.first as? String) {
+                    reply(PluginBackgroundRuntime.tabSnapshot(hit.tab, index: hit.index,
+                                           active: hit.index == TabSessionCoordinator.shared.activeTabManager?.selectedIndex))
+                } else {
+                    reply(nil, error: "no such tab")
+                }
+            case ("tabs", "reload"):
+                if let err = PluginBackgroundRuntime.reloadTab(TabSessionCoordinator.shared.activeTabManager,
+                                            tabIDString: args.first as? String) {
+                    reply(nil, error: err)
+                } else {
+                    reply([:])
+                }
+            case ("scripting", "executeScript"), ("scripting", "insertCSS"):
+                guard let details = args.first as? [String: Any] else {
+                    reply(nil, error: "scripting requires details")
+                    return
+                }
+                guard let bgWeb = message.webView else {
+                    reply(nil, error: "no webview")
+                    return
+                }
+                let isCSS = fn == "insertCSS"
+                PluginBackgroundRuntime.runScripting(
+                    details: details, pluginID: pluginID,
+                    resourcesPath: PluginBackgroundRuntime.shared.resourcesPath(for: pluginID),
+                    isCSS: isCSS, fallbackWebView: bgWeb) { value, error in
+                    reply(value, error: error)
+                }
             default:
                 reply(nil, error: "background runtime: unknown \(ns).\(fn)")
             }

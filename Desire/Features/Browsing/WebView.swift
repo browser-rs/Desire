@@ -755,10 +755,14 @@ struct WebView: NSViewRepresentable {
                     case let bool as Bool:
                         json = bool ? "true" : "false"
                     default:
-                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                        if JSONSerialization.isValidJSONObject(payload),
+                           let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
                            let str = String(data: data, encoding: .utf8) {
                             json = str
                         } else {
+                            // 非 JSON 容器（DOM 节点等 Objective-C 对象）：
+                            // dataWithJSONObject 对它抛的是 ObjC 异常，try?
+                            // 拦不住、进程直接 abort——必须先 isValid。
                             json = "null"
                         }
                     }
@@ -848,23 +852,26 @@ struct WebView: NSViewRepresentable {
                      }]
                 }
                 reply(Array(wins))
-            case ("scripting", "executeScript"):
-                // MV3 动态注入（简化版：code 注入到 extension world；files[]
-                // 需要插件包文件系统访问，暂不支持）。
-                guard let details = args.first as? [String: Any],
-                      let code = details["code"] as? String, !code.isEmpty else {
-                    reply(nil, error: "executeScript requires code")
+            case ("scripting", "executeScript"), ("scripting", "insertCSS"):
+                // MV3 动态注入（宿主侧收口在 PluginBackgroundRuntime.runScripting，
+                // 页面/背景 handler 共用；files[] 从插件包资源目录读）。
+                guard let details = args.first as? [String: Any] else {
+                    reply(nil, error: "scripting requires details")
                     return
                 }
-                parent.state.webView.evaluateJavaScript(
-                    code, in: nil, in: WebView.extensionWorld,
-                    completionHandler: { result in
-                        if case .success(let value) = result {
-                            reply(value)
-                        } else {
-                            reply(NSNull())
-                        }
-                    })
+                let pluginUUID = extID.flatMap(UUID.init(uuidString:))
+                guard let pluginUUID else {
+                    reply(nil, error: "no extension identity")
+                    return
+                }
+                PluginBackgroundRuntime.runScripting(
+                    details: details, pluginID: pluginUUID,
+                    resourcesPath: PluginBackgroundRuntime.shared
+                        .resourcesPath(for: pluginUUID),
+                    isCSS: fn == "insertCSS",
+                    fallbackWebView: parent.state.webView) { value, error in
+                    reply(value, error: error)
+                }
             case ("cookies", "getAll"):
                 let filterURL = (args.first as? [String: Any])?["url"]
                     .flatMap { $0 as? String }.flatMap { URL(string: $0) }

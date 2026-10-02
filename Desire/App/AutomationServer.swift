@@ -418,6 +418,7 @@ final class AutomationServer {
         ep("POST", "/webext/eval", "Run JS in the ISOLATED extension world of the selected tab (sees browser.*; /execute cannot)", params: ["js:string"], example: "-d '{\"js\":\"typeof browser\"}'")
         ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)", "background?:string(background script source)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
         ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
+        ep("POST", "/plugins/bg-eval", "Evaluate JS in a plugin's background webview (debugging/E2E)", params: ["id:string", "js:string"], example: "-d '{\"id\":\"<uuid>\",\"js\":\"window.__bgLog\"}'")
         ep("POST", "/plugins/install-msex", "Install a .msex package (manifest v3 subset: content_scripts + popup)", params: ["path:string"], example: "-d '{\"path\":\"/tmp/demo.msex\"}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
@@ -751,6 +752,25 @@ final class AutomationServer {
                     srcURL: Self.string(body, "srcUrl").flatMap(URL.init),
                     selectionText: Self.string(body, "selectionText"))
                 return try Self.json(["ok": true])
+            case ("POST", "/plugins/bg-eval"):
+                // 在插件 background webview 里求值（调试/E2E——背景页没有
+                // 桥可达的 world，此前只能靠 content script 转发探针）。
+                guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "invalid id"])
+                }
+                guard let bgWeb = PluginBackgroundRuntime.shared.backgroundWebview(for: uuid) else {
+                    return try Self.json(["error": "no background host (plugin disabled or no background)"])
+                }
+                let bgJS = Self.string(body, "js") ?? ""
+                let bgResult: Any? = await withCheckedContinuation { cont in
+                    bgWeb.evaluateJavaScript(bgJS, in: nil, in: .page) { result in
+                        switch result {
+                        case .success(let value): cont.resume(returning: value)
+                        case .failure: cont.resume(returning: NSNull())
+                        }
+                    }
+                }
+                return try Self.json(["result": bgResult ?? NSNull()])
             case ("POST", "/plugins/pin"):
                 let app = AppState.live
                 guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {

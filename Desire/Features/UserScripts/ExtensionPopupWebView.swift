@@ -67,10 +67,27 @@ struct ExtensionPopupWebView: NSViewRepresentable {
                         .replacingOccurrences(of: "\\", with: "\\\\")
                         .replacingOccurrences(of: "\"", with: "\\\"")
                     json = "\"\(escaped)\""
-                } else if let payload,
-                          let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-                          let str = String(data: data, encoding: .utf8) {
-                    json = str
+                } else if let payload {
+                    // 标量顶层手动字符串化（JSONSerialization 默认拒绝标量，
+                    // 抛的是 ObjC 异常 try? 拦不住——背景 Coordinator 同款修法，
+                    // contextMenus.create 回菜单 id 即触发）；非 JSON 容器
+                    // （DOM 节点等 Objective-C 对象）先过 isValid 再序列化。
+                    switch payload {
+                    case let scalar as String:
+                        json = JSString.literal(scalar)
+                    case let bool as Bool:
+                        json = bool ? "true" : "false"
+                    case let number as NSNumber:
+                        json = number.stringValue
+                    default:
+                        if JSONSerialization.isValidJSONObject(payload),
+                           let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                           let str = String(data: data, encoding: .utf8) {
+                            json = str
+                        } else {
+                            json = "null"
+                        }
+                    }
                 } else {
                     json = "null"
                 }

@@ -115,6 +115,13 @@ final class ExtensionEventHub {
     func fire(_ event: String, tabID: UUID, extra: [String: Any] = [:]) {
         var payload: [String: Any] = ["tabId": tabID.uuidString]
         for (k, v) in extra { payload[k] = v }
+        fireRaw(event, payload: [payload])
+    }
+
+    /// 任意形状的事件广播：Chrome 多参事件（tabs.onUpdated = (tabId,
+    /// changeInfo, tab)）传**数组** payload，JS 侧 `_fire` 按位展开成多参；
+    /// 单参事件传单元素数组即可（同 fire()）。
+    func fireRaw(_ event: String, payload: [Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         let js = "window.__desireExt && window.__desireExt._fire('\(event)', \(json))"

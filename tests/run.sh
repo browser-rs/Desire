@@ -23,6 +23,7 @@ SOURCES=(
   Desire/Features/Browsing/MediaResource.swift
   Desire/Features/Downloads/BatchMedia.swift
   Desire/Features/NewTab/QuickDial.swift
+  Desire/Features/UserScripts/PluginResources.swift
   Desire/Features/ReadingList/ReadingListItem.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Agent/Memory/MemoryModels.swift

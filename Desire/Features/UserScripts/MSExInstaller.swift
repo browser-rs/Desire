@@ -174,7 +174,11 @@ enum MSExInstaller {
         )
         // 同名重装 = 更新（替换旧条目；沿用旧 id —— storage 按 id
         // 命名空间，换 id 会孤儿化已存数据）。
+        var resultPlugin = plugin
         if let existing = store.plugins.first(where: { $0.name == name }) {
+            // 包资源目录随 uuid 复用——importPackage 先清旧再拷（= 更新）。
+            let resourcesPath = try? PluginResources.importPackage(
+                from: extractDir, pluginID: existing.id)
             let updated = Plugin(
                 id: existing.id, name: plugin.name, description: plugin.description,
                 version: plugin.version, author: plugin.author,
@@ -184,13 +188,24 @@ enum MSExInstaller {
                 pinned: existing.pinned, icon: plugin.icon, popupHTML: plugin.popupHTML,
                 iconPNG: iconPNG ?? existing.iconPNG,
                 popupBaseOrigin: popupBaseOrigin ?? existing.popupBaseOrigin,
-                backgroundCode: backgroundCode ?? existing.backgroundCode)
+                backgroundCode: backgroundCode ?? existing.backgroundCode,
+                resourcesPath: resourcesPath ?? existing.resourcesPath)
             store.update(updated)
+            resultPlugin = updated
         } else {
-            store.add(plugin)
+            var newPlugin = plugin
+            // 包目录整包拷入资源区：chrome.scripting files[] / runtime.getURL
+            // 的文件来源（拷贝失败不拦安装——内联 jsCode 已可用，files[] 再报错）。
+            newPlugin.resourcesPath = try? PluginResources.importPackage(
+                from: extractDir, pluginID: plugin.id)
+            store.add(newPlugin)
+            resultPlugin = newPlugin
         }
         Log.userScripts.info("msex installed: \(name, privacy: .public) v\(version, privacy: .public)")
-        return InstallResult(plugin: plugin)
+        // **返回实际入库的插件**（更新分支 id = 旧条目）——此前返回新构造
+        // 对象，同名重装时桥/调用方拿到的是从未入库的 id（实测 E2E 探针
+        // 全打空）。
+        return InstallResult(plugin: resultPlugin)
     }
 
     // MARK: - 图标

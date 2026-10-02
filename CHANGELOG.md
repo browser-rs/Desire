@@ -11,6 +11,10 @@
 - 插件 API 面继续扩充：chrome.scripting.executeScript（MV3 动态注入到 extension world）、chrome.cookies（getAll/get/set 映射 webview 数据仓库）、chrome.i18n（getMessage fallback 语义 + getUILanguage）、chrome.alarms（插件级定时器：宿主 Timer 调度、周期性重排、插件停用自动清理）、chrome.windows.getAll、chrome.downloads.download/search、chrome.action（badge/title 占位）——content/background/popup 三处 handler 同步接入
 - chrome.alarms 持久化：插件 alarms 表落 DiskStore，app 重启后恢复重排 Timer（过期的自动清掉）——周期性 alarm 不再因重启丢失
 - 插件系统：Port 长连接全链落地——`runtime.connect`/`onConnect`（端口表按双端 webview 路由，任一端 postMessage/disconnect 对称送达，插件停用自动拆端口）；`runtime.sendMessage`/`tabs.sendMessage` 回包路由补全（`_resolveReply` + JS 生成路由 id，`tabs.sendMessage` ns 对齐宿主 case）；桥 `/plugins/add` 新增 `background` 参数（后台脚本插件可直接经桥安装，E2E 用）。
+- 插件系统：chrome.scripting 动态注入补全——新增 `scripting` 命名空间（executeScript/insertCSS，支持 code|files[]），**插件包资源目录**（manifest 包装载时整包拷入 `~/Library/Application Support/Desire/PluginResources/<uuid>/`，50MB 上限、路径清洗防逃逸、卸载联动清理），手写 JSON 插件 files[] 明确报错；MV3 动态注入落 per-plugin world 并幂等前置 webext-api 运行时（旧 webview 的 world 也有 chrome.\*）。
+- 插件系统：tabs API 补全（update/get/reload，页面/背景 handler 共用一套宿主侧 helper）+ tabs.onUpdated 广播（didFinish 近似 status=complete + url/title，页面世界与全部 background 页双路派发，Chrome 多参签名）；桥新增 `POST /plugins/bg-eval`（在插件 background webview 里求值，背景页此前没有调试通道）。
+
+
 
 
 
@@ -25,6 +29,10 @@
 - 插件 RPC reply 闭包对**标量顶层负载**（String/数字/布尔）手动字符串化——NSJSONSerialization 默认拒绝标量顶层，抛 ObjC 异常且 try? 拦不住，整进程 FAULT（AI 拦截广告实测：scripting.executeScript 返回页面标题 String 即触发）
 - 插件消息传递三处真 bug（真机 E2E 全链验证时揪出）：① 每插件 world 从未注入 webext-api 运行时（`extensionAPIScript` 写死 extensionWorld，per-plugin world 里 `chrome.*` 恒 undefined）；② 消息回程求值不指定 world（默认 page world 没有 `__desireExt`，background→页面的回复静默蒸发——PendingReply 表改为连同 content-script world 一起携带）；③ **WebKit 会吞掉导航收尾头 ~50ms 内新文档发出的脚本消息**（实测 didFinish 拍注入的代码立即 postMessage 必丢、setTimeout(0) 也丢、50ms 起存活）——document_end 插件体延时 60ms 再跑，且 desireExt handler 注册加台账去重（此前每轮 updateNSView remove+add 换桥接对象，在途消息同样被丢）、handler 未就绪时插件注入挂起到注册完成后补跑。
 - 插件 URL 匹配支持 Chrome match-pattern 语义：pattern 不允许带端口，带端口的 URL（如 127.0.0.1:8877）也要命中无端口 pattern。
+- 插件 reply 闭包第三次同类崩溃（insertCSS 实测 abort）：样式注入 IIFE 的尾值是 `appendChild` 返回的 DOM 元素——进 `JSONSerialization` 对 ObjC 对象抛异常、`try?` 拦不住直接杀进程。三处 reply 闭包（背景/页面/popup）default 分支补 `isValidJSONObject` 前置检查，CSS 包装尾值固定为空串；popup 的 reply 连标量分支都没有（contextMenus.create 回菜单 id 即崩）一并补全。
+- 插件同名重装（更新分支）返回的是新构造对象的 uuid 而非实际入库条目的 id——桥/调用方拿到从未存在的 id（E2E 探针全打空）；`InstallResult` 改回实际入库的插件。
+
+
 
 
 

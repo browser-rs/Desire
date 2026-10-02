@@ -85,6 +85,21 @@ extension ContentView {
                 // handler 未就绪（新 webview 首载快于 SwiftUI 建 representable）
                 // 时同样会静默丢失——挂起到注册完成后补跑
                 // （见 BrowserState.pendingPluginInjectURL）。
+                // tabs.onUpdated 广播（页面世界 + 各 background 页）：didFinish
+                // 近似 Chrome 的 status=complete + url/title 变化。
+                let changeInfo: [String: Any] = ["status": "complete",
+                                                 "url": url.absoluteString, "title": title]
+                let tabPayload: [String: Any] = [
+                    "id": tab.id.uuidString,
+                    "index": tabManager.tabs.firstIndex(where: { $0.id == tab.id }) ?? -1,
+                    "url": url.absoluteString, "title": title,
+                    "active": tabManager.selectedTab?.id == tab.id,
+                    "incognito": tab.isIncognito, "pinned": tab.isPinned,
+                ]
+                ExtensionEventHub.shared.fireRaw(
+                    "tabs.onUpdated", payload: [tab.id.uuidString, changeInfo, tabPayload])
+                PluginBackgroundRuntime.shared.fireAll(
+                    event: "tabs.onUpdated", payload: [tab.id.uuidString, changeInfo, tabPayload])
                 let injectURL = url
                 DispatchQueue.main.async {
                     if tab.browser.areExtHandlersRegistered {

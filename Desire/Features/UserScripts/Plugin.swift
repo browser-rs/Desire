@@ -34,8 +34,12 @@ struct Plugin: Identifiable, Codable {
     /// 拦截（"登录失败: Load failed"）；把文档 origin 设成 API 同源即绕开。
     /// nil = baseURL nil（旧行为）。Optional = 旧数据解码安全。
     var popupBaseOrigin: String?
+    /// 插件包资源目录名（PluginResources.baseDirectory 下的相对名 = 插件 uuid）。
+    /// manifest 包装载时整包拷入；chrome.scripting files[] / insertCSS 从这里
+    /// 读文件。手写 JSON 插件为 nil。Optional = 旧数据解码安全。
+    var resourcesPath: String?
 
-    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil, iconPNG: Data? = nil, popupBaseOrigin: String? = nil, backgroundCode: String? = nil) {
+    init(id: UUID = UUID(), name: String, description: String = "", version: String = "1.0", author: String = "", urlPatterns: [String] = ["*"], excludePatterns: [String] = [], runAt: RunAt = .documentEnd, jsCode: String = "", cssCode: String = "", isEnabled: Bool = true, createdAt: Date = Date(), pinned: Bool? = nil, icon: String? = nil, popupHTML: String? = nil, iconPNG: Data? = nil, popupBaseOrigin: String? = nil, backgroundCode: String? = nil, resourcesPath: String? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -54,6 +58,7 @@ struct Plugin: Identifiable, Codable {
         self.iconPNG = iconPNG
         self.popupBaseOrigin = popupBaseOrigin
         self.backgroundCode = backgroundCode
+        self.resourcesPath = resourcesPath
     }
 
     var isPinned: Bool { pinned ?? false }

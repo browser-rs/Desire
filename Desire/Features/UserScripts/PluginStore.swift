@@ -32,6 +32,8 @@ class PluginStore: ObservableObject {
         onPluginsChanged?()
         // Chrome 语义：卸载即清该插件的 storage.local 桶（0.3.3）。
         WebExtensionStore.clear(ext: plugin.id.uuidString)
+        // 包资源目录一并清理（chrome.scripting files[] 的文件来源）。
+        PluginResources.discard(plugin.resourcesPath)
     }
 
     /// 工具栏固定切换（0.2.17 Chrome 式扩展面板）。
@@ -103,8 +105,12 @@ class PluginStore: ObservableObject {
             // document_end 包一层 60ms 延时再跑插件体，否则 runtime.sendMessage/
             // connect 的首发消息必丢。document_idle 原有 200ms 天然安全。
             let delay = runAt == .documentIdle ? 200 : (runAt == .documentEnd ? 60 : 0)
-            // 注入前置插件身份（0.3.3）：storage 等 API 按此命名空间。
-            let prologue = "window.__desireExtID = '\(plugin.id.uuidString)';\n"
+            // 前置：插件身份 + **webext-api 运行时**。user script 是 webview
+            // 定格的——插件装在 webview 创建之后就只有这条路能保证该 world
+            // 里有 chrome.*（脚本自带 __desireExt 防重入，幂等）。
+            let runtime = UserScriptLoader.load("webext-api")
+            let prologue = (runtime.isEmpty ? "" : runtime + "\n")
+                + "window.__desireExtID = '\(plugin.id.uuidString)';\n"
             if delay > 0 {
                 // ⚠️ 这里是**函数体**位置，不是字符串字面量——做过一段时间的
                 // `\'` 转义会把任何含单引号的插件代码变成 SyntaxError（函数体里

@@ -62,7 +62,12 @@
         // Swift fans tab events out to registered listeners.
         _fire: function(event, payload) {
             (listeners[event] || []).forEach(function(cb) {
-                try { cb(payload); } catch (e) { /* listener error is its own */ }
+                try {
+                    // Chrome 事件签名多参（如 tabs.onUpdated = (tabId, changeInfo,
+                    // tab)）：宿主送数组时按位展开，对象/标量仍单参。
+                    if (Array.isArray(payload)) cb.apply(null, payload);
+                    else cb(payload);
+                } catch (e) { /* listener error is its own */ }
             });
         }
     };
@@ -102,9 +107,14 @@
         query: function() { return rpc("tabs", "query", []); },
         create: function(props) { return rpc("tabs", "create", [props || {}]); },
         remove: function(ids) { return rpc("tabs", "remove", [ids]); },
+        get: function(tabId) { return rpc("tabs", "get", [String(tabId)]); },
+        update: function(tabId, props) { return rpc("tabs", "update", [String(tabId), props || {}]); },
+        reload: function(tabId) { return rpc("tabs", "reload", [tabId === undefined ? null : String(tabId)]); },
         onCreated: eventAPI("tabs.onCreated"),
         onRemoved: eventAPI("tabs.onRemoved"),
         onActivated: eventAPI("tabs.onActivated"),
+        // (tabId, changeInfo, tab)——宿主送数组，_fire 按位展开。
+        onUpdated: eventAPI("tabs.onUpdated"),
         // background/popup → 页面：宿主经 _tabsMessage 投递进本页。
         // 宿主侧 case 名是 ("runtime","sendMessageToTab")（背景页同一份 rpc）。
         sendMessage: function(tabId, msg) {
@@ -275,6 +285,12 @@
         getAll: function() { return rpc("alarms", "getAll", []); },
         onAlarm: eventAPI("alarms.onAlarm")
     };
+    // MV3 动态注入：code|files 注入、insertCSS 注样式。文件来自插件包
+    // 资源目录（manifest 包装载时整包拷入；手写插件无文件，files[] 报错）。
+    var scripting = {
+        executeScript: function(details) { return rpc("scripting", "executeScript", [details || {}]); },
+        insertCSS: function(details) { return rpc("scripting", "insertCSS", [details || {}]); }
+    };
     var action = {
         setBadgeText: function(details) { return rpc("action", "setBadgeText", [details || {}]); },
         setTitle: function(details) { return rpc("action", "setTitle", [details || {}]); }
@@ -306,7 +322,7 @@
     var browser = {
         storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
         contextMenus: contextMenus, alarms: alarms, action: action,
-        windows: windows, downloads: downloads, i18n: i18n,
+        windows: windows, downloads: downloads, i18n: i18n, scripting: scripting,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -322,4 +338,5 @@
     if (!chrome.windows) chrome.windows = windows;
     if (!chrome.downloads) chrome.downloads = downloads;
     if (!chrome.i18n) chrome.i18n = i18n;
+    if (!chrome.scripting) chrome.scripting = scripting;
 })();

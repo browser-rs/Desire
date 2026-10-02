@@ -929,6 +929,24 @@ func testAdSlotAndProtocolRelative() {
 }
 testAdSlotAndProtocolRelative()
 
+// ---------- PluginResources：路径清洗（files[] 注入的逃逸防线） ----------
+
+func testPluginResourcePaths() {
+    check("正常相对路径保留",
+          PluginResources.sanitizedRelativePath("content/main.js") == "content/main.js")
+    check("纯文件名保留", PluginResources.sanitizedRelativePath("inject.js") == "inject.js")
+    check("首尾空白剥掉", PluginResources.sanitizedRelativePath("  a.js  ") == "a.js")
+    check("绝对路径拒绝", PluginResources.sanitizedRelativePath("/etc/passwd") == nil)
+    check(".. 逃逸拒绝", PluginResources.sanitizedRelativePath("../../secret.txt") == nil)
+    check("内嵌 .. 段拒绝", PluginResources.sanitizedRelativePath("a/../b.js") == nil)
+    check("单点段拒绝", PluginResources.sanitizedRelativePath("./a.js") == nil)
+    check("file: 前缀拒绝", PluginResources.sanitizedRelativePath("file:///etc/passwd") == nil)
+    check("反斜杠拒绝", PluginResources.sanitizedRelativePath("a\\b.js") == nil)
+    check("空路径拒绝", PluginResources.sanitizedRelativePath("") == nil)
+    check("空段路径拒绝", PluginResources.sanitizedRelativePath("a//b.js") == nil)
+}
+testPluginResourcePaths()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

@@ -615,12 +615,54 @@ def case_overflow_retry():
     check("E4 未把超限当失败丢弃", "⚠️" not in text)
 
 
+# ---------- E5 fixtures 回放（个性化 7：真实 👍 语料回归）----------
+
+FIXTURE_ITEMS = []
+
+
+def case_fixtures():
+    """真实 👍 语料回放：每条 goal 在假端点环境跑一个完整回合，断言系统
+    契约在个性化改动后仍成立（system 唯一第 0 位 + notes 折叠语义）。
+    语料由 scripts/export-thumbsup-eval.py 生成（仓库外，含真实内容勿提交）。"""
+    if not FIXTURE_ITEMS:
+        results.append(("E5 无 fixtures（--fixtures 未提供或文件为空）", True, ""))
+        print("○ E5 无 fixtures，跳过")
+        return
+    ran, ok_count = 0, 0
+    failures = []
+    for item in FIXTURE_ITEMS[:5]:
+        goal = item.get("goal") or ""
+        if not goal.strip():
+            continue
+        ran += 1
+        try:
+            msgs = run_case(goal)
+            _, assistant, _ = last_exchange(msgs)
+            text = assistant.get("content") or ""
+            # fixture 端点回显的契约行：system 唯一第 0 位。
+            contract_ok = "sysCount=1" in text and "sysAt=[0]" in text
+            if contract_ok:
+                ok_count += 1
+            else:
+                failures.append(f"{goal[:40]}…（契约行缺失）")
+        except Exception as exc:
+            failures.append(f"{goal[:40]}…（{exc}）")
+    if ran == 0:
+        results.append(("E5 fixtures 全为空 goal", True, ""))
+        print("○ E5 无有效 fixtures，跳过")
+        return
+    check(f"E5 真实语料回放 {ran} 条全过", ok_count == ran)
+    if failures:
+        results[-1] = (results[-1][0], False, "; ".join(failures[:3]))
+
+
 # ---------- 主流程 ----------
 
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
-         ("E4 overflow-retry", case_overflow_retry)]
+         ("E4 overflow-retry", case_overflow_retry),
+         ("E5 fixtures-replay", case_fixtures)]
 
 results = []
 
@@ -636,8 +678,18 @@ def main():
     parser.add_argument("--cleanup", action="store_true",
                         help="删除评估写入的会话（按脚本记录的精确 id）")
     parser.add_argument("--keep-fixture", action="store_true")
+    parser.add_argument("--fixtures", default="",
+                        help="thumbsup 评估素材 JSON（scripts/export-thumbsup-eval.py 生成）；E5 用例回放其 goal")
     args, _ = parser.parse_known_args()
     BRIDGE = args.base
+    if args.fixtures:
+        import os
+        if os.path.exists(args.fixtures):
+            with open(args.fixtures, encoding="utf-8") as fh:
+                FIXTURE_ITEMS.extend(json.load(fh).get("fixtures", []))
+            print(f"E5 fixtures 已加载：{len(FIXTURE_ITEMS)} 条")
+        else:
+            print(f"E5 fixtures 文件不存在：{args.fixtures}（用例将跳过）")
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
     ensure_workdir()

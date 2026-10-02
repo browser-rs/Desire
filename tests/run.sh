@@ -31,6 +31,7 @@ SOURCES=(
   Desire/Features/Agent/AgentQuickTemplate.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Agent/Memory/MemoryModels.swift
+  Desire/Features/Agent/Memory/MemoryRetrieval.swift
   Desire/Features/Sync/SyncCrypto.swift
   Desire/Features/Sync/SyncMerge.swift
   tests/main.swift

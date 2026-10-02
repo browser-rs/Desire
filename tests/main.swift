@@ -1044,6 +1044,51 @@ func testPluginI18N() {
 }
 testPluginI18N()
 
+// ---------- MemoryRetrieval：BM25 记忆检索 ----------
+
+func testMemoryRetrieval() {
+    func fact(_ content: String, pinned: Bool = false, category: String = "fact",
+              daysAgo: Double = 0, source: String? = nil) -> MemoryFact {
+        var f = MemoryFact(content: content, category: category, pinned: pinned)
+        f.updatedAt = Date().addingTimeInterval(-daysAgo * 86400)
+        f.source = source
+        return f
+    }
+    let facts = [
+        fact("用户常看 B 站，下载偏好 1080p", daysAgo: 1),
+        fact("用户在做 Rust 浏览器项目", daysAgo: 2),
+        fact("用户不喜欢太啰嗦的回答", pinned: true),
+        fact("GitHub 下载走代理", daysAgo: 3),
+    ]
+    // rank 返回 pinned 恒定在最前——"首个非 pinned"才是 BM25 相关性头名。
+    func topUnpinned(_ r: [MemoryFact]) -> MemoryFact? { r.first { !$0.pinned } }
+    // 中文 bigram 命中
+    let r1 = MemoryRetrieval.rank(facts: facts, query: "帮我下载 B 站的视频")
+    check("中文 bigram 命中最相关", topUnpinned(r1)?.content.contains("B 站") == true)
+    check("pinned 恒定注入且在最前", r1.first?.content.contains("不喜欢太啰嗦") == true)
+    // 英文词元命中
+    let r2 = MemoryRetrieval.rank(facts: facts, query: "fix the rust build error")
+    check("英文词元命中", topUnpinned(r2)?.content.contains("Rust") == true)
+    // 上限
+    var many: [MemoryFact] = []
+    for i in 0..<40 { many.append(fact("条目 \(i) 内容 \(i % 7)")) }
+    let r3 = MemoryRetrieval.rank(facts: many, query: "条目 3")
+    check("topK 上限（40→12+0）", r3.count <= MemoryRetrieval.Params().topK)
+    // 零重叠兜底：最近优先（首个非 pinned = 最新）
+    let r4 = MemoryRetrieval.rank(facts: facts, query: "zzz-qqq-xxx")
+    check("零重叠退化最近优先", topUnpinned(r4)?.content.contains("B 站") == true)
+    // 来源会话标题加成
+    let a = fact("偏好深色主题", daysAgo: 5)
+    let b = fact("偏好浅色主题", daysAgo: 5, source: "个人设置讨论")
+    let r5 = MemoryRetrieval.rank(facts: [a, b], query: "个人设置 里改什么")
+    check("来源标题加成", topUnpinned(r5)?.content.contains("浅色") == true)
+    // scope 过滤在 promptBlock 层（rank 不负责）——rank 输入即已过滤
+    check("tokenize 中文切 bigram",
+          MemoryRetrieval.tokenize("下载视频") == ["下载", "载视", "视频"])
+    check("tokenize 英文小写词元", MemoryRetrieval.tokenize("Rust Build").contains("rust"))
+}
+testMemoryRetrieval()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

@@ -969,9 +969,16 @@ class AgentSessionStore: ObservableObject {
         let currentHost = await MainActor.run { () -> String? in
             toolSurface?.tabManager?.selectedTab?.browser.webView.url?.host
         }
+        // 检索查询 = 最近 3 条 user 消息（BM25 命中面）。
+        let retrievalQuery = messages
+            .filter { $0.role == .user }
+            .suffix(3)
+            .compactMap { $0.content }
+            .joined(separator: " ")
         let memoryBlock = AgentMemoryStore.shared.promptBlock(
             excluding: conversationId,
-            currentHost: currentHost
+            currentHost: currentHost,
+            query: retrievalQuery
         )
         let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
         let pageContext = await fetchCompactPageContext()

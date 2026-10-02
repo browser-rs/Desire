@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 
 /// Layered persistent memory for the agent.
 ///
@@ -239,7 +240,11 @@ final class AgentMemoryStore: ObservableObject {
     /// The system block injected into every agent request: profile, top
     /// facts (pinned first), and the most recent other-conversation
     /// summaries. Nil when there's nothing to say.
-    func promptBlock(excluding currentConversation: UUID?, currentHost: String? = nil) -> String? {
+    /// - Parameters:
+    ///   - query: 当前对话的检索查询（最近几条 user 消息拼接）——BM25 挑
+    ///     最相关的少数条目注入；nil/空 = 最近优先兜底。
+    func promptBlock(excluding currentConversation: UUID?, currentHost: String? = nil,
+                     query: String? = nil) -> String? {
         var lines: [String] = []
 
         let profile = archive.profile
@@ -253,19 +258,18 @@ final class AgentMemoryStore: ObservableObject {
         }
 
         // Domain-scoped facts only inject when the current page matches.
+        // 注入量 = pinned 恒定 + BM25 相关性 top-K（全量注入曾到 200 条，
+        // 爆上下文且稀释注意力）。
         let loweredHost = (currentHost ?? "").lowercased()
-        let facts = archive.facts
+        let scoped = archive.facts
             .filter { fact in
                 let scope = fact.scope.lowercased()
                 return scope.isEmpty || scope == "global"
                     || loweredHost.contains(scope)
                     || scope.hasSuffix("." + loweredHost)
             }
-            .sorted { a, b in
-                if a.pinned != b.pinned { return a.pinned }
-                return a.updatedAt > b.updatedAt
-            }
-            .prefix(20)
+        let facts = MemoryRetrieval.rank(facts: scoped, query: query ?? "")
+        Log.agent.info("memory rank: query='\((query ?? "").prefix(60), privacy: .public)' scoped=\(scoped.count, privacy: .public) selected=\(facts.count, privacy: .public) first='\(facts.first(where: { !$0.pinned })?.content.prefix(40) ?? "-", privacy: .public)'")
         for fact in facts where !fact.content.isEmpty {
             let scopeTag = (fact.scope.isEmpty || fact.scope.lowercased() == "global") ? "" : " [\(fact.scope)]"
             lines.append("- (\(fact.category))\(scopeTag) \(fact.content)")

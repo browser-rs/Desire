@@ -498,6 +498,8 @@ final class AutomationServer {
         // Misc
         ep("GET", "/settings", "A couple of global settings", example: "…/settings")
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
+        ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
+        ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
         return eps
@@ -1093,10 +1095,17 @@ final class AutomationServer {
                     "videoAdBlockerEnabled": VideoAdBlocker.resolvedEnabled,
                 ])
             case ("POST", "/mcp/add"):
+                // command 非空 = stdio 服务器（本地子进程）；否则 HTTP。
+                if let command = Self.string(body, "command"), !command.isEmpty {
+                    return try Self.json(Self.addMCPStdioServer(
+                        name: Self.string(body, "name") ?? "", command: command))
+                }
                 return try Self.json(Self.addMCPServer(
                     name: Self.string(body, "name") ?? "",
                     url: Self.string(body, "url") ?? ""
                 ))
+            case ("POST", "/mcp/remove"):
+                return try Self.json(Self.removeMCPServer(name: Self.string(body, "name") ?? ""))
             case ("POST", "/mcp/reconnect"):
                 return try Self.json(Self.reconnectMCPServer(name: Self.string(body, "name") ?? ""))
             case ("GET", "/mcp"):
@@ -3236,6 +3245,23 @@ final class AutomationServer {
     /// end to end without touching the Settings UI. Also introspects the real
     /// NSMenu items, so a test can assert that a re-recording actually
     /// re-bound the menu accelerator (what physical keypresses match against).
+    private static func removeMCPServer(name: String) throws -> [String: Any] {
+        let store = MCPStore.shared
+        guard let server = store.servers.first(where: { $0.name == name }) else {
+            return ["error": "no such server"]
+        }
+        store.removeServer(server.id)
+        return ["ok": true]
+    }
+
+    private static func addMCPStdioServer(name: String, command: String) throws -> [String: Any] {
+        MCPStore.shared.addStdioServer(name: name, command: command)
+        guard let server = MCPStore.shared.servers.first(where: { $0.command != nil }) else {
+            return ["error": "invalid name/command"]
+        }
+        return ["ok": true, "id": server.id.uuidString, "transport": "stdio"]
+    }
+
     private static func addMCPServer(name: String, url: String) throws -> [String: Any] {
         guard !name.isEmpty, !url.isEmpty else { return ["error": "missing name or url"] }
         MCPStore.shared.addServer(name: name, url: url)

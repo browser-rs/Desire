@@ -141,7 +141,7 @@ struct MCPConnection {
 
     // MARK: - Parsing
 
-    private static func tool(fromJSON json: [String: Any]) -> MCPTool? {
+    static func tool(fromJSON json: [String: Any]) -> MCPTool? {
         guard let name = json["name"] as? String, !name.isEmpty else { return nil }
         let description = (json["description"] as? String) ?? ""
         var inputSchemaJSON = "{}"
@@ -152,7 +152,7 @@ struct MCPConnection {
         return MCPTool(name: name, description: description, inputSchemaJSON: inputSchemaJSON)
     }
 
-    private static func text(fromContent content: Any?) -> String {
+    static func text(fromContent content: Any?) -> String {
         guard let items = content as? [[String: Any]] else { return "" }
         return items.compactMap { $0["text"] as? String }.joined(separator: "\n")
     }

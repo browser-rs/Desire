@@ -1246,6 +1246,9 @@ struct MCPServersSection: View {
     @State private var newName = ""
     @State private var newURL = ""
     @State private var newToken = ""
+    /// 新增表单的传输分段（http / stdio）与 stdio 命令草稿。
+    @State private var newTransport = "http"
+    @State private var newCommand = ""
     /// Per-server auth-token editing state (server id → draft token).
     @State private var tokenDrafts: [UUID: String] = [:]
     /// Per-server expanded tool list disclosure.
@@ -1254,12 +1257,12 @@ struct MCPServersSection: View {
     var body: some View {
         SettingsSection(
             title: String(localized: "MCP Servers"),
-            subtitle: String(localized: "Extend the Agent with external tools over MCP (HTTP transport). Experimental."),
+            subtitle: String(localized: "Extend the Agent with external tools over MCP. HTTP (Streamable) or stdio (local command) transport."),
             icon: "server.rack"
         ) {
             VStack(spacing: 0) {
                 if store.servers.isEmpty {
-                    Text(String(localized: "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)."))
+                    Text(String(localized: "No MCP servers configured. Add an HTTP endpoint or a local stdio command."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1273,9 +1276,21 @@ struct MCPServersSection: View {
                         ))
                         .labelsHidden()
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(server.name)
-                                .font(.system(size: 12, weight: .medium))
-                            Text(server.url)
+                            HStack(spacing: 4) {
+                                Text(server.name)
+                                    .font(.system(size: 12, weight: .medium))
+                                if server.isStdio {
+                                    Text(String(localized: "stdio"))
+                                        .font(.system(size: 8, weight: .semibold))
+                                        .foregroundStyle(appAccent)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Capsule().fill(appAccent.opacity(0.12)))
+                                }
+                            }
+                            Text(server.isStdio
+                                 ? (server.command?.joined(separator: " ") ?? "")
+                                 : server.url)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -1366,26 +1381,58 @@ struct MCPServersSection: View {
                     SettingsRowDivider()
                 }
 
-                HStack {
-                    TextField("Name", text: $newName)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                    TextField("http://127.0.0.1:3000/mcp", text: $newURL)
-                        .textFieldStyle(.roundedBorder)
-                    Button(String(localized: "Add")) {
-                        store.addServer(name: newName, url: newURL)
-                        if !newToken.trimmingCharacters(in: .whitespaces).isEmpty,
-                           let added = store.servers.last {
-                            store.updateAuthToken(newToken, for: added.id)
-                        }
-                        newName = ""
-                        newURL = ""
-                        newToken = ""
-                    }
-                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
-                              || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                // 传输分段：HTTP 端点 / stdio 本地命令（完整 MCP）。
+                Picker("", selection: $newTransport) {
+                    Text(String(localized: "HTTP")).tag("http")
+                    Text(String(localized: "Stdio (local command)")).tag("stdio")
                 }
-                .padding(.top, 6)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 260)
+
+                if newTransport == "http" {
+                    HStack {
+                        TextField("Name", text: $newName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 120)
+                        TextField("http://127.0.0.1:3000/mcp", text: $newURL)
+                            .textFieldStyle(.roundedBorder)
+                        Button(String(localized: "Add")) {
+                            store.addServer(name: newName, url: newURL)
+                            if !newToken.trimmingCharacters(in: .whitespaces).isEmpty,
+                               let added = store.servers.last {
+                                store.updateAuthToken(newToken, for: added.id)
+                            }
+                            newName = ""
+                            newURL = ""
+                            newToken = ""
+                        }
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(.top, 6)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            TextField("Name", text: $newName)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 120)
+                            TextField(String(localized: "Command + args (e.g. python3 /path/server.py)"), text: $newCommand)
+                                .textFieldStyle(.roundedBorder)
+                            Button(String(localized: "Add")) {
+                                store.addStdioServer(name: newName, command: newCommand)
+                                newName = ""
+                                newCommand = ""
+                            }
+                            .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
+                                      || newCommand.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        Text(String(localized: "The command runs as a local subprocess (argv; quote paths with spaces). Tools it exposes join the Agent automatically."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 6)
+                }
             }
         }
     }

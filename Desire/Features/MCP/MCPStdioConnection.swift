@@ -134,6 +134,39 @@ final class MCPStdioConnection {
         return toolsJSON.compactMap(MCPConnection.tool(fromJSON:))
     }
 
+    // MARK: - prompts / resources（与 HTTP 版同语义）
+
+    func listPrompts() async throws -> [[String: Any]] {
+        let result = try await request(method: "prompts/list", params: [String: Any](), timeout: 20)
+        return result["prompts"] as? [[String: Any]] ?? []
+    }
+
+    func getPrompt(named name: String, arguments: [String: String]) async throws -> [String: Any] {
+        try await request(
+            method: "prompts/get",
+            params: ["name": name, "arguments": arguments],
+            timeout: callTimeout
+        )
+    }
+
+    func listResources() async throws -> [[String: Any]] {
+        let result = try await request(method: "resources/list", params: [String: Any](), timeout: 20)
+        return result["resources"] as? [[String: Any]] ?? []
+    }
+
+    func readResource(uri: String) async throws -> String {
+        let result = try await request(method: "resources/read", params: ["uri": uri], timeout: callTimeout)
+        let contents = result["contents"] as? [[String: Any]] ?? []
+        let texts = contents.compactMap { item -> String? in
+            if let text = item["text"] as? String { return text }
+            if let blob = item["blob"] as? String {
+                return "(binary resource, \(blob.count) base64 chars) \(item["uri"] as? String ?? "")"
+            }
+            return nil
+        }
+        return texts.isEmpty ? "(empty resource)" : texts.joined(separator: "\n")
+    }
+
     func callTool(named name: String, arguments: [String: Any]) async throws -> String {
         let result = try await request(
             method: "tools/call",

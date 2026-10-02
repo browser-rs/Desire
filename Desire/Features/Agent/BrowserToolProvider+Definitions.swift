@@ -679,6 +679,35 @@ extension BrowserToolProvider {
                 ])
             )),
 
+            // --- MCP prompts/resources（2026-10-02 完整 MCP 补强）---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mcpPrompts",
+                description: "List prompt templates exposed by connected MCP servers. Use mcpGetPrompt to fetch one rendered.",
+                parameters: AgentJSONSchema(type: "object", properties: [:]))
+            ),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mcpGetPrompt",
+                description: "Fetch a rendered prompt template from an MCP server.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "server": AgentJSONSchemaValue(type: "string", description: "MCP server name (from mcpPrompts)"),
+                    "name": AgentJSONSchemaValue(type: "string", description: "Prompt name (from mcpPrompts)"),
+                    "arguments": AgentJSONSchemaValue(type: "object", description: "Template arguments"),
+                ], required: ["server", "name"]))
+            ),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mcpResources",
+                description: "List resources (files/data) exposed by connected MCP servers. Use mcpReadResource to read one by server + uri.",
+                parameters: AgentJSONSchema(type: "object", properties: [:]))
+            ),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mcpReadResource",
+                description: "Read a resource from an MCP server by uri (returns its text content).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "server": AgentJSONSchemaValue(type: "string", description: "MCP server name (from mcpResources)"),
+                    "uri": AgentJSONSchemaValue(type: "string", description: "Resource uri (from mcpResources)"),
+                ], required: ["server", "uri"]))
+            ),
+
             // --- Tab Crew (0.3.1) ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "crewDispatch",

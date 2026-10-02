@@ -7,6 +7,8 @@
 
 - **MCP 客户端 stdio transport**（完整 MCP 补强）：本地 MCP 服务器以子进程方式接入（`MCPServer.transport=stdio` + command argv + 可选 env），JSON-RPC 走 stdin/stdout 换行分隔行协议；裸命令名按 PATH 解析（python3/npx 不必写绝对路径）；进程退出/超时的挂起请求唤醒与诊断尾随（stderr tail 带回失败原因）；工具经同一桥接（`mcp_<server>_<tool>`）进 agent 工具面，与 HTTP 服务器共用 callTool 分派；卸载/停用联动 terminate。设置页新增表单（HTTP/Stdio 分段）；桥 `/mcp/add` 支持 command、新增 `/mcp/remove`。E2E：本地 stdio fixture 全链 PASS——spawn→initialize→tools/list（echo 进工具面）→ 模型 tool_calls → 经子进程 tools/call（参数正确送达）→ 结果回进对话 → 第二轮完成。
 - **Skill 多文件支持**（盘点补强 2）：skills 目录同时识别单文件 `*.md` 与**目录 skill**（`<name>/SKILL.md` + 附属 scripts/references，目录名即技能名、目录优先于同名散文件）；useSkill 加载时列出**附属文件清单**（绝对路径 + 相对路径），模型用既有 readFile 按需读取——"带脚本/参考资料的技能"从此可安装。
+- **MCP 客户端 prompts/resources 消费**（完整 MCP 补强续）：连接握手后尽力拉取各服务器的 `prompts/list` 与 `resources/list`（不支持 = 空表，不影响连接）；新增四个 agent 工具 `mcpPrompts`/`mcpGetPrompt`/`mcpResources`/`mcpReadResource`（HTTP 与 stdio 双传输都走同一条分派），模型可自主列取外部服务器的提示模板与资源内容。
+
 
 
 

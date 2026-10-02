@@ -19,6 +19,10 @@ class MCPStore: ObservableObject {
     @Published private(set) var statuses: [UUID: String] = [:]
 
     private var connections: [UUID: MCPConnection] = [:]
+    /// 各服务器声明的 prompts / resources（握手后拉取；`mcpPrompts`/
+    /// `mcpResources`/`mcpReadResource` 工具消费）。
+    private(set) var serverPrompts: [UUID: [[String: Any]]] = [:]
+    private(set) var serverResources: [UUID: [[String: Any]]] = [:]
     /// stdio 传输的连接（子进程生命周期归 store 管）。
     private var stdioConnections: [UUID: MCPStdioConnection] = [:]
     /// defName -> (server id, raw tool name on that server).
@@ -92,6 +96,8 @@ class MCPStore: ObservableObject {
         connections[id] = nil
         stdioConnections[id]?.terminate()
         stdioConnections[id] = nil
+        serverPrompts[id] = nil
+        serverResources[id] = nil
         cachedTools[id] = nil
         rebuildTools()
         save()
@@ -151,6 +157,12 @@ class MCPStore: ObservableObject {
             statuses[server.id] = "ready · \(tools.count) tools"
             rebuildTools()
             Log.ai.info("MCP server \(server.name, privacy: .public) connected — \(tools.count) tools")
+            // prompts/resources 尽力拉取（服务器不支持 = 空表；失败不影响连接）。
+            if var conn = connections[server.id] {
+                serverPrompts[server.id] = (try? await conn.listPrompts()) ?? []
+                serverResources[server.id] = (try? await conn.listResources()) ?? []
+                connections[server.id] = conn
+            }
         } catch {
             connections[server.id] = nil
             cachedTools[server.id] = nil
@@ -176,7 +188,10 @@ class MCPStore: ObservableObject {
             cachedTools[server.id] = tools
             statuses[server.id] = "ready · \(tools.count) tools"
             rebuildTools()
-            Log.ai.info("stdio MCP server \(server.name, privacy: .public) connected — \(tools.count, privacy: .public) tools")
+            // prompts/resources 尽力拉取（同 HTTP 分支）。
+            serverPrompts[server.id] = (try? await connection.listPrompts()) ?? []
+            serverResources[server.id] = (try? await connection.listResources()) ?? []
+            Log.ai.info("stdio MCP server \(server.name, privacy: .public) connected — \(tools.count, privacy: .public) tools, prompts=\(self.serverPrompts[server.id]?.count ?? 0, privacy: .public), resources=\(self.serverResources[server.id]?.count ?? 0, privacy: .public)")
         } catch {
             stdioConnections[server.id]?.terminate()
             stdioConnections[server.id] = nil
@@ -185,6 +200,109 @@ class MCPStore: ObservableObject {
             statuses[server.id] = "failed: \(error.localizedDescription)"
             rebuildTools()
             Log.ai.error("stdio MCP server \(server.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public) stderr: \(stderr, privacy: .public)")
+        }
+    }
+
+    // MARK: - prompts / resources（agent 工具消费端，2026-10-02）
+
+    /// 所有已连接服务器的 prompts 汇总：`[{server, name, description}]`。
+    func allPrompts() -> [[String: Any]] {
+        var out: [[String: Any]] = []
+        for (serverID, prompts) in serverPrompts {
+            guard let server = servers.first(where: { $0.id == serverID }), server.isEnabled else { continue }
+            for p in prompts {
+                out.append([
+                    "server": server.name,
+                    "name": p["name"] as? String ?? "",
+                    "description": p["description"] as? String ?? "",
+                ])
+            }
+        }
+        return out
+    }
+
+    /// 取渲染后的 prompt（messages 拼成可读文本给模型）。
+    func getPrompt(server serverName: String, name: String,
+                   arguments: [String: String]) async -> String {
+        guard let server = servers.first(where: { $0.name == serverName }) else {
+            return "Error: MCP server not connected: \(serverName)"
+        }
+        if let stdio = stdioConnections[server.id] {
+            do {
+                let result = try await stdio.getPrompt(named: name, arguments: arguments)
+                let messages = result["messages"] as? [[String: Any]] ?? []
+                return messages.map { m -> String in
+                    let role = m["role"] as? String ?? "user"
+                    let content = (m["content"] as? [String: Any])?["text"] as? String ?? ""
+                    return "[\(role)] \(content)"
+                }.joined(separator: "\n").isEmpty ? "(empty prompt)"
+                    : messages.map { m -> String in
+                        let role = m["role"] as? String ?? "user"
+                        let content = (m["content"] as? [String: Any])?["text"] as? String ?? ""
+                        return "[\(role)] \(content)"
+                    }.joined(separator: "\n")
+            } catch {
+                return "Error: MCP prompt error: \(error.localizedDescription)"
+            }
+        }
+        guard var conn = connections[server.id] else {
+            return "Error: MCP server not connected: \(serverName)"
+        }
+        do {
+            let result = try await conn.getPrompt(named: name, arguments: arguments)
+            connections[server.id] = conn
+            let messages = result["messages"] as? [[String: Any]] ?? []
+            let lines = messages.map { m -> String in
+                let role = m["role"] as? String ?? "user"
+                let content = (m["content"] as? [String: Any])?["text"] as? String ?? ""
+                return "[\(role)] \(content)"
+            }
+            return lines.isEmpty ? "(empty prompt)" : lines.joined(separator: "\n")
+        } catch {
+            connections[server.id] = conn
+            return "Error: MCP prompt error: \(error.localizedDescription)"
+        }
+    }
+
+    /// 所有已连接服务器的 resources 汇总：`[{server, uri, name, description}]`。
+    func allResources() -> [[String: Any]] {
+        var out: [[String: Any]] = []
+        for (serverID, resources) in serverResources {
+            guard let server = servers.first(where: { $0.id == serverID }), server.isEnabled else { continue }
+            for r in resources {
+                out.append([
+                    "server": server.name,
+                    "uri": r["uri"] as? String ?? "",
+                    "name": r["name"] as? String ?? "",
+                    "description": r["description"] as? String ?? "",
+                ])
+            }
+        }
+        return out
+    }
+
+    /// 读资源（按 server 名 + uri 寻址）。
+    func readResource(server serverName: String, uri: String) async -> String {
+        guard let server = servers.first(where: { $0.name == serverName }) else {
+            return "Error: MCP server not connected: \(serverName)"
+        }
+        if let stdio = stdioConnections[server.id] {
+            do {
+                return try await stdio.readResource(uri: uri)
+            } catch {
+                return "Error: MCP resource error: \(error.localizedDescription)"
+            }
+        }
+        guard var conn = connections[server.id] else {
+            return "Error: MCP server not connected: \(serverName)"
+        }
+        do {
+            let text = try await conn.readResource(uri: uri)
+            connections[server.id] = conn
+            return text
+        } catch {
+            connections[server.id] = conn
+            return "Error: MCP resource error: \(error.localizedDescription)"
         }
     }
 

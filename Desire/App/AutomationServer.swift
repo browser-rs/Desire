@@ -1120,7 +1120,7 @@ final class AutomationServer {
                         "tools": store.toolNames(for: server.id),
                     ]
                 }
-                return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name)])
+                return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name), "prompts": store.allPrompts().count, "resources": store.allResources().count])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
             case ("POST", "/downloads/batch"):

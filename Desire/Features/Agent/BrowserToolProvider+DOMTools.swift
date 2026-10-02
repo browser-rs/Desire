@@ -677,6 +677,33 @@ extension BrowserToolProvider {
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
+        case "mcpPrompts":
+            let prompts = MCPStore.shared.allPrompts()
+            if prompts.isEmpty { return "No prompt templates from connected MCP servers." }
+            return prompts.map { "- [\($0["server"] ?? "?")] \($0["name"] ?? "?"): \($0["description"] ?? "")" }
+                .joined(separator: "\n")
+
+        case "mcpGetPrompt":
+            guard let server = args["server"] as? String,
+                  let promptName = args["name"] as? String else {
+                return Self.fail("Missing server/name. Use mcpPrompts first.")
+            }
+            let promptArgs = (args["arguments"] as? [String: String]) ?? [:]
+            return await MCPStore.shared.getPrompt(server: server, name: promptName, arguments: promptArgs)
+
+        case "mcpResources":
+            let resources = MCPStore.shared.allResources()
+            if resources.isEmpty { return "No resources exposed by connected MCP servers." }
+            return resources.map { "- [\($0["server"] ?? "?")] \($0["uri"] ?? "?") — \($0["name"] ?? "") (\($0["description"] ?? ""))" }
+                .joined(separator: "\n")
+
+        case "mcpReadResource":
+            guard let server = args["server"] as? String,
+                  let uri = args["uri"] as? String else {
+                return Self.fail("Missing server/uri. Use mcpResources first.")
+            }
+            return await MCPStore.shared.readResource(server: server, uri: uri)
+
         case "useSkill":
             // Progressive disclosure: the name+description list rides in the
             // prompt; this loads the FULL instructions into the conversation.

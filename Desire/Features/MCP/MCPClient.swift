@@ -74,11 +74,11 @@ struct MCPConnection {
 
     // MARK: - Transport
 
-    private struct Response {
+    struct Response {
         let resultObject: [String: Any]?
     }
 
-    private mutating func post(method: String, params: [String: Any]?, notification: Bool) async throws -> Response {
+    mutating func post(method: String, params: [String: Any]?, notification: Bool) async throws -> Response {
         nextRequestID += 1
         let id = nextRequestID
         var body: [String: Any] = ["jsonrpc": "2.0", "method": method]
@@ -138,6 +138,52 @@ struct MCPConnection {
         config.timeoutIntervalForRequest = 20
         return URLSession(configuration: config)
     }()
+
+    // MARK: - prompts / resources（2026-10-02 完整 MCP 补强）
+
+    /// `prompts/list`——外部服务器提供的提示模板。
+    mutating func listPrompts() async throws -> [[String: Any]] {
+        let response = try await post(method: "prompts/list", params: [String: Any](), notification: false)
+        return response.resultObject?["prompts"] as? [[String: Any]] ?? []
+    }
+
+    /// `prompts/get`——按名取模板（服务器渲染后的 messages）。
+    mutating func getPrompt(named name: String, arguments: [String: String]) async throws -> [String: Any] {
+        let response = try await post(
+            method: "prompts/get",
+            params: ["name": name, "arguments": arguments],
+            notification: false
+        )
+        guard let result = response.resultObject else { throw MCPError.badResponse }
+        return result
+    }
+
+    /// `resources/list`——服务器暴露的资源清单。
+    mutating func listResources() async throws -> [[String: Any]] {
+        let response = try await post(method: "resources/list", params: [String: Any](), notification: false)
+        return response.resultObject?["resources"] as? [[String: Any]] ?? []
+    }
+
+    /// `resources/read`——读资源内容（text 优先，binary 走 base64 标注）。
+    mutating func readResource(uri: String) async throws -> String {
+        let response = try await post(
+            method: "resources/read",
+            params: ["uri": uri],
+            notification: false
+        )
+        guard let result = response.resultObject else { throw MCPError.badResponse }
+        let contents = result["contents"] as? [[String: Any]] ?? []
+        let texts = contents.compactMap { item -> String? in
+            if let text = item["text"] as? String { return text }
+            if let blob = item["blob"] as? String {
+                return "(binary resource, \((blob as NSString).length) base64 chars) \(item["uri"] as? String ?? "")"
+            }
+            return nil
+        }
+        return texts.joined(separator: "\n").isEmpty
+            ? "(empty resource)"
+            : texts.joined(separator: "\n")
+    }
 
     // MARK: - Parsing
 

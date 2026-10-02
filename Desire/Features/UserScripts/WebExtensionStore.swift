@@ -58,9 +58,37 @@ enum WebExtensionStore {
         return obj
     }
 
+    /// storage 变更广播（storage.onChanged）：set/remove/clear 由
+    /// PluginBackgroundRuntime 注册此钩子，changes 构造 {key: {old, new}}。
+    /// 钩子形式避免 WebExtensionStore（静态工具类）反向依赖运行时。
+    static var changeObserver: ((String, [String: Any]) -> Void)?
+
+    /// set/remove/clear 的统一出口（三处 handler 经此，钩子只挂一处）。
+    static func notifyChange(ext: String?, removed: [String: Any], updated: [String: Any]) {
+        guard let ext else { return }
+        var changes: [String: Any] = [:]
+        for (key, oldValue) in removed {
+            changes[key] = ["oldValue": oldValue, "newValue": NSNull()]
+        }
+        for (key, newValue) in updated {
+            let oldValue: Any? = get(keys: [key], ext: ext)
+            changes[key] = ["oldValue": oldValue ?? NSNull(), "newValue": newValue]
+        }
+        guard !changes.isEmpty else { return }
+        changeObserver?(ext, changes)
+    }
+
     private static func saveAll(_ store: [String: Any], ext: String?) {
         guard let data = try? JSONSerialization.data(withJSONObject: store) else { return }
         UserDefaults.standard.set(data, forKey: key(for: ext))
+    }
+
+    /// `notifications.clear` — 移除已投递与待投递的通知。
+    static func clearNotifications(_ ids: [String], completion: @escaping @MainActor (Any?) -> Void) {
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        Task { @MainActor in completion([:]) }
     }
 
     /// `notifications.create` — TCC authorization is requested lazily on

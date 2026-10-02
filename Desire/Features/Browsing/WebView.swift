@@ -843,6 +843,21 @@ struct WebView: NSViewRepresentable {
                        "title": t.browser.pageTitle,
                        "active": idx == tm.selectedIndex,
                        "incognito": t.isIncognito, "pinned": t.isPinned])
+            case ("tabs", "reload"):
+                // 页面上下文的 reload（背景同款实现收口在 reloadTab）。
+                if let err = PluginBackgroundRuntime.reloadTab(parent.onTabManager?(),
+                                            tabIDString: args.first as? String) {
+                    reply(nil, error: err)
+                } else {
+                    reply([:])
+                }
+            case ("windows", "create"):
+                if let url = (args.first as? [String: Any])?["url"] as? String, !url.isEmpty {
+                    parent.onCreateTab?(url)
+                    reply([:])
+                } else {
+                    reply(nil, error: "windows.create requires {url}")
+                }
             case ("windows", "getAll"):
                 let managers = TabSessionCoordinator.shared.liveManagers()
                 let wins = managers.enumerated().map { wi, manager -> [String: Any] in
@@ -870,7 +885,8 @@ struct WebView: NSViewRepresentable {
                     details: details, pluginID: pluginUUID,
                     resourcesPath: PluginBackgroundRuntime.shared
                         .resourcesPath(for: pluginUUID),
-                    isCSS: fn == "insertCSS",
+                    op: fn == "executeScript" ? .execute
+                        : (fn == "insertCSS" ? .insert : .remove),
                     fallbackWebView: parent.state.webView) { value, error in
                     reply(value, error: error)
                 }
@@ -905,9 +921,19 @@ struct WebView: NSViewRepresentable {
             case ("cookies", "set"):
                 guard let setDetails = args.first as? [String: Any],
                       let name = setDetails["name"] as? String,
-                      let value = setDetails["value"] as? String,
-                      let domain = setDetails["domain"] as? String else {
-                    reply(nil, error: "cookies.set requires name/value/domain")
+                      let value = setDetails["value"] as? String else {
+                    reply(nil, error: "cookies.set requires name/value")
+                    return
+                }
+                // Chrome 语义：domain 可省——从 url 的 host 推导。
+                let domain: String
+                if let explicit = setDetails["domain"] as? String, !explicit.isEmpty {
+                    domain = explicit
+                } else if let urlString = setDetails["url"] as? String,
+                          let host = URL(string: urlString)?.host {
+                    domain = host
+                } else {
+                    reply(nil, error: "cookies.set requires url or domain")
                     return
                 }
                 let props = [HTTPCookiePropertyKey.domain: domain,
@@ -924,6 +950,11 @@ struct WebView: NSViewRepresentable {
                 }
             case ("notifications", "create"):
                 WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
+                    reply(result)
+                }
+            case ("notifications", "clear"):
+                let id = args.first as? String ?? ""
+                WebExtensionStore.clearNotifications(id.isEmpty ? [] : [id]) { result in
                     reply(result)
                 }
             case ("events", "addListener"):

@@ -32,6 +32,10 @@ final class PluginBackgroundRuntime: NSObject {
                 alarms[a.pluginID.uuidString + "|" + a.name] = a
             }
         }
+        // storage.onChanged：set/remove/clear 的统一广播（背景页按监听过滤）。
+        WebExtensionStore.changeObserver = { [weak self] ext, changes in
+            self?.fireStorageChanged(ext: ext, changes: changes)
+        }
     }
 
     private struct Host {
@@ -80,6 +84,15 @@ final class PluginBackgroundRuntime: NSObject {
             content.addUserScript(WKUserScript(
                 source: code,
                 injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true,
+                in: .page))
+        }
+        // i18n（_locales 表内联，getMessage 同步查表）——在插件代码注入前。
+        let i18nPrologue = PluginI18N.prologue(resourcesPath: plugin.resourcesPath)
+        if !i18nPrologue.isEmpty {
+            content.addUserScript(WKUserScript(
+                source: i18nPrologue,
+                injectionTime: .atDocumentStart,
                 forMainFrameOnly: true,
                 in: .page))
         }
@@ -166,6 +179,26 @@ final class PluginBackgroundRuntime: NSObject {
         backgroundEventListeners[pluginID, default: []].insert(name)
     }
 
+    /// storage.onChanged 派发（WebExtensionStore.notifyChange 经观察者进来）。
+    func fireStorageChanged(ext: String, changes: [String: Any]) {
+        guard UUID(uuidString: ext) != nil else { return }
+        fireAll(event: "storage.onChanged", payload: [changes, "local"])
+    }
+
+    /// tabs.connect：背景发起的长连接，对端 = 目标 tab 的内容脚本。
+    /// 登记端口后向**页面 plugin world** 投递 onConnect（页面端运行时已带
+    /// _portConnect 入口；后续消息走既有双端 portMessage 路由）。
+    func connectPortToTab(portId: String, name: String, pluginID: UUID,
+                          tabWebView: WKWebView, fromBackground: WKWebView?) {
+        ports[portId] = PortEntry(pluginID: pluginID, pageWebView: tabWebView,
+                                  pageWorld: WebView.pluginWorld(pluginID),
+                                  backgroundWebView: fromBackground)
+        tabWebView.evaluateJavaScript(
+            "window.__desireExt && window.__desireExt._portConnect("
+                + Self.quoted(portId) + ", " + Self.quoted(name) + ");",
+            in: nil, in: WebView.pluginWorld(pluginID), completionHandler: nil)
+    }
+
     // MARK: - tabs API 宿主侧（页面/背景 handler 共用，防两处漂移）
 
     static func tabSnapshot(_ t: Tab, index: Int, active: Bool) -> [String: Any] {
@@ -230,13 +263,16 @@ final class PluginBackgroundRuntime: NSObject {
         return nil
     }
 
-    /// chrome.scripting.executeScript / insertCSS 宿主侧（页面/背景 handler
-    /// 共用）。executeScript 收 code|files[]，insertCSS 收 css|files[]；文件
-    /// 从插件包资源目录读（PluginResources）。target.tabId 缺省 = 调用方所在
-    /// 页（fallbackWebView）。求值一律落该插件的 per-plugin world——内容脚本
-    /// 世界 chrome.* 可用，DOM 共享（insertCSS 建的 <style> 直接落页面）。
+    /// chrome.scripting.executeScript / insertCSS / removeCSS 宿主侧（页面/
+    /// 背景handler 共用）。executeScript 收 code|files[]，insertCSS/removeCSS
+    /// 收 css|files[]；文件从插件包资源目录读（PluginResources）。
+    /// target.tabId 缺省 = 调用方所在页（fallbackWebView）。求值一律落该插件
+    /// 的 per-plugin world——内容脚本世界 chrome.* 可用，DOM 共享（insertCSS
+    /// 建的 <style> 直接落页面）。
+    enum ScriptingOp { case execute, insert, remove }
+
     static func runScripting(details: [String: Any], pluginID: UUID, resourcesPath: String?,
-                             isCSS: Bool, fallbackWebView: WKWebView?,
+                             op: ScriptingOp, fallbackWebView: WKWebView?,
                              completion: @escaping @MainActor (Any?, String?) -> Void) {
         let target = details["target"] as? [String: Any]
         let webview: WKWebView?
@@ -260,26 +296,34 @@ final class PluginBackgroundRuntime: NSObject {
                     try PluginResources.readTextFile(resourcesPath: resourcesPath, relativePath: $0)
                 }
                 code = parts.joined(separator: "\n;\n")
-            } else if isCSS, let css = details["css"] as? String, !css.isEmpty {
+            } else if op != .execute, let css = details["css"] as? String, !css.isEmpty {
                 code = css
             } else if let js = details["code"] as? String, !js.isEmpty {
                 code = js
             } else {
-                completion(nil, isCSS ? "insertCSS requires css or files" : "executeScript requires code or files")
+                let expectation = op == .execute ? "code or files" : "css or files"
+                completion(nil, "scripting.\(op == .execute ? "executeScript" : (op == .insert ? "insertCSS" : "removeCSS")) requires \(expectation)")
                 return
             }
             let finalJS: String
-            if isCSS {
-                // 尾值必须是干净标量：appendChild 返回 DOM 元素，会作为求值
-                // 结果一路传进 reply 的 JSONSerialization（对 ObjC 对象抛的
-                // 是 ObjC 异常 try? 拦不住、进程 abort，实测）——结尾补空串。
-                finalJS = "(function(){var s=document.createElement('style');s.textContent="
-                    + JSString.literal(code) + ";document.head.appendChild(s);})();'';"
-            } else {
+            switch op {
+            case .execute:
                 // 与 PluginStore.inject 同理：world 的 user script 是 webview
                 // 定格的，插件后装时 world 里没有 chrome.*——幂等前置运行时。
                 let runtime = UserScriptLoader.load("webext-api")
-                finalJS = (runtime.isEmpty ? "" : runtime + "\n") + code
+                finalJS = PluginI18N.prologue(resourcesPath: resourcesPath)
+                    + (runtime.isEmpty ? "" : runtime + "\n") + code
+            case .insert:
+                // 标记 + 尾值固定：appendChild 返回 DOM 元素会作为求值结果
+                // 一路传进 reply 的 JSONSerialization（ObjC 异常 abort，实测）。
+                finalJS = "(function(){var s=document.createElement('style');"
+                    + "s.setAttribute('data-desire-ext-css','1');s.textContent="
+                    + JSString.literal(code) + ";document.head.appendChild(s);})();'';"
+            case .remove:
+                // removeCSS：按 css 内容精确匹配本插件标记的 style 元素删除。
+                finalJS = "(function(){var els=document.querySelectorAll('style[data-desire-ext-css]');"
+                    + "var css=" + JSString.literal(code) + ";"
+                    + "for(var i=0;i<els.length;i++){if(els[i].textContent===css&&els[i].parentNode){els[i].parentNode.removeChild(els[i]);}}})();'';"
             }
             webview.evaluateJavaScript(finalJS, in: nil, in: WebView.pluginWorld(pluginID)) { result in
                 switch result {
@@ -535,7 +579,422 @@ final class PluginBackgroundRuntime: NSObject {
         }
     }
 
-    // MARK: - RPC 宿主（background webview 的 chrome.* 后端）
+    // MARK: - RPC 宿主（background/popup webview 的 chrome.* 后端，收口共用）
+
+    /// 宿主 RPC 的**唯一实现**：背景 Coordinator 与 popup Coordinator 全部
+    /// 转发到这里（2026-10-02 审查收口——此前 popup 只有 5 个 case、cookies
+    /// 背景缺失，三面 handler 各自漂移）。页面 handler 保持独立（窗口上下文
+    /// 与回程 world 语义不同）。
+    /// - fallbackWebView：scripting/port 的默认目标（背景页/popup 自身）。
+    /// - reply：回包求值进来源 webview 的 .page world（两处 coordinator 同款）。
+    static func dispatchHostRPC(ns: String, fn: String, args: [Any], pluginID: UUID,
+                                sourceWebView: WKWebView?,
+                                reply: @escaping @MainActor (Any?, String?) -> Void) async {
+        switch (ns, fn) {
+        case ("storage", "get"):
+            reply(WebExtensionStore.get(keys: args.first, ext: pluginID.uuidString), nil)
+        case ("storage", "set"):
+            guard let items = args.first as? [String: Any] else {
+                reply(nil, "storage.set requires an object")
+                return
+            }
+            WebExtensionStore.set(items: items, ext: pluginID.uuidString)
+            // storage.onChanged：updated 全量带旧值查询（见 notifyChange）。
+            WebExtensionStore.notifyChange(ext: pluginID.uuidString, removed: [:], updated: items)
+            reply([:], nil)
+        case ("storage", "remove"):
+            let keys = (args.first as? [Any])?.compactMap { $0 as? String } ?? []
+            var removed: [String: Any] = [:]
+            for key in keys {
+                removed[key] = WebExtensionStore.get(keys: [key], ext: pluginID.uuidString)
+            }
+            WebExtensionStore.remove(keys: keys, ext: pluginID.uuidString)
+            WebExtensionStore.notifyChange(ext: pluginID.uuidString, removed: removed, updated: [:])
+            reply([:], nil)
+        case ("storage", "clear"):
+            let old = WebExtensionStore.get(keys: nil, ext: pluginID.uuidString)
+            WebExtensionStore.clear(ext: pluginID.uuidString)
+            if !old.isEmpty {
+                WebExtensionStore.notifyChange(ext: pluginID.uuidString, removed: old, updated: [:])
+            }
+            reply([:], nil)
+        case ("notifications", "create"):
+            WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
+                reply(result, nil)
+            }
+        case ("notifications", "clear"):
+            let id = args.first as? String ?? ""
+            WebExtensionStore.clearNotifications(id.isEmpty ? [] : [id]) { result in
+                reply(result, nil)
+            }
+        case ("contextMenus", "create"):
+            guard let props = args.first as? [String: Any],
+                  let menuID = (props["id"] as? String) ?? (props["id"] as? NSNumber)?.stringValue else {
+                reply(nil, "contextMenus.create requires props.id")
+                return
+            }
+            let title = props["title"] as? String ?? menuID
+            let contexts = (props["contexts"] as? [String]) ?? ["page"]
+            PluginContextMenuStore.shared.upsert(
+                pluginID: pluginID, menuID: menuID, title: title, contexts: contexts)
+            reply(menuID, nil)
+        case ("contextMenus", "remove"):
+            if let menuID = args.first as? String {
+                PluginContextMenuStore.shared.remove(pluginID: pluginID, menuID: menuID)
+            }
+            reply([:], nil)
+        case ("contextMenus", "removeAll"):
+            PluginContextMenuStore.shared.removeAll(pluginID: pluginID)
+            reply([:], nil)
+        case ("runtime", "sendMessageToTab"):
+            Log.userScripts.info("host rpc: sendMessageToTab \(args.count, privacy: .public) args")
+            // background/popup → 页面：tabId 寻址投递，回复经 sendReply 回本页。
+            guard args.count >= 2,
+                  let tabIDString = args[0] as? String,
+                  let tabUUID = UUID(uuidString: tabIDString) else {
+                reply(nil, "sendMessageToTab requires (tabId, message)")
+                return
+            }
+            // 路由 id 由 JS 生成上送（args[2]），回包按它找回原 Promise。
+            let routedReplyId = (args.count > 2 ? args[2] as? String : nil)
+                ?? "tab-\(UUID().uuidString)"
+            guard let fromWeb = sourceWebView else {
+                reply(nil, "no webview")
+                return
+            }
+            PluginBackgroundRuntime.shared.deliverToTab(
+                tabID: tabUUID, pluginID: pluginID,
+                message: args[1], sender: ["fromBackground": true],
+                replyId: routedReplyId,
+                fromWebView: fromWeb, fromWorld: .page)
+            reply([:], nil)
+        case ("runtime", "sendReply"):
+            // 页面侧 onMessage 的回复回投（background 发起的 sendMessageToTab）。
+            guard args.count >= 2, let envelope = args[1] as? [String: Any] else {
+                reply(nil, "sendReply requires (replyId, envelope)")
+                return
+            }
+            PluginBackgroundRuntime.shared.deliverReply(
+                replyId: args[0] as? String ?? "",
+                ok: (envelope["ok"] as? Bool) == true,
+                reply: envelope["reply"] as Any,
+                noListener: (envelope["noListener"] as? Bool) == true)
+            reply([:], nil)
+        case ("alarms", "create"):
+            guard let a = args.first as? [String: Any],
+                  let name = a["name"] as? String, !name.isEmpty else {
+                reply(nil, "alarms.create requires {name, ...}")
+                return
+            }
+            let when: Date
+            if let mins = a["periodInMinutes"] as? Double, mins > 0 {
+                when = Date().addingTimeInterval(mins * 60)
+            } else if let mins = a["delayInMinutes"] as? Double, mins > 0 {
+                when = Date().addingTimeInterval(mins * 60)
+            } else {
+                when = Date().addingTimeInterval(60)
+            }
+            PluginBackgroundRuntime.shared.setAlarm(pluginID: pluginID, name: name,
+                                                    when: when,
+                                                    periodInMinutes: a["periodInMinutes"] as? Double)
+            reply([:], nil)
+        case ("alarms", "clear"):
+            let name = args.first as? String ?? ""
+            PluginBackgroundRuntime.shared.clearAlarm(pluginID: pluginID, name: name)
+            reply(name.isEmpty ? "cleared all" : "cleared", nil)
+        case ("alarms", "clearAll"):
+            PluginBackgroundRuntime.shared.clearAlarms(pluginID: pluginID)
+            reply([:], nil)
+        case ("alarms", "getAll"):
+            reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID), nil)
+        case ("alarms", "get"):
+            let name = args.first as? String ?? ""
+            reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID)
+                .first(where: { ($0["name"] as? String) == name }) ?? NSNull(), nil)
+        case ("action", "setBadgeText"):
+            // Desire 工具栏图标无 badge 区域——存字段供将来 UI 展示。
+            reply([:], nil)
+        case ("action", "setTitle"):
+            reply([:], nil)
+        case ("windows", "getAll"):
+            let managers = TabSessionCoordinator.shared.liveManagers()
+            var wins: [[String: Any]] = []
+            for (wi, manager) in managers.enumerated() {
+                var tabsList: [[String: Any]] = []
+                for (tidx, t) in manager.tabs.enumerated() {
+                    tabsList.append([
+                        "id": t.id.uuidString, "index": tidx,
+                        "url": t.browser.webView.url?.absoluteString ?? t.urlString,
+                        "title": t.browser.pageTitle,
+                    ])
+                }
+                wins.append(["id": wi, "tabs": tabsList])
+            }
+            reply(wins, nil)
+        case ("windows", "create"):
+            if let url = (args.first as? [String: Any])?["url"] as? String, !url.isEmpty {
+                TabSessionCoordinator.shared.activeTabManager?.addTab(url: url)
+                reply([:], nil)
+            } else {
+                reply(nil, "windows.create requires {url}")
+            }
+        case ("downloads", "download"):
+            guard let a = args.first as? [String: Any],
+                  let urlString = a["url"] as? String, !urlString.isEmpty else {
+                reply(nil, "downloads.download requires url")
+                return
+            }
+            let filename = a["filename"] as? String ?? URL(string: urlString)?.lastPathComponent ?? "download"
+            if let app = AppState.live {
+                app.downloadStore.startURLSessionDownload(
+                    sourceURL: URL(string: urlString) ?? URL(fileURLWithPath: "/dev/null"),
+                    filename: filename, isPrivate: false)
+            }
+            reply([:], nil)
+        case ("downloads", "search"):
+            let rows = AppState.live?.downloadStore.downloads.map { d -> [String: Any] in
+                ["filename": d.filename, "state": d.state.rawValue,
+                 "bytes": d.downloadedBytes] as [String: Any]
+            } ?? []
+            reply(rows, nil)
+        case ("port", "connect"):
+            // background/popup 页发起（对端内容脚本尚未连接，仅登记）。
+            if args.count >= 2, let bgPortId = args[0] as? String, let bgWeb = sourceWebView {
+                PluginBackgroundRuntime.shared.openPortFromBackground(
+                    portId: bgPortId, pluginID: pluginID, backgroundWebView: bgWeb)
+            }
+            reply([:], nil)
+        case ("port", "postMessage"):
+            guard let msgPortId = args.first as? String, let fromWeb = sourceWebView else {
+                reply(nil, "port.postMessage requires portId")
+                return
+            }
+            PluginBackgroundRuntime.shared.portMessage(
+                portId: msgPortId, from: fromWeb,
+                payload: args.count > 1 ? args[1] : NSNull())
+            reply([:], nil)
+        case ("port", "disconnect"):
+            if let msgPortId = args.first as? String, let fromWeb = sourceWebView {
+                PluginBackgroundRuntime.shared.closePort(portId: msgPortId, from: fromWeb)
+            }
+            reply([:], nil)
+        case ("declarativeNetRequest", "updateRules"):
+            // 规则信封从消息体恢复成 JSON 再 decode（args 已是 [Any]）。
+            guard let optionsData = try? JSONSerialization.data(withJSONObject: args.first ?? [:], options: []),
+                  let options = try? JSONDecoder().decode(DNROptions.self, from: optionsData) else {
+                reply(nil, "updateRules requires {addRules, removeRuleIds}")
+                return
+            }
+            let session = (args.count > 1 && (args[1] as? Bool) == true)
+            do {
+                try PluginDNRStore.shared.updateRules(
+                    pluginID: pluginID, add: options.addRules ?? [],
+                    removeIds: options.removeRuleIds ?? [], session: session)
+                reply([:], nil)
+            } catch {
+                reply(nil, error.localizedDescription)
+            }
+        case ("declarativeNetRequest", "getRules"):
+            let session = (args.first as? Bool) == true
+            let dnrRules = PluginDNRStore.shared.getRules(pluginID: pluginID, session: session)
+            // JSONSerialization 不认 Swift struct 数组（DNRRule）——
+            // 经 JSONEncoder 往返成字典，直接塞会 isValid=false → null。
+            let payload = dnrRules.map { rule -> [String: Any] in
+                guard let data = try? JSONEncoder().encode(rule),
+                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return ["id": rule.id]
+                }
+                return object
+            }
+            reply(["rules": payload], nil)
+        case ("tabs", "query"):
+            // background/popup 无窗口上下文——查活动窗口的标签快照（与桥同源）。
+            reply(PluginBackgroundRuntime.tabsSnapshot(TabSessionCoordinator.shared.activeTabManager), nil)
+        case ("tabs", "create"):
+            if let props = args.first as? [String: Any],
+               let url = props["url"] as? String, !url.isEmpty {
+                let tm = TabSessionCoordinator.shared.activeTabManager
+                let previouslySelected = tm?.selectedIndex ?? 0
+                tm?.addTab(url: url)
+                // Chrome 语义：{active: false} 不切走（addTab 默认选中新建）。
+                if (props["active"] as? Bool) == false, let tm, tm.selectedIndex != previouslySelected {
+                    tm.selectTab(at: previouslySelected)
+                }
+                reply([:], nil)
+            } else {
+                reply(nil, "tabs.create requires {url}")
+            }
+        case ("tabs", "remove"):
+            guard let tm = TabSessionCoordinator.shared.activeTabManager else {
+                reply(nil, "no active window")
+                return
+            }
+            let ids: [String]
+            if let single = args.first as? String { ids = [single] }
+            else if let many = args.first as? [String] { ids = many }
+            else { ids = [] }
+            guard !ids.isEmpty else {
+                reply(nil, "tabs.remove requires id(s)")
+                return
+            }
+            // 逐个按 id 现查 index（删一个 index 全动，快照索引会错位）。
+            for idString in ids {
+                if let idx = tm.tabs.firstIndex(where: { $0.id.uuidString == idString }) {
+                    tm.closeTab(at: idx)
+                }
+            }
+            reply([:], nil)
+        case ("tabs", "update"):
+            guard let props = args.count > 1 ? args[1] as? [String: Any] : nil else {
+                reply(nil, "tabs.update requires (tabId, props)")
+                return
+            }
+            if let err = PluginBackgroundRuntime.updateTab(TabSessionCoordinator.shared.activeTabManager,
+                                        tabIDString: args.first as? String, props: props) {
+                reply(nil, err)
+            } else {
+                reply([:], nil)
+            }
+        case ("tabs", "get"):
+            if let hit = PluginBackgroundRuntime.findTab(TabSessionCoordinator.shared.activeTabManager,
+                                      args.first as? String) {
+                reply(PluginBackgroundRuntime.tabSnapshot(hit.tab, index: hit.index,
+                                       active: hit.index == TabSessionCoordinator.shared.activeTabManager?.selectedIndex), nil)
+            } else {
+                reply(nil, "no such tab")
+            }
+        case ("tabs", "reload"):
+            if let err = PluginBackgroundRuntime.reloadTab(TabSessionCoordinator.shared.activeTabManager,
+                                        tabIDString: args.first as? String) {
+                reply(nil, err)
+            } else {
+                reply([:], nil)
+            }
+        case ("tabs", "connect"):
+            // 背景发起的长连接，对端 = 该 tab 的内容脚本（runtime.onConnect 收）。
+            guard args.count >= 2, let tabIDString = args[0] as? String,
+                  let tabUUID = UUID(uuidString: tabIDString),
+                  let portId = args[1] as? String else {
+                reply(nil, "tabs.connect requires (tabId, portId)")
+                return
+            }
+            let name = (args.count > 2 ? args[2] as? String : nil) ?? ""
+            guard let target = webview(for: tabUUID) else {
+                reply(nil, "no such tab")
+                return
+            }
+            PluginBackgroundRuntime.shared.connectPortToTab(
+                portId: portId, name: name, pluginID: pluginID,
+                tabWebView: target, fromBackground: sourceWebView)
+            reply([:], nil)
+        case ("scripting", "executeScript"), ("scripting", "insertCSS"), ("scripting", "removeCSS"):
+            guard let details = args.first as? [String: Any] else {
+                reply(nil, "scripting requires details")
+                return
+            }
+            guard let sourceWeb = sourceWebView else {
+                reply(nil, "no webview")
+                return
+            }
+            let op: ScriptingOp = fn == "executeScript" ? .execute : (fn == "insertCSS" ? .insert : .remove)
+            PluginBackgroundRuntime.runScripting(
+                details: details, pluginID: pluginID,
+                resourcesPath: PluginBackgroundRuntime.shared.resourcesPath(for: pluginID),
+                op: op, fallbackWebView: sourceWeb) { value, error in
+                reply(value, error)
+            }
+        case ("cookies", "getAll"), ("cookies", "get"), ("cookies", "set"), ("cookies", "remove"):
+            // 背景/popup 无标签上下文——默认（非无痕）cookie 存储。
+            await Self.dispatchCookies(fn: fn, args: args, reply: reply)
+        default:
+            reply(nil, "background runtime: unknown \(ns).\(fn)")
+        }
+    }
+
+    /// allCookies 的 async 包装（SDK 回调式 API；allCookies() 属性会触发
+    /// "consider using asynchronous alternative function" 警告）。
+    private static func allCookies(_ store: WKHTTPCookieStore) async -> [HTTPCookie] {
+        await withCheckedContinuation { continuation in
+            store.getAllCookies { cookies in
+                continuation.resume(returning: cookies)
+            }
+        }
+    }
+
+    /// cookies 三件套（默认存储版；页面 handler 用所在标签的存储，含无痕）。
+    private static func dispatchCookies(fn: String, args: [Any],
+                                        reply: @escaping @MainActor (Any?, String?) -> Void) async {
+        let cookieStore = WKWebsiteDataStore.default().httpCookieStore
+        switch fn {
+        case "getAll":
+            let filterURL = (args.first as? [String: Any])?["url"]
+                .flatMap { $0 as? String }.flatMap { URL(string: $0) }
+            let cookies = await Self.allCookies(cookieStore)
+            var list: [[String: Any]] = []
+            for c in cookies {
+                if let fu = filterURL {
+                    guard c.domain.hasSuffix(fu.host ?? "#") || fu.host?.hasSuffix(c.domain) == true else { continue }
+                }
+                list.append(["domain": c.domain, "name": c.name, "value": c.value,
+                             "path": c.path, "secure": c.isSecure])
+            }
+            reply(list, nil)
+        case "get":
+            guard let details = args.first as? [String: Any],
+                  let name = details["name"] as? String else {
+                reply(nil, "cookies.get requires name")
+                return
+            }
+            let cookies = await Self.allCookies(cookieStore)
+            let hit = cookies.first { $0.name == name }
+            reply(hit.map { ["domain": $0.domain, "name": $0.name,
+                             "value": $0.value, "path": $0.path] } ?? NSNull(), nil)
+        case "remove":
+            guard let rmDetails = args.first as? [String: Any],
+                  let rmName = rmDetails["name"] as? String else {
+                reply(nil, "cookies.remove requires name")
+                return
+            }
+            let allCookies = await Self.allCookies(cookieStore)
+            for cookie in allCookies where cookie.name == rmName {
+                // delete 的同步/async 重载决议歧义（两条互斥警告）——
+                // 显式走 completion 形式。
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    cookieStore.delete(cookie) { cont.resume() }
+                }
+            }
+            reply([:], nil)
+        default: // set
+            guard let details = args.first as? [String: Any],
+                  let name = details["name"] as? String,
+                  let value = details["value"] as? String else {
+                reply(nil, "cookies.set requires name/value")
+                return
+            }
+            // Chrome 语义：domain 可省——从 url 的 host 推导。
+            let domain: String
+            if let explicit = details["domain"] as? String, !explicit.isEmpty {
+                domain = explicit
+            } else if let urlString = details["url"] as? String,
+                      let host = URL(string: urlString)?.host {
+                domain = host
+            } else {
+                reply(nil, "cookies.set requires url or domain")
+                return
+            }
+            let props = [HTTPCookiePropertyKey.domain: domain,
+                         HTTPCookiePropertyKey.name: name,
+                         HTTPCookiePropertyKey.value: value,
+                         HTTPCookiePropertyKey.path: details["path"] as? String ?? "/",
+                         HTTPCookiePropertyKey.secure: "1"]
+            if let cookie = HTTPCookie(properties: props) {
+                await cookieStore.setCookie(cookie)
+                reply([:], nil)
+            } else {
+                reply(nil, "cookie construction failed")
+            }
+        }
+    }
 
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler {
@@ -606,200 +1065,6 @@ final class PluginBackgroundRuntime: NSObject {
             }
 
             switch (ns, fn) {
-            case ("storage", "get"):
-                reply(WebExtensionStore.get(keys: args.first, ext: pluginID.uuidString))
-            case ("storage", "set"):
-                guard let items = args.first as? [String: Any] else {
-                    reply(nil, error: "storage.set requires an object")
-                    return
-                }
-                WebExtensionStore.set(items: items, ext: pluginID.uuidString)
-                reply([:])
-            case ("storage", "remove"):
-                let keys = (args.first as? [Any])?.compactMap { $0 as? String } ?? []
-                WebExtensionStore.remove(keys: keys, ext: pluginID.uuidString)
-                reply([:])
-            case ("storage", "clear"):
-                WebExtensionStore.clear(ext: pluginID.uuidString)
-                reply([:])
-            case ("notifications", "create"):
-                WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
-                    reply(result)
-                }
-            case ("contextMenus", "create"):
-                guard let props = args.first as? [String: Any],
-                      let menuID = (props["id"] as? String) ?? (props["id"] as? NSNumber)?.stringValue else {
-                    reply(nil, error: "contextMenus.create requires props.id")
-                    return
-                }
-                let title = props["title"] as? String ?? menuID
-                let contexts = (props["contexts"] as? [String]) ?? ["page"]
-                PluginContextMenuStore.shared.upsert(
-                    pluginID: pluginID, menuID: menuID, title: title, contexts: contexts)
-                reply(menuID)
-            case ("contextMenus", "remove"):
-                if let menuID = args.first as? String {
-                    PluginContextMenuStore.shared.remove(pluginID: pluginID, menuID: menuID)
-                }
-                reply([:])
-            case ("contextMenus", "removeAll"):
-                PluginContextMenuStore.shared.removeAll(pluginID: pluginID)
-                reply([:])
-            case ("runtime", "sendMessageToTab"):
-                Log.userScripts.info("bg handler: sendMessageToTab \(args.count, privacy: .public) args")
-                // background/popup → 页面：tabId 寻址投递，回复经 sendReply 回本页。
-                guard args.count >= 2,
-                      let tabIDString = args[0] as? String,
-                      let tabUUID = UUID(uuidString: tabIDString) else {
-                    reply(nil, error: "sendMessageToTab requires (tabId, message)")
-                    return
-                }
-                // 路由 id 由 JS 生成上送（args[2]），回包按它找回原 Promise。
-                let routedReplyId = (args.count > 2 ? args[2] as? String : nil)
-                    ?? "tab-\(id ?? 0)-\(UUID().uuidString)"
-                guard let fromWeb = message.webView else {
-                    reply(nil, error: "no webview")
-                    return
-                }
-                PluginBackgroundRuntime.shared.deliverToTab(
-                    tabID: tabUUID, pluginID: pluginID,
-                    message: args[1], sender: ["fromBackground": true],
-                    replyId: routedReplyId,
-                    fromWebView: fromWeb, fromWorld: .page)
-                reply([:])
-            case ("runtime", "sendReply"):
-                // 页面侧 onMessage 的回复回投（background 发起的 sendMessageToTab）。
-                guard args.count >= 2, let envelope = args[1] as? [String: Any] else {
-                    reply(nil, error: "sendReply requires (replyId, envelope)")
-                    return
-                }
-                PluginBackgroundRuntime.shared.deliverReply(
-                    replyId: args[0] as? String ?? "",
-                    ok: (envelope["ok"] as? Bool) == true,
-                    reply: envelope["reply"] as Any,
-                    noListener: (envelope["noListener"] as? Bool) == true)
-                reply([:])
-            case ("alarms", "create"):
-                guard let a = args.first as? [String: Any],
-                      let name = a["name"] as? String, !name.isEmpty else {
-                    reply(nil, error: "alarms.create requires {name, ...}")
-                    return
-                }
-                let when: Date
-                if let mins = a["periodInMinutes"] as? Double, mins > 0 {
-                    when = Date().addingTimeInterval(mins * 60)
-                } else if let mins = a["delayInMinutes"] as? Double, mins > 0 {
-                    when = Date().addingTimeInterval(mins * 60)
-                } else {
-                    when = Date().addingTimeInterval(60)
-                }
-                PluginBackgroundRuntime.shared.setAlarm(pluginID: pluginID, name: name,
-                                                        when: when,
-                                                        periodInMinutes: a["periodInMinutes"] as? Double)
-                reply([:])
-            case ("alarms", "clear"):
-                let name = args.first as? String ?? ""
-                PluginBackgroundRuntime.shared.clearAlarm(pluginID: pluginID, name: name)
-                reply(name.isEmpty ? "cleared all" : "cleared")
-            case ("alarms", "clearAll"):
-                PluginBackgroundRuntime.shared.clearAlarms(pluginID: pluginID)
-                reply([:])
-            case ("alarms", "getAll"):
-                reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID))
-            case ("alarms", "get"):
-                let name = args.first as? String ?? ""
-                reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID)
-                    .first(where: { ($0["name"] as? String) == name }) ?? NSNull())
-            case ("action", "setBadgeText"):
-                // Desire 工具栏图标无 badge 区域——存字段供将来 UI 展示。
-                reply([:])
-            case ("action", "setTitle"):
-                reply([:])
-            case ("windows", "getAll"):
-                let managers = TabSessionCoordinator.shared.liveManagers()
-                var wins: [[String: Any]] = []
-                for (wi, manager) in managers.enumerated() {
-                    var tabsList: [[String: Any]] = []
-                    for (tidx, t) in manager.tabs.enumerated() {
-                        tabsList.append([
-                            "id": t.id.uuidString, "index": tidx,
-                            "url": t.browser.webView.url?.absoluteString ?? t.urlString,
-                            "title": t.browser.pageTitle,
-                        ])
-                    }
-                    wins.append(["id": wi, "tabs": tabsList])
-                }
-                reply(wins)
-            case ("downloads", "download"):
-                guard let a = args.first as? [String: Any],
-                      let urlString = a["url"] as? String, !urlString.isEmpty else {
-                    reply(nil, error: "downloads.download requires url")
-                    return
-                }
-                let filename = a["filename"] as? String ?? URL(string: urlString)?.lastPathComponent ?? "download"
-                if let app = AppState.live {
-                    app.downloadStore.startURLSessionDownload(
-                        sourceURL: URL(string: urlString) ?? URL(fileURLWithPath: "/dev/null"),
-                        filename: filename, isPrivate: false)
-                }
-                reply([:])
-            case ("downloads", "search"):
-                let rows = AppState.live?.downloadStore.downloads.map { d -> [String: Any] in
-                    ["filename": d.filename, "state": d.state.rawValue,
-                     "bytes": d.downloadedBytes] as [String: Any]
-                } ?? []
-                reply(rows)
-            case ("port", "connect"):
-                // background 页发起（对端内容脚本尚未连接，仅登记）。
-                if args.count >= 2, let bgPortId = args[0] as? String,
-                   let bgWeb = message.webView {
-                    PluginBackgroundRuntime.shared.openPortFromBackground(
-                        portId: bgPortId, pluginID: pluginID, backgroundWebView: bgWeb)
-                }
-                reply([:])
-            case ("port", "postMessage"):
-                guard let msgPortId = args.first as? String, let fromWeb = message.webView else {
-                    reply(nil, error: "port.postMessage requires portId")
-                    return
-                }
-                PluginBackgroundRuntime.shared.portMessage(
-                    portId: msgPortId, from: fromWeb,
-                    payload: args.count > 1 ? args[1] : NSNull())
-                reply([:])
-            case ("port", "disconnect"):
-                if let msgPortId = args.first as? String, let fromWeb = message.webView {
-                    PluginBackgroundRuntime.shared.closePort(portId: msgPortId, from: fromWeb)
-                }
-                reply([:])
-            case ("declarativeNetRequest", "updateRules"):
-                // 规则信封从消息体恢复成 JSON 再 decode（args 已是 [Any]）。
-                guard let optionsData = try? JSONSerialization.data(withJSONObject: args.first ?? [:], options: []),
-                      let options = try? JSONDecoder().decode(DNROptions.self, from: optionsData) else {
-                    reply(nil, error: "updateRules requires {addRules, removeRuleIds}")
-                    return
-                }
-                let session = (args.count > 1 && (args[1] as? Bool) == true)
-                do {
-                    try PluginDNRStore.shared.updateRules(
-                        pluginID: pluginID, add: options.addRules ?? [],
-                        removeIds: options.removeRuleIds ?? [], session: session)
-                    reply([:])
-                } catch {
-                    reply(nil, error: error.localizedDescription)
-                }
-            case ("declarativeNetRequest", "getRules"):
-                let session = (args.first as? Bool) == true
-                let dnrRules = PluginDNRStore.shared.getRules(pluginID: pluginID, session: session)
-                // JSONSerialization 不认 Swift struct 数组（DNRRule）——
-                // 经 JSONEncoder 往返成字典，直接塞会 isValid=false → null。
-                let payload = dnrRules.map { rule -> [String: Any] in
-                    guard let data = try? JSONEncoder().encode(rule),
-                          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                        return ["id": rule.id]
-                    }
-                    return object
-                }
-                reply(["rules": payload])
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，
                 // 宿主派发时直接 evaluate 进来。**但 fireAll 按登记过滤**
@@ -818,80 +1083,15 @@ final class PluginBackgroundRuntime: NSObject {
                     Log.userScripts.info("plugin background started: \(self.pluginID.uuidString.prefix(8), privacy: .public)")
                 }
                 reply([:])
-            case ("tabs", "query"):
-                // background 无窗口上下文——查活动窗口的标签快照（与桥同源）。
-                reply(PluginBackgroundRuntime.tabsSnapshot(TabSessionCoordinator.shared.activeTabManager))
-            case ("tabs", "create"):
-                if let url = (args.first as? [String: Any])?["url"] as? String, !url.isEmpty {
-                    TabSessionCoordinator.shared.activeTabManager?.addTab(url: url)
-                    reply([:])
-                } else {
-                    reply(nil, error: "tabs.create requires {url}")
-                }
-            case ("tabs", "remove"):
-                guard let tm = TabSessionCoordinator.shared.activeTabManager else {
-                    reply(nil, error: "no active window")
-                    return
-                }
-                let ids: [String]
-                if let single = args.first as? String { ids = [single] }
-                else if let many = args.first as? [String] { ids = many }
-                else { ids = [] }
-                guard !ids.isEmpty else {
-                    reply(nil, error: "tabs.remove requires id(s)")
-                    return
-                }
-                // 逐个按 id 现查 index（删一个 index 全动，快照索引会错位）。
-                for idString in ids {
-                    if let idx = tm.tabs.firstIndex(where: { $0.id.uuidString == idString }) {
-                        tm.closeTab(at: idx)
-                    }
-                }
-                reply([:])
-            case ("tabs", "update"):
-                guard let props = args.count > 1 ? args[1] as? [String: Any] : nil else {
-                    reply(nil, error: "tabs.update requires (tabId, props)")
-                    return
-                }
-                if let err = PluginBackgroundRuntime.updateTab(TabSessionCoordinator.shared.activeTabManager,
-                                            tabIDString: args.first as? String, props: props) {
-                    reply(nil, error: err)
-                } else {
-                    reply([:])
-                }
-            case ("tabs", "get"):
-                if let hit = PluginBackgroundRuntime.findTab(TabSessionCoordinator.shared.activeTabManager,
-                                          args.first as? String) {
-                    reply(PluginBackgroundRuntime.tabSnapshot(hit.tab, index: hit.index,
-                                           active: hit.index == TabSessionCoordinator.shared.activeTabManager?.selectedIndex))
-                } else {
-                    reply(nil, error: "no such tab")
-                }
-            case ("tabs", "reload"):
-                if let err = PluginBackgroundRuntime.reloadTab(TabSessionCoordinator.shared.activeTabManager,
-                                            tabIDString: args.first as? String) {
-                    reply(nil, error: err)
-                } else {
-                    reply([:])
-                }
-            case ("scripting", "executeScript"), ("scripting", "insertCSS"):
-                guard let details = args.first as? [String: Any] else {
-                    reply(nil, error: "scripting requires details")
-                    return
-                }
-                guard let bgWeb = message.webView else {
-                    reply(nil, error: "no webview")
-                    return
-                }
-                let isCSS = fn == "insertCSS"
-                PluginBackgroundRuntime.runScripting(
-                    details: details, pluginID: pluginID,
-                    resourcesPath: PluginBackgroundRuntime.shared.resourcesPath(for: pluginID),
-                    isCSS: isCSS, fallbackWebView: bgWeb) { value, error in
-                    reply(value, error: error)
-                }
             default:
-                reply(nil, error: "background runtime: unknown \(ns).\(fn)")
+                // 宿主 RPC 收口（2026-10-02 审查）：背景/来源页面之外的
+                // 全部 case 与 **popup handler 共用同一份实现**——此前 popup
+                // 只有 5 个 case、cookies 背景缺失，三面各自漂移。
+                await PluginBackgroundRuntime.dispatchHostRPC(
+                    ns: ns, fn: fn, args: args, pluginID: pluginID,
+                    sourceWebView: message.webView) { payload, error in
+                    reply(payload, error: error)
+                }
             }
         }
     }

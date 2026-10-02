@@ -1021,6 +1021,29 @@ func testDNRConverter() {
 }
 testDNRConverter()
 
+// ---------- PluginI18N：占位替换 + locale 选择 ----------
+
+func testPluginI18N() {
+    check("$1 基本替换", PluginI18N.substitute("Hi $1", ["A"]) == "Hi A")
+    // 旧实现顺序 replace 的 bug：$1 会吃掉 $10 的前缀产出 "a-a0"。
+    check("$1 不吃 $10 前缀（无第 10 实参保留原文）",
+          PluginI18N.substitute("$1-$10", ["a", "b"]) == "a-$10")
+    check("多占位混合", PluginI18N.substitute("$2/$1/$3", ["x", "y", "z"]) == "y/x/z")
+    check("无 substitutions 时模板原样", PluginI18N.substitute("Hi $1", []) == "Hi $1")
+    let tables = [
+        "zh-cn": ["greet": "你好"],
+        "en": ["greet": "Hello"],
+        "fr": ["greet": "Bonjour"],
+    ]
+    check("精确 locale 命中", PluginI18N.pickTable(from: tables, preferred: ["zh-CN"])["greet"] == "你好")
+    check("语言前缀命中（en-US → en）",
+          PluginI18N.pickTable(from: tables, preferred: ["en-US"])["greet"] == "Hello")
+    check("en 兜底", PluginI18N.pickTable(from: tables, preferred: ["ja-JP"])["greet"] == "Hello")
+    check("首个目录兜底",
+          PluginI18N.pickTable(from: ["fr": ["greet": "Bonjour"]], preferred: ["ja-JP"])["greet"] == "Bonjour")
+}
+testPluginI18N()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

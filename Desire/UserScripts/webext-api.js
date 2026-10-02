@@ -85,7 +85,9 @@
                 var l = listeners[name] || [];
                 var i = l.indexOf(cb);
                 if (i >= 0) l.splice(i, 1);
-            }
+            },
+            hasListener: function(cb) { return (listeners[name] || []).indexOf(cb) >= 0; },
+            hasListeners: function() { return (listeners[name] || []).length > 0; }
         };
     }
 
@@ -98,6 +100,8 @@
             },
             clear: function() { return rpc("storage", "clear", []); }
         },
+        // onChanged(changes, areaName)——宿主在本插件 background 页派发。
+        onChanged: eventAPI("storage.onChanged"),
         // sync：Desire 暂无跨设备插件数据通道——别名到 local（Firefox 早期
         // 同款降级；保证依赖 storage.sync 的扩展能跑，语义略降级为本地）。
         sync: null
@@ -119,6 +123,15 @@
         // 宿主侧 case 名是 ("runtime","sendMessageToTab")（背景页同一份 rpc）。
         sendMessage: function(tabId, msg) {
             return rpc("runtime", "sendMessageToTab", [tabId, msg === undefined ? null : msg]);
+        },
+        // 背景发起的长连接（对端 = 该 tab 的内容脚本，runtime.onConnect 收）。
+        connect: function(tabId, info) {
+            var portId = "port-" + Date.now().toString(36) + "-" + (++seq);
+            window.webkit.messageHandlers.desireExt.postMessage({
+                ns: "tabs", fn: "connect", args: [String(tabId), portId, (info && info.name) || ""],
+                ext: window.__desireExtID || null
+            });
+            return makePort((info && info.name) || "", portId);
         },
         onMessage: tabsOnMessage
     };
@@ -195,7 +208,8 @@
     // Port 长连接：connect() → onConnect（background 侧）；两边都拿 Port 对象
     // {name, postMessage, onMessage, disconnect}。底层走宿主路由（portId 寻址）。
     function makePort(name, portId) {
-        return {
+        var disconnectCbs = [];
+        var port = {
             name: name,
             postMessage: function(msg) {
                 window.webkit.messageHandlers.desireExt.postMessage({
@@ -204,6 +218,8 @@
                 });
             },
             disconnect: function() {
+                // 本端主动断开：先本地 onDisconnect（Chrome 语义），再通知宿主拆对端。
+                port._fireDisconnect();
                 window.webkit.messageHandlers.desireExt.postMessage({
                     ns: "port", fn: "disconnect", args: [portId],
                     ext: window.__desireExtID || null
@@ -218,10 +234,27 @@
                     var l = window.__desireExt._portListeners[portId] || [];
                     var i = l.indexOf(cb); if (i >= 0) l.splice(i, 1);
                 }
+            },
+            onDisconnect: {
+                addListener: function(cb) { disconnectCbs.push(cb); },
+                removeListener: function(cb) {
+                    var i = disconnectCbs.indexOf(cb); if (i >= 0) disconnectCbs.splice(i, 1);
+                }
+            },
+            _fireDisconnect: function() {
+                var ls = disconnectCbs.slice();
+                disconnectCbs.length = 0;
+                delete window.__desireExt._ports[portId];
+                for (var i = 0; i < ls.length; i++) { try { ls[i](port); } catch (e) {} }
             }
         };
+        // 注册表：宿主 _portDisconnected 按它找到端口对象并触发 onDisconnect。
+        window.__desireExt._ports[portId] = port;
+        return port;
     }
     window.__desireExt._portListeners = window.__desireExt._portListeners || {};
+    // 端口对象注册表（_portDisconnected 按它找到端口并触发 onDisconnect）。
+    window.__desireExt._ports = window.__desireExt._ports || {};
     // 宿主投递 port 消息/断开的入口。
     window.__desireExt._portMessage = function(portId, msg) {
         var l = window.__desireExt._portListeners[portId] || [];
@@ -230,12 +263,26 @@
         }
     };
     window.__desireExt._portDisconnected = function(portId) {
+        // 对端断开：清消息监听**并**触发本端 onDisconnect（Chrome 语义——
+        // 此前只删表，onDisconnect 回调永远不响）。
         delete window.__desireExt._portListeners[portId];
+        var port = window.__desireExt._ports && window.__desireExt._ports[portId];
+        if (port) port._fireDisconnect();
     };
     // 宿主 → 本页（background 场景）：页面 connect 了，投递 onConnect(port)。
+    // **页面还没有 onConnect 监听**（内容脚本未注入/未注册）：立即回报
+    // disconnect——Chrome 语义（connect 端马上收到 onDisconnect +
+    // "Could not establish connection"，扩展靠它判断内容脚本是否在）。
     window.__desireExt._portConnect = function(portId, name) {
         var cb = window.__desireExt._onConnectCb;
-        if (cb) try { cb(makePort(name, portId)); } catch (e) {}
+        if (!cb) {
+            window.webkit.messageHandlers.desireExt.postMessage({
+                ns: "port", fn: "disconnect", args: [portId],
+                ext: window.__desireExtID || null
+            });
+            return;
+        }
+        try { cb(makePort(name, portId)); } catch (e) {}
     };
 
     var runtime = {
@@ -275,7 +322,8 @@
         onClicked: eventAPI("contextMenus.onClicked")
     };
     var notifications = {
-        create: function(options) { return rpc("notifications", "create", [options || {}]); }
+        create: function(options) { return rpc("notifications", "create", [options || {}]); },
+        clear: function(id) { return rpc("notifications", "clear", [id === undefined ? null : String(id)]); }
     };
     var alarms = {
         create: function(name, info) { return rpc("alarms", "create", [name || "", info || {}]); },
@@ -289,7 +337,9 @@
     // 资源目录（manifest 包装载时整包拷入；手写插件无文件，files[] 报错）。
     var scripting = {
         executeScript: function(details) { return rpc("scripting", "executeScript", [details || {}]); },
-        insertCSS: function(details) { return rpc("scripting", "insertCSS", [details || {}]); }
+        insertCSS: function(details) { return rpc("scripting", "insertCSS", [details || {}]); },
+        // insertCSS 的配对移除（按 css 内容匹配带标记的 style 元素）。
+        removeCSS: function(details) { return rpc("scripting", "removeCSS", [details || {}]); }
     };
     // declarativeNetRequest：规则集交宿主编译进 WebKit content blocker
     //（modifyHeaders/requestDomains 等表达不了的规则宿主逐条丢弃，不整包失败）。
@@ -303,9 +353,17 @@
         getDynamicRules: function() { return rpc("declarativeNetRequest", "getRules", [false]); },
         getSessionRules: function() { return rpc("declarativeNetRequest", "getRules", [true]); }
     };
-    // MV3 观察语义（无阻塞回调）：宿主把每个网络请求 start 派发进来。
+    // MV3 观察语义（无阻塞回调）：宿主把每个网络请求 start/complete 派发进来。
     var webRequest = {
-        onBeforeRequest: eventAPI("webRequest.onBeforeRequest")
+        onBeforeRequest: eventAPI("webRequest.onBeforeRequest"),
+        onCompleted: eventAPI("webRequest.onCompleted")
+    };
+    // cookies（背景/页面 handler 均有宿主实现；remove 宿主按 url+name 删）。
+    var cookies = {
+        getAll: function(details) { return rpc("cookies", "getAll", [details || {}]); },
+        get: function(details) { return rpc("cookies", "get", [details || {}]); },
+        set: function(details) { return rpc("cookies", "set", [details || {}]); },
+        remove: function(details) { return rpc("cookies", "remove", [details || {}]); }
     };
     var action = {
         setBadgeText: function(details) { return rpc("action", "setBadgeText", [details || {}]); },
@@ -319,16 +377,26 @@
         download: function(options) { return rpc("downloads", "download", [options || {}]); },
         search: function(query) { return rpc("downloads", "search", [query || {}]); }
     };
-    // i18n：宿主侧无 _locales 数据库（插件包内容未持久化文件系统），按
-    // Chrome 无翻译时的 fallback 语义返回 key 本身；substitutions 占位替换。
+    // i18n：宿主在注入 prologue 里内联本插件的 _locales 表
+    //（window.__desireI18N，PluginI18N 生成）——getMessage 是同步 API。
+    // 无表（手写插件）保持旧降级返回 key 本身；有表缺键 = Chrome 语义空串。
     var i18n = {
         getMessage: function(key, substitutions) {
-            var text = key || "";
-            if (substitutions) {
+            var table = window.__desireI18N || null;
+            var text;
+            if (table && Object.prototype.hasOwnProperty.call(table, String(key))) {
+                text = table[String(key)];
+            } else if (!table) {
+                text = key || "";
+            } else {
+                text = "";
+            }
+            if (text && substitutions !== undefined) {
                 var subs = Array.isArray(substitutions) ? substitutions : [substitutions];
-                for (var i = 0; i < subs.length; i++) {
-                    text = text.split("$" + (i + 1)).join(String(subs[i]));
-                }
+                text = text.replace(/\$(\d+)/g, function(match, digits) {
+                    var idx = parseInt(digits, 10) - 1;
+                    return idx >= 0 && idx < subs.length ? String(subs[idx]) : match;
+                });
             }
             return text;
         },
@@ -340,6 +408,7 @@
         contextMenus: contextMenus, alarms: alarms, action: action,
         windows: windows, downloads: downloads, i18n: i18n, scripting: scripting,
         declarativeNetRequest: declarativeNetRequest, webRequest: webRequest,
+        cookies: cookies,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -358,4 +427,5 @@
     if (!chrome.scripting) chrome.scripting = scripting;
     if (!chrome.declarativeNetRequest) chrome.declarativeNetRequest = declarativeNetRequest;
     if (!chrome.webRequest) chrome.webRequest = webRequest;
+    if (!chrome.cookies) chrome.cookies = cookies;
 })();

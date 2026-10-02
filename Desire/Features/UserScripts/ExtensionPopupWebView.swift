@@ -32,7 +32,8 @@ struct ExtensionPopupWebView: NSViewRepresentable {
         let runtime = UserScriptLoader.load("webext-api")
         if !runtime.isEmpty {
             content.addUserScript(WKUserScript(
-                source: runtime + "\nwindow.__desireExtID = '\(plugin.id.uuidString)';",
+                source: PluginI18N.prologue(resourcesPath: plugin.resourcesPath)
+                    + runtime + "\nwindow.__desireExtID = '\(plugin.id.uuidString)';",
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true,
                 in: .page))
@@ -96,42 +97,17 @@ struct ExtensionPopupWebView: NSViewRepresentable {
                     in: nil, in: .page, completionHandler: nil)
             }
 
-            switch (ns, fn) {
-            case ("storage", "get"):
-                reply(WebExtensionStore.get(keys: args.first, ext: pluginID))
-            case ("storage", "set"):
-                guard let items = args.first as? [String: Any] else {
-                    reply(nil, error: "storage.set requires an object")
-                    return
+            // 宿主 RPC 收口（2026-10-02 审查）：popup 与背景页共用同一份
+            // 实现（此前 popup 只有 storage/notifications/tabs.query 五个
+            // case，扩展主 UI 调 tabs/runtime/i18n 全挂）。
+            let popupUUID = UUID(uuidString: pluginID) ?? UUID()
+            let popupReply = reply
+            Task { @MainActor in
+                await PluginBackgroundRuntime.dispatchHostRPC(
+                    ns: ns, fn: fn, args: args, pluginID: popupUUID,
+                    sourceWebView: message.webView) { payload, error in
+                    popupReply(payload, error)
                 }
-                WebExtensionStore.set(items: items, ext: pluginID)
-                reply([:])
-            case ("storage", "remove"):
-                let keys = (args.first as? [Any])?.compactMap { $0 as? String } ?? []
-                WebExtensionStore.remove(keys: keys, ext: pluginID)
-                reply([:])
-            case ("storage", "clear"):
-                WebExtensionStore.clear(ext: pluginID)
-                reply([:])
-            case ("notifications", "create"):
-                WebExtensionStore.createNotification(args.first as? [String: Any] ?? [:]) { result in
-                    reply(result)
-                }
-            case ("tabs", "query"):
-                // R4-7：trove-bookmark 登录页需要当前标签（active tab 的 URL）。
-                let tm = TabSessionCoordinator.shared.activeTabManager
-                let tabs: [[String: Any]] = tm?.tabs.enumerated().map { index, t in
-                    [
-                        "id": t.id.uuidString,
-                        "index": index,
-                        "url": t.browser.webView.url?.absoluteString ?? t.urlString,
-                        "title": t.browser.pageTitle,
-                        "active": index == tm?.selectedIndex,
-                    ] as [String: Any]
-                } ?? []
-                reply(tabs)
-            default:
-                reply(nil, error: "popup v1 supports storage/notifications/tabs.query only (got \(ns).\(fn))")
             }
         }
     }

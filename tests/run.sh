@@ -26,6 +26,7 @@ SOURCES=(
   Desire/Features/UserScripts/PluginResources.swift
   Desire/Features/UserScripts/DNRRule.swift
   Desire/Features/UserScripts/DNRConverter.swift
+  Desire/Features/UserScripts/PluginI18N.swift
   Desire/Features/ReadingList/ReadingListItem.swift
   Desire/Features/Sync/SyncModels.swift
   Desire/Features/Agent/Memory/MemoryModels.swift

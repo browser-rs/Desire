@@ -43,6 +43,8 @@ enum PluginResources {
             throw ResourcesError.tooLarge(bytes)
         }
         try fm.copyItem(at: sourceDir, to: target)
+        // i18n 表缓存随重装失效（同目录名复用）。
+        PluginI18N.invalidate(resourcesPath: pluginID.uuidString)
         return pluginID.uuidString
     }
 
@@ -51,6 +53,7 @@ enum PluginResources {
         guard let resourcesPath, !resourcesPath.isEmpty else { return }
         let target = baseDirectory.appendingPathComponent(resourcesPath, isDirectory: true)
         try? FileManager.default.removeItem(at: target)
+        PluginI18N.invalidate(resourcesPath: resourcesPath)
     }
 
     static func directory(for resourcesPath: String?) -> URL? {

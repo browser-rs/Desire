@@ -107,11 +107,13 @@ class PluginStore: ObservableObject {
             // document_end 包一层 60ms 延时再跑插件体，否则 runtime.sendMessage/
             // connect 的首发消息必丢。document_idle 原有 200ms 天然安全。
             let delay = runAt == .documentIdle ? 200 : (runAt == .documentEnd ? 60 : 0)
-            // 前置：插件身份 + **webext-api 运行时**。user script 是 webview
-            // 定格的——插件装在 webview 创建之后就只有这条路能保证该 world
-            // 里有 chrome.*（脚本自带 __desireExt 防重入，幂等）。
+            // 前置：插件身份 + **webext-api 运行时** + **i18n 表**（_locales
+            // 内联，getMessage 同步查表）。user script 是 webview 定格的——
+            // 插件装在 webview 创建之后就只有这条路能保证该 world 里有
+            // chrome.*（脚本自带 __desireExt 防重入，幂等）。
             let runtime = UserScriptLoader.load("webext-api")
-            let prologue = (runtime.isEmpty ? "" : runtime + "\n")
+            let prologue = PluginI18N.prologue(resourcesPath: plugin.resourcesPath)
+                + (runtime.isEmpty ? "" : runtime + "\n")
                 + "window.__desireExtID = '\(plugin.id.uuidString)';\n"
             if delay > 0 {
                 // ⚠️ 这里是**函数体**位置，不是字符串字面量——做过一段时间的

@@ -69,8 +69,15 @@ enum MSExInstaller {
         guard let name = manifest["name"] as? String, !name.isEmpty else {
             throw MSExError.noName
         }
+        // manifest `__MSG_key__` 占位替换（真实扩展 name/description 全是
+        // 占位，不替换装出来就是字面 "__MSG_extName__"）。表取 default_locale
+        // 优先（Chrome 装载语义），fallback UI 语言/en/首个目录。
+        let i18nTable = Self.manifestMessages(
+            extractDir: extractDir, defaultLocale: manifest["default_locale"] as? String)
+        let resolvedName = Self.substituteManifest(name, table: i18nTable)
         let version = manifest["version"] as? String ?? "1.0"
         let description = manifest["description"] as? String ?? ""
+        let resolvedDescription = Self.substituteManifest(description, table: i18nTable)
 
         // content_scripts 合并（多脚本块少见但合法）。
         var matches: [String] = []
@@ -155,7 +162,7 @@ enum MSExInstaller {
         popupHTML = popupBaseDir.flatMap { dir in
             popupHTML.map { Self.inlinePopupResources(html: $0, baseDir: dir) }
         }
-        let effectiveDescription = description
+        let effectiveDescription = resolvedDescription
 
         // 真实图标：manifest icons{} 里最大的尺寸 → PNG 数据（工具栏渲染用；
         // 插件模型无图片文件概念，数据随 Plugin 持久化）。
@@ -191,12 +198,12 @@ enum MSExInstaller {
         // 同名重装 = 更新（替换旧条目；沿用旧 id —— storage 按 id
         // 命名空间，换 id 会孤儿化已存数据）。
         var resultPlugin = plugin
-        if let existing = store.plugins.first(where: { $0.name == name }) {
+        if let existing = store.plugins.first(where: { $0.name == resolvedName }) {
             // 包资源目录随 uuid 复用——importPackage 先清旧再拷（= 更新）。
             let resourcesPath = try? PluginResources.importPackage(
                 from: extractDir, pluginID: existing.id)
             let updated = Plugin(
-                id: existing.id, name: plugin.name, description: plugin.description,
+                id: existing.id, name: resolvedName, description: plugin.description,
                 version: plugin.version, author: plugin.author,
                 urlPatterns: plugin.urlPatterns, excludePatterns: plugin.excludePatterns,
                 runAt: plugin.runAt, jsCode: plugin.jsCode, cssCode: plugin.cssCode,
@@ -214,10 +221,11 @@ enum MSExInstaller {
             // 的文件来源（拷贝失败不拦安装——内联 jsCode 已可用，files[] 再报错）。
             newPlugin.resourcesPath = try? PluginResources.importPackage(
                 from: extractDir, pluginID: plugin.id)
+            newPlugin.name = resolvedName
             store.add(newPlugin)
             resultPlugin = newPlugin
         }
-        Log.userScripts.info("msex installed: \(name, privacy: .public) v\(version, privacy: .public)")
+        Log.userScripts.info("msex installed: \(resolvedName, privacy: .public) v\(version, privacy: .public)")
         if !dnrStaticRules.isEmpty {
             PluginDNRStore.shared.setStaticRules(pluginID: resultPlugin.id, rules: dnrStaticRules)
         }
@@ -225,6 +233,39 @@ enum MSExInstaller {
         // 对象，同名重装时桥/调用方拿到的是从未入库的 id（实测 E2E 探针
         // 全打空）。
         return InstallResult(plugin: resultPlugin)
+    }
+
+    // MARK: - manifest i18n（__MSG_key__）
+
+    /// 读 default_locale（fallback UI 语言/en/首个目录）的 messages 表。
+    private static func manifestMessages(extractDir: URL, defaultLocale: String?) -> [String: String] {
+        let localesDir = extractDir.appendingPathComponent("_locales", isDirectory: true)
+        var order: [String] = []
+        if let dl = defaultLocale { order.append(dl.lowercased()) }
+        if let first = Locale.preferredLanguages.first {
+            order.append(String(first.split(separator: "-").first ?? "").lowercased())
+        }
+        order.append("en")
+        let dirNames = ((try? FileManager.default.contentsOfDirectory(atPath: localesDir.path)) ?? [])
+            .map { $0.lowercased() }
+        for name in dirNames where !order.contains(name) { order.append(name) }
+        for candidate in order {
+            let file = localesDir
+                .appendingPathComponent(candidate, isDirectory: true)
+                .appendingPathComponent("messages.json")
+            if let data = try? Data(contentsOf: file),
+               let decoded = try? JSONDecoder().decode([String: PluginI18N.MessageEntry].self, from: data) {
+                return decoded.mapValues(\.message)
+            }
+        }
+        return [:]
+    }
+
+    /// `__MSG_key__` → 表内文案；非占位或缺键原样返回。
+    static func substituteManifest(_ raw: String, table: [String: String]) -> String {
+        guard raw.hasPrefix("__MSG_"), raw.hasSuffix("__"), raw.count > 8 else { return raw }
+        let key = String(raw.dropFirst("__MSG_".count).dropLast("__".count))
+        return table[key] ?? raw
     }
 
     // MARK: - 图标

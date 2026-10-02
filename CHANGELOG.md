@@ -2,11 +2,15 @@
 ### Added
 
 - Agent 个性化增强：**输出规则（Output Rules）**——设置页逐条增删的长期个人偏好（如"始终用中文回答""先给结论再给细节"），独立成 `<output_rules>` 提示词层（identity 之后，声明优先于学到的记忆），主会话与子代理都遵守——比手改整段系统提示词门槛低一个数量级；**点踩原因沉淀**——回答点踩时弹可选原因输入，填写后存为 feedback 记忆（尊重记忆学习开关），用户负反馈首次进入记忆闭环。
+- Agent 个性化三件（建议清单 1/2/3 落地）：**记忆来源可见**——每条学到的记忆带来源会话标题（记忆面板显示"学自：…"，可追溯可删除）；**会话级临时指令**——输入栏 sparkles 按钮设置"本次对话用英文"这类覆盖，`<session_directive>` 层注入（仅本会话生效、明确不进长期记忆）、随会话文件落盘切会话跟随、桥 `POST /agent/directive` 可程序化设置；**站点 scope 激活**——广告结构记忆按站点 host 存 scope（promptBlock 只在命中站点时注入，不再全站占上下文），记忆面板显示"仅限：host"。
+
 
 ### Fixed
 
 - **设为默认浏览器后点链接页面不打开（用户实测）**：macOS 发给默认浏览器的打开链接事件（kAEGetURL/'GURL'）从未被接收——AppDelegate 没有任何 URL 事件处理，URL 被静默丢弃。现注册 GURL Apple event handler（willFinishLaunching 阶段）+ kAEOpenURLs 兜底：外部链接在活动窗口**新标签**打开（不顶掉当前页），冷启动早于窗口就绪的事件进缓冲多跳重试 flush；同步修复两处连带：Dock 点击/`open -a` 纯激活会让 SwiftUI 对 value-based WindowGroup 再开一扇新主窗（applicationShouldHandleReopen 有可见窗口时返回 false）、openURLs 事件 SwiftUI 层默认开新窗（Info.plist 声明 CFBundleURLTypes http/https 后 GURL 单路消费，不再双开）。
 - **应用内自更新"无法下载/不会安装"**：下载用逐字节 `for try await byte` 喂 SHA256——几十 MB 包是千万次 async 迭代，慢到像卡死；改为 `URLSession.download` 落盘 + 1MB 分块读文件算哈希。SHASUMS 匹配用 URL 尾段（镜像/改名场景静默 noChecksum）→ 改用资产名。全链路补日志（assets 下载/校验/替换/重启每步，替换为 fault 级），失败首次可诊断。
+- 会话级指令设置后立即丢失：新会话（/agent/new 后 conversationId 为 nil）时设置无处落盘，send 建会话时 saveCurrentConversation 的反向同步把指令打回 nil——无会话时先落会话对象、并移除该反向同步（唯一入口 setSessionDirective，恢复靠 loadConversation）。
+
 
 
 

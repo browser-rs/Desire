@@ -19,6 +19,7 @@ enum MemoryExtractor {
         preference: AgentPreferenceStore,
         memory: AgentMemoryStore,
         messages: [AgentMessage],
+        source: String? = nil,
         onUsage: ((Int, Int) -> Void)? = nil
     ) async {
         guard preference.memoryLearning else { return }
@@ -57,7 +58,8 @@ enum MemoryExtractor {
                 guard let content = fact["content"] as? String, !content.isEmpty else { continue }
                 memory.addFact(
                     content: String(content.prefix(200)),
-                    category: fact["category"] as? String ?? "fact"
+                    category: fact["category"] as? String ?? "fact",
+                    source: source
                 )
             }
         }

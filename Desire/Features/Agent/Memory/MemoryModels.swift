@@ -25,8 +25,11 @@ struct MemoryFact: Codable, Identifiable, Equatable {
     /// "global" or a host ("github.com") — domain-scoped facts only inject
     /// when the agent's current page matches that host.
     var scope: String = "global"
+    /// 来源（2026-10-02 个性化增强）：学到该条记忆的会话标题——记忆面板
+    /// 可见、可追溯。手动添加为 nil。Optional = 旧数据/同步解码安全。
+    var source: String? = nil
 
-    init(content: String, category: String, pinned: Bool = false, scope: String = "global") {
+    init(content: String, category: String, pinned: Bool = false, scope: String = "global", source: String? = nil) {
         self.id = UUID()
         self.content = content
         self.category = category
@@ -34,6 +37,7 @@ struct MemoryFact: Codable, Identifiable, Equatable {
         self.updatedAt = Date()
         self.pinned = pinned
         self.scope = scope
+        self.source = source
     }
 }
 

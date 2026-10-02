@@ -20,6 +20,8 @@ enum AgentPromptBuilder {
         /// 用户规则（设置页逐条增删，2026-10-02 个性化增强）：独立成层，
         /// 用户显式规则优先于学到的记忆。
         var outputRules: [String] = []
+        /// 会话级临时指令（Conversation.directive）：仅本会话生效、明确不进记忆。
+        var sessionDirective: String?
         var memoryBlock: String?      // AgentMemoryStore.promptBlock
         var skills: [(name: String, description: String)]
         /// 工具索引（由 `BrowserToolProvider.promptInventory` 生成，含 MCP 工具）。
@@ -52,6 +54,14 @@ enum AgentPromptBuilder {
         let rules = input.outputRules
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        if let directive = input.sessionDirective?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !directive.isEmpty {
+            sections.append("<session_directive>\n"
+                + "Additional instruction for THIS conversation only — apply it now, "
+                + "but do NOT persist it to long-term memory.\n"
+                + directive + "\n</session_directive>")
+        }
+
         if !rules.isEmpty {
             let lines = rules.map { "- \($0)" }.joined(separator: "\n")
             sections.append("<output_rules>\n"

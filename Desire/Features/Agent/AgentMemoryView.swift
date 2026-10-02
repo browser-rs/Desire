@@ -178,6 +178,17 @@ struct AgentMemoryView: View {
                     Text("(\(fact.category))")
                         .font(.system(size: 9.5))
                         .foregroundStyle(.tertiary)
+                    if let source = fact.source, !source.isEmpty {
+                        Text(String(localized: "Learned from: \(source)"))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    if fact.scope.lowercased() != "global", !fact.scope.isEmpty {
+                        Text(String(localized: "Only on \(fact.scope)"))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 

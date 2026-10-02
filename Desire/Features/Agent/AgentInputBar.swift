@@ -36,6 +36,11 @@ struct AgentInputBar: View {
     var contextChip: AnyView = AnyView(EmptyView())
     /// Inline FULL ACCESS toggle pill — left utility group.
     var fullAccessPill: AnyView = AnyView(EmptyView())
+    /// 会话级临时指令按钮（sparkles）：nil 隐藏；点击弹编辑（面板侧管理）。
+    /// 指令活跃时由面板在输入框上方显示指令条，这里只是入口。
+    var onSessionDirective: (() -> Void)? = nil
+    /// 指令活跃态（按钮高亮提示）。
+    var isSessionDirectiveActive: Bool = false
 
     @State private var isHoveringSend = false
 
@@ -198,6 +203,7 @@ struct AgentInputBar: View {
             HStack(spacing: 6) {
                 fullAccessPill
                 attachButton
+                directiveButton
                 micButton
                 Spacer(minLength: 6)
                 contextChip
@@ -271,6 +277,21 @@ struct AgentInputBar: View {
         }
         .buttonStyle(.plain)
         .help("Attach image ( vision models)")
+    }
+
+    private var directiveButton: some View {
+        Button {
+            onSessionDirective?()
+        } label: {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isSessionDirectiveActive ? AnyShapeStyle(appAccent) : AnyShapeStyle(Color.secondary))
+                .frame(width: Control.size, height: Control.size)
+                .background(Circle().fill(Control.fill))
+                .overlay(Circle().stroke(Control.stroke, lineWidth: Control.strokeWidth))
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: "Session instruction (this conversation only)"))
     }
 
     @ViewBuilder

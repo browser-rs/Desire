@@ -73,6 +73,33 @@ class AgentSessionStore: ObservableObject {
     @Published var awaitingQuestion = false
     @Published var streamingVersion = 0
     @Published var conversationId: UUID?
+    /// 会话级临时指令（内存镜像；持久化在 Conversation.directive）。
+    /// 切会话时由 loadConversation 路径刷新。
+    @Published private(set) var activeDirective: String?
+
+    /// 设置/清除当前会话的临时指令（随会话文件落盘）。
+    func setSessionDirective(_ text: String?) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (trimmed?.isEmpty == false) ? trimmed : nil
+        activeDirective = value
+        // 无活动会话（新面板 /agent/new 之后）先落一个会话对象——否则指令
+        // 无处挂，下一次 saveCurrentConversation 的同步会把它打回 nil（实测）。
+        if conversationId == nil {
+            saveCurrentConversation()
+        }
+        guard let cid = conversationId,
+              var conv = conversationStore.conversation(for: cid) else { return }
+        conv.directive = value
+        conv.updatedAt = Date()
+        conversationStore.save(conv)
+        Log.agent.info("session directive \(value == nil ? "cleared" : "set (\(value!.count) chars)", privacy: .public)")
+    }
+
+    private func syncDirectiveFromConversation() {
+        activeDirective = conversationId.flatMap {
+            conversationStore.conversation(for: $0)?.directive
+        }
+    }
     @Published var conversationTitle: String?
     /// When non-nil, the agent loop is paused waiting for the user to approve
     /// (or deny) a tool call. The UI renders `ToolApprovalBar` from this.
@@ -729,6 +756,7 @@ class AgentSessionStore: ObservableObject {
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil
+        activeDirective = nil
         inputHistory.removeAll()   // 新对话从空历史开始
         isProcessing = false
         currentAction = nil
@@ -781,6 +809,7 @@ class AgentSessionStore: ObservableObject {
         messages = conv.messages
         conversationId = conv.id
         conversationTitle = conv.title
+        activeDirective = conv.directive
         inputHistory = conv.inputHistory ?? []   // 每个对话记自己的输入历史
         AgentPlanStore.shared.restore(conversationID: conv.id.uuidString, conv.planSteps)
         // 检查点：上次回合没走到收尾（标志残留）→ 面板提示继续/放弃。
@@ -805,6 +834,9 @@ class AgentSessionStore: ObservableObject {
     private func saveCurrentConversation() {
         let id = conversationId ?? UUID()
         conversationId = id
+        // 注意：这里**不要**从 conversationStore 反向同步 activeDirective——
+        // save 的内存 upsert 时序下 conv 副本可能是旧值，会把刚 set 的指令
+        // 打回 nil（实测）。唯一入口是 setSessionDirective；恢复靠 loadConversation。
         let title: String
         if let t = conversationTitle, !t.isEmpty {
             title = t
@@ -946,6 +978,7 @@ class AgentSessionStore: ObservableObject {
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
             outputRules: preference.outputRules,
+            sessionDirective: activeDirective,
             memoryBlock: memoryBlock,
             skills: skills,
             tools: BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs),
@@ -1947,6 +1980,7 @@ class AgentSessionStore: ObservableObject {
                 preference: preference,
                 memory: AgentMemoryStore.shared,
                 messages: Array(snapshot.suffix(14)),
+                source: conversationId.flatMap { conversationStore.conversation(for: $0)?.title },
                 onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
             )
         }

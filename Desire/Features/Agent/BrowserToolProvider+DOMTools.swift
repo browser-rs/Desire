@@ -429,8 +429,10 @@ extension BrowserToolProvider {
                 let profile = "Site ads profile: \(urlPattern) — blocked selectors: "
                     + applied.prefix(6).joined(separator: " ; ")
                 AgentMemoryStore.shared.removeFacts(containing: "Site ads profile: \(urlPattern)")
+                // scope=站点 host：promptBlock 只在该站点命中时注入——
+                // 此前存 global 导致广告结构经验全站注入（占上下文且易误用）。
                 AgentMemoryStore.shared.addFact(
-                    content: profile, category: "fact", scope: "global")
+                    content: profile, category: "fact", scope: urlPattern)
             }
             return report
 

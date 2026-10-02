@@ -471,6 +471,7 @@ final class AutomationServer {
         ep("POST", "/media/batch/add", "Append tasks to an existing batch (deduped; numbering continues)", params: ["id:uuid", "urls:[string]", "kind?:list|media", "referer?:string"], example: #"-d '{"id":"…","urls":["https://…/v13"]}'"#)
         ep("GET", "/media/batch/config", "Batch download preferences (disk reserve GB / naming / save root)", example: "…/media/batch/config")
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
+        ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
         ep("POST", "/update/install", "Self-update: download the latest release zip, verify SHA256, replace /Applications bundle, relaunch (only when installed in /Applications)", example: "-d '{}'")
@@ -1363,6 +1364,15 @@ final class AutomationServer {
                 return try Self.json(Self.mediaExports())
             case ("POST", "/media/exports/cancel"):
                 return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/agent/directive"):
+                // 会话级临时指令（活动会话）：设置/清除（text 空串=清除）。
+                // E2E：设置 → 发消息 → 抓 system 断言 <session_directive>。
+                guard let session = AgentScheduler.shared.deliveryTarget else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                session.setSessionDirective(Self.string(body, "text"))
+                return try Self.json(["ok": true,
+                                      "directive": session.activeDirective ?? ""])
             case ("POST", "/agent/note"):
                 return try Self.json(Self.agentNote(
                     text: Self.string(body, "text") ?? "",

@@ -394,6 +394,7 @@ struct AgentPanel: View {
                 .padding(.bottom, 2)
             }
 
+            sessionDirectiveBar
             AgentInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,
@@ -446,7 +447,12 @@ struct AgentPanel: View {
                 modelMenu: AnyView(AgentModelMenu(store: store, preference: store.preference)),
                 thinkingMenu: AnyView(AgentThinkingMenu(preference: store.preference)),
                 contextChip: AnyView(AgentContextChip(store: store)),
-                fullAccessPill: AnyView(AgentFullAccessPill(store: store))
+                fullAccessPill: AnyView(AgentFullAccessPill(store: store)),
+                onSessionDirective: {
+                    directiveDraft = store.activeDirective ?? ""
+                    directiveEditing = true
+                },
+                isSessionDirectiveActive: store.activeDirective != nil
             )
             .frame(maxWidth: Self.contentMaxWidth)
             .frame(maxWidth: .infinity)
@@ -535,6 +541,76 @@ struct AgentPanel: View {
         AgentMemoryStore.shared.addFact(
             content: String(localized: "User dislikes: \(trimmed)"),
             category: "feedback")
+    }
+
+    /// 会话级临时指令条（输入框上方）：活跃时显示，点文案编辑、✕ 清除。
+    @State private var directiveEditing = false
+    @State private var directiveDraft = ""
+    @ViewBuilder
+    private var sessionDirectiveBar: some View {
+        if let directive = store.activeDirective {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10))
+                    .foregroundStyle(appAccent)
+                Text(directive)
+                    .font(.system(size: 11))
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .onTapGesture {
+                        directiveDraft = directive
+                        directiveEditing = true
+                    }
+                Spacer(minLength: 0)
+                Button {
+                    store.setSessionDirective(nil)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Clear session instruction"))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(appAccent.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(appAccent.opacity(0.25), lineWidth: 0.5)
+            )
+            .popover(isPresented: $directiveEditing, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "Session instruction"))
+                        .font(.system(size: 12, weight: .medium))
+                    TextField(String(localized: "e.g. Answer in English for this conversation"),
+                              text: $directiveDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .frame(width: 260)
+                        .onSubmit { store.setSessionDirective(directiveDraft); directiveEditing = false }
+                    HStack {
+                        Button(String(localized: "Apply")) {
+                            store.setSessionDirective(directiveDraft)
+                            directiveEditing = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(directiveDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        Button(String(localized: "Cancel")) { directiveEditing = false }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 12))
+                    Text(String(localized: "Applies to this conversation only — never saved to memory."))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+            }
+        }
     }
 
     /// 单条消息行（拆出方法——原来内联在 ForEach 里的表达式加了 onLearnReason

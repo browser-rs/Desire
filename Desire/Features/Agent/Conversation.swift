@@ -15,4 +15,8 @@ struct Conversation: Identifiable, Codable {
     /// 报错/上限/取消）清除。崩溃/强杀后该标志残留 = 回合被打断，重新
     /// 打开时面板给出"继续/放弃"（检查点恢复）。
     var turnActive: Bool?
+    /// **会话级临时指令**（2026-10-02 个性化增强）："本次对话用英文"这类
+    /// 覆盖——随会话文件落盘、切会话跟随，**不进长期记忆**。注入
+    /// <session_directive> 层（仅本会话生效）。
+    var directive: String?
 }

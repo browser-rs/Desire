@@ -122,6 +122,11 @@ final class AutoAdClean {
             })();
             """, arguments: [:], in: nil, contentWorld: .page)
             Self.log.info("auto ad clean: blocked \(applied, privacy: .public) element(s) on \(host, privacy: .public)")
+            // 通知 UI 显示 toast（用户能看到 AI 自动拦了什么）
+            NotificationCenter.default.post(
+                name: Notification.Name("autoAdCleanBlocked"),
+                object: nil,
+                userInfo: ["host": host, "count": applied])
         } catch {
             Self.log.debug("auto ad clean scan failed: \(error.localizedDescription, privacy: .public)")
         }

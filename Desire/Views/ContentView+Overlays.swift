@@ -162,6 +162,27 @@ extension ContentView {
         }
     }
 
+    /// AI Auto Ad Clean toast（自动拦截反馈）
+    var autoAdCleanToastOverlay: some View {
+        Group {
+            if let message = autoAdCleanToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(message)
+                        .font(.caption.weight(.medium))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .clipShape(Capsule())
+                .padding(.top, 8)
+                .overlayTopTransition(visible: autoAdCleanToast != nil)
+            }
+        }
+    }
+
     /// Translation bar (toggle from the toolbar).
     var translateBarOverlay: some View {
         Group {

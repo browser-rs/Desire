@@ -207,6 +207,7 @@ struct ContentView: View {
         let text: String
     }
     @State var videoAdBlockerToast: String?
+    @State var autoAdCleanToast: String?
     @State var lastBlockedRuleId: UUID?
     @State var lastBlockedSelector = ""
     @State var lastBlockedXpath: String?
@@ -423,6 +424,15 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) { screenshotToastOverlay }
         .overlay(alignment: .top) { videoAdBlockerToastOverlay }
+        .overlay(alignment: .top) { autoAdCleanToastOverlay }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("autoAdCleanBlocked"))) { note in
+            guard let host = note.userInfo?["host"] as? String,
+                  let count = note.userInfo?["count"] as? Int else { return }
+            autoAdCleanToast = String(localized: "AI auto-blocked \(count) element(s) on \(host)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                if autoAdCleanToast?.contains(host) == true { autoAdCleanToast = nil }
+            }
+        }
         .overlay(alignment: .bottom) { translateBarOverlay }
     }
 

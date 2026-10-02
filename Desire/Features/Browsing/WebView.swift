@@ -1413,11 +1413,23 @@ struct WebView: NSViewRepresentable {
         private func parsePageProtocol(webView: WKWebView) async {
             let script = UserScriptLoader.load("desire-protocol")
             guard !script.isEmpty else { return }
-            guard let raw = try? await webView.callAsyncJavaScript(
-                script, arguments: [:], in: nil, contentWorld: .page) as? String,
-                let data = raw.data(using: .utf8),
-                let protocol_ = try? JSONDecoder().decode(DesireProtocol.self, from: data)
-            else {
+            let rawResult = try? await webView.callAsyncJavaScript(
+                script, arguments: [:], in: nil, contentWorld: .page) as? String
+            guard let raw = rawResult, let data = raw.data(using: .utf8) else {
+                parent.state.pageProtocol = nil
+                Log.agent.info("DPP parse: JS result nil or not string")
+                return
+            }
+            let protocol_: DesireProtocol?
+            do {
+                protocol_ = try JSONDecoder().decode(DesireProtocol.self, from: data)
+            } catch {
+                Log.agent.info("DPP decode error: \(error.localizedDescription, privacy: .public) raw=\(raw.prefix(200), privacy: .public)")
+                parent.state.pageProtocol = nil
+                return
+            }
+            guard let protocol_ else { return }
+            if false {
                 parent.state.pageProtocol = nil
                 Log.agent.info("DPP parse: failed or empty (decode nil or isEmpty)")
                 return

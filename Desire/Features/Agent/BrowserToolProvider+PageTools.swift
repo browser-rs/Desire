@@ -204,7 +204,32 @@ extension BrowserToolProvider {
                 }
                 return "Navigated to \(url) — a Cloudflare check appeared and cleared automatically."
             }
-            return "Navigated to \(url)"
+            // 导航反馈增强：返回页面标题 + 首段文本 + DPP 视图提示。
+            // 模型免调 getPageText 就知道页面有什么。
+            let pageTitle = webView.title ?? ""
+            let snippet: String = await {
+                let raw = try? await webView.evaluateJavaScript(
+                    "document.body ? document.body.innerText.substring(0, 200) : ''")
+                return (raw as? String) ?? ""
+            }()
+            var dppHint = ""
+            if let tab = targetManager.tabs.first(where: { $0.browser.webView === webView }),
+               let dpp = tab.browser.pageProtocol, !dpp.isEmpty {
+                var views: [String] = []
+                for (name, view) in dpp.views {
+                    views.append("\(name)(fields: \(view.fields.keys.sorted().joined(separator: ",")))")
+                }
+                if !views.isEmpty {
+                    dppHint = "\n[DPP] Structured views available (use pageExtract): " + views.joined(separator: "; ")
+                }
+                if !dpp.actions.isEmpty {
+                    dppHint += "\n[DPP] Actions (use pageAction): " + dpp.actions.map(\.name).joined(separator: ", ")
+                }
+            }
+            var result = "Navigated to \(url) — \(pageTitle)"
+            if !snippet.isEmpty { result += "\n\(snippet)" }
+            if !dppHint.isEmpty { result += dppHint }
+            return result
         case "goBack":
             guard webView.canGoBack else { return Self.fail("Cannot go back") }
             webView.goBack()

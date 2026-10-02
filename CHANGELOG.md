@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **DPP 协议增强**：`pageAction` 工具（声明式动作执行：fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）；事件驱动（Timer 轮询 + PageEventHub + per-site 三档模式 off/draft/auto + 事件风暴防护）；navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）；ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器问题）。
+
 
 ## [v0.5.6] - 2026-10-03
 ### Added

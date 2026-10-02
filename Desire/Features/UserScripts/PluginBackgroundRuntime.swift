@@ -22,7 +22,17 @@ import WebKit
 @MainActor
 final class PluginBackgroundRuntime: NSObject {
     static let shared = PluginBackgroundRuntime()
-    private override init() {}
+    private override init() {
+        super.init()
+        // 启动恢复：磁盘上的 alarms 重新装载并重排 Timer（过期的不重排——
+        // 下次对账时视为已过期清掉）。
+        if let saved = DiskStore.load([Alarm].self, key: Self.alarmsKey) {
+            let now = Date()
+            for a in saved where a.scheduledAt > now {
+                alarms[a.pluginID.uuidString + "|" + a.name] = a
+            }
+        }
+    }
 
     private struct Host {
         let plugin: Plugin
@@ -118,11 +128,18 @@ final class PluginBackgroundRuntime: NSObject {
         let name: String
         var scheduledAt: Date
         var periodInMinutes: Double?
+        let pluginID: UUID
     }
 
     /// 插件 alarms 表（key = pluginID|name）+ 到期检查 Timer。
+    /// DiskStore 持久化：app 重启后恢复重排（否则周期 alarm 跨重启丢失）。
     private var alarms: [String: Alarm] = [:]
     private var alarmTimers: [String: Timer] = [:]
+    private static let alarmsKey = "plugin.alarms"
+
+    private func saveAlarms() {
+        DiskStore.save(Array(alarms.values), key: Self.alarmsKey)
+    }
 
     /// 插件停用时清它的 alarms（stop 调用）。
     func clearAlarms(pluginID: UUID) {
@@ -136,7 +153,9 @@ final class PluginBackgroundRuntime: NSObject {
 
     func setAlarm(pluginID: UUID, name: String, when: Date, periodInMinutes: Double?) {
         let key = pluginID.uuidString + "|" + name
-        alarms[key] = Alarm(name: name, scheduledAt: when, periodInMinutes: periodInMinutes)
+        alarms[key] = Alarm(name: name, scheduledAt: when,
+                            periodInMinutes: periodInMinutes, pluginID: pluginID)
+        saveAlarms()
         scheduleAlarm(pluginID: pluginID, name: name, when: when, periodInMinutes: periodInMinutes)
     }
 
@@ -145,6 +164,7 @@ final class PluginBackgroundRuntime: NSObject {
         alarmTimers[key]?.invalidate()
         alarmTimers.removeValue(forKey: key)
         alarms.removeValue(forKey: key)
+        saveAlarms()
     }
 
     func alarmsFor(pluginID: UUID) -> [[String: Any]] {

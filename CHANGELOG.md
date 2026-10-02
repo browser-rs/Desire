@@ -9,6 +9,8 @@
 - 主框架导航落到已知文件类型（zip/dmg/pdf/mp4 等）时在 action 阶段预判下载——配合下载转换失败静默，页面平滑留在原处不再闪错误页（衔接修复的另一半）
 - 插件 API 面扩充：alarms（create/clear/clearAll/get/getAll/onAlarm，宿主 Timer 调度、周期性 alarm 自动重排）、windows.getAll（窗口+标签快照）、downloads.download/search（映射 DownloadStore）、action.setBadgeText/setTitle（占位存储）、tabs.update/get（激活/置顶/URL 加载）——content script 与 background 侧 handler 同步接入
 - 插件 API 面继续扩充：chrome.scripting.executeScript（MV3 动态注入到 extension world）、chrome.cookies（getAll/get/set 映射 webview 数据仓库）、chrome.i18n（getMessage fallback 语义 + getUILanguage）、chrome.alarms（插件级定时器：宿主 Timer 调度、周期性重排、插件停用自动清理）、chrome.windows.getAll、chrome.downloads.download/search、chrome.action（badge/title 占位）——content/background/popup 三处 handler 同步接入
+- chrome.alarms 持久化：插件 alarms 表落 DiskStore，app 重启后恢复重排 Timer（过期的自动清掉）——周期性 alarm 不再因重启丢失
+
 
 
 

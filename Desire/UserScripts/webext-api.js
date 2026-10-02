@@ -67,8 +67,12 @@
                 return rpc("storage", "remove", [Array.isArray(keys) ? keys : (keys == null ? [] : [keys])]);
             },
             clear: function() { return rpc("storage", "clear", []); }
-        }
+        },
+        // sync：Desire 暂无跨设备插件数据通道——别名到 local（Firefox 早期
+        // 同款降级；保证依赖 storage.sync 的扩展能跑，语义略降级为本地）。
+        sync: null
     };
+    storage.sync = storage.local;
     var tabs = {
         query: function() { return rpc("tabs", "query", []); },
         create: function(props) { return rpc("tabs", "create", [props || {}]); },

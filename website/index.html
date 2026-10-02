@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome 式装载、Safari 扩展包导入）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；60+ 端点自动化桥。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；60+ 端点自动化桥。"
     },
     {
       "@type": "FAQPage",
@@ -94,6 +94,14 @@
                     "acceptedAnswer": {
                                 "@type": "Answer",
                                 "text": "能。把列表页拉成批量任务：逐个嗅探或逐页解析，可指定保存目录与并发数，支持断点续传、磁盘空间预留与失败自动重试；遇到人机验证会请你人工过一次，之后同批自动继续。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "支持 Chrome 扩展吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "支持主流 MV3 扩展的能力面：内容脚本、后台页、popup、消息互通（含长连接）、declarativeNetRequest 动态规则（映射到原生拦截引擎）、脚本动态注入、右键菜单、工具栏角标、本地化与定时器。可从文件夹直接装载，也认 .msex、zip 与 Safari 扩展包；少数依赖 Chrome 私有能力（如阻塞式 webRequest）的扩展暂不可用。"
                     }
         },
         {
@@ -941,7 +949,7 @@
         </div>
         <div class="mini reveal">
           <h3>插件系统</h3>
-          <p>Chrome 式从文件夹直接装载，Safari 扩展包与 zip 也能导入；后台脚本与右键菜单照常工作。</p>
+          <p>Chrome 扩展（MV3）直接装载：内容脚本与后台页消息互通，declarativeNetRequest 规则接原生广告拦截，动态注入、右键菜单、工具栏角标照常工作。</p>
         </div>
         <div class="mini reveal">
           <h3>Desire Remote</h3>
@@ -1038,6 +1046,10 @@
         <details class="faq-item reveal">
           <summary>能批量下载视频吗？</summary>
           <p>能。把列表页拉成批量任务：逐个嗅探或逐页解析，可指定保存目录与并发数，支持断点续传、磁盘空间预留与失败自动重试；遇到人机验证会请你人工过一次，之后同批自动继续。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>支持 Chrome 扩展吗？</summary>
+          <p>支持主流 MV3 扩展的能力面：内容脚本、后台页、popup、消息互通（含长连接）、declarativeNetRequest 动态规则（映射到原生拦截引擎）、脚本动态注入、右键菜单、工具栏角标、本地化与定时器。可从文件夹直接装载，也认 .msex、zip 与 Safari 扩展包；少数依赖 Chrome 私有能力（如阻塞式 webRequest）的扩展暂不可用。</p>
         </details>
         <details class="faq-item reveal">
           <summary>支持 iPhone 吗？</summary>

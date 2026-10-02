@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.5.5] - 2026-10-02
 ### Fixed
 
 - **下载面板卡顿（用户实测）**：每行渲染在主线程同步 `fileExists` 检测文件是否被删——外置卷/休眠卷一次 stat 可达几十 ms～秒级，几十行一渲染面板就卡死。改为 `DownloadStore.missingFiles` 后台批量扫描缓存（utility 优先级、可取消防抖），渲染只读缓存零 IO；扫描触发 = 面板打开（`.task`）+ 下载完成 + **系统卷挂载/卸载通知**（拔盘瞬间自动刷新）。桥 `/downloads` 行带 `fileMissing` 字段（E2E/诊断同源），新增 `/downloads/remove`。

@@ -50,6 +50,8 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            // 面板打开即后台扫描下载文件存在性（渲染只读缓存，防主线程 stat 卡顿）。
+            .task { store.scanFilePresence() }
             // 视图切换即头部本身：Tab 组并入标题行（方案 B），不再单独占一行
             Divider()
             if showBatchTasks {
@@ -80,6 +82,7 @@ struct DownloadPanel: View {
                 .padding(22)
                 .frame(width: 520)
         }
+        .task { store.scanFilePresence() }
     }
 
     /// 面板顶部二选一 Tab 的**段**（容器胶囊见 header）：选中 = 强调色实底
@@ -578,8 +581,9 @@ private struct DownloadRow: View {
                 Text("·").foregroundStyle(.tertiary)
                 Text(timeText(item.startTime))
                 // 文件被用户从磁盘删除后如实标注（很常见），并给"重新下载"。
-                if let url = item.fileURL,
-                   !FileManager.default.fileExists(atPath: url.path) {
+                // **读缓存**（store.scanFilePresence 后台批量 stat）——此前每行
+                // 渲染在主线程同步 stat，外置卷一卡面板全卡（实测）。
+                if store.missingFiles.contains(item.id) {
                     Text("·").foregroundStyle(.tertiary)
                     Text(String(localized: "File deleted"))
                         .foregroundStyle(.orange)
@@ -609,8 +613,8 @@ private struct DownloadRow: View {
                 rowButton("play.fill", help: "Resume", tint: appAccent) { store.resume(id: item.id) }
                 rowButton("xmark", help: "Cancel") { store.remove(id: item.id) }
             case .completed:
-                if let url = item.fileURL,
-                   !FileManager.default.fileExists(atPath: url.path) {
+                // 同上：读后台扫描缓存，渲染路径零 IO。
+                if store.missingFiles.contains(item.id) {
                     // 文件已被本地删除：Open/Finder 是空操作——给"重新下载"。
                     rowButton("arrow.clockwise", help: "Download Again", tint: appAccent) {
                         store.redownload(item)

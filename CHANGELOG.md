@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **下载面板卡顿（用户实测）**：每行渲染在主线程同步 `fileExists` 检测文件是否被删——外置卷/休眠卷一次 stat 可达几十 ms～秒级，几十行一渲染面板就卡死。改为 `DownloadStore.missingFiles` 后台批量扫描缓存（utility 优先级、可取消防抖），渲染只读缓存零 IO；扫描触发 = 面板打开（`.task`）+ 下载完成 + **系统卷挂载/卸载通知**（拔盘瞬间自动刷新）。桥 `/downloads` 行带 `fileMissing` 字段（E2E/诊断同源），新增 `/downloads/remove`。
+
 ### Added
 
 - **MCP 客户端 stdio transport**（完整 MCP 补强）：本地 MCP 服务器以子进程方式接入（`MCPServer.transport=stdio` + command argv + 可选 env），JSON-RPC 走 stdin/stdout 换行分隔行协议；裸命令名按 PATH 解析（python3/npx 不必写绝对路径）；进程退出/超时的挂起请求唤醒与诊断尾随（stderr tail 带回失败原因）；工具经同一桥接（`mcp_<server>_<tool>`）进 agent 工具面，与 HTTP 服务器共用 callTool 分派；卸载/停用联动 terminate。设置页新增表单（HTTP/Stdio 分段）；桥 `/mcp/add` 支持 command、新增 `/mcp/remove`。E2E：本地 stdio fixture 全链 PASS——spawn→initialize→tools/list（echo 进工具面）→ 模型 tool_calls → 经子进程 tools/call（参数正确送达）→ 结果回进对话 → 第二轮完成。

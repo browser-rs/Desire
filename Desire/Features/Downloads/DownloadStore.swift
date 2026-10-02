@@ -413,6 +413,7 @@ class DownloadStore: ObservableObject {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
         saveHistory()
+        scanFilePresence()
         syncDockBadge()
         BridgeEventBus.shared.publish("downloadCompleted", [
             "id": id.uuidString, "file": downloads[i].filename,
@@ -483,6 +484,55 @@ class DownloadStore: ObservableObject {
     func fileExists(_ item: DownloadItem) -> Bool {
         guard let url = item.fileURL else { return false }
         return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    // MARK: - 文件存在性缓存（防卡顿，2026-10-02）
+
+    /// 已删除文件的 id 集合（**后台批量扫描的结果缓存**）。面板渲染只读
+    /// 这份缓存——此前每行渲染在主线程同步 `fileExists`，外置卷/休眠卷的
+    /// 一次 stat 可达几十 ms～秒级，几十行一渲染面板就卡死（实测）。
+    /// 语义：不在集合里 = 存在（或未知，按存在处理）。
+    @Published private(set) var missingFiles: Set<UUID> = []
+    private var presenceScanTask: Task<Void, Never>?
+    private var presenceScanInstalled = false
+
+    /// 后台批量扫描下载文件存在性（重复调用 = 取消旧扫描重新扫，天然防抖）。
+    func scanFilePresence() {
+        installPresenceObservers()
+        presenceScanTask?.cancel()
+        let snapshot = downloads.compactMap { item -> (UUID, URL?) in (item.id, item.fileURL) }
+        presenceScanTask = Task.detached(priority: .utility) { [weak self] in
+            var missing: Set<UUID> = []
+            for (id, url) in snapshot {
+                if Task.isCancelled { return }
+                if let url, !FileManager.default.fileExists(atPath: url.path) {
+                    missing.insert(id)
+                }
+            }
+            let result = missing
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled else { return }
+                if self.missingFiles != result {
+                    self.missingFiles = result
+                }
+            }
+        }
+    }
+
+    /// 卷挂载/卸载会瞬间改变一批文件的存在性——系统通知驱动重扫。
+    private func installPresenceObservers() {
+        guard !presenceScanInstalled else { return }
+        presenceScanInstalled = true
+        let center = NSWorkspace.shared.notificationCenter
+        // weak self 捕获在 Sendable 闭包里报 concurrent-capture 警告——
+        // 用局部强引用转接（store 是进程级单例，生命周期覆盖观察者）。
+        let observerTarget = self
+        center.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in observerTarget.scanFilePresence() }
+        }
+        center.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in observerTarget.scanFilePresence() }
+        }
     }
 
     func revealInFinder(_ item: DownloadItem) {

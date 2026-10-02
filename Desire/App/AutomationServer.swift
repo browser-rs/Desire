@@ -357,6 +357,7 @@ final class AutomationServer {
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
+        ep("POST", "/downloads/remove", "Remove a row from the list (file on disk untouched)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/downloads/pause", "Pause", params: ["id?:uuid"], example: "-d '{}'")
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         // Data stores
@@ -1126,6 +1127,13 @@ final class AutomationServer {
                 return try Self.json(Self.batchDownload(urls: body["urls"] as? [String] ?? []))
             case ("POST", "/downloads/start"):
                 return try Self.json(Self.startDownload(Self.string(body, "url") ?? ""))
+            case ("POST", "/downloads/remove"):
+                // 从列表移除一条（"Remove from List" 同路径；磁盘文件不动）。
+                guard let uuid = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "invalid id"])
+                }
+                DownloadStore.live?.remove(id: uuid)
+                return try Self.json(["ok": true])
             case ("POST", "/downloads/pause"):
                 return try Self.json(Self.pauseDownload(Self.string(body, "id")))
             case ("POST", "/downloads/resume"):
@@ -2337,6 +2345,8 @@ final class AutomationServer {
                 "bytes": item.downloadedBytes,
                 "total": item.totalBytes,
                 "private": item.isPrivate,
+                // 后台扫描缓存（scanFilePresence）——面板徽章同源，E2E/诊断用。
+                "fileMissing": store.missingFiles.contains(item.id),
             ]
         }
         return ["downloads": Array(items)]

@@ -945,6 +945,7 @@ class AgentSessionStore: ObservableObject {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
+            outputRules: preference.outputRules,
             memoryBlock: memoryBlock,
             skills: skills,
             tools: BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs),
@@ -1567,6 +1568,7 @@ class AgentSessionStore: ObservableObject {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: Self.subagentIdentity,
+            outputRules: preference.outputRules,
             memoryBlock: nil,
             skills: SkillStore.shared.skills.map { ($0.name, $0.description) },
             tools: BrowserToolProvider.promptInventory(for: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs),

@@ -17,6 +17,9 @@ import Foundation
 enum AgentPromptBuilder {
     struct Input {
         var identity: String          // preference.systemPrompt (or default)
+        /// 用户规则（设置页逐条增删，2026-10-02 个性化增强）：独立成层，
+        /// 用户显式规则优先于学到的记忆。
+        var outputRules: [String] = []
         var memoryBlock: String?      // AgentMemoryStore.promptBlock
         var skills: [(name: String, description: String)]
         /// 工具索引（由 `BrowserToolProvider.promptInventory` 生成，含 MCP 工具）。
@@ -44,6 +47,18 @@ enum AgentPromptBuilder {
         let identity = input.identity.trimmingCharacters(in: .whitespacesAndNewlines)
         if !identity.isEmpty {
             sections.append("<identity>\n\(identity)\n</identity>")
+        }
+
+        let rules = input.outputRules
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !rules.isEmpty {
+            let lines = rules.map { "- \($0)" }.joined(separator: "\n")
+            sections.append("<output_rules>\n"
+                + "The user has set these as standing personal preferences. "
+                + "Apply them to every reply in this conversation; they take "
+                + "precedence over learned memory when they conflict.\n"
+                + lines + "\n</output_rules>")
         }
 
         if let memory = input.memoryBlock, !memory.isEmpty {

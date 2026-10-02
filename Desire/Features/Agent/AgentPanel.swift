@@ -526,6 +526,43 @@ struct AgentPanel: View {
 
     // MARK: - Message list
 
+    /// 点踩原因 → feedback 记忆（学习开关关了不沉淀）。拆出方法——闭包内
+    /// 联 String(localized:) 插值曾让 SwiftUI 表达式 type-check 超时。
+    private func learnFromDislike(_ messageID: UUID, _ reason: String) {
+        guard store.preference.memoryLearning else { return }
+        let trimmed = reason.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        AgentMemoryStore.shared.addFact(
+            content: String(localized: "User dislikes: \(trimmed)"),
+            category: "feedback")
+    }
+
+    /// 单条消息行（拆出方法——原来内联在 ForEach 里的表达式加了 onLearnReason
+    /// 闭包后 type-check 超时）。
+    @ViewBuilder
+    private func messageRow(
+        _ msg: AgentMessage,
+        toolResults: [String: String],
+        chipToolIds: Set<String>,
+        toolDurations: [String: Double]
+    ) -> some View {
+        if msg.role == .tool,
+           let id = msg.toolCallId,
+           chipToolIds.contains(id) {
+            EmptyView()
+        } else {
+            AgentMessageBubble(
+                message: msg,
+                toolResults: toolResults,
+                isStreamingTail: isStreamingTail(msg),
+                onFeedback: { vote in store.setFeedback(vote, for: msg.id) },
+                onLearnReason: { learnFromDislike(msg.id, $0) },
+                toolDurations: toolDurations
+            )
+            .id(msg.id)
+        }
+    }
+
     private var messageScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -535,20 +572,12 @@ struct AgentPanel: View {
                     let chipToolIds = derivedData.chips
                     let toolDurations = derivedData.durations
                     ForEach(store.messages) { msg in
-                        if msg.role == .tool,
-                           let id = msg.toolCallId,
-                           chipToolIds.contains(id) {
-                            EmptyView()
-                        } else {
-                            AgentMessageBubble(
-                                message: msg,
-                                toolResults: toolResults,
-                                isStreamingTail: isStreamingTail(msg),
-                                onFeedback: { vote in store.setFeedback(vote, for: msg.id) },
-                                toolDurations: toolDurations
-                            )
-                            .id(msg.id)
-                        }
+                        messageRow(
+                            msg,
+                            toolResults: toolResults,
+                            chipToolIds: chipToolIds,
+                            toolDurations: toolDurations
+                        )
                     }
                     Color.clear
                         .frame(height: 1)

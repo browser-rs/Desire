@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- Agent 个性化增强：**输出规则（Output Rules）**——设置页逐条增删的长期个人偏好（如"始终用中文回答""先给结论再给细节"），独立成 `<output_rules>` 提示词层（identity 之后，声明优先于学到的记忆），主会话与子代理都遵守——比手改整段系统提示词门槛低一个数量级；**点踩原因沉淀**——回答点踩时弹可选原因输入，填写后存为 feedback 记忆（尊重记忆学习开关），用户负反馈首次进入记忆闭环。
+
 ### Fixed
 
 - **设为默认浏览器后点链接页面不打开（用户实测）**：macOS 发给默认浏览器的打开链接事件（kAEGetURL/'GURL'）从未被接收——AppDelegate 没有任何 URL 事件处理，URL 被静默丢弃。现注册 GURL Apple event handler（willFinishLaunching 阶段）+ kAEOpenURLs 兜底：外部链接在活动窗口**新标签**打开（不顶掉当前页），冷启动早于窗口就绪的事件进缓冲多跳重试 flush；同步修复两处连带：Dock 点击/`open -a` 纯激活会让 SwiftUI 对 value-based WindowGroup 再开一扇新主窗（applicationShouldHandleReopen 有可见窗口时返回 false）、openURLs 事件 SwiftUI 层默认开新窗（Info.plist 声明 CFBundleURLTypes http/https 后 GURL 单路消费，不再双开）。

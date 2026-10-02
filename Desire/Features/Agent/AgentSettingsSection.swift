@@ -181,6 +181,65 @@ struct AgentSettingsSection: View {
                     .padding(12)
             }
 
+            // MARK: - Output rules（个性化规则，逐条增删）
+
+            SettingsSection(
+                title: String(localized: "Output Rules"),
+                subtitle: String(localized: "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt."),
+                icon: "person.badge.checkmark"
+            ) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(store.outputRules.indices, id: \.self) { idx in
+                        HStack(spacing: 8) {
+                            Image(systemName: "text.line.first.and.arrow.point.forward")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                String(localized: "e.g. Always answer in Chinese"),
+                                text: Binding(
+                                    get: { store.outputRules[idx] },
+                                    set: { store.outputRules[idx] = $0 }
+                                )
+                            )
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                            Button {
+                                store.outputRules.remove(at: idx)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(String(localized: "Remove rule"))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                        )
+                    }
+                    Button {
+                        store.outputRules.append("")
+                    } label: {
+                        Label(String(localized: "Add Rule"), systemImage: "plus.circle")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    if store.outputRules.isEmpty {
+                        Text(String(localized: "Rules apply to every conversation and take precedence over learned memory."))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+            }
+
             // MARK: - System access (CLI allowlist)
 
             SettingsSection(

@@ -67,6 +67,15 @@ class AgentPreferenceStore: ObservableObject {
     /// Background memory learning: auto-extract durable user facts and
     /// per-conversation summaries after agent turns. User-inspectable and
     /// editable in the memory view either way.
+    /// 用户规则列表（2026-10-02 个性化增强）：每条一行、独立增删——比让
+    /// 用户手改整段 systemPrompt 门槛低一个数量级。进 <output_rules> 层。
+    @Published var outputRules: [String] {
+        didSet {
+            if outputRules != oldValue {
+                UserDefaults.standard.set(outputRules, forKey: "aiOutputRules")
+            }
+        }
+    }
     @Published var memoryLearning: Bool {
         didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
     }
@@ -365,6 +374,7 @@ class AgentPreferenceStore: ObservableObject {
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
+        outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
         costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7

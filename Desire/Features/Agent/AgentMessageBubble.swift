@@ -13,6 +13,8 @@ struct AgentMessageBubble: View {
     /// 评价回调（👍/👎）。用回调下传而不是 `@EnvironmentObject`：面板是显式传参持有
     /// store 的，环境里并没有它——用 EnvironmentObject 会直接崩。
     var onFeedback: ((String?) -> Void)? = nil
+    /// 点踩可选原因 → 记忆沉淀（外层转发给 AssistantBubble）。
+    var onLearnReason: ((String) -> Void)? = nil
     /// toolCallId → 耗时（毫秒）：工具卡片上直接显示"哪个工具慢"。
     var toolDurations: [String: Double] = [:]
 
@@ -29,6 +31,7 @@ struct AgentMessageBubble: View {
                 isStreamingTail: isStreamingTail,
                 toolResults: toolResults,
                 onFeedback: onFeedback,
+                onLearnReason: onLearnReason,
                 toolDurations: toolDurations
             )
         case .tool:
@@ -129,6 +132,8 @@ private struct AssistantBubble: View {
     let isStreamingTail: Bool
     var toolResults: [String: String] = [:]
     var onFeedback: ((String?) -> Void)?
+    /// 点踩可选原因 → 记忆沉淀（面板侧判断 memoryLearning 开关）。
+    var onLearnReason: ((String) -> Void)? = nil
     var toolDurations: [String: Double] = [:]
     @State private var isHovering = false
 
@@ -247,7 +252,11 @@ private struct AssistantBubble: View {
         if let text = message.content, !text.isEmpty, !isError {
             HStack(spacing: 4) {
                 if let onFeedback {
-                    FeedbackChips(feedback: message.feedback, onVote: onFeedback)
+                    FeedbackChips(
+                        feedback: message.feedback,
+                        onVote: onFeedback,
+                        onLearnReason: onLearnReason
+                    )
                         .opacity(isHovering ? 1 : 0)
                         .allowsHitTesting(isHovering)
                 }
@@ -304,18 +313,59 @@ private struct FeedbackChips: View {
     @Environment(\.appAccent) private var appAccent: Color
     let feedback: String?
     var onVote: ((String?) -> Void)?
+    /// 点踩可选原因（个性化反馈闭环）：非空则沉淀为一条 feedback 记忆。
+    var onLearnReason: ((String) -> Void)?
+    @State private var reasonDraft = ""
+    @State private var showReasonSheet = false
 
     var body: some View {
         HStack(spacing: 2) {
             chip("hand.thumbsup", vote: "up", tint: appAccent)
             chip("hand.thumbsdown", vote: "down", tint: .orange)
         }
+        .popover(isPresented: $showReasonSheet, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "What went wrong? (optional)"))
+                    .font(.system(size: 12, weight: .medium))
+                TextField(String(localized: "e.g. Too verbose / wrong assumption"), text: $reasonDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .frame(width: 220)
+                    .onSubmit { submitReason() }
+                HStack {
+                    Button(String(localized: "Save preference")) { submitReason() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(reasonDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button(String(localized: "Skip")) {
+                        showReasonSheet = false
+                        onVote?("down")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 12))
+            }
+            .padding(12)
+        }
+    }
+
+    private func submitReason() {
+        let reason = reasonDraft.trimmingCharacters(in: .whitespaces)
+        showReasonSheet = false
+        onVote?("down")
+        if !reason.isEmpty { onLearnReason?(reason) }
+        reasonDraft = ""
     }
 
     private func chip(_ symbol: String, vote: String, tint: Color) -> some View {
         let active = feedback == vote
         return Button {
-            onVote?(active ? nil : vote)
+            if vote == "down", feedback != "down" {
+                // 点踩：先弹可选原因（沉淀偏好），确认时才落 vote。
+                showReasonSheet = true
+            } else {
+                onVote?(active ? nil : vote)
+            }
         } label: {
             Image(systemName: active ? "\(symbol).fill" : symbol)
                 .font(.system(size: 10))

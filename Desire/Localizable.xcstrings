@@ -32176,6 +32176,72 @@
           }
         }
       }
+    },
+    "AI Auto Ad Clean" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Auto Ad Clean"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 自动广告清理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 自動廣告清理"
+          }
+        }
+      }
+    },
+    "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次页面加载后自动扫描并拦截该站点的高置信度广告候选。手动解除拦截的站点将获得豁免。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次頁面載入後自動掃描並攔截該站點的高置信度廣告候選。手動解除攔截的站點將獲得豁免。"
+          }
+        }
+      }
+    },
+    "Off by default — the agent can also toggle this with toggleAutoAdClean." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default — the agent can also toggle this with toggleAutoAdClean."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认关闭——智能体也可以用 toggleAutoAdClean 工具切换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設關閉——智能體也可以用 toggleAutoAdClean 工具切換。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

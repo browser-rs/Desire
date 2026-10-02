@@ -9,6 +9,8 @@
 - **Skill 多文件支持**（盘点补强 2）：skills 目录同时识别单文件 `*.md` 与**目录 skill**（`<name>/SKILL.md` + 附属 scripts/references，目录名即技能名、目录优先于同名散文件）；useSkill 加载时列出**附属文件清单**（绝对路径 + 相对路径），模型用既有 readFile 按需读取——"带脚本/参考资料的技能"从此可安装。
 - **MCP 客户端 prompts/resources 消费**（完整 MCP 补强续）：连接握手后尽力拉取各服务器的 `prompts/list` 与 `resources/list`（不支持 = 空表，不影响连接）；新增四个 agent 工具 `mcpPrompts`/`mcpGetPrompt`/`mcpResources`/`mcpReadResource`（HTTP 与 stdio 双传输都走同一条分派），模型可自主列取外部服务器的提示模板与资源内容。
 - **Skill 导入管线**（多文件配套）：`SkillStore.importArchive` 统一入口——zip 归档（ditto 解包，根/唯一子目录的 SKILL.md 识别）、技能目录直装、散装 .md 拷贝三形态；技能名 = frontmatter name 优先（无则目录/文件名），同名导入 = 覆盖更新；桥 `/skills/import` 新增 `path` 参数（本地路径导入，与既有远程 url 导入并存）。
+- **AI 广告拦截增强：Auto-Clean 自动拦截**（用户实测 findAdCandidates+blockElements 效果好之后的顺延）——新增全局开关（设置页 + agent 工具 `toggleAutoAdClean`）：页面加载完成自动扫描广告候选，**高置信度候选（≥2 条独立理由：class/id 词、slot 尺寸、overlay 浮层、跨域 iframe 等的组合）自动走 blockElements 通道**按 host 拦截（持久 + 即时隐藏）；单理由不自动拦（误杀率考量）；用户 `unblockElement` 某站点即加入自动豁免名单（防"用户拆、AI 又拦回去"的拉锯）。顺带修复 ad-candidates.js 的选择器生成：**id/class 优先**（唯一性校验），nth-child 路径仅作 fallback——此前 nth-child 对 body 位置计算脆弱，自动模式注入过永不匹配的死选择器。
+
 
 
 

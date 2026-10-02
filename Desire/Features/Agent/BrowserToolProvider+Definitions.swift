@@ -679,6 +679,15 @@ extension BrowserToolProvider {
                 ])
             )),
 
+            // --- AI 自动广告清理（2026-10-02）---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "toggleAutoAdClean",
+                description: "Toggle AI auto ad cleaning: after every page load, high-confidence ad candidates (2+ independent signals) are scanned and blocked automatically for that host. User unblocking a host exempts it.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "enabled": AgentJSONSchemaValue(type: "boolean", description: "Target state; omit to toggle"),
+                ]))
+            ),
+
             // --- MCP prompts/resources（2026-10-02 完整 MCP 补强）---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "mcpPrompts",

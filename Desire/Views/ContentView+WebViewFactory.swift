@@ -63,6 +63,8 @@ extension ContentView {
             onPageFinished: { url, title in
                 // Reset per-page counter so the toast reflects this navigation.
                 videoAdBlocker.resetCount()
+                // AI 自动广告清理（开关开时页面加载完自动扫描拦截高置信候选）。
+                AutoAdClean.shared.handlePageLoad(webView: tab.browser.webView, url: url)
                 if tab.suppressHistoryOnce {
                     tab.suppressHistoryOnce = false
                 } else if !tab.isIncognito {

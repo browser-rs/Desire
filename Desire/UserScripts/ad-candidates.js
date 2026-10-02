@@ -10,6 +10,22 @@ return (function() {
     var SLOT_SIZES = [[300, 250], [336, 280], [728, 90], [970, 90], [970, 250], [160, 600], [300, 600], [320, 50], [320, 100], [468, 60], [250, 250], [120, 600]];
 
     function selectorFor(el) {
+        // **id/class 优先**：稳定、可读、跨导航有效——nth-child 路径对
+        // body 位置等 DOM 细节脆弱（auto-clean 曾因 body:nth-child 偏差
+        // 注入了永不匹配的选择器）。仅当无 id 且 class 撞名风险高时
+        // 才落到 nth-child 路径。
+        if (el.id && /^[A-Za-z][\w-]*$/.test(el.id)) return '#' + el.id;
+        var meaningful = Array.prototype.filter.call(el.classList, function(c) {
+            return c.length > 2;
+        });
+        if (meaningful.length) {
+            var cls = '.' + meaningful.slice(0, 2).join('.');
+            // 确认唯一性：命中多个元素时该 class 太宽，退回 nth-child。
+            try {
+                var same = document.querySelectorAll(cls);
+                if (same.length === 1) return cls;
+            } catch (e) {}
+        }
         var parts = [];
         var node = el;
         while (node && node.nodeType === 1 && node !== document.documentElement) {

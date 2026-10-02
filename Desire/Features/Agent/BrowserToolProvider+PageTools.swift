@@ -513,6 +513,14 @@ extension BrowserToolProvider {
             guard let selector = args["selector"] as? String,
                   let rule = surface.elementBlockStore.rules.first(where: { $0.cssSelector == selector }) else { return Self.fail("Rule not found") }
             surface.elementBlockStore.remove(id: rule.id)
+            // 用户手动拆了 AI 自动拦的规则 → 该 host 加入自动清理豁免，
+            // 否则下次页面加载又被自动拦回去（拉锯）。
+            if let host = webView.url?.host, !host.isEmpty {
+                AutoAdClean.shared.exemptHost(host)
+                if rule.urlPattern == host || rule.urlPattern == "*" {
+                    return "Unblocked: \(selector). Auto ad clean is now exempt on \(host) (so it won't re-block automatically)."
+                }
+            }
             return "Unblocked: \(selector)"
 
         // --- Responsive design ---

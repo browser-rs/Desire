@@ -677,6 +677,11 @@ extension BrowserToolProvider {
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
+        case "toggleAutoAdClean":
+            let target = args["enabled"] as? Bool ?? !AutoAdClean.isEnabled
+            AutoAdClean.shared.setEnabled(target)
+            return "AI auto ad clean: \(target ? "ON" : "OFF") — every page load now scans and auto-blocks high-confidence ad candidates (per-host; user unblocking exempts that host)."
+
         case "mcpPrompts":
             let prompts = MCPStore.shared.allPrompts()
             if prompts.isEmpty { return "No prompt templates from connected MCP servers." }

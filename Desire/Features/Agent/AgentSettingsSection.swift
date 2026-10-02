@@ -181,6 +181,23 @@ struct AgentSettingsSection: View {
                     .padding(12)
             }
 
+            // MARK: - AI 自动广告清理
+
+            SettingsSection(
+                title: String(localized: "AI Auto Ad Clean"),
+                subtitle: String(localized: "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it."),
+                icon: "shield.lefthalf.filled"
+            ) {
+                SettingsRow("Enable", subtitle: String(localized: "Off by default — the agent can also toggle this with toggleAutoAdClean."), systemImage: "sparkles.rectangle.stack") {
+                    Toggle("", isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: "aiAutoAdClean") },
+                        set: { AutoAdClean.shared.setEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .tint(appAccent)
+                }
+            }
+
             // MARK: - Persona（人设：名字 + 语气）
 
             SettingsSection(

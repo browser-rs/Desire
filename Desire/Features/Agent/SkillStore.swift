@@ -24,8 +24,33 @@ final class SkillStore: ObservableObject {
     struct Skill: Identifiable {
         let name: String
         let description: String
+        /// SKILL.md / 单文件 md 的路径（body 读取源）。
         let url: URL
+        /// **目录 skill**（2026-10-02 多文件支持）：目录根（含附属
+        /// scripts/references）。单文件 skill 为 nil。
+        let directory: URL?
         var id: String { name }
+
+        init(name: String, description: String, url: URL, directory: URL? = nil) {
+            self.name = name
+            self.description = description
+            self.url = url
+            self.directory = directory
+        }
+    }
+
+    /// 目录内 SKILL.md 之外的附属文件（相对路径 + 绝对路径），供 useSkill
+    /// 结果列出、模型用 readFile 按需读取。
+    static func companionFiles(in directory: URL) -> [(relative: String, absolute: String)] {
+        let fm = FileManager.default
+        guard let en = fm.enumerator(at: directory, includingPropertiesForKeys: nil) else { return [] }
+        var out: [(String, String)] = []
+        for case let url as URL in en {
+            let rel = url.path.dropFirst(directory.path.count + 1)
+            if rel == "SKILL.md" { continue }
+            out.append((String(rel), url.path))
+        }
+        return out.sorted { $0.0 < $1.0 }.map { (relative: $0.0, absolute: $0.1) }
     }
 
     @Published private(set) var skills: [Skill] = []
@@ -47,13 +72,29 @@ final class SkillStore: ObservableObject {
         guard let files = try? fm.contentsOfDirectory(
             at: Self.directory, includingPropertiesForKeys: nil
         ) else { return }
-        skills = files
+        var loaded: [Skill] = files
             .filter { $0.pathExtension.lowercased() == "md" }
             .compactMap { url in
                 guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
                 return Self.parse(text, url: url)
             }
-            .sorted { $0.name < $1.name }
+        // **目录 skill**（多文件支持）：`<name>/SKILL.md`——附属文件经
+        // useSkill 列出、readFile 按需读取。单文件与目录同名时目录优先
+        // （目录是更完整的形态）。
+        for dir in files where dir.hasDirectoryPath {
+            let skillFile = dir.appendingPathComponent("SKILL.md")
+            guard let text = try? String(contentsOf: skillFile, encoding: .utf8) else { continue }
+            // 目录 skill 的 name = **目录名**（frontmatter name 若与目录名
+            // 不同以目录名为准——目录即身份，附属文件相对它解析）。
+            let description = Self.parse(text, url: skillFile).description
+            let skill = Skill(name: dir.lastPathComponent,
+                              description: description,
+                              url: skillFile,
+                              directory: dir)
+            loaded.removeAll { $0.name == skill.name }
+            loaded.append(skill)
+        }
+        skills = loaded.sorted { $0.name < $1.name }
     }
 
     func body(for name: String) -> String? {

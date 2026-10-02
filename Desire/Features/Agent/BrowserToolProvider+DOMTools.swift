@@ -683,10 +683,20 @@ extension BrowserToolProvider {
             guard let name = args["name"] as? String, !name.isEmpty else {
                 return Self.fail("Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
-            guard let body = SkillStore.shared.body(for: name) else {
+            guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }),
+                  let body = SkillStore.shared.body(for: name) else {
                 return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
-            return "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
+            var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
+            // 多文件 skill：附属文件清单（readFile 按需读取）。
+            if let directory = skill.directory {
+                let companions = SkillStore.companionFiles(in: directory)
+                if !companions.isEmpty {
+                    output += "\n\nCompanion files (read with readFile when needed):\n"
+                    output += companions.map { "- \($0.absolute) (\($0.relative))" }.joined(separator: "\n")
+                }
+            }
+            return output
 
         case "listSkills":
             let skills = SkillStore.shared.skills

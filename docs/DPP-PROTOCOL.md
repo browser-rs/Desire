@@ -219,7 +219,7 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 
 Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/event 名），Agent 见 profile 名即知标准语义：
 
-### chat profile
+### chat profile（✅ 已实装）
 
 ```json
 {
@@ -244,7 +244,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### catalog profile
+### catalog profile（schema 已定义，待站点实现）
 
 ```json
 {
@@ -254,7 +254,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### forms profile
+### forms profile（schema 已定义，待站点实现）
 
 ```json
 {
@@ -265,7 +265,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### checkout profile
+### checkout profile（schema 已定义，待站点实现）
 
 ```json
 {
@@ -279,7 +279,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### monitor profile
+### monitor profile（✅ 事件基建已实装）
 
 ```json
 {
@@ -290,7 +290,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### workbench profile
+### workbench profile（schema 已定义，待站点实现）
 
 ```json
 {
@@ -346,8 +346,9 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 │ pageAction 工具    → 执行声明式动作            │
 ├────────────────────────────────────────────────┤
 │ page_context 增强  → DPP 摘要注入 system 层   │
-│ PageEventHub      → 事件 → AgentScheduler     │  （二期）
-│ 审批闸门           → outbound/danger 拦截      │  （二期）
+│ PageEventHub      → 事件 → AgentScheduler     │
+│ 事件 Timer 轮询    → 定期检查事件选择器命中   │
+│ 审批闸门           → outbound/danger 拦截      │
 └────────────────────────────────────────────────┘
 ```
 
@@ -383,6 +384,8 @@ Actions (pageAction): search
 | L0 JSON-LD 页 → Product/Article 隐式抽取 | ✅ |
 | Auto-Clean：fixed 浮层广告自动拦截 | ✅ |
 | 内置规则已拦的元素不重复拦截 | ✅ |
+| 事件驱动：DPP events 选择器命中 → Agent 回合触发 | ⬜ 基建已通，待真机验证 |
+| page_context [DPP] 摘要注入 system 层 | ⬜ 基建已通，待真机验证 |
 
 ## 9. 已知限制与边界
 
@@ -395,22 +398,32 @@ Actions (pageAction): search
 | OAuth 未实现 | 复杂度高，当前 Bearer token 够用 | 按需 |
 | 事件驱动回合未实现 | PageEventHub 设计已完成，工程量独立 | 二期 |
 
-## 10. 演进路线
+## 10. 实现状态与演进路线
 
 ### 一期（已实装 ✅）
-- ✅ 协议 schema + 四形态归一化解析器
-- ✅ `pageProtocol` / `pageExtract` 工具
-- ✅ page_context DPP 摘要注入
-- ✅ fixture E2E（三形态）
+- ✅ 协议 schema + 四形态归一化解析器（desire-protocol.js）
+- ✅ `pageProtocol` 工具——查看页面协议（views/signals/actions/ignore）
+- ✅ `pageExtract(view)` 工具——按声明视图抽取结构化数据（支持分页 all=true）
+- ✅ `pageAction(name, args)` 工具——执行声明式动作（fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）
+- ✅ page_context DPP 摘要自动注入（视图清单 + 动作 + 正文选择器）
+- ✅ navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）
+- ✅ fixture E2E（三形态解析 + pageProtocol + pageExtract + pageAction 全链）
 
-### 二期（设计中）
-- `pageAction` 工具增强（等待/成功信号/前置条件自动检查）
-- chat profile 事件驱动回合（PageEventHub + 三档自动化模式）
-- forms profile 字段语义标注
-- monitor profile 变化监控
+### 二期（已实装 ✅，事件驱动 E2E 待真机验证）
+- ✅ 事件驱动基建（Timer 轮询 + PageEventHub + per-site off/draft/auto 三档模式）
+- ✅ 事件风暴防护（debounce + 频率上限 + 去重）
+- ✅ unblockElement 豁免语义收窄（仅 ai-auto 来源规则触发 host 豁免）
+- ✅ ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器）
+- ✅ AI Auto-Clean toast 反馈（NotificationCenter → ContentView 橙色胶囊）
+- ✅ 默认提示词 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）
+- ⬜ chat profile 事件驱动回合 E2E 真机验证（基建已通，fixture 需带 IM 交互）
+- ⬜ forms profile 字段语义标注（data-dpp-field 支持 type=email/tel/date 等类型提示）
+- ⬜ monitor profile 变化阈值事件（价格 < X / 库存 = 0 时触发）
 
 ### 三期（规划）
-- well-known 站点级声明 + 登录态感知
-- checkout profile（多步向导）
-- workbench profile（后台管理）
+- well-known 站点级声明 + 登录态感知 + 测试账号指引
+- checkout profile（多步向导 steps + 支付强制 danger 审批）
+- workbench profile（后台管理 + 权限角色声明）
 - 协议规范文档发布（面向站点作者和 Agent 开发者的开放规范）
+- MCP 联动（DPP 声明可引用 MCP 工具：`run: {"mcp": "server.tool"}`）
+- shadow DOM / iframe 穿透选择器

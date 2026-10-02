@@ -4,6 +4,8 @@
 - **Desire Page Protocol (DPP) 一期**——页面内容 → Agent 的声明式映射协议（四层梯度接入）：L0 零改造（消费既有 JSON-LD schema.org 数据）、L1 属性微标注（现有 HTML 加 `data-dpp-view/field/ignore` 属性）、L2 声明块（`<script type="application/x-desire+json">` 集中 JSON）、L3 原生 SDK（`window.__desireProtocolExposed`）；归一化解析器 `desire-protocol.js` 每次导航后自动解析并缓存；`pageProtocol` 工具查看协议、`pageExtract(view)` 工具按声明抽取结构化数据（准确字段、省 token）；page_context 自动注入 DPP 摘要（视图清单+动作）让模型免猜页面结构。
 - Agent click 工具增强：**点击后 URL 变化检测**——点击等待 600ms 后对比前后 URL，变化时返回 "→ navigated to …"（模型据此区分"点了链接"还是"按了按钮"，不再需要盲目调 getPageText/readTab 判断点击效果）。
 - **DPP pageAction 工具落地**——声明的 DPP action 可通过 `pageAction(name, args)` 执行：run 步骤 DSL（fill/click/waitForText/select）由 Desire 填充模板变量后逐步执行，success 信号自动检测；`effects: outbound`/`danger` 的 action 走既有审批闸门。DPP 三件（pageProtocol/pageExtract/pageAction）全链 E2E PASS。
+- **DPP 事件驱动**（二期）：页面按 DPP events 声明安装 Timer 轮询（3s 周期检查事件选择器命中），命中即经 `PageEventHub` 触发 Agent 事件驱动回合（prompt 带 `[DPP Event]` 前缀 + 事件详情）；per-site 三档模式（off/draft/auto）控制事件是否触发回合及 outbound 权限；事件风暴防护（debounce + 频率上限 + 去重）。
+
 
 
 

@@ -626,6 +626,11 @@ struct WebView: NSViewRepresentable {
             // WebExtension RPC（extensionWorld + 各插件 world）——注册走
             // registerPluginWorldHandlers 的台账去重（observe 的 remove+add
             // 每次都换桥接对象，会丢导航瞬间在途消息，勿改回）。
+            // DPP 事件监听 handler（.page world——desire-protocol.js 的
+            // MutationObserver 从 page world postMessage）。
+            contentController.removeScriptMessageHandler(
+                forName: "desireProtocolEvent", contentWorld: .page)
+            contentController.add(self, contentWorld: .page, name: "desireProtocolEvent")
             registerPluginWorldHandlers(webView, coordinator: self)
             // 登记本 tab 的 webview（tabs.sendMessage 的寻址表；快速切标签
             // 重建 representable 时 observe 重跑，登记随之刷新）。
@@ -1060,6 +1065,13 @@ struct WebView: NSViewRepresentable {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "desireProtocolEvent", let dict = message.body as? [String: Any] {
+                let eventHost = parent.state.webView.url?.host ?? ""
+                let eventName = dict["eventName"] as? String ?? ""
+                let detail = (dict["detail"] as? [String: Any])?.compactMapValues { "\($0)" } ?? [:]
+                if !eventName.isEmpty {
+                    PageEventHub.shared.handleEvent(host: eventHost, eventName: eventName, detail: detail)
+                }
             } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
                 noteTabInDevTools()
                 parent.devToolsStore.applyNetworkEvent(dict, tabID: parent.tabID)
@@ -1359,6 +1371,43 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        private var eventPollingTimer: Timer?
+        private var firedEvents: Set<String> = []
+
+        /// DPP 事件轮询：按 events 声明的选择器定期检查，命中即触发
+        /// PageEventHub（经 handleEvent → AgentScheduler 事件驱动回合）。
+        /// 同一事件只触发一次（firedEvents 去重）。
+        private func installEventPolling(events: [String: String], webView: WKWebView) {
+            eventPollingTimer?.invalidate()
+            let url = webView.url?.absoluteString ?? ""
+            let host = webView.url?.host ?? ""
+            guard !host.isEmpty else { return }
+            eventPollingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self, !webView.isLoading else { return }
+                    // 只在 URL 匹配时检查（防跨页触发）
+                    guard webView.url?.absoluteString == url || webView.url?.host == host else { return }
+                    for (eventName, selector) in events {
+                        let eventKey = host + ":" + eventName
+                        guard !self.firedEvents.contains(eventKey) else { continue }
+                        let checkJS = "!!document.querySelector(\(JSString.literal(selector)))"
+                        Task { @MainActor in
+                            let matched: Bool = await withCheckedContinuation { cont in
+                                webView.evaluateJavaScript(checkJS) { result, _ in
+                                    cont.resume(returning: (result as? Bool) == true)
+                                }
+                            }
+                            guard matched else { return }
+                            self.firedEvents.insert(eventKey)
+                            PageEventHub.shared.handleEvent(
+                                host: host, eventName: eventName,
+                                detail: ["selector": selector, "url": url])
+                        }
+                    }
+                }
+            }
+        }
+
         /// 解析页面 DPP 协议（desire-protocol.js 归一化四形态）→ 缓存
         /// state.pageProtocol。静默：解析失败 = 无协议，工具走启发式。
         private func parsePageProtocol(webView: WKWebView) async {
@@ -1377,6 +1426,11 @@ struct WebView: NSViewRepresentable {
             stored.revisedAt = Date()
             parent.state.pageProtocol = stored.isEmpty ? nil : stored
             Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public)")
+            // DPP 事件轮询（Timer 定期检查声明的事件选择器是否命中——
+            // MutationObserver 在 .page world 的 postMessage 不可靠）。
+            if !stored.events.isEmpty {
+                installEventPolling(events: stored.events, webView: webView)
+            }
             if protocol_.isEmpty == false {
                 Log.agent.info("DPP parsed: views=\(protocol_.views.count, privacy: .public) actions=\(protocol_.actions.count, privacy: .public) form=page")
             }

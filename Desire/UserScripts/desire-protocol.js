@@ -161,6 +161,33 @@ return (function() {
     }
 
     var merged = readSDK() || readBlock() || readAttributes() || readJSONLD();
+    // **事件监听**：按 merged.events 声明安装 MutationObserver →
+    // postMessage 给宿主 → PageEventHub → 事件驱动回合。
+    if (merged && Object.keys(merged.events || {}).length) {
+        window.__dppEventObserver = window.__dppEventObserver || null;
+        if (window.__dppEventObserver) window.__dppEventObserver.disconnect();
+        var observedSelectors = Object.values(merged.events).map(function(e) { return e; });
+        var allSel = observedSelectors.join(", ");
+        window.__dppEventObserver = new MutationObserver(function(mutations) {
+            for (var eventName in merged.events) {
+                var sel = merged.events[eventName];
+                try {
+                    var els = document.querySelectorAll(sel);
+                    if (els.length > 0) {
+                        window.webkit.messageHandlers.desireProtocolEvent.postMessage({
+                            host: location.host,
+                            eventName: eventName,
+                            detail: { selector: sel, matchCount: els.length }
+                        });
+                    }
+                } catch (e) {}
+            }
+        });
+        window.__dppEventObserver.observe(document.body || document.documentElement, {
+            childList: true, subtree: true, attributes: true, characterData: true
+        });
+    }
+
     if (merged) { delete merged.__form; delete merged.revisedAt; }
     return JSON.stringify(merged || null);
 })()

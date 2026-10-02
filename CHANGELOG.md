@@ -2,6 +2,8 @@
 ### Added
 
 - **Desire Page Protocol (DPP) 一期**——页面内容 → Agent 的声明式映射协议（四层梯度接入）：L0 零改造（消费既有 JSON-LD schema.org 数据）、L1 属性微标注（现有 HTML 加 `data-dpp-view/field/ignore` 属性）、L2 声明块（`<script type="application/x-desire+json">` 集中 JSON）、L3 原生 SDK（`window.__desireProtocolExposed`）；归一化解析器 `desire-protocol.js` 每次导航后自动解析并缓存；`pageProtocol` 工具查看协议、`pageExtract(view)` 工具按声明抽取结构化数据（准确字段、省 token）；page_context 自动注入 DPP 摘要（视图清单+动作）让模型免猜页面结构。
+- Agent click 工具增强：**点击后 URL 变化检测**——点击等待 600ms 后对比前后 URL，变化时返回 "→ navigated to …"（模型据此区分"点了链接"还是"按了按钮"，不再需要盲目调 getPageText/readTab 判断点击效果）。
+
 
 
 ## [v0.5.5] - 2026-10-02

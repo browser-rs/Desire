@@ -23,18 +23,28 @@ extension BrowserToolProvider {
             guard sel != nil || ref != nil || text != nil else {
                 return Self.fail("Provide one of: ref (from getPageSnapshot), text (visible label), or selector")
             }
+            let urlBefore = webView.url?.absoluteString
             // Prefer a real (isTrusted=true) mouse click through the AppKit
             // event pipeline — untrusted `element.click()` is a bot signal
             // for anti-automation systems (Turnstile) and can get the user's
             // session challenged. The JS fallback keeps the tool working
             // when the webview has no window (suspended/background tab) or
             // the element resolves to no on-screen geometry.
+            var clickResult = ""
             if let point = await clickablePoint(selector: sel, ref: ref, text: text, in: webView) {
                 await SyntheticInput.click(at: point, in: webView)
-                return "Clicked (trusted mouse event)"
+                clickResult = "Clicked (trusted mouse event)"
+            } else {
+                clickResult = await callAsync(webView, function: "__desireClick",
+                                              args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
             }
-            return await callAsync(webView, function: "__desireClick",
-                                   args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
+            // 点击反馈：检测是否触发导航（模型据此判断点了链接还是按钮）。
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            let urlAfter = webView.url?.absoluteString
+            if let after = urlAfter, after != urlBefore {
+                return clickResult + " → navigated to \(after)"
+            }
+            return clickResult
 
         case "clickAt":
             // Vision-loop primitive: pairs with the screenshot tool. x/y are

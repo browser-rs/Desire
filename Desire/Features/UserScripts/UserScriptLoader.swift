@@ -76,18 +76,20 @@ enum UserScriptLoader {
         }
     }
 
-    /// WebExtension API runtime — injected in the ISOLATED
-    /// `desireExtensions` content world so page JS can neither see nor
-    /// spoof `browser.*`. Plugin code (PluginStore) evaluates in the same
-    /// world; the DOM is shared, JS globals are not.
-    static func extensionAPIScript() -> WKUserScript? {
+    /// WebExtension API runtime — injected in an ISOLATED content world
+    /// (shared `desireExtensions` 或 per-plugin world，见 WebView.pluginWorld)
+    /// so page JS can neither see nor spoof `browser.*`. Plugin code
+    /// (PluginStore) evaluates in the same world; the DOM is shared, JS
+    /// globals are not. **world 必须与运行插件的 world 一致**：曾经写死
+    /// extensionWorld，per-plugin world 里 chrome.* 永远 undefined。
+    static func extensionAPIScript(in world: WKContentWorld = WebView.extensionWorld) -> WKUserScript? {
         let source = load("webext-api")
         guard !source.isEmpty else { return nil }
         return WKUserScript(
             source: source,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true,
-            in: WebView.extensionWorld
+            in: world
         )
     }
 }

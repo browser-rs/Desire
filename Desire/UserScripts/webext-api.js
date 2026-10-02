@@ -11,13 +11,26 @@
     if (window.__desireExt) return;
     var seq = 0, pending = {};
     var listeners = {};
+    // 消息传递的回包路由：宿主不用 rpc 的自增 id 回包（它走自己的
+    // replyId），这里按路由 id 找回同一个 pending 条目，让原 Promise 落定。
+    var routingPending = {};
 
     function rpc(ns, fn, args) {
         return new Promise(function(resolve, reject) {
             var id = ++seq;
-            pending[id] = { resolve: resolve, reject: reject };
+            var entry = { resolve: resolve, reject: reject, id: id };
+            pending[id] = entry;
+            var callArgs = args || [];
+            // 消息传递类调用生成路由 id 一起上送（宿主原样回传 → _resolveReply）。
+            var routed = (ns === "runtime" && (fn === "sendMessageToBackground" ||
+                                               fn === "sendMessageToTab"));
+            if (routed) {
+                var rid = "rp-" + Date.now().toString(36) + "-" + id;
+                routingPending[rid] = entry;
+                callArgs = callArgs.concat([rid]);
+            }
             window.webkit.messageHandlers.desireExt.postMessage({
-                id: id, ns: ns, fn: fn, args: args || [],
+                id: id, ns: ns, fn: fn, args: callArgs,
                 // 插件身份（宿主在跑每个插件前设 window.__desireExtID）：
                 // 宿主按它选 storage 命名空间。取调用时刻的值——延迟回调
                 // （Promise/timer）里发出也必须归到发起它的插件。
@@ -33,6 +46,18 @@
             if (!p) return;
             delete pending[id];
             if (ok) p.resolve(payload); else p.reject(new Error(String(payload)));
+        },
+        // 消息传递的回包（宿主持 Swift 侧 replyId 呼入）。noListener 语义
+        // 对齐 Chrome：promise reject "Receiving end does not exist."
+        _resolveReply: function(rid, ok, payload, noListener) {
+            var p = routingPending[rid];
+            if (!p) return;
+            delete routingPending[rid];
+            delete pending[p.id];
+            if (ok) p.resolve(payload);
+            else p.reject(new Error(noListener
+                ? "Could not establish connection. Receiving end does not exist."
+                : String(payload)));
         },
         // Swift fans tab events out to registered listeners.
         _fire: function(event, payload) {
@@ -81,8 +106,9 @@
         onRemoved: eventAPI("tabs.onRemoved"),
         onActivated: eventAPI("tabs.onActivated"),
         // background/popup → 页面：宿主经 _tabsMessage 投递进本页。
+        // 宿主侧 case 名是 ("runtime","sendMessageToTab")（背景页同一份 rpc）。
         sendMessage: function(tabId, msg) {
-            return rpc("tabs", "sendMessage", [tabId, msg === undefined ? null : msg]);
+            return rpc("runtime", "sendMessageToTab", [tabId, msg === undefined ? null : msg]);
         },
         onMessage: tabsOnMessage
     };
@@ -156,6 +182,52 @@
     var runtimeOnMessage = onMessageAPI();
     var tabsOnMessage = onMessageAPI();
 
+    // Port 长连接：connect() → onConnect（background 侧）；两边都拿 Port 对象
+    // {name, postMessage, onMessage, disconnect}。底层走宿主路由（portId 寻址）。
+    function makePort(name, portId) {
+        return {
+            name: name,
+            postMessage: function(msg) {
+                window.webkit.messageHandlers.desireExt.postMessage({
+                    ns: "port", fn: "postMessage", args: [portId, msg === undefined ? null : msg],
+                    ext: window.__desireExtID || null
+                });
+            },
+            disconnect: function() {
+                window.webkit.messageHandlers.desireExt.postMessage({
+                    ns: "port", fn: "disconnect", args: [portId],
+                    ext: window.__desireExtID || null
+                });
+            },
+            onMessage: {
+                addListener: function(cb) {
+                    window.__desireExt._portListeners[portId] = (window.__desireExt._portListeners[portId] || []);
+                    window.__desireExt._portListeners[portId].push(cb);
+                },
+                removeListener: function(cb) {
+                    var l = window.__desireExt._portListeners[portId] || [];
+                    var i = l.indexOf(cb); if (i >= 0) l.splice(i, 1);
+                }
+            }
+        };
+    }
+    window.__desireExt._portListeners = window.__desireExt._portListeners || {};
+    // 宿主投递 port 消息/断开的入口。
+    window.__desireExt._portMessage = function(portId, msg) {
+        var l = window.__desireExt._portListeners[portId] || [];
+        for (var i = 0; i < l.length; i++) {
+            try { l[i](msg); } catch (e) {}
+        }
+    };
+    window.__desireExt._portDisconnected = function(portId) {
+        delete window.__desireExt._portListeners[portId];
+    };
+    // 宿主 → 本页（background 场景）：页面 connect 了，投递 onConnect(port)。
+    window.__desireExt._portConnect = function(portId, name) {
+        var cb = window.__desireExt._onConnectCb;
+        if (cb) try { cb(makePort(name, portId)); } catch (e) {}
+    };
+
     var runtime = {
         id: "desire.webext",
         getManifest: function() {
@@ -166,7 +238,25 @@
         sendMessage: function(msg) {
             return rpc("runtime", "sendMessageToBackground", [msg === undefined ? null : msg]);
         },
-        onMessage: runtimeOnMessage
+        onMessage: runtimeOnMessage,
+        connect: function(name) {
+            // portId 全局唯一（各页面各自的 seq 会撞号，宿主端口表按它寻址）。
+            var portId = "port-" + Date.now().toString(36) + "-" + (++seq);
+            window.webkit.messageHandlers.desireExt.postMessage({
+                ns: "port", fn: "connect",
+                args: [portId, name || ""],
+                ext: window.__desireExtID || null
+            });
+            return makePort(name, portId);
+        },
+        onConnect: {
+            addListener: function(cb) {
+                window.webkit.messageHandlers.desireExt.postMessage({
+                    ns: "events", fn: "addListener", args: ["runtime.onConnect"]
+                });
+                window.__desireExt._onConnectCb = cb;
+            }
+        }
     };
     var contextMenus = {
         create: function(props) { return rpc("contextMenus", "create", [props || {}]); },

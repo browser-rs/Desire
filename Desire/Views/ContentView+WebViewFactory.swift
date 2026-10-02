@@ -78,7 +78,21 @@ extension ContentView {
                         historyStore.updateEntryTitle(url: targetURL, title: fresh)
                     }
                 }
-                pluginStore.inject(into: tab.browser.webView, for: url, tabID: tab.id)
+                // **注入必须跳出 didFinish 调用栈**（2026-10-02 实测）：didFinish
+                // 回调里 evaluate 进的内容脚本，其 postMessage 会**静默丢失**
+                //（延时 1.5s 再发就能到——WebKit 在导航回调执行期间不投递
+                // 脚本消息）。下一拍注入，DOM 已就绪不受影响。
+                // handler 未就绪（新 webview 首载快于 SwiftUI 建 representable）
+                // 时同样会静默丢失——挂起到注册完成后补跑
+                // （见 BrowserState.pendingPluginInjectURL）。
+                let injectURL = url
+                DispatchQueue.main.async {
+                    if tab.browser.areExtHandlersRegistered {
+                        pluginStore.inject(into: tab.browser.webView, for: injectURL, tabID: tab.id)
+                    } else {
+                        tab.browser.pendingPluginInjectURL = injectURL
+                    }
+                }
             },
             onElementPicked: { cssSelector, xpath in
                 handleElementPicked(cssSelector: cssSelector, xpath: xpath, in: tab)

@@ -97,7 +97,12 @@ class PluginStore: ObservableObject {
         }
 
         for (plugin, code, runAt) in js {
-            let delay = runAt == .documentIdle ? 200 : 0
+            // **WebKit 会吞掉导航收尾头 ~50ms 里新文档发出的脚本消息**
+            //（2026-10-02 实测：didFinish 拍 evaluate 注入的代码，立即
+            // postMessage 丢失、setTimeout(0) 也丢、50ms 起存活）——
+            // document_end 包一层 60ms 延时再跑插件体，否则 runtime.sendMessage/
+            // connect 的首发消息必丢。document_idle 原有 200ms 天然安全。
+            let delay = runAt == .documentIdle ? 200 : (runAt == .documentEnd ? 60 : 0)
             // 注入前置插件身份（0.3.3）：storage 等 API 按此命名空间。
             let prologue = "window.__desireExtID = '\(plugin.id.uuidString)';\n"
             if delay > 0 {
@@ -124,6 +129,15 @@ class PluginStore: ObservableObject {
             if pattern == "*://*/*" { return true }
             let str = url.absoluteString
             if globMatch(str, pattern: pattern) { return true }
+            // Chrome match-pattern 语法不允许带端口——带端口的 URL 也必须命中
+            // 无端口 pattern（*://127.0.0.1/* 要能匹配 127.0.0.1:8877/*）。
+            if let host = url.host, let port = url.port {
+                let needle = "\(host):\(port)"
+                if let range = str.range(of: needle) {
+                    let portless = str.replacingCharacters(in: range, with: host)
+                    if globMatch(portless, pattern: pattern) { return true }
+                }
+            }
         }
         return false
     }

@@ -416,7 +416,7 @@ final class AutomationServer {
         ep("GET", "/webext/debug", "ExtensionEventHub listener count + tab listener flags", example: "…/webext/debug")
         ep("POST", "/webext/fire", "Manually fire an extension tab event (diagnostics)", params: ["event:string"], example: "-d '{\"event\":\"tabs.onActivated\"}'")
         ep("POST", "/webext/eval", "Run JS in the ISOLATED extension world of the selected tab (sees browser.*; /execute cannot)", params: ["js:string"], example: "-d '{\"js\":\"typeof browser\"}'")
-        ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
+        ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)", "background?:string(background script source)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
         ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
         ep("POST", "/plugins/install-msex", "Install a .msex package (manifest v3 subset: content_scripts + popup)", params: ["path:string"], example: "-d '{\"path\":\"/tmp/demo.msex\"}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
@@ -706,7 +706,8 @@ final class AutomationServer {
                     runAt: Self.string(body, "runAt") ?? "document_end",
                     css: Self.string(body, "css") ?? "",
                     pinned: body["pinned"] as? Bool ?? false,
-                    icon: Self.string(body, "icon")
+                    icon: Self.string(body, "icon"),
+                    background: Self.string(body, "background")
                 ))
             case ("POST", "/plugins/install-msex"):
                 guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
@@ -2334,7 +2335,7 @@ final class AutomationServer {
                     js, in: nil, in: WebView.pluginWorld(uuid),
                     completionHandler: { result in
                         switch result {
-                        case .success(let value): continuation.resume(returning: value ?? NSNull())
+                        case .success(let value): continuation.resume(returning: value)
                         case .failure: continuation.resume(returning: NSNull())
                         }
                     })
@@ -2343,7 +2344,7 @@ final class AutomationServer {
                     js, in: nil, in: WebView.extensionWorld,
                     completionHandler: { result in
                         switch result {
-                        case .success(let value): continuation.resume(returning: value ?? NSNull())
+                        case .success(let value): continuation.resume(returning: value)
                         case .failure: continuation.resume(returning: NSNull())
                         }
                     })
@@ -2675,7 +2676,7 @@ final class AutomationServer {
 
     /// Creates a userscript plugin (E2E / Agent primitive). The code runs
     /// in the isolated extension world with the browser.* API available.
-    private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String, pinned: Bool, icon: String?) throws -> [String: Any] {
+    private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String, pinned: Bool, icon: String?, background: String?) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty, !js.isEmpty else {
             return ["error": "missing name/js"]
@@ -2687,7 +2688,8 @@ final class AutomationServer {
             jsCode: js,
             cssCode: css,
             pinned: pinned,
-            icon: icon
+            icon: icon,
+            backgroundCode: (background?.isEmpty == false) ? background : nil
         )
         app.pluginStore.add(plugin)
         return ["ok": true, "id": plugin.id.uuidString]

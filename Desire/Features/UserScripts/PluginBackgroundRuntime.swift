@@ -95,6 +95,7 @@ final class PluginBackgroundRuntime: NSObject {
     private func stop(_ id: UUID) {
         guard let host = hosts.removeValue(forKey: id) else { return }
         host.coordinator.teardown()
+        closePorts(pluginID: id)
         PluginContextMenuStore.shared.removeAll(pluginID: id)
         Log.userScripts.info("plugin background stopped: \(id.uuidString.prefix(8), privacy: .public)")
     }
@@ -197,18 +198,97 @@ final class PluginBackgroundRuntime: NSObject {
 
     // MARK: - 消息传递（runtime.sendMessage / tabs.sendMessage 路由）
 
-    /// 回复路由表：replyId → 等待回复的 webview（发起方页面）。
-    private var pendingReplies: [String: WKWebView] = [:]
+    // MARK: - Port 长连接（runtime.connect ↔ onConnect 路由）
+
+    /// 端口表（key = 全局唯一 portId）。页面端与 background 端各持一个同名
+    /// Port 对象，postMessage/disconnect 按“发送方是哪一端”投给另一端。
+    /// 页面端求值必须落回它注册时的 content-script world（extensionWorld 或
+    /// per-plugin world，见 WebView.pluginWorld）——连接登记时把 world 一起存下。
+    private struct PortEntry {
+        let pluginID: UUID
+        weak var pageWebView: WKWebView?
+        let pageWorld: WKContentWorld
+        weak var backgroundWebView: WKWebView?
+    }
+    private var ports: [String: PortEntry] = [:]
+
+    /// 页面端 connect（WebView 消息路径）：登记端口并通知 background 页 onConnect。
+    func openPort(portId: String, name: String, pluginID: UUID,
+                  pageWebView: WKWebView, pageWorld: WKContentWorld) {
+        ports[portId] = PortEntry(pluginID: pluginID, pageWebView: pageWebView,
+                                  pageWorld: pageWorld,
+                                  backgroundWebView: hosts[pluginID]?.webView)
+        if let bg = hosts[pluginID]?.webView {
+            bg.evaluateJavaScript(
+                "window.__desireExt && window.__desireExt._portConnect("
+                    + Self.quoted(portId) + ", " + Self.quoted(name) + ");",
+                in: nil, in: .page, completionHandler: nil)
+        }
+    }
+
+    /// background 端 connect（background 页自己 runtime.connect——对端内容脚本
+    /// 尚未连接，仅登记；页面侧调 connect 后消息才开始有去处）。
+    func openPortFromBackground(portId: String, pluginID: UUID, backgroundWebView: WKWebView) {
+        ports[portId] = PortEntry(pluginID: pluginID, pageWebView: nil,
+                                  pageWorld: .page, backgroundWebView: backgroundWebView)
+    }
+
+    /// 任一端 postMessage → 投给另一端。
+    func portMessage(portId: String, from sender: WKWebView, payload: Any) {
+        guard let entry = ports[portId] else { return }
+        let js = "window.__desireExt && window.__desireExt._portMessage("
+            + Self.quoted(portId) + ", " + quotedJSON(payload) + ");"
+        if sender === entry.pageWebView {
+            entry.backgroundWebView?.evaluateJavaScript(
+                js, in: nil, in: .page, completionHandler: nil)
+        } else {
+            entry.pageWebView?.evaluateJavaScript(
+                js, in: nil, in: entry.pageWorld, completionHandler: nil)
+        }
+    }
+
+    /// 任一端 disconnect → 通知另一端并拆表。
+    func closePort(portId: String, from sender: WKWebView) {
+        guard let entry = ports[portId] else { return }
+        ports.removeValue(forKey: portId)
+        let js = "window.__desireExt && window.__desireExt._portDisconnected(" + Self.quoted(portId) + ");"
+        if sender === entry.pageWebView {
+            entry.backgroundWebView?.evaluateJavaScript(js, in: nil, in: .page, completionHandler: nil)
+        } else {
+            entry.pageWebView?.evaluateJavaScript(js, in: nil, in: entry.pageWorld, completionHandler: nil)
+        }
+    }
+
+    /// 插件停用/卸载：撕掉它的全部端口（两端都通知；插件自己的 webview 正在
+    /// 拆除，多收一条 no-op 求值无害）。
+    func closePorts(pluginID: UUID) {
+        for (portId, entry) in ports where entry.pluginID == pluginID {
+            ports.removeValue(forKey: portId)
+            let js = "window.__desireExt && window.__desireExt._portDisconnected(" + Self.quoted(portId) + ");"
+            entry.backgroundWebView?.evaluateJavaScript(js, in: nil, in: .page, completionHandler: nil)
+            entry.pageWebView?.evaluateJavaScript(js, in: nil, in: entry.pageWorld, completionHandler: nil)
+        }
+    }
+
+    /// 回复路由表：replyId → 等待回复的 webview + **它的 content-script world**。
+    /// 页面侧插件活在 extensionWorld / per-plugin world——不指定 world 的求值
+    /// 落在默认 page world，那里没有 __desireExt，回复会静默蒸发（实测）。
+    private struct PendingReply {
+        weak var webView: WKWebView?
+        let world: WKContentWorld
+    }
+    private var pendingReplies: [String: PendingReply] = [:]
 
     /// 页面 → background：把消息投给指定插件的 background 页 onMessage。
     /// 无人监听或插件无 background 时立即回 "noListener"。
     func deliverToBackground(pluginID: UUID, message: Any, sender: [String: Any],
-                             replyId: String, replyWebView: WKWebView) {
+                             replyId: String, replyWebView: WKWebView,
+                             replyWorld: WKContentWorld) {
         guard let host = hosts[pluginID] else {
-            replyNoListener(replyId, to: replyWebView)
+            replyNoListener(replyId, to: replyWebView, world: replyWorld)
             return
         }
-        pendingReplies[replyId] = replyWebView
+        pendingReplies[replyId] = PendingReply(webView: replyWebView, world: replyWorld)
         Log.userScripts.info("deliverToBackground: \(pluginID.uuidString.prefix(8), privacy: .public) replyId=\(replyId, privacy: .public)")
         var parts: [String] = ["window.__desireExt && window.__desireExt._runtimeMessage("]
         parts.append(Self.quoted(replyId))
@@ -225,26 +305,27 @@ final class PluginBackgroundRuntime: NSObject {
     /// background → 页面：把消息投给指定 tab 的页面世界 onMessage。
     /// 找不到该 tab 或该页未注册监听（页面脚本会在无监听时回 noListener）→ 回 noListener 给 background。
     func deliverToTab(tabID: UUID, pluginID: UUID, message: Any, sender: [String: Any],
-                      replyId: String, fromWebView: WKWebView) {
+                      replyId: String, fromWebView: WKWebView, fromWorld: WKContentWorld) {
         guard let box = tabWebViews.first(where: { $0.tabID == tabID }), let web = box.webView else {
-            fromWebView.evaluateJavaScript(
-                "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), false, null, true)",
-                completionHandler: nil)
+            replyNoListener(replyId, to: fromWebView, world: fromWorld)
             return
         }
-        pendingReplies[replyId] = fromWebView
+        pendingReplies[replyId] = PendingReply(webView: fromWebView, world: fromWorld)
         let js = "window.__desireExt && window.__desireExt._tabsMessage("
             + Self.quoted(replyId) + ", " + quotedJSON(message) + ", " + quotedJSON(sender) + ");"
-        web.evaluateJavaScript(js, completionHandler: nil)
+        // 内容脚本活在 per-plugin world（PluginStore.inject 同款 world）——
+        // 默认 page world 里没有 __desireExt，求值会静默丢失。
+        web.evaluateJavaScript(js, in: nil, in: WebView.pluginWorld(pluginID), completionHandler: nil)
     }
 
     /// 回复回投：把 onMessage 的回复送回发起方（按 replyId 查路由表）。
     func deliverReply(replyId: String, ok: Bool, reply: Any?, noListener: Bool) {
         Log.userScripts.info("deliverReply: \(replyId, privacy: .public) ok=\(ok, privacy: .public)")
-        guard let target = self.pendingReplies.removeValue(forKey: replyId) else { return }
+        guard let target = pendingReplies.removeValue(forKey: replyId),
+              let web = target.webView else { return }
         let replyJSON = quotedJSON(reply ?? NSNull())
         let js = "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), \(ok), \(replyJSON), \(noListener))"
-        target.evaluateJavaScript(js, completionHandler: nil)
+        web.evaluateJavaScript(js, in: nil, in: target.world, completionHandler: nil)
     }
 
     /// 注册 tab → webview 映射（内容脚本插件注入页面时登记，供 tabs.sendMessage 寻址）。
@@ -257,10 +338,10 @@ final class PluginBackgroundRuntime: NSObject {
     private struct TabWebBox { let tabID: UUID; weak var webView: WKWebView? }
     private var tabWebViews: [TabWebBox] = []
 
-    private func replyNoListener(_ replyId: String, to webview: WKWebView) {
+    private func replyNoListener(_ replyId: String, to webview: WKWebView, world: WKContentWorld) {
         webview.evaluateJavaScript(
             "window.__desireExt && window.__desireExt._resolveReply(\(Self.quoted(replyId)), false, null, true)",
-            completionHandler: nil)
+            in: nil, in: world, completionHandler: nil)
     }
 
     private func quotedJSON(_ value: Any) -> String {
@@ -409,7 +490,9 @@ final class PluginBackgroundRuntime: NSObject {
                     reply(nil, error: "sendMessageToTab requires (tabId, message)")
                     return
                 }
-                let routedReplyId = "tab-\(id ?? 0)-\(UUID().uuidString)"
+                // 路由 id 由 JS 生成上送（args[2]），回包按它找回原 Promise。
+                let routedReplyId = (args.count > 2 ? args[2] as? String : nil)
+                    ?? "tab-\(id ?? 0)-\(UUID().uuidString)"
                 guard let fromWeb = message.webView else {
                     reply(nil, error: "no webview")
                     return
@@ -418,7 +501,7 @@ final class PluginBackgroundRuntime: NSObject {
                     tabID: tabUUID, pluginID: pluginID,
                     message: args[1], sender: ["fromBackground": true],
                     replyId: routedReplyId,
-                    fromWebView: fromWeb)
+                    fromWebView: fromWeb, fromWorld: .page)
                 reply([:])
             case ("runtime", "sendReply"):
                 // 页面侧 onMessage 的回复回投（background 发起的 sendMessageToTab）。
@@ -502,6 +585,28 @@ final class PluginBackgroundRuntime: NSObject {
                      "bytes": d.downloadedBytes] as [String: Any]
                 } ?? []
                 reply(rows)
+            case ("port", "connect"):
+                // background 页发起（对端内容脚本尚未连接，仅登记）。
+                if args.count >= 2, let bgPortId = args[0] as? String,
+                   let bgWeb = message.webView {
+                    PluginBackgroundRuntime.shared.openPortFromBackground(
+                        portId: bgPortId, pluginID: pluginID, backgroundWebView: bgWeb)
+                }
+                reply([:])
+            case ("port", "postMessage"):
+                guard let msgPortId = args.first as? String, let fromWeb = message.webView else {
+                    reply(nil, error: "port.postMessage requires portId")
+                    return
+                }
+                PluginBackgroundRuntime.shared.portMessage(
+                    portId: msgPortId, from: fromWeb,
+                    payload: args.count > 1 ? args[1] : NSNull())
+                reply([:])
+            case ("port", "disconnect"):
+                if let msgPortId = args.first as? String, let fromWeb = message.webView {
+                    PluginBackgroundRuntime.shared.closePort(portId: msgPortId, from: fromWeb)
+                }
+                reply([:])
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，
                 // 宿主派发时直接 evaluate 进来。

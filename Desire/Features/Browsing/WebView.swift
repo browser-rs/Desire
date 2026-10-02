@@ -1,4 +1,5 @@
 import AppKit
+import ObjectiveC
 import os
 import Combine
 import Security
@@ -73,6 +74,14 @@ class BrowserState: ObservableObject {
     /// 二级挂起会**重建**此视图（释放旧骨架、换上空白新视图）——除本类型
     /// 的 rebuildWebView() 外不得赋值；读取方照旧（非 optional，永不 nil）。
     private(set) var webView: BrowserWKWebView
+    /// 插件消息 handler（extensionWorld + per-plugin world）是否已注册——
+    /// Coordinator.observe() 置位、stopObserving() 复位。新 webview 的首次
+    /// 加载可能快于 SwiftUI 建 representable，内容脚本此时 postMessage 会
+    /// 静默丢失（WebKit 丢给未接线的 handler 名，不抛错）——didFinish 的
+    /// 插件注入在未就绪时改为挂起，注册完成后补跑（consumePendingPluginInject）。
+    var areExtHandlersRegistered = false
+    /// 挂起中的插件注入（值 = didFinish 的页面 URL）。
+    var pendingPluginInjectURL: URL?
     /// This page runs in an incognito tab (non-persistent data store).
     /// Downloads created here are tagged private so they never reach the
     /// shared download history on disk.
@@ -247,7 +256,9 @@ class BrowserState: ObservableObject {
         // 注入的时序一致）。
         if let pluginStore = AppState.live?.pluginStore {
             for plugin in pluginStore.plugins where plugin.isEnabled {
-                if let script = UserScriptLoader.extensionAPIScript() {
+                // 必须落进该插件自己的 world——历史上这里重复加的是
+                // extensionWorld 那份，per-plugin world 里 chrome 恒 undefined。
+                if let script = UserScriptLoader.extensionAPIScript(in: WebView.pluginWorld(plugin.id)) {
                     config.userContentController.addUserScript(script)
                 }
             }
@@ -519,12 +530,13 @@ struct WebView: NSViewRepresentable {
         return WebViewContainer(webView: webView)
     }
 
-    func updateNSView(_ nsView: WebViewContainer, context: Context) {
-        context.coordinator.parent = self
-        // per-plugin world 的 desireExt handler 是 webview 创建后装的插件才有的——
-        // webview 复用不会重跑 makeNSView/observe，这里幂等补注册（remove-before-add）。
-        context.coordinator.registerPluginWorldHandlers(nsView.webView, coordinator: context.coordinator)
-    }
+        func updateNSView(_ nsView: WebViewContainer, context: Context) {
+            context.coordinator.parent = self
+            // per-plugin world 的 desireExt handler 是 webview 创建后装的插件才有的——
+            // webview 复用不会重跑 makeNSView/observe，这里幂等补注册（remove-before-add）。
+            context.coordinator.registerPluginWorldHandlers(nsView.webView, coordinator: context.coordinator)
+            context.coordinator.consumePendingPluginInject(nsView.webView)
+        }
 
     static func dismantleNSView(_ nsView: WebViewContainer, coordinator: Coordinator) {
         coordinator.stopObserving()
@@ -589,6 +601,13 @@ struct WebView: NSViewRepresentable {
             "otpDetect",
         ]
 
+        /// desireExt handler 注册台账（associated object 挂 webview，见
+        /// registerPluginWorldHandlers 的零折腾注释）。
+        final class ExtHandlerLedger {
+            var entries: [String: WKScriptMessageHandler] = [:]
+        }
+        static let extHandlerLedgerKey = "desireExtHandlerLedger"
+
         func observe(_ webView: WKWebView) {
             let contentController = webView.configuration.userContentController
             for name in Self.scriptMessageHandlers {
@@ -598,15 +617,13 @@ struct WebView: NSViewRepresentable {
                 contentController.removeScriptMessageHandler(forName: name)
                 contentController.add(self, name: name)
             }
-            // WebExtension RPC — isolated world handler (name space is per
-            // world, so this doesn't collide with the page-world list).
-            contentController.removeScriptMessageHandler(
-                forName: "desireExt", contentWorld: WebView.extensionWorld)
-            contentController.add(self, contentWorld: WebView.extensionWorld, name: "desireExt")
-            // 每插件独立 world（插件间身份隔离）：desireExt handler 同样注册到
-            // 各插件 world——PluginStore.inject 的 content script 在那些 world
-            // 里 postMessage，同一个 Coordinator 按消息体路由。
+            // WebExtension RPC（extensionWorld + 各插件 world）——注册走
+            // registerPluginWorldHandlers 的台账去重（observe 的 remove+add
+            // 每次都换桥接对象，会丢导航瞬间在途消息，勿改回）。
             registerPluginWorldHandlers(webView, coordinator: self)
+            // 登记本 tab 的 webview（tabs.sendMessage 的寻址表；快速切标签
+            // 重建 representable 时 observe 重跑，登记随之刷新）。
+            PluginBackgroundRuntime.shared.registerTabWebview(parent.tabID, webView: webView)
             // 快速切标签会重建 representable（stopObserving 摘过 hub 注册）——
             // 只要页面曾声明过监听，observe 时重新入册。
             if parent.state.hasExtensionTabListeners {
@@ -627,6 +644,19 @@ struct WebView: NSViewRepresentable {
                     }
                 },
             ]
+            // handler 全部就位：置就绪标志并补跑挂起中的插件注入
+            //（首载快于 representable 建立时 didFinish 把注入挂起了）。
+            parent.state.areExtHandlersRegistered = true
+            consumePendingPluginInject(webView)
+        }
+
+        /// 补跑挂起中的插件注入（handler 注册先于 didFinish 时无挂起、空操作）。
+        /// URL 不匹配（挂起后已再次导航）则丢弃——那次导航自己会走正常路径。
+        func consumePendingPluginInject(_ webView: WKWebView) {
+            guard let url = parent.state.pendingPluginInjectURL else { return }
+            parent.state.pendingPluginInjectURL = nil
+            guard webView.url?.absoluteString == url.absoluteString else { return }
+            AppState.live?.pluginStore.inject(into: webView, for: url, tabID: parent.tabID)
         }
 
         // 全屏 = WebKit 原生 element fullscreen（见 BrowserState.init 的
@@ -636,21 +666,33 @@ struct WebView: NSViewRepresentable {
         // 已整体移除——勿再引入。chrome 收起（只在站点整屏时）在
         // ContentView/SelectedTabContent（isSiteFullScreen）。
 
-        /// per-plugin world 的 desireExt handler 注册（幂等）。webview 复用时
-        /// observe 不重跑——新装插件的 world 在这里补注册。
+        /// per-plugin world 的 desireExt handler 注册（幂等 + **零折腾**）。
+        /// webview 复用时 observe 不重跑——新装插件的 world 在这里补注册。
+        /// **同 coordinator 已注册的 world 直接跳过**：曾经的 remove+add 在
+        /// 每轮 updateNSView 都换一次桥接对象，把导航瞬间在途的脚本消息
+        /// 丢掉（实测内容脚本首发消息必丢、延时 ≥300ms 才能存活）。
         func registerPluginWorldHandlers(_ webView: WKWebView, coordinator: Coordinator) {
             let contentController = webView.configuration.userContentController
             guard let pluginStore = AppState.live?.pluginStore else { return }
-            var registered = 0
-            for plugin in pluginStore.plugins where plugin.isEnabled && !plugin.jsCode.isEmpty {
-                let world = WebView.pluginWorld(plugin.id)
+            let ledger = objc_getAssociatedObject(webView, Self.extHandlerLedgerKey)
+                as? ExtHandlerLedger ?? ExtHandlerLedger()
+            var newlyRegistered = 0
+            func ensure(_ world: WKContentWorld, worldKey: String) {
+                if ledger.entries[worldKey] === coordinator { return }
                 contentController.removeScriptMessageHandler(
                     forName: "desireExt", contentWorld: world)
                 contentController.add(coordinator, contentWorld: world, name: "desireExt")
-                registered += 1
+                ledger.entries[worldKey] = coordinator
+                newlyRegistered += 1
             }
-            if registered > 0 {
-                Log.userScripts.info("plugin world handlers registered: \(registered, privacy: .public)")
+            ensure(WebView.extensionWorld, worldKey: "__extension__")
+            for plugin in pluginStore.plugins where plugin.isEnabled && !plugin.jsCode.isEmpty {
+                ensure(WebView.pluginWorld(plugin.id), worldKey: plugin.id.uuidString)
+            }
+            objc_setAssociatedObject(webView, Self.extHandlerLedgerKey, ledger,
+                                     .OBJC_ASSOCIATION_RETAIN)
+            if newlyRegistered > 0 {
+                Log.userScripts.info("plugin world handlers registered: \(newlyRegistered, privacy: .public)")
             }
         }
 
@@ -667,6 +709,9 @@ struct WebView: NSViewRepresentable {
             }
             wv.configuration.userContentController.removeScriptMessageHandler(
                 forName: "desireExt", contentWorld: WebView.extensionWorld)
+            // 台账一并作废（下次 observe 重新登记，与新 coordinator 配对）。
+            objc_setAssociatedObject(wv, Self.extHandlerLedgerKey, nil, .OBJC_ASSOCIATION_RETAIN)
+            parent.state.areExtHandlersRegistered = false
             ExtensionEventHub.shared.unregister(parent.state)
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
@@ -815,7 +860,7 @@ struct WebView: NSViewRepresentable {
                     code, in: nil, in: WebView.extensionWorld,
                     completionHandler: { result in
                         if case .success(let value) = result {
-                            reply(value ?? NSNull())
+                            reply(value)
                         } else {
                             reply(NSNull())
                         }
@@ -856,9 +901,7 @@ struct WebView: NSViewRepresentable {
                     reply(nil, error: "cookies.set requires name/value/domain")
                     return
                 }
-                let siteURL = (setDetails["url"] as? String).flatMap { URL(string: $0) }
-                    ?? URL(string: "https://\(domain)")
-                var props = [HTTPCookiePropertyKey.domain: domain,
+                let props = [HTTPCookiePropertyKey.domain: domain,
                              HTTPCookiePropertyKey.name: name,
                              HTTPCookiePropertyKey.value: value,
                              HTTPCookiePropertyKey.path: setDetails["path"] as? String ?? "/",
@@ -892,10 +935,12 @@ struct WebView: NSViewRepresentable {
                 let msg = args.first ?? NSNull()
                 let sender: [String: Any] = ["tab": parent.tabID.uuidString,
                                              "url": parent.state.webView.url?.absoluteString ?? ""]
-                let replyId = UUID().uuidString
+                // 路由 id 由 JS 生成上送（args[1]），回包按它找回原 Promise。
+                let replyId = (args.count > 1 ? args[1] as? String : nil) ?? UUID().uuidString
                 PluginBackgroundRuntime.shared.deliverToBackground(
                     pluginID: ext, message: msg, sender: sender,
-                    replyId: replyId, replyWebView: parent.state.webView)
+                    replyId: replyId, replyWebView: parent.state.webView,
+                    replyWorld: world)
                 // 回复经 {ns:"runtime", fn:"sendReply"} 异步送达（replyId 路由）。
             case ("runtime", "sendReply"):
                 // onMessage 的回复回投（页面 ↔ background 双向共用此通道）。
@@ -908,6 +953,34 @@ struct WebView: NSViewRepresentable {
                     reply: envelope["reply"],
                     noListener: (envelope["noListener"] as? Bool) == true)
                 // 该 handler 无 reply 语义（不是 rpc 请求）。
+            case ("port", "connect"):
+                // 页面端发起长连接：登记端口（含本页 content-script world，
+                // background 回包按它求值）并通知 background 页 onConnect。
+                guard let portPlugin = extID.flatMap(UUID.init(uuidString:)),
+                      let portId = args.first as? String else {
+                    reply(nil, error: "port.connect requires extension identity")
+                    return
+                }
+                PluginBackgroundRuntime.shared.openPort(
+                    portId: portId, name: (args.count > 1 ? args[1] as? String : nil) ?? "",
+                    pluginID: portPlugin,
+                    pageWebView: parent.state.webView, pageWorld: world)
+                reply([:])
+            case ("port", "postMessage"):
+                guard let portId = args.first as? String else {
+                    reply(nil, error: "port.postMessage requires portId")
+                    return
+                }
+                PluginBackgroundRuntime.shared.portMessage(
+                    portId: portId, from: parent.state.webView,
+                    payload: args.count > 1 ? args[1] : NSNull())
+                reply([:])
+            case ("port", "disconnect"):
+                if let portId = args.first as? String {
+                    PluginBackgroundRuntime.shared.closePort(
+                        portId: portId, from: parent.state.webView)
+                }
+                reply([:])
             default:
                 reply(nil, error: "unknown \(ns).\(fn)")
             }

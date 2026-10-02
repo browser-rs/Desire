@@ -2129,10 +2129,12 @@ class AgentSessionStore: ObservableObject {
     /// 工具的生效风险等级：在静态分类之上叠加 **DPP 动作声明**。
     ///
     /// 站点把动作声明为 `effects: "outbound"` 或 `danger: true` 时（发消息/
-    /// 下单等对外不可逆操作），无论白名单、自动编辑还是 "Always Allow" 都
-    /// 必须回到逐次审批——协议声明能力 ≠ 授权，Desire 强制最终闸门
-    /// （DPP-PROTOCOL §6.1）。升级到 `.dangerous` 即达成：dangerous 档
-    /// 不进白名单、不走 allow 规则、autoEdit 不放行，永远弹审批。
+    /// 下单等对外不可逆操作），无论白名单、allow 规则、自动编辑还是
+    /// "Always Allow" 都必须回到逐次审批——协议声明能力 ≠ 授权，Desire
+    /// 强制最终闸门（DPP-PROTOCOL §6.1）。升级到 `.dangerous` 后：不进
+    /// 白名单、不走 allow 规则、autoEdit 分支显式豁免、永远弹审批。
+    /// （真机 E2E 教训：只升级风险档挡不住 autoEdit——该分支原本不看
+    /// risk，豁免必须写在分支条件里。）
     private func effectiveRisk(for toolCall: AgentToolCall) -> ToolRisk {
         let base = ToolRisk.classify(toolCall.function.name)
         guard toolCall.function.name == "pageAction",
@@ -2171,13 +2173,17 @@ class AgentSessionStore: ObservableObject {
             return .denied
         }
 
-        // 自动编辑：浏览器内的页面编辑类自动通过；**两个例外**——runCommand
+        // 自动编辑：浏览器内的页面编辑类自动通过；**三个例外**——runCommand
         // 受命令级允许列表/审批管控（该层有自己的协商与持久白名单，
         // 见 SystemCommandStore）；fillLogin（填存档密码并提交登录）永远
-        // 显式确认（涉及凭据，自动放行违背该工具的风险注记）。
+        // 显式确认（涉及凭据，自动放行违背该工具的风险注记）；DPP 动作被
+        // 站点声明为 outbound/danger 时同样例外——协议声明能力 ≠ 授权，
+        // 站点自标的不可逆操作不能因访问等级静默放行（真机 E2E 实测抓到：
+        // 升级 .dangerous 挡不住 autoEdit 分支，必须在此显式豁免）。
         if accessLevel == .autoEdit,
            toolCall.function.name != "runCommand",
-           toolCall.function.name != "fillLogin" {
+           toolCall.function.name != "fillLogin",
+           effectiveRisk(for: toolCall) != .dangerous {
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: toolCall.function.name,
                 decision: "allowed (auto-edit)", source: "access level")

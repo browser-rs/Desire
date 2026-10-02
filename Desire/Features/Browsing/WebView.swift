@@ -78,6 +78,10 @@ class BrowserState: ObservableObject {
     /// coordinator 解析缓存）。nil = 页面无协议。pageExtract/pageProtocol
     /// 工具与 page_context 增强消费。
     var pageProtocol: DesireProtocol? = nil
+    /// 本页 DPP 解析**已经完成**（无论有没有协议）。与 pageProtocol 搭配
+    /// 区分"还没解析完"和"解析了、无协议"——navigate 的 signals.ready 等
+    /// 待靠它避免给每个普通页面白加延迟。
+    var pageProtocolChecked = false
     /// 插件消息 handler（extensionWorld + per-plugin world）是否已注册——
     /// Coordinator.observe() 置位、stopObserving() 复位。新 webview 的首次
     /// 加载可能快于 SwiftUI 建 representable，内容脚本此时 postMessage 会
@@ -631,6 +635,11 @@ struct WebView: NSViewRepresentable {
             contentController.removeScriptMessageHandler(
                 forName: "desireProtocolEvent", contentWorld: .page)
             contentController.add(self, contentWorld: .page, name: "desireProtocolEvent")
+            // DPP 控制通道（.page world——desire-sdk.js expose 后请求重解析，
+            // SPA 路由变化的声明由此进缓存）。
+            contentController.removeScriptMessageHandler(
+                forName: "desireProtocolControl", contentWorld: .page)
+            contentController.add(self, contentWorld: .page, name: "desireProtocolControl")
             registerPluginWorldHandlers(webView, coordinator: self)
             // 登记本 tab 的 webview（tabs.sendMessage 的寻址表；快速切标签
             // 重建 representable 时 observe 重跑，登记随之刷新）。
@@ -1072,6 +1081,18 @@ struct WebView: NSViewRepresentable {
                 if !eventName.isEmpty {
                     PageEventHub.shared.handleEvent(host: eventHost, eventName: eventName, detail: detail)
                 }
+            } else if message.name == "desireProtocolControl",
+                      let dict = message.body as? [String: Any],
+                      dict["kind"] as? String == "reparse",
+                      let reparseWebView = message.webView {
+                // SPA 路由变化重新 expose（desire-sdk.js）→ 防抖重解析：
+                // 连续多次 expose 合并成一次，取最后一次的声明。
+                reparseTask?.cancel()
+                reparseTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    guard !Task.isCancelled, let self else { return }
+                    await self.parsePageProtocol(webView: reparseWebView)
+                }
             } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
                 noteTabInDevTools()
                 parent.devToolsStore.applyNetworkEvent(dict, tabID: parent.tabID)
@@ -1263,6 +1284,7 @@ struct WebView: NSViewRepresentable {
             // DPP 协议属旧页：不清的话，didFinish 的异步解析完成前 pageAction
             // 可能拿到上一页的动作声明在新区执行（导航竞态）。
             parent.state.pageProtocol = nil
+            parent.state.pageProtocolChecked = false
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -1374,17 +1396,24 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        /// SPA 重新 expose 的防抖重解析任务（desireProtocolControl 消息）。
+        private var reparseTask: Task<Void, Never>?
+
         /// 解析页面 DPP 协议（desire-protocol.js 归一化四形态）→ 缓存
         /// state.pageProtocol。静默：解析失败 = 无协议，工具走启发式。
         /// 事件监听由页面内的 MutationObserver 负责（0→正 跳变上报）；
         /// 宿主侧不做轮询（曾经的 installEventPolling 无调用点，已删）。
         private func parsePageProtocol(webView: WKWebView) async {
             let script = UserScriptLoader.load("desire-protocol")
-            guard !script.isEmpty else { return }
+            guard !script.isEmpty else {
+                parent.state.pageProtocolChecked = true
+                return
+            }
             let rawResult = try? await webView.callAsyncJavaScript(
                 script, arguments: [:], in: nil, contentWorld: .page) as? String
             guard let raw = rawResult, let data = raw.data(using: .utf8) else {
                 parent.state.pageProtocol = nil
+                parent.state.pageProtocolChecked = true
                 Log.agent.info("DPP parse: JS result nil or not string")
                 return
             }
@@ -1392,6 +1421,7 @@ struct WebView: NSViewRepresentable {
             //（此前每个普通页面都刷一行 decode error）。
             if raw == "null" {
                 parent.state.pageProtocol = nil
+                parent.state.pageProtocolChecked = true
                 return
             }
             do {
@@ -1408,6 +1438,7 @@ struct WebView: NSViewRepresentable {
                 Log.agent.info("DPP decode error: \(error.localizedDescription, privacy: .public) raw=\(raw.prefix(200), privacy: .public)")
                 parent.state.pageProtocol = nil
             }
+            parent.state.pageProtocolChecked = true
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

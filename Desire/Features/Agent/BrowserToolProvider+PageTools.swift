@@ -222,9 +222,34 @@ extension BrowserToolProvider {
                     "document.body ? document.body.innerText.substring(0, 200) : ''")
                 return (raw as? String) ?? ""
             }()
+            // DPP：先等协议解析落地（didFinish 里的异步 Task；pageProtocolChecked
+            // 区分"没解析完"与"无协议"，普通页面几乎零等待），然后：
+            // ① signals.ready —— 声明了就绪信号就等它出现再返回（spec §4.2，
+            //    cap 6s；超时如实报告，不让导航假失败）；
+            // ② 视图/动作提示与 ready 共用这份协议。
+            var dpp: DesireProtocol? = nil
+            for _ in 0..<10 {
+                dpp = targetManager.tabs.first(where: { $0.browser.webView === webView })?.browser.pageProtocol
+                if dpp != nil { break }
+                if targetTab?.browser.pageProtocolChecked == true { break }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            var readyNote = ""
+            if let readySel = dpp?.signals["ready"], !readySel.isEmpty {
+                let readyJS = "return !!document.querySelector(\(JSString.literal(readySel)))"
+                var readySeen = false
+                for _ in 0..<30 {
+                    readySeen = ((try? await webView.callAsyncJavaScript(
+                        readyJS, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                    if readySeen { break }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+                readyNote = readySeen
+                    ? "\n[DPP] Ready signal observed."
+                    : "\n[DPP] Ready signal '\(readySel)' NOT observed within 6s — the page may still be loading or the signal is misdeclared."
+            }
             var dppHint = ""
-            if let tab = targetManager.tabs.first(where: { $0.browser.webView === webView }),
-               let dpp = tab.browser.pageProtocol, !dpp.isEmpty {
+            if let dpp, !dpp.isEmpty {
                 var views: [String] = []
                 for (name, view) in dpp.views {
                     views.append("\(name)(fields: \(view.fields.keys.sorted().joined(separator: ",")))")
@@ -238,6 +263,7 @@ extension BrowserToolProvider {
             }
             var result = "Navigated to \(url) — \(pageTitle)"
             if !snippet.isEmpty { result += "\n\(snippet)" }
+            if !readyNote.isEmpty { result += readyNote }
             if !dppHint.isEmpty { result += dppHint }
             return result
         case "goBack":

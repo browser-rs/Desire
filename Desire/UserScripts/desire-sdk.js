@@ -45,6 +45,11 @@
             this._protocol = protocol;
             // 序列化并挂到 window，宿主解析器读取 window.__desireProtocolExposed
             window.__desireProtocolExposed = JSON.parse(JSON.stringify(protocol));
+            // SPA 路由变化的重新 expose 需要宿主重新解析——宿主只在 didFinish
+            // 解析一次，不通知的话新声明永远不会进 pageProtocol 缓存。
+            try {
+                window.webkit.messageHandlers.desireProtocolControl.postMessage({ kind: "reparse" });
+            } catch (e) {}
             if (this._debug) {
                 console.log("[desire-sdk] protocol exposed:", Object.keys(protocol));
             }

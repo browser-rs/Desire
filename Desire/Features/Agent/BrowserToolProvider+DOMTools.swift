@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import os
 
 /// ARCH-2 拆分：executeBody 的「DOM 交互/录制/系统命令与技能」域。
 /// 纯搬运（case 体零改动）；返回 nil = 本域不认识该工具。
@@ -688,10 +689,18 @@ extension BrowserToolProvider {
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
         case "pageAction":
-            guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol,
+            // 协议缓存属 BrowserState，DOM 属**活 webview**——挂起的标签页
+            // 是冻结骨架（innerText 还在、元素查不到），在它上面执行声明
+            // 动作会得到莫名其妙的"元素不存在"。与 readTab 同款守卫。
+            guard let dppTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            guard !dppTab.isSuspended else {
+                return Self.fail("The tab holding this DPP page is suspended — switchTab to it first, then retry")
+            }
+            let dppWebView = dppTab.browser.webView
+            guard let protocolSnapshot = dppTab.browser.pageProtocol,
                   let actionName = args["name"] as? String,
                   let action = protocolSnapshot.actions.first(where: { $0.name == actionName }) else {
-                let available = surface.tabManager?.selectedTab?.browser.pageProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
+                let available = dppTab.browser.pageProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
                 return Self.fail(available.isEmpty
                     ? "No DPP protocol or actions on this page"
                     : "Unknown action. Available: \(available)")
@@ -711,9 +720,19 @@ extension BrowserToolProvider {
             }
             // 前置条件：precondition 选择器必须存在（此前声明被直接丢弃）。
             if let precondition = action.precondition, !precondition.isEmpty {
-                let present = ((try? await webView.callAsyncJavaScript(
-                    "!!document.querySelector(\(JSString.literal(precondition)))",
-                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                // callAsyncJavaScript 把 body 包进 async function——布尔结果
+                // 必须 **return**（无 return 恒 nil→false，fill/click 之类副作用
+                // 型步骤则不受影响——此前全部布尔检查都踩在这里）。
+                let present: Bool
+                do {
+                    let raw = try await dppWebView.callAsyncJavaScript(
+                        "return !!document.querySelector(\(JSString.literal(precondition)))",
+                        arguments: [:], in: nil, contentWorld: .page)
+                    present = (raw as? Bool) == true
+                } catch {
+                    Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
+                    present = false
+                }
                 if !present {
                     return Self.fail("Action '\(actionName)' precondition not met: '\(precondition)' not found on page")
                 }
@@ -733,11 +752,11 @@ extension BrowserToolProvider {
                 return filled
             }
             func runStepJS(_ js: String) async throws {
-                _ = try await webView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
+                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
             }
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
-                    let ok = ((try? await webView.callAsyncJavaScript(
+                    let ok = ((try? await dppWebView.callAsyncJavaScript(
                         js, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
@@ -789,7 +808,7 @@ extension BrowserToolProvider {
                         case "waitForText":
                             let textLit = JSString.literal(value)
                             if let problem = await waitFor(
-                                "document.body.innerText.includes(\(textLit))", what: "text '\(value)'") {
+                                "return document.body.innerText.includes(\(textLit))", what: "text '\(value)'") {
                                 throw NSError(domain: "dpp", code: 1,
                                               userInfo: [NSLocalizedDescriptionKey: problem])
                             }
@@ -797,7 +816,7 @@ extension BrowserToolProvider {
                         case "waitFor":
                             let selLit = JSString.literal(value)
                             if let problem = await waitFor(
-                                "!!document.querySelector(\(selLit))", what: "element '\(value)'") {
+                                "return !!document.querySelector(\(selLit))", what: "element '\(value)'") {
                                 throw NSError(domain: "dpp", code: 1,
                                               userInfo: [NSLocalizedDescriptionKey: problem])
                             }
@@ -836,15 +855,31 @@ extension BrowserToolProvider {
                     break // 每步 dict 只有一个操作
                 }
             }
+            // DPP signals.busy：声明了忙碌信号就等它消失再判成败（spec §4.2
+            // "click/fill 后检查 busy"——此前只做 success 文本检测）。
+            var busyNote = ""
+            if let busySel = protocolSnapshot.signals["busy"], !busySel.isEmpty {
+                let busyJS = "return !!document.querySelector(\(JSString.literal(busySel)))"
+                var busyGone = false
+                for _ in 0..<10 {
+                    busyGone = ((try? await dppWebView.callAsyncJavaScript(
+                        busyJS, arguments: [:], in: nil, contentWorld: .page) as? Bool) != true)
+                    if busyGone { break }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+                if !busyGone {
+                    busyNote = " (busy signal '\(busySel)' still present after 5s — the page reports ongoing work)"
+                }
+            }
             // 检查 success 信号
             var suffix = ""
             if let successText = action.success, !successText.isEmpty {
-                let found = ((try? await webView.callAsyncJavaScript(
-                    "document.body.innerText.includes(\(JSString.literal(successText)))",
+                let found = ((try? await dppWebView.callAsyncJavaScript(
+                    "return document.body.innerText.includes(\(JSString.literal(successText)))",
                     arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
-            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(suffix)"
+            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)"
 
         case "pageProtocol":
             guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol else { return "This page does not declare a DPP protocol." }
@@ -878,9 +913,14 @@ extension BrowserToolProvider {
             return lines.joined(separator: "\n")
 
         case "pageExtract":
-            let availableViews = surface.tabManager?.selectedTab?.browser.pageProtocol?.views.keys.sorted().joined(separator: ", ") ?? ""
+            guard let dppTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            guard !dppTab.isSuspended else {
+                return Self.fail("The tab holding this DPP page is suspended — switchTab to it first, then retry")
+            }
+            let dppWebView = dppTab.browser.webView
+            let availableViews = dppTab.browser.pageProtocol?.views.keys.sorted().joined(separator: ", ") ?? ""
             guard let viewName = args["view"] as? String,
-                  let view = surface.tabManager?.selectedTab?.browser.pageProtocol?.views[viewName] else {
+                  let view = dppTab.browser.pageProtocol?.views[viewName] else {
                 return Self.fail(availableViews.isEmpty
                     ? "No DPP protocol on this page"
                     : "Unknown view. Available: \(availableViews)")
@@ -934,11 +974,11 @@ extension BrowserToolProvider {
                     fieldEntries.append("\(JSString.literal(name)): \(fieldValueJS(path))")
                 }
                 let itemLit = JSString.literal(view.item)
-                return "(function(){var items=[];document.querySelectorAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
+                return "return (function(){var items=[];document.querySelectorAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
             }
 
             func collectPage() async -> [[String: Any]] {
-                guard let raw = try? await webView.callAsyncJavaScript(
+                guard let raw = try? await dppWebView.callAsyncJavaScript(
                     extractJS(), arguments: [:], in: nil, contentWorld: .page) as? String,
                     let data = raw.data(using: .utf8),
                     let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
@@ -946,29 +986,62 @@ extension BrowserToolProvider {
             }
 
             // 截断按**条目数**（不再把 JSON 字符串从中间切断产出非法 JSON）。
-            func render(_ items: [[String: Any]], pages: Int) -> String {
+            func render(_ items: [[String: Any]], pages: Int, scope: String) -> String {
                 let capped = items.count > hardCap ? Array(items.prefix(hardCap)) : items
                 let note = items.count > hardCap ? "\n(…\(items.count) items, capped at \(hardCap))" : ""
                 let data = (try? JSONSerialization.data(withJSONObject: capped)) ?? Data("[]".utf8)
                 let body = String(data: data, encoding: .utf8) ?? "[]"
-                let scope = allPages ? "full pagination" : "current"
                 return "Extracted \(viewName) (\(pages) page(s), \(scope)):\n\(body)\(note)"
             }
 
-            let canPage = view.pagination?.type == "paged" && (view.pagination?.next?.isEmpty == false)
-            if !allPages || !canPage {
+            let paginationType = view.pagination?.type
+            let paged = paginationType == "paged" && (view.pagination?.next?.isEmpty == false)
+            let infinite = paginationType == "infinite"
+            if !allPages || (!paged && !infinite) {
                 do {
-                    let raw = try await webView.callAsyncJavaScript(
+                    let raw = try await dppWebView.callAsyncJavaScript(
                         extractJS(), arguments: [:], in: nil, contentWorld: .page
                     ) as? String
                     guard let raw, let data = raw.data(using: .utf8) else { return Self.fail("Extraction returned empty") }
                     let items = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
-                    return render(items, pages: 1)
+                    return render(items, pages: 1, scope: "current")
                 } catch {
                     return Self.fail("Extraction JS error: \(error.localizedDescription)")
                 }
             }
-            // 分页全量：抽当前页 → 点 next → 等稳定 → 重抽（cap 10 页）。
+            // 无限滚动：滚到底 → 等内容增长 → 抽取去重累计；连续两轮无新增
+            // 即视为到底（cap 10 轮）。
+            if infinite {
+                var allItems: [[String: Any]] = []
+                var seen = Set<String>()
+                var rounds = 0
+                var stableRounds = 0
+                while rounds < 10 && allItems.count < hardCap {
+                    let items = await collectPage()
+                    var added = 0
+                    for item in items {
+                        guard allItems.count < hardCap else { break }
+                        if let data = try? JSONSerialization.data(withJSONObject: item),
+                           seen.insert(String(data: data, encoding: .utf8) ?? "").inserted {
+                            allItems.append(item)
+                            added += 1
+                        }
+                    }
+                    rounds += 1
+                    if added == 0 {
+                        stableRounds += 1
+                        if stableRounds >= 2 { break }
+                    } else {
+                        stableRounds = 0
+                    }
+                    _ = try? await dppWebView.callAsyncJavaScript(
+                        "window.scrollTo(0, document.body.scrollHeight); 'ok'",
+                        arguments: [:], in: nil, contentWorld: .page)
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                }
+                return render(allItems, pages: rounds, scope: "infinite scroll")
+            }
+            // paged 分页全量：抽当前页 → 点 next → 等稳定 → 重抽（cap 10 页）。
             // 合并走结构化数组 + 序列化串去重（此前 base64→字符串拼接，遇空页
             // 会拼出 "[,]" 非法 JSON）。
             var allItems: [[String: Any]] = []
@@ -986,16 +1059,16 @@ extension BrowserToolProvider {
                 }
                 pages += 1
                 if allItems.count >= hardCap { break }
-                _ = try? await webView.callAsyncJavaScript(
+                _ = try? await dppWebView.callAsyncJavaScript(
                     "var n = document.querySelector(\(JSString.literal(nextSel))); if (n) { n.click(); } 'ok'",
                     arguments: [:], in: nil, contentWorld: .page)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
-                let hasNext = ((try? await webView.callAsyncJavaScript(
-                    "!!document.querySelector(\(JSString.literal(nextSel)))",
+                let hasNext = ((try? await dppWebView.callAsyncJavaScript(
+                    "return !!document.querySelector(\(JSString.literal(nextSel)))",
                     arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                 if !hasNext { break }
             }
-            return render(allItems, pages: pages)
+            return render(allItems, pages: pages, scope: "full pagination")
 
         case "toggleAutoAdClean":
             let target = args["enabled"] as? Bool ?? !AutoAdClean.isEnabled

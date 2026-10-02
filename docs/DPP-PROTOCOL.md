@@ -118,9 +118,10 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 | `busy` | 正在处理（Agent 暂停操作） | click/fill 后检查 busy，等到消失再返回 |
 | `error` | 错误提示（action 执行后检测） | action 执行后检查 error 信号判断成败 |
 
-> **实现状态（2026-10-02）**：signals 已解析并在 `pageProtocol` / `/protocol/inspect` 中展示；
-> navigate 等 ready / click 查 busy 的**自动等待行为尚未接线**（三期）。声明不误导运行时，
-> 但也别指望它今天改变 Agent 时序。
+> **实现状态（2026-10-02 晚，已接线）**：`navigate` 在页面声明 `signals.ready` 时等
+> 就绪信号出现再返回（6s 超时如实报告）；`pageAction` 完成步骤后等 `signals.busy`
+> 消失再判成败（持续 5s 会在结果里注明）。signals 同时在 `pageProtocol` /
+> `/protocol/inspect` 中展示。
 
 ### 4.3 views — 命名数据视图
 
@@ -138,8 +139,8 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 ```
 
 `pagination.type`：
-- `"paged"`：有下一页按钮 → `pageExtract(all=true)` 自动翻页收集
-- `"infinite"`：无限滚动 → `pageExtract(all=true)` 滚动到底收集
+- `"paged"`：有下一页按钮 → `pageExtract(all=true)` 自动翻页收集 ✅
+- `"infinite"`：无限滚动 → `pageExtract(all=true)` 滚动到底收集（序列化去重、连续两轮无新增即到底） ✅
 - `"none"`：无分页
 
 ### 4.4 actions — 声明式动作
@@ -417,6 +418,8 @@ Actions (pageAction): search
 | 内置规则已拦的元素不重复拦截 | ✅ |
 | page_context [DPP] 摘要（含 context）注入 system 层 | ✅ 代码接线，真机回合待验 |
 | 事件驱动：0→正 跳变 → PageEventHub → Agent 回合 | ⬜ 基建已通，待真机验证 |
+| 审批闸门真机 E2E：danger 动作强制审批（挂起/未执行/deny/allow 全链 20 项） | ✅ |
+| signals 接线：navigate 等 ready、pageAction 等 busy 消失 | ✅ 真机 E2E |
 
 ## 9. 已知限制与边界
 
@@ -451,6 +454,8 @@ Actions (pageAction): search
 - ✅ ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器）
 - ✅ AI Auto-Clean toast 反馈（NotificationCenter → ContentView 橙色胶囊）
 - ✅ 默认提示词 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）
+- ✅ signals 行为接线（navigate 等 ready / pageAction 等 busy）+ infinite 分页 + SPA 重解析
+- ✅ 审批闸门真机 E2E（20 项全过；抓到并修掉 autoEdit 放行 danger 动作、callAsyncJavaScript 布尔检查缺 return、挂起页冻结 DOM 三个真缺陷）
 - ⬜ chat profile 事件驱动回合 E2E 真机验证（基建已通，fixture 需带 IM 交互）
 - ✅ **审计修复轮（2026-10-02）**：审批闸门接线（outbound/danger → dangerous 强制审批）、
   容错解码 + warnings、L1/L0 选择器修复（探针实证）、pageAction 失败可见 + required/precondition、

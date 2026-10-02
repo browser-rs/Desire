@@ -5,6 +5,9 @@ import WebKit
 @MainActor
 class PluginStore: ObservableObject {
     @Published var plugins: [Plugin] = []
+    /// 工具栏角标（chrome.action.setBadgeText）：会话态，不持久化
+    ///（Chrome 语义 badge 随浏览器重启清空）。
+    @Published var badges: [UUID: String] = [:]
     private let saveKey = "desire.plugins"
 
     /// R2 归一：background 运行时经此感知增/改/删/启停并对账

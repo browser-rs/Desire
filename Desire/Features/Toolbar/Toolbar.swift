@@ -353,21 +353,36 @@ struct Toolbar: View {
     // MARK: - Trailing Buttons
 
     /// 插件图标：优先扩展包自带 PNG（R2 归一），缺省回退 SF Symbol。
+    /// 右下角角标 = chrome.action.setBadgeText（扩展会话态）。
     private func pluginIconView(_ plugin: Plugin) -> AnyView {
+        let base: AnyView
         if let data = plugin.iconPNG, let image = NSImage(data: data) {
-            return AnyView(
+            base = AnyView(
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 16, height: 16)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle()))
+        } else {
+            base = AnyView(
+                Image(systemName: plugin.toolbarIcon)
+                    .font(.system(size: 12))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle()))
         }
-        return AnyView(
-            Image(systemName: plugin.toolbarIcon)
-                .font(.system(size: 12))
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle()))
+        guard let badge = pluginStore.badges[plugin.id], !badge.isEmpty else {
+            return base
+        }
+        return AnyView(base.overlay(alignment: .bottomTrailing) {
+            Text(badge)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 2.5)
+                .frame(minWidth: 10, minHeight: 10)
+                .background(Capsule().fill(Color.red))
+                .offset(x: 6, y: 5)
+        })
     }
 
     @ViewBuilder

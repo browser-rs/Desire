@@ -712,8 +712,19 @@ final class PluginBackgroundRuntime: NSObject {
             reply(PluginBackgroundRuntime.shared.alarmsFor(pluginID: pluginID)
                 .first(where: { ($0["name"] as? String) == name }) ?? NSNull(), nil)
         case ("action", "setBadgeText"):
-            // Desire 工具栏图标无 badge 区域——存字段供将来 UI 展示。
+            // Desire 工具栏角标（固定图标上渲染；空串 = 清除）。
+            let badgeText = (args.first as? [String: Any])?["text"] as? String ?? ""
+            if let app = AppState.live {
+                if badgeText.isEmpty {
+                    app.pluginStore.badges.removeValue(forKey: pluginID)
+                } else {
+                    app.pluginStore.badges[pluginID] = String(badgeText.prefix(4))
+                }
+            }
             reply([:], nil)
+        case ("action", "getBadgeText"):
+            let currentBadge = AppState.live?.pluginStore.badges[pluginID] ?? ""
+            reply(["text": currentBadge], nil)
         case ("action", "setTitle"):
             reply([:], nil)
         case ("windows", "getAll"):

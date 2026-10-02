@@ -16,6 +16,8 @@
 - 插件系统：**declarativeNetRequest 动态规则落地**（拦截类扩展的标准入口）——`chrome.declarativeNetRequest.updateDynamicRules/updateSessionRules/getDynamicRules/getSessionRules`；规则经 `DNRConverter` 纯转换映射到 WebKit content blocker（urlFilter 语法 `||`/`^`/`*` 逐字转正则、resource-type/initiatorDomains/domainType/redirect/upgradeScheme），映射不了的语义（modifyHeaders/requestDomains/extensionPath 重定向）**逐条丢弃带理由**不整包失败；编译失败二分自愈（FilterListStore.sanitize 同款）；每插件一份规则列表随 webview 创建挂载、更新即时重分发；dynamic/静态落盘跨重启恢复，session 仅内存（Chrome 语义）；manifest `declarative_net_request.rule_resources` 静态规则随包装载，DNR-only 包（popup+规则表、无 content script）合法。
 - 插件系统：`chrome.webRequest.onBeforeRequest`（MV3 观察语义，无阻塞回调）——网络请求 start 派发给注册监听的插件 background 页；事件派发按**监听登记过滤**（events/addListener 记账），高频事件不再无差别广播全部插件。
 - 插件系统全面审查补齐（2026-10-02）：**宿主 RPC 收口**——背景/popup 两个 handler 共用同一份 `dispatchHostRPC` 实现（此前 popup 只有 5 个 case，扩展主 UI 调 tabs/runtime/i18n 全挂；cookies 背景缺失）；**i18n 真实现**——`_locales/<locale>/messages.json` 从插件包资源目录装载（locale 选择：UI 语言精确→前缀→en→首个；getMessage 同步查表经注入 prologue 内联），manifest `__MSG_key__` 占位随装载替换（此前真实扩展装出来就是字面 "__MSG_extName__"）；**storage.onChanged**（changes 带 oldValue/newValue，三处写路径统一广播）；**Port 语义补全**（onDisconnect 两端触发、对端无监听时 connect 端立即收 disconnect、tabs.connect 背景发起长连接到内容脚本）；scripting.removeCSS（insertCSS 的配对移除）；notifications.clear；cookies.remove + cookies.set 的 url-only 形式（domain 从 url 推导，Chrome 语义）；tabs.create {active:false} 不切走；eventAPI hasListener/hasListeners；webRequest.onCompleted。
+- 插件系统：`chrome.action.setBadgeText/getBadgeText` 真实现——角标渲染在工具栏固定图标右下角（红底白字胶囊，最多 4 字符，会话态不持久化，Chrome 语义）。
+
 
 
 

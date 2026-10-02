@@ -367,6 +367,7 @@
     };
     var action = {
         setBadgeText: function(details) { return rpc("action", "setBadgeText", [details || {}]); },
+        getBadgeText: function(details) { return rpc("action", "getBadgeText", [details || {}]); },
         setTitle: function(details) { return rpc("action", "setTitle", [details || {}]); }
     };
     var windows = {

@@ -388,7 +388,7 @@ extension BrowserToolProvider {
                     skipped.append(trimmed)
                     continue
                 }
-                surface.elementBlockStore.add(cssSelector: trimmed, urlPattern: urlPattern)
+                surface.elementBlockStore.add(cssSelector: trimmed, urlPattern: urlPattern, source: "agent")
                 applied.append(trimmed)
             }
             if !applied.isEmpty {

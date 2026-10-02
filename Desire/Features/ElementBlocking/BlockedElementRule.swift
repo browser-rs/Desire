@@ -7,12 +7,17 @@ struct BlockedElementRule: Identifiable, Codable {
     var xpath: String?
     var createdAt: Date
 
-    init(id: UUID = UUID(), urlPattern: String, cssSelector: String, xpath: String? = nil, createdAt: Date = Date()) {
+    /// 规则来源（2026-10-02）：ai-auto（自动清理）/ agent（模型 blockElements）/
+    /// manual。nil = 旧数据（按 agent 处理）。Optional = 解码安全。
+    var source: String? = nil
+
+    init(id: UUID = UUID(), urlPattern: String, cssSelector: String, xpath: String? = nil, createdAt: Date = Date(), source: String? = nil) {
         self.id = id
         self.urlPattern = urlPattern
         self.cssSelector = cssSelector
         self.xpath = xpath
         self.createdAt = createdAt
+        self.source = source
     }
 
     func matches(host: String) -> Bool {

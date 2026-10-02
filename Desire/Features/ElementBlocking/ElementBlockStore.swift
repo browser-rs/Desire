@@ -11,12 +11,12 @@ class ElementBlockStore: ObservableObject {
 
     init() { load() }
 
-    func add(cssSelector: String, xpath: String? = nil, urlPattern: String) {
+    func add(cssSelector: String, xpath: String? = nil, urlPattern: String, source: String? = nil) {
         // 第十一批：同 (host, selector, xpath) 去重——拾取重入时同元素入库两份。
         if rules.contains(where: { $0.urlPattern == urlPattern && $0.cssSelector == cssSelector && $0.xpath == xpath }) {
             return
         }
-        let rule = BlockedElementRule(urlPattern: urlPattern, cssSelector: cssSelector, xpath: xpath)
+        let rule = BlockedElementRule(urlPattern: urlPattern, cssSelector: cssSelector, xpath: xpath, source: source)
         rules.append(rule)
         save()
     }

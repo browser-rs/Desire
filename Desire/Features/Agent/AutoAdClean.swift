@@ -103,7 +103,7 @@ final class AutoAdClean {
                 if elementBlockStore.rules.contains(where: {
                     $0.cssSelector == selector && $0.urlPattern == host
                 }) { continue }
-                elementBlockStore.add(cssSelector: selector, urlPattern: host)
+                elementBlockStore.add(cssSelector: selector, urlPattern: host, source: "ai-auto")
                 applied += 1
             }
             guard applied > 0 else { return }

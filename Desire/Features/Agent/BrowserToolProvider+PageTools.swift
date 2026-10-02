@@ -507,19 +507,21 @@ extension BrowserToolProvider {
         case "listBlockedElements":
             let rules = surface.elementBlockStore.rules
             guard !rules.isEmpty else { return "No blocked elements" }
-            return rules.map { "\($0.cssSelector) — \($0.urlPattern)" }.joined(separator: "\n")
+            return rules.map { rule -> String in
+                let source = rule.source ?? "agent"
+                return "\(rule.cssSelector) — \(rule.urlPattern) [\(source)]"
+            }.joined(separator: "\n")
 
         case "unblockElement":
             guard let selector = args["selector"] as? String,
                   let rule = surface.elementBlockStore.rules.first(where: { $0.cssSelector == selector }) else { return Self.fail("Rule not found") }
             surface.elementBlockStore.remove(id: rule.id)
-            // 用户手动拆了 AI 自动拦的规则 → 该 host 加入自动清理豁免，
-            // 否则下次页面加载又被自动拦回去（拉锯）。
-            if let host = webView.url?.host, !host.isEmpty {
+            // 只有 **ai-auto 来源**的规则被拆才豁免 host（agent/手动规则
+            // 是用户显式意图，不触发豁免——豁免语义仅针对"自动拦回去"）。
+            if rule.source == "ai-auto",
+               let host = webView.url?.host, !host.isEmpty {
                 AutoAdClean.shared.exemptHost(host)
-                if rule.urlPattern == host || rule.urlPattern == "*" {
-                    return "Unblocked: \(selector). Auto ad clean is now exempt on \(host) (so it won't re-block automatically)."
-                }
+                return "Unblocked: \(selector). Auto ad clean is now exempt on \(host) (it won't re-block automatically)."
             }
             return "Unblocked: \(selector)"
 

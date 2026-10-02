@@ -1,4 +1,10 @@
 ## [Unreleased]
+### Fixed
+
+- **设为默认浏览器后点链接页面不打开（用户实测）**：macOS 发给默认浏览器的打开链接事件（kAEGetURL/'GURL'）从未被接收——AppDelegate 没有任何 URL 事件处理，URL 被静默丢弃。现注册 GURL Apple event handler（willFinishLaunching 阶段）+ kAEOpenURLs 兜底：外部链接在活动窗口**新标签**打开（不顶掉当前页），冷启动早于窗口就绪的事件进缓冲多跳重试 flush；同步修复两处连带：Dock 点击/`open -a` 纯激活会让 SwiftUI 对 value-based WindowGroup 再开一扇新主窗（applicationShouldHandleReopen 有可见窗口时返回 false）、openURLs 事件 SwiftUI 层默认开新窗（Info.plist 声明 CFBundleURLTypes http/https 后 GURL 单路消费，不再双开）。
+- **应用内自更新"无法下载/不会安装"**：下载用逐字节 `for try await byte` 喂 SHA256——几十 MB 包是千万次 async 迭代，慢到像卡死；改为 `URLSession.download` 落盘 + 1MB 分块读文件算哈希。SHASUMS 匹配用 URL 尾段（镜像/改名场景静默 noChecksum）→ 改用资产名。全链路补日志（assets 下载/校验/替换/重启每步，替换为 fault 级），失败首次可诊断。
+
+
 
 ## [v0.5.3] - 2026-10-02
 ### Changed

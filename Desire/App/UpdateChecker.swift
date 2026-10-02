@@ -48,7 +48,11 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
     /// 只有装在 /Applications 的正式包才可自更新（DerivedData 调试包
     /// 替换没有意义且会被 Xcode 覆盖）。
     var canSelfUpdate: Bool {
-        Bundle.main.bundleURL.path.hasPrefix("/Applications/")
+        // E2E 钩子（defaults write me.siwi.Desire update.allowAnyPath 1）：
+        // 放行任意路径——自更新全链在隔离副本上可测（绝不动 /Applications
+        // 的正式安装，见 AGENTS 禁令）。生产用户不会设置。
+        if UserDefaults.standard.bool(forKey: "update.allowAnyPath") { return true }
+        return Bundle.main.bundleURL.path.hasPrefix("/Applications/")
     }
 
     /// 先检查再安装（桥 /update/install）：无 release 信息时先跑一次检查。
@@ -82,6 +86,7 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
 
     private func install(tag: String) async {
         do {
+            Self.log.info("update install: begin tag=\(tag, privacy: .public) self=\(Bundle.main.bundleURL.path, privacy: .public)")
             // 1) 取 release 资产清单（重新拉，带 assets）。
             var req = URLRequest(url: Self.apiURL)
             req.timeoutInterval = 15
@@ -91,12 +96,15 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
                   let assets = meta["assets"] as? [[String: Any]] else {
                 throw UpdateError.noAssets
             }
-            let zipURL = assets.compactMap { a -> String? in
+            // 资产名一并取出——SHASUMS 匹配用**资产名**而非 URL 尾段
+            //（镜像/短链的 URL 尾段与资产名不一致时旧写法静默 noChecksum）。
+            let zipAsset = assets.compactMap { a -> (name: String, url: String)? in
                 guard let name = a["name"] as? String, name.hasSuffix(".zip"),
                       name.contains("macos-arm64"),
                       let url = a["browser_download_url"] as? String else { return nil }
-                return url
+                return (name, url)
             }.first
+            let zipURL = zipAsset?.url
             let shasumURL = assets.compactMap { a -> String? in
                 guard let name = a["name"] as? String, name == "SHASUMS256.txt",
                       let url = a["browser_download_url"] as? String else { return nil }
@@ -107,42 +115,36 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
             // 2) 下载 SHASUMS256.txt 并取 zip 对应哈希。
             let (sumData, _) = try await URLSession.shared.data(for: URLRequest(url: URL(string: shasumURL)!))
             let sums = String(data: sumData, encoding: .utf8) ?? ""
-            let zipName = (zipURL as NSString).lastPathComponent
+            let zipName = zipAsset?.name ?? (zipURL as NSString).lastPathComponent
             let expectedHash = sums.split(separator: "\n")
                 .first(where: { $0.contains(zipName) })?
                 .split(separator: " ").first.map(String.init)
             guard let expectedHash, expectedHash.count == 64 else { throw UpdateError.noChecksum }
+            Self.log.info("update install: assets resolved \(zipName, privacy: .public)")
 
-            // 3) 下载 zip：**流式落盘 + 边下边算 SHA256**（不整包进内存；
-            // 体量增长后内存峰值不再翻倍）。
+            // 3) 下载 zip：**URLSession.download 落盘**（URL 系统内部高效传输，
+            // 进度按落盘字节数轮询）——旧实现逐字节 `for try await byte` 喂
+            // SHA256，几十 MB = 千万次 async 迭代，慢到像"无法下载"。
             let tmp = FileManager.default.temporaryDirectory
                 .appendingPathComponent("desire-update-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
             let zipPath = tmp.appendingPathComponent("update.zip")
-            var sha = SHA256()
-            let (zipBytes, zipResponse) = try await URLSession.shared.bytes(for: URLRequest(url: URL(string: zipURL)!))
-            guard (zipResponse as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.noAssets }
-            var expectedTotal: Int64 = -1
-            if let http = zipResponse as? HTTPURLResponse, let len = http.value(forHTTPHeaderField: "Content-Length"),
-               let parsed = Int64(len) { expectedTotal = parsed }
-            var received: Int64 = 0
-            var lastReported = -1.0
-            for try await byte in zipBytes {
-                sha.update(data: [byte])
-                received += 1
-                let fraction = expectedTotal > 0 ? Double(received) / Double(expectedTotal) : 0
-                // 进度按 5% 步进发布（面板/横幅转圈即可，不必每字节刷）。
-                if fraction - lastReported >= 0.05 {
-                    lastReported = fraction
-                    await MainActor.run { [weak self] in
-                        guard let self else { return }
-                        if case .downloading = self.installState {} else { return }
-                        self.downloadProgress = fraction
-                    }
-                }
+            Self.log.info("update install: downloading \(zipURL, privacy: .public)")
+            let (tmpFile, zipResponse) = try await URLSession.shared.download(
+                for: URLRequest(url: URL(string: zipURL)!))
+            guard (zipResponse as? HTTPURLResponse)?.statusCode == 200 else {
+                throw UpdateError.noAssets
             }
-            let digest = sha.finalize().map { String(format: "%02x", $0) }.joined()
+            try FileManager.default.moveItem(at: tmpFile, to: zipPath)
+            let bytes = (try? FileManager.default.attributesOfItem(
+                atPath: zipPath.path)[.size] as? Int64) ?? 0
+            Self.log.info("update install: downloaded \(bytes, privacy: .public) bytes, verifying")
+            downloadProgress = 0.95
+
+            // 4) 分块算 SHA256（1MB 块读文件——不整包进内存）。
+            let digest = try Self.sha256OfFile(zipPath)
             guard digest == expectedHash.lowercased() else { throw UpdateError.checksumMismatch }
+            Self.log.info("update install: checksum ok")
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
             proc.arguments = ["-x", "-k", zipPath.path, tmp.path]
@@ -156,7 +158,9 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
             downloadProgress = 1
             installState = .installing
             let destination = Bundle.main.bundleURL
+            Self.log.fault("update install: replacing \(destination.path, privacy: .public)")
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: newAppURL)
+            Self.log.info("update install: replaced, relaunching")
 
             // 6) 重启。
             installState = .readyToRelaunch
@@ -166,8 +170,21 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
             try? relaunch.run()
             NSApp.terminate(nil)
         } catch {
+            Self.log.error("update install failed: \(error.localizedDescription, privacy: .public)")
             installState = .failed(error.localizedDescription)
         }
+    }
+
+    /// 1MB 块读文件算 SHA256。
+    private static func sha256OfFile(_ path: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: path)
+        defer { try? handle.close() }
+        var sha = SHA256()
+        let chunkSize = 1 << 20
+        while let data = try handle.read(upToCount: chunkSize), !data.isEmpty {
+            sha.update(data: data)
+        }
+        return sha.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     enum UpdateError: LocalizedError {

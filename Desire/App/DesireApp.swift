@@ -159,8 +159,91 @@ enum BrowserCommand {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSources: [DispatchSourceSignal] = []
 
+    /// 默认浏览器点链接 → 系统发 `openURLs` Apple event。**此前从未实现
+    /// 接收端**（2026-10-02 用户实测：设为默认后点链接，app 打开但页面不
+    /// 加载——URL 被静默丢弃）。冷启动时序：事件可能早于窗口/会话恢复
+    /// 就绪，先入缓冲，didFinishLaunching 后多跳重试 flush。
+    private var pendingOpenURLs: [URL] = []
+
+    /// Dock 图标点击 / `open -a` 激活：**有可见窗口时返回 false**——否则
+    /// SwiftUI 对 value-based WindowGroup（for: UUID.self）的 reopen 默认
+    /// 行为是再 mint 一扇新主窗（实测每次 `open -a` 涨一扇 900x632）。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        !flag
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
+        guard !webURLs.isEmpty else { return }
+        Log.app.info("open urls from system: \(webURLs.count, privacy: .public)")
+        NSApp.activate(ignoringOtherApps: true)
+        pendingOpenURLs.append(contentsOf: webURLs)
+        flushPendingOpenURLs()
+    }
+
+
+    /// 外部链接 = 活动窗口**新标签**打开（Chrome 语义：不顶掉当前页）。
+    /// 活动窗口 manager 未就绪（冷启动早期）→ 留在缓冲等重试。
+    private func flushPendingOpenURLs() {
+        guard !pendingOpenURLs.isEmpty else { return }
+        guard let tm = TabSessionCoordinator.shared.activeTabManager else {
+            schedulePendingURLRetry()
+            return
+        }
+        let app = AppState.live
+        for url in pendingOpenURLs {
+            tm.addTab(
+                url: url.absoluteString,
+                javaScriptEnabled: app?.settings.isJavaScriptEnabled ?? true,
+                contentBlocker: app?.contentBlocker,
+                videoAdBlocker: app?.videoAdBlocker,
+                autoPlayPolicy: app?.settings.autoPlayPolicy ?? .requireUserAction
+            )
+        }
+        Log.app.info("opened \(self.pendingOpenURLs.count, privacy: .public) external url(s) in tabs")
+        pendingOpenURLs.removeAll()
+    }
+
+    /// 冷启动重试：窗口/会话恢复完成前 manager 可能不存在——0.2/0.6/1.5s
+    /// 三跳兜底，缓冲空则 no-op（幂等）。
+    private func schedulePendingURLRetry() {
+        for delay in [0.2, 0.6, 1.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.flushPendingOpenURLs()
+            }
+        }
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // 浏览器标准入口：**kAEGetURL（'GURL'/'GURL'）** 是系统发给默认
+        // 浏览器的打开链接事件（其他 app 调 NSWorkspace.open(url) 即此路；
+        // Chrome/Firefox 都注册它）。kAEOpenURLs 路径由 application(_:open:)
+        // 兜底（open 命令的多 URL 形态）。在 willFinish 阶段注册——早于
+        // SwiftUI 装配，事件不漏。
+        let manager = NSAppleEventManager.shared()
+        manager.setEventHandler(
+            self, andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kAEGetURL), andEventID: AEEventID(kAEGetURL))
+    }
+
+    @objc func handleGetURLEvent(_ event: NSAppleEventDescriptor?, withReplyEvent reply: NSAppleEventDescriptor?) {
+        guard let raw = event?.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: raw),
+              url.scheme == "http" || url.scheme == "https" else {
+            Log.app.error("GURL event without a usable http(s) url")
+            return
+        }
+        Log.app.info("GURL open: \(raw, privacy: .public)")
+        NSApp.activate(ignoringOtherApps: true)
+        pendingOpenURLs.append(url)
+        flushPendingOpenURLs()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSignalHandlers()
+        // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
+        // didFinishLaunching，走重试 flush。
+        schedulePendingURLRetry()
     }
 
     /// SIGTERM/SIGINT → ordinary `terminate()` on the main queue. The

@@ -11,8 +11,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		46CA34102FF7C10000E5D4E8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 46CA34002FF7C10000E5D4E8 /* Desire */;
+		};
+
 		46CA34032FF7C10000E5D4E8 /* Desire */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				46CA34102FF7C10000E5D4E8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
 			path = Desire;
 			sourceTree = "<group>";
 		};
@@ -270,7 +281,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Desire/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Used when a website requests camera access";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -309,7 +321,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Desire/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desire needs microphone access for voice commands.";

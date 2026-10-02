@@ -18,6 +18,8 @@
 - 下载面板搜索行与头部补间距
 - 插件消息传递（runtime.sendMessage/onMessage、tabs.sendMessage/onMessage）全链打通：background 页 → 页面 onMessage 的派发与回复回投经 .page 世界注入（background 页 chrome.* 与宿主 handler 同处 page world——此前 extension world 注入导致消息静默丢失）；每插件独立 WKContentWorld（插件间身份/全局不再互相覆盖，修复多插件同页 __desireExtID 被最后一个覆盖的问题）
 - execute 桥新增 world 参数（main/extension/plugin:<uuid>）——调试插件 content script 必需（主世界探针看不到插件隔离世界的状态）
+- 插件 RPC reply 闭包对**标量顶层负载**（String/数字/布尔）手动字符串化——NSJSONSerialization 默认拒绝标量顶层，抛 ObjC 异常且 try? 拦不住，整进程 FAULT（AI 拦截广告实测：scripting.executeScript 返回页面标题 String 即触发）
+
 
 
 

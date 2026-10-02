@@ -698,10 +698,25 @@ struct WebView: NSViewRepresentable {
                     // JSString.literal 的转义集（\\ \" \n \r \uXXXX…）是 JSON
                     // 字符串转义的兼容超集——手工两段式曾漏 \r/\u2028。
                     json = JSString.literal(error)
-                } else if let payload,
-                          let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-                          let str = String(data: data, encoding: .utf8) {
-                    json = str
+                } else if let payload {
+                    // NSJSONSerialization 默认拒绝 String/数字等**标量顶层**
+                    // （抛 ObjC 异常且 try? 拦不住——scripting case 实测崩溃）。
+                    // 标量手动字符串化，容器才走 JSONSerialization。
+                    switch payload {
+                    case let scalar as String:
+                        json = JSString.literal(scalar)
+                    case let number as NSNumber:
+                        json = number.stringValue
+                    case let bool as Bool:
+                        json = bool ? "true" : "false"
+                    default:
+                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                           let str = String(data: data, encoding: .utf8) {
+                            json = str
+                        } else {
+                            json = "null"
+                        }
+                    }
                 } else {
                     json = "null"
                 }

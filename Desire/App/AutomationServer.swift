@@ -500,6 +500,7 @@ final class AutomationServer {
         ep("GET", "/settings", "A couple of global settings", example: "…/settings")
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
+        ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context)", params: [], example: "…/protocol/inspect")
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -801,6 +802,26 @@ final class AutomationServer {
                 return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
+            case ("GET", "/protocol/inspect"):
+                guard let session = AgentScheduler.shared.deliveryTarget,
+                      let dpp = session.boundTabManager?.selectedTab?.browser.pageProtocol else {
+                    return try Self.json(["declared": false])
+                }
+                var views: [String: Any] = [:]
+                for (name, view) in dpp.views {
+                    views[name] = ["item": view.item, "fields": view.fields,
+                                   "pagination": view.pagination?.type ?? "none"]
+                }
+                return try Self.json([
+                    "declared": true, "version": dpp.protocolVersion,
+                    "pageType": dpp.pageType ?? "", "contentMain": dpp.contentMain ?? "",
+                    "ignore": dpp.ignore, "views": views,
+                    "signals": dpp.signals,
+                    "actions": dpp.actions.map { ["name": $0.name, "description": $0.description ?? "",
+                                                  "effects": $0.effects ?? "local", "danger": $0.danger ?? false] },
+                    "events": dpp.events,
+                    "context": dpp.context,
+                ])
             case ("GET", "/downloads/dangerous"):
                 let tm = try tabManager
                 if let pending = tm?.selectedTab?.browser.pendingDangerousDownload {

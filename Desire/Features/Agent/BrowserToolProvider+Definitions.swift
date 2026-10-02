@@ -703,6 +703,16 @@ extension BrowserToolProvider {
                 ]))
             ),
 
+            // --- DPP pageAction（2026-10-02 二期）---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pageAction",
+                description: "Execute a declared DPP action on the current page. Use pageProtocol to see available actions and their params. More reliable than building selectors yourself.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Action name (from pageProtocol)"),
+                    "args": AgentJSONSchemaValue(type: "object", description: "Action arguments (matching the declared params)"),
+                ], required: ["name"]))
+            ),
+
             // --- MCP prompts/resources（2026-10-02 完整 MCP 补强）---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "mcpPrompts",

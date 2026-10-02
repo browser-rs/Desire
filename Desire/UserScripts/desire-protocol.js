@@ -23,7 +23,13 @@ return (function() {
         if (Array.isArray(src.ignore)) out.ignore = src.ignore;
         if (src.views && typeof src.views === "object") out.views = src.views;
         if (src.signals && typeof src.signals === "object") out.signals = src.signals;
-        if (Array.isArray(src.actions)) out.actions = src.actions;
+        if (Array.isArray(src.actions)) {
+            out.actions = src.actions.map(function(a) {
+                var copy = Object.assign({}, a);
+                if (copy.run) copy.run = JSON.stringify(copy.run);
+                return copy;
+            });
+        }
         if (src.events && typeof src.events === "object") out.events = src.events;
         if (src.context && typeof src.context === "object") out.context = src.context;
         return out;

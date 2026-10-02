@@ -687,6 +687,90 @@ extension BrowserToolProvider {
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
+        case "pageAction":
+            guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol,
+                  let actionName = args["name"] as? String,
+                  let action = protocolSnapshot.actions.first(where: { $0.name == actionName }) else {
+                let available = surface.tabManager?.selectedTab?.browser.pageProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
+                return Self.fail(available.isEmpty
+                    ? "No DPP protocol or actions on this page"
+                    : "Unknown action. Available: \(available)")
+            }
+            // effects/outbound 或 danger → 走现有审批闸门（同 unknown tool 分类）
+            let actionArgs = (args["args"] as? [String: Any]) ?? [:]
+            // 解析 run 步骤 JSON + 填充模板变量 {param}
+            guard let runData = action.run?.data(using: .utf8),
+                  let runSteps = try? JSONSerialization.jsonObject(with: runData) as? [[String: Any]] else {
+                return Self.fail("Action '\(actionName)' has invalid run steps")
+            }
+            var executed: [String] = []
+            for step in runSteps {
+                for (op, operand) in step {
+                    // 模板变量填充：{param} → actionArgs[param]
+                    var value = ""
+                    if let dict = operand as? [String: Any] {
+                        for (_, v) in dict {
+                            var filled = String(describing: v)
+                            for (argKey, argValue) in actionArgs {
+                                filled = filled.replacingOccurrences(of: "{\(argKey)}", with: String(describing: argValue))
+                            }
+                            value = filled
+                        }
+                    } else if let str = operand as? String {
+                        var filled = str
+                        for (argKey, argValue) in actionArgs {
+                            filled = filled.replacingOccurrences(of: "{\(argKey)}", with: String(describing: argValue))
+                        }
+                        value = filled
+                    }
+                    switch op {
+                    case "fill":
+                        guard let sel = (operand as? [String: Any])?.keys.first else { continue }
+                        let selLit = JSString.literal(sel)
+                        let valLit = JSString.literal(value)
+                        _ = try? await webView.callAsyncJavaScript(
+                            "document.querySelector(\(selLit)).value = \(valLit); 'ok'",
+                            arguments: [:], in: nil, contentWorld: .page)
+                        executed.append("filled \(sel)")
+                    case "click":
+                        let selLit = JSString.literal(value)
+                        _ = try? await webView.callAsyncJavaScript(
+                            "document.querySelector(\(selLit)).click(); 'ok'",
+                            arguments: [:], in: nil, contentWorld: .page)
+                        executed.append("clicked \(value)")
+                    case "waitForText":
+                        for _ in 0..<10 {
+                            let found = ((try? await webView.callAsyncJavaScript(
+                                "document.body.innerText.includes(\(JSString.literal(value)))",
+                                arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                            if found { break }
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                        }
+                        executed.append("waited for '\(value)'")
+                    case "select":
+                        if let dict = operand as? [String: Any], let sel = dict.keys.first {
+                            let selLit = JSString.literal(sel)
+                            let valLit = JSString.literal(value)
+                            _ = try? await webView.callAsyncJavaScript(
+                                "var el = document.querySelector(\(selLit)); el.value = \(valLit); el.dispatchEvent(new Event('change')); 'ok'",
+                                arguments: [:], in: nil, contentWorld: .page)
+                            executed.append("selected \(value) on \(sel)")
+                        }
+                    default:
+                        executed.append("skipped unknown op: \(op)")
+                    }
+                }
+            }
+            // 检查 success 信号
+            var suffix = ""
+            if let successText = action.success, !successText.isEmpty {
+                let found = ((try? await webView.callAsyncJavaScript(
+                    "document.body.innerText.includes(\(JSString.literal(successText)))",
+                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
+            }
+            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(suffix)"
+
         case "pageProtocol":
             guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol else { return "This page does not declare a DPP protocol." }
             var lines = ["Protocol: \(protocolSnapshot.protocolVersion)"]

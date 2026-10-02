@@ -56,6 +56,8 @@ struct DesireProtocol: Codable, Equatable {
         /// local | persist | outbound（对外不可逆，强制审批）
         var effects: String?
         var danger: Bool?
+        /// run 步骤 DSL 的原始 JSON 字符串（pageAction 执行时 parse）。
+        var run: String?
         var success: String?
     }
 

@@ -76,6 +76,24 @@ class AgentPreferenceStore: ObservableObject {
             }
         }
     }
+    /// Agent 人设：名字（空 = 默认"Desire Agent"自称）与语气/风格描述。
+    /// 进 <persona> 层（提示词最前）。随 agent_prefs 同步。
+    @Published var agentName: String {
+        didSet { if agentName != oldValue { UserDefaults.standard.set(agentName, forKey: "aiAgentName") } }
+    }
+    @Published var agentPersona: String {
+        didSet { if agentPersona != oldValue { UserDefaults.standard.set(agentPersona, forKey: "aiAgentPersona") } }
+    }
+    /// 自定义快捷模板（面板快捷按钮行追加段）。
+    @Published var customTemplates: [AgentQuickTemplate] {
+        didSet {
+            if customTemplates != oldValue {
+                if let data = try? JSONEncoder().encode(customTemplates) {
+                    UserDefaults.standard.set(data, forKey: "aiQuickTemplates")
+                }
+            }
+        }
+    }
     @Published var memoryLearning: Bool {
         didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
     }
@@ -375,6 +393,14 @@ class AgentPreferenceStore: ObservableObject {
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
         outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
+        agentName = UserDefaults.standard.string(forKey: "aiAgentName") ?? ""
+        agentPersona = UserDefaults.standard.string(forKey: "aiAgentPersona") ?? ""
+        if let data = UserDefaults.standard.data(forKey: "aiQuickTemplates"),
+           let decoded = try? JSONDecoder().decode([AgentQuickTemplate].self, from: data) {
+            customTemplates = decoded
+        } else {
+            customTemplates = []
+        }
         costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7

@@ -236,6 +236,11 @@ struct AgentPanel: View {
                 AgentQuickActionBar(
                     isProcessing: store.isProcessing,
                     onAction: { action in store.performQuickAction(action) },
+                    customTemplates: store.preference.customTemplates.filter { !$0.isEmpty },
+                    onCustomTemplate: { template in
+                        // 与固定动作同语义：整条 prompt 发送、不进输入历史。
+                        store.sendMessage(template.prompt, recordHistory: false)
+                    },
                     // 与快捷动作同一行（此前是独立的一行，看着像两组无关按钮）。
                     onRegenerate: canRegenerate ? { store.regenerate() } : nil
                 )

@@ -181,6 +181,38 @@ struct AgentSettingsSection: View {
                     .padding(12)
             }
 
+            // MARK: - Persona（人设：名字 + 语气）
+
+            SettingsSection(
+                title: String(localized: "Agent Persona"),
+                subtitle: String(localized: "Name and tone for the assistant. Leave empty for defaults."),
+                icon: "person.crop.circle"
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                        TextField(String(localized: "Name (e.g. Nova)"), text: $store.agentName)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                    }
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "text.quote")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                        TextField(String(localized: "Tone (e.g. concise, friendly, no emoji)"), text: $store.agentPersona, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                            .lineLimit(2...4)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+
             // MARK: - Output rules（个性化规则，逐条增删）
 
             SettingsSection(
@@ -236,6 +268,63 @@ struct AgentSettingsSection: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
+                }
+                .padding(12)
+            }
+
+            // MARK: - Quick templates（自定义快捷模板）
+
+            SettingsSection(
+                title: String(localized: "Quick Templates"),
+                subtitle: String(localized: "Custom buttons in the chat quick-action row. Tapping one sends the whole prompt."),
+                icon: "bolt.badge.clock"
+            ) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(store.customTemplates) { template in
+                        let idx = store.customTemplates.firstIndex(where: { $0.id == template.id }) ?? 0
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                TextField(String(localized: "Button title"), text: Binding(
+                                    get: { store.customTemplates[idx].title },
+                                    set: { store.customTemplates[idx].title = $0 }
+                                ))
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12, weight: .medium))
+                                Button {
+                                    store.customTemplates.remove(at: idx)
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help(String(localized: "Remove template"))
+                            }
+                            TextField(String(localized: "Prompt sent when tapped"), text: Binding(
+                                get: { store.customTemplates[idx].prompt },
+                                set: { store.customTemplates[idx].prompt = $0 }
+                            ), axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11.5))
+                            .lineLimit(2...4)
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                        )
+                    }
+                    Button {
+                        store.customTemplates.append(AgentQuickTemplate(title: "", prompt: ""))
+                    } label: {
+                        Label(String(localized: "Add Template"), systemImage: "plus.circle")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(12)
             }

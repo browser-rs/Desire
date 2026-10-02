@@ -7,6 +7,9 @@ struct AgentQuickActionBar: View {
     var onAction: (AgentQuickAction) -> Void
     /// "重新生成"（可空）。**和快捷动作同一行**——分成两行看起来像两组无关的按钮
     /// （用户实测反馈）。
+    /// 用户自定义模板（追加在内置动作之后；点击整条 prompt 发送）。
+    var customTemplates: [AgentQuickTemplate] = []
+    var onCustomTemplate: ((AgentQuickTemplate) -> Void)? = nil
     var onRegenerate: (() -> Void)?
 
     var body: some View {
@@ -38,6 +41,30 @@ struct AgentQuickActionBar: View {
                 .buttonStyle(.plain)
                 .disabled(isProcessing)
                 .help(action.prompt)
+                }
+                ForEach(customTemplates) { template in
+                    Button {
+                        onCustomTemplate?(template)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkle")
+                                .font(.system(size: 10, weight: .medium))
+                            Text(template.title)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                        )
+                        .overlay(
+                            Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isProcessing)
+                    .help(template.prompt)
                 }
                 if let onRegenerate {
                     Button(action: onRegenerate) {

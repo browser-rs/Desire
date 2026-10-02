@@ -977,6 +977,8 @@ class AgentSessionStore: ObservableObject {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
+            agentName: preference.agentName.isEmpty ? nil : preference.agentName,
+            agentPersona: preference.agentPersona.isEmpty ? nil : preference.agentPersona,
             outputRules: preference.outputRules,
             sessionDirective: activeDirective,
             memoryBlock: memoryBlock,
@@ -1601,6 +1603,8 @@ class AgentSessionStore: ObservableObject {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: Self.subagentIdentity,
+            agentName: preference.agentName.isEmpty ? nil : preference.agentName,
+            agentPersona: preference.agentPersona.isEmpty ? nil : preference.agentPersona,
             outputRules: preference.outputRules,
             memoryBlock: nil,
             skills: SkillStore.shared.skills.map { ($0.name, $0.description) },

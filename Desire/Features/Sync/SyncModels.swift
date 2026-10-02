@@ -211,6 +211,10 @@ struct SettingsSyncEntryPayload: Codable, Equatable {
 /// Agent 偏好域的载荷（密文内部）：自定义系统提示词。
 struct AgentPrefsSyncPayload: Codable, Equatable {
     var systemPrompt: String
+    /// 个性化扩展（2026-10-02）：Optional = 旧设备/旧行解码安全。
+    var agentName: String? = nil
+    var agentPersona: String? = nil
+    var customTemplates: [AgentQuickTemplate]? = nil
 }
 
 /// 历史域的载荷（密文内部结构）：一条访问记录。updatedAt = LWW 盖戳。

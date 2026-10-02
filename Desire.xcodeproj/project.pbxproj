@@ -10,19 +10,21 @@
 		46CA34012FF7C10000E5D4E8 /* Desire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Desire.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		46CA34102FF7C10000E5D4E8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		46CA34102FF7C10000E5D4E8 /* Exceptions for "Desire" folder in "Desire" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 46CA34002FF7C10000E5D4E8 /* Desire */;
 		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
 		46CA34032FF7C10000E5D4E8 /* Desire */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				46CA34102FF7C10000E5D4E8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				46CA34102FF7C10000E5D4E8 /* Exceptions for "Desire" folder in "Desire" target */,
 			);
 			path = Desire;
 			sourceTree = "<group>";

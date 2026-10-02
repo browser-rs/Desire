@@ -19,6 +19,10 @@ enum AgentPromptBuilder {
         var identity: String          // preference.systemPrompt (or default)
         /// 用户规则（设置页逐条增删，2026-10-02 个性化增强）：独立成层，
         /// 用户显式规则优先于学到的记忆。
+        /// Agent 人设（2026-10-02 个性化）：名字 + 语气描述。空 = 层省略
+        ///（保持默认自称）。
+        var agentName: String? = nil
+        var agentPersona: String? = nil
         var outputRules: [String] = []
         /// 会话级临时指令（Conversation.directive）：仅本会话生效、明确不进记忆。
         var sessionDirective: String?
@@ -45,6 +49,14 @@ enum AgentPromptBuilder {
 
     static func compose(_ input: Input) -> String {
         var sections: [String] = []
+
+        let personaParts: [String] = [
+            input.agentName.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.map { "Your name is \($0)." },
+            input.agentPersona.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.map { "Tone and style: \($0)" },
+        ].compactMap { $0 }
+        if !personaParts.isEmpty {
+            sections.append("<persona>\n" + personaParts.joined(separator: " ") + "\n</persona>")
+        }
 
         let identity = input.identity.trimmingCharacters(in: .whitespacesAndNewlines)
         if !identity.isEmpty {

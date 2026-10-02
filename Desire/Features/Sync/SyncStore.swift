@@ -1163,13 +1163,26 @@ final class SyncStore: ObservableObject {
         var stamps = loadSettingsStamps()
         let now = Date()
         let value = agentPreferenceStore.systemPrompt
-        // 提示词相对"上次已知值"无变化 → 不推（collect 空数组 = 本轮不发请求）。
-        guard snapshot[key] != .string(value) else { return [] }
+        let name = agentPreferenceStore.agentName
+        let persona = agentPreferenceStore.agentPersona
+        let templates = agentPreferenceStore.customTemplates
+        // 四元组相对"上次已知值"无变化 → 不推（collect 空数组 = 本轮不发请求）。
+        let unchanged = snapshot[key] == .string(value)
+            && loadPrefsSnapshotMeta()["name"] == name
+            && loadPrefsSnapshotMeta()["persona"] == persona
+            && loadPrefsSnapshotMeta()["templates"] == encodeTemplates(templates)
+        guard !unchanged else { return [] }
         snapshot[key] = .string(value)
+        var meta = loadPrefsSnapshotMeta()
+        meta["name"] = name
+        meta["persona"] = persona
+        meta["templates"] = encodeTemplates(templates)
+        savePrefsSnapshotMeta(meta)
         stamps[key] = now
         saveSettingsStamps(stamps)
         pendingAgentPrefsSnapshot = snapshot
-        let payload = AgentPrefsSyncPayload(systemPrompt: value)
+        let payload = AgentPrefsSyncPayload(systemPrompt: value, agentName: name,
+                                            agentPersona: persona, customTemplates: templates)
         return [encryptedWire(domain: .agentPrefs, realID: key,
                               clientUpdatedAt: now, deleted: false,
                               payload: payload, master: master)]
@@ -1182,6 +1195,27 @@ final class SyncStore: ObservableObject {
         }
     }
 
+    /// agentPrefs 附加快照（名字/语气/模板）：快照主表只存 string 值，
+    /// 这三个塞不进 SettingsSyncValue——单独放 UserDefaults（键 aiPrefsMeta）。
+    private func loadPrefsSnapshotMeta() -> [String: String] {
+        if let data = UserDefaults.standard.data(forKey: "aiPrefsMeta"),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            return decoded
+        }
+        return [:]
+    }
+
+    private func savePrefsSnapshotMeta(_ meta: [String: String]) {
+        if let data = try? JSONEncoder().encode(meta) {
+            UserDefaults.standard.set(data, forKey: "aiPrefsMeta")
+        }
+    }
+
+    private func encodeTemplates(_ templates: [AgentQuickTemplate]) -> String {
+        guard let data = try? JSONEncoder().encode(templates) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
     private func applyAgentPrefs(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
         var stamps = loadSettingsStamps()
         var snapshot = loadSettingsSnapshot()
@@ -1191,6 +1225,9 @@ final class SyncStore: ObservableObject {
                 envelope, domain: .agentPrefs, masterKeyBase64: master,
                 as: AgentPrefsSyncPayload.self) else { continue }
             agentPreferenceStore.systemPrompt = payload.systemPrompt
+            if let name = payload.agentName { agentPreferenceStore.agentName = name }
+            if let persona = payload.agentPersona { agentPreferenceStore.agentPersona = persona }
+            if let templates = payload.customTemplates { agentPreferenceStore.customTemplates = templates }
             stamps[Self.agentPromptKey] = item.clientUpdatedAt
             snapshot[Self.agentPromptKey] = .string(payload.systemPrompt)
         }

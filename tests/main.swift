@@ -1089,6 +1089,62 @@ func testMemoryRetrieval() {
 }
 testMemoryRetrieval()
 
+// ---------- DPP 协议容错解码（2026-10-02 审计修复） ----------
+
+func dppDecode(_ json: String) -> DesireProtocol? {
+    try? JSONDecoder().decode(DesireProtocol.self, from: Data(json.utf8))
+}
+
+func testDPPDecode() {
+    // 规范 §4.5/§5 原文形态：events 对象 {watch, debounce} —— 此前整份解码失败
+    let specForm = dppDecode("""
+    {"page": {"type": "chat"},
+     "views": {"c": {"item": ".i", "fields": {"n": ".n"}}},
+     "events": {"new-message": {"watch": ".msg.unread", "debounce": 2}}}
+    """)
+    check("DPP：events 对象形态解码成功", specForm != nil)
+    eq("DPP：events 展平为 watch 选择器", specForm?.events["new-message"], ".msg.unread")
+    check("DPP：展平记入 warnings", specForm?.warnings.contains { $0.contains("new-message") } == true)
+
+    // 规范 §4.6 原文形态：context.domain 是数组
+    let ctxForm = dppDecode("""
+    {"context": {"persona": "HR", "domain": ["SKU", "GMV"], "rules": "不谈薪资"}}
+    """)
+    check("DPP：context 数组形态解码成功", ctxForm != nil)
+    eq("DPP：context 数组逗号连接", ctxForm?.context["domain"], "SKU, GMV")
+    eq("DPP：context 字符串原样", ctxForm?.context["rules"], "不谈薪资")
+
+    // 单字段坏不拖垮整份：坏视图跳过、好视图存活；坏动作跳过
+    let mixed = dppDecode("""
+    {"views": {"good": {"item": ".i", "fields": {"n": ".n"}},
+               "bad": {"fields": "not-an-object"}},
+     "actions": [{"name": "ok", "run": [{"click": ".b"}], "precondition": ".loaded",
+                  "effects": "outbound", "danger": true},
+                 {"description": "missing name"}]}
+    """)
+    check("DPP：坏视图不拖垮整份", mixed != nil)
+    check("DPP：好视图存活", mixed?.views["good"] != nil)
+    check("DPP：坏视图被跳过", mixed?.views["bad"] == nil)
+    check("DPP：坏视图记 warning", mixed?.warnings.contains { $0.contains("bad") } == true)
+    eq("DPP：好动作存活且带 precondition", mixed?.actions.first?.precondition, ".loaded")
+    eq("DPP：effects 解码（闸门依赖）", mixed?.actions.first?.effects, "outbound")
+    eq("DPP：danger 解码（闸门依赖）", mixed?.actions.first?.danger, true)
+    eq("DPP：坏动作数量", mixed?.actions.count, 1)
+
+    // 未知字段忽略 = 前向兼容；空对象 = 空协议
+    let fwd = dppDecode("""
+    {"protocol": "desire/1", "pageType": "monitor", "signals": {"ready": ".ok"},
+     "contentMain": "#main", "someFutureField": {"x": 1}}
+    """)
+    check("DPP：未知字段不致失败", fwd != nil)
+    eq("DPP：contentMain 解码", fwd?.contentMain, "#main")
+    check("DPP：事件/上下文/忽略皆空的页面 isEmpty=true",
+          dppDecode("{}")?.isEmpty == true)
+    check("DPP：只声明 events 的页面不算空",
+          dppDecode("{\"events\": {\"tick\": \".t\"}}")?.isEmpty == false)
+}
+testDPPDecode()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

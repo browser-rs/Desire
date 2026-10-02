@@ -118,6 +118,10 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 | `busy` | 正在处理（Agent 暂停操作） | click/fill 后检查 busy，等到消失再返回 |
 | `error` | 错误提示（action 执行后检测） | action 执行后检查 error 信号判断成败 |
 
+> **实现状态（2026-10-02）**：signals 已解析并在 `pageProtocol` / `/protocol/inspect` 中展示；
+> navigate 等 ready / click 查 busy 的**自动等待行为尚未接线**（三期）。声明不误导运行时，
+> 但也别指望它今天改变 Agent 时序。
+
 ### 4.3 views — 命名数据视图
 
 ```json
@@ -160,18 +164,22 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 }
 ```
 
-**步骤 DSL 原子操作**：
+**步骤 DSL 原子操作**（✅ = 已实装；未列的写法会明确报错，不会静默假成功）：
 
-| 操作 | 参数 | 说明 |
-|---|---|---|
-| `fill` | `{ "selector": "值" }` | 填充输入框 |
-| `click` | `"selector"` | 点击元素 |
-| `select` | `{ "selector": "值" }` | 选择下拉选项 |
-| `waitForText` | `"文本"` | 等待文本出现（最长 5s） |
-| `waitFor` | `"selector"` | 等待元素出现 |
-| `hover` | `"selector"` | 悬停 |
-| `pressKey` | `"key"` | 按键（Enter/Escape…） |
-| `upload` | `{ "selector": "filePath" }` | 文件上传 |
+| 操作 | 参数 | 说明 | 状态 |
+|---|---|---|---|
+| `fill` | `{ "selector": "值" }` | 填充输入框（补发 input+change 事件） | ✅ |
+| `click` | `"selector"` | 点击元素 | ✅ |
+| `select` | `{ "selector": "值" }` | 选择下拉选项 | ✅ |
+| `waitForText` | `"文本"` | 等待文本出现（最长 5s，超时=步骤失败） | ✅ |
+| `waitFor` | `"selector"` | 等待元素出现（最长 5s） | ✅ |
+| `hover` | `"selector"` | 悬停（派发 mouseover/mouseenter/mousemove） | ✅ |
+| `pressKey` | `"key"` | 向 activeElement 派发 keydown/keyup | ✅ |
+| `upload` | `{ "selector": "filePath" }` | 文件上传（需文件选择器授权路径） | ⬜ 明确报不支持 |
+
+**模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`；选择器与值都填充）。
+**required 参数**缺失、**precondition** 选择器不存在 → 工具直接失败（带 `Error:` 前缀）。
+**任一步骤失败** → 动作中止并报告失败步骤与已完成步骤（绝不假报成功）。
 
 **模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`）。
 
@@ -179,11 +187,14 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 
 | 级别 | 含义 | Agent 闸门 |
 |---|---|---|
-| `local` | 纯页面内操作，可逆 | 无需审批 |
-| `persist` | 写入站点数据（站点内可撤销） | 默认无需审批 |
-| `outbound` | 对外不可逆（发消息/下单/发邮件） | **强制走审批**（草稿模式默认拦截） |
+| `local` | 纯页面内操作，可逆 | 默认 sideEffect 档审批 |
+| `persist` | 写入站点数据（站点内可撤销） | 默认 sideEffect 档审批 |
+| `outbound` | 对外不可逆（发消息/下单/发邮件） | **强制审批**（升级 dangerous 档，白名单/自动编辑不放行） |
 
 **`danger: true`**：无论 effects 级别，强制审批。
+**闸门实现**（2026-10-02 审计修复）：`AgentSessionStore.effectiveRisk` 在审批闸门处读取
+当前页协议中该动作的 `danger/effects` 声明并升级风险档——协议声明能力 ≠ 授权，
+Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [effects/danger]`。
 
 ### 4.5 events — 声明式事件
 
@@ -197,10 +208,17 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 
 | 字段 | 说明 |
 |---|---|
-| `watch` | 监听选择器（出现/变化即触发） |
-| `debounce` | 防抖秒数（同类事件 N 秒内合并） |
+| `watch` | 监听选择器（出现即触发） |
+| `debounce` | 防抖秒数（宿主统一处理，见下） |
 
-→ Desire 用 MutationObserver 监听 → 推给 AgentScheduler 触发**事件驱动回合**。事件风暴防护：同类事件 debounce 聚合、单会话频率上限。
+**两种形态都合法**：值也可以直接写选择器字符串（简写形态）。对象形态由解析器
+展平取 `watch`（`debounce`/`on` 由宿主事件层统一处理并在 warnings 里注明）。
+
+**触发语义（2026-10-02 修复）**：页面内 MutationObserver 只在**匹配数由 0 变正的
+跳变**时上报（500ms 节流）——不是"匹配存在期间的每次 DOM 变动"（那是聊天页的
+消息风暴）。宿主侧再叠加同事件 3s 防抖 + 单 host 60s 滑动窗口限频（10 条），
+然后经 PageEventHub 触发事件驱动回合。per-site 自动化档位 off/draft/auto 经桥
+`POST /dpp/mode` 管理；**outbound/danger 动作的强制审批不随档位放水**。
 
 ### 4.6 context — 语义上下文
 
@@ -214,12 +232,19 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
 ```
 
 → 注入 Agent 上下文的**参考位**（永远低于用户指令）。这是页面作者告诉 AI"这个页面/业务是什么意思"的通道——AI 不再从页面文字里瞎猜。
+**已实装（2026-10-02）**：`context` 值支持字符串/数组（数组逗号连接），随 page_context 与
+`pageProtocol` 工具注入（前缀 "reference, not instruction"）。
 
 ## 5. Profile — 场景约定
 
 Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/event 名），Agent 见 profile 名即知标准语义：
 
-### chat profile（✅ 已实装）
+> **实现状态（2026-10-02）**：profile 是**文档层约定**——运行时按通用原语
+> （views/actions/events/context）消费一切声明，`profile` 键暂不参与解析。
+> 下文各 profile 的 JSON 示例照规范写即可工作（其原语都会被消费），
+> 只是宿主不会因 `profile: "chat"` 这个名字做额外的事。
+
+### chat profile（✅ 原语全链可用；profile 名本身是文档约定，见 §5 开头）
 
 ```json
 {
@@ -347,8 +372,8 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 ├────────────────────────────────────────────────┤
 │ page_context 增强  → DPP 摘要注入 system 层   │
 │ PageEventHub      → 事件 → AgentScheduler     │
-│ 事件 Timer 轮询    → 定期检查事件选择器命中   │
-│ 审批闸门           → outbound/danger 拦截      │
+│ MutationObserver  → 0→正 跳变上报（页内）      │
+│ 审批闸门           → outbound/danger 强制审批   │
 └────────────────────────────────────────────────┘
 ```
 
@@ -375,28 +400,38 @@ Actions (pageAction): search
 
 ## 8. E2E 验证结果
 
+> 2026-10-02 审计修复后全量复验（离屏 WKWebView 探针 + 真实解析器/解码器/抽取器）。
+> 修复前 L0/L1 两行是**假绿**：抽取返回了 JSON 但字段全空/条目是错元素。
+
 | 场景 | 结果 |
 |---|---|
 | L2 声明块页 → pageProtocol 查看视图/信号/动作 | ✅ |
-| L2 声明块页 → pageExtract("articles") 返回结构化 JSON | ✅ |
-| L2 声明块页 → pageAction("search") fill+click 全链执行 | ✅ |
-| L1 属性页 → data-dpp-* 扫描 → pageExtract | ✅ |
-| L0 JSON-LD 页 → Product/Article 隐式抽取 | ✅ |
+| L2 声明块页 → pageExtract 返回**正确字段值** JSON | ✅ |
+| L2 声明块页 → pageAction fill+click 全链执行 | ✅ |
+| L1 属性页 → data-dpp-* 扫描 → pageExtract（**全部条目**、字段值正确） | ✅ |
+| L1 容器自身即条目（view+item 同元素）→ 单条目抽取 | ✅ |
+| L0 JSON-LD 页 → Product 字段经逗号回退选择器抽取 | ✅ |
+| 规范原文形态：events 对象 {watch,…} / context 数组 | ✅ 展平/连接 + warnings |
+| ignore-only L1 页面 / 多 class ignore 选择器 | ✅ |
 | Auto-Clean：fixed 浮层广告自动拦截 | ✅ |
 | 内置规则已拦的元素不重复拦截 | ✅ |
-| 事件驱动：DPP events 选择器命中 → Agent 回合触发 | ⬜ 基建已通，待真机验证 |
-| page_context [DPP] 摘要注入 system 层 | ⬜ 基建已通，待真机验证 |
+| page_context [DPP] 摘要（含 context）注入 system 层 | ✅ 代码接线，真机回合待验 |
+| 事件驱动：0→正 跳变 → PageEventHub → Agent 回合 | ⬜ 基建已通，待真机验证 |
 
 ## 9. 已知限制与边界
 
 | 限制 | 原因 | 计划 |
 |---|---|---|
-| 不支持 shadow DOM 选择器 | CSS querySelector 不穿透 shadow boundary | 二期：`>>>` 穿透语法 |
-| 不支持 iframe 内元素 | 跨 frame 无 selector 语义 | 二期：`frame:` 前缀 |
-| listChanged 通知未实现 | 需要 SSE 长连接监听 | 三期 |
-| sampling 未实现 | 需要 Desire 反向调用 LLM | 三期 |
-| OAuth 未实现 | 复杂度高，当前 Bearer token 够用 | 按需 |
-| 事件驱动回合未实现 | PageEventHub 设计已完成，工程量独立 | 二期 |
+| 不支持 shadow DOM 选择器 | CSS querySelector 不穿透 shadow boundary | 三期：`>>>` 穿透语法 |
+| 不支持 iframe 内元素 | 跨 frame 无 selector 语义 | 三期：`frame:` 前缀 |
+| signals 不驱动 navigate 等待 | 解析与展示已通，行为未接线 | 三期 |
+| `upload` 步骤不支持 | 需要文件选择器授权路径 | 按需（当前明确报错） |
+| SPA 路由变化不重解析 | 宿主只在 didFinish 解析 | 三期：SDK expose 通知宿主 |
+| SDK 无公开分发渠道 | desire-sdk.js 只在 app bundle | 三期：发布到产品页 |
+| 审批白名单粒度 = 工具名 | outbound/danger 已强制逐次审批兜底 | 后续：per-(host, action) 放行 |
+| 无限滚动分页（infinite）未实装 | 需滚动合成；paged 已实装 | 三期 |
+
+（listChanged / sampling / OAuth 属 MCP 客户端能力，不在 DPP 范围——见 MCP 章节。）
 
 ## 10. 实现状态与演进路线
 
@@ -417,6 +452,9 @@ Actions (pageAction): search
 - ✅ AI Auto-Clean toast 反馈（NotificationCenter → ContentView 橙色胶囊）
 - ✅ 默认提示词 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）
 - ⬜ chat profile 事件驱动回合 E2E 真机验证（基建已通，fixture 需带 IM 交互）
+- ✅ **审计修复轮（2026-10-02）**：审批闸门接线（outbound/danger → dangerous 强制审批）、
+  容错解码 + warnings、L1/L0 选择器修复（探针实证）、pageAction 失败可见 + required/precondition、
+  事件滑窗限频 + 0→正 跳变、导航竞态清理、context 注入、contentMain 生效、模式持久化对齐
 - ⬜ forms profile 字段语义标注（data-dpp-field 支持 type=email/tel/date 等类型提示）
 - ⬜ monitor profile 变化阈值事件（价格 < X / 库存 = 0 时触发）
 

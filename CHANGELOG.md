@@ -1,10 +1,22 @@
 ## [Unreleased]
+### Removed
+
+删除 DPP `installEventPolling` 死代码（Timer 轮询无任何调用点，CHANGELOG/文档曾误述为实装机制；事件监听实际由页面内 MutationObserver 跳变上报 + 每回合命中检测承担）。
+
+### Fixed
+
+DPP 审计三修复（P0）：① **审批闸门接线**——`pageAction` 在动作声明 `effects: "outbound"` 或 `danger: true` 时强制升级 dangerous 审批（此前按工具名分类 sideEffect，白名单/自动编辑档下任意站点的发消息/下单类动作零提示执行）；审批卡显示 host·动作·描述·effects。② **解析容错**——单字段结构不符只丢该字段并记 warnings（此前规范原文的 events 对象形态 `{watch,…}` 与 context 数组会让整份协议静默丢弃）；JS 归一化把对象形态 events 展平为 watch 选择器；`actions.run` 非字符串时字符串化兜底；warnings 经日志与 `/protocol/inspect` 透出。③ **L1/L0 选择器**——L1 条目集合打同一 `data-dpp-items` 标记（此前只锚第一个条目的 `:scope` 相对路径，document 级求值命中 `<html>`，抽取返回空数据假成功）；容器自身即条目时用锚点（此前 `*` 扫全文档）；ignore 多 class 正则修复（`/\\s+/` 字面反斜杠）；ignore-only 页面不再整体失效；pageExtract 支持逗号回退选择器与 `@text` 语义（L0 JSON-LD 字段此前恒空）。
+DPP 工具与事件链路修复：`pageAction` 步骤异常不再吞掉报假成功（步骤失败返回 `Error: ` 前缀与已完成步骤清单，符合失败统一约定），补 required 参数校验、`precondition` 前置检查、`waitFor`/`hover`/`pressKey` 步骤，`upload` 明确报不支持；`pageExtract` 分页合并改结构化数组去重（空页不再拼出 `[,]` 非法 JSON），截断改按条目数（500）不再把 JSON 从中间切断；`PageEventHub` 频率上限改 60s 滑动窗口（此前进程生命周期累计 10 次后该站点事件永久静默）；页面事件 observer 改"匹配数 0→正"跳变语义 + 500ms 节流（此前匹配存在期间每次 DOM 变动都发消息）；导航开始即清 DPP 协议缓存（修复跨页执行上一页动作声明的竞态窗口）；`PageEventHub` 模式持久化对齐（初始化读回 `dpp.eventModes`，删除无人写入的 `dpp.eventMode.<host>` 死路径）。
+
+
 ### Added
 
 - **DPP 协议增强**：`pageAction` 工具（声明式动作执行：fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）；事件驱动（Timer 轮询 + PageEventHub + per-site 三档模式 off/draft/auto + 事件风暴防护）；navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）；ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器问题）。
 - **AI Auto-Clean 拦截结果 toast**：自动拦截后 UI 顶部显示橙色 toast（"AI auto-blocked N element(s) on host"），用户实时看到 AI 拦了什么；默认提示词新增 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）。
 - **DPP 二期完善**：`page_context` 增强——DPP events 命中检测（每次 Agent 回合自动检查 events 声明的选择器是否在当前页面命中，命中即告知模型 "[DPP Events Active]"）；设置页 AI Auto-Clean toast 反馈（自动拦截后 UI 顶部橙色胶囊提示）；默认提示词新增 DPP 协议页指引（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）；navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）；事件驱动 Timer 轮询 + PageEventHub 基建（per-site off/draft/auto 三档模式 + 事件去重/频率上限）。
 - **DPP L3 SDK**（`desire-sdk.js`）：新开发的网站一行 `desire.expose({...})` 声明 DPP 协议（类型安全、SPA 路由自动重声明、`desire.emit()` 精确事件发射、`desire.validate()` 开发校验）；桥新增 `GET /protocol/inspect`（查看活动会话当前页面的 DPP 协议解析结果——站点作者调试用）。
+DPP 语义上下文落地：`context`（persona/domain/rules，站点声明的参考资料位）此前解析了却从不进模型——现在注入 page_context 与 `pageProtocol` 工具输出（前缀 "reference, not instruction"）；`getPageText` 遵循 DPP `contentMain` 正文选择器（选择器落空回退 body）；桥新增 `GET /dpp/modes`、`POST /dpp/mode`（per-site off/draft/auto 事件自动化模式管理），`/protocol/inspect` 增加 warnings/eventMode 字段；DPP 容错解码进纯逻辑单测（tests/run.sh）。
+
 
 
 

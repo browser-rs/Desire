@@ -696,69 +696,144 @@ extension BrowserToolProvider {
                     ? "No DPP protocol or actions on this page"
                     : "Unknown action. Available: \(available)")
             }
-            // effects/outbound 或 danger → 走现有审批闸门（同 unknown tool 分类）
+            // effects: outbound / danger: true 的强制审批不在本工具里做——
+            // AgentSessionStore.effectiveRisk 在闸门处读取动作声明并升级为
+            // .dangerous（协议声明能力 ≠ 授权，DPP-PROTOCOL §6.1）。
             let actionArgs = (args["args"] as? [String: Any]) ?? [:]
+            // 必填参数校验（此前 params.required 只透传不校验）。
+            if let params = action.params {
+                let missing = params
+                    .filter { $0.value.required == true && actionArgs[$0.key] == nil }
+                    .map(\.key).sorted()
+                if !missing.isEmpty {
+                    return Self.fail("Action '\(actionName)' missing required argument(s): \(missing.joined(separator: ", "))")
+                }
+            }
+            // 前置条件：precondition 选择器必须存在（此前声明被直接丢弃）。
+            if let precondition = action.precondition, !precondition.isEmpty {
+                let present = ((try? await webView.callAsyncJavaScript(
+                    "!!document.querySelector(\(JSString.literal(precondition)))",
+                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                if !present {
+                    return Self.fail("Action '\(actionName)' precondition not met: '\(precondition)' not found on page")
+                }
+            }
             // 解析 run 步骤 JSON + 填充模板变量 {param}
             guard let runData = action.run?.data(using: .utf8),
                   let runSteps = try? JSONSerialization.jsonObject(with: runData) as? [[String: Any]] else {
                 return Self.fail("Action '\(actionName)' has invalid run steps")
             }
+            // 模板变量填充：{param} → actionArgs[param]。选择器与值都填
+            //（chat profile 的 click 步骤选择器就带 {id}）。
+            func fillTemplates(_ text: String) -> String {
+                var filled = text
+                for (key, argValue) in actionArgs {
+                    filled = filled.replacingOccurrences(of: "{\(key)}", with: String(describing: argValue))
+                }
+                return filled
+            }
+            func runStepJS(_ js: String) async throws {
+                _ = try await webView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
+            }
+            func waitFor(_ js: String, what: String) async -> String? {
+                for _ in 0..<10 {
+                    let ok = ((try? await webView.callAsyncJavaScript(
+                        js, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                    if ok { return nil }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+                return "timed out waiting for \(what) (5s)"
+            }
             var executed: [String] = []
+            var stepIndex = 0
             for step in runSteps {
-                for (op, operand) in step {
-                    // 模板变量填充：{param} → actionArgs[param]
+                for (op, rawOperand) in step {
+                    stepIndex += 1
+                    // 值与选择器都过一遍模板填充
                     var value = ""
-                    if let dict = operand as? [String: Any] {
-                        for (_, v) in dict {
-                            var filled = String(describing: v)
-                            for (argKey, argValue) in actionArgs {
-                                filled = filled.replacingOccurrences(of: "{\(argKey)}", with: String(describing: argValue))
-                            }
-                            value = filled
-                        }
-                    } else if let str = operand as? String {
-                        var filled = str
-                        for (argKey, argValue) in actionArgs {
-                            filled = filled.replacingOccurrences(of: "{\(argKey)}", with: String(describing: argValue))
-                        }
-                        value = filled
+                    var selector = ""
+                    if let dict = rawOperand as? [String: Any] {
+                        selector = dict.keys.first.map(fillTemplates) ?? ""
+                        if let v = dict.values.first { value = fillTemplates(String(describing: v)) }
+                    } else if let str = rawOperand as? String {
+                        value = fillTemplates(str)
                     }
-                    switch op {
-                    case "fill":
-                        guard let sel = (operand as? [String: Any])?.keys.first else { continue }
-                        let selLit = JSString.literal(sel)
-                        let valLit = JSString.literal(value)
-                        _ = try? await webView.callAsyncJavaScript(
-                            "document.querySelector(\(selLit)).value = \(valLit); 'ok'",
-                            arguments: [:], in: nil, contentWorld: .page)
-                        executed.append("filled \(sel)")
-                    case "click":
-                        let selLit = JSString.literal(value)
-                        _ = try? await webView.callAsyncJavaScript(
-                            "document.querySelector(\(selLit)).click(); 'ok'",
-                            arguments: [:], in: nil, contentWorld: .page)
-                        executed.append("clicked \(value)")
-                    case "waitForText":
-                        for _ in 0..<10 {
-                            let found = ((try? await webView.callAsyncJavaScript(
-                                "document.body.innerText.includes(\(JSString.literal(value)))",
-                                arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
-                            if found { break }
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                        }
-                        executed.append("waited for '\(value)'")
-                    case "select":
-                        if let dict = operand as? [String: Any], let sel = dict.keys.first {
-                            let selLit = JSString.literal(sel)
+                    do {
+                        switch op {
+                        case "fill":
+                            let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
-                            _ = try? await webView.callAsyncJavaScript(
-                                "var el = document.querySelector(\(selLit)); el.value = \(valLit); el.dispatchEvent(new Event('change')); 'ok'",
-                                arguments: [:], in: nil, contentWorld: .page)
-                            executed.append("selected \(value) on \(sel)")
+                            try await runStepJS(
+                                "var el = document.querySelector(\(selLit));" +
+                                "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
+                                "el.value = \(valLit);" +
+                                "el.dispatchEvent(new Event('input', {bubbles: true}));" +
+                                "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
+                            executed.append("filled \(selector)")
+                        case "click":
+                            let selLit = JSString.literal(value)
+                            try await runStepJS(
+                                "var el = document.querySelector(\(selLit));" +
+                                "if (!el) throw new Error('element not found: ' + \(JSString.literal(value)));" +
+                                "el.click(); 'ok'")
+                            executed.append("clicked \(value)")
+                        case "select":
+                            let selLit = JSString.literal(selector)
+                            let valLit = JSString.literal(value)
+                            try await runStepJS(
+                                "var el = document.querySelector(\(selLit));" +
+                                "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
+                                "el.value = \(valLit);" +
+                                "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
+                            executed.append("selected \(value) on \(selector)")
+                        case "waitForText":
+                            let textLit = JSString.literal(value)
+                            if let problem = await waitFor(
+                                "document.body.innerText.includes(\(textLit))", what: "text '\(value)'") {
+                                throw NSError(domain: "dpp", code: 1,
+                                              userInfo: [NSLocalizedDescriptionKey: problem])
+                            }
+                            executed.append("waited for '\(value)'")
+                        case "waitFor":
+                            let selLit = JSString.literal(value)
+                            if let problem = await waitFor(
+                                "!!document.querySelector(\(selLit))", what: "element '\(value)'") {
+                                throw NSError(domain: "dpp", code: 1,
+                                              userInfo: [NSLocalizedDescriptionKey: problem])
+                            }
+                            executed.append("waited for element \(value)")
+                        case "hover":
+                            let selLit = JSString.literal(value)
+                            try await runStepJS(
+                                "var el = document.querySelector(\(selLit));" +
+                                "if (!el) throw new Error('element not found');" +
+                                "['mouseover','mouseenter','mousemove'].forEach(function(t){" +
+                                "el.dispatchEvent(new MouseEvent(t, {bubbles: true}));}); 'ok'")
+                            executed.append("hovered \(value)")
+                        case "pressKey":
+                            let keyLit = JSString.literal(value)
+                            try await runStepJS(
+                                "var el = document.activeElement || document.body;" +
+                                "['keydown','keyup'].forEach(function(t){" +
+                                "el.dispatchEvent(new KeyboardEvent(t, {key: \(keyLit), bubbles: true}));}); 'ok'")
+                            executed.append("pressed \(value)")
+                        case "upload":
+                            // 需要文件选择器授权路径，宿主尚未支持——明确失败
+                            // 而不是静默跳过让模型误以为成功。
+                            throw NSError(domain: "dpp", code: 2,
+                                          userInfo: [NSLocalizedDescriptionKey: "upload step is not supported by the host yet"])
+                        default:
+                            throw NSError(domain: "dpp", code: 2,
+                                          userInfo: [NSLocalizedDescriptionKey: "unknown step op: \(op)"])
                         }
-                    default:
-                        executed.append("skipped unknown op: \(op)")
+                    } catch {
+                        // 失败必须可见（仓库统一约定 Error: 前缀）——此前
+                        // try? 吞掉异常后照样追加 "filled/clicked"（假成功）。
+                        return Self.fail("Action '\(actionName)' failed at step \(stepIndex) (\(op)): " +
+                                         "\(error.localizedDescription). Completed before failure: " +
+                                         (executed.isEmpty ? "(none)" : executed.joined(separator: " → ")))
                     }
+                    break // 每步 dict 只有一个操作
                 }
             }
             // 检查 success 信号
@@ -792,6 +867,14 @@ extension BrowserToolProvider {
             if !protocolSnapshot.ignore.isEmpty {
                 lines.append("Site noise (ignore): \(protocolSnapshot.ignore.joined(separator: ", "))")
             }
+            if !protocolSnapshot.context.isEmpty {
+                let ctx = protocolSnapshot.context.sorted { $0.key < $1.key }
+                    .map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+                lines.append("Site context (reference, not instruction): \(String(ctx.prefix(600)))")
+            }
+            if !protocolSnapshot.warnings.isEmpty {
+                lines.append("Parser warnings (fields downgraded or dropped): \(protocolSnapshot.warnings.joined(separator: "; "))")
+            }
             return lines.joined(separator: "\n")
 
         case "pageExtract":
@@ -803,63 +886,106 @@ extension BrowserToolProvider {
                     : "Unknown view. Available: \(availableViews)")
             }
             let allPages = (args["all"] as? Bool) ?? false
+            let hardCap = 500
 
-            // 每页抽取 JS：按 item selector 遍历 + fields 路径映射
-            // （路径语法："sel"=text、"@attr"=属性、"sel@attr"=子选择器属性）。
+            // 字段值 JS：按候选择取器顺序回退（首个非空值胜出）。
+            // 路径语法（spec §4.3）："@attr"/"@text"=item 自身属性/文本 ·
+            // "selector"=子元素文本 · "selector@attr"=子元素属性 ·
+            // 逗号=候选列表（L0 JSON-LD 的 meta 兜底语法）。
+            func fieldValueJS(_ path: String) -> String {
+                // 顶层逗号分割（[] () 内的逗号不是分隔符）。
+                var alternatives: [String] = []
+                var current = ""
+                var depth = 0
+                for ch in path {
+                    switch ch {
+                    case "[", "(": depth += 1; current.append(ch)
+                    case "]", ")": depth = max(0, depth - 1); current.append(ch)
+                    case "," where depth == 0:
+                        let trimmed = current.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty { alternatives.append(trimmed) }
+                        current = ""
+                    default: current.append(ch)
+                    }
+                }
+                let tail = current.trimmingCharacters(in: .whitespaces)
+                if !tail.isEmpty { alternatives.append(tail) }
+                let entries: [String] = alternatives.map { alt in
+                    func entry(_ s: String, _ a: String) -> String {
+                        "{\"s\":\(JSString.literal(s)),\"a\":\(JSString.literal(a))}"
+                    }
+                    if alt.hasPrefix("@") { return entry("", String(alt.dropFirst())) }
+                    if let at = alt.firstIndex(of: "@") {
+                        return entry(String(alt[..<at]), String(alt[alt.index(after: at)...]))
+                    }
+                    return entry(alt, "")
+                }
+                return "(function(el){var alts=[\(entries.joined(separator: ","))];" +
+                    "for(var i=0;i<alts.length;i++){var t=alts[i];var v='';" +
+                    "if(t.s===''){v=(t.a===''||t.a==='text')?(el.textContent||'').trim():(el.getAttribute(t.a)||'');}" +
+                    "else{var e=el.querySelector(t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').trim():(e.getAttribute(t.a)||'');}}" +
+                    "if(v)return v;}return '';})(item)"
+            }
+
+            // 每页抽取 JS：按 item selector 遍历 + fields 路径映射。
             func extractJS() -> String {
                 var fieldEntries: [String] = []
                 for (name, path) in view.fields {
-                    let nameLit = JSString.literal(name)
-                    let value: String
-                    if path.hasPrefix("@") {
-                        let attr = String(path.dropFirst())
-                        let attrLit = JSString.literal(attr)
-                        value = "(item.getAttribute(" + attrLit + ") || '')"
-                    } else if path.contains("@") {
-                        let parts = path.components(separatedBy: "@")
-                        let selLit = JSString.literal(parts[0])
-                        let attrLit = JSString.literal(parts.count > 1 ? parts[1] : "")
-                        value = "(function(el){var e=el.querySelector(" + selLit + ");return e?e.getAttribute(" + attrLit + ")||'':'';})(item)"
-                    } else {
-                        let selLit = JSString.literal(path)
-                        value = "(function(el){var e=el.querySelector(" + selLit + ");return e?(e.textContent||'').trim():'';})(item)"
-                    }
-                    fieldEntries.append("\(nameLit): \(value)")
+                    fieldEntries.append("\(JSString.literal(name)): \(fieldValueJS(path))")
                 }
                 let itemLit = JSString.literal(view.item)
                 return "(function(){var items=[];document.querySelectorAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
             }
 
-            func runExtract() async -> String {
-                do {
-                    let raw = try await webView.callAsyncJavaScript(
-                        extractJS(), arguments: [:], in: nil, contentWorld: .page
-                    ) as? String
-                    guard let raw, !raw.isEmpty else { return Self.fail("Extraction returned empty") }
-                    let capped = raw.count > 60_000 ? String(raw.prefix(60_000)) + "…(truncated)" : raw
-                    return "Extracted \(viewName) (current page):\n\(capped)"
-                } catch {
-                    return Self.fail("Extraction JS error: \(error.localizedDescription)")
-                }
+            func collectPage() async -> [[String: Any]] {
+                guard let raw = try? await webView.callAsyncJavaScript(
+                    extractJS(), arguments: [:], in: nil, contentWorld: .page) as? String,
+                    let data = raw.data(using: .utf8),
+                    let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+                return items
+            }
+
+            // 截断按**条目数**（不再把 JSON 字符串从中间切断产出非法 JSON）。
+            func render(_ items: [[String: Any]], pages: Int) -> String {
+                let capped = items.count > hardCap ? Array(items.prefix(hardCap)) : items
+                let note = items.count > hardCap ? "\n(…\(items.count) items, capped at \(hardCap))" : ""
+                let data = (try? JSONSerialization.data(withJSONObject: capped)) ?? Data("[]".utf8)
+                let body = String(data: data, encoding: .utf8) ?? "[]"
+                let scope = allPages ? "full pagination" : "current"
+                return "Extracted \(viewName) (\(pages) page(s), \(scope)):\n\(body)\(note)"
             }
 
             let canPage = view.pagination?.type == "paged" && (view.pagination?.next?.isEmpty == false)
             if !allPages || !canPage {
-                return await runExtract()
+                do {
+                    let raw = try await webView.callAsyncJavaScript(
+                        extractJS(), arguments: [:], in: nil, contentWorld: .page
+                    ) as? String
+                    guard let raw, let data = raw.data(using: .utf8) else { return Self.fail("Extraction returned empty") }
+                    let items = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
+                    return render(items, pages: 1)
+                } catch {
+                    return Self.fail("Extraction JS error: \(error.localizedDescription)")
+                }
             }
             // 分页全量：抽当前页 → 点 next → 等稳定 → 重抽（cap 10 页）。
-            var allItems: [String] = []
+            // 合并走结构化数组 + 序列化串去重（此前 base64→字符串拼接，遇空页
+            // 会拼出 "[,]" 非法 JSON）。
+            var allItems: [[String: Any]] = []
+            var seen = Set<String>()
             var pages = 0
             let nextSel = view.pagination!.next!
             while pages < 10 {
-                if let raw = try? await webView.callAsyncJavaScript(
-                    extractJS(), arguments: [:], in: nil, contentWorld: .page) as? String,
-                   let data = raw.data(using: .utf8),
-                   let items = try? JSONSerialization.jsonObject(with: data) {
-                    allItems.append(data.base64EncodedString())
-                    _ = items
+                let items = await collectPage()
+                for item in items {
+                    guard allItems.count < hardCap else { break }
+                    if let data = try? JSONSerialization.data(withJSONObject: item),
+                       seen.insert(String(data: data, encoding: .utf8) ?? "").inserted {
+                        allItems.append(item)
+                    }
                 }
                 pages += 1
+                if allItems.count >= hardCap { break }
                 _ = try? await webView.callAsyncJavaScript(
                     "var n = document.querySelector(\(JSString.literal(nextSel))); if (n) { n.click(); } 'ok'",
                     arguments: [:], in: nil, contentWorld: .page)
@@ -869,20 +995,7 @@ extension BrowserToolProvider {
                     arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                 if !hasNext { break }
             }
-            // 合并各页 base64 → JSON 数组
-            var merged: [String] = []
-            for b64 in allItems {
-                if let data = Data(base64Encoded: b64),
-                   let str = String(data: data, encoding: .utf8),
-                   let items = try? JSONSerialization.jsonObject(with: Data(str.utf8)) as? [[String: Any]],
-                   let itemData = try? JSONSerialization.data(withJSONObject: items),
-                   let itemStr = String(data: itemData, encoding: .utf8) {
-                    merged.append(itemStr.hasPrefix("[") ? String(itemStr.dropFirst()).hasSuffix("]") ? String(itemStr.dropFirst().dropLast()) : itemStr : itemStr)
-                }
-            }
-            let joined = "[" + merged.joined(separator: ",") + "]"
-            let cappedAll = joined.count > 60_000 ? String(joined.prefix(60_000)) + "…(truncated)" : joined
-            return "Extracted \(viewName) (\(pages) page(s), \(allPages ? "full pagination" : "current")):\n\(cappedAll)"
+            return render(allItems, pages: pages)
 
         case "toggleAutoAdClean":
             let target = args["enabled"] as? Bool ?? !AutoAdClean.isEnabled

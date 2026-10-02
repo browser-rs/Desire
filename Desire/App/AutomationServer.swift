@@ -500,7 +500,9 @@ final class AutomationServer {
         ep("GET", "/settings", "A couple of global settings", example: "…/settings")
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
-        ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context)", params: [], example: "…/protocol/inspect")
+        ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
+        ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
+        ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -812,6 +814,7 @@ final class AutomationServer {
                     views[name] = ["item": view.item, "fields": view.fields,
                                    "pagination": view.pagination?.type ?? "none"]
                 }
+                let dppHost = session.boundTabManager?.selectedTab?.browser.webView.url?.host ?? ""
                 return try Self.json([
                     "declared": true, "version": dpp.protocolVersion,
                     "pageType": dpp.pageType ?? "", "contentMain": dpp.contentMain ?? "",
@@ -821,7 +824,21 @@ final class AutomationServer {
                                                   "effects": $0.effects ?? "local", "danger": $0.danger ?? false] },
                     "events": dpp.events,
                     "context": dpp.context,
+                    "warnings": dpp.warnings,
+                    "eventMode": PageEventHub.shared.mode(for: dppHost),
                 ])
+            case ("GET", "/dpp/modes"):
+                return try Self.json(["modes": PageEventHub.shared.siteModes])
+            case ("POST", "/dpp/mode"):
+                guard let host = Self.string(body, "host"), !host.isEmpty else {
+                    return try Self.json(["error": "missing host"])
+                }
+                let mode = Self.string(body, "mode") ?? "draft"
+                guard [PageEventHub.modeOff, PageEventHub.modeDraft, PageEventHub.modeAuto].contains(mode) else {
+                    return try Self.json(["error": "mode must be off|draft|auto"])
+                }
+                PageEventHub.shared.setMode(mode, for: host)
+                return try Self.json(["ok": true, "host": host, "mode": PageEventHub.shared.mode(for: host)])
             case ("GET", "/downloads/dangerous"):
                 let tm = try tabManager
                 if let pending = tm?.selectedTab?.browser.pendingDangerousDownload {

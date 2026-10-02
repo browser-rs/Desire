@@ -30,47 +30,58 @@ final class PageEventHub {
     /// per-site 自动化模式。
     @Published private(set) var siteModes: [String: String] = [:]
 
+    /// 事件风暴防护：**滑动窗口**内同 host 事件数上限（此前是进程生命周期
+    /// 累计 ≤10 且永不归零——每 host 累计 10 次后事件永久静默）。
+    private var hostEventTimes: [String: [Date]] = [:]
     private var recentEvents: [String: Date] = [:]
     private let debounceInterval: TimeInterval = 3.0
-    private let maxPerHost = 10
-    private var hostEventCounts: [String: Int] = [:]
+    private let rateWindow: TimeInterval = 60
+    private let maxPerHostPerWindow = 10
 
-    private init() {}
+    private init() {
+        siteModes = UserDefaults.standard.dictionary(forKey: "dpp.eventModes") as? [String: String] ?? [:]
+    }
 
     // MARK: - 模式
 
-    static let modeKey = "dpp.eventMode."
     static let modeOff = "off"
     static let modeDraft = "draft"
     static let modeAuto = "auto"
 
     func setMode(_ mode: String, for host: String) {
-        siteModes[host.lowercased()] = mode
+        let key = host.lowercased()
+        siteModes[key] = mode
         UserDefaults.standard.set(siteModes, forKey: "dpp.eventModes")
     }
 
     func mode(for host: String) -> String {
-        siteModes[host.lowercased()]
-            ?? UserDefaults.standard.string(forKey: Self.modeKey + host.lowercased())
-            ?? Self.modeDraft
+        siteModes[host.lowercased()] ?? Self.modeDraft
     }
 
     // MARK: - 事件接收
 
     /// 页面事件入口（desire-protocol.js 解析出 events 声明 →
-    /// MutationObserver 监听 → postMessage → AgentSessionStore 转发到这里）。
+    /// MutationObserver 只在匹配数 0→正 跳变时上报 → 这里防抖 + 限频）。
     func handleEvent(host: String, eventName: String, detail: [String: String]) {
         let mode = mode(for: host)
         guard mode != Self.modeOff else { return }
-        // 事件风暴防护
+        // 事件风暴防护 ①：同 host + 同事件名 3s 防抖
         let debounceKey = host + ":" + eventName
+        let now = Date()
         if let last = recentEvents[debounceKey],
-           Date().timeIntervalSince(last) < debounceInterval { return }
-        recentEvents[debounceKey] = Date()
-        hostEventCounts[host, default: 0] += 1
-        guard hostEventCounts[host] ?? 0 <= maxPerHost else { return }
+           now.timeIntervalSince(last) < debounceInterval { return }
+        recentEvents[debounceKey] = now
+        // 事件风暴防护 ②：单 host 滑动窗口限频（60s 内 ≤10 条）
+        var times = hostEventTimes[host] ?? []
+        times.removeAll { now.timeIntervalSince($0) > rateWindow }
+        guard times.count < maxPerHostPerWindow else {
+            Self.log.info("DPP event dropped (rate window): \(host, privacy: .public)")
+            return
+        }
+        times.append(now)
+        hostEventTimes[host] = times
 
-        let event = PendingEvent(host: host, eventName: eventName, detail: detail, timestamp: Date())
+        let event = PendingEvent(host: host, eventName: eventName, detail: detail, timestamp: now)
         pendingEvents.append(event)
         Self.log.info("DPP event: \(eventName, privacy: .public) on \(host, privacy: .public) (mode=\(mode, privacy: .public))")
         triggerAgentTurn(for: event)
@@ -98,7 +109,9 @@ final class PageEventHub {
         }
         switch mode {
         case Self.modeAuto:
-            lines.append("Act on this event using the page's declared actions. Outbound actions are pre-approved for this site.")
+            // auto 档收紧的是"分析深度"，不是审批：outbound/danger 动作
+            // 的强制审批在 AgentSessionStore.effectiveRisk，不随档位放水。
+            lines.append("Act on this event using the page's declared actions. Note: outbound/danger actions still require user approval.")
         case Self.modeDraft:
             lines.append("Analyze this event and prepare a response using the page's declared actions. Show me what you would do before executing outbound actions.")
         default:

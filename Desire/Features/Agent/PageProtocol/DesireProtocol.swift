@@ -9,6 +9,11 @@ import Foundation
 /// - L2 声明块：<script type="application/x-desire+json"> 集中 JSON
 /// - L3 原生 SDK：window.__desireProtocolExposed（SDK expose）
 /// 优先级 L3 > L2 > L1 > L0。
+///
+/// **解码容错是协议的第一原则**（渐进增强 + 前向兼容）：单字段结构不符
+/// 只丢该字段并记入 `warnings`，绝不让整份协议解码失败——此前 events/
+/// context 用严格 `[String: String]`，站点照规范写对象形态（{watch,…}）
+/// 或数组（domain: [...]）就整份静默丢弃（实测探针复现）。
 struct DesireProtocol: Codable, Equatable {
     var protocolVersion: String = "desire/1"
     /// 页面类型（chat/catalog/forms/workbench…自由标注，仅供参考）。
@@ -21,22 +26,27 @@ struct DesireProtocol: Codable, Equatable {
     var views: [String: ProtocolView] = [:]
     /// 生命周期信号：ready / busy / error。
     var signals: [String: String] = [:]
-    /// 声明式动作（一期解析缓存，pageAction 二期）。
+    /// 声明式动作（pageAction 执行）。
     var actions: [ProtocolAction] = []
-    /// 声明式事件（二期事件驱动）。
+    /// 声明式事件（事件驱动回合；值 = watch 选择器）。
     var events: [String: String] = [:]
     /// 语义上下文（persona/domain/rules）——参考资料非指令。
     var context: [String: String] = [:]
+    /// 解析时被降级/丢弃的字段清单（/protocol/inspect 与日志透出，
+    /// 站点作者的自查通道）。
+    var warnings: [String] = []
     var revisedAt: Date? = nil
 
     var isEmpty: Bool {
         contentMain == nil && views.isEmpty && signals.isEmpty && actions.isEmpty
+            && events.isEmpty && ignore.isEmpty && context.isEmpty
     }
 
     struct ProtocolView: Codable, Equatable {
         var item: String
         /// 字段映射：值语法 "selector"（text）/ "@attr"（本元素属性）/
         /// "selector@attr"（子选择器属性）。"@text" 等价 selector 空。
+        /// 逗号分隔的多个候选按序回退（首个命中者胜，L0 JSON-LD 用）。
         var fields: [String: String]
         var pagination: Pagination?
     }
@@ -51,8 +61,10 @@ struct DesireProtocol: Codable, Equatable {
         var name: String
         var description: String?
         var params: [String: ProtocolParam]?
+        /// 执行前置条件：该选择器必须存在才运行（否则明确失败）。
+        var precondition: String?
         /// 步骤 DSL：[{fill: {selector: value}}, {click: selector}, …]
-        /// run 步骤 DSL：原始 JSON 字符串（一期不做 pageAction 执行，二期用）。
+        /// run 步骤 DSL：原始 JSON 字符串（pageAction 执行时 parse）。
         /// local | persist | outbound（对外不可逆，强制审批）
         var effects: String?
         var danger: Bool?
@@ -66,13 +78,163 @@ struct DesireProtocol: Codable, Equatable {
         var description: String?
         var required: Bool?
     }
+}
 
-    /// 宽松 JSON 值容器（run 步骤 DSL 的异构结构）：保留原始 JSON——
-    /// 此前只解 [String:String] / String，嵌套 dict 会 decode 失败导致
-    /// 整个协议解析静默 nil。
-    enum JSONValue: Equatable {
-        case dict([String: String])
-        case nested([[String: String]])
-        case text(String)
+// MARK: - 容错解码
+
+extension DesireProtocol {
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolVersion, pageType, contentMain, ignore, views
+        case signals, actions, events, context, warnings
+    }
+
+    /// 宽松 JSON 值：任何 JSON 结构都能落下，字段级失败返回 .null 而非抛错。
+    enum DPPValue: Codable, Equatable {
+        case string(String)
+        case number(Double)
+        case bool(Bool)
+        case array([DPPValue])
+        case object([String: DPPValue])
+        case null
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if c.decodeNil() { self = .null }
+            else if let v = try? c.decode(Bool.self) { self = .bool(v) }
+            else if let v = try? c.decode(Double.self) { self = .number(v) }
+            else if let v = try? c.decode(String.self) { self = .string(v) }
+            else if let v = try? c.decode([DPPValue].self) { self = .array(v) }
+            else if let v = try? c.decode([String: DPPValue].self) { self = .object(v) }
+            else { self = .null }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.singleValueContainer()
+            switch self {
+            case .string(let v): try c.encode(v)
+            case .number(let v): try c.encode(v)
+            case .bool(let v): try c.encode(v)
+            case .array(let v): try c.encode(v)
+            case .object(let v): try c.encode(v)
+            case .null: try c.encodeNil()
+            }
+        }
+
+        var stringValue: String? {
+            if case .string(let s) = self { return s }
+            return nil
+        }
+
+        /// context 值 → 提示词友好的字符串（数组=逗号连接；对象/其他=JSON 文本）。
+        var contextText: String {
+            switch self {
+            case .string(let s): return s
+            case .array(let items):
+                return items.compactMap(\.stringValue).joined(separator: ", ")
+            case .object, .number, .bool:
+                let data = (try? JSONEncoder().encode(self)) ?? Data()
+                return String(data: data, encoding: .utf8) ?? ""
+            case .null: return ""
+            }
+        }
+    }
+
+    /// 字符串字段：类型不符返回 nil（丢字段不抛错）。
+    private static func optString(_ c: KeyedDecodingContainer<CodingKeys>, _ k: CodingKeys) -> String? {
+        (try? c.decodeIfPresent(String.self, forKey: k)) ?? nil
+    }
+
+    /// 动态键映射：逐值 transform，单个值失败只丢该键。
+    private static func tolerantMap(
+        _ c: KeyedDecodingContainer<CodingKeys>, _ k: CodingKeys,
+        transform: (DPPValue) -> String?
+    ) -> [String: String] {
+        guard let raw = try? c.decodeIfPresent([String: DPPValue].self, forKey: k) else { return [:] }
+        var out: [String: String] = [:]
+        for (key, value) in raw {
+            if let s = transform(value) { out[key] = s }
+        }
+        return out
+    }
+
+    /// 字符串数组：逐元素取字符串，非字符串元素跳过。
+    private static func optStringArray(_ c: KeyedDecodingContainer<CodingKeys>, _ k: CodingKeys) -> [String] {
+        guard let raw = try? c.decodeIfPresent([DPPValue].self, forKey: k) else { return [] }
+        return raw.compactMap(\.stringValue)
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var warnings: [String] = []
+        self.init()
+        if let v = Self.optString(c, .protocolVersion) { protocolVersion = v }
+        pageType = Self.optString(c, .pageType)
+        contentMain = Self.optString(c, .contentMain)
+        ignore = Self.optStringArray(c, .ignore)
+        // views：逐视图解码——单个视图结构坏只丢该视图。
+        if let rawViews = try? c.decodeIfPresent([String: DPPValue].self, forKey: .views) {
+            for (name, value) in rawViews {
+                guard let data = try? JSONEncoder().encode(value),
+                      let view = try? JSONDecoder().decode(ProtocolView.self, from: data) else {
+                    warnings.append("view '\(name)' skipped: structure not decodable")
+                    continue
+                }
+                views[name] = view
+            }
+        }
+        signals = Self.tolerantMap(c, .signals) { $0.stringValue }
+        // actions：逐条解码；`run` 在 JS 归一化后是字符串，站点 JSON 直喂时
+        // 是数组/对象——字符串化兜底，坏条目跳过记 warning。
+        if let rawActions = try? c.decodeIfPresent([DPPValue].self, forKey: .actions) {
+            for (idx, item) in rawActions.enumerated() {
+                guard case .object(var dict) = item else {
+                    warnings.append("actions[\(idx)] skipped: not an object")
+                    continue
+                }
+                switch dict["run"] {
+                case .string, .none:
+                    break
+                case .some(let runValue):
+                    if let runData = try? JSONEncoder().encode(runValue) {
+                        dict["run"] = .string(String(data: runData, encoding: .utf8) ?? "[]")
+                    }
+                }
+                guard let actionData = try? JSONEncoder().encode(dict),
+                      let action = try? JSONDecoder().decode(ProtocolAction.self, from: actionData) else {
+                    warnings.append("actions[\(idx)] skipped: structure not decodable")
+                    continue
+                }
+                actions.append(action)
+            }
+        } else if (try? c.decodeIfPresent([String: DPPValue].self, forKey: .actions)) != nil {
+            warnings.append("actions skipped: expected array")
+        }
+        // events：字符串简写直接用；规范的对象形态 {watch, …} 取 watch 并记
+        // warning（Swift 侧兜底——正常路径由 JS 解析器展平并自带 warnings）。
+        if let rawEvents = try? c.decodeIfPresent([String: DPPValue].self, forKey: .events) {
+            for (name, value) in rawEvents {
+                switch value {
+                case .string(let selector):
+                    events[name] = selector
+                case .object(let obj):
+                    if let selector = obj["watch"]?.stringValue {
+                        events[name] = selector
+                        warnings.append("events.\(name): object form flattened to watch selector")
+                    } else {
+                        warnings.append("events.\(name) skipped: object without watch")
+                    }
+                default:
+                    warnings.append("events.\(name) skipped: expected selector string or {watch}")
+                }
+            }
+        }
+        context = Self.tolerantMap(c, .context) { value in
+            let text = value.contextText
+            return text.isEmpty ? nil : text
+        }
+        // JS 解析器自身的降级备注并入（不覆盖 Swift 侧条目）。
+        warnings += Self.optStringArray(c, .warnings)
+        self.warnings = warnings
     }
 }

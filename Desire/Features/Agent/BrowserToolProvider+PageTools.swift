@@ -44,6 +44,16 @@ extension BrowserToolProvider {
             return "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
 
         case "getPageText":
+            // DPP contentMain：页面声明了正文选择器就只取正文（排除导航/
+            // 页脚噪音）；选择器落空时回退 body（声明不可信时不比原来差）。
+            if let main = surface.tabManager?.selectedTab?.browser.pageProtocol?.contentMain,
+               !main.isEmpty {
+                let mainLit = JSString.literal(main)
+                let text = await eval(webView, """
+                (function(){var m = document.querySelector(\(mainLit)); return (m || document.body).innerText;})()
+                """)
+                return text
+            }
             return await eval(webView, "document.body.innerText")
         case "getComments":
             // Structured comment-section extraction (author/text/time/likes)

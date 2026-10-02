@@ -1260,6 +1260,9 @@ struct WebView: NSViewRepresentable {
             parent.state.mixedContentTotal = 0
             parent.state.mixedContentScripts = 0
             parent.state.pendingOTPHint = nil
+            // DPP 协议属旧页：不清的话，didFinish 的异步解析完成前 pageAction
+            // 可能拿到上一页的动作声明在新区执行（导航竞态）。
+            parent.state.pageProtocol = nil
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -1371,47 +1374,10 @@ struct WebView: NSViewRepresentable {
             }
         }
 
-        private var eventPollingTimer: Timer?
-        private var firedEvents: Set<String> = []
-
-        /// DPP 事件轮询：按 events 声明的选择器定期检查，命中即触发
-        /// PageEventHub（经 handleEvent → AgentScheduler 事件驱动回合）。
-        /// 同一事件只触发一次（firedEvents 去重）。
-        private func installEventPolling(events: [String: String], webView: WKWebView) {
-            eventPollingTimer?.invalidate()
-            let url = webView.url?.absoluteString ?? ""
-            let host = webView.url?.host ?? ""
-            guard !host.isEmpty else { return }
-            eventPollingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-                Log.agent.info("DPP event poll: timer fired")
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    Log.agent.info("DPP event poll: checking, isLoading=\(webView.isLoading, privacy: .public)")
-                    guard !webView.isLoading else { return }
-                    // 只在 URL 匹配时检查（防跨页触发）
-                    guard webView.url?.absoluteString == url || webView.url?.host == host else { return }
-                    for (eventName, selector) in events {
-                        let eventKey = host + ":" + eventName
-                        guard !self.firedEvents.contains(eventKey) else { continue }
-                        let checkJS = "!!document.querySelector(\(JSString.literal(selector)))"
-                        let matched: Bool = await withCheckedContinuation { cont in
-                            webView.evaluateJavaScript(checkJS) { result, _ in
-                                cont.resume(returning: (result as? Bool) == true)
-                            }
-                        }
-                        guard matched else { continue }
-                        Log.agent.info("DPP event poll: MATCHED \(eventName, privacy: .public) on \(host, privacy: .public)")
-                        self.firedEvents.insert(eventKey)
-                        PageEventHub.shared.handleEvent(
-                            host: host, eventName: eventName,
-                            detail: ["selector": selector, "url": url])
-                    }
-                }
-            }
-        }
-
         /// 解析页面 DPP 协议（desire-protocol.js 归一化四形态）→ 缓存
         /// state.pageProtocol。静默：解析失败 = 无协议，工具走启发式。
+        /// 事件监听由页面内的 MutationObserver 负责（0→正 跳变上报）；
+        /// 宿主侧不做轮询（曾经的 installEventPolling 无调用点，已删）。
         private func parsePageProtocol(webView: WKWebView) async {
             let script = UserScriptLoader.load("desire-protocol")
             guard !script.isEmpty else { return }
@@ -1422,29 +1388,19 @@ struct WebView: NSViewRepresentable {
                 Log.agent.info("DPP parse: JS result nil or not string")
                 return
             }
-            let protocol_: DesireProtocol?
             do {
-                protocol_ = try JSONDecoder().decode(DesireProtocol.self, from: data)
+                let parsed = try JSONDecoder().decode(DesireProtocol.self, from: data)
+                var stored = parsed
+                stored.revisedAt = Date()
+                parent.state.pageProtocol = stored.isEmpty ? nil : stored
+                if !stored.warnings.isEmpty {
+                    Log.agent.info("DPP parse warnings: \(stored.warnings.joined(separator: "; "), privacy: .public)")
+                }
+                Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public) actions=\(stored.actions.count, privacy: .public) events=\(stored.events.count, privacy: .public)")
             } catch {
+                // 容错解码后仍到这里 = JSON 本身坏了（而非字段结构不符）。
                 Log.agent.info("DPP decode error: \(error.localizedDescription, privacy: .public) raw=\(raw.prefix(200), privacy: .public)")
                 parent.state.pageProtocol = nil
-                return
-            }
-            guard let protocol_ else { return }
-            if false {
-                parent.state.pageProtocol = nil
-                Log.agent.info("DPP parse: failed or empty (decode nil or isEmpty)")
-                return
-            }
-            var stored = protocol_
-            stored.revisedAt = Date()
-            parent.state.pageProtocol = stored.isEmpty ? nil : stored
-            Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public)")
-            // DPP events 命中检测改在 fetchCompactPageContext 里做（每次
-            // agent 回合检查，比 Timer 轮询更省且可靠——每次都拿到最新页面状态）。
-            // installEventPolling 方法保留供将来需要主动推送时使用。
-            if protocol_.isEmpty == false {
-                Log.agent.info("DPP parsed: views=\(protocol_.views.count, privacy: .public) actions=\(protocol_.actions.count, privacy: .public) form=page")
             }
         }
 

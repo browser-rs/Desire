@@ -677,6 +677,119 @@ extension BrowserToolProvider {
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
+        case "pageProtocol":
+            guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol else { return "This page does not declare a DPP protocol." }
+            var lines = ["Protocol: \(protocolSnapshot.protocolVersion)"]
+            if let main = protocolSnapshot.contentMain { lines.append("Main content: \(main)") }
+            if !protocolSnapshot.views.isEmpty {
+                lines.append("Views (use pageExtract):")
+                for name in protocolSnapshot.views.keys.sorted() {
+                    let view = protocolSnapshot.views[name]!
+                    lines.append("- \(name): items at '\(view.item)', fields: \(view.fields.keys.sorted().joined(separator: ", "))")
+                }
+            }
+            if !protocolSnapshot.signals.isEmpty {
+                let sigs = protocolSnapshot.signals.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ", ")
+                lines.append("Signals: \(sigs)")
+            }
+            if !protocolSnapshot.actions.isEmpty {
+                lines.append("Declared actions (pageAction): \(protocolSnapshot.actions.map(\.name).joined(separator: ", "))")
+            }
+            if !protocolSnapshot.ignore.isEmpty {
+                lines.append("Site noise (ignore): \(protocolSnapshot.ignore.joined(separator: ", "))")
+            }
+            return lines.joined(separator: "\n")
+
+        case "pageExtract":
+            let availableViews = surface.tabManager?.selectedTab?.browser.pageProtocol?.views.keys.sorted().joined(separator: ", ") ?? ""
+            guard let viewName = args["view"] as? String,
+                  let view = surface.tabManager?.selectedTab?.browser.pageProtocol?.views[viewName] else {
+                return Self.fail(availableViews.isEmpty
+                    ? "No DPP protocol on this page"
+                    : "Unknown view. Available: \(availableViews)")
+            }
+            let allPages = (args["all"] as? Bool) ?? false
+
+            // 每页抽取 JS：按 item selector 遍历 + fields 路径映射
+            // （路径语法："sel"=text、"@attr"=属性、"sel@attr"=子选择器属性）。
+            func extractJS() -> String {
+                var fieldEntries: [String] = []
+                for (name, path) in view.fields {
+                    let nameLit = JSString.literal(name)
+                    let value: String
+                    if path.hasPrefix("@") {
+                        let attr = String(path.dropFirst())
+                        let attrLit = JSString.literal(attr)
+                        value = "(item.getAttribute(" + attrLit + ") || '')"
+                    } else if path.contains("@") {
+                        let parts = path.components(separatedBy: "@")
+                        let selLit = JSString.literal(parts[0])
+                        let attrLit = JSString.literal(parts.count > 1 ? parts[1] : "")
+                        value = "(function(el){var e=el.querySelector(" + selLit + ");return e?e.getAttribute(" + attrLit + ")||'':'';})(item)"
+                    } else {
+                        let selLit = JSString.literal(path)
+                        value = "(function(el){var e=el.querySelector(" + selLit + ");return e?(e.textContent||'').trim():'';})(item)"
+                    }
+                    fieldEntries.append("\(nameLit): \(value)")
+                }
+                let itemLit = JSString.literal(view.item)
+                return "(function(){var items=[];document.querySelectorAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
+            }
+
+            func runExtract() async -> String {
+                do {
+                    let raw = try await webView.callAsyncJavaScript(
+                        extractJS(), arguments: [:], in: nil, contentWorld: .page
+                    ) as? String
+                    guard let raw, !raw.isEmpty else { return Self.fail("Extraction returned empty") }
+                    let capped = raw.count > 60_000 ? String(raw.prefix(60_000)) + "…(truncated)" : raw
+                    return "Extracted \(viewName) (current page):\n\(capped)"
+                } catch {
+                    return Self.fail("Extraction JS error: \(error.localizedDescription)")
+                }
+            }
+
+            let canPage = view.pagination?.type == "paged" && (view.pagination?.next?.isEmpty == false)
+            if !allPages || !canPage {
+                return await runExtract()
+            }
+            // 分页全量：抽当前页 → 点 next → 等稳定 → 重抽（cap 10 页）。
+            var allItems: [String] = []
+            var pages = 0
+            let nextSel = view.pagination!.next!
+            while pages < 10 {
+                if let raw = try? await webView.callAsyncJavaScript(
+                    extractJS(), arguments: [:], in: nil, contentWorld: .page) as? String,
+                   let data = raw.data(using: .utf8),
+                   let items = try? JSONSerialization.jsonObject(with: data) {
+                    allItems.append(data.base64EncodedString())
+                    _ = items
+                }
+                pages += 1
+                _ = try? await webView.callAsyncJavaScript(
+                    "var n = document.querySelector(\(JSString.literal(nextSel))); if (n) { n.click(); } 'ok'",
+                    arguments: [:], in: nil, contentWorld: .page)
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                let hasNext = ((try? await webView.callAsyncJavaScript(
+                    "!!document.querySelector(\(JSString.literal(nextSel)))",
+                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                if !hasNext { break }
+            }
+            // 合并各页 base64 → JSON 数组
+            var merged: [String] = []
+            for b64 in allItems {
+                if let data = Data(base64Encoded: b64),
+                   let str = String(data: data, encoding: .utf8),
+                   let items = try? JSONSerialization.jsonObject(with: Data(str.utf8)) as? [[String: Any]],
+                   let itemData = try? JSONSerialization.data(withJSONObject: items),
+                   let itemStr = String(data: itemData, encoding: .utf8) {
+                    merged.append(itemStr.hasPrefix("[") ? String(itemStr.dropFirst()).hasSuffix("]") ? String(itemStr.dropFirst().dropLast()) : itemStr : itemStr)
+                }
+            }
+            let joined = "[" + merged.joined(separator: ",") + "]"
+            let cappedAll = joined.count > 60_000 ? String(joined.prefix(60_000)) + "…(truncated)" : joined
+            return "Extracted \(viewName) (\(pages) page(s), \(allPages ? "full pagination" : "current")):\n\(cappedAll)"
+
         case "toggleAutoAdClean":
             let target = args["enabled"] as? Bool ?? !AutoAdClean.isEnabled
             AutoAdClean.shared.setEnabled(target)

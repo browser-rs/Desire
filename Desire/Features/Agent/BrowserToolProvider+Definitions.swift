@@ -679,6 +679,21 @@ extension BrowserToolProvider {
                 ])
             )),
 
+            // --- DPP（Desire Page Protocol，2026-10-02）---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pageProtocol",
+                description: "Check whether the current page declares a Desire Page Protocol (DPP): structured views, ready signals, declared actions. Use before guessing page structure.",
+                parameters: AgentJSONSchema(type: "object", properties: [:]))
+            ),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pageExtract",
+                description: "Extract structured data from the current page using its declared DPP view (accurate fields, minimal tokens — far better than reading raw text). Use pageProtocol first to see available views. all=true follows pagination for the full dataset.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "view": AgentJSONSchemaValue(type: "string", description: "View name (from pageProtocol)"),
+                    "all": AgentJSONSchemaValue(type: "boolean", description: "Follow pagination and return every page's items (default false = current page only)"),
+                ], required: ["view"]))
+            ),
+
             // --- AI 自动广告清理（2026-10-02）---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "toggleAutoAdClean",

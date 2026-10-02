@@ -74,6 +74,10 @@ class BrowserState: ObservableObject {
     /// 二级挂起会**重建**此视图（释放旧骨架、换上空白新视图）——除本类型
     /// 的 rebuildWebView() 外不得赋值；读取方照旧（非 optional，永不 nil）。
     private(set) var webView: BrowserWKWebView
+    /// DPP（Desire Page Protocol）：当前页面解析出的协议（didFinish 后由
+    /// coordinator 解析缓存）。nil = 页面无协议。pageExtract/pageProtocol
+    /// 工具与 page_context 增强消费。
+    var pageProtocol: DesireProtocol? = nil
     /// 插件消息 handler（extensionWorld + per-plugin world）是否已注册——
     /// Coordinator.observe() 置位、stopObserving() 复位。新 webview 的首次
     /// 加载可能快于 SwiftUI 建 representable，内容脚本此时 postMessage 会
@@ -1355,6 +1359,29 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        /// 解析页面 DPP 协议（desire-protocol.js 归一化四形态）→ 缓存
+        /// state.pageProtocol。静默：解析失败 = 无协议，工具走启发式。
+        private func parsePageProtocol(webView: WKWebView) async {
+            let script = UserScriptLoader.load("desire-protocol")
+            guard !script.isEmpty else { return }
+            guard let raw = try? await webView.callAsyncJavaScript(
+                script, arguments: [:], in: nil, contentWorld: .page) as? String,
+                let data = raw.data(using: .utf8),
+                let protocol_ = try? JSONDecoder().decode(DesireProtocol.self, from: data)
+            else {
+                parent.state.pageProtocol = nil
+                Log.agent.info("DPP parse: failed or empty (decode nil or isEmpty)")
+                return
+            }
+            var stored = protocol_
+            stored.revisedAt = Date()
+            parent.state.pageProtocol = stored.isEmpty ? nil : stored
+            Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public)")
+            if protocol_.isEmpty == false {
+                Log.agent.info("DPP parsed: views=\(protocol_.views.count, privacy: .public) actions=\(protocol_.actions.count, privacy: .public) form=page")
+            }
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
             parent.state.estimatedProgress = 1
@@ -1365,6 +1392,11 @@ struct WebView: NSViewRepresentable {
                 parent.urlString = url.absoluteString
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
+                // DPP：异步解析页面协议（解析失败 = 无协议，工具走启发式）。
+                Task { @MainActor [weak self, weak webView] in
+                    guard let self, let webView else { return }
+                    await self.parsePageProtocol(webView: webView)
+                }
                 parent.onPageFinished?(url, parent.state.pageTitle)
                 // 调试面板的作用域菜单要显示标题（KVO 的标题晚到，用 live title）。
                 parent.devToolsStore.noteTab(

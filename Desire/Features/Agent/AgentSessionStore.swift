@@ -934,7 +934,22 @@ class AgentSessionStore: ObservableObject {
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: String],
               let text = obj["text"], !text.isEmpty else { return nil }
         let title = obj["title"] ?? ""
-        return "[Current page] \(title) — \(url.absoluteString)\n\(text)"
+        var result = "[Current page] \(title) — \(url.absoluteString)\n\(text)"
+        // DPP 协议站点：注入结构化摘要（视图清单 + 声明动作），模型免猜结构。
+        if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.pageProtocol, !dpp.isEmpty {
+            var dppLines: [String] = []
+            if !dpp.views.isEmpty {
+                dppLines.append("Views (pageExtract): " + dpp.views.map { name, view -> String in
+                    "\(name)(fields: \(view.fields.keys.sorted().joined(separator: ", ")))"
+                }.joined(separator: "; "))
+            }
+            if let main = dpp.contentMain { dppLines.append("Main content selector: \(main)") }
+            if !dpp.actions.isEmpty {
+                dppLines.append("Actions (pageAction): " + dpp.actions.map(\.name).joined(separator: "; "))
+            }
+            result += "\n[DPP] This page declares a Desire Page Protocol:\n" + dppLines.joined(separator: "\n")
+        }
+        return result
     }
 
 

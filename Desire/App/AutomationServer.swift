@@ -419,6 +419,7 @@ final class AutomationServer {
         ep("POST", "/plugins/add", "Create a userscript plugin (runs in the isolated extension world with browser.* API)", params: ["name:string", "js:string", "patterns?:array", "runAt?:string(document_start|document_end|document_idle)", "pinned?:bool", "icon?:string(sf-symbol)", "background?:string(background script source)"], example: "-d '{\"name\":\"t\",\"js\":\"console.log(1)\",\"patterns\":[\"*://127.0.0.1/*\"]}'")
         ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
         ep("POST", "/plugins/bg-eval", "Evaluate JS in a plugin's background webview (debugging/E2E)", params: ["id:string", "js:string"], example: "-d '{\"id\":\"<uuid>\",\"js\":\"window.__bgLog\"}'")
+        ep("GET", "/plugins/dnr", "Plugin declarativeNetRequest diagnostics (rule counts per store + dropped rules)", params: ["id:string"], example: "…/plugins/dnr?id=<uuid>")
         ep("POST", "/plugins/install-msex", "Install a .msex package (manifest v3 subset: content_scripts + popup)", params: ["path:string"], example: "-d '{\"path\":\"/tmp/demo.msex\"}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
@@ -675,6 +676,12 @@ final class AutomationServer {
                 return try Self.json(Self.console(count: Int(query["count"] ?? "20") ?? 20))
             case ("GET", "/plugins"):
                 return try Self.json(Self.pluginList())
+            case ("GET", "/plugins/dnr"):
+                // DNR 诊断：三源规则数 + 编译丢弃清单。
+                guard let uuid = UUID(uuidString: Self.string(query, "id") ?? "") else {
+                    return try Self.json(["error": "invalid id"])
+                }
+                return try Self.json(PluginDNRStore.shared.diagnostics(pluginID: uuid))
             case ("GET", "/webext/debug"):
                 return try Self.json(ExtensionEventHub.shared.debugInfo())
             case ("POST", "/webext/fire"):
@@ -2698,8 +2705,13 @@ final class AutomationServer {
     /// in the isolated extension world with the browser.* API available.
     private static func pluginAdd(name: String, js: String, patterns: [String], runAt: String, css: String, pinned: Bool, icon: String?, background: String?) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty, !js.isEmpty else {
-            return ["error": "missing name/js"]
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return ["error": "missing name"]
+        }
+        // background-only 插件是合法形态（MV3 service worker）——js 可空。
+        let trimmedBackground = background?.isEmpty == false ? background! : nil
+        guard !(js.isEmpty && trimmedBackground == nil) else {
+            return ["error": "missing js or background"]
         }
         let plugin = Plugin(
             name: name,
@@ -2709,7 +2721,7 @@ final class AutomationServer {
             cssCode: css,
             pinned: pinned,
             icon: icon,
-            backgroundCode: (background?.isEmpty == false) ? background : nil
+            backgroundCode: trimmedBackground
         )
         app.pluginStore.add(plugin)
         return ["ok": true, "id": plugin.id.uuidString]

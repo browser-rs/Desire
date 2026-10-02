@@ -291,6 +291,22 @@
         executeScript: function(details) { return rpc("scripting", "executeScript", [details || {}]); },
         insertCSS: function(details) { return rpc("scripting", "insertCSS", [details || {}]); }
     };
+    // declarativeNetRequest：规则集交宿主编译进 WebKit content blocker
+    //（modifyHeaders/requestDomains 等表达不了的规则宿主逐条丢弃，不整包失败）。
+    var declarativeNetRequest = {
+        updateDynamicRules: function(options) {
+            return rpc("declarativeNetRequest", "updateRules", [options || {}, false]);
+        },
+        updateSessionRules: function(options) {
+            return rpc("declarativeNetRequest", "updateRules", [options || {}, true]);
+        },
+        getDynamicRules: function() { return rpc("declarativeNetRequest", "getRules", [false]); },
+        getSessionRules: function() { return rpc("declarativeNetRequest", "getRules", [true]); }
+    };
+    // MV3 观察语义（无阻塞回调）：宿主把每个网络请求 start 派发进来。
+    var webRequest = {
+        onBeforeRequest: eventAPI("webRequest.onBeforeRequest")
+    };
     var action = {
         setBadgeText: function(details) { return rpc("action", "setBadgeText", [details || {}]); },
         setTitle: function(details) { return rpc("action", "setTitle", [details || {}]); }
@@ -323,6 +339,7 @@
         storage: storage, tabs: tabs, runtime: runtime, notifications: notifications,
         contextMenus: contextMenus, alarms: alarms, action: action,
         windows: windows, downloads: downloads, i18n: i18n, scripting: scripting,
+        declarativeNetRequest: declarativeNetRequest, webRequest: webRequest,
         // 0.3.3：宿主注入的插件身份（只读镜像，调试/判重用）。
         _desireID: function () { return window.__desireExtID || null; },
     };
@@ -339,4 +356,6 @@
     if (!chrome.downloads) chrome.downloads = downloads;
     if (!chrome.i18n) chrome.i18n = i18n;
     if (!chrome.scripting) chrome.scripting = scripting;
+    if (!chrome.declarativeNetRequest) chrome.declarativeNetRequest = declarativeNetRequest;
+    if (!chrome.webRequest) chrome.webRequest = webRequest;
 })();

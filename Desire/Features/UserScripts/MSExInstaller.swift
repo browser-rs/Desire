@@ -115,17 +115,6 @@ enum MSExInstaller {
             popupBaseDir = popupURL.deletingLastPathComponent()
         }
 
-        guard !jsChunks.isEmpty || !cssChunks.isEmpty || popupHTML != nil else {
-            throw MSExError.noContent
-        }
-
-        // R2 归一后续（Chrome 式从文件加载）：真实扩展的 popup 都引用外部
-        // css/js（如 trove-bookmark 的 ../lib/qrcode.min.js）——相对引用内联
-        // 进 HTML，否则 popup 弹出来是断链的白壳。基准目录 = **popup.html 所在
-        // 目录**（引用相对它解析，`../` 跳包根），不是 manifest 根。
-        popupHTML = popupBaseDir.flatMap { dir in
-            popupHTML.map { Self.inlinePopupResources(html: $0, baseDir: dir) }
-        }
         // background（service_worker/scripts）内联——由
         // PluginBackgroundRuntime 以常驻 headless webview 运行
         //（contextMenus/storage/notifications/事件都可用）。
@@ -138,6 +127,33 @@ enum MSExInstaller {
                     try? String(contentsOf: extractDir.appendingPathComponent($0), encoding: .utf8)
                 }.joined(separator: "\n")
             }
+        }
+        // DNR-only 包（广告拦截扩展典型形态：popup+规则表，无 content
+        // script）合法——守卫扩到 background/静态规则。
+        var dnrStaticRules: [DNRRule] = []
+        if let dnr = manifest["declarative_net_request"] as? [String: Any],
+           let resources = dnr["rule_resources"] as? [[String: Any]] {
+            for entry in resources {
+                guard (entry["enabled"] as? Bool) == true,
+                      let path = entry["path"] as? String else { continue }
+                if let data = try? Data(contentsOf: extractDir.appendingPathComponent(path)) {
+                    let wrapped = try? JSONDecoder().decode(DNRStaticRulesFile.self, from: data)
+                    let bare = try? JSONDecoder().decode([DNRRule].self, from: data)
+                    dnrStaticRules += wrapped?.rules ?? bare ?? []
+                }
+            }
+        }
+        guard !jsChunks.isEmpty || !cssChunks.isEmpty || popupHTML != nil
+              || backgroundCode != nil || !dnrStaticRules.isEmpty else {
+            throw MSExError.noContent
+        }
+
+        // R2 归一后续（Chrome 式从文件加载）：真实扩展的 popup 都引用外部
+        // css/js（如 trove-bookmark 的 ../lib/qrcode.min.js）——相对引用内联
+        // 进 HTML，否则 popup 弹出来是断链的白壳。基准目录 = **popup.html 所在
+        // 目录**（引用相对它解析，`../` 跳包根），不是 manifest 根。
+        popupHTML = popupBaseDir.flatMap { dir in
+            popupHTML.map { Self.inlinePopupResources(html: $0, baseDir: dir) }
         }
         let effectiveDescription = description
 
@@ -202,6 +218,9 @@ enum MSExInstaller {
             resultPlugin = newPlugin
         }
         Log.userScripts.info("msex installed: \(name, privacy: .public) v\(version, privacy: .public)")
+        if !dnrStaticRules.isEmpty {
+            PluginDNRStore.shared.setStaticRules(pluginID: resultPlugin.id, rules: dnrStaticRules)
+        }
         // **返回实际入库的插件**（更新分支 id = 旧条目）——此前返回新构造
         // 对象，同名重装时桥/调用方拿到的是从未入库的 id（实测 E2E 探针
         // 全打空）。

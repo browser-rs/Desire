@@ -231,6 +231,8 @@ class BrowserState: ObservableObject {
         InterceptStore.shared.apply(to: config.userContentController)
         // Community filter lists (EasyList) — process-wide singleton.
         FilterListStore.shared.apply(to: config)
+        // 插件 declarativeNetRequest 规则集（每插件一份编译好的列表）。
+        PluginDNRStore.shared.apply(to: config.userContentController)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartGuardScript())
@@ -1026,6 +1028,21 @@ struct WebView: NSViewRepresentable {
             } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
                 noteTabInDevTools()
                 parent.devToolsStore.applyNetworkEvent(dict, tabID: parent.tabID)
+                // webRequest.onBeforeRequest（MV3 观察语义）：请求 start 一发。
+                if (dict["phase"] as? String) == "start" {
+                    var details: [String: Any] = [
+                        "url": dict["url"] as? String ?? "",
+                        "tabId": parent.tabID.uuidString,
+                        "frameId": 0,
+                    ]
+                    if let resourceType = dict["resourceType"] as? String {
+                        details["type"] = resourceType
+                    }
+                    if let method = dict["method"] as? String {
+                        details["method"] = method
+                    }
+                    PluginBackgroundRuntime.shared.fireWebRequest(details: details)
+                }
             } else if message.name == "devConsole", let dict = message.body as? [String: Any],
                       let levelStr = dict["level"] as? String,
                       let msgText = dict["message"] as? String {

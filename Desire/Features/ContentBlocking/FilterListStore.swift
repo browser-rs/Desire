@@ -82,7 +82,7 @@ class FilterListStore: ObservableObject {
     /// 列表都得到"Compilation failed"，而日志里没有任何编译错误（两个 compile 分支
     /// 都不会被走到）。兜底用基于目录的 store：编译只依赖它的缓存目录，编译出来的
     /// `WKContentRuleList` 是内存对象，注册到 controller 与 store 是谁无关。
-    private static func ruleListStore() -> WKContentRuleListStore? {
+    static func ruleListStore() -> WKContentRuleListStore? {
         if let store = WKContentRuleListStore.default() { return store }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory

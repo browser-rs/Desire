@@ -34,6 +34,8 @@ class PluginStore: ObservableObject {
         WebExtensionStore.clear(ext: plugin.id.uuidString)
         // 包资源目录一并清理（chrome.scripting files[] 的文件来源）。
         PluginResources.discard(plugin.resourcesPath)
+        // DNR 规则集（动态/静态/会话）一并清理。
+        PluginDNRStore.shared.removeAll(pluginID: plugin.id)
     }
 
     /// 工具栏固定切换（0.2.17 Chrome 式扩展面板）。

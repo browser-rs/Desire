@@ -947,6 +947,80 @@ func testPluginResourcePaths() {
 }
 testPluginResourcePaths()
 
+// ---------- DNRConverter：DNR 规则 → WebKit content blocker ----------
+
+func testDNRConverter() {
+    func rule(_ id: Int, type: String, urlFilter: String? = nil, regex: String? = nil,
+              types: [String]? = nil, ifDomains: [String]? = nil,
+              unlessDomains: [String]? = nil, domainType: String? = nil,
+              redirectURL: String? = nil, priority: Int? = nil) -> DNRRule {
+        DNRRule(id: id, priority: priority,
+                action: DNRAction(type: type,
+                                  redirect: redirectURL.map { DNRRedirect(url: $0) }),
+                condition: DNRCondition(urlFilter: urlFilter, regexFilter: regex,
+                                        resourceTypes: types, initiatorDomains: ifDomains,
+                                        excludedInitiatorDomains: unlessDomains,
+                                        requestDomains: nil, domainType: domainType))
+    }
+
+    // urlFilter 语法转换
+    let r1 = DNRConverter.webkitRule(rule(1, type: "block", urlFilter: "||ads.example.com/ads.js"))
+    guard case .success(let o1) = r1 else { check("|| 锚点规则转换", false); return }
+    check("|| 锚点 → scheme+域正则",
+          (o1["trigger"] as! [String: Any])["url-filter"] as! String
+              == "^[a-z-]+://(?:[^/?#]+\\.)?ads\\.example\\.com/ads\\.js")
+    let r2 = DNRConverter.webkitRule(rule(2, type: "block", urlFilter: "/tracker?id=7^"))
+    guard case .success(let o2) = r2 else { check("^ 分隔符转换", false); return }
+    check("^ → [/?#] 且 ? 转义（AGENTS 硬约束）",
+          (o2["trigger"] as! [String: Any])["url-filter"] as! String
+              == "/tracker\\?id=7[/?#]")
+    check("action block 原样", (o1["action"] as! [String: Any])["type"] as! String == "block")
+
+    // regexFilter 直传 + 组内 $ 拒绝
+    let r3 = DNRConverter.webkitRule(rule(3, type: "block", regex: "^https://x\\.com/a$"))
+    if case .success = r3 { check("regexFilter 直传", true) } else { check("regexFilter 直传", false) }
+    let r4 = DNRConverter.webkitRule(rule(4, type: "block", regex: "(?:a|$)"))
+    if case .failure = r4 { check("组内 $ 拒绝", true) } else { check("组内 $ 拒绝", false) }
+
+    // 动作映射
+    let r5 = DNRConverter.webkitRule(rule(5, type: "upgradeScheme", urlFilter: "^http://x"))
+    check("upgradeScheme → make-https",
+          ((try! r5.get())["action"] as! [String: Any])["type"] as! String == "make-https")
+    let r6 = DNRConverter.webkitRule(rule(6, type: "redirect", urlFilter: "a", redirectURL: "https://b.com/c"))
+    check("redirect.url 映射",
+          ((try! r6.get())["action"] as! [String: Any])["type"] as! String == "redirect")
+    let r7 = DNRConverter.webkitRule(rule(7, type: "modifyHeaders", urlFilter: "a"))
+    if case .failure = r7 { check("modifyHeaders 丢弃", true) } else { check("modifyHeaders 丢弃", false) }
+
+    // resource-type 词汇表
+    let r8 = DNRConverter.webkitRule(rule(8, type: "block", urlFilter: "a", types: ["main_frame", "script"]))
+    let t8 = ((try! r8.get())["trigger"] as! [String: Any])["resource-type"] as! [String]
+    check("resource-type 映射 document/script", t8 == ["document", "script"])
+    let r9 = DNRConverter.webkitRule(rule(9, type: "block", urlFilter: "a", types: ["websocket"]))
+    if case .failure = r9 { check("全 unmappable 类型丢规则", true) } else { check("全 unmappable 类型丢规则", false) }
+
+    // 域条件
+    let r10 = DNRConverter.webkitRule(rule(10, type: "block", urlFilter: "a",
+                                           ifDomains: ["news.com"], unlessDomains: ["x.com"]))
+    if case .failure = r10 { check("双域条件丢规则（WebKit 只认一个）", true) } else { check("双域条件丢规则（WebKit 只认一个）", false) }
+    let r11 = DNRConverter.webkitRule(rule(11, type: "block", urlFilter: "a", domainType: "thirdParty"))
+    check("domainType → load-type",
+          ((try! r11.get())["trigger"] as! [String: Any])["load-type"] as! [String] == ["third-party"])
+
+    // allow 收尾排序（ignore-previous-rules 必须在 block 之后）
+    let outcome = DNRConverter.convert([
+        rule(21, type: "allow", urlFilter: "good", priority: 100),
+        rule(22, type: "block", urlFilter: "bad-a", priority: 1),
+        rule(23, type: "block", urlFilter: "bad-b", priority: 10),
+    ])
+    let firstAction = (outcome.rules.first?["action"] as? [String: Any])?["type"] as? String
+    let lastAction = (outcome.rules.last?["action"] as? [String: Any])?["type"] as? String
+    check("allow 排在规则集最后（WebKit 语义）", firstAction == "block" && lastAction == "ignore-previous-rules")
+    check("拦截类内部按优先级降序", outcome.rules.count == 3)
+    check("无丢弃", outcome.dropped.isEmpty)
+}
+testDNRConverter()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

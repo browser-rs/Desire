@@ -13,6 +13,10 @@
 - 插件系统：Port 长连接全链落地——`runtime.connect`/`onConnect`（端口表按双端 webview 路由，任一端 postMessage/disconnect 对称送达，插件停用自动拆端口）；`runtime.sendMessage`/`tabs.sendMessage` 回包路由补全（`_resolveReply` + JS 生成路由 id，`tabs.sendMessage` ns 对齐宿主 case）；桥 `/plugins/add` 新增 `background` 参数（后台脚本插件可直接经桥安装，E2E 用）。
 - 插件系统：chrome.scripting 动态注入补全——新增 `scripting` 命名空间（executeScript/insertCSS，支持 code|files[]），**插件包资源目录**（manifest 包装载时整包拷入 `~/Library/Application Support/Desire/PluginResources/<uuid>/`，50MB 上限、路径清洗防逃逸、卸载联动清理），手写 JSON 插件 files[] 明确报错；MV3 动态注入落 per-plugin world 并幂等前置 webext-api 运行时（旧 webview 的 world 也有 chrome.\*）。
 - 插件系统：tabs API 补全（update/get/reload，页面/背景 handler 共用一套宿主侧 helper）+ tabs.onUpdated 广播（didFinish 近似 status=complete + url/title，页面世界与全部 background 页双路派发，Chrome 多参签名）；桥新增 `POST /plugins/bg-eval`（在插件 background webview 里求值，背景页此前没有调试通道）。
+- 插件系统：**declarativeNetRequest 动态规则落地**（拦截类扩展的标准入口）——`chrome.declarativeNetRequest.updateDynamicRules/updateSessionRules/getDynamicRules/getSessionRules`；规则经 `DNRConverter` 纯转换映射到 WebKit content blocker（urlFilter 语法 `||`/`^`/`*` 逐字转正则、resource-type/initiatorDomains/domainType/redirect/upgradeScheme），映射不了的语义（modifyHeaders/requestDomains/extensionPath 重定向）**逐条丢弃带理由**不整包失败；编译失败二分自愈（FilterListStore.sanitize 同款）；每插件一份规则列表随 webview 创建挂载、更新即时重分发；dynamic/静态落盘跨重启恢复，session 仅内存（Chrome 语义）；manifest `declarative_net_request.rule_resources` 静态规则随包装载，DNR-only 包（popup+规则表、无 content script）合法。
+- 插件系统：`chrome.webRequest.onBeforeRequest`（MV3 观察语义，无阻塞回调）——网络请求 start 派发给注册监听的插件 background 页；事件派发按**监听登记过滤**（events/addListener 记账），高频事件不再无差别广播全部插件。
+
+
 
 
 
@@ -31,6 +35,8 @@
 - 插件 URL 匹配支持 Chrome match-pattern 语义：pattern 不允许带端口，带端口的 URL（如 127.0.0.1:8877）也要命中无端口 pattern。
 - 插件 reply 闭包第三次同类崩溃（insertCSS 实测 abort）：样式注入 IIFE 的尾值是 `appendChild` 返回的 DOM 元素——进 `JSONSerialization` 对 ObjC 对象抛异常、`try?` 拦不住直接杀进程。三处 reply 闭包（背景/页面/popup）default 分支补 `isValidJSONObject` 前置检查，CSS 包装尾值固定为空串；popup 的 reply 连标量分支都没有（contextMenus.create 回菜单 id 即崩）一并补全。
 - 插件同名重装（更新分支）返回的是新构造对象的 uuid 而非实际入库条目的 id——桥/调用方拿到从未存在的 id（E2E 探针全打空）；`InstallResult` 改回实际入库的插件。
+- 桥 `/plugins/add` 允许 background-only 插件（MV3 service worker 形态，js 可空）；`DNRRule` 这类 Swift struct 数组直接进 reply 的 `JSONSerialization` 会因 isValid=false 静默变 null（getDynamicRules 返回空对象）——经 JSONEncoder 往返成字典。
+
 
 
 

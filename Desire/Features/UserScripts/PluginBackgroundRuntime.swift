@@ -96,6 +96,7 @@ final class PluginBackgroundRuntime: NSObject {
         guard let host = hosts.removeValue(forKey: id) else { return }
         host.coordinator.teardown()
         closePorts(pluginID: id)
+        backgroundEventListeners.removeValue(forKey: id)
         PluginContextMenuStore.shared.removeAll(pluginID: id)
         Log.userScripts.info("plugin background stopped: \(id.uuidString.prefix(8), privacy: .public)")
     }
@@ -145,10 +146,24 @@ final class PluginBackgroundRuntime: NSObject {
     }
 
     /// 广播事件给全部 background 页（tabs.onUpdated 这类全局事件）。
+    /// **只投给注册过该事件的插件**——webRequest.onBeforeRequest 每请求
+    /// 一发，无差别广播是性能事故；未登记监听的事件 evaluate 进去也无人消费。
     func fireAll(event: String, payload: Any) {
-        for id in hosts.keys {
+        for id in hosts.keys where backgroundEventListeners[id]?.contains(event) == true {
             fire(pluginID: id, event: event, payload: payload)
         }
+    }
+
+    /// webRequest.onBeforeRequest（MV3 观察语义）：网络请求 start 派发。
+    func fireWebRequest(details: [String: Any]) {
+        fireAll(event: "webRequest.onBeforeRequest", payload: [details])
+    }
+
+    /// 背景页登记过的事件名（events/addListener 时记，供 fireAll 过滤）。
+    private var backgroundEventListeners: [UUID: Set<String>] = [:]
+
+    func recordEventListener(_ name: String, pluginID: UUID) {
+        backgroundEventListeners[pluginID, default: []].insert(name)
     }
 
     // MARK: - tabs API 宿主侧（页面/背景 handler 共用，防两处漂移）
@@ -756,22 +771,43 @@ final class PluginBackgroundRuntime: NSObject {
                     PluginBackgroundRuntime.shared.closePort(portId: msgPortId, from: fromWeb)
                 }
                 reply([:])
-            case ("events", "addListener"):
-                // background webview 是事件的唯一接收方——无需登记，
-                // 宿主派发时直接 evaluate 进来。
-                // **onInstalled 确定性触发**：页面侧注册监听这一刻桥会上报，
-                // 收到即派发——此前 300ms 延迟是启发式，atDocumentEnd 的
-                // background 代码慢一点监听器就还没注册、事件凭空丢失。
-                if let name = args.first as? String, name == "runtime.onInstalled" {
-                    // 消息自带 webView（即本插件的 background 页），直接回注。
-                    _ = try? await message.webView?.evaluateJavaScript(
-                        "window.__desireExt && window.__desireExt._fire(\"runtime.onInstalled\", {\"reason\":\"install\"});")
-                    Log.userScripts.info("plugin background started: \(self.pluginID.uuidString.prefix(8), privacy: .public)")
+            case ("declarativeNetRequest", "updateRules"):
+                // 规则信封从消息体恢复成 JSON 再 decode（args 已是 [Any]）。
+                guard let optionsData = try? JSONSerialization.data(withJSONObject: args.first ?? [:], options: []),
+                      let options = try? JSONDecoder().decode(DNROptions.self, from: optionsData) else {
+                    reply(nil, error: "updateRules requires {addRules, removeRuleIds}")
+                    return
                 }
-                reply([:])
+                let session = (args.count > 1 && (args[1] as? Bool) == true)
+                do {
+                    try PluginDNRStore.shared.updateRules(
+                        pluginID: pluginID, add: options.addRules ?? [],
+                        removeIds: options.removeRuleIds ?? [], session: session)
+                    reply([:])
+                } catch {
+                    reply(nil, error: error.localizedDescription)
+                }
+            case ("declarativeNetRequest", "getRules"):
+                let session = (args.first as? Bool) == true
+                let dnrRules = PluginDNRStore.shared.getRules(pluginID: pluginID, session: session)
+                // JSONSerialization 不认 Swift struct 数组（DNRRule）——
+                // 经 JSONEncoder 往返成字典，直接塞会 isValid=false → null。
+                let payload = dnrRules.map { rule -> [String: Any] in
+                    guard let data = try? JSONEncoder().encode(rule),
+                          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        return ["id": rule.id]
+                    }
+                    return object
+                }
+                reply(["rules": payload])
             case ("events", "addListener"):
                 // background webview 是事件的唯一接收方——无需登记，
-                // 宿主派发时直接 evaluate 进来。
+                // 宿主派发时直接 evaluate 进来。**但 fireAll 按登记过滤**
+                //（webRequest.onBeforeRequest 每请求一发，不登记会全插件
+                // 广播成性能事故），这里记一笔。
+                if let name = args.first as? String {
+                    PluginBackgroundRuntime.shared.recordEventListener(name, pluginID: pluginID)
+                }
                 // **onInstalled 确定性触发**：页面侧注册监听这一刻桥会上报，
                 // 收到即派发——此前 300ms 延迟是启发式，atDocumentEnd 的
                 // background 代码慢一点监听器就还没注册、事件凭空丢失。

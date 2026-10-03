@@ -962,7 +962,7 @@ class AgentSessionStore: ObservableObject {
             if !dpp.events.isEmpty, let wv = activeWebView {
                 var eventHits: [String] = []
                 for (eventName, selector) in dpp.events {
-                    let checkJS = "!!document.querySelector(\(JSString.literal(selector)))"
+                    let checkJS = DPPQuery.helperJS + "\n(__desireQueryAll(\(JSString.literal(selector))).length > 0)"
                     let raw: Any? = await withCheckedContinuation { (cont: CheckedContinuation<Any?, Never>) in
                         wv.evaluateJavaScript(checkJS) { result, _ in cont.resume(returning: result) }
                     }

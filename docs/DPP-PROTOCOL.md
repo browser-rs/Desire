@@ -73,13 +73,18 @@
 </script>
 ```
 
-### 3.4 L3 — 原生 SDK（二期）
+### 3.4 L3 — 原生 SDK（✅ 已实装）
 
-```js
-desire.expose({ protocol: "desire/1", views: {...}, signals: {...}, ... });
-// SPA 路由变化时重新 expose
-desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
+```html
+<script src="https://desire.mankong.icu/desire-sdk.js"></script>
+<script>
+  desire.expose({ protocol: "desire/1", views: {...}, signals: {...}, ... });
+  // SPA 路由变化时重新 expose（Desire 自动重新解析）
+  desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
+</script>
 ```
+
+> SDK 公开地址：`https://desire.mankong.icu/desire-sdk.js`（随产品页部署）。
 
 ## 4. 核心 Schema
 
@@ -97,6 +102,11 @@ desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
   "context":    { "persona": "…", "domain": […], "rules": "…" }
 }
 ```
+
+**选择器穿透（shadow DOM）**：所有协议选择器（views/signals/actions/events）支持
+**`>>>` 穿透语法**——`"app-grid >>> product-card >>> .price"` 按段下钻 `shadowRoot`
+（WebKit 的 querySelector 不穿透 shadow boundary，Desire 在宿主侧逐段解析）。
+字段相对 item 的 shadowRoot 用前导 `>>>`：`{ "price": ">>> .p" }`。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -420,19 +430,18 @@ Actions (pageAction): search
 | 事件驱动：0→正 跳变 → PageEventHub → Agent 回合 | ⬜ 基建已通，待真机验证 |
 | 审批闸门真机 E2E：danger 动作强制审批（挂起/未执行/deny/allow 全链 20 项） | ✅ |
 | signals 接线：navigate 等 ready、pageAction 等 busy 消失 | ✅ 真机 E2E |
+| shadow DOM 穿透：`>>>` item/字段选择器抽取 | ✅ 探针实证 |
+| 事件驱动全链：跳变 → PageEventHub → auto 回合 → 模型收到 | ✅ 真机 E2E 8 项 |
 
 ## 9. 已知限制与边界
 
 | 限制 | 原因 | 计划 |
 |---|---|---|
-| 不支持 shadow DOM 选择器 | CSS querySelector 不穿透 shadow boundary | 三期：`>>>` 穿透语法 |
-| 不支持 iframe 内元素 | 跨 frame 无 selector 语义 | 三期：`frame:` 前缀 |
-| signals 不驱动 navigate 等待 | 解析与展示已通，行为未接线 | 三期 |
+| 不支持 iframe 内元素 | 跨 frame 无 selector 语义 | 后续：`frame:` 前缀（宿主可经 frame API 跨源访问） |
 | `upload` 步骤不支持 | 需要文件选择器授权路径 | 按需（当前明确报错） |
-| SPA 路由变化不重解析 | 宿主只在 didFinish 解析 | 三期：SDK expose 通知宿主 |
-| SDK 无公开分发渠道 | desire-sdk.js 只在 app bundle | 三期：发布到产品页 |
+| L1 属性扫描不进 shadow DOM | 解析器只扫 light DOM（L2/L3 声明可用 `>>>`） | 按需 |
 | 审批白名单粒度 = 工具名 | outbound/danger 已强制逐次审批兜底 | 后续：per-(host, action) 放行 |
-| 无限滚动分页（infinite）未实装 | 需滚动合成；paged 已实装 | 三期 |
+| SDK 部署依赖产品页 | website/desire-sdk.js 随站点发布 | 用户部署时带上 |
 
 （listChanged / sampling / OAuth 属 MCP 客户端能力，不在 DPP 范围——见 MCP 章节。）
 
@@ -469,4 +478,9 @@ Actions (pageAction): search
 - workbench profile（后台管理 + 权限角色声明）
 - 协议规范文档发布（面向站点作者和 Agent 开发者的开放规范）
 - MCP 联动（DPP 声明可引用 MCP 工具：`run: {"mcp": "server.tool"}`）
-- shadow DOM / iframe 穿透选择器
+- iframe 穿透（`frame:` 前缀，宿主经 frame API 跨源查询）
+- `upload` 步骤（文件选择器授权路径）
+
+### 已提前落地（原三期项）
+- ✅ shadow DOM 穿透（`>>>` 语法，全链：views/字段/actions/信号/事件命中）
+- ✅ SDK 公开分发（`website/desire-sdk.js` → https://desire.mankong.icu/desire-sdk.js）

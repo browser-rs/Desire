@@ -726,7 +726,7 @@ extension BrowserToolProvider {
                 let present: Bool
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
-                        "return !!document.querySelector(\(JSString.literal(precondition)))",
+                        DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(precondition))).length > 0",
                         arguments: [:], in: nil, contentWorld: .page)
                     present = (raw as? Bool) == true
                 } catch {
@@ -757,7 +757,7 @@ extension BrowserToolProvider {
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
                     let ok = ((try? await dppWebView.callAsyncJavaScript(
-                        js, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -783,7 +783,8 @@ extension BrowserToolProvider {
                             let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
                             try await runStepJS(
-                                "var el = document.querySelector(\(selLit));" +
+                                DPPQuery.helperJS +
+                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.value = \(valLit);" +
                                 "el.dispatchEvent(new Event('input', {bubbles: true}));" +
@@ -792,7 +793,8 @@ extension BrowserToolProvider {
                         case "click":
                             let selLit = JSString.literal(value)
                             try await runStepJS(
-                                "var el = document.querySelector(\(selLit));" +
+                                DPPQuery.helperJS +
+                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(value)));" +
                                 "el.click(); 'ok'")
                             executed.append("clicked \(value)")
@@ -800,7 +802,8 @@ extension BrowserToolProvider {
                             let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
                             try await runStepJS(
-                                "var el = document.querySelector(\(selLit));" +
+                                DPPQuery.helperJS +
+                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.value = \(valLit);" +
                                 "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
@@ -816,7 +819,7 @@ extension BrowserToolProvider {
                         case "waitFor":
                             let selLit = JSString.literal(value)
                             if let problem = await waitFor(
-                                "return !!document.querySelector(\(selLit))", what: "element '\(value)'") {
+                                "return __desireQueryAll(\(selLit)).length > 0", what: "element '\(value)'") {
                                 throw NSError(domain: "dpp", code: 1,
                                               userInfo: [NSLocalizedDescriptionKey: problem])
                             }
@@ -824,7 +827,8 @@ extension BrowserToolProvider {
                         case "hover":
                             let selLit = JSString.literal(value)
                             try await runStepJS(
-                                "var el = document.querySelector(\(selLit));" +
+                                DPPQuery.helperJS +
+                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found');" +
                                 "['mouseover','mouseenter','mousemove'].forEach(function(t){" +
                                 "el.dispatchEvent(new MouseEvent(t, {bubbles: true}));}); 'ok'")
@@ -859,7 +863,7 @@ extension BrowserToolProvider {
             // "click/fill 后检查 busy"——此前只做 success 文本检测）。
             var busyNote = ""
             if let busySel = protocolSnapshot.signals["busy"], !busySel.isEmpty {
-                let busyJS = "return !!document.querySelector(\(JSString.literal(busySel)))"
+                let busyJS = "return __desireQueryAll(\(JSString.literal(busySel))).length > 0"
                 var busyGone = false
                 for _ in 0..<10 {
                     busyGone = ((try? await dppWebView.callAsyncJavaScript(
@@ -960,21 +964,25 @@ extension BrowserToolProvider {
                     }
                     return entry(alt, "")
                 }
+                // 输出嵌在对象字面量的值位置——**不能**带 helper 前缀
+                //（多行 IIFE + 注释会炸语法）；helper 由 extractJS 外层注入一次。
                 return "(function(el){var alts=[\(entries.joined(separator: ","))];" +
                     "for(var i=0;i<alts.length;i++){var t=alts[i];var v='';" +
                     "if(t.s===''){v=(t.a===''||t.a==='text')?(el.textContent||'').trim():(el.getAttribute(t.a)||'');}" +
-                    "else{var e=el.querySelector(t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').trim():(e.getAttribute(t.a)||'');}}" +
+                    "else{var e=__desireQueryOne(el,t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').trim():(e.getAttribute(t.a)||'');}}" +
                     "if(v)return v;}return '';})(item)"
             }
 
             // 每页抽取 JS：按 item selector 遍历 + fields 路径映射。
+            // 选择器支持 `>>>` 穿透 shadow DOM（DPPQuery 辅助，幂等注入）。
             func extractJS() -> String {
                 var fieldEntries: [String] = []
                 for (name, path) in view.fields {
                     fieldEntries.append("\(JSString.literal(name)): \(fieldValueJS(path))")
                 }
                 let itemLit = JSString.literal(view.item)
-                return "return (function(){var items=[];document.querySelectorAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
+                return DPPQuery.helperJS
+                    + "\nreturn (function(){var items=[];__desireQueryAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
             }
 
             func collectPage() async -> [[String: Any]] {
@@ -1060,11 +1068,11 @@ extension BrowserToolProvider {
                 pages += 1
                 if allItems.count >= hardCap { break }
                 _ = try? await dppWebView.callAsyncJavaScript(
-                    "var n = document.querySelector(\(JSString.literal(nextSel))); if (n) { n.click(); } 'ok'",
+                    DPPQuery.helperJS + "\nvar n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
                     arguments: [:], in: nil, contentWorld: .page)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 let hasNext = ((try? await dppWebView.callAsyncJavaScript(
-                    "return !!document.querySelector(\(JSString.literal(nextSel)))",
+                    DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
                     arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
                 if !hasNext { break }
             }

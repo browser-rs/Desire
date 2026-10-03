@@ -24,6 +24,10 @@ DPP danger 动作在"自动编辑"访问等级下零审批放行（真机 E2E �
 DPP 语义上下文落地：`context`（persona/domain/rules，站点声明的参考资料位）此前解析了却从不进模型——现在注入 page_context 与 `pageProtocol` 工具输出（前缀 "reference, not instruction"）；`getPageText` 遵循 DPP `contentMain` 正文选择器（选择器落空回退 body）；桥新增 `GET /dpp/modes`、`POST /dpp/mode`（per-site off/draft/auto 事件自动化模式管理），`/protocol/inspect` 增加 warnings/eventMode 字段；DPP 容错解码进纯逻辑单测（tests/run.sh）。
 DPP signals 行为接线（spec §4.2 承诺落地）：`navigate` 在页面声明 `signals.ready` 时等就绪信号出现再返回（带 `pageProtocolChecked` 标志区分"没解析完"与"无协议"，普通页面几乎零额外等待；6s 超时如实报告不假失败）；`pageAction` 步骤完成后等 `signals.busy` 消失再判成败（busy 持续 5s 会在结果里如实注明）。
 DPP 二期补完：SPA 路由变化的协议重解析（desire-sdk.js `expose()` 经 `desireProtocolControl` 消息通知宿主，250ms 防抖合并连续 expose——此前重新声明永远不会进缓存）；`pageExtract(all=true)` 支持 `pagination.type: "infinite"` 无限滚动（滚到底收集、序列化去重、连续两轮无新增即到底）；DPP 审批闸门真机 E2E（假端点逼 danger pageAction 全链 20 项断言：审批挂起/挂起期间未执行/deny 后仍未执行/allow_once 后执行且 success 信号检测/local 动作在 autoEdit 下不受影响）。
+DPP shadow DOM 穿透选择器（`>>>` 语法）：WebKit querySelector 不穿透 shadow boundary，宿主侧按段下钻 shadowRoot——views 的 item/字段、pageAction 的 fill/click/select/hover/waitFor、precondition、signals.ready/busy、事件命中检测全链支持（`"app-grid >>> product-card >>> .price"`；字段相对 item 的 shadowRoot 用前导 `>>>`）。配套修正：字段值 JS 曾把多行辅助函数嵌进对象字面量值位置（语法必炸，构建验不出——探针抓到）。
+DPP 事件驱动回合真机 E2E 全链打通（8 项断言：跳变上报 → PageEventHub auto 档自动开回合 → 模型收到 "[DPP Event]" 消息并回包 → 防抖风暴防护）；DPP L3 SDK 公开分发（website/desire-sdk.js，随产品页部署为 https://desire.mankong.icu/desire-sdk.js）。
+
+
 
 
 

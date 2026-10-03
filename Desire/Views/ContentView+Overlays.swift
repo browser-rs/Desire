@@ -162,16 +162,36 @@ extension ContentView {
         }
     }
 
-    /// AI Auto Ad Clean toast（自动拦截反馈）
+    /// DPP 事件被默认档拦下的引导条：站点支持 DPP → 一键开启本站草稿档
+    /// （点完立刻生效，事件下一次触发即唤醒智能体），或去设置/徽标细配。
     var dppEventToastOverlay: some View {
         Group {
-            if let message = dppEventToast {
-                HStack(spacing: 6) {
+            if let toast = dppEventToast {
+                HStack(spacing: 8) {
                     Image(systemName: "dot.radiowaves.left.and.right")
                         .font(.caption)
                         .foregroundStyle(.purple)
-                    Text(message)
+                    Text(String(localized: "页面事件 \(toast.event)（\(toast.host)）想要唤起智能体——当前已关闭"))
                         .font(.caption.weight(.medium))
+                    Button {
+                        PageEventHub.shared.setMode(PageEventPolicy.modeDraft, for: toast.host)
+                        dppEventToast = nil
+                    } label: {
+                        Text(String(localized: "开启本站体验"))
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.purple.opacity(0.16)))
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        dppEventToast = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

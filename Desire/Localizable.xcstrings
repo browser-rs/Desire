@@ -465,6 +465,50 @@
         }
       }
     },
+    "开启本站体验" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable for this site"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启本站体验"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟本站體驗"
+          }
+        }
+      }
+    },
+    "页面事件 %@（%@）想要唤起智能体——当前已关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page event %1$@ (%2$@) wants to wake the agent — currently off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面事件 %@（%@）想要唤起智能体——当前已关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉"
+          }
+        }
+      }
+    },
     "（已快进）" : {
       "localizations" : {
         "en" : {

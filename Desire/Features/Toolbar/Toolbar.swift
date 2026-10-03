@@ -519,20 +519,131 @@ struct Toolbar: View {
     }
 
     /// DPP 徽标：当前页声明了 Desire Page Protocol 时可见（自观察 BrowserState，
-    /// 协议解析完成/导航清空都会驱动显隐）。
+    /// 协议解析完成/导航清空都会驱动显隐）。可点开 popover：本站声明概览 +
+    /// 事件档位快捷切换 + 提示注入开关——站点支持 DPP 时就地引导开启体验。
     private struct DPPBadge: View {
         @ObservedObject var state: BrowserState
+        @ObservedObject private var hub = PageEventHub.shared
+        @ObservedObject private var config = DPPConfigStore.shared
+        @State private var showsPopover = false
         let accent: Color
+
+        /// 当前页的 host（事件档位是 per-site 的）。
+        private var host: String {
+            state.webView.url?.host?.lowercased() ?? ""
+        }
+
         var body: some View {
             if state.effectiveProtocol != nil {
-                Text("DPP")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(accent)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Capsule().stroke(accent.opacity(0.55), lineWidth: 1))
-                    .help("此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）")
+                Button {
+                    showsPopover.toggle()
+                } label: {
+                    Text("DPP")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(showsPopover ? accent.opacity(0.14) : .clear)
+                                .overlay(Capsule().stroke(accent.opacity(0.55), lineWidth: 1))
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("此页面声明了 Desire Page Protocol — 点击查看与配置")
+                .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
+                    DPPBadgePopover(
+                        host: host,
+                        protocolView: state.effectiveProtocol,
+                        hub: hub,
+                        config: config,
+                        accent: accent
+                    )
+                }
             }
+        }
+    }
+
+    /// 徽标 popover：就地引导——本站声明概览、事件档位（per-site）快捷
+    /// 三选、提示注入开关。细粒度配置在 设置 → AI → DPP 协议。
+    private struct DPPBadgePopover: View {
+        let host: String
+        let protocolView: DesireProtocol?
+        @ObservedObject var hub: PageEventHub
+        @ObservedObject var config: DPPConfigStore
+        let accent: Color
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(accent)
+                    Text("DPP")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    if let profile = protocolView?.profile {
+                        Text(profile)
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(accent.opacity(0.14)))
+                    }
+                    Spacer()
+                }
+                Text(summaryLine)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+
+                Divider()
+
+                if !host.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("本站事件档位（\(host)）")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding(
+                            get: { hub.mode(for: host) },
+                            set: { hub.setMode($0, for: host) }
+                        )) {
+                            Text("关闭").tag(PageEventPolicy.modeOff)
+                            Text("草稿").tag(PageEventPolicy.modeDraft)
+                            Text("全自动").tag(PageEventPolicy.modeAuto)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 240)
+                        .labelsHidden()
+                        Text("全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Toggle(isOn: Binding(
+                        get: { config.promptHints },
+                        set: { config.setPromptHints($0) }
+                    )) {
+                        Text("在工具结果中注入 DPP 提示")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                }
+
+                Divider()
+                Text("更多配置：设置 → AI → DPP 协议")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .frame(width: 280)
+        }
+
+        private var summaryLine: String {
+            guard let dpp = protocolView else { return "" }
+            var parts: [String] = []
+            if !dpp.views.isEmpty { parts.append("视图 \(dpp.views.count)") }
+            if !dpp.actions.isEmpty { parts.append("动作 \(dpp.actions.count)") }
+            if !dpp.events.isEmpty { parts.append("事件 \(dpp.events.count)") }
+            return parts.isEmpty ? "该页声明了协议" : parts.joined(separator: " · ")
         }
     }
 

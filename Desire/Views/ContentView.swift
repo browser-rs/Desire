@@ -208,7 +208,7 @@ struct ContentView: View {
     }
     @State var videoAdBlockerToast: String?
     @State var autoAdCleanToast: String?
-    @State var dppEventToast: String?
+    @State var dppEventToast: (host: String, event: String)?
     @State var lastBlockedRuleId: UUID?
     @State var lastBlockedSelector = ""
     @State var lastBlockedXpath: String?
@@ -438,9 +438,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("dppEventSuppressed"))) { note in
             guard let host = note.userInfo?["host"] as? String,
                   let event = note.userInfo?["event"] as? String else { return }
-            dppEventToast = String(localized: "页面事件 \(event)（\(host)）想要唤起智能体——当前已关闭，可在设置中开启")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                if dppEventToast?.contains(host) == true { dppEventToast = nil }
+            // 引导（用户要求）：站点支持 DPP 事件但被默认档拦下 → 给一键开启，
+            // 点完立刻生效（本站 draft 档），不用去设置翻。
+            dppEventToast = (host: host, event: event)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                if dppEventToast?.host == host { dppEventToast = nil }
             }
         }
         .overlay(alignment: .bottom) { translateBarOverlay }

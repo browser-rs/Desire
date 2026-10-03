@@ -13,8 +13,8 @@ use crate::errors::AppError;
 use crate::types::{ApiResult, AppState};
 
 use super::demo_model::{
-  AddCartReq, DemoCartSnapshot, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct, ImQuery,
-  ImSendReq,
+  AddCartReq, DemoCartSnapshot, DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage,
+  DemoOrder, DemoProduct, ImQuery, ImSendReq, LikeResult, NewCommentReq, NewPostReq,
 };
 use super::demo_service;
 
@@ -126,4 +126,56 @@ pub async fn im_send(
     return Err(AppError::RateLimited("发太快了，稍后再试".into()));
   }
   api_ok!(demo_service::im_send(&state.pool, &client, body.channel.trim(), &body.content).await?)
+}
+
+// ── 论坛演示（发帖 / 点赞 / 评论） ────────────────────────
+
+/// GET /demo/forum/posts —— client 头可选（缺席 = 不标 mine/liked_by_me）。
+pub async fn forum_posts(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+) -> ApiResult<Vec<DemoForumPost>> {
+  let client = client_id(&headers).unwrap_or_default();
+  api_ok!(demo_service::forum_posts(&state.pool, &client).await?)
+}
+
+/// POST /demo/forum/posts {title, content}
+pub async fn forum_create(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Json(body): Json<NewPostReq>,
+) -> ApiResult<DemoForumPost> {
+  let client = client_id(&headers)?;
+  api_ok!(demo_service::forum_create_post(&state.pool, &client, &body.title, &body.content).await?)
+}
+
+/// POST /demo/forum/posts/{id}/like —— toggle。
+pub async fn forum_like(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Path(post_id): Path<i64>,
+) -> ApiResult<LikeResult> {
+  let client = client_id(&headers)?;
+  api_ok!(demo_service::forum_toggle_like(&state.pool, &client, post_id).await?)
+}
+
+/// GET /demo/forum/posts/{id}/comments
+pub async fn forum_comments(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Path(post_id): Path<i64>,
+) -> ApiResult<Vec<DemoForumComment>> {
+  let client = client_id(&headers).unwrap_or_default();
+  api_ok!(demo_service::forum_comments(&state.pool, &client, post_id).await?)
+}
+
+/// POST /demo/forum/posts/{id}/comments {content}
+pub async fn forum_comment(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Path(post_id): Path<i64>,
+  Json(body): Json<NewCommentReq>,
+) -> ApiResult<DemoForumComment> {
+  let client = client_id(&headers)?;
+  api_ok!(demo_service::forum_comment(&state.pool, &client, post_id, &body.content).await?)
 }

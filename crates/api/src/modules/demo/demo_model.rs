@@ -73,3 +73,47 @@ pub struct ImQuery {
   pub channel: String,
   pub after_id: Option<i64>,
 }
+
+// ── 论坛演示（发帖 / 点赞 / 评论） ────────────────────────
+
+/// 帖子列表行（author 是 client 前 8 位短 id，演示没有用户体系）。
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoForumPost {
+  pub id: i64,
+  pub author: String,
+  pub mine: bool,
+  pub title: String,
+  pub content: String,
+  pub likes: i64,
+  pub liked_by_me: bool,
+  pub comments: i64,
+  pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoForumComment {
+  pub id: i64,
+  pub post_id: i64,
+  pub author: String,
+  pub mine: bool,
+  pub content: String,
+  pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NewPostReq {
+  pub title: String,
+  pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NewCommentReq {
+  pub content: String,
+}
+
+/// 点赞 toggle 的返回。
+#[derive(Debug, Serialize)]
+pub struct LikeResult {
+  pub liked: bool,
+  pub likes: i64,
+}

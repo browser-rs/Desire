@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 论坛演示 — 发帖 · 点赞 · 评论 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）论坛演示：由演示 API 驱动的迷你论坛，支持发帖、点赞与评论。展示内容创建类动作、选择器模板驱动的互动与活动事件。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .composer { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.7rem 0.9rem; }
+  .composer input, .composer textarea { width: 100%; box-sizing: border-box; margin-bottom: 0.4rem; }
+  .composer textarea { min-height: 3.2em; resize: vertical; font-family: inherit; }
+  .post-card { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.7rem 0.9rem; margin: 0.6rem 0; }
+  .post-card h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .p-meta { font-size: 0.75rem; color: #8a7f6f; }
+  .p-content { font-size: 0.92rem; margin: 0.4rem 0; white-space: pre-wrap; }
+  .p-actions { display: flex; gap: 0.6rem; align-items: center; }
+  .p-actions button { font-size: 0.82rem; padding: 0.25rem 0.7rem; background: #fff; color: #211b13; }
+  .like-btn.liked { border-color: #c03a1a; color: #c03a1a; }
+  .cbox { margin-top: 0.6rem; border-top: 1px dotted #d8cfba; padding-top: 0.5rem; }
+  .comment-row { display: flex; gap: 0.5rem; align-items: baseline; margin: 0.25rem 0; font-size: 0.88rem; }
+  .comment-row .c-author { color: #1c5c8a; font-weight: 600; font-size: 0.78rem; min-width: 4.5em; }
+  .comment-row .c-text { flex: 1; }
+  .c-input-row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+  .c-input { flex: 1; font-size: 0.85rem; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 1rem; }
+  .empty-hint { color: #8a7f6f; font-size: 0.9rem; padding: 1rem; text-align: center; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  input, button, textarea { padding: 0.45rem 0.7rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<h1>DPP 论坛演示 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个由演示 API 驱动的迷你论坛：发帖、点赞（可取消）、评论，数据落演示服务的共享库。
+对 Desire 智能体说：</p>
+<ul>
+  <li>「看看论坛上有什么帖子」→ <code>pageExtract("posts")</code>（点赞/评论数是数字）</li>
+  <li>「发个帖子标题 X 内容 Y」→ <code>pageAction("new-post", …)</code>（<code>effects: "outbound"</code>，会先请求批准）</li>
+  <li>「给 1 号帖子点赞，再评论一句写得好」→ <code>like-post</code> / <code>comment</code>（sku 式选择器模板）</li>
+  <li>有新帖或互动发生 → <code>forum-activity</code> 事件唤醒智能体</li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="forum-app">
+  <h2>发帖</h2>
+  <div class="composer">
+    <input id="f-title" placeholder="标题（必填）">
+    <textarea id="f-content" placeholder="正文（必填）"></textarea>
+    <button id="f-submit">发布</button>
+  </div>
+
+  <h2>帖子</h2>
+  <div id="posts"><div class="loading">正在从演示 API 读取…</div></div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · <a href="./">商店演示</a> · <a href="./im/">IM 演示</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+// 线上默认 api.mankong.icu；本地调试用 ?api=http://127.0.0.1:18090 覆盖。
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var POSTS = [];
+// 轮询 diff 的基线：post id → [likes, comments]
+var BASELINE = {};
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
+  });
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——论坛演示需要后端支持，请稍后再试。";
+  document.querySelector(".demo-ad").before(note);
+  document.getElementById("f-submit").disabled = true;
+}
+
+// ── 渲染 ────────────────────────────────────────────────
+// 全量重建只用于初始加载；刷新走 upsertCard 增量——轮询每 3.5s 跑一次，
+// 全量重建会把展开的评论区、输入到一半的评论全部重置（实测踩过）。
+function renderPosts() {
+  var box = document.getElementById("posts");
+  box.textContent = "";
+  if (!POSTS.length) {
+    var hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = "还没有帖子——发第一帖，或让智能体帮你发。";
+    box.appendChild(hint);
+    return;
+  }
+  POSTS.forEach(function (p) {
+    box.appendChild(renderCard(p));
+  });
+}
+
+/// 增量更新：已有卡片只改数字与点赞态（不碰 cbox），新卡片按服务端
+/// 顺序（id DESC）插到正确位置。
+function applyPosts() {
+  var box = document.getElementById("posts");
+  var placeholder = box.querySelector(".loading, .empty-hint");
+  var nextSibling = null;
+  for (var i = POSTS.length - 1; i >= 0; i--) {
+    var p = POSTS[i];
+    var existing = box.querySelector('.post-card[data-pid="' + p.id + '"]');
+    if (existing) {
+      var like = existing.querySelector(".like-btn");
+      like.textContent = (p.liked_by_me ? "已赞 " : "点赞 ") + p.likes;
+      like.className = "like-btn" + (p.liked_by_me ? " liked" : "");
+      existing.querySelector(".comments-btn").textContent = "评论 " + p.comments;
+      nextSibling = existing;
+    } else {
+      var card = renderCard(p);
+      box.insertBefore(card, nextSibling);
+      nextSibling = card;
+    }
+  }
+  if (placeholder) placeholder.remove();
+}
+
+function renderCard(p) {
+  var card = document.createElement("div");
+  card.className = "post-card";
+  card.setAttribute("data-pid", p.id);
+  var h = document.createElement("h3"); h.className = "p-title"; h.textContent = p.title;
+  var meta = document.createElement("div"); meta.className = "p-meta";
+  var pid = document.createElement("span"); pid.className = "p-id"; pid.textContent = p.id;
+  var author = document.createElement("span"); author.className = "p-author"; author.textContent = p.author;
+  meta.appendChild(document.createTextNode("#"));
+  meta.appendChild(pid);
+  meta.appendChild(document.createTextNode(" · "));
+  meta.appendChild(author);
+  meta.appendChild(document.createTextNode((p.mine ? "（我）" : "") + " · " + new Date(p.created_at).toLocaleString()));
+  var body = document.createElement("div"); body.className = "p-content"; body.textContent = p.content;
+  var actions = document.createElement("div"); actions.className = "p-actions";
+  var like = document.createElement("button");
+  like.className = "like-btn" + (p.liked_by_me ? " liked" : "");
+  like.textContent = (p.liked_by_me ? "已赞 " : "点赞 ") + p.likes;
+  like.onclick = function () { toggleLike(p.id); };
+  var cbtn = document.createElement("button");
+  cbtn.className = "comments-btn";
+  cbtn.textContent = "评论 " + p.comments;
+  cbtn.onclick = function () { toggleComments(p.id); };
+  actions.appendChild(like); actions.appendChild(cbtn);
+  card.appendChild(h); card.appendChild(meta); card.appendChild(body); card.appendChild(actions);
+
+  var cbox = document.createElement("div");
+  cbox.className = "cbox";
+  cbox.hidden = true;
+  cbox.setAttribute("data-post", p.id);
+  var inputRow = document.createElement("div");
+  inputRow.className = "c-input-row";
+  var input = document.createElement("input");
+  input.className = "c-input";
+  input.placeholder = "写评论…";
+  var send = document.createElement("button");
+  send.className = "c-send";
+  send.textContent = "发送";
+  send.onclick = function () { postComment(p.id); };
+  inputRow.appendChild(input); inputRow.appendChild(send);
+  cbox.appendChild(inputRow);
+  card.appendChild(cbox);
+  return card;
+}
+
+function renderComments(postId, comments) {
+  var cbox = document.querySelector('.cbox[data-post="' + postId + '"]');
+  if (!cbox) return;
+  cbox.querySelectorAll(".comment-row").forEach(function (r) { r.remove(); });
+  comments.forEach(function (c) {
+    var row = document.createElement("div");
+    row.className = "comment-row";
+    var a = document.createElement("span"); a.className = "c-author"; a.textContent = c.author;
+    var t = document.createElement("span"); t.className = "c-text"; t.textContent = c.content;
+    row.appendChild(a); row.appendChild(t);
+    cbox.insertBefore(row, cbox.querySelector(".c-input-row"));
+  });
+}
+
+function toggleComments(postId) {
+  var cbox = document.querySelector('.cbox[data-post="' + postId + '"]');
+  if (!cbox) return;
+  cbox.hidden = !cbox.hidden;
+  if (!cbox.hidden) {
+    api("GET", "/demo/forum/posts/" + postId + "/comments")
+      .then(function (comments) { renderComments(postId, comments); })
+      .catch(function (e) { if (!OFFLINE) alert("评论加载失败：" + e.message); });
+  }
+}
+
+// ── 业务 ────────────────────────────────────────────────
+function refreshPosts(silent) {
+  return api("GET", "/demo/forum/posts").then(function (posts) {
+    // 轮询 diff：新帖 / 点赞数 / 评论数变化 → 精确事件（watch 只有首帖边沿）
+    var events = [];
+    posts.forEach(function (p) {
+      var prev = BASELINE[p.id];
+      if (!prev) {
+        if (Object.keys(BASELINE).length || POSTS.length) {
+          events.push({ type: "new-post", id: p.id, title: p.title });
+        }
+      } else if (prev[0] !== p.likes) {
+        events.push({ type: "likes-changed", id: p.id, likes: p.likes, title: p.title });
+      } else if (prev[1] !== p.comments) {
+        events.push({ type: "new-comment", id: p.id, comments: p.comments, title: p.title });
+      }
+      BASELINE[p.id] = [p.likes, p.comments];
+    });
+    POSTS = posts;
+    applyPosts();
+    if (events.length && window.desire && window.desire.emit) {
+      window.desire.emit("forum-activity", { count: events.length, latest: events[0] });
+    }
+  }).catch(function (e) {
+    if (!silent) goOffline(e.message);
+  });
+}
+
+function submitPost() {
+  var title = document.getElementById("f-title").value.trim();
+  var content = document.getElementById("f-content").value.trim();
+  if (!title || !content) { alert("标题和正文都要填"); return; }
+  api("POST", "/demo/forum/posts", { title: title, content: content })
+    .then(function () {
+      document.getElementById("f-title").value = "";
+      document.getElementById("f-content").value = "";
+      refreshPosts(true);
+    })
+    .catch(function (e) { if (!OFFLINE) alert("发布失败：" + e.message); });
+}
+document.getElementById("f-submit").onclick = submitPost;
+
+function toggleLike(postId) {
+  api("POST", "/demo/forum/posts/" + postId + "/like")
+    .then(function () { refreshPosts(true); })
+    .catch(function (e) { if (!OFFLINE) alert("点赞失败：" + e.message); });
+}
+
+function postComment(postId) {
+  var card = document.querySelector('.post-card[data-pid="' + postId + '"]');
+  var input = card && card.querySelector(".c-input");
+  var text = input ? input.value.trim() : "";
+  if (!text) return;
+  input.value = "";
+  api("POST", "/demo/forum/posts/" + postId + "/comments", { content: text })
+    .then(function () { return refreshPosts(true); })
+    .then(function () {
+      var cbox = document.querySelector('.cbox[data-post="' + postId + '"]');
+      if (cbox && !cbox.hidden) {
+        api("GET", "/demo/forum/posts/" + postId + "/comments")
+          .then(function (comments) { renderComments(postId, comments); });
+      }
+    })
+    .catch(function (e) { if (!OFFLINE) alert("评论失败：" + e.message); });
+}
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  page: { type: "feed" },
+  content: { main: "#forum-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#posts .loading" },
+  views: {
+    posts: { item: "#posts .post-card", fields: {
+      id: { selector: ".p-id", type: "number" },
+      title: ".p-title",
+      author: ".p-author",
+      text: ".p-content",
+      likes: { selector: ".like-btn", type: "number" },
+      comments: { selector: ".comments-btn", type: "number" }
+    } },
+    comments: { item: ".cbox .comment-row", fields: {
+      author: ".c-author",
+      text: ".c-text"
+    } }
+  },
+  actions: [
+    { name: "new-post", description: "发布一篇帖子（公开可见，会请求批准）",
+      params: {
+        title: { type: "string", required: true },
+        content: { type: "string", required: true }
+      },
+      run: [
+        { fill: { "#f-title": "{title}" } },
+        { fill: { "#f-content": "{content}" } },
+        { click: "#f-submit" }
+      ],
+      effects: "outbound" },
+    { name: "like-post", description: "给指定帖子点赞（再执行一次 = 取消赞）",
+      params: { id: { type: "number", required: true, description: "帖子 id（posts 视图 id 字段）" } },
+      run: [ { click: ".post-card[data-pid='{id}'] .like-btn" } ],
+      effects: "persist" },
+    { name: "comment", description: "给指定帖子发一条评论",
+      params: {
+        id: { type: "number", required: true, description: "帖子 id（posts 视图 id 字段）" },
+        text: { type: "string", required: true }
+      },
+      run: [
+        { click: ".post-card[data-pid='{id}'] .comments-btn" },
+        { fill: { ".post-card[data-pid='{id}'] .c-input": "{text}" } },
+        { click: ".post-card[data-pid='{id}'] .c-send" }
+      ],
+      effects: "persist" },
+    { name: "open-post", description: "展开指定帖子的评论区",
+      params: { id: { type: "number", required: true, description: "帖子 id" } },
+      run: [ { click: ".post-card[data-pid='{id}'] .comments-btn" } ],
+      effects: "local" }
+  ],
+  events: { "forum-activity": { watch: ".post-card" } },
+  context: {
+    persona: "DPP 论坛演示页的访客助手：演示内容创建类动作与互动事件",
+    rules: "帖子与评论写入演示服务的共享库，所有人可见；不是真实社区"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  api("GET", "/demo/forum/posts").then(function (posts) {
+    POSTS = posts;
+    posts.forEach(function (p) { BASELINE[p.id] = [p.likes, p.comments]; });
+    setStatus("on", "演示 API 已连接");
+    renderPosts();
+    document.body.setAttribute("data-demo-ready", "");
+    setInterval(function () { refreshPosts(true); }, 3500);
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

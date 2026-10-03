@@ -8,7 +8,8 @@ use chrono::NaiveDateTime;
 use sqlx::MySqlPool;
 
 use super::demo_model::{
-  DemoCartLine, DemoCartSnapshot, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct,
+  DemoCartLine, DemoCartSnapshot, DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage,
+  DemoOrder, DemoProduct, LikeResult,
 };
 use crate::errors::AppError;
 
@@ -417,4 +418,201 @@ async fn bot_reply(
     _ => "（招聘演示脚本已结束）感谢参与，可以用左侧「客服小助」频道继续体验。".to_string(),
   };
   Ok(reply)
+}
+
+// ── 论坛演示（发帖 / 点赞 / 评论） ────────────────────────
+
+/// 演示没有用户体系：作者显示 client 前 8 位短 id。
+fn short_author(client: &str) -> String {
+  client.chars().take(8).collect()
+}
+
+async fn forum_post_exists(pool: &MySqlPool, post_id: i64) -> Result<bool, AppError> {
+  let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM demo_forum_posts WHERE id = ?")
+    .bind(post_id)
+    .fetch_optional(pool)
+    .await?;
+  Ok(row.is_some())
+}
+
+pub async fn forum_posts(pool: &MySqlPool, client: &str) -> Result<Vec<DemoForumPost>, AppError> {
+  let heads: Vec<(i64, String, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, client_id, title, content, created_at FROM demo_forum_posts ORDER BY id DESC LIMIT 50",
+  )
+  .fetch_all(pool)
+  .await?;
+  let mut posts = Vec::with_capacity(heads.len());
+  for (id, owner, title, content, created_at) in heads {
+    let (likes,): (i64,) =
+      sqlx::query_as("SELECT COUNT(*) FROM demo_forum_likes WHERE post_id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    let (comments,): (i64,) =
+      sqlx::query_as("SELECT COUNT(*) FROM demo_forum_comments WHERE post_id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    let liked: Option<(i64,)> =
+      sqlx::query_as("SELECT 1 FROM demo_forum_likes WHERE post_id = ? AND client_id = ?")
+        .bind(id)
+        .bind(client)
+        .fetch_optional(pool)
+        .await?;
+    posts.push(DemoForumPost {
+      mine: owner == client,
+      author: short_author(&owner),
+      likes,
+      comments,
+      liked_by_me: liked.is_some(),
+      id,
+      title,
+      content,
+      created_at,
+    });
+  }
+  Ok(posts)
+}
+
+pub async fn forum_create_post(
+  pool: &MySqlPool,
+  client: &str,
+  title: &str,
+  content: &str,
+) -> Result<DemoForumPost, AppError> {
+  let title = title.trim();
+  let content = content.trim();
+  if title.is_empty() || title.len() > 120 {
+    return Err(AppError::Validation("标题须为 1-120 字节".into()));
+  }
+  if content.is_empty() || content.len() > 2000 {
+    return Err(AppError::Validation("正文须为 1-2000 字节".into()));
+  }
+  let result =
+    sqlx::query("INSERT INTO demo_forum_posts (client_id, title, content) VALUES (?, ?, ?)")
+      .bind(client)
+      .bind(title)
+      .bind(content)
+      .execute(pool)
+      .await?;
+  let id = result.last_insert_id() as i64;
+  let created_at: (NaiveDateTime,) =
+    sqlx::query_as("SELECT created_at FROM demo_forum_posts WHERE id = ?")
+      .bind(id)
+      .fetch_one(pool)
+      .await?;
+  Ok(DemoForumPost {
+    author: short_author(client),
+    mine: true,
+    likes: 0,
+    liked_by_me: false,
+    comments: 0,
+    id,
+    title: title.to_string(),
+    content: content.to_string(),
+    created_at: created_at.0,
+  })
+}
+
+/// 点赞 toggle：有则取消、无则加上（(post, client) 唯一）。
+pub async fn forum_toggle_like(
+  pool: &MySqlPool,
+  client: &str,
+  post_id: i64,
+) -> Result<LikeResult, AppError> {
+  if !forum_post_exists(pool, post_id).await? {
+    return Err(AppError::NotFound(format!("帖子不存在: {post_id}")));
+  }
+  let existing: Option<(i64,)> =
+    sqlx::query_as("SELECT 1 FROM demo_forum_likes WHERE post_id = ? AND client_id = ?")
+      .bind(post_id)
+      .bind(client)
+      .fetch_optional(pool)
+      .await?;
+  if existing.is_some() {
+    sqlx::query("DELETE FROM demo_forum_likes WHERE post_id = ? AND client_id = ?")
+      .bind(post_id)
+      .bind(client)
+      .execute(pool)
+      .await?;
+  } else {
+    sqlx::query("INSERT IGNORE INTO demo_forum_likes (post_id, client_id) VALUES (?, ?)")
+      .bind(post_id)
+      .bind(client)
+      .execute(pool)
+      .await?;
+  }
+  let (likes,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_forum_likes WHERE post_id = ?")
+    .bind(post_id)
+    .fetch_one(pool)
+    .await?;
+  Ok(LikeResult {
+    liked: existing.is_none(),
+    likes,
+  })
+}
+
+pub async fn forum_comments(
+  pool: &MySqlPool,
+  client: &str,
+  post_id: i64,
+) -> Result<Vec<DemoForumComment>, AppError> {
+  if !forum_post_exists(pool, post_id).await? {
+    return Err(AppError::NotFound(format!("帖子不存在: {post_id}")));
+  }
+  let rows: Vec<(i64, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, client_id, content, created_at FROM demo_forum_comments WHERE post_id = ? ORDER BY id",
+  )
+  .bind(post_id)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(|(id, owner, content, created_at)| DemoForumComment {
+        mine: owner == client,
+        author: short_author(&owner),
+        id,
+        post_id,
+        content,
+        created_at,
+      })
+      .collect(),
+  )
+}
+
+pub async fn forum_comment(
+  pool: &MySqlPool,
+  client: &str,
+  post_id: i64,
+  content: &str,
+) -> Result<DemoForumComment, AppError> {
+  if !forum_post_exists(pool, post_id).await? {
+    return Err(AppError::NotFound(format!("帖子不存在: {post_id}")));
+  }
+  let content = content.trim();
+  if content.is_empty() || content.len() > 500 {
+    return Err(AppError::Validation("评论须为 1-500 字节".into()));
+  }
+  let result =
+    sqlx::query("INSERT INTO demo_forum_comments (post_id, client_id, content) VALUES (?, ?, ?)")
+      .bind(post_id)
+      .bind(client)
+      .bind(content)
+      .execute(pool)
+      .await?;
+  let id = result.last_insert_id() as i64;
+  let created_at: (NaiveDateTime,) =
+    sqlx::query_as("SELECT created_at FROM demo_forum_comments WHERE id = ?")
+      .bind(id)
+      .fetch_one(pool)
+      .await?;
+  Ok(DemoForumComment {
+    author: short_author(client),
+    mine: true,
+    id,
+    post_id,
+    content: content.to_string(),
+    created_at: created_at.0,
+  })
 }

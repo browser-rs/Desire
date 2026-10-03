@@ -839,8 +839,10 @@ final class AutomationServer {
             case ("GET", "/agentball"):
                 return try Self.json([
                     "visible": AgentBallPanel.shared.isVisible,
-                    "enabled": UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey),
+                    "enabled": AgentBallPanel.shared.isEnabled,
                     "expanded": AgentBallPanel.shared.isExpanded,
+                    "agentBusy": AgentBallPanel.shared.agentBusy,
+                    "hiddenForFullscreen": AgentBallPanel.shared.hiddenForFullscreen,
                 ])
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared

@@ -309,6 +309,9 @@ struct ContentView: View {
                 ball.onPageURL = { [tabManager] in
                     tabManager.selectedTab?.browser.webView.url?.absoluteString
                 }
+                ball.onPageFullscreen = { [tabManager] in
+                    tabManager.selectedTab?.browser.webView.fullscreenState == .inFullscreen
+                }
                 agentBallPanel = ball
             }
             if let ball = agentBallPanel, let hostingWindow {

@@ -7,6 +7,7 @@ struct AgentBallView: View {
     @ObservedObject var panel: AgentBallPanel
     @ObservedObject var voice: VoiceInputManager
     @State private var dragTilt: Double = 0
+    @State private var lastTapTime: Date?
     @Environment(\.appAccent) private var appAccent: Color
 
     @State private var dragStart: CGPoint?
@@ -18,6 +19,8 @@ struct AgentBallView: View {
         UserDefaults.standard.string(forKey: AgentBallPanel.edgeKey) != "left"
     }
 
+    @State private var ringRotation: Double = 0
+
     var body: some View {
         ZStack(alignment: ballAlignedRight ? .topTrailing : .topLeading) {
             if panel.isExpanded {
@@ -28,6 +31,11 @@ struct AgentBallView: View {
             }
             ball
         }
+        .onAppear {
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                ringRotation = 360
+            }
+        }
         .frame(width: 240, height: 420, alignment: ballAlignedRight ? .topTrailing : .topLeading)
         .allowsHitTesting(true)
     }
@@ -36,6 +44,14 @@ struct AgentBallView: View {
 
     private var ball: some View {
         ZStack {
+            // Agent 处理中：旋转进度环
+            if panel.agentBusy {
+                Circle()
+                    .trim(from: 0, to: 0.75)
+                    .stroke(appAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .frame(width: ballSize + 12, height: ballSize + 12)
+                    .rotationEffect(.degrees(ringRotation))
+            }
             if voice.isRecording {
                 Circle()
                     .stroke(Color.red.opacity(0.5), lineWidth: 2)
@@ -186,8 +202,20 @@ struct AgentBallView: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { dragTilt = 0 }
                 if dragged {
                     panel.snapToEdge()
-                } else if !voice.isRecording {
-                    panel.isExpanded.toggle()
+                    lastTapTime = nil
+                    return
+                }
+                if !voice.isRecording {
+                    // 双击 = 直达语音（跳过菜单）；单击 = 展开操作条
+                    let now = Date()
+                    if let last = lastTapTime, now.timeIntervalSince(last) < 0.35 {
+                        panel.isExpanded = false
+                        panel.voice.toggle()
+                        lastTapTime = nil
+                    } else {
+                        lastTapTime = now
+                        panel.isExpanded.toggle()
+                    }
                 }
             }
     }

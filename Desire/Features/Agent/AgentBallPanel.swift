@@ -17,6 +17,10 @@ final class AgentBallPanel: ObservableObject {
 
     @Published var isExpanded = false
     @Published private(set) var isEnabled: Bool
+    /// 活跃会话的 Agent 正在处理（球上进度环）。
+    @Published private(set) var agentBusy = false
+    /// 页面元素全屏（视频等）时球自动让位——退出后恢复。
+    @Published private(set) var hiddenForFullscreen = false
     let voice = VoiceInputManager()
     @Published var voiceTranscriptSent: String?
 
@@ -27,6 +31,8 @@ final class AgentBallPanel: ObservableObject {
     var onOpenAgentPanel: (() -> Void)?
     var onAskAboutPage: (() -> Void)?
     var onPageURL: (() -> String?)?
+    /// 当前标签是否处于元素全屏（视频等）——球自动让位。
+    var onPageFullscreen: (() -> Bool)?
 
     static let edgeKey = "agentBall.edge"
     static let offsetKey = "agentBall.offset"
@@ -73,6 +79,30 @@ final class AgentBallPanel: ObservableObject {
                 self.isExpanded = false
             }
             .store(in: &cancellables)
+
+        // 感知轮询（2s）：Agent 忙碌（进度环）+ 页面全屏（球让位）。
+        // 只在球可见时轮询；WebContent 全屏窗口独立于父窗口，child window
+        // 会被压在下面——干脆让位，退出全屏自动恢复。
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.poll() }
+        }
+    }
+
+    private var pollTimer: Timer?
+
+    private func poll() {
+        guard isVisible else { return }
+        let busy = AgentScheduler.shared.deliveryTarget?.isProcessing ?? false
+        if busy != agentBusy { agentBusy = busy }
+
+        let inFS = onPageFullscreen?() ?? false
+        if inFS, !hiddenForFullscreen, isVisible {
+            hiddenForFullscreen = true
+            panel?.orderOut(nil)
+        } else if !inFS, hiddenForFullscreen {
+            hiddenForFullscreen = false
+            if isEnabled { panel?.orderFront(nil) }
+        }
     }
 
     var isVisible: Bool { panel?.isVisible ?? false }
@@ -91,6 +121,7 @@ final class AgentBallPanel: ObservableObject {
         positionAtSavedEdge()
         panel?.orderFront(nil)
         observeParentFrame()
+        poll()  // 挂载即感知（Timer 首触发要等一个周期）
     }
 
     func detach() {
@@ -141,11 +172,11 @@ final class AgentBallPanel: ObservableObject {
         guard let panel, let parent = parentWindow else { return }
         let edge = UserDefaults.standard.string(forKey: Self.edgeKey) ?? "left"
         let fraction = UserDefaults.standard.double(forKey: Self.offsetKey)
-        let ballSize: CGFloat = 52
+        let ballSize = panel.frame.width
         let x: CGFloat = (edge == "left")
             ? parent.frame.minX + 6
             : parent.frame.maxX - ballSize - 6
-        let travel = max(0, parent.frame.height - ballSize - 20)
+        let travel = max(0, parent.frame.height - panel.frame.height - 20)
         let y = parent.frame.minY + 10 + travel * min(max(fraction, 0), 1)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
@@ -170,7 +201,7 @@ final class AgentBallPanel: ObservableObject {
     func snapToEdge() {
         guard let panel, let parent = parentWindow else { return }
         let toLeft = panel.frame.midX < parent.frame.midX
-        let ballSize: CGFloat = 52
+        let ballSize = panel.frame.width
         let targetX = toLeft ? parent.frame.minX + 6 : parent.frame.maxX - ballSize - 6
         let targetY = panel.frame.origin.y
 
@@ -183,7 +214,7 @@ final class AgentBallPanel: ObservableObject {
         }, completionHandler: nil)
 
         UserDefaults.standard.set(toLeft ? "left" : "right", forKey: Self.edgeKey)
-        let travel = max(1, parent.frame.height - ballSize - 20)
+        let travel = max(1, parent.frame.height - panel.frame.height - 20)
         UserDefaults.standard.set((targetY - parent.frame.minY - 10) / travel, forKey: Self.offsetKey)
     }
 

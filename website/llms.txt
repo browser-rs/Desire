@@ -13,7 +13,15 @@
 > 热插拔、HLS 直下 MP4（ffmpeg）与列表页批量下载（目录/并发/断点续传）、
 > 密码管理器（Keychain/生成器/CSV）、插件系统（Chrome 式装载 + Safari
 > 扩展包导入）、Desire Remote（iPhone 遥控 Mac 智能体）、多档案隔离、
-> 应用内 DevTools、MCP 服务器与客户端、60+ 端点的自动化桥。
+> 应用内 DevTools、MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources
+> 消费）、Skill 技能包（Markdown 多文件，zip/目录/单文件导入）、AI Auto-Clean
+> （页面广告自动识别拦截、可豁免可回滚）、60+ 端点的自动化桥。
+> 页面协议 DPP（Desire Page Protocol）：站点四级接入——JSON-LD 零改造 /
+> data-dpp-* 属性 / application/x-desire+json 声明块 / 官方 SDK 一行 expose——
+> 向智能体声明视图、信号、动作与事件；选择器穿透 shadow DOM（>>>）与同源
+> iframe；站点级 /.well-known/desire.json；页面事件可自动唤起智能体
+> （outbound/danger 动作强制逐次审批）。SDK：https://desire.mankong.icu/desire-sdk.js
+> 规范：仓库 docs/DPP-PROTOCOL.md。
 
 产品页：https://desire.mankong.icu/
 下载（GitHub Releases，未签名构建，需一次 xattr -cr）：https://github.com/browser-rs/Desire/releases/latest

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Desire — 会替你动手的浏览器 · macOS AI 浏览器</title>
-<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon · macOS 26.5+ · 免费使用。">
+<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；DPP 页面协议让网页主动向 AI 声明能力；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon · macOS 26.5+ · 免费使用。">
 <meta name="theme-color" content="#f6f1e7">
 <link rel="canonical" href="https://desire.mankong.icu/">
 <meta property="og:title" content="Desire — 会替你动手的浏览器">
@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端；60+ 端点自动化桥。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP 页面协议（四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。"
     },
     {
       "@type": "FAQPage",
@@ -126,6 +126,22 @@
                     "acceptedAnswer": {
                                 "@type": "Answer",
                                 "text": "解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "什么是 DPP？我的网站怎么接入？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "DPP（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "智能体的记忆和个性化是怎样的？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "记忆分画像、事实与摘要三类，按相关度检索后注入对话，默认留在本机；可设输出规则、人设与每会话指令，点踩的回答会沉淀为反馈记忆。全部可编辑、可一键清空。"
                     }
         }
       ]
@@ -698,7 +714,7 @@
     letter-spacing: 0.06em;
   }
 
-  <!-- ================= 入场动画 ================= -->
+  /* ================= 入场动画 ================= */
   /* 渐进增强：只有 JS 可用（html.js）才隐藏待入场元素，否则内容永远可见 */
   .js .reveal {
     opacity: 0;
@@ -754,6 +770,7 @@
     <nav class="main" aria-label="页面导航">
       <a href="#features">特性</a>
       <a href="#agent">智能体</a>
+      <a href="#dpp">协议</a>
       <a href="#models">模型</a>
       <a href="#e2e">加密</a>
       <a href="#faq">问答</a>
@@ -803,11 +820,11 @@
     <div class="ticker-track">
       <ul>
         <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
-        <li>密码管理器</li><li>插件系统</li><li>iPhone 遥控</li><li>开发者工具</li>
+        <li>页面协议 DPP</li><li>密码管理器</li><li>插件系统</li><li>Skill 技能包</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
       <ul>
         <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
-        <li>密码管理器</li><li>插件系统</li><li>iPhone 遥控</li><li>开发者工具</li>
+        <li>页面协议 DPP</li><li>密码管理器</li><li>插件系统</li><li>Skill 技能包</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
     </div>
   </div>
@@ -837,7 +854,8 @@
           <p class="feature-desc">停靠在侧栏，或<b>拖出去成独立小窗</b>——边浏览边盯着它干活。
             读页面、执行 JavaScript、跑 shell 命令、派子代理分头干活；多窗口各管各的标签，
             还能<b>让它跨窗口操作</b>。做完一件事，从轨迹到耗时逐条可查；浏览器意外退出，
-            <b>被打断的回合能原地继续</b>。记忆分画像、事实与摘要，默认留在本机。</p>
+            <b>被打断的回合能原地继续</b>。记忆分画像、事实与摘要，按相关度检索后注入对话；
+            <b>输出规则、人设、每会话指令</b>随你定，点踩的回答沉淀为反馈记忆——默认留在本机。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">02</span>
@@ -857,7 +875,8 @@
           <span class="feature-no">04</span>
           <h3 class="feature-name">广告与追踪，拦得明明白白</h3>
           <p class="feature-desc">内置 EasyList / EasyList China 转换规则，兼容自定义规则语法；
-            AI 还能识别页面上的广告元素，<b>你确认后才落成规则</b>，随时可回滚。</p>
+            <b>AI Auto-Clean</b> 还会在页面加载时自动识别广告元素并拦截——拦了什么有 toast 告知，
+            你拆掉一条该站就豁免，规则随时可回滚。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">05</span>
@@ -896,6 +915,75 @@
         <div class="t-step"><span>readFile → 比对输出与教程预期</span><span class="ms">0.1s</span></div>
         <div class="t-done">整理完毕，132 项校验全部通过 <span class="ok">✓</span></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ================= 网页协议 DPP ================= -->
+  <section class="block" id="dpp">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="kicker">网页协议 · DPP</p>
+        <h2 class="title">让网页主动向 AI 交代自己。</h2>
+      </div>
+      <p class="feature-desc reveal" style="max-width:46em; margin-bottom:2.6rem;">
+        Desire 定义了一套开放协议（Desire Page Protocol）：页面用几行声明讲清
+        <b>我有什么数据、能做什么、何时就绪</b>——智能体按声明精准读写，
+        不再靠猜选择器、不再误读噪音。四级接入，从零改造到一行 SDK；
+        <b>任何 Agent 都可消费，不限 Desire</b>。</p>
+      <div class="proto-grid">
+        <div class="proto reveal">
+          <span class="tag">L0 · 零改造</span>
+          <h3>既有标记直接消费</h3>
+          <p>页面已有的 JSON-LD（Product / Article 等）自动成为结构化视图，站点一行代码都不用写。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">L1 · 属性微标注</span>
+          <h3>data-dpp-* 属性</h3>
+          <p>在现有 HTML 上标注视图与字段，扫描即编译；噪音区域标 data-dpp-ignore，智能体绕着走。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">L2 · 声明块</span>
+          <h3>一段 JSON 讲清全页</h3>
+          <p>&lt;script type="application/x-desire+json"&gt; 集中声明视图、信号、动作与事件，SSR 站点改模板即可。</p>
+        </div>
+        <div class="proto reveal">
+          <span class="tag">L3 · 官方 SDK</span>
+          <h3>一行 expose</h3>
+          <p>引入 desire-sdk.js，desire.expose({...}) 即完成声明；SPA 路由变化自动重声明，事件精确发射。</p>
+        </div>
+      </div>
+      <div class="trace-grid" style="margin-top:2.8rem; align-items:start;">
+        <div class="trace-card reveal" role="img" aria-label="DPP SDK 接入示例">
+          <div class="t-step"><span>&lt;script src="desire.mankong.icu/desire-sdk.js"&gt;</span></div>
+          <div class="t-step"><span>desire.expose({ views: { products: {</span></div>
+          <div class="t-step"><span>　item: ".card", fields: { title: "h3" } } },</span></div>
+          <div class="t-step"><span>　signals: { ready: "[data-app-ready]" },</span></div>
+          <div class="t-step"><span>　actions: [{ name: "add-to-cart" }] });</span></div>
+          <div class="t-step"><span>&lt;/script&gt;</span></div>
+          <div class="t-done">智能体随即 pageExtract / pageAction <span class="ok">✓</span></div>
+        </div>
+        <div>
+          <div class="mini reveal" style="margin-bottom:1.4rem;">
+            <h3>穿透与站点级声明</h3>
+            <p>选择器支持 <b>shadow DOM 穿透</b>（&gt;&gt;&gt; 语法）与同源 iframe；
+               站点级 /.well-known/desire.json 一次声明全站生效，页面级覆盖细节。</p>
+          </div>
+          <div class="mini reveal" style="margin-bottom:1.4rem;">
+            <h3>事件驱动</h3>
+            <p>页面声明事件（新消息到达、审批就绪），DOM 出现即<b>自动唤起智能体</b>——
+               监控型站点从此"网页开口，AI 接活"。</p>
+          </div>
+          <div class="mini reveal">
+            <h3>声明能力 ≠ 授权</h3>
+            <p>站点把动作标为对外不可逆（outbound / danger），Desire <b>强制逐次审批</b>——
+               协议说能力，授权始终在你。</p>
+          </div>
+        </div>
+      </div>
+      <p class="proto-note reveal">
+        开放规范：<a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md" target="_blank" rel="noopener">docs/DPP-PROTOCOL.md</a>
+        · SDK：<a href="https://desire.mankong.icu/desire-sdk.js" target="_blank" rel="noopener">desire.mankong.icu/desire-sdk.js</a>
+      </p>
     </div>
   </section>
 
@@ -957,7 +1045,13 @@
         </div>
         <div class="mini reveal">
           <h3>MCP 双向</h3>
-          <p>既是 MCP 服务器，把页面能力暴露给别的助手；也是客户端，接入外部工具。</p>
+          <p>既是 MCP 服务器，把页面能力暴露给别的助手；也是客户端——stdio 与 HTTP 双传输，
+             连 prompts 与 resources 一起消费，外部工具直达智能体。</p>
+        </div>
+        <div class="mini reveal">
+          <h3>Skill 技能包</h3>
+          <p>把工作流写成 Markdown 技能：单文件、多文件或整目录，zip 拖进来就能装；
+             智能体按需加载全文，附属文件随取随读。</p>
         </div>
         <div class="mini reveal">
           <h3>定时任务与自动化桥</h3>
@@ -1020,7 +1114,7 @@
     <div class="wrap">
       <div class="sec-head reveal">
         <p class="kicker">常见问题</p>
-        <h2 class="title">问得最多的八件事。</h2>
+        <h2 class="title">问得最多的事。</h2>
       </div>
       <div class="faq-list">
         <details class="faq-item reveal" open>
@@ -1062,6 +1156,14 @@
         <details class="faq-item reveal">
           <summary>忘记同步密码会怎样？</summary>
           <p>解密密钥由密码派生，密码遗失则服务端密文不可解——这是端到端加密的标准取舍。修改密码不会丢数据：同一把密钥会用新密码重新包裹。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>什么是 DPP？我的网站怎么接入？</summary>
+          <p>DPP（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>智能体的记忆和个性化是怎样的？</summary>
+          <p>记忆分画像、事实与摘要三类，按相关度检索后注入对话，默认留在本机；可设输出规则、人设与每会话指令，点踩的回答会沉淀为反馈记忆。全部可编辑、可一键清空。</p>
         </details>
       </div>
     </div>

@@ -20,6 +20,7 @@ extension ContentView {
         }()
         Toolbar(
             tab: tab,
+            browserState: tab.browser,
             isReadingMode: tab.browser.isReadingMode,
             isDarkMode: isDark,
             searchEngineState: .init(

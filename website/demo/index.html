@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 演示页 — Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）在线演示：一个按 L2 声明块接入的迷你商店，展示结构化视图、类型化字段、动作与事件驱动。">
+<script type="application/x-desire+json">
+{
+  "protocol": "desire/1",
+  "profile": "catalog",
+  "page": { "type": "catalog" },
+  "content": { "main": "#products", "ignore": [".demo-ad"] },
+  "signals": { "ready": "#products .card", "busy": ".demo-loading" },
+  "views": {
+    "products": {
+      "item": "#products .card",
+      "fields": {
+        "name": "h3",
+        "price": { "selector": ".price", "type": "price" },
+        "detail": { "attr": "href", "type": "url" }
+      }
+    },
+    "orders": { "item": ".demo-event", "fields": { "text": ".text" } }
+  },
+  "actions": [
+    { "name": "search-products", "description": "按关键词过滤商品列表",
+      "params": { "query": { "type": "string", "required": true } },
+      "run": [ { "fill": { "#demo-search": "{query}" } }, { "click": "#demo-search-btn" } ],
+      "effects": "local" },
+    { "name": "open-github", "description": "打开 Desire 的 GitHub 仓库",
+      "run": [ { "navigate": "https://github.com/browser-rs/Desire" } ],
+      "effects": "local" }
+  ],
+  "events": { "order-event": { "watch": ".demo-event" } },
+  "context": {
+    "persona": "DPP 演示页的访客助手：演示声明驱动的结构化读取与动作执行",
+    "rules": "本页为演示页，商品数据均为示例，并非真实在售商品"
+  }
+}
+</script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+  .card { border: 1px solid #d8cfba; border-radius: 6px; padding: 0.8rem 1rem; margin: 0.6rem 0; display: flex; gap: 1rem; align-items: baseline; }
+  .card h3 { margin: 0; font-size: 1rem; }
+  .price { color: #c03a1a; font-weight: 600; margin-left: auto; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .demo-event { background: #ece3cd; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.4rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  input, button { padding: 0.45rem 0.8rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+</style>
+</head>
+<body>
+<h1>DPP 演示页</h1>
+<p>本页是一个按 <strong>Desire Page Protocol</strong> L2 声明块接入的迷你商店。
+用 Desire 打开，对智能体说：</p>
+<ul>
+  <li>「列出商品」→ 智能体会用 <code>pageExtract("products")</code> 读结构化数据（价格自动转为数字，链接自动补全为绝对地址）</li>
+  <li>「搜索 Pad」→ 智能体会用 <code>pageAction("search-products", …)</code> 驱动本页搜索框</li>
+  <li>点下面的「模拟新订单」→ <b>页面事件自动唤起智能体</b>（事件驱动演示）</li>
+</ul>
+<p>右下角虚线框是 <code>data-dpp-ignore</code> 标注的噪音区——智能体会绕开它。</p>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<h2>商品</h2>
+<div id="products">
+  <div class="card"><h3>机械键盘</h3><span class="price">¥329</span><a href="#kb">详情</a></div>
+  <div class="card"><h3>4K 显示器</h3><span class="price">¥1,999</span><a href="#monitor">详情</a></div>
+  <div class="card"><h3>人体工学椅</h3><span class="price">¥1,299.90</span><a href="#chair">详情</a></div>
+</div>
+
+<h2>试试事件驱动</h2>
+<button id="demo-order-btn" onclick="injectOrder()">模拟新订单事件</button>
+<div id="orders"></div>
+<script>
+function injectOrder() {
+  var d = document.createElement('div');
+  d.className = 'demo-event';
+  d.innerHTML = '<span class="text">新订单：机械键盘 × 1（演示事件）</span>';
+  document.getElementById('orders').appendChild(d);
+}
+</script>
+
+<h2>试试动作</h2>
+<input id="demo-search" placeholder="输入关键词（如：键盘）">
+<button id="demo-search-btn" onclick="filterProducts()">搜索</button>
+<script>
+function filterProducts() {
+  var q = (document.getElementById('demo-search').value || '').toLowerCase();
+  document.querySelectorAll('#products .card').forEach(function(c) {
+    c.style.display = c.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+  });
+}
+</script>
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+</body>
+</html>

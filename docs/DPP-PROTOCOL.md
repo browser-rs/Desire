@@ -57,6 +57,12 @@
 | `Product` | `product` | name, price, currency, description |
 | `Article` / `NewsArticle` / `BlogPosting` | `article` | headline, articleBody, author, datePublished |
 
+**schema.org potentialAction 消费（✅ 实装）**：JSON-LD 里的 `potentialAction`
+（SearchAction / ViewAction / OrderAction…）自动映射为 DPP 动作——`@type`
+去 Action 后缀即动作名（可被 `name` 覆盖）、URL target（含 `{占位符}`）映射为
+`navigate` 步骤 + params。与 llms.txt 互补：llms.txt 管**内容**发现，
+DPP 管**能力**发现与执行。
+
 *计划扩展*：Recipe, Event, LocalBusiness, JobPosting, FAQPage。
 
 ### 3.2 L1 — 属性微标注
@@ -73,6 +79,9 @@
 | `data-dpp-action="动作名"` | 标记动作触发器 | `<button data-dpp-action="search">` |
 
 ### 3.3 L2 — 声明块
+
+> **CSP 兼容**：声明块是**数据块**（非可执行 script），不受 CSP `script-src`
+> 限制——严格 CSP 的站点也可用 L2（L3 外链 SDK 则需要把本域加入白名单）。
 
 ```html
 <script type="application/x-desire+json">
@@ -233,6 +242,7 @@ Agent 直接拿到类型化数据（失败回退原始字符串，宁可不转�
 | `hover` | `"selector"` | 悬停（派发 mouseover/mouseenter/mousemove） | ✅ |
 | `pressKey` | `"key"` | 向 activeElement 派发 keydown/keyup | ✅ |
 | `upload` | `{ "selector": "filePath" }` | 文件上传（复用 UploadIntent：arm + 点击选择器自动提交） | ✅ |
+| `navigate` | `"url"` | 跳转（支持 `{占位符}` 模板；等待主框架完成 ≤8s；potentialAction URL target 的映射形态） | ✅ |
 
 **模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`；选择器与值都填充）。
 **required 参数**缺失、**precondition** 选择器 3s 内未出现 → 工具失败（带 `Error:` 前缀；水合中的页面不会秒判失败）。
@@ -279,6 +289,9 @@ Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [eff
   页面侧不做节流——协议鼓励如实上报，聚合由消费者负责。
 - 命中后经事件管道触发**事件驱动回合**；per-site 档位 off/draft/auto 经桥
   `POST /dpp/mode` 管理；**outbound/danger 动作的强制审批不随档位放水**。
+- **事件同意（consent）**：默认档 = **off**——事件自动唤起智能体会消耗
+  token，不该在用户不知情时发生。首次遭遇被抑制的事件时 UI 提示一次
+  （用户主动开启后按 host 记忆）。这是"通知权限"式的同意模型。
 - **站点级 events 与页面级一起生效**（页面级同名键优先、一并装监听）。
 - **精确事件（L3）**：`desire.emit(name, detail)` 绕过 DOM 监听直接上报——
   `detail` 建议携带 `conversationId`/`messageId` 这类业务主键（≤2KB），

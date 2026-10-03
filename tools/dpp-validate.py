@@ -22,7 +22,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-KNOWN_OPS = {"fill", "click", "select", "waitForText", "waitFor", "hover", "pressKey", "upload"}
+KNOWN_OPS = {"fill", "click", "select", "waitForText", "waitFor", "hover", "pressKey", "upload", "navigate"}
 KNOWN_PROFILES = {"chat", "catalog", "forms", "checkout", "monitor", "workbench"}
 KNOWN_EFFECTS = {"local", "persist", "outbound"}
 

@@ -34,6 +34,9 @@ struct Toolbar: View {
     }
 
     @ObservedObject var tab: Tab
+    /// DPP 徽标用（自观察子视图 DPPBadge 消费；Toolbar 本体不观察它——
+    /// pageProtocol 变化只影响徽标，不需要整个工具栏重绘）。
+    let browserState: BrowserState
     let isReadingMode: Bool
     /// Dark-mode override for the current page (computed by parent from
     /// `siteSettingsStore.darkModeEnabled(for: host)`). Toolbar no longer
@@ -515,8 +518,27 @@ struct Toolbar: View {
         .frame(width: 300)
     }
 
+    /// DPP 徽标：当前页声明了 Desire Page Protocol 时可见（自观察 BrowserState，
+    /// 协议解析完成/导航清空都会驱动显隐）。
+    private struct DPPBadge: View {
+        @ObservedObject var state: BrowserState
+        let accent: Color
+        var body: some View {
+            if state.effectiveProtocol != nil {
+                Text("DPP")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().stroke(accent.opacity(0.55), lineWidth: 1))
+                    .help("此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）")
+            }
+        }
+    }
+
     private var trailingButtons: some View {
         HStack(spacing: 6) {
+            DPPBadge(state: browserState, accent: appAccent)
             Button { actions.toggleAgentFloatingPanel() } label: {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 12))

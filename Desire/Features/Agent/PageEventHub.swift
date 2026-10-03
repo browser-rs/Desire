@@ -53,8 +53,11 @@ final class PageEventHub {
     }
 
     func mode(for host: String) -> String {
-        siteModes[host.lowercased()] ?? Self.modeDraft
+        siteModes[host.lowercased()] ?? PageEventPolicy.defaultMode
     }
+
+    /// 已提示过"事件被抑制"的 host（每 host 每会话只提示一次）。
+    private var suppressionToastedHosts: Set<String> = []
 
     // MARK: - 事件接收
 
@@ -62,7 +65,19 @@ final class PageEventHub {
     /// MutationObserver 只在匹配数 0→正 跳变时上报 → 这里防抖 + 限频）。
     func handleEvent(host: String, eventName: String, detail: [String: String]) {
         let mode = mode(for: host)
-        guard mode != Self.modeOff else { return }
+        guard mode != Self.modeOff else {
+            // 默认关闭：首次遭遇时 toast 提示（事件权限 = 通知权限模式），
+            // 用户去设置/桥端点开启后记忆。
+            if !suppressionToastedHosts.contains(host) {
+                suppressionToastedHosts.insert(host)
+                NotificationCenter.default.post(
+                    name: Notification.Name("dppEventSuppressed"),
+                    object: nil,
+                    userInfo: ["host": host, "event": eventName])
+                Self.log.info("DPP event suppressed (mode=off): \(host, privacy: .public)")
+            }
+            return
+        }
         // 事件风暴防护 ①：同 host + 同事件名 3s 防抖
         let debounceKey = host + ":" + eventName
         let now = Date()

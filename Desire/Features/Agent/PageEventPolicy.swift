@@ -14,6 +14,10 @@ enum PageEventPolicy {
     static let modeOff = "off"
     static let modeDraft = "draft"
     static let modeAuto = "auto"
+    /// 未显式设置的 host 的默认档：**off**——事件自动唤起智能体消耗 token，
+    /// 不该在用户毫不知情时发生（事件权限 = 通知权限模式：首次遭遇提示，
+    /// 用户主动开启后记忆）。
+    static let defaultMode = modeOff
 
     static func isValidMode(_ mode: String) -> Bool {
         [modeOff, modeDraft, modeAuto].contains(mode)

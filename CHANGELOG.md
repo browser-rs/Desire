@@ -5,6 +5,8 @@ DPP 实测反馈四项改进（来自产品页 DPP 的真实 Agent 会话复盘�
 DPP 增强（第五批）：① **SPA 路由变化全级重解析**——新增 dpp-route-watch.js（页面世界 documentStart）包装 history.pushState/replaceState 并监听 popstate/hashchange，经 desireProtocolControl 触发 250ms 防抖重解析（此前只有 L3 SDK 的 expose 通知；SPA 重排后 L1 锚点与声明缓存随之刷新）；② **precondition 轮询等待**——前置条件 3s 内轮询（水合中的页面不再秒判失败）；③ **`ignore` 正文文本扣减**——getPageText 的 contentMain 路径与 getPageSnapshot 的正文均剔除噪音子树（clone 剔除 + 块级换行，无声明时保留 innerText 快路径）；④ **pageProtocol 列出事件**（"auto-monitored" 行，模型知道哪些事件在自动监视）；⑤ **getNetworkLog 原生化**——改读 DevToolsStore（BrowserToolSurface 新增 devToolsStore），页面世界 network-tools 只剩 WaitForNetworkIdle。
 **DPP 协议设计层升级（v1.1）**：① 规范新增 §4.0 版本与演进（major/minor 语义、消费者忽略未知字段、新能力"存在即启用"、容错解码为第一原则）+ P7 容错演进 / P8 求值隔离两条设计原则 + §4.7 站点级声明完整行为表（拉取条件/同源传输/缓存/合并/页面地图/安全边界）；② **profile 运行时化**——解析并透传给 Agent（pageProtocol 工具 / page_context / `/protocol/inspect`），站点级 `pages` 页面地图按路径回退补全（精确或 `前缀*`，长前缀优先），§5 各 profile 补**必选原语契约表**；③ **自检工具闭环**——`docs/dpp-schema.json`（JSON Schema 2020-12）+ `tools/dpp-validate.py`（零依赖命令行校验，schema 规则之上提前预警运行时陷阱：未知 run 操作、空选择器、outbound 未标 danger、events `on` 被忽略等）；SDK `desire.validate()` 增加 profile 契约检查；默认提示词补 profile 语义指引。E2E：/im 自声明 chat + well-known 页面地图 forms 双路径断言（upload 套件 9 项）。
 DPP 第六批增强：① **类型化字段**（§4.3）——views 的字段支持对象形态 `{"selector": ".price", "attr": "href", "type": "price"}`，抽取时强转：`number/price`（price 剔除货币符号与千分位：`¥1,299.90` → 1299.9）、`url`（相对转绝对）、`date`（ISO 8601）、`bool`（存在即真）；转换失败回退原始字符串（宁可不转不可丢数据）；E2E 实测 `"price":1299.9` 数字落盘；② **事件回合带协议摘要**——事件触发时把页面声明的 `views [thread]; actions [send-message]` 附进 prompt，模型不必先探索就知道用 pageExtract/pageAction 响应；③ **动作参数类型校验**（声明 number/boolean 的参数命中即失败，模型自查）；④ 规范清理：chat 示例的 `waits` 占位换成 `waitFor` 步骤；Schema/校验器同步类型化字段（未知 type 预警）。
+DPP 生态与可见性（建议落地批）：① **schema.org potentialAction 消费**（L0 扩展）——JSON-LD 里的 potentialAction（SearchAction/ViewAction 等）自动映射为 DPP 动作：@type 去 Action 后缀即动作名、URL target（含 {占位符}）映射为 navigate 步骤 + params；与 llms.txt 互补（llms.txt 管内容发现、DPP 管能力发现）；② pageAction DSL 新增 **navigate 操作**（URL 模板填充 + 主框架等待 ≤8s）；③ **事件同意模型**——默认档改为 off（事件自动唤起智能体消耗 token，不应在用户不知情时发生），首次遭遇被抑制事件时 toast 提示一次（"通知权限"式同意），规范 §4.5 同步 consent 语义；④ **DPP 徽标**——当前页声明协议时工具栏显示 DPP 标记（自观察 BrowserState 的独立子视图，不影响工具栏重绘链）；⑤ **在线演示页** website/demo/（L2 声明 + 类型化字段 + 事件按钮 + ignore 展示，dpp-validate 零警告），产品页/llms.txt 挂链接。
+
 
 
 
@@ -12,6 +14,8 @@ DPP 第六批增强：① **类型化字段**（§4.3）——views 的字段支
 ### Fixed
 
 DPP 解析器：`content.ignore`（规范 §4.1 规定位于 content 对象内）此前被静默丢弃——normalize 只读顶层 `ignore` 键。产品页接入 DPP 的自检（用真实解析器解析 website/index.html）抓到；现优先读顶层、回退 content 内。
+DPP 审批卡展示 run 步骤原文（此前只有页面写的 description——声明与实际动作的一致性无法核验）；DPP context 注入 prompt 时改用**显式不可信引用框**（UNTRUSTED 标注 + BEGIN/END 包裹——context 的设计目的就是进入 prompt，也是最直接的注入面，弱模型可能把页面写的"规则"当指令执行）。
+
 
 
 ## [v0.5.8] - 2026-10-03

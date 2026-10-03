@@ -218,7 +218,8 @@ return (function() {
                 out.context = out.context || {};
                 out.context["productJSONLD"] = JSON.stringify({ name: it.name, price: it.offers && it.offers.price,
                     currency: it.offers && it.offers.priceCurrency, description: it.description });
-            } else if (type === "Article" || type === "NewsArticle" || type === "BlogPosting") {
+            }
+        if (type === "Article" || type === "NewsArticle" || type === "BlogPosting") {
                 out.views["article"] = { item: '[itemtype*="schema.org/Article"], article',
                     fields: { title: 'meta[property="og:title"]@content, h1',
                               text: 'meta[property="og:description"]@content' } };
@@ -228,7 +229,39 @@ return (function() {
                     author: it.author && it.author.name, date: it.datePublished });
             }
         }
-        if (!Object.keys(out.views).length) return null;
+        // schema.org potentialAction → DPP actions（L0 消费：大量站点已声明
+        // 机器可读动作，规范 §3.1）。对**所有** @type 生效；URL target 映射为
+        // navigate 步骤，占位符 → params（pageAction 模板填充）。
+        for (var k2 = 0; k2 < items.length; k2++) {
+            var it2 = items[k2];
+            var pa = it2 && it2.potentialAction;
+            var paList = Array.isArray(pa) ? pa : (pa ? [pa] : []);
+            for (var pi = 0; pi < paList.length; pi++) {
+                var act = paList[pi];
+                if (!act || typeof act !== 'object') continue;
+                var at = (typeof act['@type'] === 'string') ? act['@type'] : '';
+                var target = (typeof act.target === 'string') ? act.target
+                    : (act.target && typeof act.target === 'object' && typeof act.target.urlTemplate === 'string' ? act.target.urlTemplate : null);
+                var base = at.replace(/Action$/, '').toLowerCase();
+                var nm = (typeof act.name === 'string' && act.name) ? act.name : base;
+                if (!nm || !target || typeof target !== 'string') continue;
+                if (out.actions.some(function(x){ return x.name === nm; })) continue;
+                var params = {};
+                (target.match(/\{([^}]+)\}/g) || []).forEach(function(ph){
+                    var key = ph.slice(1, -1);
+                    params[key] = { type: 'string', description: 'placeholder from potentialAction target' };
+                });
+                out.actions.push({
+                    name: nm,
+                    description: (typeof act.description === 'string' && act.description) || 'site-declared potentialAction (' + (at || 'Action') + ')',
+                    params: params,
+                    run: [{ navigate: target }],
+                    effects: 'local'
+                });
+            }
+        }
+        // actions-only 的页面（如 WebSite + potentialAction）也保留
+        if (!Object.keys(out.views).length && !out.actions.length) return null;
         return out;
     }
 

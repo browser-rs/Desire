@@ -208,6 +208,7 @@ struct ContentView: View {
     }
     @State var videoAdBlockerToast: String?
     @State var autoAdCleanToast: String?
+    @State var dppEventToast: String?
     @State var lastBlockedRuleId: UUID?
     @State var lastBlockedSelector = ""
     @State var lastBlockedXpath: String?
@@ -431,6 +432,15 @@ struct ContentView: View {
             autoAdCleanToast = String(localized: "AI auto-blocked \(count) element(s) on \(host)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 if autoAdCleanToast?.contains(host) == true { autoAdCleanToast = nil }
+            }
+        }
+        .overlay(alignment: .top) { dppEventToastOverlay }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("dppEventSuppressed"))) { note in
+            guard let host = note.userInfo?["host"] as? String,
+                  let event = note.userInfo?["event"] as? String else { return }
+            dppEventToast = String(localized: "页面事件 \(event)（\(host)）想要唤起智能体——当前已关闭，可在设置中开启")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if dppEventToast?.contains(host) == true { dppEventToast = nil }
             }
         }
         .overlay(alignment: .bottom) { translateBarOverlay }

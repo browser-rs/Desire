@@ -1119,11 +1119,24 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld %3$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "%1$lld/%2$lld %3$@"
           }
         }
       }
+    
     },
     "%lld%%" : {
       "localizations" : {
@@ -1889,7 +1902,27 @@
       }
     },
     "Access level — how much the agent may do without asking" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access level — how much the agent may do without asking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问等级——智能体无需询问即可执行的操作范围"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存取等級——智慧體無需詢問即可執行的操作範圍"
+          }
+        }
+      }
+    
     },
     "Account" : {
       "extractionState" : "stale",
@@ -2859,7 +2892,27 @@
       }
     },
     "AI Ad Blocking" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Ad Blocking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 广告拦截"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 廣告攔截"
+          }
+        }
+      }
+    
     },
     "AI Agent Panel" : {
       "extractionState" : "stale",
@@ -2956,11 +3009,24 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "AI auto-blocked %1$lld element(s) on %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 已自动拦截 %2$@ 上的 %1$lld 个元素"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 已自動攔截 %2$@ 上的 %1$lld 個元素"
           }
         }
       }
+    
     },
     "AI is typing" : {
       "extractionState" : "stale",
@@ -3791,7 +3857,27 @@
       }
     },
     "Ask every time" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask every time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次询问"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次詢問"
+          }
+        }
+      }
+    
     },
     "Ask questions, summarize pages,\ntranslate content, and more." : {
       "localizations" : {
@@ -4381,7 +4467,27 @@
       }
     },
     "Back to Page" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回页面"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回頁面"
+          }
+        }
+      }
+    
     },
     "Background" : {
       "extractionState" : "stale",
@@ -6929,7 +7035,27 @@
       }
     },
     "Command + args (e.g. python3 /path/server.py)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command + args (e.g. python3 /path/server.py)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令 + 参数（如 python3 /path/server.py）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令 + 參數（如 python3 /path/server.py）"
+          }
+        }
+      }
+    
     },
     "Command Palette…" : {
       "localizations" : {
@@ -8353,7 +8479,27 @@
       }
     },
     "Couldn't play this file" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't play this file"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法播放此文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法播放此檔案"
+          }
+        }
+      }
+    
     },
     "Couldn't read this session file" : {
       "localizations" : {
@@ -10498,7 +10644,27 @@
       }
     },
     "DPP" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP"
+          }
+        }
+      }
+    
     },
     "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)." : {
       "extractionState" : "stale",
@@ -11845,7 +12011,27 @@
       }
     },
     "Extend the Agent with external tools over MCP. HTTP (Streamable) or stdio (local command) transport." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extend the Agent with external tools over MCP. HTTP (Streamable) or stdio (local command) transport."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 MCP 为智能体扩展外部工具。传输方式：HTTP（Streamable）或 stdio（本地命令）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 MCP 為智慧體擴充外部工具。傳輸方式：HTTP（Streamable）或 stdio（本機指令）。"
+          }
+        }
+      }
+    
     },
     "Extend the AI with external tools over MCP (HTTP transport). Experimental." : {
       "extractionState" : "stale",
@@ -12254,10 +12440,50 @@
       }
     },
     "File deleted" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File deleted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已删除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案已刪除"
+          }
+        }
+      }
+    
     },
     "File Not Found" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Not Found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到檔案"
+          }
+        }
+      }
+    
     },
     "File not found on the server (404)" : {
       "localizations" : {
@@ -13975,7 +14201,27 @@
       }
     },
     "HTTP" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP"
+          }
+        }
+      }
+    
     },
     "http://127.0.0.1:3000/mcp" : {
       "localizations" : {
@@ -15328,7 +15574,27 @@
       }
     },
     "Loading PDF…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading PDF…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载 PDF…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入 PDF…"
+          }
+        }
+      }
+    
     },
     "Loading translator…" : {
       "localizations" : {
@@ -16137,7 +16403,27 @@
       }
     },
     "Merging…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merging…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併中…"
+          }
+        }
+      }
+    
     },
     "Messages (%lld)" : {
       "localizations" : {
@@ -17891,7 +18177,27 @@
       }
     },
     "No MCP servers configured. Add an HTTP endpoint or a local stdio command." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No MCP servers configured. Add an HTTP endpoint or a local stdio command."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未配置 MCP 服务器。添加一个 HTTP 端点或本地 stdio 命令。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未設定 MCP 伺服器。新增一個 HTTP 端點或本機 stdio 指令。"
+          }
+        }
+      }
+    
     },
     "No media queries found" : {
       "localizations" : {
@@ -19352,10 +19658,50 @@
       }
     },
     "Open in Preview" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Preview"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「预览」中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「預覽」中開啟"
+          }
+        }
+      }
+    
     },
     "Open in QuickTime Player" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in QuickTime Player"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 QuickTime Player 中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 QuickTime Player 中開啟"
+          }
+        }
+      }
+    
     },
     "Open in Safari" : {
       "localizations" : {
@@ -19515,7 +19861,27 @@
       }
     },
     "OpenAI" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI"
+          }
+        }
+      }
+    
     },
     "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
       "extractionState" : "stale",
@@ -22266,7 +22632,27 @@
       }
     },
     "Rename automatically" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename automatically"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动重命名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動重新命名"
+          }
+        }
+      }
+    
     },
     "Reopen Closed Tab" : {
       "comment" : "Keyboard shortcut",
@@ -22315,7 +22701,27 @@
       }
     },
     "Replace existing file" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace existing file"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "替换现有文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取代現有檔案"
+          }
+        }
+      }
+    
     },
     "Replay" : {
       "localizations" : {
@@ -26510,10 +26916,50 @@
       }
     },
     "stdio" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stdio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stdio"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stdio"
+          }
+        }
+      }
+    
     },
     "Stdio (local command)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stdio (local command)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stdio（本地命令）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stdio（本機指令）"
+          }
+        }
+      }
+    
     },
     "Stop" : {
       "comment" : "Stop loading button help",
@@ -27710,7 +28156,27 @@
       }
     },
     "The command runs as a local subprocess (argv; quote paths with spaces). Tools it exposes join the Agent automatically." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The command runs as a local subprocess (argv; quote paths with spaces). Tools it exposes join the Agent automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该命令以本地子进程运行（argv 形式；含空格的路径需加引号）。它暴露的工具会自动加入智能体。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該指令以本機子程序執行（argv 形式；含空格的路徑需加引號）。它暴露的工具會自動加入智慧體。"
+          }
+        }
+      }
+    
     },
     "The current window's tabs will be replaced by the archived session." : {
       "localizations" : {
@@ -27779,7 +28245,27 @@
       }
     },
     "The local file doesn't exist (or can't be read). It may have been moved, renamed, or deleted since it was opened." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local file doesn't exist (or can't be read). It may have been moved, renamed, or deleted since it was opened."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地文件不存在（或无法读取）。它可能在打开后被移动、重命名或删除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機檔案不存在（或無法讀取）。它可能在開啟後被移動、重新命名或刪除。"
+          }
+        }
+      }
+    
     },
     "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
       "localizations" : {
@@ -28272,7 +28758,27 @@
       }
     },
     "This page is infested with ads. Run findAdCandidates to scan it, pick the REAL ad elements (skip anything that looks like actual content or the page's own player), and block them with blockElements for this site. Report what you blocked in one short line." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This page is infested with ads. Run findAdCandidates to scan it, pick the REAL ad elements (skip anything that looks like actual content or the page's own player), and block them with blockElements for this site. Report what you blocked in one short line."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此页面广告泛滥。运行 findAdCandidates 扫描，挑出真正的广告元素（跳过看似正文或页面自身播放器的内容），并用 blockElements 为本站拦截。用一行简短汇报你拦截了什么。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此頁面廣告氾濫。執行 findAdCandidates 掃描，挑出真正的廣告元素（跳過看似正文或頁面自身播放器的內容），並用 blockElements 為本站攔截。用一行簡短彙報你攔截了什麼。"
+          }
+        }
+      }
+    
     },
     "This page may not have a readable article format." : {
       "localizations" : {
@@ -28319,7 +28825,27 @@
       }
     },
     "This panel is bound to this window" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This panel is bound to this window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此面板绑定于当前窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此面板綁定於目前視窗"
+          }
+        }
+      }
+    
     },
     "This removes all cookies and site data of the container. Websites will log you out." : {
       "localizations" : {
@@ -30527,7 +31053,27 @@
       }
     },
     "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启路由后，简单短小的纯文本回合会改用免费的端上模型或 Ollama——复杂回合与使用工具的回合仍走云端。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟路由後，簡單短小的純文字回合會改用免費的端上模型或 Ollama——複雜回合與使用工具的回合仍走雲端。"
+          }
+        }
+      }
+    
     },
     "Where captured screenshots are written." : {
       "extractionState" : "stale",
@@ -31643,7 +32189,27 @@
       }
     },
     "松开在此标签页打开" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release to open in this tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "松开在此标签页打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鬆開在此標籤頁開啟"
+          }
+        }
+      }
+    
     },
     "标题" : {
       "localizations" : {
@@ -31690,7 +32256,27 @@
       }
     },
     "此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This page declares Desire Page Protocol — the agent can read and write it structurally as declared (try saying \"pageProtocol\" to the agent)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此頁面宣告了 Desire Page Protocol——智慧體可按宣告結構化讀寫（試試對智慧體說 pageProtocol）"
+          }
+        }
+      }
+    
     },
     "没有匹配的工具" : {
       "localizations" : {
@@ -32312,11 +32898,24 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "页面事件 %1$@（%2$@）想要唤起智能体——当前已关闭，可在设置中开启"
+            "state" : "translated",
+            "value" : "Page event %1$@ (%2$@) wants to wake the agent — currently off; enable it in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面事件 %@（%@）想要唤起智能体——当前已关闭，可在设置中开启"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
           }
         }
       }
+    
     }
   },
   "version" : "1.0"

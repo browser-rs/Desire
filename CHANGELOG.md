@@ -7,6 +7,8 @@ Conversation history list gained an explicit multi-select mode: a Select button 
 
 Settings provider editor lost the model selector (the dual-protocol refactor removed the `draftModelPicker` row without re-adding it) — restored in place: dropdown over the service's model list + fetched models, with manual-entry fallback.
 "Test Connection" for cloud services now mirrors the real chat request: streaming body + the profile's custom headers + per-protocol endpoint completion (OpenAI `/chat/completions` vs Anthropic `/v1/messages`), and connectivity is judged on the server's first streamed line instead of a full non-streaming generation — gateways whose non-streaming path is slow (e.g. AMD Radeon) no longer report a false 15s timeout while chat works fine.
+31 string-catalog entries that builds had auto-extracted as untranslated skeletons (MCP stdio/HTTP transport, DPP badge, AI auto-block toast, PDF/player menus, cost routing, etc.) now have complete en/zh-Hans/zh-Hant translations; the catalog is back to full three-language coverage.
+
 
 
 

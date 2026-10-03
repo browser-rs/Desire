@@ -538,17 +538,22 @@ struct Toolbar: View {
                 Button {
                     showsPopover.toggle()
                 } label: {
-                    Text("DPP")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(accent)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(showsPopover ? accent.opacity(0.14) : .clear)
-                                .overlay(Capsule().stroke(accent.opacity(0.55), lineWidth: 1))
-                        )
-                        .contentShape(Rectangle())
+                    HStack(spacing: 3) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("DPP")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    }
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(showsPopover ? accent.opacity(0.14) : .clear)
+                            .overlay(Capsule().stroke(accent.opacity(0.55), lineWidth: 1))
+                    )
+                    .contentShape(Rectangle())
+                    .fixedSize()
                 }
                 .buttonStyle(.plain)
                 .help("此页面声明了 Desire Page Protocol — 点击查看与配置")

@@ -353,7 +353,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -503,6 +503,7 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
+        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/content length)", example: "…/whiteboard")
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
@@ -835,6 +836,15 @@ final class AutomationServer {
                 ])
             case ("GET", "/dpp/modes"):
                 return try Self.json(["modes": PageEventHub.shared.siteModes])
+            case ("GET", "/whiteboard"):
+                let store = WhiteboardStore.shared
+                let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+                let board = store.board(for: conversationID)
+                return try Self.json([
+                    "conversationId": conversationID ?? "",
+                    "title": board.title,
+                    "blocks": board.blocks.map { ["type": $0.type, "title": $0.title ?? "", "contentLength": $0.content.count] },
+                ])
             case ("GET", "/dpp/config"):
                 let config = DPPConfigStore.shared
                 return try Self.json([
@@ -2533,6 +2543,35 @@ final class AutomationServer {
         // 且需要临时切一下 live store 的 activePanel（渲染完立刻还原）。
         if name == "devtools" {
             return try await devToolsSnapshot(tab: tab)
+        }
+        if name == "whiteboard" {
+            // 白板快照：离屏渲染当前会话的板。注意渲染块含 WKWebView
+            //（Mermaid/ECharts），NSHostingView 离屏不驱动 webview——
+            // 所以这里返回的是**块清单卡片**而非成图；成图验证走
+            // GET /whiteboard 的块数据 + 用户实测面板。
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                return ["error": "no active agent session"]
+            }
+            let board = WhiteboardStore.shared.board(for: session.conversationId?.uuidString)
+            let size = NSSize(width: max(360, width ?? 520), height: max(360, height ?? 560))
+            let rootView = AnyView(WhiteboardSnapshotView(board: board))
+            let host = NSHostingView(
+                rootView: rootView
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+                return ["error": "bitmap rep failed"]
+            }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]),
+                  let base64 = png.base64EncodedString() as String? else {
+                return ["error": "png encode failed"]
+            }
+            return ["format": "png", "base64": base64,
+                    "blocks": board.blocks.count]
         }
         if name == "adblock" || name == "passwords" || name == "batch" {
             // 三个离屏可渲染面板：数据都在单例/共享 store 里，init 即载。

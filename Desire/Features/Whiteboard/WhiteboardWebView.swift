@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import os
 
 /// 白板渲染视图：本地 HTML 壳 + vendored 双引擎（Mermaid v11 / ECharts v5，
 /// 零 CDN）。数据流单向：Swift 侧把 `WhiteboardSpec` 序列化后推给
@@ -19,17 +20,33 @@ struct WhiteboardWebView: NSViewRepresentable {
         } else {
             webview.loadHTMLString(Self.pageHTML, baseURL: nil)
         }
+        pollLoaded(webview)
         return webview
     }
 
     func updateNSView(_ webview: WhiteboardWKWebView, context: Context) {
         webview.onRenderStatus = onRenderStatus
-        // 变了才推（updateNSView 每轮布局都会进来）
+        // 变了才推（updateNSView 每轮布局都会进来）；未就绪则挂起，等
+        // loadHTMLString 完成回调再推。
         let json = (try? JSONEncoder().encode(spec)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         guard json != webview.lastPushedJSON else { return }
         webview.lastPushedJSON = json
-        // 页面脚本可能尚未就绪——ready 后由壳自己拉最新 spec（存到 window 上）
-        webview.evaluateJavaScript("window.__pendingSpec = \(json); (window.renderBoard || function(){})(window.__pendingSpec); 'pushed'", completionHandler: nil)
+        webview.pendingJSON = json
+        webview.pushPending()
+    }
+
+    /// 轮询到 HTML 文档落地再推 spec——此前在 updateNSView 里立即 evaluate，
+    /// 落在 about:blank 上，文档替换后 __pendingSpec 丢失（板永远空）。
+    private func pollLoaded(_ webview: WhiteboardWKWebView) {
+        if !webview.isLoading {
+            webview.loaded = true
+            webview.pushPending()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak webview] in
+                guard let webview, webview.window != nil || !webview.loaded else { return }
+                pollLoaded(webview)
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(onRenderStatus: onRenderStatus) }
@@ -46,6 +63,8 @@ struct WhiteboardWebView: NSViewRepresentable {
                   let dict = message.body as? [String: Any] else { return }
             let rendered = dict["rendered"] as? Int ?? 0
             let errors = dict["errors"] as? [String] ?? []
+            // 成图统计进统一日志——E2E/排查的硬证据（webview 内渲染无法截图验证）
+            Log.agent.info("Whiteboard render: rendered=\(rendered, privacy: .public) errors=[\(errors.joined(separator: ","), privacy: .public)]")
             Task { @MainActor in
                 self.onRenderStatus?(rendered, errors)
             }
@@ -56,8 +75,17 @@ struct WhiteboardWebView: NSViewRepresentable {
     /// 状态挂在 view 上避免对 coordinator 做可变竞争）。
     final class WhiteboardWKWebView: WKWebView {
         var lastPushedJSON: String?
+        var pendingJSON: String?
+        var loaded = false
         var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?
         weak var coordinator: Coordinator?
+
+        /// HTML 文档落地后才能推（见 makeNSView 注释）。
+        func pushPending() {
+            guard loaded, let json = pendingJSON else { return }
+            pendingJSON = nil
+            evaluateJavaScript("window.__pendingSpec = \(json); (window.renderBoard || function(){})(window.__pendingSpec); 'pushed'", completionHandler: nil)
+        }
     }
 
     // MARK: - 本地 HTML 壳
@@ -184,6 +212,9 @@ struct WhiteboardWebView: NSViewRepresentable {
         mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
         window.renderBoard = function (spec) { queued = spec; run(); };
         ready = true;
+        // Swift 侧的推送可能早于脚本就绪（loadHTMLString 完成前 updateNSView
+        // 就跑了）——boot 时补拉早到的 __pendingSpec，否则板永远空。
+        if (!queued && window.__pendingSpec) queued = window.__pendingSpec;
         if (queued) run();
       }
       var running = false;

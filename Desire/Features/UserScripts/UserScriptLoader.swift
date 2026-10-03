@@ -39,6 +39,8 @@ enum UserScriptLoader {
             }
         }
         add("console-intercept", at: .atDocumentStart)
+        // SPA 路由变化 → DPP 重解析（页面世界：必须包住页面自己的 history 调用）
+        add("dpp-route-watch", at: .atDocumentStart)
         // 曾在此注入 fullscreen-shim（覆盖 Element.prototype.requestFullscreen
         // 做纯 CSS "网页满屏"）。那正是"视频只有网页区域大小、四周黑边"的
         // 根因——覆盖掉原生 API 之后 WebKit 的全屏管线永远不跑，元素被 CSS

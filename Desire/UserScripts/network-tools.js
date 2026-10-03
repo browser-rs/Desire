@@ -1,19 +1,6 @@
-// --- 网络依赖工具（页面世界专属）：__desireGetNetworkLog 读 network-monitor.js
-// 在页面世界维护的 __desireNetLog；__desireWaitForNetworkIdle 猴补页面世界的
-// XHR/fetch。这两个函数是 dom-tools 仅存的页面世界成员（第三轮审计指导 4）。
-
-async function __desireGetNetworkLog({filter, maxItems}) {
-    maxItems = maxItems || 100;
-    var log = (window.__desireNetLog || []);
-    var out = [];
-    for (var i = log.length - 1; i >= 0 && out.length < maxItems; i--) {
-        var entry = log[i];
-        if (!filter || entry.url.toLowerCase().indexOf(String(filter).toLowerCase()) !== -1) {
-            out.push(entry);
-        }
-    }
-    return out.length ? JSON.stringify({ count: out.length, requests: out.reverse() }) : "No requests captured" + (filter ? " matching filter" : "");
-}
+// --- 网络依赖工具（页面世界专属）：__desireWaitForNetworkIdle 猴补页面世界
+// 的 XHR/fetch——隔离世界补丁拦不到页面请求（getNetworkLog 已原生化，
+// 改读 DevToolsStore，不再依赖页面世界状态）。
 
 async function __desireWaitForNetworkIdle({timeout, quietMs}) {
     quietMs = quietMs || 500;

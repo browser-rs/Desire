@@ -734,18 +734,22 @@ extension BrowserToolProvider {
                 // callAsyncJavaScript 把 body 包进 async function——布尔结果
                 // 必须 **return**（无 return 恒 nil→false，fill/click 之类副作用
                 // 型步骤则不受影响——此前全部布尔检查都踩在这里）。
-                let present: Bool
-                do {
-                    let raw = try await dppWebView.callAsyncJavaScript(
-                        "return __desireQueryAll(\(JSString.literal(precondition))).length > 0",
-                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
-                    present = (raw as? Bool) == true
-                } catch {
-                    Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
-                    present = false
+                // 前置条件轮询 3s（水合中的页面元素晚到——秒判失败太急）
+                var present = false
+                for _ in 0..<6 {
+                    do {
+                        let raw = try await dppWebView.callAsyncJavaScript(
+                            "return __desireQueryAll(\(JSString.literal(precondition))).length > 0",
+                            arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
+                        if (raw as? Bool) == true { present = true; break }
+                    } catch {
+                        Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
+                        break
+                    }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                 }
                 if !present {
-                    return Self.fail("Action '\(actionName)' precondition not met: '\(precondition)' not found on page")
+                    return Self.fail("Action '\(actionName)' precondition not met: '\(precondition)' not found on page within 3s")
                 }
             }
             // 解析 run 步骤 JSON + 填充模板变量 {param}
@@ -954,6 +958,11 @@ extension BrowserToolProvider {
             }
             if !protocolSnapshot.ignore.isEmpty {
                 lines.append("Site noise (ignore): \(protocolSnapshot.ignore.joined(separator: ", "))")
+            }
+            if !protocolSnapshot.events.isEmpty {
+                let evs = protocolSnapshot.events.sorted { $0.key < $1.key }
+                    .map { "\($0.key) → \($0.value)" }.joined(separator: ", ")
+                lines.append("Events (auto-monitored — Desire starts a turn when these appear): \(evs)")
             }
             if !protocolSnapshot.context.isEmpty {
                 let ctx = protocolSnapshot.context.sorted { $0.key < $1.key }

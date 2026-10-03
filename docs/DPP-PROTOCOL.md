@@ -117,7 +117,7 @@
 | `protocol` | string | ✅ | 版本标识，当前 `"desire/1"` |
 | `page.type` | string | ⬜ | 页面类型标注（`chat`/`catalog`/`forms`/`workbench`/`monitor`），仅供参考 |
 | `content.main` | selector | ⬜ | 正文选择器——文本抽取只取此处，排除噪音 |
-| `content.ignore` | selector[] | ⬜→✅ | 明确排除的噪音区域（抽取/快照过滤已接线；文本不扣减） |
+| `content.ignore` | selector[] | ✅ | 噪音区域：抽取跳条目、快照不列元素、**正文文本扣减**（clone 剔除 + 块级换行） |
 | `signals` | object | ⬜ | 生命周期信号（见 §4.2） |
 | `views` | map | ⬜ | 命名数据视图（见 §4.3） |
 | `actions` | array | ⬜ | 声明式动作（见 §4.4） |
@@ -193,7 +193,7 @@
 | `upload` | `{ "selector": "filePath" }` | 文件上传（复用 UploadIntent：arm + 点击选择器自动提交） | ✅ |
 
 **模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`；选择器与值都填充）。
-**required 参数**缺失、**precondition** 选择器不存在 → 工具直接失败（带 `Error:` 前缀）。
+**required 参数**缺失、**precondition** 选择器 3s 内未出现 → 工具失败（带 `Error:` 前缀；水合中的页面不会秒判失败）。
 **任一步骤失败** → 动作中止并报告失败步骤与已完成步骤（绝不假报成功）。
 
 **模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`）。
@@ -361,9 +361,11 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 跨世界共享，click/fill/scroll 语义不变。
 **留页面世界的例外**（各自有独立脚本/语义）：协议解析器（读页面的
 `window.desire` / `__desireProtocolExposed`）、**executeJS**（语义就是
-页面上下文执行）、**network-tools.js**（`__desireGetNetworkLog` 读
-network-monitor 的页面世界状态、`__desireWaitForNetworkIdle` 猴补页面
-XHR/fetch）。
+页面上下文执行）、**dpp-route-watch.js**（包装页面自己的
+history.pushState/replaceState + popstate/hashchange → 触发重解析，
+SPA 路由变化后 L1 锚点与声明缓存随之刷新）、**network-tools.js**
+（`__desireWaitForNetworkIdle` 猴补页面 XHR/fetch——隔离世界的补丁
+拦不到页面请求；getNetworkLog 已原生化改读 DevToolsStore）。
 **配套约定**：`callAsync` 以**按键对象**传参（`fn({a: a, b: b})`），
 dom-tools 宿主直调函数一律解构形参（键名守卫：非 JS 标识符直接报错）；
 **改 dom-tools 函数签名前必须 grep 全部调用方**——存在页面世界 JS 字符串
@@ -420,7 +422,7 @@ dom-tools 宿主直调函数一律解构形参（键名守卫：非 JS 标识符
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| `pageProtocol` | （无） | 查看当前页面的 DPP 协议（views/signals/actions/ignore） |
+| `pageProtocol` | （无） | 查看当前页面的 DPP 协议（views/signals/actions/events/context/ignore；站点级来源会标注） |
 | `pageExtract` | `view: string, all?: bool` | 按视图抽取结构化数据；`all=true` 跟随分页 |
 | `pageAction` | `name: string, args?: object` | 执行声明的动作（模板变量填充 + 步骤 DSL 执行） |
 
@@ -518,3 +520,6 @@ Actions (pageAction): search
 - ✅ SDK 公开分发（`website/desire-sdk.js` → https://desire.mankong.icu/desire-sdk.js）
 - ✅ well-known 站点级声明（页面声明才拉取 + 页内同源 fetch + host 缓存 + 合并进单测）
 - ✅ `upload` 步骤（UploadIntent 原语）+ 同源 iframe 穿透（自动搜索 + `>>>` 中段）
+- ✅ SPA 路由变化全级重解析（dpp-route-watch 包装 history + popstate/hashchange）
+- ✅ precondition 轮询等待（3s）；`ignore` 正文文本扣减；`pageProtocol` 列出事件；
+  `getNetworkLog` 原生化（读 DevToolsStore，页面世界网络依赖只剩 WaitForNetworkIdle）

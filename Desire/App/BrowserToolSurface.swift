@@ -33,4 +33,6 @@ protocol BrowserToolSurface: AnyObject {
     var passwordStore: PasswordStore { get }
     /// 已保存的历史对话（`searchConversations` / `readConversation` 工具的数据源）。
     var conversationStore: ConversationStore { get }
+    /// 网络/控制台记录（getNetworkLog 原生读取的数据源，第三轮指导 4）。
+    var devToolsStore: DevToolsStore { get }
 }

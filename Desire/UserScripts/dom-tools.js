@@ -271,7 +271,30 @@ async function __desireSnapshot({maxChars, maxElements, ignoreSels}) {
         if (score > bestScore && t.trim().length > 80) { bestScore = score; root = el; }
     }
     if (!root) root = document.body;
-    var text = (root.innerText || "")
+    // ignore 声明：克隆剔除噪音子树后再取文本（分离节点 innerText 回退
+    // textContent，手动补块级换行；无噪音声明时走 innerText 快路径）。
+    var textRoot = root;
+    var text = "";
+    if (ignoredEls.length) {
+        var c = root.cloneNode(true);
+        (JSON.parse(ignoreSels || "[]") || []).forEach(function(sel){
+            try { c.querySelectorAll(sel).forEach(function(e){ e.remove(); }); } catch (e) {}
+        });
+        textRoot = c;
+    }
+    text = ignoredEls.length
+        ? (function(node){
+            node.querySelectorAll('br').forEach(function(e){ e.replaceWith('\n'); });
+            ['p','div','li','tr','section','article','h1','h2','h3','h4','h5','h6','pre','blockquote'].forEach(function(t){
+              node.querySelectorAll(t).forEach(function(e){
+                e.insertBefore(document.createTextNode('\n'), e.firstChild);
+                e.appendChild(document.createTextNode('\n'));
+              });
+            });
+            return (node.textContent || '');
+          })(textRoot)
+        : (textRoot.innerText || "");
+    text = (text || "")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
         .trim();

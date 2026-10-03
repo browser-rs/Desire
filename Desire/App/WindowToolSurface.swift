@@ -40,4 +40,5 @@ final class WindowToolSurface: BrowserToolSurface {
     var agentPreference: AgentPreferenceStore { app.aiPreference }
     var conversationStore: ConversationStore { app.conversationStore }
     var passwordStore: PasswordStore { app.passwordStore }
+    var devToolsStore: DevToolsStore { app.system.devToolsStore }
 }

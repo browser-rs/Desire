@@ -2,6 +2,8 @@
 ### Added
 
 DPP 实测反馈四项改进（来自产品页 DPP 的真实 Agent 会话复盘）：① `pageAction` 动作完成带导航反馈（click 触发跳转时返回 "→ navigated to …"，此前模型点完不知道页面已换、下一动作在新区报错）；动作找不到时错误信息带当前 URL 并提示 switchTab；② `pageExtract` 文本字段折叠连续空白（HTML 源码换行曾以 `\n` 脏数据进入抽取结果）；③ `getPageSnapshot`/`readTab` 在 DPP 声明页前置提示结构化通道（模型在翻译/总结类任务会跳过 pageProtocol——提示跟到最常用工具上；且 hint 必须前置，工具消息统一 prefix(8000)，尾部追加会被截断剪掉——实测）；④ `findAdCandidates` 候选补 class/id/position/zIndex 字段（此前模型要为"确认选择器"多发 3-4 轮 executeJS）。
+DPP 增强（第五批）：① **SPA 路由变化全级重解析**——新增 dpp-route-watch.js（页面世界 documentStart）包装 history.pushState/replaceState 并监听 popstate/hashchange，经 desireProtocolControl 触发 250ms 防抖重解析（此前只有 L3 SDK 的 expose 通知；SPA 重排后 L1 锚点与声明缓存随之刷新）；② **precondition 轮询等待**——前置条件 3s 内轮询（水合中的页面不再秒判失败）；③ **`ignore` 正文文本扣减**——getPageText 的 contentMain 路径与 getPageSnapshot 的正文均剔除噪音子树（clone 剔除 + 块级换行，无声明时保留 innerText 快路径）；④ **pageProtocol 列出事件**（"auto-monitored" 行，模型知道哪些事件在自动监视）；⑤ **getNetworkLog 原生化**——改读 DevToolsStore（BrowserToolSurface 新增 devToolsStore），页面世界 network-tools 只剩 WaitForNetworkIdle。
+
 
 ### Fixed
 

@@ -77,10 +77,35 @@ extension BrowserToolProvider {
             if let main = surface.tabManager?.selectedTab?.browser.effectiveProtocol?.contentMain,
                !main.isEmpty {
                 let mainLit = JSString.literal(main)
-                let text = await eval(webView, """
-                (function(){var m = document.querySelector(\(mainLit)); return (m || document.body).innerText;})()
-                """)
-                return text
+                // ignore 声明：克隆正文、剔除噪音子树后再取文本（innerText 在
+                // 分离节点上回退 textContent，故手动补块级换行保持分段）。
+                // 无 ignore 声明时保留原 innerText 快路径。
+                let ignores = surface.tabManager?.selectedTab?.browser.effectiveProtocol?.ignore ?? []
+                if ignores.isEmpty {
+                    let text = await eval(webView, """
+                    (function(){var m = document.querySelector(\(mainLit)); return (m || document.body).innerText;})()
+                    """)
+                    return text
+                }
+                let ignoresJSON = (try? String(data: JSONEncoder().encode(ignores), encoding: .utf8)) ?? "[]"
+                let mainClone = """
+                (function(){
+                  var m = document.querySelector(\(mainLit)) || document.body;
+                  var c = m.cloneNode(true);
+                  (JSON.parse(\(JSString.literal(ignoresJSON))) || []).forEach(function(sel){
+                    try { c.querySelectorAll(sel).forEach(function(e){ e.remove(); }); } catch (e) {}
+                  });
+                  c.querySelectorAll('br').forEach(function(e){ e.replaceWith('\n'); });
+                  ['p','div','li','tr','section','article','h1','h2','h3','h4','h5','h6','pre','blockquote'].forEach(function(t){
+                    c.querySelectorAll(t).forEach(function(e){
+                      e.insertBefore(document.createTextNode('\n'), e.firstChild);
+                      e.appendChild(document.createTextNode('\n'));
+                    });
+                  });
+                  return (c.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+                })()
+                """
+                return await eval(webView, mainClone)
             }
             return await eval(webView, "document.body.innerText")
         case "getComments":
@@ -161,10 +186,28 @@ extension BrowserToolProvider {
                                           "maxLength": args["maxLength"] as? Int ?? 6000])
         case "getNetworkLog":
             let filter = args["filter"] as? String ?? ""
-            // 依赖 network-monitor 在页面世界的 __desireNetLog——必须 .page
-            return await callAsync(webView, function: "__desireGetNetworkLog",
-                                   args: ["filter": filter, "maxItems": args["maxItems"] as? Int ?? 100],
-                                   world: WKContentWorld.page)
+            let maxItems = min(500, max(1, args["maxItems"] as? Int ?? 100))
+            // 原生读 DevToolsStore（本 tab 的请求记录；第三轮指导 4——
+            // 摆脱页面世界 network-tools，page-world 网络依赖只剩 WaitForNetworkIdle）
+            let tab = surface.tabManager?.tabs.first(where: { $0.browser.webView === webView })
+                ?? surface.tabManager?.selectedTab
+            let all = surface.devToolsStore.networkRequests
+                .filter { $0.tabID == nil || $0.tabID == tab?.id }
+            let matched = Array(all
+                .filter { filter.isEmpty || $0.url.localizedCaseInsensitiveContains(filter) }
+                .suffix(maxItems))
+            guard !matched.isEmpty else {
+                return filter.isEmpty
+                    ? "No requests captured"
+                    : "No requests captured matching filter"
+            }
+            let rows = matched.map { r -> String in
+                var line = "\(r.method) \(r.url)"
+                if let code = r.statusCode { line += " → \(code)" }
+                if let ms = r.duration { line += String(format: " (%.0fms)", ms * 1000) }
+                return line
+            }
+            return "Captured \(all.count) request(s)\(filter.isEmpty ? "" : ", \(matched.count) matching '\(filter)'") (latest \(rows.count)):\n" + rows.joined(separator: "\n")
 
         case "getSelectedText":
             return await eval(webView, "window.getSelection().toString()")

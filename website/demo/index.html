@@ -3,98 +3,385 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DPP for AI Agents 演示页 — Desire Page Protocol</title>
-<meta name="description" content="Desire Page Protocol（DPP）在线演示：一个按 L2 声明块接入的迷你商店，展示结构化视图、类型化字段、动作与事件驱动。">
-<script type="application/x-desire+json">
-{
-  "protocol": "desire/1",
-  "profile": "catalog",
-  "page": { "type": "catalog" },
-  "content": { "main": "#products", "ignore": [".demo-ad"] },
-  "signals": { "ready": "#products .card", "busy": ".demo-loading" },
-  "views": {
-    "products": {
-      "item": "#products .card",
-      "fields": {
-        "name": "h3",
-        "price": { "selector": ".price", "type": "price" },
-        "detail": { "attr": "href", "type": "url" }
-      }
-    },
-    "orders": { "item": ".demo-event", "fields": { "text": ".text" } }
-  },
-  "actions": [
-    { "name": "search-products", "description": "按关键词过滤商品列表",
-      "params": { "query": { "type": "string", "required": true } },
-      "run": [ { "fill": { "#demo-search": "{query}" } }, { "click": "#demo-search-btn" } ],
-      "effects": "local" },
-    { "name": "open-github", "description": "打开 Desire 的 GitHub 仓库",
-      "run": [ { "navigate": "https://github.com/browser-rs/Desire" } ],
-      "effects": "local" }
-  ],
-  "events": { "order-event": { "watch": ".demo-event" } },
-  "context": {
-    "persona": "DPP 演示页的访客助手：演示声明驱动的结构化读取与动作执行",
-    "rules": "本页为演示页，商品数据均为示例，并非真实在售商品"
-  }
-}
-</script>
+<title>DPP 演示商店 — Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）在线演示：一个由演示 API 驱动的迷你商店，购物车与下单是真实请求。展示结构化视图、类型化字段、带出站效果的动作、事件驱动与 L3 SDK 接入。">
+<!-- DPP 声明由本页底部的 desire.expose()（L3 SDK）提供；SDK 加载失败时
+     自动降级为静态声明块——两条路径共用同一个 DPP_DECL 对象。 -->
+<script src="../desire-sdk.js"></script>
 <style>
-  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
   h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
-  .card { border: 1px solid #d8cfba; border-radius: 6px; padding: 0.8rem 1rem; margin: 0.6rem 0; display: flex; gap: 1rem; align-items: baseline; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .loading { color: #6b6154; font-size: 0.88rem; }
+  .card { border: 1px solid #d8cfba; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0.55rem 0; display: flex; gap: 0.9rem; align-items: baseline; flex-wrap: wrap; }
   .card h3 { margin: 0; font-size: 1rem; }
+  .sku { font-size: 0.72rem; color: #8a7f6f; background: #eee7d7; border-radius: 3px; padding: 0 0.3rem; }
   .price { color: #c03a1a; font-weight: 600; margin-left: auto; }
+  .desc { flex-basis: 100%; font-size: 0.82rem; color: #6b6154; margin: 0; }
   .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
-  .demo-event { background: #ece3cd; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.4rem 0; }
+  .cart-row { display: flex; gap: 0.8rem; align-items: baseline; border-bottom: 1px dotted #d8cfba; padding: 0.35rem 0.2rem; }
+  .cart-empty { color: #8a7f6f; font-size: 0.88rem; padding: 0.4rem 0; }
+  #cart-summary { display: flex; gap: 1rem; align-items: baseline; margin-top: 0.6rem; }
+  #cart-summary .total { color: #c03a1a; font-weight: 700; font-size: 1.1rem; }
+  .order-row { background: #ece3cd; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
+  .order-row .oid { font-weight: 600; }
+  .order-row .ototal { color: #c03a1a; font-weight: 600; }
+  .order-row .otime { color: #8a7f6f; font-size: 0.78rem; margin-left: auto; }
   code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
   input, button { padding: 0.45rem 0.8rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
   button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.ghost { background: transparent; color: #6b6154; }
+  .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 </style>
 </head>
 <body>
-<h1>DPP 演示页</h1>
-<p>本页是一个按 <strong>Desire Page Protocol</strong> L2 声明块接入的迷你商店。
-用 Desire 打开，对智能体说：</p>
+<h1>DPP 演示商店 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>本页是一个按 <strong>Desire Page Protocol</strong> 接入、由演示 API 驱动的迷你商店：
+购物车与下单是<b>真实请求</b>（写入演示服务的内存，非真实交易）。用 Desire 打开，对智能体说：</p>
 <ul>
-  <li>「列出商品」→ 智能体会用 <code>pageExtract("products")</code> 读结构化数据（价格自动转为数字，链接自动补全为绝对地址）</li>
-  <li>「搜索 Pad」→ 智能体会用 <code>pageAction("search-products", …)</code> 驱动本页搜索框</li>
-  <li>点下面的「模拟新订单」→ <b>页面事件自动唤起智能体</b>（事件驱动演示）</li>
+  <li>「列出商品」→ <code>pageExtract("products")</code> 读结构化数据（价格转数字、SKU 可用于加购）</li>
+  <li>「把 sku 是 kb-01 的商品加入购物车，再来一把」→ <code>pageAction("add-to-cart", …)</code></li>
+  <li>「去结算」→ <code>pageAction("checkout")</code>——该动作声明了 <code>effects: "outbound"</code>，<b>会先向你请求批准</b>（审批流演示）</li>
+  <li>下单成功的那一刻 → 订单列表出现新行，<b>order-placed 事件自动唤起智能体</b>（事件驱动演示）</li>
 </ul>
-<p>右下角虚线框是 <code>data-dpp-ignore</code> 标注的噪音区——智能体会绕开它。</p>
+<p>本页声明通过 <a href="https://desire.mankong.icu/desire-sdk.js">L3 SDK</a> 的 <code>desire.expose()</code> 提供；
+右下角虚线框是噪音区，智能体会绕开。</p>
 
 <div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
 
 <h2>商品</h2>
-<div id="products">
-  <div class="card"><h3>机械键盘</h3><span class="price">¥329</span><a href="#kb">详情</a></div>
-  <div class="card"><h3>4K 显示器</h3><span class="price">¥1,999</span><a href="#monitor">详情</a></div>
-  <div class="card"><h3>人体工学椅</h3><span class="price">¥1,299.90</span><a href="#chair">详情</a></div>
+<div id="app">
+<div class="row">
+  <input id="demo-search" placeholder="输入关键词（如：键盘）">
+  <button id="demo-search-btn">搜索</button>
+  <button id="demo-reset-btn" class="ghost">重置</button>
+</div>
+<div id="products"></div>
+
+<h2>购物车</h2>
+<div id="cart">
+  <div class="cart-empty">购物车是空的——点商品右侧的「加入购物车」。</div>
+  <div id="cart-summary"><span class="count">0</span> 件 · 合计 <span class="total">¥0.00</span>
+    <button id="checkout-btn" disabled>结算</button>
+    <button id="clear-cart-btn" class="ghost" disabled>清空</button>
+  </div>
 </div>
 
-<h2>试试事件驱动</h2>
-<button id="demo-order-btn" onclick="injectOrder()">模拟新订单事件</button>
+<h2>订单</h2>
 <div id="orders"></div>
-<script>
-function injectOrder() {
-  var d = document.createElement('div');
-  d.className = 'demo-event';
-  d.innerHTML = '<span class="text">新订单：机械键盘 × 1（演示事件）</span>';
-  document.getElementById('orders').appendChild(d);
-}
-</script>
+</div><!-- /#app -->
 
-<h2>试试动作</h2>
-<input id="demo-search" placeholder="输入关键词（如：键盘）">
-<button id="demo-search-btn" onclick="filterProducts()">搜索</button>
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
 <script>
-function filterProducts() {
-  var q = (document.getElementById('demo-search').value || '').toLowerCase();
-  document.querySelectorAll('#products .card').forEach(function(c) {
-    c.style.display = c.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+"use strict";
+// ── 基础设施 ─────────────────────────────────────────────
+// 演示 API 地址：线上默认 api.mankong.icu；本地调试用 ?api=http://127.0.0.1:18090 覆盖。
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var PRODUCTS = [];
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x");
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
   });
 }
+
+function money(v) { return "¥" + Number(v).toFixed(2); }
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——已切换为只读演示模式：商品可浏览，购物车与下单不可用。";
+  document.querySelector(".demo-ad").before(note);
+  PRODUCTS = FALLBACK_PRODUCTS();
+  renderProducts("");
+  renderCart({ items: [], count: 0, total: 0 });
+  document.getElementById("checkout-btn").disabled = true;
+  document.getElementById("clear-cart-btn").disabled = true;
+  document.body.setAttribute("data-demo-ready", "");
+}
+
+var FALLBACK_PRODUCTS = function () {
+  return [
+    { sku: "kb-01", name: "机械键盘", price: 329, desc: "87 键热插拔，Gasket 结构" },
+    { sku: "mon-4k", name: "4K 显示器", price: 1999, desc: "27 英寸 IPS，Type-C 一线连" },
+    { sku: "chair-erg", name: "人体工学椅", price: 1299.9, desc: "可调腰靠与扶手，网布坐面" }
+  ];
+};
+
+// ── 渲染 ────────────────────────────────────────────────
+function renderProducts(query) {
+  var q = (query || "").toLowerCase();
+  var box = document.getElementById("products");
+  box.textContent = "";
+  var list = PRODUCTS.filter(function (p) {
+    return !q || (p.name + p.sku + p.desc).toLowerCase().indexOf(q) !== -1;
+  });
+  if (!list.length) {
+    var none = document.createElement("p");
+    none.className = "cart-empty";
+    none.textContent = "没有匹配「" + query + "」的商品。";
+    box.appendChild(none);
+    return;
+  }
+  list.forEach(function (p) {
+    var card = document.createElement("div");
+    card.className = "card";
+    card.setAttribute("data-sku", p.sku);
+    var h = document.createElement("h3"); h.textContent = p.name;
+    var sku = document.createElement("span"); sku.className = "sku"; sku.textContent = p.sku;
+    var price = document.createElement("span"); price.className = "price"; price.textContent = money(p.price);
+    var add = document.createElement("button"); add.className = "add"; add.textContent = "加入购物车";
+    add.disabled = OFFLINE;
+    add.onclick = function () { addToCart(p.sku); };
+    card.appendChild(h); card.appendChild(sku); card.appendChild(price); card.appendChild(add);
+    var d = document.createElement("p"); d.className = "desc"; d.textContent = p.desc;
+    card.appendChild(d);
+    box.appendChild(card);
+  });
+}
+
+function renderCart(cart) {
+  var box = document.getElementById("cart");
+  box.textContent = "";
+  if (!cart.items.length) {
+    var empty = document.createElement("div");
+    empty.className = "cart-empty";
+    empty.textContent = "购物车是空的——点商品右侧的「加入购物车」。";
+    box.appendChild(empty);
+  } else {
+    cart.items.forEach(function (l) {
+      var row = document.createElement("div");
+      row.className = "cart-row";
+      row.setAttribute("data-sku", l.sku);
+      var n = document.createElement("span"); n.className = "cname"; n.textContent = l.name;
+      var q = document.createElement("span"); q.className = "qty"; q.textContent = "× " + l.qty;
+      var s = document.createElement("span"); s.className = "subtotal"; s.textContent = money(l.subtotal);
+      var rm = document.createElement("button"); rm.className = "ghost"; rm.textContent = "移除";
+      rm.disabled = OFFLINE;
+      rm.onclick = function () { removeFromCart(l.sku); };
+      row.appendChild(n); row.appendChild(q); row.appendChild(s); row.appendChild(rm);
+      box.appendChild(row);
+    });
+  }
+  var sum = document.createElement("div");
+  sum.id = "cart-summary";
+  var c = document.createElement("span"); c.className = "count"; c.textContent = cart.count;
+  var t = document.createElement("span"); t.className = "total"; t.textContent = money(cart.total);
+  var checkout = document.createElement("button");
+  checkout.id = "checkout-btn"; checkout.textContent = "结算";
+  checkout.disabled = OFFLINE || !cart.items.length;
+  checkout.onclick = checkoutCart;
+  var clear = document.createElement("button");
+  clear.id = "clear-cart-btn"; clear.className = "ghost"; clear.textContent = "清空";
+  clear.disabled = OFFLINE || !cart.items.length;
+  clear.onclick = clearCart;
+  sum.appendChild(document.createTextNode(" "));
+  sum.appendChild(c); sum.appendChild(document.createTextNode(" 件 · 合计 "));
+  sum.appendChild(t); sum.appendChild(checkout); sum.appendChild(clear);
+  box.appendChild(sum);
+}
+
+function renderOrders(orders) {
+  var box = document.getElementById("orders");
+  box.textContent = "";
+  orders.forEach(function (o) {
+    var row = document.createElement("div");
+    row.className = "order-row";
+    row.setAttribute("data-oid", o.id);
+    var id = document.createElement("span"); id.className = "oid"; id.textContent = o.id;
+    var total = document.createElement("span"); total.className = "ototal"; total.textContent = money(o.total);
+    var time = document.createElement("span"); time.className = "otime";
+    time.textContent = new Date(o.created_at).toLocaleString();
+    var text = document.createElement("div"); text.className = "otext";
+    text.textContent = o.items.map(function (l) { return l.name + " × " + l.qty; }).join("、");
+    row.appendChild(id); row.appendChild(total); row.appendChild(time); row.appendChild(text);
+    box.appendChild(row);
+  });
+}
+
+// ── 业务动作（页面自己的交互；DPP 动作通过 click/fill 驱动这些） ──
+function refreshCart() {
+  return api("GET", "/demo/cart").then(renderCart).catch(function (e) { goOffline(e.message); });
+}
+
+function addToCart(sku) {
+  api("POST", "/demo/cart/items", { sku: sku, qty: 1 })
+    .then(renderCart)
+    .catch(function (e) { alert("加购失败：" + e.message); });
+}
+
+function removeFromCart(sku) {
+  api("DELETE", "/demo/cart/items/" + encodeURIComponent(sku))
+    .then(renderCart)
+    .catch(function (e) { alert("移除失败：" + e.message); });
+}
+
+function checkoutCart() {
+  api("POST", "/demo/orders", {})
+    .then(function (order) {
+      renderCart({ items: [], count: 0, total: 0 });
+      return refreshOrders().then(function () { return order; });
+    })
+    .then(function (order) {
+      if (!order) return;
+      // watch 是「0→正」跃迁语义：已有历史订单时新订单不产生边沿。
+      // SDK 的 emit 是精确事件、每次必达——两种通道并存，宿主侧 3s
+      // 去重会折叠掉同名的双发。
+      if (window.desire && window.desire.emit) {
+        window.desire.emit("order-placed", { id: order.id, total: order.total });
+      }
+    })
+    .catch(function (e) { alert("结算失败：" + e.message); });
+}
+
+function clearCart() {
+  api("GET", "/demo/cart").then(function (cart) {
+    var chain = Promise.resolve();
+    cart.items.forEach(function (l) {
+      chain = chain.then(function () {
+        return api("DELETE", "/demo/cart/items/" + encodeURIComponent(l.sku));
+      });
+    });
+    return chain.then(refreshCart);
+  }).catch(function (e) { goOffline(e.message); });
+}
+
+function refreshOrders() {
+  return api("GET", "/demo/orders").then(renderOrders);
+}
+
+function doSearch() {
+  renderProducts(document.getElementById("demo-search").value);
+}
+document.getElementById("demo-search-btn").onclick = doSearch;
+document.getElementById("demo-reset-btn").onclick = function () {
+  document.getElementById("demo-search").value = "";
+  renderProducts("");
+};
+document.getElementById("demo-search").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") doSearch();
+});
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "catalog",
+  page: { type: "catalog" },
+  content: { main: "#app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#products .loading" },
+  views: {
+    products: { item: "#products .card", fields: {
+      name: "h3",
+      sku: ".sku",
+      price: { selector: ".price", type: "price" },
+      desc: ".desc"
+    } },
+    cart: { item: "#cart .cart-row", empty: "#cart .cart-empty", fields: {
+      name: ".cname",
+      qty: { selector: ".qty", type: "number" },
+      subtotal: { selector: ".subtotal", type: "price" }
+    } },
+    totals: { item: "#cart-summary", fields: {
+      count: { selector: ".count", type: "number" },
+      total: { selector: ".total", type: "price" }
+    } },
+    orders: { item: "#orders .order-row", fields: {
+      id: ".oid",
+      total: { selector: ".ototal", type: "price" },
+      text: ".otext",
+      time: ".otime"
+    } }
+  },
+  actions: [
+    { name: "search-products", description: "按关键词过滤商品列表",
+      params: { query: { type: "string", required: true } },
+      run: [ { fill: { "#demo-search": "{query}" } }, { click: "#demo-search-btn" } ],
+      effects: "local" },
+    { name: "add-to-cart", description: "把一件商品加入购物车（sku 见 products 视图；重复调用可加多件）",
+      params: { sku: { type: "string", required: true } },
+      run: [ { click: ".card[data-sku='{sku}'] button.add" } ],
+      effects: "persist" },
+    { name: "checkout", description: "结算购物车：向演示服务提交订单并清空购物车（outbound 请求，会触发审批）",
+      run: [ { click: "#checkout-btn" } ],
+      effects: "outbound" },
+    { name: "clear-cart", description: "清空购物车（outbound 请求）",
+      run: [ { click: "#clear-cart-btn" } ],
+      effects: "outbound" },
+    { name: "open-github", description: "打开 Desire 的 GitHub 仓库",
+      run: [ { navigate: "https://github.com/browser-rs/Desire" } ],
+      effects: "local" }
+  ],
+  events: { "order-placed": { watch: ".order-row" } },
+  context: {
+    persona: "DPP 演示商店的访客助手：演示声明驱动的结构化读取、动作执行与事件驱动",
+    rules: "本页为协议演示页；商品为示例数据，下单只写入演示服务的内存，不是真实交易"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    // SDK 脚本加载失败（如离线）→ 降级为 L2 静态声明块，协议不丢
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  var loading = document.createElement("div");
+  loading.className = "loading";
+  loading.textContent = "正在从演示 API 读取商品…";
+  document.getElementById("products").appendChild(loading);
+  api("GET", "/demo/products").then(function (data) {
+    loading.remove();
+    PRODUCTS = data;
+    setStatus("on", "演示 API 已连接");
+    renderProducts("");
+    document.body.setAttribute("data-demo-ready", "");
+    refreshCart();
+    refreshOrders();
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
 </script>
-<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
 </body>
 </html>

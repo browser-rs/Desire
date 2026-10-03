@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod demo;
 pub mod remote;
 pub mod sync;
 
@@ -20,9 +21,17 @@ pub fn build_router(state: AppState) -> Router {
     .merge(remote::router())
     .layer(middleware::from_fn_with_state(state.clone(), jwt_auth));
 
+  // demo 演示场：公开 + 单独放行 CORS（网站 demo 页跨源调用）。
+  // 数据是无鉴权无 Cookie 的内存演示态，permissive CORS 无风险面；
+  // 不要把这层挂到 auth/sync 等真实 API 上。
+  let demo = Router::new()
+    .merge(demo::router())
+    .layer(tower_http::cors::CorsLayer::permissive());
+
   let root = Router::new()
     .route("/health", get(health))
     .merge(auth::public())
+    .merge(demo)
     .merge(protected);
   // OpenAPI 契约仅 dev 暴露(prod 不对外公开接口文档)
   let root = if matches!(state.config.env, crate::configs::Env::Dev) {

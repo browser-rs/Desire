@@ -92,7 +92,12 @@ pub async fn qr_status(
   }
   let (status, access_token, refresh_token, username) =
     auth_service::qr_status(&state, &ticket).await?;
-  api_ok!(QrStatusResp { status, access_token, refresh_token, username })
+  api_ok!(QrStatusResp {
+    status,
+    access_token,
+    refresh_token,
+    username
+  })
 }
 
 /// POST /auth/qr/scan —— 手机端扫码(鉴权):置"已扫码待确认"。

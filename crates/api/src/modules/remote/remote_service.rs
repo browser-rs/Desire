@@ -447,12 +447,18 @@ mod tests {
   #[test]
   fn mailbox_routing() {
     // 桌面发 → 控制器信箱;手机发 → 桌面信箱;快照 lane 独立
-    assert_eq!(Mailbox::for_sender("desktop", ""), Some(Mailbox::Controller));
+    assert_eq!(
+      Mailbox::for_sender("desktop", ""),
+      Some(Mailbox::Controller)
+    );
     assert_eq!(
       Mailbox::for_sender("desktop", "snapshot"),
       Some(Mailbox::ControllerSnap)
     );
-    assert_eq!(Mailbox::for_sender("controller", ""), Some(Mailbox::Desktop));
+    assert_eq!(
+      Mailbox::for_sender("controller", ""),
+      Some(Mailbox::Desktop)
+    );
     assert_eq!(Mailbox::for_sender("bogus", ""), None);
     assert_eq!(Mailbox::for_sender("controller", "snapshot"), None);
     // 控制器两条 lane 共用一个下行频道

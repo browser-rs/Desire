@@ -2,6 +2,8 @@
 ### Added
 
 Conversation history list gained an explicit multi-select mode: a Select button in the header (rows show leading check circles, clicking a row toggles it instead of opening, Esc or Done exits) plus a "Select" entry in the row context menu. Previously batch selection was only reachable via undiscoverable ⌘/⇧-click; plain ⌘-click multi-select still works.
+DPP demo page rebuilt into a working mini-store backed by new public in-memory endpoints (`/demo/products|cart|orders`, CORS-scoped, no DB) in the API: real cart and checkout flow, L3 SDK `desire.expose()` declaration with typed price/number fields, cart empty-state signal, `add-to-cart` by SKU selector template, `checkout`/`clear-cart` as `effects: "outbound"` actions (approval-flow demo), and `order-placed` events via both DOM watch and precise SDK `emit`. Falls back to read-only offline mode when the demo API is unreachable.
+
 
 ### Fixed
 

@@ -475,15 +475,16 @@ pub async fn qr_scan(state: &AppState, ticket: &str) -> Result<String, AppError>
   .execute(&state.pool)
   .await?;
   if res.rows_affected() == 0 {
-    return Err(AppError::Conflict("ticket already scanned or expired".into()));
+    return Err(AppError::Conflict(
+      "ticket already scanned or expired".into(),
+    ));
   }
-  let name: Option<String> = sqlx::query_scalar(
-    "SELECT desktop_name FROM auth_qr_logins WHERE ticket = ?",
-  )
-  .bind(ticket)
-  .fetch_optional(&state.pool)
-  .await?
-  .flatten();
+  let name: Option<String> =
+    sqlx::query_scalar("SELECT desktop_name FROM auth_qr_logins WHERE ticket = ?")
+      .bind(ticket)
+      .fetch_optional(&state.pool)
+      .await?
+      .flatten();
   Ok(name.unwrap_or_default())
 }
 
@@ -511,12 +512,11 @@ pub async fn qr_confirm(
   }
   // 手机端申报的 device_id 必须与桌面 create 时申报一致——refresh token
   // 绑定到桌面的设备行上(吊销该设备即可吊销这次扫码登录)
-  let desktop_device_id: String = sqlx::query_scalar(
-    "SELECT desktop_device_id FROM auth_qr_logins WHERE id = ?",
-  )
-  .bind(row.id)
-  .fetch_one(&state.pool)
-  .await?;
+  let desktop_device_id: String =
+    sqlx::query_scalar("SELECT desktop_device_id FROM auth_qr_logins WHERE id = ?")
+      .bind(row.id)
+      .fetch_one(&state.pool)
+      .await?;
   if let Some(d) = device {
     if !d.device_id.trim().is_empty() && d.device_id.trim() != desktop_device_id {
       return Err(AppError::Validation("device mismatch".into()));

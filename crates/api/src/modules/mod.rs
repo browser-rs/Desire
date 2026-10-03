@@ -1,3 +1,4 @@
 pub mod auth;
+pub mod demo;
 pub mod remote;
 pub mod sync;

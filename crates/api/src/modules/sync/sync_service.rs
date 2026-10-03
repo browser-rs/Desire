@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use chrono::{NaiveDateTime, Utc};
+use std::collections::HashMap;
 use tracing::warn;
 
 use crate::errors::AppError;
@@ -145,11 +145,7 @@ pub async fn push(
 
   // R2-23：现存行用**一条 IN 查询**取回（此前逐条 SELECT FOR UPDATE，400 条
   // 块 = 400 次语句往返；写路径保持逐行以维持 LWW 仲裁与冲突回包语义）。
-  let placeholders = items
-    .iter()
-    .map(|_| "?")
-    .collect::<Vec<_>>()
-    .join(", ");
+  let placeholders = items.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
   let existing_rows = sqlx::query_as::<_, SyncRowRaw>(sqlx::AssertSqlSafe(format!(
     "SELECT id, client_id, client_updated_at, deleted_at, \
      CAST(payload AS CHAR) AS payload_str, updated_at \

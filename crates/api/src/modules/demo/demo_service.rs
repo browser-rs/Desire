@@ -265,7 +265,7 @@ pub fn im_channels() -> Vec<DemoImChannel> {
   ]
 }
 
-fn im_channel_ok(channel: &str) -> bool {
+pub fn im_channel_ok(channel: &str) -> bool {
   im_channels().iter().any(|c| c.id == channel)
 }
 
@@ -307,11 +307,12 @@ pub async fn im_messages(
 /// 会话按 (channel, client_id) 隔离；机器人逻辑刻意无状态（招聘脚本
 /// 按该访客的消息条数推进阶段）——多实例 + 无 sticky 部署下也天然正确。
 pub async fn im_send(
-  pool: &MySqlPool,
+  state: &crate::types::AppState,
   client: &str,
   channel: &str,
   content: &str,
 ) -> Result<Vec<DemoImMessage>, AppError> {
+  let pool = &state.pool;
   if !im_channel_ok(channel) {
     return Err(AppError::NotFound(format!("频道不存在: {channel}")));
   }
@@ -353,18 +354,46 @@ pub async fn im_send(
   .bind(bot_id)
   .fetch_all(pool)
   .await?;
-  Ok(
-    rows
-      .into_iter()
-      .map(|(id, sender, content, created_at)| DemoImMessage {
-        id,
-        channel: channel.to_string(),
-        sender,
-        content,
-        created_at,
-      })
-      .collect(),
-  )
+  let messages: Vec<DemoImMessage> = rows
+    .into_iter()
+    .map(|(id, sender, content, created_at)| DemoImMessage {
+      id,
+      channel: channel.to_string(),
+      sender,
+      content,
+      created_at,
+    })
+    .collect();
+
+  // express：Redis 可用就 PUBLISH 给该访客频道的 WS 订阅者（尽力而为；
+  // 未配置 Redis = 纯轮询降级，是设计内状态）。演示数据非敏感，明文信封。
+  im_notify(state, client, channel, &messages).await;
+
+  Ok(messages)
+}
+
+/// WS 下行频道名：`demo-im:{channel}:{client}`（会话 per-visitor）。
+pub fn im_ws_channel(client: &str, channel: &str) -> String {
+  format!("demo-im:{channel}:{client}")
+}
+
+async fn im_notify(
+  state: &crate::types::AppState,
+  client: &str,
+  channel: &str,
+  messages: &[DemoImMessage],
+) {
+  let Some(conn) = &state.redis else { return };
+  let Ok(envelope) = serde_json::to_string(&serde_json::json!({
+    "channel": channel,
+    "messages": messages,
+  })) else {
+    return;
+  };
+  let _: Result<(), _> =
+    redis::AsyncCommands::publish(&mut conn.clone(), im_ws_channel(client, channel), envelope)
+      .await
+      .inspect_err(|e| tracing::warn!("demo im express publish: {e}"));
 }
 
 /// 客服关键词 + 招聘无状态脚本（按访客消息条数推进）。

@@ -207,6 +207,32 @@ function poll() {
   });
 }
 
+// WS 即时下行（服务端经 Redis express；未配 Redis 时服务端空转，靠轮询
+// 兜底——与远控模块同一架构）。轮询保留 2.5s 兜底，absorb 按 id 去重，
+// 双源天然合并。断线 5s 重连。
+var SOCKETS = {};
+function connectWS(channel) {
+  if (SOCKETS[channel]) return;
+  try {
+    var sock = new WebSocket(
+      API_BASE.replace(/^http/, "ws") +
+        "/demo/im/ws?channel=" + encodeURIComponent(channel) +
+        "&client=" + encodeURIComponent(clientId())
+    );
+    SOCKETS[channel] = sock;
+    sock.onmessage = function (ev) {
+      try {
+        var envelope = JSON.parse(ev.data);
+        absorb(envelope.channel, envelope.messages || []);
+      } catch (e) {}
+    };
+    sock.onclose = function () {
+      delete SOCKETS[channel];
+      if (!OFFLINE) setTimeout(function () { connectWS(channel); }, 5000);
+    };
+  } catch (e) {}
+}
+
 function switchChannel(id) {
   ACTIVE = id;
   renderTabs();
@@ -219,10 +245,11 @@ function send(text) {
   text = (text || document.getElementById("im-input").value).trim();
   if (!text) return;
   document.getElementById("im-input").value = "";
+  // absorb 内部已对"新增的 bot 消息"发 message-received——这里不要再发，
+  // 否则 POST 返回 + WS 帧同一条回复会双发事件（宿主 3s 去重能兜，但不干净）。
   api("POST", "/demo/im/messages", { channel: ACTIVE, content: text })
     .then(function (msgs) {
       absorb(ACTIVE, msgs);
-      emitNewBotMessages(msgs);
     })
     .catch(function (e) {
       if (!OFFLINE) alert("发送失败：" + e.message);
@@ -290,6 +317,7 @@ var DPP_DECL = {
     document.body.setAttribute("data-demo-ready", "");
     poll();
     setInterval(poll, 2500);
+    CHANNELS.forEach(function (c) { connectWS(c.id); });
   }).catch(function (e) {
     goOffline(e.message);
   });

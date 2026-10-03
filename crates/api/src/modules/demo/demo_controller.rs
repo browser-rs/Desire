@@ -2,11 +2,16 @@
 //! nginx 轮询无 sticky，演示态必须共享存储）、给 website/demo 的
 //! DPP 演示页用。不做 OpenAPI 注解：这不是产品 API 面，是协议演示场。
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use axum::Json;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use futures_util::StreamExt;
+use tokio::sync::mpsc;
 
 use crate::api_ok;
 use crate::errors::AppError;
@@ -125,7 +130,97 @@ pub async fn im_send(
   {
     return Err(AppError::RateLimited("发太快了，稍后再试".into()));
   }
-  api_ok!(demo_service::im_send(&state.pool, &client, body.channel.trim(), &body.content).await?)
+  api_ok!(demo_service::im_send(&state, &client, body.channel.trim(), &body.content).await?)
+}
+
+/// WS /demo/im/ws?channel=&client= —— 下行即时通道（照 remote 的 im_ws
+/// 模式，连接无状态可水平扩展）：每连接一条独立 Redis PubSub 订阅该
+/// 访客频道，任意实例 im_send 皆可达；服务端 20s Ping 保活，入站 Ping
+/// 显式回 Pong。未配置 Redis → PubSub 任务空转，客户端轮询兜底。
+/// 业务写入仍走 REST POST /demo/im/messages，WS 只做下行。
+pub async fn im_ws(
+  ws: WebSocketUpgrade,
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Query(params): Query<HashMap<String, String>>,
+) -> Response {
+  let _ = headers;
+  let channel = params.get("channel").cloned().unwrap_or_default();
+  let client = params.get("client").cloned().unwrap_or_default();
+  if !demo_service::im_channel_ok(&channel) {
+    return (StatusCode::BAD_REQUEST, "invalid channel").into_response();
+  }
+  if client.is_empty() || client.len() > 64 {
+    return (StatusCode::BAD_REQUEST, "invalid client").into_response();
+  }
+  ws.on_upgrade(move |socket| handle_im_socket(socket, state, client, channel))
+}
+
+async fn handle_im_socket(mut socket: WebSocket, state: AppState, client: String, channel: String) {
+  let topic = demo_service::im_ws_channel(&client, &channel);
+  let (tx, mut rx) = mpsc::channel::<String>(64);
+
+  // 每连接一条独立 PubSub（订阅模式与复用 ConnectionManager 互斥）；
+  // 未配置 Redis → 空转等待，信道靠轮询兜底。
+  let pubsub_task = {
+    let redis_url = state.config.redis_url.clone();
+    let tx = tx.clone();
+    let topic = topic.clone();
+    tokio::spawn(async move {
+      if redis_url.is_empty() {
+        std::future::pending::<()>().await;
+        return;
+      }
+      let Ok(redis_client) = redis::Client::open(redis_url.as_str()) else {
+        return;
+      };
+      let Ok(mut pubsub) = redis_client.get_async_pubsub().await else {
+        return;
+      };
+      if pubsub.subscribe(topic).await.is_err() {
+        return;
+      }
+      let mut msgs = pubsub.into_on_message();
+      while let Some(msg) = msgs.next().await {
+        let Ok(payload) = msg.get_payload::<String>() else {
+          continue;
+        };
+        if tx.send(payload).await.is_err() {
+          break;
+        }
+      }
+    })
+  };
+
+  let mut ping = tokio::time::interval(Duration::from_secs(20));
+  ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+  tracing::info!(channel = %channel, "demo im ws connected");
+  loop {
+    tokio::select! {
+      outbound = rx.recv() => {
+        let Some(text) = outbound else { break };
+        if socket.send(Message::Text(text.into())).await.is_err() {
+          break;
+        }
+      }
+      _ = ping.tick() => {
+        if socket.send(Message::Ping(vec![].into())).await.is_err() {
+          break;
+        }
+      }
+      inbound = socket.recv() => {
+        match inbound {
+          Some(Ok(Message::Ping(_))) => {
+            let _ = socket.send(Message::Pong(vec![].into())).await;
+          }
+          Some(Ok(Message::Close(_))) | None => break,
+          _ => {}
+        }
+      }
+    }
+  }
+  drop(pubsub_task);
+  tracing::info!(channel = %channel, "demo im ws disconnected");
 }
 
 // ── 论坛演示（发帖 / 点赞 / 评论） ────────────────────────

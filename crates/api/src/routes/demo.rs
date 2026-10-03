@@ -23,6 +23,7 @@ pub fn router() -> Router<AppState> {
       "/demo/im/messages",
       get(demo_controller::im_messages).post(demo_controller::im_send),
     )
+    .route("/demo/im/ws", get(demo_controller::im_ws))
     .route("/demo/forum/posts", get(demo_controller::forum_posts))
     .route("/demo/forum/posts", post(demo_controller::forum_create))
     .route(

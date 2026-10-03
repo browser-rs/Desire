@@ -155,6 +155,7 @@ class FakeLLM(BaseHTTPRequestHandler):
             elif "IMAGES" in mode_text: tool, args = "getImages", {"maxItems": 10}
             elif "LINKS" in mode_text: tool, args = "getPageLinks", {"maxItems": 10}
             elif "NETLOG" in mode_text: tool, args = "getNetworkLog", {"maxItems": 10}
+            elif "FEATURES" in mode_text: tool, args = "pageExtract", {"view": "features"}
             else: tool, args = "getComments", {"maxItems": 5}
             call = {"index": 0, "id": "call_misc_1", "type": "function",
                     "function": {"name": tool, "arguments": json.dumps(args)}}

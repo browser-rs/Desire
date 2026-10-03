@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
@@ -16,9 +17,27 @@ extension BrowserToolProvider {
             let maxElements = args["maxElements"] as? Int ?? 60
             let ignoreSelsJSON = (try? String(data: JSONEncoder().encode(
                 surface.tabManager?.selectedTab?.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
-            return await callAsync(webView, function: "__desireSnapshot",
+            let snapshot = await callAsync(webView, function: "__desireSnapshot",
                                    args: ["maxChars": maxChars, "maxElements": maxElements,
                                           "ignoreSels": ignoreSelsJSON])
+            // DPP 声明页：低效工具的返回里也提示结构化通道（实测模型在翻译/
+            // 总结类任务上会跳过 pageProtocol——让提示跟到最常用的工具上）。
+            // 先等解析落地（didFinish 异步任务，普通页面 <300ms；与 navigate
+            // 同款竞态——首个工具调用会比解析早到）
+            let ownTab = surface.tabManager?.tabs.first(where: { $0.browser.webView === webView })
+            var waited = 0
+            while waited < 8, ownTab?.browser.pageProtocolChecked == false {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                waited += 1
+            }
+            Log.agent.info("DPP snapshot hint: ownTab=\(ownTab != nil) checked=\(ownTab?.browser.pageProtocolChecked ?? false) proto=\(ownTab?.browser.effectiveProtocol != nil) selProto=\(surface.tabManager?.selectedTab?.browser.effectiveProtocol != nil) waits=\(waited)")
+            // hint 前置：工具消息统一 prefix(8000)，快照 JSON 本身 ~7KB——
+            // 追加在尾部会被截断剪掉（实测）。
+            if ownTab?.browser.effectiveProtocol != nil
+                || surface.tabManager?.selectedTab?.browser.effectiveProtocol != nil {
+                return "[DPP] This page declares a Desire Page Protocol — use pageProtocol to see it, pageExtract for structured data, pageAction for declared actions.\n" + snapshot
+            }
+            return snapshot
         case "readTab":
             // Cross-tab perception: snapshot another tab's page without
             // switching. Suspended tabs are blanked webviews — say so
@@ -47,7 +66,10 @@ extension BrowserToolProvider {
             let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
                                            args: ["maxChars": 6000, "maxElements": 25,
                                                   "ignoreSels": targetIgnoresJSON])
-            return "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
+            let dppNote = target.browser.effectiveProtocol != nil
+                ? "[DPP] This page declares a Desire Page Protocol — pageExtract for structured data.\n"
+                : ""
+            return dppNote + "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
 
         case "getPageText":
             // DPP contentMain：页面声明了正文选择器就只取正文（排除导航/

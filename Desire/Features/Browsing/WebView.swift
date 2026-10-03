@@ -1519,7 +1519,7 @@ struct WebView: NSViewRepresentable {
                 if !stored.warnings.isEmpty {
                     Log.agent.info("DPP parse warnings: \(stored.warnings.joined(separator: "; "), privacy: .public)")
                 }
-                Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public) actions=\(stored.actions.count, privacy: .public) events=\(stored.events.count, privacy: .public)")
+                Log.agent.info("DPP parse: ok url=\(webView.url?.absoluteString.prefix(90) ?? "?", privacy: .public) views=\(stored.views.count, privacy: .public) actions=\(stored.actions.count, privacy: .public) events=\(stored.events.count, privacy: .public) warnings=\(stored.warnings.count, privacy: .public)")
                 // 站点级声明（well-known）：页面确实声明了协议才拉取——渐进，
                 // 不把每次导航升级成站点指纹探针。
                 if parent.state.pageProtocol != nil {

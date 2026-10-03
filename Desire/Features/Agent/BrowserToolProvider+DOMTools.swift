@@ -710,14 +710,16 @@ extension BrowserToolProvider {
                   let actionName = args["name"] as? String,
                   let action = protocolSnapshot.actions.first(where: { $0.name == actionName }) else {
                 let available = dppTab.browser.effectiveProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
+                let currentURL = dppWebView.url?.absoluteString ?? "(unknown)"
                 return Self.fail(available.isEmpty
-                    ? "No DPP protocol or actions on this page"
+                    ? "No DPP protocol or actions on this page (currently at \(currentURL.prefix(120))) — if this action belongs to another tab, switchTab back to it first"
                     : "Unknown action. Available: \(available)")
             }
             // effects: outbound / danger: true 的强制审批不在本工具里做——
             // AgentSessionStore.effectiveRisk 在闸门处读取动作声明并升级为
             // .dangerous（协议声明能力 ≠ 授权，DPP-PROTOCOL §6.1）。
             let actionArgs = (args["args"] as? [String: Any]) ?? [:]
+            let actionURLBefore = dppWebView.url?.absoluteString
             // 必填参数校验（此前 params.required 只透传不校验）。
             if let params = action.params {
                 let missing = params
@@ -887,6 +889,14 @@ extension BrowserToolProvider {
                     break // 每步 dict 只有一个操作
                 }
             }
+            // 导航反馈（与 click 工具同款）：动作里的 click 可能触发页面跳转
+            //——实测模型点完 download-latest 后不知道页面已换，下一轮在新的
+            // 页面上调下一个动作直接报错。
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            var navNote = ""
+            if let after = dppWebView.url?.absoluteString, after != actionURLBefore {
+                navNote = " → navigated to \(after.prefix(160))"
+            }
             // DPP signals.busy：声明了忙碌信号就等它消失再判成败（spec §4.2
             // "click/fill 后检查 busy"——此前只做 success 文本检测）。
             var busyNote = ""
@@ -921,7 +931,7 @@ extension BrowserToolProvider {
                     arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
-            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)"
+            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)\(navNote)"
 
         case "pageProtocol":
             guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.effectiveProtocol else { return "This page does not declare a DPP protocol." }
@@ -1005,10 +1015,12 @@ extension BrowserToolProvider {
                 }
                 // 输出嵌在对象字面量的值位置——**不能**带 helper 前缀
                 //（多行 IIFE + 注释会炸语法）；helper 由 extractJS 外层注入一次。
+                // 文本路径折叠连续空白（HTML 源码换行会进 textContent——
+                // 实测抽取结果带 \n 脏数据）；属性值保持原样。
                 return "(function(el){var alts=[\(entries.joined(separator: ","))];" +
                     "for(var i=0;i<alts.length;i++){var t=alts[i];var v='';" +
-                    "if(t.s===''){v=(t.a===''||t.a==='text')?(el.textContent||'').trim():(el.getAttribute(t.a)||'');}" +
-                    "else{var e=__desireQueryOne(el,t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').trim():(e.getAttribute(t.a)||'');}}" +
+                    "if(t.s===''){v=(t.a===''||t.a==='text')?(el.textContent||'').replace(/\\s+/g,' ').trim():(el.getAttribute(t.a)||'');}" +
+                    "else{var e=__desireQueryOne(el,t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').replace(/\\s+/g,' ').trim():(e.getAttribute(t.a)||'');}}" +
                     "if(v)return v;}return '';})(item)"
             }
 

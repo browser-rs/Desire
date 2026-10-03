@@ -42,6 +42,42 @@ struct DesireProtocol: Codable, Equatable {
             && events.isEmpty && ignore.isEmpty && context.isEmpty
     }
 
+    /// 站点级（/.well-known/desire.json）与页面级声明合并：
+    /// **页面级优先**。字典类（views/signals/events/context）逐键合并——
+    /// 页面覆盖同名键、站点补齐独有键（站点页面地图与页面视图共存）；
+    /// actions 按动作名去重（页面在前）；ignore 取并集。
+    static func merged(site: DesireProtocol?, page: DesireProtocol?) -> DesireProtocol? {
+        switch (site, page) {
+        case (nil, nil): return nil
+        case (let s, nil): return s
+        case (nil, let p): return p
+        case (let s?, let p?):
+            var merged = p
+            for (name, view) in s.views where merged.views[name] == nil {
+                merged.views[name] = view
+            }
+            for (name, selector) in s.signals where merged.signals[name] == nil {
+                merged.signals[name] = selector
+            }
+            for (name, event) in s.events where merged.events[name] == nil {
+                merged.events[name] = event
+            }
+            let pageActionNames = Set(p.actions.map(\.name))
+            for action in s.actions where !pageActionNames.contains(action.name) {
+                merged.actions.append(action)
+            }
+            for selector in s.ignore where !merged.ignore.contains(selector) {
+                merged.ignore.append(selector)
+            }
+            merged.contentMain = merged.contentMain ?? s.contentMain
+            merged.pageType = merged.pageType ?? s.pageType
+            for (key, value) in s.context where merged.context[key] == nil {
+                merged.context[key] = value
+            }
+            return merged
+        }
+    }
+
     struct ProtocolView: Codable, Equatable {
         var item: String
         /// 字段映射：值语法 "selector"（text）/ "@attr"（本元素属性）/

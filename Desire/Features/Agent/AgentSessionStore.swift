@@ -937,7 +937,7 @@ class AgentSessionStore: ObservableObject {
         var result = "[Current page] \(title) — \(url.absoluteString)\n\(text)"
         // DPP 协议站点：注入结构化摘要 + **检测 events 命中**（事件信息附加
         // 到上下文，模型看到就知道页面有新审批/新消息等需要响应）。
-        if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.pageProtocol, !dpp.isEmpty {
+        if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol, !dpp.isEmpty {
             var dppLines: [String] = []
             if !dpp.views.isEmpty {
                 dppLines.append("Views (pageExtract): " + dpp.views.map { name, view -> String in
@@ -2140,7 +2140,7 @@ class AgentSessionStore: ObservableObject {
         guard toolCall.function.name == "pageAction",
               let args = try? JSONSerialization.jsonObject(with: Data(toolCall.function.arguments.utf8)) as? [String: Any],
               let name = args["name"] as? String,
-              let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.pageProtocol,
+              let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol,
               let action = dpp.actions.first(where: { $0.name == name }) else {
             return base
         }
@@ -2336,7 +2336,7 @@ class AgentSessionStore: ObservableObject {
         // pageAction：审批卡要说清"给哪个站点的哪个动作授权"——动作是
         // 站点声明的，用户需要看到声明里的描述与 effects 才能判断。
         if call.function.name == "pageAction", let name = dict["name"] as? String {
-            let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.pageProtocol
+            let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol
             let host = toolProvider.surface?.tabManager?.selectedTab?.browser.webView.url?.host ?? "?"
             if let action = dpp?.actions.first(where: { $0.name == name }) {
                 var line = "\(host) · \(name)"

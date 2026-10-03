@@ -21,14 +21,18 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│  站点级   /.well-known/desire.json          │  站点元信息/页面地图/登录/约束
+│  站点级   /.well-known/desire.json   ✅     │  站点元信息/页面地图/登录/约束
 ├─────────────────────────────────────────────┤
 │  页面级   <script type="application/       │  本页操作/视图/信号/事件/上下文
-│           /x-desire+json">                  │
+│           /x-desire+json">            ✅    │
 ├─────────────────────────────────────────────┤
 │  运行时   Desire 解析 → 缓存 → 注入 Agent  │  工具 + page_context + 审批
 └─────────────────────────────────────────────┘
 ```
+
+> 站点级声明仅在**页面自己声明了协议**时拉取（渐进原则——不把每次导航
+> 升级成站点指纹探针），页内同源 fetch，host 级缓存 10 分钟。合并语义：
+> 页面级优先；views/signals/events/context 逐键共存，actions 按名去重。
 
 ## 3. 接入形态（梯度采用）
 
@@ -186,7 +190,7 @@
 | `waitFor` | `"selector"` | 等待元素出现（最长 5s） | ✅ |
 | `hover` | `"selector"` | 悬停（派发 mouseover/mouseenter/mousemove） | ✅ |
 | `pressKey` | `"key"` | 向 activeElement 派发 keydown/keyup | ✅ |
-| `upload` | `{ "selector": "filePath" }` | 文件上传（需文件选择器授权路径） | ⬜ 明确报不支持 |
+| `upload` | `{ "selector": "filePath" }` | 文件上传（复用 UploadIntent：arm + 点击选择器自动提交） | ✅ |
 
 **模板变量**：`{参数名}` → 由 Desire 用 `args` 填充（如 `{keyword}` → `"DPP"`；选择器与值都填充）。
 **required 参数**缺失、**precondition** 选择器不存在 → 工具直接失败（带 `Error:` 前缀）。
@@ -437,9 +441,9 @@ Actions (pageAction): search
 
 | 限制 | 原因 | 计划 |
 |---|---|---|
-| 不支持 iframe 内元素 | 跨 frame 无 selector 语义 | 后续：`frame:` 前缀（宿主可经 frame API 跨源访问） |
-| `upload` 步骤不支持 | 需要文件选择器授权路径 | 按需（当前明确报错） |
-| L1 属性扫描不进 shadow DOM | 解析器只扫 light DOM（L2/L3 声明可用 `>>>`） | 按需 |
+| 跨源 iframe 不可穿透 | 同源已自动搜索；跨源需宿主 frame API | 后续：`frame:` 前缀 |
+| L1 属性扫描不进 shadow DOM/iframe | 解析器只扫 light DOM（L2/L3 声明可用 `>>>`，选择器自动搜同源 iframe） | 按需 |
+| well-known 仅同源 http(s) 页面 | 经页面内 fetch；file:// 等协议跳过 | 设计内 |
 | 审批白名单粒度 = 工具名 | outbound/danger 已强制逐次审批兜底 | 后续：per-(host, action) 放行 |
 | SDK 部署依赖产品页 | website/desire-sdk.js 随站点发布 | 用户部署时带上 |
 
@@ -484,3 +488,5 @@ Actions (pageAction): search
 ### 已提前落地（原三期项）
 - ✅ shadow DOM 穿透（`>>>` 语法，全链：views/字段/actions/信号/事件命中）
 - ✅ SDK 公开分发（`website/desire-sdk.js` → https://desire.mankong.icu/desire-sdk.js）
+- ✅ well-known 站点级声明（页面声明才拉取 + 页内同源 fetch + host 缓存 + 合并进单测）
+- ✅ `upload` 步骤（UploadIntent 原语）+ 同源 iframe 穿透（自动搜索 + `>>>` 中段）

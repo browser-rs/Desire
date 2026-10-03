@@ -1145,6 +1145,48 @@ func testDPPDecode() {
 }
 testDPPDecode()
 
+// ---------- DPP 站点级/页面级合并（well-known 分层语义） ----------
+
+func dppView(_ item: String) -> DesireProtocol.ProtocolView {
+    DesireProtocol.ProtocolView(item: item, fields: ["n": ".n"], pagination: nil)
+}
+
+func testDPPMerge() {
+    let site = DesireProtocol(pageType: nil, contentMain: "#site-main",
+                              views: ["siteNav": dppView(".site")],
+                              context: ["persona": "站点级人设", "tone": "简洁"])
+    let page = DesireProtocol(pageType: "chat", contentMain: nil,
+                              views: ["thread": dppView(".msg")],
+                              context: ["persona": "页面级人设"])
+    let merged = DesireProtocol.merged(site: site, page: page)
+    check("合并：页面缺省的 contentMain 取站点级", merged?.contentMain == "#site-main")
+    check("合并：页面级 view 保留", merged?.views["thread"] != nil)
+    check("合并：站点级 view 补齐", merged?.views["siteNav"] != nil)
+    check("合并：context 逐键覆盖（页面胜）", merged?.context["persona"] == "页面级人设")
+    check("合并：context 站点级键保留", merged?.context["tone"] == "简洁")
+    check("合并：页面 pageType 优先", merged?.pageType == "chat")
+
+    // 空侧与双空
+    check("合并：仅站点级", DesireProtocol.merged(site: site, page: nil)?.views["siteNav"] != nil)
+    check("合并：仅页面级", DesireProtocol.merged(site: nil, page: page)?.views["thread"] != nil)
+    check("合并：双空为 nil", DesireProtocol.merged(site: nil, page: nil) == nil)
+
+    // 同名动作去重（页面在前）；ignore 并集
+    let site2 = DesireProtocol(
+        ignore: [".ad"],
+        actions: [DesireProtocol.ProtocolAction(name: "search", run: nil),
+                  DesireProtocol.ProtocolAction(name: "site-only", run: nil)])
+    let page2 = DesireProtocol(
+        ignore: [".nav"],
+        actions: [DesireProtocol.ProtocolAction(name: "search", run: nil)])
+    let m2 = DesireProtocol.merged(site: site2, page: page2)
+    let actionNames = m2?.actions.map { $0.name } ?? []
+    eq("合并：同名动作不重复（页面版胜出）", actionNames, ["search", "site-only"])
+    let ignoreUnion = m2?.ignore ?? []
+    eq("合并：ignore 并集", ignoreUnion, [".nav", ".ad"])
+}
+testDPPMerge()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

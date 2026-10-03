@@ -82,6 +82,13 @@ class BrowserState: ObservableObject {
     /// 区分"还没解析完"和"解析了、无协议"——navigate 的 signals.ready 等
     /// 待靠它避免给每个普通页面白加延迟。
     var pageProtocolChecked = false
+    /// DPP 站点级声明（`/.well-known/desire.json`，仅在页面声明了协议时
+    /// 拉取——渐进，不把每次导航升级成站点指纹探针）。消费走 effectiveProtocol。
+    var siteProtocol: DesireProtocol? = nil
+    /// 站点级 + 页面级合并视图：页面级字段优先，context 逐键覆盖。
+    var effectiveProtocol: DesireProtocol? {
+        DesireProtocol.merged(site: siteProtocol, page: pageProtocol)
+    }
     /// 插件消息 handler（extensionWorld + per-plugin world）是否已注册——
     /// Coordinator.observe() 置位、stopObserving() 复位。新 webview 的首次
     /// 加载可能快于 SwiftUI 建 representable，内容脚本此时 postMessage 会
@@ -1282,9 +1289,11 @@ struct WebView: NSViewRepresentable {
             parent.state.mixedContentScripts = 0
             parent.state.pendingOTPHint = nil
             // DPP 协议属旧页：不清的话，didFinish 的异步解析完成前 pageAction
-            // 可能拿到上一页的动作声明在新区执行（导航竞态）。
+            // 可能拿到上一页的动作声明在新区执行（导航竞态）。站点级同理
+            //（旧 host 的站点声明不能漏到新 host 的页面上）。
             parent.state.pageProtocol = nil
             parent.state.pageProtocolChecked = false
+            parent.state.siteProtocol = nil
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -1396,6 +1405,55 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        /// well-known 站点级声明缓存（host → 结果 + 抓取时间，10 分钟 TTL；
+        /// 失败也缓存——404/离线不重试风暴）。
+        static var siteProtocolCache: [String: (proto: DesireProtocol?, at: Date)] = [:]
+
+        /// 拉取 `/.well-known/desire.json`（spec §2 站点级层）。页面级协议
+        /// 已存在才会被调用；结果进 state.siteProtocol（消费走 effectiveProtocol）。
+        private func fetchSiteProtocolIfNeeded(for webView: WKWebView) {
+            guard let url = webView.url, let host = url.host, !host.isEmpty,
+                  url.scheme == "https" || url.scheme == "http" else { return }
+            if let cached = Self.siteProtocolCache[host],
+               Date().timeIntervalSince(cached.at) < 600 {
+                parent.state.siteProtocol = cached.proto
+                return
+            }
+            Self.siteProtocolCache[host] = (nil, Date())
+            // 用页面内同源 fetch（继承 WebKit 的网络路径）——URLSession 会吃
+            // 系统代理（用户机器上有代理时连 127.0.0.1 都不通，实测踩过）。
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                var proto: DesireProtocol? = nil
+                do {
+                    let raw = try await webView.callAsyncJavaScript(
+                        """
+                        return (async function(){
+                          try {
+                            var r = await fetch('/.well-known/desire.json', {cache: 'no-store'});
+                            if (!r.ok) return null;
+                            return await r.text();
+                          } catch (e) { return null; }
+                        })()
+                        """,
+                        arguments: [:], in: nil, contentWorld: .page)
+                    if let text = raw as? String,
+                       let decoded = try? JSONDecoder().decode(DesireProtocol.self, from: Data(text.utf8)),
+                       !decoded.isEmpty {
+                        proto = decoded
+                        Log.agent.info("DPP site protocol loaded: \(host, privacy: .public) views=\(decoded.views.count, privacy: .public) actions=\(decoded.actions.count, privacy: .public)")
+                    }
+                } catch {
+                    Log.agent.info("DPP site protocol fetch failed: \(error.localizedDescription, privacy: .public)")
+                }
+                Self.siteProtocolCache[host] = (proto, Date())
+                // 只对还停在该 host 的页面生效
+                if self.parent.state.webView.url?.host == host {
+                    self.parent.state.siteProtocol = proto
+                }
+            }
+        }
+
         /// SPA 重新 expose 的防抖重解析任务（desireProtocolControl 消息）。
         private var reparseTask: Task<Void, Never>?
 
@@ -1433,6 +1491,11 @@ struct WebView: NSViewRepresentable {
                     Log.agent.info("DPP parse warnings: \(stored.warnings.joined(separator: "; "), privacy: .public)")
                 }
                 Log.agent.info("DPP parse: ok views=\(stored.views.count, privacy: .public) actions=\(stored.actions.count, privacy: .public) events=\(stored.events.count, privacy: .public)")
+                // 站点级声明（well-known）：页面确实声明了协议才拉取——渐进，
+                // 不把每次导航升级成站点指纹探针。
+                if parent.state.pageProtocol != nil {
+                    fetchSiteProtocolIfNeeded(for: webView)
+                }
             } catch {
                 // 容错解码后仍到这里 = JSON 本身坏了（而非字段结构不符）。
                 Log.agent.info("DPP decode error: \(error.localizedDescription, privacy: .public) raw=\(raw.prefix(200), privacy: .public)")

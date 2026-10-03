@@ -806,7 +806,7 @@ final class AutomationServer {
                 return try Self.json(Self.passwords())
             case ("GET", "/protocol/inspect"):
                 guard let session = AgentScheduler.shared.deliveryTarget,
-                      let dpp = session.boundTabManager?.selectedTab?.browser.pageProtocol else {
+                      let dpp = session.boundTabManager?.selectedTab?.browser.effectiveProtocol else {
                     return try Self.json(["declared": false])
                 }
                 var views: [String: Any] = [:]
@@ -826,6 +826,7 @@ final class AutomationServer {
                     "context": dpp.context,
                     "warnings": dpp.warnings,
                     "eventMode": PageEventHub.shared.mode(for: dppHost),
+                    "siteLevel": session.boundTabManager?.selectedTab?.browser.siteProtocol != nil,
                 ])
             case ("GET", "/dpp/modes"):
                 return try Self.json(["modes": PageEventHub.shared.siteModes])

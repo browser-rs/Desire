@@ -26,6 +26,10 @@ DPP signals 行为接线（spec §4.2 承诺落地）：`navigate` 在页面声�
 DPP 二期补完：SPA 路由变化的协议重解析（desire-sdk.js `expose()` 经 `desireProtocolControl` 消息通知宿主，250ms 防抖合并连续 expose——此前重新声明永远不会进缓存）；`pageExtract(all=true)` 支持 `pagination.type: "infinite"` 无限滚动（滚到底收集、序列化去重、连续两轮无新增即到底）；DPP 审批闸门真机 E2E（假端点逼 danger pageAction 全链 20 项断言：审批挂起/挂起期间未执行/deny 后仍未执行/allow_once 后执行且 success 信号检测/local 动作在 autoEdit 下不受影响）。
 DPP shadow DOM 穿透选择器（`>>>` 语法）：WebKit querySelector 不穿透 shadow boundary，宿主侧按段下钻 shadowRoot——views 的 item/字段、pageAction 的 fill/click/select/hover/waitFor、precondition、signals.ready/busy、事件命中检测全链支持（`"app-grid >>> product-card >>> .price"`；字段相对 item 的 shadowRoot 用前导 `>>>`）。配套修正：字段值 JS 曾把多行辅助函数嵌进对象字面量值位置（语法必炸，构建验不出——探针抓到）。
 DPP 事件驱动回合真机 E2E 全链打通（8 项断言：跳变上报 → PageEventHub auto 档自动开回合 → 模型收到 "[DPP Event]" 消息并回包 → 防抖风暴防护）；DPP L3 SDK 公开分发（website/desire-sdk.js，随产品页部署为 https://desire.mankong.icu/desire-sdk.js）。
+DPP 站点级声明（spec §2 顶层落地）：页面声明协议时宿主经**页面内同源 fetch** 拉取 `/.well-known/desire.json`（URLSession 会吃系统代理——用户机器上连 127.0.0.1 都不通，实测踩过；页内 fetch 继承 WebKit 网络路径无此问题），host 级 10 分钟缓存；合并语义 = 字典类（views/signals/events/context）逐键、页面级覆盖站点级，actions 按名去重（页面在前）、ignore 并集（进纯逻辑单测）；12 处消费点切到合并视图 `effectiveProtocol`，/protocol/inspect 增加 siteLevel 标记，pageProtocol 工具注明站点级来源。
+DPP upload 步骤落地（复用既有 UploadIntent 原语：arm 文件 + 点击选择器 → openPanel 钩子自动提交面板，真机 E2E 验证文件真实交付给页面）；同源 iframe 穿透：选择器自动搜索同源 iframe 文档（collectDocs 递归、跨源跳过），`>>>` 中段遇到 iframe 时下钻其 contentDocument。
+
+
 
 
 

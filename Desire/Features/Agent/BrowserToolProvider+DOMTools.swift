@@ -697,10 +697,10 @@ extension BrowserToolProvider {
                 return Self.fail("The tab holding this DPP page is suspended — switchTab to it first, then retry")
             }
             let dppWebView = dppTab.browser.webView
-            guard let protocolSnapshot = dppTab.browser.pageProtocol,
+            guard let protocolSnapshot = dppTab.browser.effectiveProtocol,
                   let actionName = args["name"] as? String,
                   let action = protocolSnapshot.actions.first(where: { $0.name == actionName }) else {
-                let available = dppTab.browser.pageProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
+                let available = dppTab.browser.effectiveProtocol?.actions.map(\.name).joined(separator: ", ") ?? ""
                 return Self.fail(available.isEmpty
                     ? "No DPP protocol or actions on this page"
                     : "Unknown action. Available: \(available)")
@@ -841,10 +841,21 @@ extension BrowserToolProvider {
                                 "el.dispatchEvent(new KeyboardEvent(t, {key: \(keyLit), bubbles: true}));}); 'ok'")
                             executed.append("pressed \(value)")
                         case "upload":
-                            // 需要文件选择器授权路径，宿主尚未支持——明确失败
-                            // 而不是静默跳过让模型误以为成功。
-                            throw NSError(domain: "dpp", code: 2,
-                                          userInfo: [NSLocalizedDescriptionKey: "upload step is not supported by the host yet"])
+                            // 复用既有 UploadIntent 原语（setUploadFile 的机制）：
+                            // arm 文件 + 点击选择器 → openPanel 钩子自动提交面板。
+                            // 信任边界与 setUploadFile 一致（页面动作已被闸门审过）。
+                            let uploadURL = URL(fileURLWithPath: (value as NSString).expandingTildeInPath)
+                            guard FileManager.default.fileExists(atPath: uploadURL.path) else {
+                                throw NSError(domain: "dpp", code: 3, userInfo: [NSLocalizedDescriptionKey: "upload file not found: \(uploadURL.path)"])
+                            }
+                            UploadIntent.shared.arm([uploadURL])
+                            let uploadSelLit = JSString.literal(selector)
+                            try await runStepJS(
+                                DPPQuery.helperJS +
+                                "\nvar el = __desireQueryAll(\(uploadSelLit))[0];" +
+                                "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
+                                "el.click(); 'ok'")
+                            executed.append("uploaded \(uploadURL.path) via \(selector)")
                         default:
                             throw NSError(domain: "dpp", code: 2,
                                           userInfo: [NSLocalizedDescriptionKey: "unknown step op: \(op)"])
@@ -886,8 +897,9 @@ extension BrowserToolProvider {
             return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)"
 
         case "pageProtocol":
-            guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.pageProtocol else { return "This page does not declare a DPP protocol." }
-            var lines = ["Protocol: \(protocolSnapshot.protocolVersion)"]
+            guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.effectiveProtocol else { return "This page does not declare a DPP protocol." }
+            let siteLevel = surface.tabManager?.selectedTab?.browser.siteProtocol != nil
+            var lines = ["Protocol: \(protocolSnapshot.protocolVersion)\(siteLevel ? " (includes site-level /.well-known/desire.json declarations)" : "")"]
             if let main = protocolSnapshot.contentMain { lines.append("Main content: \(main)") }
             if !protocolSnapshot.views.isEmpty {
                 lines.append("Views (use pageExtract):")
@@ -922,9 +934,9 @@ extension BrowserToolProvider {
                 return Self.fail("The tab holding this DPP page is suspended — switchTab to it first, then retry")
             }
             let dppWebView = dppTab.browser.webView
-            let availableViews = dppTab.browser.pageProtocol?.views.keys.sorted().joined(separator: ", ") ?? ""
+            let availableViews = dppTab.browser.effectiveProtocol?.views.keys.sorted().joined(separator: ", ") ?? ""
             guard let viewName = args["view"] as? String,
-                  let view = dppTab.browser.pageProtocol?.views[viewName] else {
+                  let view = dppTab.browser.effectiveProtocol?.views[viewName] else {
                 return Self.fail(availableViews.isEmpty
                     ? "No DPP protocol on this page"
                     : "Unknown view. Available: \(availableViews)")

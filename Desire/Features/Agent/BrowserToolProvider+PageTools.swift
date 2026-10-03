@@ -46,7 +46,7 @@ extension BrowserToolProvider {
         case "getPageText":
             // DPP contentMain：页面声明了正文选择器就只取正文（排除导航/
             // 页脚噪音）；选择器落空时回退 body（声明不可信时不比原来差）。
-            if let main = surface.tabManager?.selectedTab?.browser.pageProtocol?.contentMain,
+            if let main = surface.tabManager?.selectedTab?.browser.effectiveProtocol?.contentMain,
                !main.isEmpty {
                 let mainLit = JSString.literal(main)
                 let text = await eval(webView, """
@@ -229,7 +229,7 @@ extension BrowserToolProvider {
             // ② 视图/动作提示与 ready 共用这份协议。
             var dpp: DesireProtocol? = nil
             for _ in 0..<10 {
-                dpp = targetManager.tabs.first(where: { $0.browser.webView === webView })?.browser.pageProtocol
+                dpp = targetManager.tabs.first(where: { $0.browser.webView === webView })?.browser.effectiveProtocol
                 if dpp != nil { break }
                 if targetTab?.browser.pageProtocolChecked == true { break }
                 try? await Task.sleep(nanoseconds: 200_000_000)

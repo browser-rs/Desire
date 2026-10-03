@@ -1,79 +1,87 @@
 import SwiftUI
 
-/// 悬浮球视图：收起 = 52pt 渐变圆球（呼吸 + 录音红脉冲）；点击展开操作条；
-/// 拖动经回调驱动面板移动（拖动阈值 5pt，以内算点击）。面板命中规则见
-/// `AgentBallHostingView`（透明区域穿透，球/菜单可点）。
+/// 悬浮球视图。视觉：墨黑玻璃球（呼应品牌"墨与朱"）——深色渐变底、
+/// 顶部高光、细白环，点缀朱砂；录音态整球转朱砂红脉冲；忙碌态朱砂
+/// 进度环。展开操作条为黑玻璃白字卡片，spring 弹出。
 struct AgentBallView: View {
     @ObservedObject var panel: AgentBallPanel
     @ObservedObject var voice: VoiceInputManager
-    @State private var dragTilt: Double = 0
-    @State private var lastTapTime: Date?
     @Environment(\.appAccent) private var appAccent: Color
 
     @State private var dragStart: CGPoint?
     @State private var dragged = false
-
-    private let ballSize: CGFloat = 52
-    /// 球在面板内的 x（吸附侧）：面板宽 240，左缘球贴左、右缘球贴右。
-    private var ballAlignedRight: Bool {
-        UserDefaults.standard.string(forKey: AgentBallPanel.edgeKey) != "left"
-    }
-
+    @State private var dragTilt: Double = 0
+    @State private var lastTapTime: Date?
+    @AppStorage(AgentBallPanel.sizeKey) private var ballSize: Double = 52
+    @State private var hoverScale: CGFloat = 1.0
+    @State private var pulse: CGFloat = 1.0
     @State private var ringRotation: Double = 0
 
+    // 墨与朱
+    private var inkTop: Color { Color(red: 0.18, green: 0.18, blue: 0.19) }
+    private var inkBottom: Color { Color(red: 0.07, green: 0.07, blue: 0.08) }
+    private var vermilion: Color { Color(red: 0.88, green: 0.25, blue: 0.12) }
+
     var body: some View {
-        ZStack(alignment: ballAlignedRight ? .topTrailing : .topLeading) {
+        ZStack(alignment: .bottom) {
             if panel.isExpanded {
                 menuCard
                     .transition(.asymmetric(
-                        insertion: .scale(scale: 0.6, anchor: .trailing).combined(with: .opacity),
+                        insertion: .scale(scale: 0.7, anchor: .bottom).combined(with: .opacity),
                         removal: .opacity))
             }
             ball
         }
+        .frame(width: panelWidth, height: panelHeight, alignment: .bottom)
         .onAppear {
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                pulse = 1.04
+            }
             withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
                 ringRotation = 360
             }
         }
-        .frame(width: 240, height: 420, alignment: ballAlignedRight ? .topTrailing : .topLeading)
-        .allowsHitTesting(true)
     }
+
+    private var panelWidth: CGFloat { max(240, ballSize + 188) }
+    private var panelHeight: CGFloat { ballSize + 176 }
 
     // MARK: - 球
 
     private var ball: some View {
         ZStack {
-            // Agent 处理中：旋转进度环
+            // 忙碌：朱砂进度环
             if panel.agentBusy {
                 Circle()
-                    .trim(from: 0, to: 0.75)
-                    .stroke(appAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .trim(from: 0, to: 0.72)
+                    .stroke(vermilion, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .frame(width: ballSize + 12, height: ballSize + 12)
                     .rotationEffect(.degrees(ringRotation))
             }
-            if voice.isRecording {
-                Circle()
-                    .stroke(Color.red.opacity(0.5), lineWidth: 2)
-                    .frame(width: ballSize + 14, height: ballSize + 14)
-                    .scaleEffect(voice.isRecording ? 1.0 : 0.8)
-                    .opacity(voice.isRecording ? 0.9 : 0.2)
-                    .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: voice.isRecording)
-            }
+            // 录音：整球转朱砂
             Circle()
                 .fill(
                     LinearGradient(
                         colors: voice.isRecording
-                            ? [Color.red, Color.red.opacity(0.65)]
-                            : [appAccent, appAccent.opacity(0.62)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing))
-                .shadow(color: (voice.isRecording ? Color.red : appAccent).opacity(0.45),
-                        radius: voice.isRecording ? 10 : 6, y: 2)
+                            ? [vermilion, vermilion.opacity(0.72)]
+                            : [inkTop, inkBottom],
+                        startPoint: .top, endPoint: .bottom))
+            // 顶部高光（玻璃感——上半弧内渐隐白）
+            Circle()
+                .fill(
+                    LinearGradient(colors: [.white.opacity(0.16), .white.opacity(0)],
+                                   startPoint: .top, endPoint: .center))
+                .padding(1.5)
+            // 细白环
+            Circle()
+                .strokeBorder(.white.opacity(voice.isRecording ? 0.32 : 0.16), lineWidth: 0.75)
             Image(systemName: voice.isRecording ? "mic.fill" : "sparkles")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: ballSize * 0.34, weight: .medium))
                 .foregroundStyle(.white)
         }
         .frame(width: ballSize, height: ballSize)
+        .shadow(color: .black.opacity(voice.isRecording ? 0.4 : 0.3),
+                radius: voice.isRecording ? 10 : 7, y: 3)
         .scaleEffect(hoverScale * pulse)
         .rotationEffect(.degrees(dragTilt))
         .contentShape(Circle())
@@ -82,36 +90,26 @@ struct AgentBallView: View {
             Divider()
             Button("隐藏悬浮球") { panel.setEnabled(false) }
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                pulse = 1.05
-            }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) { hoverScale = hovering ? 1.07 : 1.0 }
         }
         .gesture(dragGesture)
-        .onHover { hovering in
-            // hover 实感：微放大
-            withAnimation(.easeInOut(duration: 0.15)) {
-                hoverScale = hovering ? 1.08 : 1.0
-            }
-        }
     }
 
-    @State private var hoverScale: CGFloat = 1.0
-    @State private var pulse: CGFloat = 1.0
-
-    // MARK: - 展开菜单
+    // MARK: - 操作条（黑玻璃白字）
 
     private var menuCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             if voice.isRecording {
                 transcriptChip
+                    .padding(.bottom, 4)
             }
             actionRow(icon: "bubble.left.and.text.bubble.right", title: "Agent 对话") {
                 panel.openAgentPanel()
             }
-            actionRow(icon: voice.isRecording ? "stop.circle" : "mic.fill",
+            actionRow(icon: voice.isRecording ? "stop.circle.fill" : "mic.fill",
                       title: voice.isRecording ? "停止并发送" : "语音输入",
-                      tint: voice.isRecording ? .red : nil) {
+                      tint: voice.isRecording ? vermilion : nil) {
                 panel.voice.toggle()
             }
             actionRow(icon: "doc.text.magnifyingglass", title: "总结本页") {
@@ -123,33 +121,36 @@ struct AgentBallView: View {
             if let sent = panel.voiceTranscriptSent {
                 Text("已发送：\(sent.prefix(24))")
                     .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.white.opacity(0.4))
                     .lineLimit(1)
+                    .padding(.top, 2)
             }
         }
         .padding(10)
-        .frame(width: 212)
+        .frame(width: panelWidth - 4)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.72))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.28), radius: 12, y: 4)
         )
     }
 
     private var transcriptChip: some View {
         HStack(spacing: 6) {
-            Circle().fill(Color.red).frame(width: 6, height: 6)
+            Circle().fill(vermilion).frame(width: 6, height: 6)
             Text(voice.transcribedText.isEmpty ? "聆听中…" : voice.transcribedText)
                 .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.92))
                 .lineLimit(2)
-                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .frame(width: 192, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.08)))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.08)))
     }
 
     private func actionRow(icon: String, title: String, tint: Color? = nil,
@@ -157,25 +158,24 @@ struct AgentBallView: View {
         Button {
             action()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 9) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(tint ?? appAccent)
+                    .foregroundStyle(tint ?? vermilion)
                     .frame(width: 16)
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.92))
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.clear))
     }
 
-    // MARK: - 拖动（阈值内 = 点击展开/收起）
+    // MARK: - 拖动（阈值内 = 点击展开/收起；双击 = 直达语音）
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
@@ -187,7 +187,6 @@ struct AgentBallView: View {
                     if abs(dx) > 4 || abs(dy) > 4 { dragged = true }
                     if dragged {
                         panel.moveBy(dx: dx, dy: -dy)
-                        // 拖动倾斜：随水平速度倾斜，松手回正
                         let tilt = max(-14, min(14, value.velocity.width / 28))
                         withAnimation(.easeOut(duration: 0.08)) { dragTilt = tilt }
                     }
@@ -218,14 +217,5 @@ struct AgentBallView: View {
                     }
                 }
             }
-    }
-}
-
-/// 透明面板命中穿透：只有球/菜单等**子视图**接收事件，透明背景让点击
-/// 落到下层网页（悬浮球不遮窗口交互的关键）。
-final class AgentBallHostingView: NSHostingView<AgentBallView> {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let hit = super.hitTest(point)
-        return hit === self ? nil : hit
     }
 }

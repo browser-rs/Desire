@@ -8,8 +8,9 @@ use chrono::NaiveDateTime;
 use sqlx::MySqlPool;
 
 use super::demo_model::{
-  DemoCartLine, DemoCartSnapshot, DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage,
-  DemoOrder, DemoProduct, LikeResult,
+  DemoArticle, DemoArticlesPage, DemoBooking, DemoCartLine, DemoCartSnapshot, DemoForumComment,
+  DemoForumPost, DemoImChannel, DemoImMessage, DemoMetric, DemoOrder, DemoProduct, DemoSlot,
+  DemoSlotsResp, DemoStats, LikeResult,
 };
 use crate::errors::AppError;
 
@@ -643,5 +644,223 @@ pub async fn forum_comment(
     post_id,
     content: content.to_string(),
     created_at: created_at.0,
+  })
+}
+
+// ── 预约演示（date/bool 字段 + 唯一约束 409 双订保护） ─────
+
+/// 固定时段表（演示）。
+pub const BOOKING_SLOTS: [&str; 6] = ["10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
+
+fn valid_booking_date(date: &str) -> bool {
+  // YYYY-MM-DD 且是真实日期
+  let parts: Vec<&str> = date.split('-').collect();
+  if parts.len() != 3 {
+    return false;
+  }
+  let (Ok(y), Ok(m), Ok(d)) = (
+    parts[0].parse::<i32>(),
+    parts[1].parse::<u32>(),
+    parts[2].parse::<u32>(),
+  ) else {
+    return false;
+  };
+  (1..=12).contains(&m) && (1..=31).contains(&d) && (2020..=2100).contains(&y)
+}
+
+pub async fn booking_slots(pool: &MySqlPool, date: &str) -> Result<DemoSlotsResp, AppError> {
+  if !valid_booking_date(date) {
+    return Err(AppError::Validation("日期格式须为 YYYY-MM-DD".into()));
+  }
+  let taken: Vec<(String,)> =
+    sqlx::query_as("SELECT slot FROM demo_bookings WHERE booking_date = ?")
+      .bind(date)
+      .fetch_all(pool)
+      .await?;
+  let taken: Vec<String> = taken.into_iter().map(|(s,)| s).collect();
+  Ok(DemoSlotsResp {
+    date: date.to_string(),
+    slots: BOOKING_SLOTS
+      .iter()
+      .map(|t| DemoSlot {
+        time: t.to_string(),
+        available: !taken.contains(&t.to_string()),
+      })
+      .collect(),
+  })
+}
+
+/// 预约：唯一约束 (booking_date, slot) 兜底双订——sqlx 唯一键冲突
+/// 自动映射 409（errors.rs 的 From<sqlx::Error>）。
+pub async fn booking_book(
+  pool: &MySqlPool,
+  client: &str,
+  date: &str,
+  slot: &str,
+  name: &str,
+) -> Result<DemoBooking, AppError> {
+  if !valid_booking_date(date) {
+    return Err(AppError::Validation("日期格式须为 YYYY-MM-DD".into()));
+  }
+  if !BOOKING_SLOTS.contains(&slot) {
+    return Err(AppError::Validation(format!("时段无效: {slot}")));
+  }
+  let name = name.trim();
+  if name.is_empty() || name.len() > 64 {
+    return Err(AppError::Validation("姓名须为 1-64 字节".into()));
+  }
+  sqlx::query(
+    "INSERT INTO demo_bookings (client_id, booking_date, slot, guest_name) VALUES (?, ?, ?, ?)",
+  )
+  .bind(client)
+  .bind(date)
+  .bind(slot)
+  .bind(name)
+  .execute(pool)
+  .await?;
+  let (id, created_at): (i64, NaiveDateTime) =
+    sqlx::query_as("SELECT id, created_at FROM demo_bookings WHERE booking_date = ? AND slot = ?")
+      .bind(date)
+      .bind(slot)
+      .fetch_one(pool)
+      .await?;
+  Ok(DemoBooking {
+    id,
+    date: date.to_string(),
+    slot: slot.to_string(),
+    guest: name.to_string(),
+    created_at,
+  })
+}
+
+pub async fn bookings_mine(pool: &MySqlPool, client: &str) -> Result<Vec<DemoBooking>, AppError> {
+  // DATE 列不能直接解到 String——SQL 里格式化成文本（YYYY-MM-DD）
+  let rows: Vec<(i64, String, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, DATE_FORMAT(booking_date, '%Y-%m-%d'), slot, guest_name, created_at
+     FROM demo_bookings WHERE client_id = ? ORDER BY id DESC LIMIT 20",
+  )
+  .bind(client)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(|(id, date, slot, guest, created_at)| DemoBooking {
+        id,
+        date,
+        slot,
+        guest,
+        created_at,
+      })
+      .collect(),
+  )
+}
+
+// ── 资讯演示（确定性合成，无表 → 分布式天然一致） ─────────
+
+const NEWS_CATEGORIES: [&str; 4] = ["产品", "技术", "社区", "公告"];
+
+pub fn news_page(page: u32) -> DemoArticlesPage {
+  let per_page = 6u32;
+  let total = 24u32;
+  let total_pages = total.div_ceil(per_page);
+  let page = page.clamp(1, total_pages);
+  let start = (page - 1) * per_page;
+  let base = chrono::Utc::now().date_naive();
+  let items = (start..(start + per_page).min(total))
+    .map(|i| {
+      let idx = i as usize;
+      let title = [
+        "DPP 接入指南（示例第 {n} 篇）",
+        "演示环境更新说明 {n}",
+        "结构化读取最佳实践 {n}",
+        "页面事件驱动实战 {n}",
+        "动作声明与审批流 {n}",
+        "站点级配置入门 {n}",
+      ][idx % 6]
+        .replace("{n}", &(i + 1).to_string());
+      let summary = format!(
+        "这是演示资讯的第 {} 篇——内容由服务端确定性合成，用于演示分页收集与 date 字段，不含真实新闻。",
+        i + 1
+      );
+      DemoArticle {
+        id: i as i64 + 1,
+        title,
+        category: NEWS_CATEGORIES[idx % 4].to_string(),
+        summary,
+        date: (base - chrono::Duration::days(i as i64)).to_string(),
+      }
+    })
+    .collect();
+  DemoArticlesPage {
+    page,
+    total_pages,
+    items,
+  }
+}
+
+// ── 看板演示（聚合其他 demo 表的行数/金额） ───────────────
+
+pub async fn stats(pool: &MySqlPool) -> Result<DemoStats, AppError> {
+  let (orders,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_orders")
+    .fetch_one(pool)
+    .await?;
+  // SUM 对 INT 返回 DECIMAL——CAST 成 SIGNED 才能解进 i64
+  let (gmv_cents,): (i64,) = sqlx::query_as(
+    "SELECT CAST(COALESCE(SUM(total_cents), 0) AS SIGNED) FROM demo_orders",
+  )
+  .fetch_one(pool)
+  .await?;
+  let (bookings,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_bookings")
+    .fetch_one(pool)
+    .await?;
+  let (messages,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_im_messages")
+    .fetch_one(pool)
+    .await?;
+  let (posts,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_forum_posts")
+    .fetch_one(pool)
+    .await?;
+  let (likes,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_forum_likes")
+    .fetch_one(pool)
+    .await?;
+  Ok(DemoStats {
+    metrics: vec![
+      DemoMetric {
+        key: "orders".into(),
+        name: "累计订单".into(),
+        value: orders,
+        unit: "单".into(),
+      },
+      DemoMetric {
+        key: "gmv".into(),
+        name: "演示流水".into(),
+        value: gmv_cents,
+        unit: "分".into(),
+      },
+      DemoMetric {
+        key: "bookings".into(),
+        name: "预约数".into(),
+        value: bookings,
+        unit: "个".into(),
+      },
+      DemoMetric {
+        key: "im".into(),
+        name: "IM 消息".into(),
+        value: messages,
+        unit: "条".into(),
+      },
+      DemoMetric {
+        key: "posts".into(),
+        name: "论坛帖子".into(),
+        value: posts,
+        unit: "篇".into(),
+      },
+      DemoMetric {
+        key: "likes".into(),
+        name: "获赞".into(),
+        value: likes,
+        unit: "次".into(),
+      },
+    ],
   })
 }

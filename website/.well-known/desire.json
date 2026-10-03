@@ -1,0 +1,18 @@
+{
+  "protocol": "desire/1",
+  "context": {
+    "domain": "DPP 演示场",
+    "rules": "本域 /demo/ 下所有页面均为 Desire Page Protocol 演示：数据是示例，写入只进演示服务的共享库（多实例共享 MySQL），不是真实交易或真实社区。"
+  },
+  "pages": {
+    "/demo/": { "type": "catalog", "profile": "catalog" },
+    "/demo/news/": { "type": "feed", "profile": "news" },
+    "/demo/forum/": { "type": "feed", "profile": "news" },
+    "/demo/im/": { "type": "chat" },
+    "/demo/booking/": { "type": "booking", "profile": "booking" },
+    "/demo/dashboard/": { "type": "dashboard", "profile": "dashboard" }
+  },
+  "auth": {
+    "登录": "演示场无需登录；访客身份由页面在本地生成的匿名 client id 标识。"
+  }
+}

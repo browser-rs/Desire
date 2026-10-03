@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 资讯演示 — 分页收集 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）资讯演示：分页列表与自动翻页收集（pageExtract all），date 类型字段。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 680px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .news-card { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.6rem 0.9rem; margin: 0.5rem 0; }
+  .news-card h3 { margin: 0; font-size: 1rem; }
+  .n-meta { font-size: 0.75rem; color: #8a7f6f; display: flex; gap: 0.5rem; margin: 0.15rem 0; }
+  .n-cat { background: #eee7d7; border-radius: 3px; padding: 0 0.35rem; }
+  .n-summary { font-size: 0.88rem; color: #6b6154; margin: 0.25rem 0 0; }
+  .pager { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.8rem; }
+  .page-ind { font-size: 0.9rem; color: #6b6154; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 0.8rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  button { padding: 0.4rem 0.9rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.92rem; cursor: pointer; background: #211b13; color: #f6f1e7; }
+</style>
+</head>
+<body>
+<h1>DPP 资讯演示 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个分页资讯列表（服务端确定性合成，共 24 篇、每页 6 篇）。演示重点是
+<b>视图分页声明</b>：views 里声明了 <code>pagination: {type: "paged", next: …}</code>——
+对智能体说「<b>把所有资讯都列出来</b>」，它会用
+<code>pageExtract("articles", all: true)</code> 自动翻页收集全量（date 字段会转成标准时间）。</p>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="news-app">
+  <div id="news-list"><div class="loading">正在从演示 API 读取…</div></div>
+  <div class="pager">
+    <button id="news-prev">上一页</button>
+    <span class="page-ind">1 / 4</span>
+    <button id="news-next">下一页</button>
+  </div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var PAGE = 1;
+var TOTAL_PAGES = 1;
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
+  });
+}
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——资讯演示需要后端支持。";
+  document.querySelector(".demo-ad").before(note);
+}
+
+// ── 渲染 ────────────────────────────────────────────────
+function renderPage(data) {
+  PAGE = data.page;
+  TOTAL_PAGES = data.total_pages;
+  var box = document.getElementById("news-list");
+  box.textContent = "";
+  data.items.forEach(function (a) {
+    var card = document.createElement("article");
+    card.className = "news-card";
+    var h = document.createElement("h3"); h.className = "n-title"; h.textContent = a.title;
+    var meta = document.createElement("div"); meta.className = "n-meta";
+    var cat = document.createElement("span"); cat.className = "n-cat"; cat.textContent = a.category;
+    var date = document.createElement("span"); date.className = "n-date"; date.textContent = a.date;
+    meta.appendChild(cat); meta.appendChild(date);
+    var sum = document.createElement("p"); sum.className = "n-summary"; sum.textContent = a.summary;
+    card.appendChild(h); card.appendChild(meta); card.appendChild(sum);
+    box.appendChild(card);
+  });
+  document.querySelector(".page-ind").textContent = PAGE + " / " + TOTAL_PAGES;
+  // 分页收集的停止条件是「next 选择器消失」——末页直接移除按钮而不是禁用
+  var next = document.getElementById("news-next");
+  if (next) next.remove();
+  if (PAGE < TOTAL_PAGES) {
+    next = document.createElement("button");
+    next.id = "news-next";
+    next.textContent = "下一页";
+    next.onclick = function () { go(PAGE + 1); };
+    document.querySelector(".pager").appendChild(next);
+  }
+  var prev = document.getElementById("news-prev");
+  prev.style.visibility = PAGE > 1 ? "visible" : "hidden";
+}
+
+function go(page) {
+  return api("GET", "/demo/news/articles?page=" + page).then(renderPage);
+}
+document.getElementById("news-prev").onclick = function () { if (PAGE > 1) go(PAGE - 1); };
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "news",
+  page: { type: "feed" },
+  content: { main: "#news-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#news-list .loading" },
+  views: {
+    articles: {
+      item: "#news-list .news-card",
+      pagination: { type: "paged", next: "#news-next" },
+      fields: {
+        title: ".n-title",
+        category: ".n-cat",
+        date: { selector: ".n-date", type: "date" },
+        summary: ".n-summary"
+      }
+    }
+  },
+  actions: [
+    { name: "next-page", description: "翻到下一页（末页时按钮不存在，动作会明确失败）",
+      run: [ { click: "#news-next" } ],
+      effects: "local" },
+    { name: "prev-page", description: "回到上一页",
+      run: [ { click: "#news-prev" } ],
+      effects: "local" }
+  ],
+  context: {
+    persona: "DPP 资讯演示页的助手：演示分页声明与自动翻页收集",
+    rules: "文章由服务端确定性合成，共 24 篇 4 页；非真实新闻"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  api("GET", "/demo/news/articles?page=1").then(function (data) {
+    setStatus("on", "演示 API 已连接");
+    renderPage(data);
+    document.body.setAttribute("data-demo-ready", "");
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

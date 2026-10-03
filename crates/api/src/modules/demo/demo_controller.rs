@@ -18,8 +18,9 @@ use crate::errors::AppError;
 use crate::types::{ApiResult, AppState};
 
 use super::demo_model::{
-  AddCartReq, DemoCartSnapshot, DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage,
-  DemoOrder, DemoProduct, ImQuery, ImSendReq, LikeResult, NewCommentReq, NewPostReq,
+  AddCartReq, BookReq, DemoArticlesPage, DemoBooking, DemoCartSnapshot, DemoForumComment,
+  DemoForumPost, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct, DemoSlotsResp, DemoStats,
+  ImQuery, ImSendReq, LikeResult, NewCommentReq, NewPostReq, NewsQuery, SlotsQuery,
 };
 use super::demo_service;
 
@@ -273,4 +274,49 @@ pub async fn forum_comment(
 ) -> ApiResult<DemoForumComment> {
   let client = client_id(&headers)?;
   api_ok!(demo_service::forum_comment(&state.pool, &client, post_id, &body.content).await?)
+}
+
+// ── 预约演示 ──────────────────────────────────────────────
+
+/// GET /demo/booking/slots?date=YYYY-MM-DD
+pub async fn booking_slots(
+  State(state): State<AppState>,
+  Query(q): Query<SlotsQuery>,
+) -> ApiResult<DemoSlotsResp> {
+  api_ok!(demo_service::booking_slots(&state.pool, q.date.as_deref().unwrap_or("")).await?)
+}
+
+/// POST /demo/booking/book {date, slot, name} —— 双订吃唯一约束 → 409。
+pub async fn booking_book(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Json(body): Json<BookReq>,
+) -> ApiResult<DemoBooking> {
+  let client = client_id(&headers)?;
+  api_ok!(
+    demo_service::booking_book(&state.pool, &client, &body.date, &body.slot, &body.name).await?
+  )
+}
+
+/// GET /demo/booking/mine —— 我的预约。
+pub async fn bookings_mine(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+) -> ApiResult<Vec<DemoBooking>> {
+  let client = client_id(&headers)?;
+  api_ok!(demo_service::bookings_mine(&state.pool, &client).await?)
+}
+
+// ── 资讯演示（合成内容） ─────────────────────────────────
+
+/// GET /demo/news/articles?page=N —— 确定性合成、无表。
+pub async fn news_articles(Query(q): Query<NewsQuery>) -> ApiResult<DemoArticlesPage> {
+  api_ok!(demo_service::news_page(q.page.unwrap_or(1)))
+}
+
+// ── 看板演示（聚合） ─────────────────────────────────────
+
+/// GET /demo/stats —— 聚合各 demo 表。
+pub async fn stats(State(state): State<AppState>) -> ApiResult<DemoStats> {
+  api_ok!(demo_service::stats(&state.pool).await?)
 }

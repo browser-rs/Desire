@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 看板演示 — 聚合指标 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）看板演示：聚合其他演示场景的真实数据，展示 number/date 类型字段、busy/error 信号与 stats-updated 事件。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note, .service-error { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem; }
+  .metric-card { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.6rem 0.9rem; }
+  .m-name { font-size: 0.78rem; color: #8a7f6f; }
+  .m-value { font-size: 1.5rem; font-weight: 700; color: #c03a1a; }
+  .m-unit { font-size: 0.8rem; color: #8a7f6f; margin-left: 0.2rem; }
+  #dash-meta { font-size: 0.78rem; color: #8a7f6f; margin-top: 0.8rem; }
+  .degrade-row { display: flex; gap: 0.6rem; align-items: center; margin-top: 1rem; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 0.8rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  button { padding: 0.4rem 0.9rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.9rem; cursor: pointer; background: #fff; color: #211b13; }
+  button.danger { background: #c03a1a; color: #fff; }
+</style>
+</head>
+<body>
+<h1>DPP 看板演示 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个聚合看板：指标来自<b>其他演示场景的真实数据</b>（商店订单、预约、IM 消息、论坛帖子），每 5 秒刷新。
+演示重点是 <b>busy / error 信号</b>与数据变化事件——对智能体说：</p>
+<ul>
+  <li>「看板现在什么情况」→ <code>pageExtract("metrics")</code>（数值是数字）</li>
+  <li>点下面「模拟服务降级」→ 页面出现 error 信号，智能体读状态时会看到「服务异常」</li>
+  <li>去别的演示页下个单/发个帖 → 回到这里数据变化触发 <code>stats-updated</code></li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="dash-app">
+  <div id="metrics" class="metric-grid"><div class="loading">正在从演示 API 读取…</div></div>
+  <div id="dash-meta">更新于 <span class="updated">—</span> · 每 5 秒自动刷新 · <button id="refresh-btn" style="padding:0.15rem 0.6rem;font-size:0.78rem">立即刷新</button></div>
+  <div class="degrade-row">
+    <button id="degrade-btn">模拟服务降级</button>
+    <span style="font-size:0.8rem;color:#8a7f6f">切换 error 信号（.service-error），演示智能体如何感知页面异常</span>
+  </div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var BASELINE = {}; // key → value
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
+  });
+}
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——看板演示需要后端支持。";
+  document.querySelector(".demo-ad").before(note);
+}
+
+// ── 渲染 ────────────────────────────────────────────────
+function renderMetrics(metrics) {
+  var box = document.getElementById("metrics");
+  box.textContent = "";
+  metrics.forEach(function (m) {
+    var card = document.createElement("div");
+    card.className = "metric-card";
+    card.setAttribute("data-key", m.key);
+    var n = document.createElement("div"); n.className = "m-name"; n.textContent = m.name;
+    var v = document.createElement("span"); v.className = "m-value"; v.textContent = m.value;
+    var u = document.createElement("span"); u.className = "m-unit"; u.textContent = m.unit;
+    card.appendChild(n); card.appendChild(v); card.appendChild(u);
+    box.appendChild(card);
+  });
+  var changed = metrics.filter(function (m) { return BASELINE[m.key] !== undefined && BASELINE[m.key] !== m.value; });
+  metrics.forEach(function (m) { BASELINE[m.key] = m.value; });
+  document.querySelector(".updated").textContent = new Date().toLocaleTimeString();
+  return changed;
+}
+
+// ── 业务 ────────────────────────────────────────────────
+function refresh() {
+  if (OFFLINE) return;
+  api("GET", "/demo/stats").then(function (stats) {
+    var changed = renderMetrics(stats.metrics);
+    if (changed.length && window.desire && window.desire.emit) {
+      window.desire.emit("stats-updated", {
+        count: changed.length,
+        keys: changed.map(function (m) { return m.key; })
+      });
+    }
+  }).catch(function () {});
+}
+
+// error 信号演示：本地切换 .service-error（有内容 = 异常态）
+document.getElementById("degrade-btn").onclick = function () {
+  var existing = document.querySelector(".service-error");
+  if (existing) {
+    existing.remove();
+    this.textContent = "模拟服务降级";
+    this.classList.remove("danger");
+  } else {
+    var note = document.createElement("div");
+    note.className = "service-error";
+    note.textContent = "服务降级中（模拟）——看板数据可能不是最新。";
+    document.getElementById("metrics").before(note);
+    this.textContent = "恢复正常";
+    this.classList.add("danger");
+  }
+};
+document.getElementById("refresh-btn").onclick = function () { refresh(); };
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "dashboard",
+  page: { type: "dashboard" },
+  content: { main: "#dash-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#metrics .loading", error: ".service-error" },
+  views: {
+    metrics: { item: "#metrics .metric-card", fields: {
+      name: ".m-name",
+      value: { selector: ".m-value", type: "number" },
+      unit: ".m-unit"
+    } },
+    updated: { item: "#dash-meta", fields: {
+      time: { selector: ".updated", type: "date" }
+    } }
+  },
+  actions: [
+    { name: "refresh", description: "立即刷新看板数据",
+      run: [ { click: "#refresh-btn" } ],
+      effects: "local" }
+  ],
+  events: { "stats-updated": { watch: ".metric-card" } },
+  context: {
+    persona: "DPP 看板演示页的助手：演示聚合指标、busy/error 信号与数据变化事件",
+    rules: "指标聚合自其他演示页的真实写入（商店/预约/IM/论坛），5 秒刷新一次"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  api("GET", "/demo/stats").then(function (stats) {
+    setStatus("on", "演示 API 已连接");
+    renderMetrics(stats.metrics);
+    document.body.setAttribute("data-demo-ready", "");
+    setInterval(refresh, 5000);
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

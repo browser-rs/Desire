@@ -38,4 +38,9 @@ pub fn router() -> Router<AppState> {
       "/demo/forum/posts/{id}/comments",
       post(demo_controller::forum_comment),
     )
+    .route("/demo/booking/slots", get(demo_controller::booking_slots))
+    .route("/demo/booking/book", post(demo_controller::booking_book))
+    .route("/demo/booking/mine", get(demo_controller::bookings_mine))
+    .route("/demo/news/articles", get(demo_controller::news_articles))
+    .route("/demo/stats", get(demo_controller::stats))
 }

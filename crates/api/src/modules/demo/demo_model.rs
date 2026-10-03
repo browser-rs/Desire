@@ -117,3 +117,77 @@ pub struct LikeResult {
   pub liked: bool,
   pub likes: i64,
 }
+
+// ── 预约演示 ──────────────────────────────────────────────
+
+/// 一个时段：available 由服务端按当天已订情况现算（bool 字段演示）。
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoSlot {
+  pub time: String,
+  pub available: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoSlotsResp {
+  pub date: String,
+  pub slots: Vec<DemoSlot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoBooking {
+  pub id: i64,
+  pub date: String,
+  pub slot: String,
+  pub guest: String,
+  pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BookReq {
+  pub date: String,
+  pub slot: String,
+  pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SlotsQuery {
+  pub date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NewsQuery {
+  pub page: Option<u32>,
+}
+
+// ── 资讯演示（合成内容，无表） ────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoArticle {
+  pub id: i64,
+  pub title: String,
+  pub category: String,
+  pub summary: String,
+  pub date: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoArticlesPage {
+  pub page: u32,
+  pub total_pages: u32,
+  pub items: Vec<DemoArticle>,
+}
+
+// ── 看板演示（聚合其他 demo 表） ──────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct DemoMetric {
+  pub key: String,
+  pub name: String,
+  pub value: i64,
+  pub unit: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DemoStats {
+  pub metrics: Vec<DemoMetric>,
+}

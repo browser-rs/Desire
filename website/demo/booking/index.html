@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 预约演示 — date/bool 字段 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）预约演示：按时段预约（date 与 bool 类型字段、双订 409 保护）。展示多参数出站动作与事件驱动。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 680px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note, .booking-error { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .date-row { display: flex; gap: 0.5rem; align-items: center; }
+  .slot-row { display: flex; gap: 0.8rem; align-items: center; border: 1px solid #d8cfba; border-radius: 6px; background: #fffdf7; padding: 0.45rem 0.8rem; margin: 0.35rem 0; cursor: pointer; }
+  .slot-row .s-time { font-weight: 600; font-size: 0.95rem; min-width: 3.5em; }
+  .slot-row .s-free { margin-left: auto; font-size: 0.82rem; }
+  .slot-row .s-free.ok { color: #1c7c3c; }
+  .slot-row .s-free.no { color: #b3a893; text-decoration: line-through; }
+  .slot-row.selected { border-color: #c03a1a; background: #c03a1a0a; }
+  .booking-row { border-bottom: 1px dotted #d8cfba; padding: 0.35rem 0.2rem; display: flex; gap: 0.8rem; align-items: baseline; font-size: 0.92rem; }
+  .bk-date { color: #1c5c8a; font-weight: 600; }
+  .empty-hint { color: #8a7f6f; font-size: 0.88rem; padding: 0.5rem 0; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 0.6rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  input, button { padding: 0.45rem 0.8rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<h1>DPP 预约演示 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个按时段预约的演示页（如会议室/门诊/订座）：<b>日期与时段是否可用</b>分别演示
+<code>date</code> 与 <code>bool</code> 类型字段；同一时段被订两次会吃到
+<b>409 冲突</b>（唯一约束兜底）。对 Desire 智能体说：</p>
+<ul>
+  <li>「看看明天有哪些时段可以约」→ <code>pageAction("load-slots", …)</code> + <code>pageExtract("slots")</code>（available 是布尔值）</li>
+  <li>「帮我约明天 14:00，名字写小王」→ <code>pageAction("book", …)</code>——多参数出站动作，<b>会先请求批准</b></li>
+  <li>预约成功 → <code>booking-confirmed</code> 事件唤醒智能体</li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="booking-app">
+  <h2>选时段</h2>
+  <div class="date-row">
+    <input id="b-date" type="date">
+    <button id="b-load">查可用时段</button>
+  </div>
+  <div id="slots"><div class="loading">选择日期后加载时段…</div></div>
+  <div class="date-row" style="margin-top:0.6rem">
+    <input id="b-name" placeholder="预约人姓名">
+    <button id="b-submit" disabled>提交预约</button>
+  </div>
+
+  <h2>我的预约</h2>
+  <div id="bookings"><div class="empty-hint">还没有预约。</div></div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">← 返回 Desire 首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var SLOTS = [];
+var SELECTED = null;
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
+  });
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function today() {
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——预约演示需要后端支持。";
+  document.querySelector(".demo-ad").before(note);
+  document.getElementById("b-submit").disabled = true;
+}
+
+function showBookingError(text) {
+  var old = document.querySelector(".booking-error");
+  if (old) old.remove();
+  var note = document.createElement("div");
+  note.className = "booking-error";
+  note.textContent = text;
+  document.getElementById("slots").before(note);
+}
+
+// ── 渲染 ────────────────────────────────────────────────
+function renderSlots(date, slots) {
+  var box = document.getElementById("slots");
+  box.textContent = "";
+  if (!slots.length) {
+    var hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = date + " 没有可预约时段。";
+    box.appendChild(hint);
+    return;
+  }
+  slots.forEach(function (s) {
+    var row = document.createElement("div");
+    row.className = "slot-row" + (s.available ? "" : " disabled");
+    row.setAttribute("data-slot", s.time);
+    if (SELECTED === s.time && s.available) row.classList.add("selected");
+    var t = document.createElement("span"); t.className = "s-time"; t.textContent = s.time;
+    var f = document.createElement("span");
+    f.className = "s-free " + (s.available ? "ok" : "no");
+    f.textContent = s.available ? "可预约" : "已订";
+    row.appendChild(t); row.appendChild(f);
+    if (s.available) {
+      row.onclick = function () { selectSlot(s.time); };
+    } else {
+      row.style.cursor = "not-allowed";
+    }
+    box.appendChild(row);
+  });
+  document.getElementById("b-submit").disabled = !SELECTED || OFFLINE;
+}
+
+function selectSlot(time) {
+  SELECTED = time;
+  document.querySelectorAll(".slot-row").forEach(function (r) {
+    r.classList.toggle("selected", r.getAttribute("data-slot") === time);
+  });
+  document.getElementById("b-submit").disabled = OFFLINE || !time;
+}
+
+function renderBookings(bookings) {
+  var box = document.getElementById("bookings");
+  box.textContent = "";
+  if (!bookings.length) {
+    var hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = "还没有预约。";
+    box.appendChild(hint);
+    return;
+  }
+  bookings.forEach(function (b) {
+    var row = document.createElement("div");
+    row.className = "booking-row";
+    var d = document.createElement("span"); d.className = "bk-date"; d.textContent = b.date;
+    var s = document.createElement("span"); s.className = "bk-slot"; s.textContent = b.slot;
+    var n = document.createElement("span"); n.className = "bk-name"; n.textContent = b.guest;
+    row.appendChild(d); row.appendChild(s); row.appendChild(n);
+    box.appendChild(row);
+  });
+}
+
+// ── 业务 ────────────────────────────────────────────────
+function loadSlots() {
+  var date = document.getElementById("b-date").value || today();
+  SELECTED = null;
+  return api("GET", "/demo/booking/slots?date=" + encodeURIComponent(date))
+    .then(function (data) {
+      renderSlots(data.date, data.slots);
+    })
+    .catch(function (e) { if (!OFFLINE) showBookingError(e.message); });
+}
+
+function submitBooking() {
+  var date = document.getElementById("b-date").value || today();
+  if (!SELECTED) { alert("先选一个可预约时段"); return; }
+  var name = document.getElementById("b-name").value.trim();
+  if (!name) { alert("填写预约人姓名"); return; }
+  api("POST", "/demo/booking/book", { date: date, slot: SELECTED, name: name })
+    .then(function () {
+      if (window.desire && window.desire.emit) {
+        window.desire.emit("booking-confirmed", { date: date, slot: SELECTED });
+      }
+      return Promise.all([loadSlots(), refreshMine()]);
+    })
+    .catch(function (e) {
+      // 双订（409）是演示重点：把服务端原文亮出来，并刷新时段表
+      showBookingError("预约失败：" + e.message);
+      loadSlots();
+    });
+}
+document.getElementById("b-load").onclick = loadSlots;
+document.getElementById("b-submit").onclick = submitBooking;
+
+function refreshMine() {
+  return api("GET", "/demo/booking/mine").then(renderBookings);
+}
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "booking",
+  page: { type: "booking" },
+  content: { main: "#booking-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#slots .loading" },
+  views: {
+    slots: { item: "#slots .slot-row", fields: {
+      time: ".s-time",
+      available: { selector: ".s-free", type: "bool" }
+    } },
+    bookings: { item: "#bookings .booking-row", fields: {
+      date: { selector: ".bk-date", type: "date" },
+      slot: ".bk-slot",
+      guest: ".bk-name"
+    } }
+  },
+  actions: [
+    { name: "load-slots", description: "加载指定日期的可预约时段（date 格式 YYYY-MM-DD）",
+      params: { date: { type: "string", required: true } },
+      run: [ { fill: { "#b-date": "{date}" } }, { click: "#b-load" } ],
+      effects: "local" },
+    { name: "book", description: "预约：先 load-slots 确认可用，再提交（时段被抢会收到 409 冲突）",
+      params: {
+        date: { type: "string", required: true },
+        slot: { type: "string", required: true, description: "时段，如 14:00" },
+        name: { type: "string", required: true, description: "预约人姓名" }
+      },
+      run: [
+        { fill: { "#b-date": "{date}" } },
+        { click: "#b-load" },
+        { click: ".slot-row[data-slot='{slot}']" },
+        { fill: { "#b-name": "{name}" } },
+        { click: "#b-submit" }
+      ],
+      effects: "outbound" }
+  ],
+  events: { "booking-confirmed": { watch: ".booking-row" } },
+  context: {
+    persona: "DPP 预约演示页的助手：演示 date/bool 类型字段与多参数出站动作",
+    rules: "预约写入演示服务的共享库；同一时段全站唯一，被抢会 409"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  document.getElementById("b-date").value = today();
+  api("GET", "/demo/booking/slots?date=" + today()).then(function (data) {
+    setStatus("on", "演示 API 已连接");
+    renderSlots(data.date, data.slots);
+    document.body.setAttribute("data-demo-ready", "");
+    refreshMine();
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

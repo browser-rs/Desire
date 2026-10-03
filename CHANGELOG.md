@@ -18,6 +18,8 @@ Whiteboard phase 2.5: agent messages containing mermaid code fences now render i
 Web selection → whiteboard: right-click on selected text offers "Add to Whiteboard" (same dynamic context-menu pipeline as Search selection), and a browser command `addSelectionToWhiteboard` (menu + bridge) grabs the current tab's selection via JS and appends it as a sourced note block, then opens the panel.
 .board files: double-click association registered (UTImportedTypeDeclaration me.siwi.Desire.board conforming to public.json), and opening a .board file imports it as the active conversation's whiteboard (falls back to a default board when no agent session is active). The panel title is click-to-rename.
 DPP × whiteboard convention (spec §5.1): pages need no new primitives — declared views are extractable by the agent and renderable on the host whiteboard (Mermaid + ECharts local engines); pages may only *suggest* via a free-form `context.visualization` hint (the whiteboard belongs to the user — pages cannot write it). Whiteboard tool description now references DPP view extraction synergy; dashboard demo shows the flow.
+Global agent floating ball (phase 1): a non-activating child panel that hugs the browser window edge, draggable anywhere within window bounds with spring snap to the nearest edge and position persistence; breathing animation, hover scale, click to expand an action strip (open agent panel, voice input with live transcript chip that auto-sends to the active session, page summary, whiteboard); transparent regions pass clicks through to the page below (custom hosting-view hitTest). Toggle from the agent panel header / menu / `POST /command toggleAgentBall`; edge and offset persist.
+
 
 
 

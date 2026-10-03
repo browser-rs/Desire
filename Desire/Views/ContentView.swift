@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import os
 import UniformTypeIdentifiers
 import WebKit
 
@@ -126,6 +127,12 @@ struct ContentView: View {
             historyStore: historyStore,
             openSettings: { openWindow(id: "settings") },
             toggleWhiteboard: { WhiteboardPanel.shared.toggle() },
+            toggleAgentBall: {
+                Log.agent.info("AgentBall toggle closure: ball=\(agentBallPanel != nil) window=\(hostingWindow != nil)")
+                if let ball = agentBallPanel, let hostingWindow {
+                    ball.toggle(in: hostingWindow)
+                }
+            },
             bindings: .init(
                 showHistory: $showHistory,
                 showBookmarks: $showBookmarks,
@@ -226,6 +233,7 @@ struct ContentView: View {
     @State var isSiteFullScreen = false
     @State var showAgentPanel = false
     @State private var hostingWindow: NSWindow?
+    @State private var agentBallPanel: AgentBallPanel?
     @State var aiFloatingPanel: AgentFloatingPanel?
     @State var showDevToolsPanel = false
 
@@ -293,6 +301,21 @@ struct ContentView: View {
                     conversationStore: conversationStore,
                     accentColor: settings.accentColor.color
                 )
+            }
+            if agentBallPanel == nil {
+                let ball = AgentBallPanel.shared
+                ball.onOpenAgentPanel = { showAgentPanel = true }
+                ball.onAskAboutPage = { askAgentAboutPage() }
+                ball.onPageURL = { [tabManager] in
+                    tabManager.selectedTab?.browser.webView.url?.absoluteString
+                }
+                agentBallPanel = ball
+            }
+            if let ball = agentBallPanel, let hostingWindow {
+                // 窗口就绪：开关开启（UserDefaults）则挂载悬浮球
+                if UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey) {
+                    ball.attach(to: hostingWindow)
+                }
             }
             if !isAgentConfigured {
                 // Record this window as the session-persistence target, then

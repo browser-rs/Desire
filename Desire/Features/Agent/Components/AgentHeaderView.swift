@@ -19,6 +19,7 @@ struct AgentHeaderView: View {
     var onShowStats: (() -> Void)?
     var onShowMemory: (() -> Void)?
     var onShowWhiteboard: (() -> Void)?
+    var onToggleBall: (() -> Void)?
     var onNewChat: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
@@ -113,6 +114,14 @@ struct AgentHeaderView: View {
                     systemName: "paintpalette",
                     action: onShowWhiteboard,
                     help: "Whiteboard — agent-drawn mind maps / flowcharts / charts"
+                )
+            }
+
+            if let onToggleBall {
+                HoverIcon(
+                    systemName: "circle.circle",
+                    action: onToggleBall,
+                    help: "Agent floating ball"
                 )
             }
 

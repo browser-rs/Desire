@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
@@ -32,6 +33,7 @@ struct CommandDispatcher {
     let historyStore: HistoryStore
     let openSettings: () -> Void
     let toggleWhiteboard: () -> Void
+    let toggleAgentBall: () -> Void
     var bindings: Bindings
     var actions: Actions
 
@@ -187,6 +189,10 @@ struct CommandDispatcher {
 
         case .toggleWhiteboard:
             toggleWhiteboard()
+
+        case .toggleAgentBall:
+            Log.agent.info("AgentBall command dispatched (dispatcher closure)")
+            toggleAgentBall()
 
         case .addSelectionToWhiteboard:
             Task { [tabManager] in

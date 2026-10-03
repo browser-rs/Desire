@@ -137,6 +137,7 @@ struct AppCommands: Commands {
             Button("Show Agent Panel") { postCommand(.toggleAgentPanel) }
                 .keyboardShortcut(binding("toggleAgentPanel", "'", .command))
             Button("Show Whiteboard") { postCommand(.toggleWhiteboard) }
+            Button("Toggle Agent Ball") { postCommand(.toggleAgentBall) }
             Button("Add Selection to Whiteboard") { postCommand(.addSelectionToWhiteboard) }
             Button("Ask Agent About This Page") { postCommand(.askAgentAboutPage) }
                 .keyboardShortcut(binding("askAgentAboutPage", "a", [.command, .shift]))

@@ -836,6 +836,12 @@ final class AutomationServer {
                 ])
             case ("GET", "/dpp/modes"):
                 return try Self.json(["modes": PageEventHub.shared.siteModes])
+            case ("GET", "/agentball"):
+                return try Self.json([
+                    "visible": AgentBallPanel.shared.isVisible,
+                    "enabled": UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey),
+                    "expanded": AgentBallPanel.shared.isExpanded,
+                ])
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared
                 let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
@@ -2411,6 +2417,7 @@ final class AutomationServer {
         case "toggleAgentPanel": command = .toggleAgentPanel
         case "toggleWhiteboard": command = .toggleWhiteboard
         case "addSelectionToWhiteboard": command = .addSelectionToWhiteboard
+        case "toggleAgentBall": command = .toggleAgentBall
         case "showAdBlockStats": command = .showAdBlockStats
         case "toggleSplitView": command = .toggleSplitView
         case "toggleDevTools": command = .toggleDevTools

@@ -78,6 +78,7 @@ struct AgentSettingsSection: View {
             ScheduledTasksSection()
             MCPServersSection()
             DPPSettingsSection()
+            AgentBallSettingsSection()
             SettingsSection(
                 title: String(localized: "Provider"),
                 subtitle: store.providerKind.detail,

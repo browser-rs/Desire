@@ -6,6 +6,7 @@ import SwiftUI
 struct AgentBallView: View {
     @ObservedObject var panel: AgentBallPanel
     @ObservedObject var voice: VoiceInputManager
+    @State private var dragTilt: Double = 0
     @Environment(\.appAccent) private var appAccent: Color
 
     @State private var dragStart: CGPoint?
@@ -58,7 +59,13 @@ struct AgentBallView: View {
         }
         .frame(width: ballSize, height: ballSize)
         .scaleEffect(hoverScale * pulse)
+        .rotationEffect(.degrees(dragTilt))
         .contentShape(Circle())
+        .contextMenu {
+            Button("重置位置") { panel.resetPosition() }
+            Divider()
+            Button("隐藏悬浮球") { panel.setEnabled(false) }
+        }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 pulse = 1.05
@@ -162,7 +169,12 @@ struct AgentBallView: View {
                     let dx = value.location.x - start.x
                     let dy = value.location.y - start.y
                     if abs(dx) > 4 || abs(dy) > 4 { dragged = true }
-                    if dragged { panel.moveBy(dx: dx, dy: -dy) }
+                    if dragged {
+                        panel.moveBy(dx: dx, dy: -dy)
+                        // 拖动倾斜：随水平速度倾斜，松手回正
+                        let tilt = max(-14, min(14, value.velocity.width / 28))
+                        withAnimation(.easeOut(duration: 0.08)) { dragTilt = tilt }
+                    }
                 }
                 dragStart = value.location
             }
@@ -171,6 +183,7 @@ struct AgentBallView: View {
                     dragStart = nil
                     dragged = false
                 }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { dragTilt = 0 }
                 if dragged {
                     panel.snapToEdge()
                 } else if !voice.isRecording {

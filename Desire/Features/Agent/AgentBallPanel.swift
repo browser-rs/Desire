@@ -16,8 +16,12 @@ final class AgentBallPanel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
 
     @Published var isExpanded = false
+    @Published private(set) var isEnabled: Bool
     let voice = VoiceInputManager()
     @Published var voiceTranscriptSent: String?
+
+    static let enabledChangedNotification = Notification.Name("agentBall.enabledChanged")
+    private weak var lastParent: NSWindow?
 
     /// 宿主注入的动作（ContentView 提供——AI 会话与窗口绑定在那边）。
     var onOpenAgentPanel: (() -> Void)?
@@ -32,7 +36,28 @@ final class AgentBallPanel: ObservableObject {
         AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
     }
 
+    /// 供设置页/挂载使用的目标父窗口：最后挂载的浏览器窗口 → key window
+    /// → 任一可见窗口。
+    func activeParent() -> NSWindow? {
+        if let p = lastParent, p.isVisible { return p }
+        if let key = NSApp.keyWindow, key.isVisible { return key }
+        return NSApp.windows.first(where: { $0.isVisible && $0.contentViewController is NSHostingController<AgentPanel> })
+    }
+
+    /// 设置页/菜单的全局开关（各窗口经 enabledChanged 通知跟随）。
+    func setEnabled(_ on: Bool) {
+        isEnabled = on
+        UserDefaults.standard.set(on, forKey: Self.enabledKey)
+        if on, let parent = activeParent() {
+            attach(to: parent)
+        } else if !on {
+            detach()
+        }
+        NotificationCenter.default.post(name: Self.enabledChangedNotification, object: nil)
+    }
+
     private init() {
+        isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
         // 语音：录音停止且转写非空 → 自动发给 Agent 并打开面板
         voice.$isRecording
             .combineLatest(voice.$transcribedText)
@@ -62,6 +87,7 @@ final class AgentBallPanel: ObservableObject {
             parent.addChildWindow(panel!, ordered: .above)
             parentWindow = parent
         }
+        lastParent = parent
         positionAtSavedEdge()
         panel?.orderFront(nil)
         observeParentFrame()
@@ -80,9 +106,11 @@ final class AgentBallPanel: ObservableObject {
         Log.agent.info("AgentBall toggle: visible=\(wasVisible, privacy: .public) sameParent=\(sameParent, privacy: .public)")
         if wasVisible, sameParent {
             detach()
+            isEnabled = false
             UserDefaults.standard.set(false, forKey: Self.enabledKey)
         } else {
             attach(to: parent)
+            isEnabled = true
             UserDefaults.standard.set(true, forKey: Self.enabledKey)
         }
     }
@@ -120,6 +148,13 @@ final class AgentBallPanel: ObservableObject {
         let travel = max(0, parent.frame.height - ballSize - 20)
         let y = parent.frame.minY + 10 + travel * min(max(fraction, 0), 1)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    /// 重置位置：左缘中点（默认位）。
+    func resetPosition() {
+        UserDefaults.standard.set("left", forKey: Self.edgeKey)
+        UserDefaults.standard.set(0.5, forKey: Self.offsetKey)
+        positionAtSavedEdge()
     }
 
     /// 拖动中：跟随手指（限制在父窗口范围内）。

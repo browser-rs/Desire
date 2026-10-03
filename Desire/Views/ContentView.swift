@@ -313,7 +313,7 @@ struct ContentView: View {
             }
             if let ball = agentBallPanel, let hostingWindow {
                 // 窗口就绪：开关开启（UserDefaults）则挂载悬浮球
-                if UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey) {
+                if ball.isEnabled {
                     ball.attach(to: hostingWindow)
                 }
             }
@@ -385,6 +385,15 @@ struct ContentView: View {
         // 面板没开时用户根本看不见，回合会无限挂起（已开则不动，避免误关）。
         .onReceive(UserPromptCenter.shared.$pending) { pending in
             if pending != nil, !showAgentPanel { showAgentPanel = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AgentBallPanel.enabledChangedNotification)) { _ in
+            // 设置页开关 → 本窗口跟随挂载/卸载
+            guard let ball = agentBallPanel else { return }
+            if UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey), let hostingWindow {
+                ball.attach(to: hostingWindow)
+            } else {
+                ball.detach()
+            }
         }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY

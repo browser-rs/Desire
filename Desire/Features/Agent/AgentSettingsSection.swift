@@ -846,6 +846,7 @@ struct AgentSettingsSection: View {
         VStack(alignment: .leading, spacing: 10) {
             editorField(String(localized: "Name"), text: $draftName, placeholder: "My gateway")
             editorField(String(localized: "Endpoint URL"), text: $draftEndpoint, placeholder: "https://host/v1/chat/completions")
+            draftModelPicker
 
             // 线协议：OpenAI 兼容（chat/completions）或 Anthropic（Messages）。
             VStack(alignment: .leading, spacing: 3) {

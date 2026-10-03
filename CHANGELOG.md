@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+Settings provider editor lost the model selector (the dual-protocol refactor removed the `draftModelPicker` row without re-adding it) — restored in place: dropdown over the service's model list + fetched models, with manual-entry fallback.
+
+
 ## [v0.5.9] - 2026-10-03
 ### Added
 

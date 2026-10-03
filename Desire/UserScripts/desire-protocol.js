@@ -27,6 +27,7 @@ return (function() {
         if (src.content && src.content.main) out.contentMain = src.content.main;
         else if (src.contentMain) out.contentMain = src.contentMain;
         if (Array.isArray(src.ignore)) out.ignore = src.ignore;
+        else if (src.content && Array.isArray(src.content.ignore)) out.ignore = src.content.ignore; // 规范 §4.1：ignore 在 content 内
         if (src.views && typeof src.views === "object") out.views = src.views;
         if (src.signals && typeof src.signals === "object") out.signals = src.signals;
         if (Array.isArray(src.actions)) {

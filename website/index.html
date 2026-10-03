@@ -149,6 +149,32 @@
   ]
 }
 </script>
+<script type="application/x-desire+json">
+{
+  "protocol": "desire/1",
+  "page": { "type": "landing" },
+  "content": { "main": "main", "ignore": [".ticker", "header.site", "footer.site"] },
+  "signals": { "ready": "footer.site" },
+  "views": {
+    "features": { "item": "#features .feature-row", "fields": { "name": ".feature-name", "description": ".feature-desc" } },
+    "capabilities": { "item": "#more .mini", "fields": { "name": "h3", "description": "p" } },
+    "model-protocols": { "item": "#models .proto", "fields": { "tag": ".tag", "name": "h3", "description": "p" } },
+    "dpp-levels": { "item": "#dpp .proto", "fields": { "level": ".tag", "name": "h3", "description": "p" } },
+    "faqs": { "item": ".faq-item", "fields": { "question": "summary", "answer": "p" } },
+    "current-release": { "item": ".dl-version", "fields": { "version": "b" } }
+  },
+  "actions": [
+    { "name": "download-latest", "description": "跳转到 GitHub Releases 最新版下载页", "run": [ { "click": "a[href$='releases/latest']" } ], "effects": "local" },
+    { "name": "open-source-repo", "description": "打开 GitHub 源码仓库", "run": [ { "click": "a[href='https://github.com/browser-rs/Desire']" } ], "effects": "local" }
+  ],
+  "context": {
+    "persona": "Desire 产品页的访客助手：介绍 Desire（为 macOS 而生的 AI 浏览器）的能力，帮助下载与安装，解答常见问题。",
+    "tone": "简洁、诚实、不过度推销",
+    "domain": "浏览器、AI 智能体、端到端加密、页面协议",
+    "rules": "版本号与能力以页面声明和 GitHub Releases 为准，不要虚构；价格（免费）与系统要求（Apple Silicon，macOS 26.5+）以页面为准。"
+  }
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
 <style>
   /* ================= 设计令牌：墨与朱 ================= */

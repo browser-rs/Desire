@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+DPP 解析器：`content.ignore`（规范 §4.1 规定位于 content 对象内）此前被静默丢弃——normalize 只读顶层 `ignore` 键。产品页接入 DPP 的自检（用真实解析器解析 website/index.html）抓到；现优先读顶层、回退 content 内。
+
 
 ## [v0.5.8] - 2026-10-03
 ### Added

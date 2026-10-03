@@ -32,8 +32,9 @@ extension BrowserToolProvider {
             }
             Log.agent.info("DPP snapshot hint: ownTab=\(ownTab != nil) checked=\(ownTab?.browser.pageProtocolChecked ?? false) proto=\(ownTab?.browser.effectiveProtocol != nil) selProto=\(surface.tabManager?.selectedTab?.browser.effectiveProtocol != nil) waits=\(waited)")
             // hint 前置：工具消息统一 prefix(8000)，快照 JSON 本身 ~7KB——
-            // 追加在尾部会被截断剪掉（实测）。
-            if ownTab?.browser.effectiveProtocol != nil
+            // 追加在尾部会被截断剪掉（实测）。DPP 配置关提示时不注入。
+            if DPPConfigStore.shared.promptHints,
+               ownTab?.browser.effectiveProtocol != nil
                 || surface.tabManager?.selectedTab?.browser.effectiveProtocol != nil {
                 return "[DPP] This page declares a Desire Page Protocol — use pageProtocol to see it, pageExtract for structured data, pageAction for declared actions.\n" + snapshot
             }
@@ -66,7 +67,8 @@ extension BrowserToolProvider {
             let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
                                            args: ["maxChars": 6000, "maxElements": 25,
                                                   "ignoreSels": targetIgnoresJSON])
-            let dppNote = target.browser.effectiveProtocol != nil
+            let dppNote = DPPConfigStore.shared.promptHints
+                && target.browser.effectiveProtocol != nil
                 ? "[DPP] This page declares a Desire Page Protocol — pageExtract for structured data.\n"
                 : ""
             return dppNote + "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
@@ -326,7 +328,7 @@ extension BrowserToolProvider {
                     : "\n[DPP] Ready signal '\(readySel)' NOT observed within 6s — the page may still be loading or the signal is misdeclared."
             }
             var dppHint = ""
-            if let dpp, !dpp.isEmpty {
+            if DPPConfigStore.shared.promptHints, let dpp, !dpp.isEmpty {
                 var views: [String] = []
                 for (name, view) in dpp.views {
                     views.append("\(name)(fields: \(view.fields.keys.sorted().joined(separator: ",")))")

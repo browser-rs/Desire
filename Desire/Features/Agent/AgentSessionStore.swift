@@ -937,7 +937,9 @@ class AgentSessionStore: ObservableObject {
         var result = "[Current page] \(title) — \(url.absoluteString)\n\(text)"
         // DPP 协议站点：注入结构化摘要 + **检测 events 命中**（事件信息附加
         // 到上下文，模型看到就知道页面有新审批/新消息等需要响应）。
-        if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol, !dpp.isEmpty {
+        // DPP 配置关提示时不注入（解析仍在，pageProtocol 工具仍可用）。
+        if DPPConfigStore.shared.promptHints,
+           let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol, !dpp.isEmpty {
             var dppLines: [String] = []
             if let profile = dpp.profile {
                 dppLines.append("Profile: \(profile) (standard section-§5 conventions apply to view/action/event names)")

@@ -503,6 +503,8 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
+        ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
+        ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -832,6 +834,30 @@ final class AutomationServer {
                 ])
             case ("GET", "/dpp/modes"):
                 return try Self.json(["modes": PageEventHub.shared.siteModes])
+            case ("GET", "/dpp/config"):
+                let config = DPPConfigStore.shared
+                return try Self.json([
+                    "enabled": config.enabled,
+                    "promptHints": config.promptHints,
+                    "defaultEventMode": config.defaultEventMode,
+                    "siteModes": PageEventHub.shared.siteModes,
+                ])
+            case ("POST", "/dpp/config"):
+                let config = DPPConfigStore.shared
+                if let enabled = body["enabled"] as? Bool { config.setEnabled(enabled) }
+                if let hints = body["promptHints"] as? Bool { config.setPromptHints(hints) }
+                if let mode = Self.string(body, "defaultEventMode") {
+                    guard [PageEventHub.modeOff, PageEventHub.modeDraft, PageEventHub.modeAuto].contains(mode) else {
+                        return try Self.json(["error": "defaultEventMode must be off|draft|auto"])
+                    }
+                    config.setDefaultEventMode(mode)
+                }
+                return try Self.json([
+                    "ok": true,
+                    "enabled": config.enabled,
+                    "promptHints": config.promptHints,
+                    "defaultEventMode": config.defaultEventMode,
+                ])
             case ("POST", "/dpp/mode"):
                 guard let host = Self.string(body, "host"), !host.isEmpty else {
                     return try Self.json(["error": "missing host"])

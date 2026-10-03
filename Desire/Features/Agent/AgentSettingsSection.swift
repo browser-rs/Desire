@@ -77,6 +77,7 @@ struct AgentSettingsSection: View {
         SettingsContainer {
             ScheduledTasksSection()
             MCPServersSection()
+            DPPSettingsSection()
             SettingsSection(
                 title: String(localized: "Provider"),
                 subtitle: store.providerKind.detail,

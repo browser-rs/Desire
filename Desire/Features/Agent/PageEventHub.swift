@@ -13,7 +13,7 @@ import os
 ///
 /// 事件风暴防护：同 host + 同事件名 debounce 聚合、单 host 频率上限。
 @MainActor
-final class PageEventHub {
+final class PageEventHub: ObservableObject {
     static let shared = PageEventHub()
     static let log = Log.agent
 
@@ -52,8 +52,16 @@ final class PageEventHub {
         UserDefaults.standard.set(siteModes, forKey: "dpp.eventModes")
     }
 
+    /// 移除站点的显式配置（回落到 DPP 配置的默认档）。
+    func removeMode(for host: String) {
+        siteModes.removeValue(forKey: host.lowercased())
+        UserDefaults.standard.set(siteModes, forKey: "dpp.eventModes")
+    }
+
     func mode(for host: String) -> String {
-        siteModes[host.lowercased()] ?? PageEventPolicy.defaultMode
+        // 未显式设置过的站点回落到 DPP 配置的默认档（设置页/桥可改；
+        // 旧版本此处硬编码 off）。
+        siteModes[host.lowercased()] ?? DPPConfigStore.shared.defaultEventMode
     }
 
     /// 已提示过"事件被抑制"的 host（每 host 每会话只提示一次）。
@@ -64,6 +72,8 @@ final class PageEventHub {
     /// 页面事件入口（desire-protocol.js 解析出 events 声明 →
     /// MutationObserver 只在匹配数 0→正 跳变时上报 → 这里防抖 + 限频）。
     func handleEvent(host: String, eventName: String, detail: [String: String]) {
+        // DPP 总开关关闭：事件入口整体静默（不 toast、不记队列）。
+        guard DPPConfigStore.shared.enabled else { return }
         let mode = mode(for: host)
         guard mode != Self.modeOff else {
             // 默认关闭：首次遭遇时 toast 提示（事件权限 = 通知权限模式），

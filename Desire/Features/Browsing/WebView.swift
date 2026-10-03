@@ -1491,6 +1491,13 @@ struct WebView: NSViewRepresentable {
         /// 事件监听由页面内的 MutationObserver 负责（0→正 跳变上报）；
         /// 宿主侧不做轮询（曾经的 installEventPolling 无调用点，已删）。
         private func parsePageProtocol(webView: WKWebView) async {
+            // DPP 总开关（设置页/桥 /dpp/config）：关 = 完全不解析。
+            // pageProtocolChecked 必须置位——工具层的"等解析落地"轮询靠它跳出。
+            guard DPPConfigStore.shared.enabled else {
+                parent.state.pageProtocol = nil
+                parent.state.pageProtocolChecked = true
+                return
+            }
             let script = UserScriptLoader.load("desire-protocol")
             guard !script.isEmpty else {
                 parent.state.pageProtocolChecked = true

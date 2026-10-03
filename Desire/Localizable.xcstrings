@@ -113,6 +113,248 @@
         }
       }
     },
+    "Attach declaration summaries (views/actions) to page tool results and page context." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attach declaration summaries (views/actions) to page tool results and page context."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面工具结果与页面上下文里附上声明摘要（视图/动作）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面工具結果與頁面上下文裡附上宣告摘要（視圖/動作）。"
+          }
+        }
+      }
+    },
+    "Auto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自動"
+          }
+        }
+      }
+    },
+    "DPP Protocol" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP Protocol"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 协议"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 協議"
+          }
+        }
+      }
+    },
+    "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声明了 Desire Page Protocol 的页面，智能体可按声明结构化读取、执行声明动作，并被页面事件唤醒。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宣告了 Desire Page Protocol 的頁面，智慧體可按宣告結構化讀取、執行宣告動作，並被頁面事件喚醒。"
+          }
+        }
+      }
+    },
+    "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未单独配置的站点的默认自动化档位。全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未單獨設定的站點的預設自動化檔位。全自動 = 頁面事件直接喚醒智慧體並行動（敏感動作仍會詢問）。"
+          }
+        }
+      }
+    },
+    "Draft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
+        }
+      }
+    },
+    "Hints in Tool Results" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hints in Tool Results"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具结果中的提示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具結果中的提示"
+          }
+        }
+      }
+    },
+    "New Sites' Events" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Sites' Events"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新站点的事件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新站點的事件"
+          }
+        }
+      }
+    },
+    "Off disables DPP entirely: no parsing, no hints, no page events." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off disables DPP entirely: no parsing, no hints, no page events."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后 DPP 完全停用：不解析、无提示、无页面事件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後 DPP 完全停用：不解析、無提示、無頁面事件。"
+          }
+        }
+      }
+    },
+    "Protocol Parsing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol Parsing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "协议解析"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "協議解析"
+          }
+        }
+      }
+    },
+    "Remove — fall back to the default level" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove — fall back to the default level"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除——回落到默认档位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除——回落到預設檔位"
+          }
+        }
+      }
+    },
     "…" : {
       "localizations" : {
         "en" : {

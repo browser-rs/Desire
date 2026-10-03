@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP 页面协议（四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。"
     },
     {
       "@type": "FAQPage",
@@ -133,7 +133,7 @@
                     "name": "什么是 DPP？我的网站怎么接入？",
                     "acceptedAnswer": {
                                 "@type": "Answer",
-                                "text": "DPP（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。"
+                                "text": "DPP for AI agents（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。"
                     }
         },
         {
@@ -948,14 +948,14 @@
   <section class="block" id="dpp">
     <div class="wrap">
       <div class="sec-head reveal">
-        <p class="kicker">网页协议 · DPP</p>
+        <p class="kicker">网页协议 · DPP for AI agents</p>
         <h2 class="title">让网页主动向 AI 交代自己。</h2>
       </div>
       <p class="feature-desc reveal" style="max-width:46em; margin-bottom:2.6rem;">
-        Desire 定义了一套开放协议（Desire Page Protocol）：页面用几行声明讲清
-        <b>我有什么数据、能做什么、何时就绪</b>——智能体按声明精准读写，
+        Desire 定义了一套开放协议（Desire Page Protocol，<b>DPP for AI agents</b>）：
+        页面用几行声明讲清<b>我有什么数据、能做什么、何时就绪</b>——智能体按声明精准读写，
         不再靠猜选择器、不再误读噪音。四级接入，从零改造到一行 SDK；
-        <b>任何 Agent 都可消费，不限 Desire</b>。</p>
+        <b>任何 Agent 都可消费，不限 Desire</b>。llms.txt 声明内容，DPP 声明能力——两者互补。</p>
       <div class="proto-grid">
         <div class="proto reveal">
           <span class="tag">L0 · 零改造</span>
@@ -1186,7 +1186,7 @@
         </details>
         <details class="faq-item reveal">
           <summary>什么是 DPP？我的网站怎么接入？</summary>
-          <p>DPP（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。</p>
+          <p>DPP for AI agents（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。</p>
         </details>
         <details class="faq-item reveal">
           <summary>智能体的记忆和个性化是怎样的？</summary>

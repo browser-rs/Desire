@@ -16,7 +16,8 @@
 > 应用内 DevTools、MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources
 > 消费）、Skill 技能包（Markdown 多文件，zip/目录/单文件导入）、AI Auto-Clean
 > （页面广告自动识别拦截、可豁免可回滚）、60+ 端点的自动化桥。
-> 页面协议 DPP（Desire Page Protocol）：站点四级接入——JSON-LD 零改造 /
+> 页面协议 DPP for AI agents（Desire Page Protocol；与 llms.txt 互补——llms.txt
+> 声明内容，DPP 声明能力；注意与欧盟 Digital Product Passport 无关）：站点四级接入——JSON-LD 零改造 /
 > data-dpp-* 属性 / application/x-desire+json 声明块 / 官方 SDK 一行 expose——
 > 向智能体声明视图、信号、动作与事件；选择器穿透 shadow DOM（>>>）与同源
 > iframe；站点级 /.well-known/desire.json；页面事件可自动唤起智能体

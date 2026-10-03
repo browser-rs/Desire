@@ -20,8 +20,11 @@
  * desire.emit(name, detail) 可发精确事件（比 DOM 监听更可靠）。
  * desire.validate() 检查声明完整性（含 profile 必选原语契约）。
  */
+
 /**
  * desire-sdk.js — Desire Page Protocol L3 SDK (v1)
+ * DPP for AI agents — 网页的能力声明协议（与 llms.txt 互补）
+ * SDK: https://desire.mankong.icu/desire-sdk.js · 规范: docs/DPP-PROTOCOL.md
  *
  * 新开发的网站用这个 SDK 声明 DPP 协议——比手写 JSON 声明块更友好：
  * - 类型安全的 API（视图/信号/动作/事件）

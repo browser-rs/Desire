@@ -1,5 +1,8 @@
 # Desire Page Protocol (DPP) v1 规范
 
+> **定位**：**DPP for AI agents** —— 网页的能力声明协议。与 llms.txt 互补
+> （llms.txt 向 LLM 声明内容，DPP 向 Agent 声明能力）。命名消歧：本规范的
+> DPP 与欧盟 Digital Product Passport（数字产品护照）无关。
 > **状态**：v1.1 规范——页面级/站点级/事件/审批全链实装（本版新增：§4.0 版本与
 > 演进、§4.7 站点级完整行为、§5 Profile 契约运行时化、§11 自检工具）
 > **版本**：desire/1

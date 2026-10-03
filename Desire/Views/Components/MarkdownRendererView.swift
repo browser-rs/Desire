@@ -77,7 +77,12 @@ struct MarkdownRendererView: View {
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
         case .codeBlock(let lang, let code):
-            CodeBlockView(code: code, language: lang)
+            // Mermaid 围栏内联成图（共享渲染服务缓存；失败回退代码块原文）
+            if lang?.lowercased() == "mermaid" {
+                MermaidInlineView(code: code)
+            } else {
+                CodeBlockView(code: code, language: lang)
+            }
         case .paragraph(let content):
             Text(inlineContent(content))
                 .font(.system(size: 13))

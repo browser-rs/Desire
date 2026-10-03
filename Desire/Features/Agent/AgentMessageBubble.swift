@@ -44,6 +44,36 @@ struct AgentMessageBubble: View {
 
 // MARK: - User bubble
 
+/// whiteboard 工具卡片：块数摘要 + 点击打开面板。
+private struct WhiteboardToolCard: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let blockCount: Int
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "paintpalette")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .frame(width: 22, alignment: .center)
+                .padding(.top, 2)
+            Button {
+                WhiteboardPanel.shared.show()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "rectangle.dashed")
+                        .font(.system(size: 11))
+                    Text(blockCount > 0 ? "白板已更新 · \(blockCount) 块（点此查看）" : "白板已清空")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6).fill(appAccent.opacity(0.10)))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 private struct UserBubble: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
@@ -450,35 +480,49 @@ private struct ToolBubble: View {
         return NSImage(data: data)
     }
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "wrench.adjustable")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, alignment: .center)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 3) {
-                if let name = toolName {
-                    Text(name)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                if let image = decodedImage {
-                    ScreenshotView(image: image)
-                } else {
-                    Text(content)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(4)
-                        .truncationMode(.tail)
-                        .textSelection(.enabled)
-                }
-            }
-            Spacer(minLength: 40)
+    /// whiteboard 工具的消息特化：显示块数摘要，点击打开白板面板。
+    private var boardBlockCount: Int? {
+        guard toolName == "whiteboard" else { return nil }
+        if let range = content.range(of: "updated: ", options: .backwards) {
+            let digits = content[range.upperBound...].prefix { $0.isNumber }
+            if let n = Int(digits), content.contains("block") { return n }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        return content.contains("cleared") ? 0 : nil
+    }
+
+    var body: some View {
+        if toolName == "whiteboard", let n = boardBlockCount {
+            WhiteboardToolCard(blockCount: n)
+        } else {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "wrench.adjustable")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 22, alignment: .center)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    if let name = toolName {
+                        Text(name)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    if let image = decodedImage {
+                        ScreenshotView(image: image)
+                    } else {
+                        Text(content)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(4)
+                            .truncationMode(.tail)
+                            .textSelection(.enabled)
+                    }
+                }
+                Spacer(minLength: 40)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+        }
     }
 }
 

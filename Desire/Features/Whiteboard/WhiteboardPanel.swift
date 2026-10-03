@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 白板窗口（一期）：承载**当前活跃 AI 会话**的白板（按 conversationId 取板）。
 /// 单例（AgentScheduler.deliveryTarget 决定显示哪个会话的板；无活跃会话时
@@ -98,11 +99,66 @@ struct WhiteboardPanelView: View {
             }
             CapsuleButton(systemName: "square.and.arrow.down", action: { exportPNG() })
                 .help("导出 PNG 到下载目录")
+            Menu {
+                Button("便签") { addBlock(WhiteboardBlock.Kind.note, "## 新便签\n- ") }
+                Button("Mermaid 导图/流程图") { addBlock(WhiteboardBlock.Kind.mermaid, "graph TD\n    A[节点] --> B[节点]") }
+                Button("图表（ECharts）") { addBlock(WhiteboardBlock.Kind.chart, "{\"xAxis\":{\"data\":[\"A\",\"B\"]},\"yAxis\":{},\"series\":[{\"type\":\"bar\",\"data\":[1,2]}]}") }
+                Button("表格") { addBlock(WhiteboardBlock.Kind.table, "| 列一 | 列二 |\n| --- | --- |\n| a | b |") }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 13))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("手动添加块（进入源码编辑）")
+            CapsuleButton(systemName: "square.and.arrow.up.on.square", action: { exportBoardFile() })
+                .help("导出 .board（JSON）")
+            CapsuleButton(systemName: "square.and.arrow.down.on.square", action: { importBoardFile() })
+                .help("导入 .board（追加块）")
             CapsuleButton(systemName: "trash", action: { store.clear(conversationID: session.conversationId?.uuidString) })
                 .help("清空白板")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// 手动加块：追加模板块并进入源码编辑（面板编辑态由渲染层按 index 恢复——
+    /// 这里直接把新块置为编辑源码的初始内容，用户改完保存即落库）。
+    private func addBlock(_ type: String, _ template: String) {
+        let id = session.conversationId?.uuidString
+        store.append([WhiteboardBlock(type: type, title: nil, content: template)],
+                     title: nil, conversationID: id)
+    }
+
+    /// 导出 .board（JSON 文本，含全部块）。
+    private func exportBoardFile() {
+        let spec = store.board(for: session.conversationId?.uuidString)
+        guard let data = try? JSONEncoder().encode(spec) else {
+            exportStatus = "编码失败"
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "(\(spec.title)).board".replacingOccurrences(of: "/", with: "-")
+        if panel.runModal() == .OK, let url = panel.url {
+            do { try data.write(to: url); exportStatus = "已导出 ✓" }
+            catch { exportStatus = "写入失败" }
+        }
+    }
+
+    /// 导入 .board：块**追加**到当前板（不覆盖既有内容）。
+    private func importBoardFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url,
+           let data = try? Data(contentsOf: url),
+           let spec = try? JSONDecoder().decode(WhiteboardSpec.self, from: data) {
+            let id = session.conversationId?.uuidString
+            store.append(spec.blocks, title: spec.title, conversationID: id)
+            exportStatus = "已导入 \(spec.blocks.count) 块 ✓"
+        }
     }
 
     /// 把当前白板窗口内容快照成 PNG 存到下载目录。

@@ -14,6 +14,9 @@
    会随脚本退出死掉，制造"网络错误"假象）
 4. `python3 tests/dpp-e2e/gate_e2e.py --use-daemon`（审批闸门 20 项）
    `python3 tests/dpp-e2e/event_e2e.py`（事件驱动回合 8 项）
+   `python3 tests/dpp-e2e/upload_wellknown_e2e.py`（站点级 + upload，7 项）
+   `python3 tests/dpp-e2e/sdk_live_e2e.py`（线上 SDK——**外部依赖**
+   desire.mankong.icu/desire-sdk.js 已部署，5 项）
 5. 收尾：`osascript -e 'quit app "Desire"'` → 还原两个 defaults 键 →
    `pkill -f serve_daemon` → `lsof -nP -iTCP:8877 -iTCP:8880` 确认端口释放。
 

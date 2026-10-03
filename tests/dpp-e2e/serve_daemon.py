@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """常驻 fixture(8877) + 假 LLM(8880)——E2E 诊断用，独立进程不死。"""
-import json, threading, time
+import json, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 FIXTURE_HTML = open("/tmp/dpp_audit/fixture/index.html").read() if False else """<!doctype html><html><head>
@@ -40,13 +40,59 @@ window.__injectMessage = function(text){
   document.body.appendChild(d); return document.querySelectorAll('.msg.unread').length; };
 </script></body></html>"""
 
+SDK_HTML = """<!doctype html><html><head>
+<script src="https://desire.mankong.icu/desire-sdk.js"></script>
+<script type="application/x-desire+json">
+{"views":{"fallback":{"item":".card","fields":{"title":"h3"}}}}
+</script>
+</head>
+<body>
+<div class="card"><h3>Widget-1</h3></div>
+<div class="card"><h3>Widget-2</h3></div>
+<div class="offer"><span class="p">19.9</span></div>
+<button id="switch" onclick="reExpose()">switch</button>
+<script>
+desire.expose({protocol:"desire/1", page:{type:"catalog"},
+  views:{products:{item:".card", fields:{title:"h3"}}}});
+function reExpose(){
+  desire.expose({protocol:"desire/1", page:{type:"catalog"},
+    views:{offers:{item:".offer", fields:{price:".p"}}}});
+}
+</script></body></html>"""
+
+UPLOAD_HTML = """<!doctype html><html><head>
+<script type="application/x-desire+json">
+{"protocol":"desire/1","page":{"type":"forms"},
+ "actions":[{"name":"upload-report","description":"上传报告文件",
+   "params":{"path":{"type":"string","required":true}},
+   "run":[{"upload":{"#file":"{path}"}}],"success":"GOT:"}]}
+</script></head>
+<body><h1>上传页</h1>
+<input type="file" id="file" onchange="document.title = 'GOT:' + (this.files[0] ? this.files[0].name : '?')">
+</body></html>"""
+
+SITE_WELLKNOWN = {"context": {"persona": "站点级人设", "tone": "简洁"},
+                   "signals": {"ready": "body"},
+                   "actions": [{"name": "site-action", "description": "站点级动作",
+                                "run": [{"click": "h1"}]}]}
+
 class Fixture(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, *a): pass
     def do_GET(self):
-        body = (IM_HTML if self.path.startswith("/im") else FIXTURE_HTML).encode()
+        if self.path.startswith("/.well-known/desire.json"):
+            body = json.dumps(SITE_WELLKNOWN).encode()
+            ctype = "application/json"
+        elif self.path.startswith("/sdk"):
+            body = SDK_HTML.encode(); ctype = "text/html; charset=utf-8"
+        elif self.path.startswith("/upload"):
+            body = UPLOAD_HTML.encode(); ctype = "text/html; charset=utf-8"
+        elif self.path.startswith("/im"):
+            body = IM_HTML.encode(); ctype = "text/html; charset=utf-8"
+        else:
+            body = FIXTURE_HTML.encode(); ctype = "text/html; charset=utf-8"
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -81,7 +127,26 @@ class FakeLLM(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
-        if "DPPNAV" in mode_text and not has_tool:
+        if "DPPSDK" in mode_text and not has_tool:
+            view = "offers" if "SDK2" in mode_text else "products"
+            call = {"index": 0, "id": "call_sdk_1", "type": "function",
+                    "function": {"name": "pageExtract",
+                                 "arguments": json.dumps({"view": view})}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPUPLOAD" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_up_1", "type": "function",
+                    "function": {"name": "pageAction",
+                                 "arguments": json.dumps({"name": "upload-report",
+                                     "args": {"path": os.environ.get("DPP_UPLOAD_FILE", "/tmp/dpp-upload.txt")}})}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPPROTO" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_proto_1", "type": "function",
+                    "function": {"name": "pageProtocol", "arguments": "{}"}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPNAV" in mode_text and not has_tool:
             call = {"index": 0, "id": "call_nav_1", "type": "function",
                     "function": {"name": "navigate", "arguments": json.dumps({"url": "http://127.0.0.1:8877/"})}}
             sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,

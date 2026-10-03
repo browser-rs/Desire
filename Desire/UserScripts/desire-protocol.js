@@ -100,6 +100,14 @@ return (function() {
 
     // —— L1：data-dpp-* 属性微标注 ——
     function readAttributes() {
+        // 清掉上一次解析留下的锚点（SPA 同文档重解析时旧 data-dpp-items/uid
+        // 会残留，重打编号后选择器可能同时匹配新旧两批元素）。
+        try {
+            document.querySelectorAll('[data-dpp-uid],[data-dpp-items]').forEach(function(el) {
+                el.removeAttribute('data-dpp-uid');
+                el.removeAttribute('data-dpp-items');
+            });
+        } catch (e) {}
         var containers = document.querySelectorAll('[data-dpp-view]');
         // ignore 收集先于 views 判空：只标噪音的页面也是合法的 L1。
         var ignoreSelectors = [];
@@ -141,7 +149,10 @@ return (function() {
                 // 条目的 nth-child 结构路径，抽取永远只出 1 条）。
                 var items = Array.prototype.slice.call(c.querySelectorAll('[data-dpp-item]'));
                 if (!items.length) items = Array.prototype.slice.call(c.children);
-                if (!items.length) continue;
+                if (!items.length) {
+                    warnings.push("view '" + viewName + "': container has no item elements, skipped");
+                    continue;
+                }
                 var tag = 'dpp-' + (++uidCounter);
                 for (var t = 0; t < items.length; t++) {
                     try { items[t].setAttribute('data-dpp-items', tag); } catch (e) {}
@@ -220,6 +231,24 @@ return (function() {
     }
 
     var merged = readSDK() || readBlock() || readAttributes() || readJSONLD();
+    // 宿主注入的站点级 events（/.well-known/desire.json，经 callAsyncJavaScript
+    // 参数传入）：补进页面声明没覆盖的键，与页面级**一起**装 observer——
+    // 站点级 monitor 事件由此获得自动回合能力（此前 merge 只进了展示/命中
+    // 检查，observer 不装，站点级事件永远不会触发回合）。
+    if (typeof hostExtraEvents === 'string' && hostExtraEvents) {
+        try {
+            var extraEvents = JSON.parse(hostExtraEvents);
+            if (extraEvents && typeof extraEvents === 'object') {
+                if (!merged) merged = empty();
+                for (var extraKey in extraEvents) {
+                    if (!(extraKey in merged.events)) {
+                        merged.events[extraKey] = extraEvents[extraKey];
+                        warnings.push("events." + extraKey + ": from site-level protocol");
+                    }
+                }
+            }
+        } catch (e) {}
+    }
     // **事件监听**：按 merged.events 声明安装 MutationObserver → postMessage
     // 给宿主 → PageEventHub → 事件驱动回合。
     // 语义 = **匹配数由 0 变正的跳变**（transition）而不是"匹配存在期间的每次
@@ -229,11 +258,10 @@ return (function() {
         if (window.__dppEventObserver) window.__dppEventObserver.disconnect();
         window.__dppEventState = window.__dppEventState || {};
         window.__dppEventState = {}; // 新协议 = 重置跳变基线
-        var lastPost = 0;
+        // 跳变即发，**不做 JS 侧节流**——此前的 500ms 全局节流会把窗口内的
+        // 第二个跳变永久吞掉（state 已更新、消息没发、0→正不再满足）。风暴
+        // 防护由宿主负责：同事件 3s 防抖 + 单 host 60s 滑窗限频（PageEventHub）。
         window.__dppEventObserver = new MutationObserver(function(mutations) {
-            var now = Date.now();
-            var throttled = (now - lastPost) < 500;
-            var posted = false;
             for (var eventName in merged.events) {
                 var sel = merged.events[eventName];
                 var matched = false;
@@ -242,11 +270,7 @@ return (function() {
                 } catch (e) { continue; }
                 var was = !!window.__dppEventState[eventName];
                 window.__dppEventState[eventName] = matched;
-                // 只在 0 → >0 跳变时上报；节流窗口内跳过但保留基线更新
-                //（否则窗口内的真跳变会被永久吞掉）。
-                if (matched && !was && !throttled && !posted) {
-                    posted = true;
-                    lastPost = now;
+                if (matched && !was) {
                     try {
                         window.webkit.messageHandlers.desireProtocolEvent.postMessage({
                             host: location.host,

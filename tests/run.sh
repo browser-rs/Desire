@@ -9,6 +9,8 @@ SOURCES=(
   Desire/Features/Agent/AgentMessage.swift
   Desire/Features/Agent/AgentToolSchema.swift
   Desire/Features/Agent/PageProtocol/DesireProtocol.swift
+  Desire/Features/Agent/PageEventPolicy.swift
+  Desire/App/Log.swift
   Desire/Features/Agent/AgentPlanStep.swift
   Desire/App/JSString.swift
   Desire/Features/History/HistoryEntry.swift

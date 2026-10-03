@@ -962,10 +962,10 @@ class AgentSessionStore: ObservableObject {
             if !dpp.events.isEmpty, let wv = activeWebView {
                 var eventHits: [String] = []
                 for (eventName, selector) in dpp.events {
-                    let checkJS = DPPQuery.helperJS + "\n(__desireQueryAll(\(JSString.literal(selector))).length > 0)"
-                    let raw: Any? = await withCheckedContinuation { (cont: CheckedContinuation<Any?, Never>) in
-                        wv.evaluateJavaScript(checkJS) { result, _ in cont.resume(returning: result) }
-                    }
+                    let checkJS = DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(selector))).length > 0"
+                    // 隔离世界求值（页面覆盖不了我们的查询函数）；helper 的 return 语义见 DPPQuery 注释
+                    let raw = try? await wv.callAsyncJavaScript(
+                        checkJS, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
                     if (raw as? Bool) == true {
                         eventHits.append(eventName)
                     }
@@ -2135,6 +2135,15 @@ class AgentSessionStore: ObservableObject {
     /// 白名单、不走 allow 规则、autoEdit 分支显式豁免、永远弹审批。
     /// （真机 E2E 教训：只升级风险档挡不住 autoEdit——该分支原本不看
     /// risk，豁免必须写在分支条件里。）
+    /// pageAction 的审批时空锚点：call.id → 审批（gate）时动作所在页面的
+    /// host。执行侧（pageAction 工具）复核——审批与执行之间页面若已导航，
+    /// 同名动作会在别的页面上跑（TOCTOU）。
+    private var dppActionHostByCall: [String: String] = [:]
+
+    func dppActionHost(for callID: String) -> String? {
+        dppActionHostByCall.removeValue(forKey: callID)
+    }
+
     private func effectiveRisk(for toolCall: AgentToolCall) -> ToolRisk {
         let base = ToolRisk.classify(toolCall.function.name)
         guard toolCall.function.name == "pageAction",
@@ -2143,6 +2152,15 @@ class AgentSessionStore: ObservableObject {
               let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol,
               let action = dpp.actions.first(where: { $0.name == name }) else {
             return base
+        }
+        if let host = toolProvider.surface?.tabManager?.selectedTab?.browser.webView.url?.host {
+            // 记录审批时的页面身份；上限防长会话累积。
+            dppActionHostByCall[toolCall.id] = host
+            if dppActionHostByCall.count > 50 {
+                for key in dppActionHostByCall.keys.prefix(dppActionHostByCall.count - 50) {
+                    dppActionHostByCall.removeValue(forKey: key)
+                }
+            }
         }
         if action.danger == true || action.effects?.lowercased() == "outbound" {
             return .dangerous

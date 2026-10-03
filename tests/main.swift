@@ -1187,6 +1187,38 @@ func testDPPMerge() {
 }
 testDPPMerge()
 
+// ---------- DPP 事件策略（PageEventPolicy 纯逻辑） ----------
+
+func testPageEventPolicy() {
+    let now = Date()
+    let old = now.addingTimeInterval(-120)   // 窗口外
+    let fresh = now.addingTimeInterval(-10)  // 窗口内
+    // 未达上限：返回滤掉过期项的数组
+    let passed = PageEventPolicy.filterRateWindow([old, fresh], now: now)
+    check("限频：过期时间戳被滤掉", passed == [fresh])
+    // 达上限（9 条在窗内，再收第 10 条仍允许；第 11 条拒收）
+    let nine = Array(repeating: now.addingTimeInterval(-5), count: 9)
+    check("限频：第 10 条放行", PageEventPolicy.filterRateWindow(nine, now: now)?.count == 9)
+    let ten = Array(repeating: now.addingTimeInterval(-5), count: 10)
+    check("限频：第 11 条拒收", PageEventPolicy.filterRateWindow(ten, now: now) == nil)
+    // 全部过期 → 放行且清空
+    check("限频：全过期后清空放行", PageEventPolicy.filterRateWindow([old, old], now: now) == [])
+
+    // 提示词：auto 档不承诺免审批；off 档无策略行
+    let prompt = PageEventPolicy.eventPrompt(host: "example.com", eventName: "new-message",
+                                             detail: ["selector": ".msg.unread"], timestamp: now, mode: "auto")
+    check("提示词：带事件名与 host", prompt.contains("new-message") && prompt.contains("example.com"))
+    check("提示词：auto 档声明仍需审批", prompt.contains("still require user approval"))
+    check("提示词：auto 档不再说 pre-approved", !prompt.contains("pre-approved"))
+    let draftPrompt = PageEventPolicy.eventPrompt(host: "h", eventName: "e", detail: [:], timestamp: now, mode: "draft")
+    check("提示词：draft 档要求先展示", draftPrompt.contains("Show me what you would do"))
+    let offPrompt = PageEventPolicy.eventPrompt(host: "h", eventName: "e", detail: [:], timestamp: now, mode: "off")
+    check("提示词：off 档无策略行", !offPrompt.contains("Act on this event") && !offPrompt.contains("Analyze this event"))
+    check("模式：三档合法", PageEventPolicy.isValidMode("off") && PageEventPolicy.isValidMode("draft") && PageEventPolicy.isValidMode("auto"))
+    check("模式：非法档拒绝", !PageEventPolicy.isValidMode("full-auto"))
+}
+testPageEventPolicy()
+
 // ---------- 汇总 ----------
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

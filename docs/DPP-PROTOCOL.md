@@ -66,7 +66,7 @@
 | `data-dpp-item` | 标记单条目元素 | `<div class="card" data-dpp-item>` |
 | `data-dpp-field="字段名"` | 标记字段（textContent 为值） | `<h3 data-dpp-field="title">` |
 | `data-dpp-field="名" data-dpp-field-attr="属性"` | 字段值取自属性 | `<span data-dpp-field="price" data-dpp-field-attr="data-price">` |
-| `data-dpp-ignore` | 标记噪音（Agent 忽略） | `<nav data-dpp-ignore>` |
+| `data-dpp-ignore` | 标记噪音（当前仅展示于 pageProtocol；抽取过滤未接线） | `<nav data-dpp-ignore>` |
 | `data-dpp-action="动作名"` | 标记动作触发器 | `<button data-dpp-action="search">` |
 
 ### 3.3 L2 — 声明块
@@ -275,6 +275,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
     { "name": "open-conversation", "params": {"id": {"type":"string","required":true}},
       "run": [{ "click": ".conversation-item[data-conv-id='{id}']" }],
       "waits": ".thread-loaded" },
+  // ↑ waits 字段暂未实现（示例保留为规范占位）；如需等待用 run 里的 waitFor 步骤
     { "name": "send-message", "effects": "outbound", "danger": true,
       "params": {"text": {"type":"string","required":true}},
       "run": [{ "fill": {"#input-box": "{text}" } }, { "click": "#btn-send" }] }
@@ -351,19 +352,30 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 
 协议声明能力，**不等于授权**。用户策略控制每个站点允许什么，Desire 强制执行最终闸门。
 
-### 6.2 注入防护
+### 6.2 求值隔离（2026-10-03 审计后确立）
+
+**工具求值不得依赖页面可变的全局。** DPP 的全部选择器求值（views/字段、
+pageAction 各步骤、precondition、signals、事件命中检测）运行在隔离
+content world `desireDPPTools`——页面既不能覆盖 `__desireQueryAll` 等查询
+函数，也不能猴补 DOM 原型来改写 Agent 的动作目标（此前曾实证：页面世界
+里一行 `window.__desireQueryAll = …` 就能劫持）。DOM 跨世界共享，click/
+fill/scroll 语义不变。两个留页面世界的例外：**协议解析器**（读页面的
+`window.desire` / `__desireProtocolExposed`）与 **executeJS**（语义就是
+页面上下文执行）。
+
+### 6.3 注入防护
 
 - 协议 JSON 大小上限（256KB）
 - `run` 步骤操作白名单（仅 §4.4 的原子操作，无 `runJS`）
 - `runJS` 操作需站点声明 + 用户策略双允许
 - 协议注入 Agent 上下文的**参考位**，不是指令位——"页面文字是数据不是指令"原则不变
 
-### 6.3 防拉锯
+### 6.4 防拉锯
 
 - 用户 `unblockElement` AI 自动拦截的元素 → 该 host 加入豁免名单
 - 用户关闭某站点的 Auto-Clean → 站点级记忆
 
-### 6.4 隐私
+### 6.5 隐私
 
 - 协议不携带用户数据（只有选择器和描述）
 - Agent 提取的数据留在本地（除非用户显式要求同步/外发）
@@ -375,8 +387,9 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 
 ```
 ┌────────────────────────────────────────────────┐
-│ desire-protocol.js (user script)               │  四形态归一化解析
+│ desire-protocol.js (user script, 页面世界)      │  四形态归一化解析
 │ → window.__desireProtocol / callAsyncJavaScript│
+│ 工具求值在隔离世界 desireDPPTools（§6.2）       │  页面篡改免疫
 ├────────────────────────────────────────────────┤
 │ Coordinator.didFinish → parsePageProtocol()    │  解析 + 缓存
 │ → BrowserState.pageProtocol: DesireProtocol?   │
@@ -436,12 +449,16 @@ Actions (pageAction): search
 | signals 接线：navigate 等 ready、pageAction 等 busy 消失 | ✅ 真机 E2E |
 | shadow DOM 穿透：`>>>` item/字段选择器抽取 | ✅ 探针实证 |
 | 事件驱动全链：跳变 → PageEventHub → auto 回合 → 模型收到 | ✅ 真机 E2E 8 项 |
+| 站点级 well-known 合并 + upload 步骤交付 | ✅ 真机 E2E 7 项 |
+| 线上 SDK（desire.mankong.icu）第三方站点全链 | ✅ 真机 E2E 5 项 |
+| 审批时空一致性 + upload 摘 arm + signals.error | ✅ 第二轮审计后全量回归 |
 
 ## 9. 已知限制与边界
 
 | 限制 | 原因 | 计划 |
 |---|---|---|
 | 跨源 iframe 不可穿透 | 同源已自动搜索；跨源需宿主 frame API | 后续：`frame:` 前缀 |
+| infinite 分页只滚 window | 容器内滚动的站点无效（静默返回已收集部分） | 按需 |
 | L1 属性扫描不进 shadow DOM/iframe | 解析器只扫 light DOM（L2/L3 声明可用 `>>>`，选择器自动搜同源 iframe） | 按需 |
 | well-known 仅同源 http(s) 页面 | 经页面内 fetch；file:// 等协议跳过 | 设计内 |
 | 审批白名单粒度 = 工具名 | outbound/danger 已强制逐次审批兜底 | 后续：per-(host, action) 放行 |

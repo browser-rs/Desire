@@ -181,6 +181,9 @@ extension BrowserToolProvider {
             }
             let targetWebView = targetTab?.browser.webView ?? webView
             targetWebView.load(URLRequest(url: u))
+            // 实际承载导航的 webview（window 参数跨窗时 ≠ 传入的 webView）——
+            // 后续一切轮询/读取都必须用它，否则 CF 检测/标题/DPP 全部看错页面。
+            let nav = targetWebView
             // 第十一批：Cloudflare 挑战页自愈等待——load 返回即读页会看到
             // "Just a moment" 挑战页，agent 判定失败 → 重试 → 触发更多挑战。
             // 主框架加载完成后轮询标题（挑战通过即消失），最长 15s。仍在挑战
@@ -190,8 +193,8 @@ extension BrowserToolProvider {
             let deadline = Date().addingTimeInterval(15)
             var challengeReported = false
             while Date() < deadline {
-                if !webView.isLoading {
-                    let title = (webView.title ?? "").lowercased()
+                if !nav.isLoading {
+                    let title = (nav.title ?? "").lowercased()
                     if !challengeReported, !title.isEmpty,
                        cfMarkers.contains(where: { title.contains($0) }) {
                         challengeReported = true
@@ -208,7 +211,7 @@ extension BrowserToolProvider {
                 try? await Task.sleep(nanoseconds: 500_000_000)
             }
             if challengeReported {
-                let stillChallenge = cfMarkers.contains(where: { (webView.title ?? "").lowercased().contains($0) })
+                let stillChallenge = cfMarkers.contains(where: { (nav.title ?? "").lowercased().contains($0) })
                 if stillChallenge {
                     return "Navigated to \(url) — Cloudflare human-verification page is STILL showing. Ask the user to complete the check in the browser window. Do NOT retry navigation."
                 }
@@ -216,9 +219,9 @@ extension BrowserToolProvider {
             }
             // 导航反馈增强：返回页面标题 + 首段文本 + DPP 视图提示。
             // 模型免调 getPageText 就知道页面有什么。
-            let pageTitle = webView.title ?? ""
+            let pageTitle = nav.title ?? ""
             let snippet: String = await {
-                let raw = try? await webView.evaluateJavaScript(
+                let raw = try? await nav.evaluateJavaScript(
                     "document.body ? document.body.innerText.substring(0, 200) : ''")
                 return (raw as? String) ?? ""
             }()
@@ -229,7 +232,8 @@ extension BrowserToolProvider {
             // ② 视图/动作提示与 ready 共用这份协议。
             var dpp: DesireProtocol? = nil
             for _ in 0..<10 {
-                dpp = targetManager.tabs.first(where: { $0.browser.webView === webView })?.browser.effectiveProtocol
+                dpp = targetManager.tabs.first(where: { $0.browser.webView === nav })?.browser.effectiveProtocol
+                    ?? (nav === targetTab?.browser.webView ? targetTab?.browser.effectiveProtocol : nil)
                 if dpp != nil { break }
                 if targetTab?.browser.pageProtocolChecked == true { break }
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -239,8 +243,8 @@ extension BrowserToolProvider {
                 let readyJS = DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(readySel))).length > 0"
                 var readySeen = false
                 for _ in 0..<30 {
-                    readySeen = ((try? await webView.callAsyncJavaScript(
-                        readyJS, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                    readySeen = ((try? await nav.callAsyncJavaScript(
+                        readyJS, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
                     if readySeen { break }
                     try? await Task.sleep(nanoseconds: 200_000_000)
                 }

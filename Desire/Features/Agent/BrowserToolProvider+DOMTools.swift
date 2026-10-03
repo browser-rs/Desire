@@ -697,6 +697,15 @@ extension BrowserToolProvider {
                 return Self.fail("The tab holding this DPP page is suspended — switchTab to it first, then retry")
             }
             let dppWebView = dppTab.browser.webView
+            // 审批时空一致性：闸门记录的页面 host ≠ 当前 host = 审批之后页面
+            // 已导航——同名动作会在别的页面上跑，拒绝并要求重新审批。
+            if let session = AgentScheduler.shared.deliveryTarget,
+               let approvedHost = session.dppActionHost(for: call.id) {
+                let currentHost = dppWebView.url?.host ?? ""
+                if approvedHost != currentHost {
+                    return Self.fail("Action was approved on \(approvedHost) but the tab now shows \(currentHost) — the page changed after approval. Re-run pageAction to get fresh approval.")
+                }
+            }
             guard let protocolSnapshot = dppTab.browser.effectiveProtocol,
                   let actionName = args["name"] as? String,
                   let action = protocolSnapshot.actions.first(where: { $0.name == actionName }) else {
@@ -727,7 +736,7 @@ extension BrowserToolProvider {
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
                         DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(precondition))).length > 0",
-                        arguments: [:], in: nil, contentWorld: .page)
+                        arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
                     present = (raw as? Bool) == true
                 } catch {
                     Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
@@ -752,12 +761,12 @@ extension BrowserToolProvider {
                 return filled
             }
             func runStepJS(_ js: String) async throws {
-                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: .page)
+                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
             }
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
                     let ok = ((try? await dppWebView.callAsyncJavaScript(
-                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -855,6 +864,19 @@ extension BrowserToolProvider {
                                 "\nvar el = __desireQueryAll(\(uploadSelLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.click(); 'ok'")
+                            // 选择器没触发文件选择器时 intent 会残留——之后用户
+                            // 手动点任何文件输入都会被自动提交那个文件（陈旧 arm
+                            // 劫持）。3s 内未被消费 = 失败并摘除。
+                            var consumed = false
+                            for _ in 0..<10 {
+                                if !UploadIntent.shared.isArmed { consumed = true; break }
+                                try? await Task.sleep(nanoseconds: 300_000_000)
+                            }
+                            if !consumed {
+                                UploadIntent.shared.arm([])
+                                throw NSError(domain: "dpp", code: 3, userInfo: [NSLocalizedDescriptionKey:
+                                    "file chooser did not open for '\(selector)' — upload intent disarmed (it would otherwise hijack the user's next file pick)"])
+                            }
                             executed.append("uploaded \(uploadURL.path) via \(selector)")
                         default:
                             throw NSError(domain: "dpp", code: 2,
@@ -878,7 +900,7 @@ extension BrowserToolProvider {
                 var busyGone = false
                 for _ in 0..<10 {
                     busyGone = ((try? await dppWebView.callAsyncJavaScript(
-                        busyJS, arguments: [:], in: nil, contentWorld: .page) as? Bool) != true)
+                        busyJS, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) != true)
                     if busyGone { break }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -886,12 +908,22 @@ extension BrowserToolProvider {
                     busyNote = " (busy signal '\(busySel)' still present after 5s — the page reports ongoing work)"
                 }
             }
+            // signals.error（spec §4.2）：动作步骤执行完但页面亮着错误信号
+            // → 判失败（error 优先于 success——页面自己说错了就是说错了）。
+            if let errorSel = protocolSnapshot.signals["error"], !errorSel.isEmpty {
+                let errorPresent = ((try? await dppWebView.callAsyncJavaScript(
+                    "return __desireQueryAll(\(JSString.literal(errorSel))).length > 0",
+                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                if errorPresent {
+                    return Self.fail("Action '\(actionName)' steps executed but the page's error signal '\(errorSel)' is showing — treat the action as failed and read the page's error message. Steps executed: \(executed.joined(separator: " → "))")
+                }
+            }
             // 检查 success 信号
             var suffix = ""
             if let successText = action.success, !successText.isEmpty {
                 let found = ((try? await dppWebView.callAsyncJavaScript(
                     "return document.body.innerText.includes(\(JSString.literal(successText)))",
-                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
             return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)"
@@ -999,7 +1031,7 @@ extension BrowserToolProvider {
 
             func collectPage() async -> [[String: Any]] {
                 guard let raw = try? await dppWebView.callAsyncJavaScript(
-                    extractJS(), arguments: [:], in: nil, contentWorld: .page) as? String,
+                    extractJS(), arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? String,
                     let data = raw.data(using: .utf8),
                     let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
                 return items
@@ -1020,7 +1052,7 @@ extension BrowserToolProvider {
             if !allPages || (!paged && !infinite) {
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
-                        extractJS(), arguments: [:], in: nil, contentWorld: .page
+                        extractJS(), arguments: [:], in: nil, contentWorld: WebView.dppToolWorld
                     ) as? String
                     guard let raw, let data = raw.data(using: .utf8) else { return Self.fail("Extraction returned empty") }
                     let items = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
@@ -1056,7 +1088,7 @@ extension BrowserToolProvider {
                     }
                     _ = try? await dppWebView.callAsyncJavaScript(
                         "window.scrollTo(0, document.body.scrollHeight); 'ok'",
-                        arguments: [:], in: nil, contentWorld: .page)
+                        arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
                     try? await Task.sleep(nanoseconds: 900_000_000)
                 }
                 return render(allItems, pages: rounds, scope: "infinite scroll")
@@ -1081,11 +1113,11 @@ extension BrowserToolProvider {
                 if allItems.count >= hardCap { break }
                 _ = try? await dppWebView.callAsyncJavaScript(
                     DPPQuery.helperJS + "\nvar n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
-                    arguments: [:], in: nil, contentWorld: .page)
+                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 let hasNext = ((try? await dppWebView.callAsyncJavaScript(
                     DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
-                    arguments: [:], in: nil, contentWorld: .page) as? Bool) == true)
+                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
                 if !hasNext { break }
             }
             return render(allItems, pages: pages, scope: "full pagination")

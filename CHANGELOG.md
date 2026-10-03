@@ -1,3 +1,15 @@
+## [Unreleased]
+### Added
+
+DPP pageAction 审批时空一致性：闸门记录审批时的页面 host，执行时复核——审批之后页面已导航（同名动作会换页执行）则拒绝并要求重新审批。事件策略纯逻辑抽为 PageEventPolicy 进单测（限频滑窗/提示词/三档校验，290 项全过）；L1 解析前清理上次解析残留的锚点属性（SPA 同文档重解析的选择器复用风险）+ 静默跳过的容器记入 warnings。
+
+### Fixed
+
+DPP 第二轮审计修复（五项）：① **跨窗 navigate 链路断裂**——window 参数跨窗时 CF 挑战检测/标题/首段/DPP ready 等待全部读的还是旧窗口的 webview（load 落在目标窗、轮询看旧窗），统一改用实际承载导航的 webview；② **UploadIntent 陈旧 arm 劫持**——DPP upload 选择器没触发文件选择器时 intent 残留，用户之后手动点任何文件输入都会被自动提交那个文件；现在 3s 未消费即摘除并明确报错；③ **站点级 events 半接线**——well-known 的 events 此前只进展示/命中检查，页内 observer 不装（站点级 monitor 事件永远不会触发回合）；解析器现接受宿主注入的 extraEvents 与页面级一起装 observer（页面级同名键优先），首次 fetch 到站点级声明后自动带 extras 重解析；④ **事件节流吞跳变**——JS 侧 500ms 全局节流窗口内第二个跳变的 state 已更新但消息不发，该事件在恢复 0 之前永久丢失；去掉 JS 节流（宿主 3s 防抖 + 60s 滑窗限频本来就是风暴防线），跳变即发；⑤ **signals.error** 此前声明无消费——pageAction 步骤执行完但页面亮着错误信号时判失败。
+DPP 工具求值面加固（第二轮审计 P2-1）：此前 DPP 查询/动作 JS 与页面同世界，页面覆盖 `window.__desireQueryAll` 即可劫持 Agent 的查询结果与动作目标（探针实证）。现在 DPP 全部选择器求值（views/字段、pageAction 步骤、precondition、signals、事件命中检测）运行在隔离 content world `desireDPPTools`——页面无法覆盖函数或猴补 DOM 原型，click/fill/scroll 语义不变（跨世界实证）；协议解析器与 executeJS 按语义留在页面世界。
+
+
+
 ## [v0.5.7] - 2026-10-03
 ### Removed
 

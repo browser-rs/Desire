@@ -32,11 +32,9 @@ final class PageEventHub {
 
     /// 事件风暴防护：**滑动窗口**内同 host 事件数上限（此前是进程生命周期
     /// 累计 ≤10 且永不归零——每 host 累计 10 次后事件永久静默）。
+    /// 策略常量/纯逻辑在 PageEventPolicy（进纯逻辑单测）。
     private var hostEventTimes: [String: [Date]] = [:]
     private var recentEvents: [String: Date] = [:]
-    private let debounceInterval: TimeInterval = 3.0
-    private let rateWindow: TimeInterval = 60
-    private let maxPerHostPerWindow = 10
 
     private init() {
         siteModes = UserDefaults.standard.dictionary(forKey: "dpp.eventModes") as? [String: String] ?? [:]
@@ -44,9 +42,9 @@ final class PageEventHub {
 
     // MARK: - 模式
 
-    static let modeOff = "off"
-    static let modeDraft = "draft"
-    static let modeAuto = "auto"
+    static let modeOff = PageEventPolicy.modeOff
+    static let modeDraft = PageEventPolicy.modeDraft
+    static let modeAuto = PageEventPolicy.modeAuto
 
     func setMode(_ mode: String, for host: String) {
         let key = host.lowercased()
@@ -69,12 +67,10 @@ final class PageEventHub {
         let debounceKey = host + ":" + eventName
         let now = Date()
         if let last = recentEvents[debounceKey],
-           now.timeIntervalSince(last) < debounceInterval { return }
+           now.timeIntervalSince(last) < PageEventPolicy.debounceInterval { return }
         recentEvents[debounceKey] = now
         // 事件风暴防护 ②：单 host 滑动窗口限频（60s 内 ≤10 条）
-        var times = hostEventTimes[host] ?? []
-        times.removeAll { now.timeIntervalSince($0) > rateWindow }
-        guard times.count < maxPerHostPerWindow else {
+        guard var times = PageEventPolicy.filterRateWindow(hostEventTimes[host] ?? [], now: now) else {
             Self.log.info("DPP event dropped (rate window): \(host, privacy: .public)")
             return
         }
@@ -83,6 +79,10 @@ final class PageEventHub {
 
         let event = PendingEvent(host: host, eventName: eventName, detail: detail, timestamp: now)
         pendingEvents.append(event)
+        // 环形上限：无 UI 消费者，纯诊断队列——长会话不无限增长。
+        if pendingEvents.count > 100 {
+            pendingEvents.removeFirst(pendingEvents.count - 100)
+        }
         Self.log.info("DPP event: \(eventName, privacy: .public) on \(host, privacy: .public) (mode=\(mode, privacy: .public))")
         triggerAgentTurn(for: event)
     }
@@ -99,24 +99,7 @@ final class PageEventHub {
     }
 
     static func buildEventPrompt(event: PendingEvent, mode: String) -> String {
-        var lines = [
-            "[DPP Event] Page event triggered on \(event.host):",
-            "- Event: \(event.eventName)",
-            "- Time: \(event.timestamp.formatted())"
-        ]
-        for (key, value) in event.detail.sorted(by: { $0.key < $1.key }) {
-            lines.append("- \(key): \(value)")
-        }
-        switch mode {
-        case Self.modeAuto:
-            // auto 档收紧的是"分析深度"，不是审批：outbound/danger 动作
-            // 的强制审批在 AgentSessionStore.effectiveRisk，不随档位放水。
-            lines.append("Act on this event using the page's declared actions. Note: outbound/danger actions still require user approval.")
-        case Self.modeDraft:
-            lines.append("Analyze this event and prepare a response using the page's declared actions. Show me what you would do before executing outbound actions.")
-        default:
-            break
-        }
-        return lines.joined(separator: "\n")
+        PageEventPolicy.eventPrompt(host: event.host, eventName: event.eventName,
+                                    detail: event.detail, timestamp: event.timestamp, mode: mode)
     }
 }

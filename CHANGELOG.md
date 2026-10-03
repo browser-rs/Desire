@@ -16,6 +16,8 @@ Whiteboard panel entry points and render hardening: palette icon in the agent pa
 Whiteboard phase 2: boards persist across relaunches (DiskStore, per-conversation map with the 24-board cap), per-block management (hover toolbar — move up/down, delete, and an edit-source mode whose save round-trips through the store and re-renders), a new `table` block type (markdown table rendered as a real table; agent tool type extended), and the block-card snapshot endpoint for assertions.
 Whiteboard phase 2.5: agent messages containing mermaid code fences now render inline as real diagrams (shared hidden-webview render service with per-source SVG/image caching, graceful fallback to the raw code on failure, one-click "send to whiteboard"); the whiteboard tool message in chat became a card showing block count that opens the panel; the panel gained manual block creation (note/mermaid/chart/table templates entering source-edit mode), .board JSON export and append-import. New shared MermaidRenderService (hidden webview, serial queue, FNV-keyed caches).
 Web selection → whiteboard: right-click on selected text offers "Add to Whiteboard" (same dynamic context-menu pipeline as Search selection), and a browser command `addSelectionToWhiteboard` (menu + bridge) grabs the current tab's selection via JS and appends it as a sourced note block, then opens the panel.
+.board files: double-click association registered (UTImportedTypeDeclaration me.siwi.Desire.board conforming to public.json), and opening a .board file imports it as the active conversation's whiteboard (falls back to a default board when no agent session is active). The panel title is click-to-rename.
+
 
 
 

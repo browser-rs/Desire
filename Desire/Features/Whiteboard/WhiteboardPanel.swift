@@ -77,6 +77,8 @@ struct WhiteboardPanelView: View {
     @ObservedObject private var store = WhiteboardStore.shared
     @Environment(\.appAccent) private var appAccent: Color
     @State private var exportStatus: String?
+    @State private var renamingTitle = false
+    @State private var titleDraft = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,9 +90,28 @@ struct WhiteboardPanelView: View {
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            Text(store.board(for: session.conversationId?.uuidString).title)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
+            if renamingTitle {
+                TextField("", text: $titleDraft)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 200)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        let draft = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !draft.isEmpty {
+                            store.apply({ $0.title = draft }, conversationID: session.conversationId?.uuidString)
+                        }
+                        renamingTitle = false
+                    }
+            } else {
+                Text(store.board(for: session.conversationId?.uuidString).title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .onTapGesture {
+                        titleDraft = store.board(for: session.conversationId?.uuidString).title
+                        renamingTitle = true
+                    }
+                    .help("点击重命名")
+            }
             Spacer()
             if let exportStatus {
                 Text(exportStatus)

@@ -175,6 +175,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        // .board 文件（白板）：导入为当前活跃会话的白板并打开面板。
+        // （双击 .board 文件 → 本应用接管。）
+        let boardFiles = urls.filter { $0.pathExtension.lowercased() == "board" }
+        for file in boardFiles {
+            do {
+                let data = try Data(contentsOf: file)
+                let spec = try JSONDecoder().decode(WhiteboardSpec.self, from: data)
+                let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+                WhiteboardStore.shared.set(spec, conversationID: conversationID)
+                WhiteboardPanel.shared.show()
+                Log.app.info("whiteboard imported: \(file.lastPathComponent, privacy: .public) (\(spec.blocks.count) blocks)")
+            } catch {
+                Log.app.error("whiteboard import failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
         guard !webURLs.isEmpty else { return }
         Log.app.info("open urls from system: \(webURLs.count, privacy: .public)")

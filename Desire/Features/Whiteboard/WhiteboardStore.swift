@@ -14,7 +14,11 @@ final class WhiteboardStore: ObservableObject {
     /// 容量兜底（同计划存储）。
     private static let capacity = 24
     private static let storageKey = "whiteboard-boards"
+    /// 无活跃 agent 会话时的兜底键（.board 导入/手动创作都落这里）。
+    static let defaultKey = "__default"
     private var insertionOrder: [String] = []
+
+    private func resolved(_ id: String?) -> String { id ?? Self.defaultKey }
 
     private init() {
         // 持久化（二期）：重启后板还在。测试实例与用户实例共享 storage
@@ -31,7 +35,7 @@ final class WhiteboardStore: ObservableObject {
 
     /// 块管理（面板编辑）：读当前板 → 变换 → 写回（触发渲染推送 + 落盘）。
     func apply(_ transform: (inout WhiteboardSpec) -> Void, conversationID: String?) {
-        guard let id = conversationID else { return }
+        let id = resolved(conversationID)
         var spec = board(for: id)
         transform(&spec)
         touch(id)
@@ -41,8 +45,7 @@ final class WhiteboardStore: ObservableObject {
     }
 
     func board(for conversationID: String?) -> WhiteboardSpec {
-        guard let id = conversationID else { return WhiteboardSpec() }
-        return boardsByConversation[id] ?? WhiteboardSpec()
+        boardsByConversation[resolved(conversationID)] ?? WhiteboardSpec()
     }
 
     /// 无活跃会话时的回退（桥 /whiteboard 调试用）：最近更新过的板。
@@ -53,7 +56,7 @@ final class WhiteboardStore: ObservableObject {
 
     /// 整板替换（render 语义）。
     func set(_ spec: WhiteboardSpec, conversationID: String?) {
-        guard let id = conversationID else { return }
+        let id = resolved(conversationID)
         touch(id)
         boardsByConversation[id] = spec
         lastUpdated = Date()
@@ -62,7 +65,8 @@ final class WhiteboardStore: ObservableObject {
 
     /// 追加块（append 语义）：无板则建。
     func append(_ blocks: [WhiteboardBlock], title: String?, conversationID: String?) {
-        guard let id = conversationID, !blocks.isEmpty else { return }
+        guard !blocks.isEmpty else { return }
+        let id = resolved(conversationID)
         touch(id)
         var spec = boardsByConversation[id] ?? WhiteboardSpec(title: title ?? "白板")
         if let title, !title.isEmpty { spec.title = title }
@@ -73,7 +77,7 @@ final class WhiteboardStore: ObservableObject {
     }
 
     func clear(conversationID: String?) {
-        guard let id = conversationID else { return }
+        let id = resolved(conversationID)
         boardsByConversation[id] = nil
         insertionOrder.removeAll { $0 == id }
         lastUpdated = Date()

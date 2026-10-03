@@ -47,6 +47,12 @@ class BrowserWKWebView: WKWebView {
                 search.representedObject = sel
                 menu.addItem(.separator())
                 menu.addItem(search)
+
+                // 选区 → 白板（note 块，带来源 URL；§三期）
+                let board = NSMenuItem(title: String(localized: "Add to Whiteboard"), action: #selector(self.addSelectionToWhiteboard(_:)), keyEquivalent: "")
+                board.target = self
+                board.representedObject = sel
+                menu.addItem(board)
             }
 
             if let url = imageURL ?? bgImageURL {
@@ -139,6 +145,20 @@ class BrowserWKWebView: WKWebView {
     @objc private func searchSelection(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String else { return }
         onSearchText?(text)
+    }
+
+    /// 选区 → 白板 note 块（带来源标注），面板自动弹出。
+    @objc private func addSelectionToWhiteboard(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        let source = "— 来自 \(url?.host ?? "网页")（\(url?.absoluteString.prefix(140) ?? "")）"
+        let content = text + "\n\n" + source
+        WhiteboardStore.shared.append(
+            [WhiteboardBlock(type: WhiteboardBlock.Kind.note,
+                             title: String(localized: "网页选区"),
+                             content: String(content.prefix(2200)))],
+            title: nil,
+            conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+        WhiteboardPanel.shared.show()
     }
 
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {

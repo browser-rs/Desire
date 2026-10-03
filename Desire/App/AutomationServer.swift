@@ -354,7 +354,7 @@ final class AutomationServer {
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
         ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
-        ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
+        ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
         ep("POST", "/downloads/remove", "Remove a row from the list (file on disk untouched)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
@@ -2410,6 +2410,7 @@ final class AutomationServer {
         case "toggleTabOverview": command = .toggleTabOverview
         case "toggleAgentPanel": command = .toggleAgentPanel
         case "toggleWhiteboard": command = .toggleWhiteboard
+        case "addSelectionToWhiteboard": command = .addSelectionToWhiteboard
         case "showAdBlockStats": command = .showAdBlockStats
         case "toggleSplitView": command = .toggleSplitView
         case "toggleDevTools": command = .toggleDevTools

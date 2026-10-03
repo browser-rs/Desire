@@ -188,6 +188,21 @@ struct CommandDispatcher {
         case .toggleWhiteboard:
             toggleWhiteboard()
 
+        case .addSelectionToWhiteboard:
+            Task { [tabManager] in
+                guard let webView = tabManager.selectedTab?.browser.webView else { return }
+                let selection = (try? await webView.evaluateJavaScript("(window.getSelection() || '').toString()")) as? String
+                guard let selection, !selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                let source = "— 来自 \(tabManager.selectedTab?.browser.webView.url?.host ?? "网页")"
+                WhiteboardStore.shared.append(
+                    [WhiteboardBlock(type: WhiteboardBlock.Kind.note,
+                                     title: String(localized: "网页选区"),
+                                     content: String((selection + "\n\n" + source).prefix(2200)))],
+                    title: nil,
+                    conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+                WhiteboardPanel.shared.show()
+            }
+
         case .reload:
             if let tab = tabManager.selectedTab { tab.browser.webView.reload() }
 

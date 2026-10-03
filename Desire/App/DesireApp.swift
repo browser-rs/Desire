@@ -142,6 +142,7 @@ enum BrowserCommand {
     case toggleBookmarksBar, toggleCommandPalette, toggleAgentPanel
     case toggleDevTools, toggleSplitView, showReadingList, fullPageScreenshot
     case toggleWhiteboard
+    case addSelectionToWhiteboard
     // 菜单补全二批（0.2.14）：文件/查找/导航/阅读列表/Agent。
     case openLocation, openFile, closeWindow
     case findNext, findPrevious, addToReadingList, askAgentAboutPage

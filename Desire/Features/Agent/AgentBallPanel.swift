@@ -32,6 +32,8 @@ final class AgentBallPanel: ObservableObject {
     @Published private(set) var hiddenForFullscreen = false
     let voice = VoiceInputManager()
     @Published var voiceTranscriptSent: String?
+    /// 拖动倾斜角（NSView 事件驱动，视图渲染用）。
+    @Published var dragTilt: Double = 0
 
     /// 宿主注入的动作（ContentView 提供——AI 会话与窗口绑定在那边）。
     var onOpenAgentPanel: (() -> Void)?
@@ -94,7 +96,8 @@ final class AgentBallPanel: ObservableObject {
 
         // 感知轮询（2s）：Agent 忙碌（进度环）+ 页面全屏（球让位）。
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+            guard let self else { return }
+            Task { @MainActor in self.poll() }
         }
     }
 
@@ -198,16 +201,17 @@ final class AgentBallPanel: ObservableObject {
         let v = UserDefaults.standard.double(forKey: sizeKey)
         return (44...60).contains(v) ? v : 52
     }
-    /// 展开态：操作条卡（约 170pt 高）叠在球上方，左右各留 6pt。
+    /// 展开态：操作条卡（约 170pt 高）叠在球上方——与 AgentBallView 的
+    /// panelWidth/panelHeight 公式保持一致（视图尺寸即窗口尺寸）。
     static var expandedSize: NSSize {
-        NSSize(width: max(236, ballDiameter + 184),
-               height: ballDiameter + 190)
+        NSSize(width: max(240, ballDiameter + 188),
+               height: ballDiameter + 176)
     }
 
     /// 面板 frame 随展开/收起重排，**球的外缘保持不动**（贴边侧固定，
     /// 向非贴边方向与上方伸缩）。
     func applyLayout(animated: Bool) {
-        guard let panel, let parent = parentWindow else { return }
+        guard let panel, parentWindow != nil else { return }
         let edge = UserDefaults.standard.string(forKey: Self.edgeKey) ?? "left"
         let newSize = isExpanded ? Self.expandedSize : Self.collapsedSize
         let oldFrame = panel.frame
@@ -296,8 +300,9 @@ final class AgentBallPanel: ObservableObject {
         parentObservers.removeAll()
         parentObservers.append(NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification, object: parent, queue: .main
-        ) { _ in
-            Task { @MainActor [weak self] in self?.clampToParent() }
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in self.clampToParent() }
         })
     }
 
@@ -322,26 +327,125 @@ final class AgentBallPanel: ObservableObject {
     }
 }
 
-/// 透明面板命中穿透：球/操作条以外的区域让点击落到下层网页。
-/// SwiftUI 内容的 hitTest 恒返回 hosting view 自身（无 AppKit 子视图），
-/// 所以用 **鼠标点位的几何判断**（球圆 + 展开卡片矩形）而不是子视图比对。
+/// 悬浮球容器：**交互全部由 AppKit 处理**——NSHostingView 是 flipped
+/// （y 向下）且 SwiftUI 手势在非激活面板上坐标转换繁琐，此前两轮重建都
+/// 死在几何/事件链上（点击穿透、拖动失效）。现在：
+/// - hitTest：flipped 几何（球圆 + 卡片矩形），其余透明区穿透下层网页；
+/// - 球区域的 mouseDown/Dragged/Up 在容器内自己实现拖动/吸附/单击展开/
+///   双击语音；卡片区域 super 放行给 SwiftUI 按钮；
+/// - 右键（球上）弹原生菜单。
 final class AgentBallHostingView: NSHostingView<AgentBallView> {
+    /// 拖动用**屏幕坐标**（NSEvent.mouseLocation，y 向上）算增量：
+    /// locationInWindow 的坐标随窗口被拖动而即时改变——增量自我抵消，
+    /// 实测拖 400pt 面板只跟 6pt。
+    private var ballDownScreen: NSPoint?
+    private var ballLastScreen: NSPoint?
+    private var ballMoved = false
+    private var lastTap: Date?
+
+    private var ballDiameter: CGFloat { AgentBallPanel.ballDiameter }
+    private var edgeIsLeft: Bool {
+        (UserDefaults.standard.string(forKey: AgentBallPanel.edgeKey) ?? "left") == "left"
+    }
+
+    /// 球圆中心（flipped 坐标：y 距顶）。
+    private var ballCenter: NSPoint {
+        NSPoint(x: edgeIsLeft ? ballDiameter / 2 + 2 : bounds.width - ballDiameter / 2 - 2,
+                y: bounds.height - ballDiameter / 2 - 2)
+    }
+
+    private func inBall(_ p: NSPoint) -> Bool {
+        let r = ballDiameter / 2 + 5
+        let dx = p.x - ballCenter.x
+        let dy = p.y - ballCenter.y
+        return dx * dx + dy * dy <= r * r
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        let w = bounds.width
-        // 球：贴边侧的底部圆（收起态整个面板就是球）
-        let ballRadius = AgentBallPanel.ballDiameter / 2 + 4
-        let ballCenter = NSPoint(x: AgentBallPanel.ballDiameter / 2, y: AgentBallPanel.ballDiameter / 2)
-        let dx = point.x - ballCenter.x
-        let dy = point.y - ballCenter.y
-        if dx * dx + dy * dy <= ballRadius * ballRadius { return super.hitTest(point) }
-        // 展开卡片区域（球上方，宽 = 面板宽 - 24）
-        let cardLeft: CGFloat = 12
-        let cardRight = w - 12
-        let cardTop = bounds.height - 6
-        let cardBottom = AgentBallPanel.ballDiameter + 4
-        if point.x >= cardLeft, point.x <= cardRight, point.y >= cardBottom, point.y <= cardTop {
+        if inBall(point) { return self }
+        // 卡片区（flipped：距顶 4 .. height - ball - 2）
+        let cardTop: CGFloat = 4
+        let cardBottom = bounds.height - ballDiameter - 2
+        if point.x >= 4, point.x <= bounds.width - 4,
+           point.y >= cardTop, point.y <= cardBottom {
             return super.hitTest(point)
         }
         return nil  // 透明区穿透
     }
+
+    override func mouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        if inBall(p) {
+            ballDownScreen = NSEvent.mouseLocation
+            ballLastScreen = NSEvent.mouseLocation
+            ballMoved = false
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let down = ballDownScreen, let last = ballLastScreen else {
+            super.mouseDragged(with: event)
+            return
+        }
+        let screen = NSEvent.mouseLocation  // y 向上，与 moveBy 同向
+        if abs(screen.x - down.x) > 4 || abs(screen.y - down.y) > 4 { ballMoved = true }
+        if ballMoved {
+            AgentBallPanel.shared.moveBy(dx: screen.x - last.x, dy: screen.y - last.y)
+            let tilt = max(-14, min(14, (screen.x - last.x) * 0.9))
+            AgentBallPanel.shared.dragTilt = tilt
+        }
+        ballLastScreen = screen
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer {
+            ballDownScreen = nil
+            ballLastScreen = nil
+            ballMoved = false
+        }
+        guard ballDownScreen != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        AgentBallPanel.shared.dragTilt = 0
+        let panel = AgentBallPanel.shared
+        if ballMoved {
+            panel.snapToEdge()
+            lastTap = nil
+            return
+        }
+        if !panel.voice.isRecording {
+            let now = Date()
+            if let t = lastTap, now.timeIntervalSince(t) < 0.35 {
+                panel.isExpanded = false
+                panel.voice.toggle()   // 双击 = 直达语音
+                lastTap = nil
+            } else {
+                lastTap = now
+                panel.isExpanded.toggle()
+            }
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        guard inBall(p) else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        let menu = NSMenu()
+        menu.addItem(withTitle: String(localized: "重置位置"),
+                     action: #selector(resetPos), keyEquivalent: "")
+        menu.items.last?.target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "隐藏悬浮球"),
+                     action: #selector(hideBall), keyEquivalent: "")
+        menu.items.last?.target = self
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func resetPos() { AgentBallPanel.shared.resetPosition() }
+    @objc private func hideBall() { AgentBallPanel.shared.setEnabled(false) }
 }

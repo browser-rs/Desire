@@ -14,6 +14,10 @@ FIXTURE_HTML = open("/tmp/dpp_audit/fixture/index.html").read() if False else ""
    "run":[{"click":"#refresh-btn"}],"success":"REFRESHED"}]}
 </script></head>
 <body><div id="app-ready">ready</div>
+<table><tr><th>Name</th><th>Qty</th></tr><tr><td>Widget A</td><td>3</td></tr><tr><td>Widget B</td><td>7</td></tr></table>
+<img src="/pic.png" alt="pic" width="120" height="90">
+<input id="search" placeholder="search here">
+<a href="https://example.com/one">Link-One</a> <a href="/two">Link-Two</a>
 <button id="order-btn" onclick="order()">Order</button>
 <button id="refresh-btn" onclick="refresh()">Refresh</button>
 <script>
@@ -83,6 +87,15 @@ class Fixture(BaseHTTPRequestHandler):
         if self.path.startswith("/.well-known/desire.json"):
             body = json.dumps(SITE_WELLKNOWN).encode()
             ctype = "application/json"
+        elif self.path.startswith("/pic.png"):
+            import base64 as _b64
+            body = _b64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         elif self.path.startswith("/sdk"):
             body = SDK_HTML.encode(); ctype = "text/html; charset=utf-8"
         elif self.path.startswith("/upload"):
@@ -127,7 +140,31 @@ class FakeLLM(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
-        if "DPPSNAP" in mode_text and not has_tool:
+        if "DPPFILL" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_fill_1", "type": "function",
+                    "function": {"name": "fill", "arguments": json.dumps({"selector": "#search", "value": "hello-dpp"})}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPFILL" in mode_text and has_tool:
+            tool_text = next((m.get("content") or "" for m in round_msgs if m.get("role") == "tool"), "")
+            text = "FILL-DONE: " + tool_text[:200].replace("\n", " | ")
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}]}, finish="stop")
+        elif "DPPMISC" in mode_text and not has_tool:
+            if "TABLES" in mode_text: tool, args = "getTables", {"maxTables": 3}
+            elif "IMAGES" in mode_text: tool, args = "getImages", {"maxItems": 10}
+            elif "LINKS" in mode_text: tool, args = "getPageLinks", {"maxItems": 10}
+            else: tool, args = "getComments", {"maxItems": 5}
+            call = {"index": 0, "id": "call_misc_1", "type": "function",
+                    "function": {"name": tool, "arguments": json.dumps(args)}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPMISC" in mode_text and has_tool:
+            tool_text = next((m.get("content") or "" for m in round_msgs if m.get("role") == "tool"), "")
+            text = "MISC-DONE: " + tool_text[:400].replace("\n", " | ")
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}]}, finish="stop")
+        elif "DPPSNAP" in mode_text and not has_tool:
             tool = "click" if "CLICK" in mode_text else "getPageSnapshot"
             if tool == "getPageSnapshot":
                 args = {"maxChars": 4000, "maxElements": 40}

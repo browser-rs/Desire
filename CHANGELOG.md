@@ -12,6 +12,8 @@ DPP `ignore` 噪音区接线（spec §4.1/L1 的 data-dpp-ignore，此前仅展�
 DPP 第二轮审计修复（五项）：① **跨窗 navigate 链路断裂**——window 参数跨窗时 CF 挑战检测/标题/首段/DPP ready 等待全部读的还是旧窗口的 webview（load 落在目标窗、轮询看旧窗），统一改用实际承载导航的 webview；② **UploadIntent 陈旧 arm 劫持**——DPP upload 选择器没触发文件选择器时 intent 残留，用户之后手动点任何文件输入都会被自动提交那个文件；现在 3s 未消费即摘除并明确报错；③ **站点级 events 半接线**——well-known 的 events 此前只进展示/命中检查，页内 observer 不装（站点级 monitor 事件永远不会触发回合）；解析器现接受宿主注入的 extraEvents 与页面级一起装 observer（页面级同名键优先），首次 fetch 到站点级声明后自动带 extras 重解析；④ **事件节流吞跳变**——JS 侧 500ms 全局节流窗口内第二个跳变的 state 已更新但消息不发，该事件在恢复 0 之前永久丢失；去掉 JS 节流（宿主 3s 防抖 + 60s 滑窗限频本来就是风暴防线），跳变即发；⑤ **signals.error** 此前声明无消费——pageAction 步骤执行完但页面亮着错误信号时判失败。
 DPP 工具求值面加固（第二轮审计 P2-1）：此前 DPP 查询/动作 JS 与页面同世界，页面覆盖 `window.__desireQueryAll` 即可劫持 Agent 的查询结果与动作目标（探针实证）。现在 DPP 全部选择器求值（views/字段、pageAction 步骤、precondition、signals、事件命中检测）运行在隔离 content world `desireDPPTools`——页面无法覆盖函数或猴补 DOM 原型，click/fill/scroll 语义不变（跨世界实证）；协议解析器与 executeJS 按语义留在页面世界。
 **callAsync 位置传参错位（波及全部 dom-tools 函数，多年潜伏）**：`callAsync` 把参数键按字母序作位置实参传给注入函数——形参顺序 ≠ 字母序的函数全部错位（`__desireClick`/`__desireElementRect` 的 ref/text 形态靠 `__desireResolveEl` 的分支兜底掩盖，`__desireSnapshot` 加 ignoreSels 参数后炸出）。改为**按键对象传参**（`fn({a: a, b: b})`），dom-tools 宿主直调函数一律解构形参（内部互调的位置签名不受影响）。
+第三轮审计：`__desireFillProfile` 解构回归修复——该函数唯一调用方是 FormAutofillStore 的**页面世界位置调用** `__desireFillProfile(p)`，上一轮解构签名迁移只核了 callAsync 调用点、漏了 JS 字符串直调，自动填写会被静默破坏（第三轮静态一致性审计抓到）；恢复位置签名并加"⚠️ 不要解构"标注（含 grep 全部调用方的迁移前置要求）。snap_e2e 回归套件扩展到 10 项：补 getTables/getImages/getPageLinks/getComments/fill 五个迁移后无独立覆盖的工具抽查。
+
 
 
 

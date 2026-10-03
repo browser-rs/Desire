@@ -995,7 +995,11 @@ async function __desireFillLogin({user, pass, submit}) {
 
 // 地址/联系方式模糊分类填充（0.3.6）：按 autocomplete token、name/id/
 // placeholder 关键词给输入框分类，只填空字段。返回填充数。
-async function __desireFillProfile({profile}) {
+// ⚠️ 位置签名（**不要解构**）：唯一调用方是 FormAutofillStore.fillScript
+// 的页面世界 JS `__desireFillProfile(p)`（位置传参）。callAsync 的对象传参
+// 约定只适用于"宿主直调"函数——迁移签名前先 grep 全部调用方（第三轮审计
+// 抓到过：解构后自动填写被静默破坏）。
+async function __desireFillProfile(profile) {
     var KEYS = [
         ["fname", /(^|[_-])(given-name|first.?name|fname)(|$)|^fn$/i, "gn"],
         ["lname", /(^|[_-])(family-name|last.?name|lname|surname)(|$)/i, "fn"],

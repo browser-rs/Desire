@@ -60,6 +60,23 @@ def main():
         before = run_case("DPPSNAP-CLICK 点第一个元素")
         text2 = tool_text(bridge("GET", "/agent/messages"))
         check("__desireClick 隔离世界正常", "clicked" in text2.lower() or "ok" in text2.lower())
+
+        # 迁移后无独立 E2E 覆盖的 dom-tools 函数抽查（第三轮审计固化）
+        bridge("POST", "/navigate", body={"url": "http://127.0.0.1:8877/"})
+        time.sleep(1.5)
+        for prompt, expect, label, negate in [
+            ("DPPMISC-TABLES 抽表格", "Widget A", "getTables", False),
+            ("DPPMISC-IMAGES 抽图片", "pic.png", "getImages", False),
+            ("DPPMISC-LINKS 抽链接", "Link-One", "getPageLinks", False),
+            ("DPPMISC-COMMENTS 抽评论", "Error", "getComments", True),
+            ("DPPFILL 填搜索框", "Filled", "fill（解构签名）", False),
+        ]:
+            state = run_case(prompt)
+            text = tool_text(state)
+            ok = (expect not in text) if negate else (expect in text)
+            check(f"抽查 {label}", ok)
+        val = js("document.getElementById('search').value")
+        check("fill 真的写进了输入框", val.get("result") == "hello-dpp")
     finally:
         bridge("POST", "/ai/profiles", body={
             "id": original["id"], "name": original["name"],

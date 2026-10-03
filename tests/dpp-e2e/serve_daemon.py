@@ -127,7 +127,17 @@ class FakeLLM(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
-        if "DPPSDK" in mode_text and not has_tool:
+        if "DPPSNAP" in mode_text and not has_tool:
+            tool = "click" if "CLICK" in mode_text else "getPageSnapshot"
+            if tool == "getPageSnapshot":
+                args = {"maxChars": 4000, "maxElements": 40}
+            else:
+                args = {"ref": "e1"}
+            call = {"index": 0, "id": "call_snap_1", "type": "function",
+                    "function": {"name": tool, "arguments": json.dumps(args)}}
+            sse({"id": "c", "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}, "finish_reason": None}]}, finish="tool_calls")
+        elif "DPPSDK" in mode_text and not has_tool:
             view = "offers" if "SDK2" in mode_text else "products"
             call = {"index": 0, "id": "call_sdk_1", "type": "function",
                     "function": {"name": "pageExtract",

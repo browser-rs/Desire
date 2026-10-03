@@ -243,8 +243,10 @@ extension BrowserToolProvider {
                                        args: ["selector": sel, "timeout": timeout])
             }
             let quiet = min(args["quietMs"] as? Int ?? 500, 5000)
+            // 依赖页面世界的 XHR/fetch 猴补（隔离世界补丁拦不到页面请求）
             return await callAsync(webView, function: "__desireWaitForNetworkIdle",
-                                   args: ["timeout": timeout, "quietMs": quiet])
+                                   args: ["timeout": timeout, "quietMs": quiet],
+                                   world: WKContentWorld.page)
 
         case "executeJS":
             // 失败约定：这里曾是裸 "Missing code"，机械核验按 `Error: ` 前缀

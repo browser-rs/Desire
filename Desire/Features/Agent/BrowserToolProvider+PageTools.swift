@@ -14,8 +14,11 @@ extension BrowserToolProvider {
         case "getPageSnapshot":
             let maxChars = args["maxChars"] as? Int ?? 12000
             let maxElements = args["maxElements"] as? Int ?? 60
+            let ignoreSelsJSON = (try? String(data: JSONEncoder().encode(
+                surface.tabManager?.selectedTab?.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
             return await callAsync(webView, function: "__desireSnapshot",
-                                   args: ["maxChars": maxChars, "maxElements": maxElements])
+                                   args: ["maxChars": maxChars, "maxElements": maxElements,
+                                          "ignoreSels": ignoreSelsJSON])
         case "readTab":
             // Cross-tab perception: snapshot another tab's page without
             // switching. Suspended tabs are blanked webviews — say so
@@ -39,8 +42,11 @@ extension BrowserToolProvider {
             guard !target.isSuspended else {
                 return Self.fail("Tab \(index) is suspended — switchTab to it first, then readTab")
             }
+            let targetIgnoresJSON = (try? String(data: JSONEncoder().encode(
+                target.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
             let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
-                                           args: ["maxChars": 6000, "maxElements": 25])
+                                           args: ["maxChars": 6000, "maxElements": 25,
+                                                  "ignoreSels": targetIgnoresJSON])
             return "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
 
         case "getPageText":
@@ -133,8 +139,10 @@ extension BrowserToolProvider {
                                           "maxLength": args["maxLength"] as? Int ?? 6000])
         case "getNetworkLog":
             let filter = args["filter"] as? String ?? ""
+            // 依赖 network-monitor 在页面世界的 __desireNetLog——必须 .page
             return await callAsync(webView, function: "__desireGetNetworkLog",
-                                   args: ["filter": filter, "maxItems": args["maxItems"] as? Int ?? 100])
+                                   args: ["filter": filter, "maxItems": args["maxItems"] as? Int ?? 100],
+                                   world: WKContentWorld.page)
 
         case "getSelectedText":
             return await eval(webView, "window.getSelection().toString()")
@@ -244,7 +252,7 @@ extension BrowserToolProvider {
                 var readySeen = false
                 for _ in 0..<30 {
                     readySeen = ((try? await nav.callAsyncJavaScript(
-                        readyJS, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                        readyJS, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                     if readySeen { break }
                     try? await Task.sleep(nanoseconds: 200_000_000)
                 }

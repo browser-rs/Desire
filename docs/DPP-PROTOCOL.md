@@ -66,7 +66,7 @@
 | `data-dpp-item` | 标记单条目元素 | `<div class="card" data-dpp-item>` |
 | `data-dpp-field="字段名"` | 标记字段（textContent 为值） | `<h3 data-dpp-field="title">` |
 | `data-dpp-field="名" data-dpp-field-attr="属性"` | 字段值取自属性 | `<span data-dpp-field="price" data-dpp-field-attr="data-price">` |
-| `data-dpp-ignore` | 标记噪音（当前仅展示于 pageProtocol；抽取过滤未接线） | `<nav data-dpp-ignore>` |
+| `data-dpp-ignore` | 标记噪音（✅ pageExtract 跳过其子树内条目、快照不列其内交互元素；正文文本不扣减——正文噪音用 content.main） | `<nav data-dpp-ignore>` |
 | `data-dpp-action="动作名"` | 标记动作触发器 | `<button data-dpp-action="search">` |
 
 ### 3.3 L2 — 声明块
@@ -117,7 +117,7 @@
 | `protocol` | string | ✅ | 版本标识，当前 `"desire/1"` |
 | `page.type` | string | ⬜ | 页面类型标注（`chat`/`catalog`/`forms`/`workbench`/`monitor`），仅供参考 |
 | `content.main` | selector | ⬜ | 正文选择器——文本抽取只取此处，排除噪音 |
-| `content.ignore` | selector[] | ⬜ | 明确排除的噪音区域 |
+| `content.ignore` | selector[] | ⬜→✅ | 明确排除的噪音区域（抽取/快照过滤已接线；文本不扣减） |
 | `signals` | object | ⬜ | 生命周期信号（见 §4.2） |
 | `views` | map | ⬜ | 命名数据视图（见 §4.3） |
 | `actions` | array | ⬜ | 声明式动作（见 §4.4） |
@@ -354,14 +354,20 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 
 ### 6.2 求值隔离（2026-10-03 审计后确立）
 
-**工具求值不得依赖页面可变的全局。** DPP 的全部选择器求值（views/字段、
-pageAction 各步骤、precondition、signals、事件命中检测）运行在隔离
-content world `desireDPPTools`——页面既不能覆盖 `__desireQueryAll` 等查询
-函数，也不能猴补 DOM 原型来改写 Agent 的动作目标（此前曾实证：页面世界
-里一行 `window.__desireQueryAll = …` 就能劫持）。DOM 跨世界共享，click/
-fill/scroll 语义不变。两个留页面世界的例外：**协议解析器**（读页面的
-`window.desire` / `__desireProtocolExposed`）与 **executeJS**（语义就是
-页面上下文执行）。
+**工具求值不得依赖页面可变的全局。** Agent 的全部页面 JS 求值（DPP 选择
+器、`__desireSnapshot`/`__desireClick` 等 dom-tools 函数、`eval` 帮手）
+运行在隔离 content world `desireAgentTools`，`dom-tools.js` 向页面世界与
+隔离世界**双份注入**——页面既不能覆盖查询函数，也不能猴补 DOM 原型来改写
+Agent 的动作目标（此前曾实证：页面世界里一行 `window.__desireQueryAll = …`
+就能劫持）。DOM 跨世界共享，click/fill/scroll 语义不变。
+**留页面世界的例外**：协议解析器（读页面的 `window.desire` /
+`__desireProtocolExposed`）、**executeJS**（语义就是页面上下文执行）、
+**getNetworkLog / waitForElement(networkIdle)**（依赖 network-monitor 在
+页面世界的 `__desireNetLog` 与 XHR/fetch 猴补）。
+**配套约定**：`callAsync` 以**按键对象**传参（`fn({a: a, b: b})`），
+dom-tools 宿主直调函数一律解构形参——此前按字母序位置传参，形参顺序 ≠
+字母序的函数全部错位（`__desireSnapshot` 加参后炸出，`__desireClick` 的
+ref/text 形态靠 resolveEl 兜底掩盖多年）。
 
 ### 6.3 注入防护
 
@@ -389,7 +395,7 @@ fill/scroll 语义不变。两个留页面世界的例外：**协议解析器**�
 ┌────────────────────────────────────────────────┐
 │ desire-protocol.js (user script, 页面世界)      │  四形态归一化解析
 │ → window.__desireProtocol / callAsyncJavaScript│
-│ 工具求值在隔离世界 desireDPPTools（§6.2）       │  页面篡改免疫
+│ 全部工具求值在隔离世界 desireAgentTools（§6.2） │  dom-tools 双世界注入│
 ├────────────────────────────────────────────────┤
 │ Coordinator.didFinish → parsePageProtocol()    │  解析 + 缓存
 │ → BrowserState.pageProtocol: DesireProtocol?   │

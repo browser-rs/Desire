@@ -472,14 +472,18 @@ struct WebView: NSViewRepresentable {
     /// 插件代码与 WebExtension API 运行在隔离 content world：页面 JS
     /// 看不到（也不能伪造）`browser.*`；DOM 共享，JS 全局隔离。
     static let extensionWorld = WKContentWorld.world(name: "desireExtensions")
-    /// DPP 工具求值专用隔离世界：window/JS 原型与页面世界隔离——页面不能覆盖
-    /// 我们的查询函数（__desireQueryAll 等）也不能猴补 DOM 原型来改写 Agent 的
-    /// 选择器求值（探针实验 3 实证：DOM 跨世界共享，click/fill/scroll 照常，
-    /// 页面篡改免疫）。协议解析器与 executeJS 仍走页面世界——前者要读页面
-    /// 全局（window.desire / __desireProtocolExposed），后者语义就是页面上下文。
-    /// 注意：evaluateJavaScript(_:in:in:) 重载不回传完成值，求值一律用
+    /// Agent 工具求值专用隔离世界：window/JS 原型与页面世界隔离——页面不能
+    /// 覆盖我们的查询函数（__desireQueryAll、__desireSnapshot 等）也不能猴补
+    /// DOM 原型来改写 Agent 的选择器求值（探针实证：页面世界一行
+    /// `window.__desireQueryAll = …` 曾可劫持动作目标）。DOM 跨世界共享，
+    /// click/fill/scroll 语义不变（实验 3 六项验证）。
+    /// **留页面世界的例外**：协议解析器（读页面的 window.desire /
+    /// __desireProtocolExposed）、executeJS（语义就是页面上下文）、
+    /// getNetworkLog / waitForElement(networkIdle)（依赖 network-monitor 在
+    /// 页面世界的 __desireNetLog 与 XHR/fetch 猴补）。
+    /// 注意：evaluateJavaScript(_:in:in:) 重载不回传完成值，跨世界求值一律用
     /// callAsyncJavaScript(contentWorld:)（探针实测）。
-    static let dppToolWorld = WKContentWorld.world(name: "desireDPPTools")
+    static let agentToolWorld = WKContentWorld.world(name: "desireAgentTools")
 
     /// 每插件独立 world（扩展间隔离：`__desireExtID` 等身份变量不再互相覆盖）。
     /// handler 需注册到每个插件的 world（observe() 循环注册）。

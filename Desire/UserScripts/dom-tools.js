@@ -113,7 +113,7 @@ async function __desireResolveEl(selector, ref, text) {
 // (instant, so the rect is valid immediately), and returns its bounding
 // rect as a JSON string — consumed by the trusted-input click/hover path
 // in SyntheticInput.swift. Returns "" when nothing resolves.
-async function __desireElementRect(selector, ref, text) {
+async function __desireElementRect({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "";
     el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
@@ -124,7 +124,7 @@ async function __desireElementRect(selector, ref, text) {
 // In-page click fallback: full pointer+mouse sequence with coordinates, so
 // delegated listeners (React/Vue root handlers, jQuery) see a realistic
 // activation — a bare `.click()` misses pointerdown/mousedown consumers.
-async function __desireClick(selector, ref, text) {
+async function __desireClick({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) {
         var which = text ? ("text '" + text + "'") : (ref ? ("ref " + ref) : selector);
@@ -151,7 +151,7 @@ async function __desireClick(selector, ref, text) {
     return "Clicked";
 }
 
-async function __desireFill(selector, value, ref) {
+async function __desireFill({selector, value, ref}) {
     var el = await __desireResolveEl(selector, ref, null);
     if (!el) return "Element not found";
     // React/Vue-controlled inputs ignore plain `el.value = ...`: the
@@ -174,7 +174,7 @@ async function __desireFill(selector, value, ref) {
     return "Filled";
 }
 
-async function __desireSelect(selector, value, ref) {
+async function __desireSelect({selector, value, ref}) {
     var el = await __desireResolveEl(selector, ref, null);
     if (!el || el.tagName !== "SELECT") return "Element not found or not a <select>";
     // The model may pass either an option's value or its visible label.
@@ -189,7 +189,7 @@ async function __desireSelect(selector, value, ref) {
     return "Selected: " + (match.text.trim() || match.value);
 }
 
-async function __desireHover(selector, ref, text) {
+async function __desireHover({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "Element not found";
     el.scrollIntoView({ block: "center", behavior: "instant" });
@@ -209,19 +209,19 @@ async function __desireHover(selector, ref, text) {
     return "Hovered";
 }
 
-async function __desireFocus(selector, ref) {
+async function __desireFocus({selector, ref}) {
     var el = await __desireResolveEl(selector, ref, null);
     if (!el) return "Element not found";
     el.focus();
     return "Focused";
 }
 
-async function __desireScroll(x, y) {
+async function __desireScroll({x, y}) {
     window.scrollTo(x, y);
     return "Scrolled";
 }
 
-async function __desireWaitForElement(selector, timeout) {
+async function __desireWaitForElement({selector, timeout}) {
     var start = Date.now();
     return await new Promise(function (resolve) {
         function check() {
@@ -237,7 +237,7 @@ async function __desireWaitForElement(selector, timeout) {
 // 0.3.2 页面感知：网络静默——连续 quietMs 无进行中的 XHR/fetch 且无
 // 新增节点变动。用 PerformanceObserver 兜资源加载，MutationObserver 兜
 // SPA 渲染；两者都静默才算 idle。
-async function __desireWaitForNetworkIdle(timeout, quietMs) {
+async function __desireWaitForNetworkIdle({timeout, quietMs}) {
     quietMs = quietMs || 500;
     var start = Date.now();
     var lastActivity = Date.now();
@@ -281,9 +281,21 @@ async function __desireWaitForNetworkIdle(timeout, quietMs) {
 // a `data-desire-ref` attribute so the agent can act on it afterwards with
 // click {ref: "e12"} — no selector crafting needed.
 // Returns a JSON string (consumed by BrowserToolProvider.getPageSnapshot).
-async function __desireSnapshot(maxChars, maxElements) {
+async function __desireSnapshot({maxChars, maxElements, ignoreSels}) {
     maxChars = maxChars || 12000;
     maxElements = maxElements || 60;
+    // DPP ignore 声明：落在噪音子树内的交互元素不进清单（文本不扣减——
+    // innerText 没有子树扣除语义，正文噪音走 content.main）。
+    var ignoredEls = [];
+    // ignoreSels 是 JSON 字符串（callAsyncJavaScript 的 arguments 桥接不认
+    // Swift 数组——实测到 JS 变成非数组）
+    try { (JSON.parse(ignoreSels || "[]") || []).forEach(function(sel) {
+        __desireQueryAll(sel).forEach(function(el) { ignoredEls.push(el); });
+    }); } catch (e) {}
+    function isIgnored(el) {
+        for (var k = 0; k < ignoredEls.length; k++) { if (ignoredEls[k].contains(el)) return true; }
+        return false;
+    }
 
     // --- main content text (scored containers, same idea as reader mode) ---
     var root = null, bestScore = -Infinity;
@@ -317,6 +329,7 @@ async function __desireSnapshot(maxChars, maxElements) {
     var elements = [];
     for (var i = 0; i < all.length && elements.length < maxElements; i++) {
         var e = all[i];
+        if (isIgnored(e)) continue;
         var rect = e.getBoundingClientRect();
         if (rect.width < 2 || rect.height < 2) continue;
         var style = window.getComputedStyle(e);
@@ -353,14 +366,14 @@ async function __desireSnapshot(maxChars, maxElements) {
     });
 }
 
-async function __desireExtract(selector) {
+async function __desireExtract({selector}) {
     var els = document.querySelectorAll(selector);
     return Array.from(els).map(function (e) {
         return e.textContent.trim();
     }).filter(Boolean).join("\n---\n");
 }
 
-async function __desireFindElements(selector) {
+async function __desireFindElements({selector}) {
     var els = document.querySelectorAll(selector);
     if (els.length === 0) return "No elements found";
     var first = els[0].textContent.trim().substring(0, 200);
@@ -421,7 +434,7 @@ function __desirePushUnique(list, seen, item) {
     list.push(item);
 }
 
-async function __desireGetComments(maxItems) {
+async function __desireGetComments({maxItems}) {
     maxItems = maxItems || 50;
     var root = __desireFindCommentRoot();
     if (!root) return "";
@@ -464,7 +477,7 @@ async function __desireGetComments(maxItems) {
     return JSON.stringify({ count: items.length, items: items });
 }
 
-async function __desireGetConversation(maxItems) {
+async function __desireGetConversation({maxItems}) {
     maxItems = maxItems || 100;
     var cands = document.querySelectorAll(
         "[class*='message' i], [class*='msg' i], [class*='chat' i], [class*='bubble' i], [class*='conversation' i], [class*='im-' i]");
@@ -517,7 +530,7 @@ async function __desireGetConversation(maxItems) {
 // comment box) are handled via execCommand('insertText'), which fires the
 // beforeinput/input events those frameworks listen for — naive value
 // writes are ignored by them.
-async function __desirePostComment(text, submit) {    var inputs = document.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""]');
+async function __desirePostComment({text, submit}) {    var inputs = document.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""]');
     var re = /(评论|回复|说点什么|留言|吐槽|发条|写下|发言|聊天|说说|comment|reply|message|say something|type)/i;
     var best = null, bestScore = -Infinity;
     for (var i = 0; i < inputs.length; i++) {
@@ -602,7 +615,7 @@ async function __desirePostComment(text, submit) {    var inputs = document.quer
 // Extract up to `maxItems` visible links as {text, href} — lets the agent
 // plan navigation ("which link goes to the settings page?") without
 // dumping raw HTML.
-async function __desireGetLinks(maxItems) {
+async function __desireGetLinks({maxItems}) {
     maxItems = maxItems || 50;
     var all = document.querySelectorAll("a[href]");
     var items = [];
@@ -631,7 +644,7 @@ async function __desireGetLinks(maxItems) {
 // Scroll the target into view and flash a temporary outline so the USER can
 // see which element the agent is about to act on. Purely visual — returns
 // "" when nothing resolves (callers treat that as "not found").
-async function __desireHighlight(selector, ref, text) {
+async function __desireHighlight({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "";
     el.scrollIntoView({ block: "center", behavior: "instant" });
@@ -686,7 +699,7 @@ function __desirePageRect(el) {
     return { left: left, top: top, width: r.width, height: r.height };
 }
 
-async function __desireWaitForText(text, timeout) {
+async function __desireWaitForText({text, timeout}) {
     timeout = timeout || 8000;
     var start = Date.now();
     return await new Promise(function (resolve) {
@@ -855,7 +868,7 @@ async function __desireScanMedia() {
 
 // --- Deep data extraction ---
 
-async function __desireGetTables(maxTables) {
+async function __desireGetTables({maxTables}) {
     maxTables = maxTables || 5;
     var tables = document.querySelectorAll("table");
     var out = [];
@@ -876,7 +889,7 @@ async function __desireGetTables(maxTables) {
     return out.length ? JSON.stringify({ count: out.length, tables: out }) : "No data tables found";
 }
 
-async function __desireGetImages(maxItems) {
+async function __desireGetImages({maxItems}) {
     maxItems = maxItems || 40;
     var imgs = document.querySelectorAll("img");
     var out = [], seen = {};
@@ -897,7 +910,7 @@ async function __desireGetImages(maxItems) {
     return out.length ? JSON.stringify({ count: out.length, images: out }) : "No images found";
 }
 
-async function __desireGetElementHTML(selector, ref, text, maxLength) {
+async function __desireGetElementHTML({selector, ref, text, maxLength}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "Element not found";
     var html = el.outerHTML || "";
@@ -924,7 +937,7 @@ async function __desireGetPageMeta() {
     });
 }
 
-async function __desireGetNetworkLog(filter, maxItems) {
+async function __desireGetNetworkLog({filter, maxItems}) {
     maxItems = maxItems || 100;
     var log = (window.__desireNetLog || []);
     var out = [];
@@ -943,7 +956,7 @@ async function __desireGetNetworkLog(filter, maxItems) {
 // 登录填充：找"最像登录表单"的密码框（可见、type=password、表单内有
 // 提交按钮优先），填用户名/密码，触发 input/change（React/Vue 兼容），
 // 可选提交。返回结构化结果字符串。
-async function __desireFillLogin(user, pass, submit) {
+async function __desireFillLogin({user, pass, submit}) {
     function setValue(el, value) {
         el.focus();
         el.value = value;
@@ -982,7 +995,7 @@ async function __desireFillLogin(user, pass, submit) {
 
 // 地址/联系方式模糊分类填充（0.3.6）：按 autocomplete token、name/id/
 // placeholder 关键词给输入框分类，只填空字段。返回填充数。
-async function __desireFillProfile(profile) {
+async function __desireFillProfile({profile}) {
     var KEYS = [
         ["fname", /(^|[_-])(given-name|first.?name|fname)(|$)|^fn$/i, "gn"],
         ["lname", /(^|[_-])(family-name|last.?name|lname|surname)(|$)/i, "fn"],
@@ -1093,3 +1106,69 @@ async function __desireCollectHighlights() {
     }
     return JSON.stringify(out);
 }
+
+
+// --- DPP 选择器穿透辅助（shadow DOM `>>>` + 同源 iframe；隔离世界常驻，
+// 页面覆盖不到。与 PageProtocol/DPPQuery.swift 保持同一份实现）---
+(function(){
+      if (window.__desireQueryAll) return;
+      function qAll(root, sel){ return Array.prototype.slice.call(root.querySelectorAll(sel)); }
+      // 同源 iframe 递归收集（跨源 contentDocument 访问抛错→跳过）。
+      // 跨源 frame 需要宿主 frame API（未实装）。
+      function collectDocs(doc, depth){
+        var docs = [doc];
+        if (depth <= 0) return docs;
+        var frames = doc.querySelectorAll('iframe');
+        for (var i = 0; i < frames.length; i++) {
+          try {
+            var d = frames[i].contentDocument;
+            if (d) docs = docs.concat(collectDocs(d, depth - 1));
+          } catch (e) {}
+        }
+        return docs;
+      }
+      window.__desireQueryAll = function(selector){
+        var docs = collectDocs(document, 2);
+        if (selector.indexOf('>>>') === -1) {
+          var out = [];
+          for (var d = 0; d < docs.length; d++) {
+            try { out = out.concat(qAll(docs[d], selector)); } catch (e) {}
+          }
+          return out;
+        }
+        var segs = selector.split('>>>').map(function(s){ return s.trim(); });
+        var cur = [];
+        for (var d = 0; d < docs.length; d++) {
+          try { cur = cur.concat(qAll(docs[d], segs[0])); } catch (e) {}
+        }
+        for (var i = 1; i < segs.length; i++) {
+          var next = [];
+          cur.forEach(function(el){
+            if (el.shadowRoot) next = next.concat(qAll(el.shadowRoot, segs[i]));
+            else if (el.contentDocument) next = next.concat(qAll(el.contentDocument, segs[i]));
+          });
+          cur = next;
+        }
+        return cur;
+      };
+      window.__desireQueryOne = function(el, selector){
+        if (selector.indexOf('>>>') === -1) {
+          try { return el.querySelector(selector); } catch (e) { return null; }
+        }
+        var segs = selector.split('>>>').map(function(s){ return s.trim(); });
+        // 前导 '>>>' = 从 el 自己的 shadowRoot 开始（字段相对 item 的写法）
+        var start = 0;
+        var cur;
+        if (segs[0] === '') { cur = [el]; start = 1; }
+        else { cur = qAll(el, segs[0]); }
+        for (var i = start; i < segs.length; i++) {
+          var next = [];
+          cur.forEach(function(host){
+            var root = i === 0 ? host : (host.shadowRoot || host.contentDocument);
+            if (root) next = next.concat(qAll(root, segs[i]));
+          });
+          cur = next;
+        }
+        return cur[0] || null;
+      };
+    })();

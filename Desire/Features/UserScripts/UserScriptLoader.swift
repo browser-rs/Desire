@@ -28,10 +28,15 @@ enum UserScriptLoader {
     /// removal API (only removeAllUserScripts), so rebuild is the only way.
     static func builtinScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = []
-        func add(_ name: String, at time: WKUserScriptInjectionTime, mainFrameOnly: Bool = false) {
+        func add(_ name: String, at time: WKUserScriptInjectionTime, mainFrameOnly: Bool = false, world: WKContentWorld? = nil) {
             let source = load(name)
             guard !source.isEmpty else { return }
-            scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
+            if let world {
+                scripts.append(WKUserScript(source: source, injectionTime: time,
+                                            forMainFrameOnly: mainFrameOnly, in: world))
+            } else {
+                scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
+            }
         }
         add("console-intercept", at: .atDocumentStart)
         // 曾在此注入 fullscreen-shim（覆盖 Element.prototype.requestFullscreen
@@ -45,6 +50,12 @@ enum UserScriptLoader {
         // DevTools ▸ Network：子资源计时 + fetch/XHR 钩子（见脚本头注释）。
         add("network-monitor", at: .atDocumentStart)
         add("dom-tools", at: .atDocumentStart)
+        // 同一份函数注入 Agent 工具隔离世界（WebView.agentToolWorld）——工具
+        // 求值与页面世界隔离，页面覆盖页面世界的同名函数影响不到工具（第二轮
+        // 审计 P2-1）。页面世界副本保留：getNetworkLog/waitForNetworkIdle 依赖
+        // network-monitor 的页面世界状态。
+        scripts.append(WKUserScript(source: load("dom-tools"), injectionTime: .atDocumentStart,
+                                     forMainFrameOnly: false, in: WebView.agentToolWorld))
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)
         add("password-detect", at: .atDocumentEnd)

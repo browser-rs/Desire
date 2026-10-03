@@ -17,6 +17,15 @@
    `python3 tests/dpp-e2e/upload_wellknown_e2e.py`（站点级 + upload，7 项）
    `python3 tests/dpp-e2e/sdk_live_e2e.py`（线上 SDK——**外部依赖**
    desire.mankong.icu/desire-sdk.js 已部署，5 项）
+   `python3 tests/dpp-e2e/snap_e2e.py`（Agent 工具隔离世界迁移回归：快照/点击，4 项）
+   `python3 tests/dpp-e2e/upload_wellknown_e2e.py` 需 daemon 以
+   `DPP_UPLOAD_FILE=<工作区内文件>` 启动（upload 步骤的存在性校验）。
+
+   **跑任何闸门/事件 E2E 前必须把访问等级设为 autoEdit**（fullAccess 下
+   闸门第一分支全静默放行，B/C 轮会假绿为"无审批直接执行"——同一错误踩过
+   两次）：`defaults write me.siwi.Desire aiAccessLevel -int 1` +
+   `aiFullAccess -bool false`，测完恢复原值（app 退出时 didSet 会用当前值
+   覆盖 aiFullAccess，两个键都要还原）。
 5. 收尾：`osascript -e 'quit app "Desire"'` → 还原两个 defaults 键 →
    `pkill -f serve_daemon` → `lsof -nP -iTCP:8877 -iTCP:8880` 确认端口释放。
 

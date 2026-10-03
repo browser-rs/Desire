@@ -736,7 +736,7 @@ extension BrowserToolProvider {
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
                         DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(precondition))).length > 0",
-                        arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
+                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                     present = (raw as? Bool) == true
                 } catch {
                     Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
@@ -761,12 +761,12 @@ extension BrowserToolProvider {
                 return filled
             }
             func runStepJS(_ js: String) async throws {
-                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
+                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
             }
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
                     let ok = ((try? await dppWebView.callAsyncJavaScript(
-                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -900,7 +900,7 @@ extension BrowserToolProvider {
                 var busyGone = false
                 for _ in 0..<10 {
                     busyGone = ((try? await dppWebView.callAsyncJavaScript(
-                        busyJS, arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) != true)
+                        busyJS, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) != true)
                     if busyGone { break }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -913,7 +913,7 @@ extension BrowserToolProvider {
             if let errorSel = protocolSnapshot.signals["error"], !errorSel.isEmpty {
                 let errorPresent = ((try? await dppWebView.callAsyncJavaScript(
                     "return __desireQueryAll(\(JSString.literal(errorSel))).length > 0",
-                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 if errorPresent {
                     return Self.fail("Action '\(actionName)' steps executed but the page's error signal '\(errorSel)' is showing — treat the action as failed and read the page's error message. Steps executed: \(executed.joined(separator: " → "))")
                 }
@@ -923,7 +923,7 @@ extension BrowserToolProvider {
             if let successText = action.success, !successText.isEmpty {
                 let found = ((try? await dppWebView.callAsyncJavaScript(
                     "return document.body.innerText.includes(\(JSString.literal(successText)))",
-                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
             return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)"
@@ -1017,6 +1017,11 @@ extension BrowserToolProvider {
                     "if(v)return v;}return '';})(item)"
             }
 
+            // 协议声明的噪音区（ignore）：抽取时跳过落在其子树内的条目
+            //（spec §4.1 的 content.ignore / L1 data-dpp-ignore，此前只展示）。
+            // JSON 字符串跨世界传（数组桥接不可靠，实测变非数组）
+            let ignoreSelsJSON = (try? String(data: JSONEncoder().encode(dppTab.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
+
             // 每页抽取 JS：按 item selector 遍历 + fields 路径映射。
             // 选择器支持 `>>>` 穿透 shadow DOM（DPPQuery 辅助，幂等注入）。
             func extractJS() -> String {
@@ -1025,13 +1030,20 @@ extension BrowserToolProvider {
                     fieldEntries.append("\(JSString.literal(name)): \(fieldValueJS(path))")
                 }
                 let itemLit = JSString.literal(view.item)
+                // isIgnored 恒定义（ignoreSels 为 "[]" 时空过滤）——此前
+                // 三元省略时调用点仍引用 isIgnored → ReferenceError 被吞 → 抽取恒空。
+                let ignoreGuard = """
+                var ignored=[];(JSON.parse(ignoreSels||"[]")).forEach(function(sel){try{__desireQueryAll(sel).forEach(function(el){ignored.push(el);});}catch(e){}});
+                function isIgnored(el){for(var k=0;k<ignored.length;k++){if(ignored[k].contains(el))return true;}return false;}
+
+                """
                 return DPPQuery.helperJS
-                    + "\nreturn (function(){var items=[];__desireQueryAll(" + itemLit + ").forEach(function(item){try{items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
+                    + "\nreturn (function(){var items=[];__desireQueryAll(" + itemLit + ").forEach(function(item){try{\(ignoreGuard)if(isIgnored(item))return;items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
             }
 
             func collectPage() async -> [[String: Any]] {
                 guard let raw = try? await dppWebView.callAsyncJavaScript(
-                    extractJS(), arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? String,
+                    extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld) as? String,
                     let data = raw.data(using: .utf8),
                     let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
                 return items
@@ -1052,7 +1064,7 @@ extension BrowserToolProvider {
             if !allPages || (!paged && !infinite) {
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
-                        extractJS(), arguments: [:], in: nil, contentWorld: WebView.dppToolWorld
+                        extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld
                     ) as? String
                     guard let raw, let data = raw.data(using: .utf8) else { return Self.fail("Extraction returned empty") }
                     let items = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
@@ -1086,9 +1098,24 @@ extension BrowserToolProvider {
                     } else {
                         stableRounds = 0
                     }
+                    // 滚动到底：优先条目的可滚动祖先容器（容器内滚动的站点
+                    // 此前无效——只滚 window 静默收不到新条目），兜底 window。
                     _ = try? await dppWebView.callAsyncJavaScript(
-                        "window.scrollTo(0, document.body.scrollHeight); 'ok'",
-                        arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
+                        DPPQuery.helperJS + """
+                        \n(function(){
+                          var el = __desireQueryAll(\(JSString.literal(view.item)))[0];
+                          var node = el;
+                          while (node && node !== document.documentElement) {
+                            if (node.scrollHeight > node.clientHeight + 80) {
+                              var oy = getComputedStyle(node).overflowY;
+                              if (oy === 'auto' || oy === 'scroll') { node.scrollTop = node.scrollHeight; return; }
+                            }
+                            node = node.parentElement;
+                          }
+                          window.scrollTo(0, document.body.scrollHeight);
+                        })(); 'ok'
+                        """,
+                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                     try? await Task.sleep(nanoseconds: 900_000_000)
                 }
                 return render(allItems, pages: rounds, scope: "infinite scroll")
@@ -1113,11 +1140,11 @@ extension BrowserToolProvider {
                 if allItems.count >= hardCap { break }
                 _ = try? await dppWebView.callAsyncJavaScript(
                     DPPQuery.helperJS + "\nvar n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
-                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld)
+                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 let hasNext = ((try? await dppWebView.callAsyncJavaScript(
                     DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
-                    arguments: [:], in: nil, contentWorld: WebView.dppToolWorld) as? Bool) == true)
+                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 if !hasNext { break }
             }
             return render(allItems, pages: pages, scope: "full pagination")

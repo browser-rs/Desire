@@ -23,6 +23,11 @@ final class AgentBallPanel: ObservableObject {
         didSet {
             guard oldValue != isExpanded else { return }
             applyLayout(animated: true)
+            if isExpanded {
+                installOutsideTapMonitors()
+            } else {
+                removeOutsideTapMonitors()
+            }
         }
     }
     @Published private(set) var isEnabled: Bool
@@ -30,6 +35,8 @@ final class AgentBallPanel: ObservableObject {
     @Published private(set) var agentBusy = false
     /// 页面元素全屏（视频等）时球自动让位——退出后恢复。
     @Published private(set) var hiddenForFullscreen = false
+    /// Agent 回复完成提醒（busy 下降沿触发，数秒后自动消失）。
+    @Published private(set) var replyFlash = false
     let voice = VoiceInputManager()
     @Published var voiceTranscriptSent: String?
     /// 拖动倾斜角（NSView 事件驱动，视图渲染用）。
@@ -173,10 +180,42 @@ final class AgentBallPanel: ObservableObject {
         self.panel = panel
     }
 
+    // MARK: - 点外收起（iOS popover 行为）
+
+    private var outsideTapMonitors: [Any] = []
+
+    /// 面板外任何点击（其他 app / 本 app 其他窗口）→ 收起操作条。
+    /// 面板自身内的点击不拦（球切换/菜单按钮自行处理）。
+    private func installOutsideTapMonitors() {
+        guard outsideTapMonitors.isEmpty else { return }
+        outsideTapMonitors.append(NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            Task { @MainActor in self?.isExpanded = false }
+        })
+        outsideTapMonitors.append(NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self, self.isExpanded, let panel = self.panel, event.window !== panel else { return event }
+            Task { @MainActor in self.isExpanded = false }
+            return event
+        })
+    }
+
+    private func removeOutsideTapMonitors() {
+        outsideTapMonitors.forEach { NSEvent.removeMonitor($0) }
+        outsideTapMonitors.removeAll()
+    }
+
     private func poll() {
         guard isVisible else { return }
         let busy = AgentScheduler.shared.deliveryTarget?.isProcessing ?? false
         if busy != agentBusy { agentBusy = busy }
+        // 回复完成（busy 下降沿）→ 球闪绿色就绪徽章提示用户
+        if agentBusy, !busy {
+            replyFlash = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(6))
+                guard !Task.isCancelled else { return }
+                replyFlash = false
+            }
+        }
 
         let inFS = onPageFullscreen?() ?? false
         if inFS, !hiddenForFullscreen, isVisible {

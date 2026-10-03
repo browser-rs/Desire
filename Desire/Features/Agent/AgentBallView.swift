@@ -52,6 +52,19 @@ struct AgentBallView: View {
 
     private var ball: some View {
         ZStack {
+            // 回复就绪徽章（busy 下降沿闪光）
+            if panel.replyFlash {
+                ZStack {
+                    Circle().fill(.green)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: ballSize * 0.36, height: ballSize * 0.36)
+                .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                .offset(x: ballSize * 0.34, y: -ballSize * 0.30)
+                .transition(.scale.combined(with: .opacity))
+            }
             // 忙碌：外圈进度环（玻璃外的状态层）
             if panel.agentBusy {
                 Circle()

@@ -125,6 +125,18 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "whiteboard", description: "Render structured visuals on the user's whiteboard panel: mind maps, flowcharts, sequence diagrams (Mermaid syntax) and data charts (ECharts option JSON). action=render replaces the board, append adds blocks, clear empties it. Best for: visualizing relationships, plans, comparisons and trends extracted from pages or your own reasoning. The panel auto-opens for the user.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear"),
+                    "title": AgentJSONSchemaValue(type: "string", description: "Board title"),
+                    "blocks": AgentJSONSchemaValue(type: "array", description: "Blocks to render", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                        "type": AgentJSONSchemaValue(type: "string", description: "mermaid | chart | note"),
+                        "title": AgentJSONSchemaValue(type: "string", description: "Optional block caption"),
+                        "content": AgentJSONSchemaValue(type: "string", description: "mermaid: Mermaid source (e.g. 'graph TD; A-->B'); chart: ECharts option JSON string; note: markdown text"),
+                    ], required: ["type", "content"]))),
+                ], required: ["action"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

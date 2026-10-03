@@ -18,6 +18,7 @@ struct AgentHeaderView: View {
     var onShowTrace: (() -> Void)?
     var onShowStats: (() -> Void)?
     var onShowMemory: (() -> Void)?
+    var onShowWhiteboard: (() -> Void)?
     var onNewChat: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
@@ -104,6 +105,14 @@ struct AgentHeaderView: View {
                     systemName: "brain.head.profile",
                     action: onShowMemory,
                     help: "Memory"
+                )
+            }
+
+            if let onShowWhiteboard {
+                HoverIcon(
+                    systemName: "paintpalette",
+                    action: onShowWhiteboard,
+                    help: "Whiteboard — agent-drawn mind maps / flowcharts / charts"
                 )
             }
 

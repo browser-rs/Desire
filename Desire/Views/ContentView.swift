@@ -125,6 +125,7 @@ struct ContentView: View {
             bookmarkStore: bookmarkStore,
             historyStore: historyStore,
             openSettings: { openWindow(id: "settings") },
+            toggleWhiteboard: { WhiteboardPanel.shared.toggle() },
             bindings: .init(
                 showHistory: $showHistory,
                 showBookmarks: $showBookmarks,

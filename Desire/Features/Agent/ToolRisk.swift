@@ -83,6 +83,8 @@ enum ToolRisk: Int, Comparable {
         "readFile", "listDirectory",
         // Plan checklist (pure UI state)
         "updatePlan",
+        // Whiteboard (pure UI state — local render only)
+        "whiteboard",
         // Waits for the user's answer; changes nothing
         "askUser",
         // Visual-only (temporary outline class, auto-removed)

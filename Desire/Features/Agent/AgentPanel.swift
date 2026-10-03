@@ -27,6 +27,8 @@ struct AgentPanel: View {
     @State private var showHistory = false
     @State private var showCapabilities = false
     @State private var showMemory = false
+    /// 白板开关（由宿主窗口注入——面板不持有窗口对象）。
+    var onToggleWhiteboard: (() -> Void)? = nil
     @ObservedObject private var memory = AgentMemoryStore.shared
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
@@ -123,6 +125,7 @@ struct AgentPanel: View {
                 onShowTrace: { showTrace = true },
                 onShowStats: { showStats = true },
                 onShowMemory: { showMemory = true },
+                onShowWhiteboard: onToggleWhiteboard,
                 onNewChat: { store.clear() }
             )
 

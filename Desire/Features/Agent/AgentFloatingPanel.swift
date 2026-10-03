@@ -51,7 +51,7 @@ class AgentFloatingPanel {
         let store = self.store
         let conversationStore = self.conversationStore
         let hostingController = NSHostingController(
-            rootView: AgentPanel(store: store, conversationStore: conversationStore)
+            rootView: AgentPanel(store: store, conversationStore: conversationStore, onToggleWhiteboard: { WhiteboardPanel.shared.toggle() })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 独立窗口：ContentView 的强调色注入不跨窗口（见 AppAccent.swift）。
                 .appAccent(accentColor)

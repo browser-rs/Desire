@@ -2399,6 +2399,7 @@ final class AutomationServer {
         case "stopLoading": command = .stopLoading
         case "toggleTabOverview": command = .toggleTabOverview
         case "toggleAgentPanel": command = .toggleAgentPanel
+        case "toggleWhiteboard": command = .toggleWhiteboard
         case "showAdBlockStats": command = .showAdBlockStats
         case "toggleSplitView": command = .toggleSplitView
         case "toggleDevTools": command = .toggleDevTools

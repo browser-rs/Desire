@@ -477,6 +477,53 @@ extension BrowserToolProvider {
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 
+        case "whiteboard":
+            // 白板（§一期）：结构化块 → 本地 Mermaid/ECharts 双引擎渲染，
+            // 面板自动弹出给用户看。纯 UI 状态（不外发），autoEdit 可自动执行。
+            let action = args["action"] as? String ?? "render"
+            let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+            let store = WhiteboardStore.shared
+            if action == "clear" {
+                store.clear(conversationID: conversationID)
+                WhiteboardPanel.shared.show()
+                return "Whiteboard cleared"
+            }
+            guard let rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
+                return Self.fail("Missing blocks array (action=render|append needs blocks; clear needs none)")
+            }
+            var blocks: [WhiteboardBlock] = []
+            var skipped = 0
+            for item in rawBlocks.prefix(12) {
+                guard let type = item["type"] as? String else { skipped += 1; continue }
+                var content: String
+                if let text = item["content"] as? String {
+                    content = text
+                } else if let object = item["content"] {
+                    // chart 的 ECharts option 常被模型给成对象——序列化成 JSON 字符串
+                    guard let data = try? JSONSerialization.data(withJSONObject: object),
+                          let text = String(data: data, encoding: .utf8) else {
+                        skipped += 1; continue
+                    }
+                    content = text
+                } else { skipped += 1; continue }
+                let block = WhiteboardBlock(
+                    type: type,
+                    title: item["title"] as? String,
+                    content: content)
+                if block.isValid { blocks.append(block) } else { skipped += 1 }
+            }
+            guard !blocks.isEmpty else {
+                return Self.fail("No valid blocks (type must be mermaid | chart | note with non-empty content)")
+            }
+            let title = args["title"] as? String
+            if action == "append" {
+                store.append(blocks, title: title, conversationID: conversationID)
+            } else {
+                store.set(WhiteboardSpec(title: title ?? "白板", blocks: blocks), conversationID: conversationID)
+            }
+            WhiteboardPanel.shared.show()
+            return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : "") — panel opened"
+
         case "setUploadFile":
             // Arms a local file so the NEXT page file-picker auto-submits
             // it (the open panel is intercepted in the UI delegate). This

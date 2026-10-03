@@ -31,6 +31,7 @@ struct CommandDispatcher {
     let bookmarkStore: BookmarkStore
     let historyStore: HistoryStore
     let openSettings: () -> Void
+    let toggleWhiteboard: () -> Void
     var bindings: Bindings
     var actions: Actions
 
@@ -183,6 +184,9 @@ struct CommandDispatcher {
 
         case .showSettings:
             openSettings()
+
+        case .toggleWhiteboard:
+            toggleWhiteboard()
 
         case .reload:
             if let tab = tabManager.selectedTab { tab.browser.webView.reload() }

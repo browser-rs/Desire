@@ -168,7 +168,7 @@ struct SelectedTabContent: View {
                         }
 
                         if showAgentPanel {
-                            AgentPanel(store: content.aiSession, conversationStore: content.conversationStore)
+                            AgentPanel(store: content.aiSession, conversationStore: content.conversationStore, onToggleWhiteboard: { WhiteboardPanel.shared.toggle() })
                                 // Opening the assistant resumes the most recent
                                 // conversation instead of a blank panel. Deferred
                                 // off the view-update pass: loading publishes

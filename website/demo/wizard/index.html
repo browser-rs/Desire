@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 入驻向导 — SPA 路由重声明 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）向导演示：hash 路由的三步入驻表单，路由变化时重新 expose 声明（宿主经 dpp-route-watch 自动重解析）。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note, .form-error { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .steps { display: flex; gap: 0.4rem; margin: 0.8rem 0; }
+  .steps span { font-size: 0.78rem; padding: 0.15rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; }
+  .steps span.active { background: #211b13; color: #f6f1e7; }
+  .frow { display: flex; gap: 0.6rem; align-items: center; margin: 0.5rem 0; }
+  .frow label { min-width: 5em; font-size: 0.9rem; color: #6b6154; }
+  .frow input, .frow select { flex: 1; padding: 0.45rem 0.7rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  .nav-row { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+  button { padding: 0.45rem 1rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; cursor: pointer; background: #211b13; color: #f6f1e7; }
+  button.ghost { background: #fff; color: #211b13; }
+  .sum-row { display: flex; gap: 0.8rem; border-bottom: 1px dotted #d8cfba; padding: 0.3rem 0.2rem; font-size: 0.92rem; }
+  .sum-row .s-label { min-width: 5em; color: #8a7f6f; }
+  .app-row { border-bottom: 1px dotted #d8cfba; padding: 0.35rem 0.2rem; font-size: 0.9rem; }
+  .empty-hint { color: #8a7f6f; font-size: 0.88rem; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>DPP 入驻向导 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个 hash 路由的三步表单（<code>#/basic → #/contact → #/confirm → #/done</code>）。
+演示重点是 <b>SPA 路由重声明</b>：每一步 <code>desire.expose()</code> 的视图与动作都不同，
+宿主经 <code>dpp-route-watch</code> 在路由变化时自动重解析。对智能体说：
+「帮我填入驻申请，店铺叫 X、类目选技术、联系人小王、电话 138xxxxxxxx，然后提交」——
+它会用每一步的 <code>save-basic</code> / <code>save-contact</code> / <code>submit</code> 动作走完流程
+（提交是 <code>outbound</code>，会先请求批准）。</p>
+
+<div id="wizard-app">
+  <div class="steps" id="w-steps"></div>
+  <div id="w-body"></div>
+</div>
+
+<h2>我的申请</h2>
+<div id="w-apps"><div class="empty-hint">还没有提交过申请。</div></div>
+
+<p style="margin-top:2rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../../legacy-speaker.html">遗留页(L0)</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+// 分步状态留在页面（最终一步才出站提交）
+var WIZ = { shop: "", category: "餐饮", contact: "", phone: "" };
+var STEPS = ["basic", "contact", "confirm", "done"];
+var STEP_NAMES = { basic: "① 店铺信息", contact: "② 联系方式", confirm: "③ 确认提交", done: "✓ 完成" };
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) throw new Error(envelope.message || ("HTTP " + res.status));
+      return envelope.data;
+    });
+  });
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——提交步骤需要后端支持。";
+  document.getElementById("wizard-app").before(note);
+}
+
+function currentRoute() {
+  var h = location.hash.replace(/^#\//, "");
+  return STEPS.indexOf(h) !== -1 ? h : "basic";
+}
+
+// ── 渲染（每路由一份内容 + 一份声明） ────────────────────
+function frow(label, id, value, placeholder) {
+  return '<div class="frow"><label>' + label + '</label>' +
+    '<input id="' + id + '" value="' + (value || "") + '" placeholder="' + placeholder + '"></div>';
+}
+
+function renderBody(route) {
+  var box = document.getElementById("w-body");
+  box.textContent = "";
+  if (route === "basic") {
+    box.innerHTML =
+      frow("店铺名", "w-shop", WIZ.shop, "如：山月咖啡") +
+      '<div class="frow"><label>类目</label><select id="w-category">' +
+      ["餐饮", "零售", "技术", "服务"].map(function (c) {
+        return '<option' + (WIZ.category === c ? " selected" : "") + '>' + c + '</option>';
+      }).join("") + '</select></div>' +
+      '<div class="nav-row"><button id="w-next">下一步</button></div>';
+    document.getElementById("w-next").onclick = function () {
+      WIZ.shop = document.getElementById("w-shop").value.trim();
+      WIZ.category = document.getElementById("w-category").value;
+      if (!WIZ.shop) { showFormError("店铺名必填"); return; }
+      location.hash = "#/contact";
+    };
+  } else if (route === "contact") {
+    box.innerHTML =
+      frow("联系人", "w-contact", WIZ.contact, "姓名") +
+      frow("电话", "w-phone", WIZ.phone, "138xxxxxxxx") +
+      '<div class="nav-row"><button id="w-back" class="ghost">上一步</button>' +
+      '<button id="w-next">下一步</button></div>';
+    document.getElementById("w-back").onclick = function () { location.hash = "#/basic"; };
+    document.getElementById("w-next").onclick = function () {
+      WIZ.contact = document.getElementById("w-contact").value.trim();
+      WIZ.phone = document.getElementById("w-phone").value.trim();
+      if (!WIZ.contact || !WIZ.phone) { showFormError("联系人与电话都要填"); return; }
+      location.hash = "#/confirm";
+    };
+  } else if (route === "confirm") {
+    var rows = [["店铺名", WIZ.shop], ["类目", WIZ.category], ["联系人", WIZ.contact], ["电话", WIZ.phone]];
+    box.innerHTML = rows.map(function (r) {
+      return '<div class="sum-row"><span class="s-label">' + r[0] + '</span><span class="s-value">' + r[1] + '</span></div>';
+    }).join("") +
+      '<div class="nav-row"><button id="w-back" class="ghost">上一步</button>' +
+      '<button id="w-submit">提交申请</button></div>';
+    document.getElementById("w-back").onclick = function () { location.hash = "#/contact"; };
+    document.getElementById("w-submit").onclick = submit;
+  } else {
+    box.innerHTML = '<div class="empty-hint">申请已提交 ✓ ——下方「我的申请」可查。刷新页面重新演示。</div>';
+  }
+  renderSteps(route);
+}
+
+function renderSteps(route) {
+  var box = document.getElementById("w-steps");
+  box.textContent = "";
+  STEPS.forEach(function (s) {
+    var el = document.createElement("span");
+    el.textContent = STEP_NAMES[s];
+    if (s === route) el.classList.add("active");
+    box.appendChild(el);
+  });
+}
+
+function showFormError(text) {
+  var old = document.querySelector(".form-error");
+  if (old) old.remove();
+  var note = document.createElement("div");
+  note.className = "form-error";
+  note.textContent = text;
+  document.getElementById("w-body").before(note);
+}
+
+function submit() {
+  api("POST", "/demo/wizard/apply", WIZ)
+    .then(function () {
+      location.hash = "#/done";
+      if (window.desire && window.desire.emit) {
+        window.desire.emit("application-received", { shop: WIZ.shop });
+      }
+      refreshApps();
+    })
+    .catch(function (e) { if (!OFFLINE) showFormError("提交失败：" + e.message); });
+}
+
+function refreshApps() {
+  return api("GET", "/demo/wizard/mine").then(function (apps) {
+    var box = document.getElementById("w-apps");
+    box.textContent = "";
+    if (!apps.length) {
+      box.innerHTML = '<div class="empty-hint">还没有提交过申请。</div>';
+      return;
+    }
+    apps.forEach(function (a) {
+      var row = document.createElement("div");
+      row.className = "app-row";
+      row.textContent = "#" + a.id + " · " + a.shop + "（" + a.category + "）· " + a.contact + " · " + new Date(a.created_at).toLocaleString();
+      box.appendChild(row);
+    });
+  });
+}
+
+// ── DPP 声明：按路由切换（SPA 重声明的核心） ──────────────
+function exposeFor(route) {
+  var decl;
+  if (route === "basic") {
+    decl = {
+      protocol: "desire/1",
+      page: { type: "form", route: "#/basic" },
+      content: { main: "#wizard-app" },
+      signals: { ready: "[data-demo-ready]" },
+      actions: [
+        { name: "save-basic", description: "填写店铺信息并进入下一步",
+          params: {
+            shop: { type: "string", required: true },
+            category: { type: "string", required: true, description: "餐饮 | 零售 | 技术 | 服务" }
+          },
+          run: [ { fill: { "#w-shop": "{shop}" } }, { fill: { "#w-category": "{category}" } }, { click: "#w-next" } ],
+          effects: "local" }
+      ]
+    };
+  } else if (route === "contact") {
+    decl = {
+      protocol: "desire/1",
+      page: { type: "form", route: "#/contact" },
+      content: { main: "#wizard-app" },
+      signals: { ready: "[data-demo-ready]" },
+      actions: [
+        { name: "save-contact", description: "填写联系方式并进入下一步",
+          params: {
+            contact: { type: "string", required: true },
+            phone: { type: "string", required: true }
+          },
+          run: [ { fill: { "#w-contact": "{contact}" } }, { fill: { "#w-phone": "{phone}" } }, { click: "#w-next" } ],
+          effects: "local" }
+      ]
+    };
+  } else if (route === "confirm") {
+    decl = {
+      protocol: "desire/1",
+      page: { type: "form", route: "#/confirm" },
+      content: { main: "#wizard-app" },
+      signals: { ready: "[data-demo-ready]" },
+      views: {
+        summary: { item: "#w-body .sum-row", fields: {
+          label: ".s-label", value: ".s-value"
+        } }
+      },
+      actions: [
+        { name: "submit", description: "提交入驻申请（公开入库，会请求批准）",
+          run: [ { click: "#w-submit" } ],
+          effects: "outbound" }
+      ]
+    };
+  } else {
+    decl = {
+      protocol: "desire/1",
+      page: { type: "form", route: "#/done" },
+      content: { main: "#wizard-app" },
+      signals: { ready: "[data-demo-ready]" },
+      views: {
+        applications: { item: "#w-apps .app-row", fields: { text: "@text" } }
+      },
+      events: { "application-received": { watch: ".app-row" } }
+    };
+  }
+  decl.context = {
+    persona: "DPP 入驻向导的助手：演示 SPA 路由重声明",
+    rules: "分步表单，最终提交写入演示服务共享库；路由变化时本声明会被重新 expose"
+  };
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(decl);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(decl);
+    document.head.appendChild(s);
+  }
+}
+
+// ── 路由驱动 ────────────────────────────────────────────
+function render() {
+  var route = currentRoute();
+  renderBody(route);
+  exposeFor(route);
+}
+window.addEventListener("hashchange", render);
+
+(function init() {
+  render();
+  api("GET", "/demo/wizard/mine").then(function () {
+    setStatus("on", "演示 API 已连接");
+    document.body.setAttribute("data-demo-ready", "");
+    refreshApps();
+  }).catch(function (e) { goOffline(e.message); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 商品详情 — shadow DOM 与 iframe 穿透 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）商品详情演示：评分组件在 shadow DOM 里、配送说明在同源 iframe 里——智能体按声明穿透读取。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 680px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  #p-card { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.9rem 1rem; }
+  .p-title { margin: 0; font-size: 1.2rem; }
+  .p-price { color: #c03a1a; font-weight: 700; font-size: 1.4rem; }
+  .rating-host { display: inline-block; }
+  .spec-row { display: flex; gap: 0.8rem; border-bottom: 1px dotted #d8cfba; padding: 0.3rem 0.2rem; font-size: 0.9rem; }
+  .spec-row .sp-name { min-width: 6em; color: #8a7f6f; }
+  #ship-frame { width: 100%; min-height: 120px; border: 1px solid #d8cfba; border-radius: 6px; background: #fffdf7; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>DPP 商品详情 <span id="api-status" class="status-pill">穿透演示</span></h1>
+<p>一个商品详页，专门演示<b>穿透读取</b>：评分组件挂在 <b>shadow DOM</b> 里
+（声明里的选择器用 <code>#rating-host &gt;&gt;&gt; .score</code> 跨边界）；
+配送说明放在<b>同源 iframe</b> 里（提取会自动进 iframe 取文）。
+对智能体说：「这个键盘评分多少？偏远地区包不包邮？」——它都能按声明答上来。</p>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="p-card">
+  <h2 class="p-title">旗舰机械键盘 · 深空灰</h2>
+  <p>评分组件是第三方挂件（shadow DOM 隔离，页面主样式进不去）：
+    <span id="rating-host"></span></p>
+  <p class="p-price">¥1,299.00</p>
+
+  <h2>规格</h2>
+  <div class="spec-row"><span class="sp-name">轴体</span><span>热插拔 Gasket</span></div>
+  <div class="spec-row"><span class="sp-name">连接</span><span>蓝牙 5.2 / Type-C</span></div>
+  <div class="spec-row"><span class="sp-name">电池</span><span>4000mAh</span></div>
+
+  <h2>配送说明（iframe）</h2>
+  <iframe id="ship-frame" src="shipping.html" title="配送说明"></iframe>
+</div>
+
+<p style="margin-top:2rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../../legacy-speaker.html">遗留页(L0)</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+// shadow DOM 挂件（模拟第三方评分组件——主文档选择器够不到它）
+(function mountRating() {
+  var host = document.getElementById("rating-host");
+  var root = host.attachShadow({ mode: "open" });
+  root.innerHTML =
+    '<span class="score">4.6</span>' +
+    '<span class="visual">★★★★☆</span>' +
+    '<span class="count">128</span>' +
+    '<style>.score{font-weight:700;color:#c03a1a}.visual{color:#d8a012;margin:0 .3rem}.count{color:#8a7f6f;font-size:.8rem}</style>';
+})();
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "product",
+  page: { type: "product" },
+  content: { main: "#p-card", ignore: [".demo-ad"] },
+  signals: { ready: "#p-card" },
+  views: {
+    product: { item: "#p-card", fields: {
+      title: ".p-title",
+      price: { selector: ".p-price", type: "price" },
+      rating: { selector: "#rating-host >>> .score", type: "number" },
+      reviewCount: { selector: "#rating-host >>> .count", type: "number" }
+    } },
+    specs: { item: "#p-card .spec-row", fields: {
+      name: ".sp-name", value: "@text"
+    } }
+  },
+  context: {
+    persona: "DPP 商品详页的助手：演示 shadow DOM（>>> 选择器）与同源 iframe 的穿透读取",
+    rules: "商品为示例数据；配送说明在 iframe 内，提取会自动覆盖"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// 本页无后端依赖：直接就绪
+setStatus("on", "静态穿透演示");
+document.body.setAttribute("data-demo-ready", "");
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+</script>
+</body>
+</html>

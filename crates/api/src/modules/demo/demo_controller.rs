@@ -18,9 +18,10 @@ use crate::errors::AppError;
 use crate::types::{ApiResult, AppState};
 
 use super::demo_model::{
-  AddCartReq, BookReq, DemoArticlesPage, DemoBooking, DemoCartSnapshot, DemoForumComment,
-  DemoForumPost, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct, DemoSlotsResp, DemoStats,
-  ImQuery, ImSendReq, LikeResult, NewCommentReq, NewPostReq, NewsQuery, SlotsQuery,
+  AddCartReq, BookReq, DemoAdminPost, DemoArticlesPage, DemoBooking, DemoCartSnapshot,
+  DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct,
+  DemoSlotsResp, DemoStats, DemoWizardApp, HideReq, ImQuery, ImSendReq, LikeResult, NewCommentReq,
+  NewPostReq, NewsQuery, SlotsQuery, WizardApplyReq,
 };
 use super::demo_service;
 
@@ -319,4 +320,59 @@ pub async fn news_articles(Query(q): Query<NewsQuery>) -> ApiResult<DemoArticles
 /// GET /demo/stats —— 聚合各 demo 表。
 pub async fn stats(State(state): State<AppState>) -> ApiResult<DemoStats> {
   api_ok!(demo_service::stats(&state.pool).await?)
+}
+
+// ── 审核台演示 ────────────────────────────────────────────
+
+/// GET /demo/admin/posts —— 全量（含已隐藏）。
+pub async fn admin_posts(State(state): State<AppState>) -> ApiResult<Vec<DemoAdminPost>> {
+  api_ok!(demo_service::admin_posts(&state.pool).await?)
+}
+
+/// POST /demo/admin/posts/{id}/hidden {hidden} —— 隐藏/恢复。
+pub async fn admin_set_hidden(
+  State(state): State<AppState>,
+  Path(post_id): Path<i64>,
+  Json(body): Json<HideReq>,
+) -> ApiResult<()> {
+  api_ok!(demo_service::admin_set_hidden(&state.pool, post_id, body.hidden).await?)
+}
+
+/// DELETE /demo/admin/posts/{id} —— 连同评论/点赞一并删除（danger 动作本体）。
+pub async fn admin_delete_post(
+  State(state): State<AppState>,
+  Path(post_id): Path<i64>,
+) -> ApiResult<()> {
+  api_ok!(demo_service::admin_delete_post(&state.pool, post_id).await?)
+}
+
+// ── 入驻向导演示 ─────────────────────────────────────────
+
+/// POST /demo/wizard/apply {shop, category, contact, phone}
+pub async fn wizard_apply(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Json(body): Json<WizardApplyReq>,
+) -> ApiResult<DemoWizardApp> {
+  let client = client_id(&headers)?;
+  api_ok!(
+    demo_service::wizard_apply(
+      &state.pool,
+      &client,
+      &body.shop,
+      &body.category,
+      &body.contact,
+      &body.phone
+    )
+    .await?
+  )
+}
+
+/// GET /demo/wizard/mine
+pub async fn wizard_mine(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+) -> ApiResult<Vec<DemoWizardApp>> {
+  let client = client_id(&headers)?;
+  api_ok!(demo_service::wizard_mine(&state.pool, &client).await?)
 }

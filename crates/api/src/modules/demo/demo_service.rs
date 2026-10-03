@@ -8,9 +8,9 @@ use chrono::NaiveDateTime;
 use sqlx::MySqlPool;
 
 use super::demo_model::{
-  DemoArticle, DemoArticlesPage, DemoBooking, DemoCartLine, DemoCartSnapshot, DemoForumComment,
-  DemoForumPost, DemoImChannel, DemoImMessage, DemoMetric, DemoOrder, DemoProduct, DemoSlot,
-  DemoSlotsResp, DemoStats, LikeResult,
+  DemoAdminPost, DemoArticle, DemoArticlesPage, DemoBooking, DemoCartLine, DemoCartSnapshot,
+  DemoForumComment, DemoForumPost, DemoImChannel, DemoImMessage, DemoMetric, DemoOrder,
+  DemoProduct, DemoSlot, DemoSlotsResp, DemoStats, DemoWizardApp, LikeResult,
 };
 use crate::errors::AppError;
 
@@ -466,8 +466,10 @@ async fn forum_post_exists(pool: &MySqlPool, post_id: i64) -> Result<bool, AppEr
 }
 
 pub async fn forum_posts(pool: &MySqlPool, client: &str) -> Result<Vec<DemoForumPost>, AppError> {
+  // 访客视图：已隐藏帖不出现（审核台走 admin_posts 看全量）。
   let heads: Vec<(i64, String, String, String, NaiveDateTime)> = sqlx::query_as(
-    "SELECT id, client_id, title, content, created_at FROM demo_forum_posts ORDER BY id DESC LIMIT 50",
+    "SELECT id, client_id, title, content, created_at FROM demo_forum_posts
+     WHERE hidden = 0 ORDER BY id DESC LIMIT 50",
   )
   .fetch_all(pool)
   .await?;
@@ -806,11 +808,10 @@ pub async fn stats(pool: &MySqlPool) -> Result<DemoStats, AppError> {
     .fetch_one(pool)
     .await?;
   // SUM 对 INT 返回 DECIMAL——CAST 成 SIGNED 才能解进 i64
-  let (gmv_cents,): (i64,) = sqlx::query_as(
-    "SELECT CAST(COALESCE(SUM(total_cents), 0) AS SIGNED) FROM demo_orders",
-  )
-  .fetch_one(pool)
-  .await?;
+  let (gmv_cents,): (i64,) =
+    sqlx::query_as("SELECT CAST(COALESCE(SUM(total_cents), 0) AS SIGNED) FROM demo_orders")
+      .fetch_one(pool)
+      .await?;
   let (bookings,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM demo_bookings")
     .fetch_one(pool)
     .await?;
@@ -863,4 +864,153 @@ pub async fn stats(pool: &MySqlPool) -> Result<DemoStats, AppError> {
       },
     ],
   })
+}
+
+// ── 审核台演示（论坛帖子治理） ────────────────────────────
+
+/// 审核台：全量帖子（含已隐藏）+ 计数。
+pub async fn admin_posts(pool: &MySqlPool) -> Result<Vec<DemoAdminPost>, AppError> {
+  let heads: Vec<(i64, String, String, String, bool, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, client_id, title, content, hidden, created_at FROM demo_forum_posts ORDER BY id DESC LIMIT 100",
+  )
+  .fetch_all(pool)
+  .await?;
+  let mut posts = Vec::with_capacity(heads.len());
+  for (id, owner, title, content, hidden, created_at) in heads {
+    let (likes,): (i64,) =
+      sqlx::query_as("SELECT COUNT(*) FROM demo_forum_likes WHERE post_id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    let (comments,): (i64,) =
+      sqlx::query_as("SELECT COUNT(*) FROM demo_forum_comments WHERE post_id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    posts.push(DemoAdminPost {
+      author: short_author(&owner),
+      likes,
+      comments,
+      hidden,
+      id,
+      title,
+      content,
+      created_at,
+    });
+  }
+  Ok(posts)
+}
+
+/// 隐藏/恢复（0/1 位切换）。
+pub async fn admin_set_hidden(
+  pool: &MySqlPool,
+  post_id: i64,
+  hidden: bool,
+) -> Result<(), AppError> {
+  let result = sqlx::query("UPDATE demo_forum_posts SET hidden = ? WHERE id = ?")
+    .bind(hidden)
+    .bind(post_id)
+    .execute(pool)
+    .await?;
+  if result.rows_affected() == 0 {
+    return Err(AppError::NotFound(format!("帖子不存在: {post_id}")));
+  }
+  Ok(())
+}
+
+/// 删除：帖子 + 关联评论/点赞一并清（事务）。danger 动作的后端本体。
+pub async fn admin_delete_post(pool: &MySqlPool, post_id: i64) -> Result<(), AppError> {
+  let mut tx = pool.begin().await?;
+  sqlx::query("DELETE FROM demo_forum_comments WHERE post_id = ?")
+    .bind(post_id)
+    .execute(&mut *tx)
+    .await?;
+  sqlx::query("DELETE FROM demo_forum_likes WHERE post_id = ?")
+    .bind(post_id)
+    .execute(&mut *tx)
+    .await?;
+  let result = sqlx::query("DELETE FROM demo_forum_posts WHERE id = ?")
+    .bind(post_id)
+    .execute(&mut *tx)
+    .await?;
+  if result.rows_affected() == 0 {
+    return Err(AppError::NotFound(format!("帖子不存在: {post_id}")));
+  }
+  tx.commit().await?;
+  Ok(())
+}
+
+// ── 入驻向导演示 ─────────────────────────────────────────
+
+pub async fn wizard_apply(
+  pool: &MySqlPool,
+  client: &str,
+  shop: &str,
+  category: &str,
+  contact: &str,
+  phone: &str,
+) -> Result<DemoWizardApp, AppError> {
+  let (shop, category, contact, phone) =
+    (shop.trim(), category.trim(), contact.trim(), phone.trim());
+  if shop.is_empty() || shop.len() > 64 {
+    return Err(AppError::Validation("店铺名须为 1-64 字节".into()));
+  }
+  if category.is_empty() || category.len() > 32 {
+    return Err(AppError::Validation("类目须为 1-32 字节".into()));
+  }
+  if contact.is_empty() || contact.len() > 64 {
+    return Err(AppError::Validation("联系人须为 1-64 字节".into()));
+  }
+  if phone.is_empty() || phone.len() > 32 {
+    return Err(AppError::Validation("电话须为 1-32 字节".into()));
+  }
+  let result = sqlx::query(
+    "INSERT INTO demo_wizard_applications (client_id, shop, category, contact, phone) VALUES (?, ?, ?, ?, ?)",
+  )
+  .bind(client)
+  .bind(shop)
+  .bind(category)
+  .bind(contact)
+  .bind(phone)
+  .execute(pool)
+  .await?;
+  let id = result.last_insert_id() as i64;
+  let (created_at,): (NaiveDateTime,) =
+    sqlx::query_as("SELECT created_at FROM demo_wizard_applications WHERE id = ?")
+      .bind(id)
+      .fetch_one(pool)
+      .await?;
+  Ok(DemoWizardApp {
+    contact: contact.to_string(),
+    category: category.to_string(),
+    phone: phone.to_string(),
+    shop: shop.to_string(),
+    id,
+    created_at,
+  })
+}
+
+pub async fn wizard_mine(pool: &MySqlPool, client: &str) -> Result<Vec<DemoWizardApp>, AppError> {
+  let rows: Vec<(i64, String, String, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, shop, category, contact, phone, created_at FROM demo_wizard_applications
+     WHERE client_id = ? ORDER BY id DESC LIMIT 20",
+  )
+  .bind(client)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(
+        |(id, shop, category, contact, phone, created_at)| DemoWizardApp {
+          contact,
+          category,
+          phone,
+          shop,
+          id,
+          created_at,
+        },
+      )
+      .collect(),
+  )
 }

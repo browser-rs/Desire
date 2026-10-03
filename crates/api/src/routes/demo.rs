@@ -43,4 +43,15 @@ pub fn router() -> Router<AppState> {
     .route("/demo/booking/mine", get(demo_controller::bookings_mine))
     .route("/demo/news/articles", get(demo_controller::news_articles))
     .route("/demo/stats", get(demo_controller::stats))
+    .route("/demo/admin/posts", get(demo_controller::admin_posts))
+    .route(
+      "/demo/admin/posts/{id}/hidden",
+      post(demo_controller::admin_set_hidden),
+    )
+    .route(
+      "/demo/admin/posts/{id}",
+      delete(demo_controller::admin_delete_post),
+    )
+    .route("/demo/wizard/apply", post(demo_controller::wizard_apply))
+    .route("/demo/wizard/mine", get(demo_controller::wizard_mine))
 }

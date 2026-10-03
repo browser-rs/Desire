@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 审核台演示 — danger 动作 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）审核台演示：对论坛演示的真实帖子做隐藏/恢复与删除。删除声明为 danger 动作——比 outbound 更强的逐次审批。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .mod-row { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.55rem 0.85rem; margin: 0.5rem 0; }
+  .mod-row.hidden-post { opacity: 0.55; background: #efe8d8; }
+  .mod-row h3 { margin: 0; font-size: 0.98rem; display: inline; }
+  .r-meta { font-size: 0.75rem; color: #8a7f6f; margin: 0.15rem 0; }
+  .r-id { background: #eee7d7; border-radius: 3px; padding: 0 0.3rem; }
+  .r-hidden { font-weight: 600; }
+  .r-hidden.yes { color: #c03a1a; }
+  .r-hidden.no { color: #1c7c3c; }
+  .r-actions { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+  .r-actions button { font-size: 0.8rem; padding: 0.2rem 0.65rem; background: #fff; color: #211b13; }
+  .del-btn { color: #c03a1a !important; border-color: #c03a1a66 !important; }
+  .content-text { font-size: 0.86rem; color: #6b6154; margin: 0.2rem 0; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 0.8rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>DPP 审核台 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>论坛演示的<b>治理后台</b>：对论坛的真实帖子做隐藏/恢复与删除。教学重点是
+<b><code>danger: true</code> 动作</b>——「删除帖子」声明了 danger，即使访问等级开到自动编辑，
+<b>每一次执行都会请求批准</b>（danger 是最高闸门）。对智能体说：</p>
+<ul>
+  <li>「看看有哪些帖子」→ <code>pageExtract("mods")</code>（hidden 是布尔字段）</li>
+  <li>「把 3 号帖隐藏掉」→ <code>pageAction("toggle-hidden", …)</code>（论坛页随之不可见）</li>
+  <li>「删掉 3 号帖」→ <code>pageAction("delete-post", …)</code>——<b>danger 动作，必弹审批卡</b></li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="admin-app">
+  <div id="mods"><div class="loading">正在从演示 API 读取…</div></div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../../legacy-speaker.html">遗留页(L0)</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var POSTS = [];
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) throw new Error(envelope.message || ("HTTP " + res.status));
+      return envelope.data;
+    });
+  });
+}
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——审核台需要后端支持。";
+  document.querySelector(".demo-ad").before(note);
+}
+
+// ── 渲染（增量替换行，避免清空重建） ────────────────────
+function renderPosts(posts) {
+  var box = document.getElementById("mods");
+  box.textContent = "";
+  if (!posts.length) {
+    box.innerHTML = '<div class="loading">论坛还没有帖子——先去论坛演示页发帖。</div>';
+    return;
+  }
+  posts.forEach(function (p) {
+    var row = document.createElement("div");
+    row.className = "mod-row" + (p.hidden ? " hidden-post" : "");
+    row.setAttribute("data-pid", p.id);
+    var h = document.createElement("h3"); h.className = "r-title"; h.textContent = p.title;
+    row.appendChild(h);
+    var meta = document.createElement("div"); meta.className = "r-meta";
+    var id = document.createElement("span"); id.className = "r-id"; id.textContent = p.id;
+    var likes = document.createElement("span"); likes.className = "r-likes"; likes.textContent = p.likes;
+    var comments = document.createElement("span"); comments.className = "r-comments"; comments.textContent = p.comments;
+    var hid = document.createElement("span"); hid.className = "r-hidden " + (p.hidden ? "yes" : "no");
+    hid.textContent = p.hidden ? "已隐藏" : "可见";
+    meta.appendChild(document.createTextNode("#"));
+    meta.appendChild(id);
+    meta.appendChild(document.createTextNode(" · " + p.author + " · 赞 "));
+    meta.appendChild(likes);
+    meta.appendChild(document.createTextNode(" / 评 "));
+    meta.appendChild(comments);
+    meta.appendChild(document.createTextNode(" · 状态："));
+    meta.appendChild(hid);
+    row.appendChild(meta);
+    var content = document.createElement("div"); content.className = "content-text"; content.textContent = p.content;
+    row.appendChild(content);
+    var actions = document.createElement("div"); actions.className = "r-actions";
+    var hide = document.createElement("button");
+    hide.className = "hide-btn";
+    hide.textContent = p.hidden ? "恢复" : "隐藏";
+    hide.onclick = function () { toggleHidden(p.id, !p.hidden); };
+    var del = document.createElement("button");
+    del.className = "del-btn";
+    del.textContent = "删除";
+    del.onclick = function () {
+      if (confirm("删除 #" + p.id + "《" + p.title + "》？（连带评论与点赞，不可恢复）")) {
+        deletePost(p.id);
+      }
+    };
+    actions.appendChild(hide); actions.appendChild(del);
+    row.appendChild(actions);
+    box.appendChild(row);
+  });
+}
+
+// ── 业务 ────────────────────────────────────────────────
+function refresh() {
+  return api("GET", "/demo/admin/posts").then(function (posts) {
+    POSTS = posts;
+    renderPosts(posts);
+  });
+}
+
+function toggleHidden(postId, toHidden) {
+  api("POST", "/demo/admin/posts/" + postId + "/hidden", { hidden: toHidden })
+    .then(function () {
+      if (window.desire && window.desire.emit) {
+        window.desire.emit("moderation-applied", { action: toHidden ? "hide" : "unhide", id: postId });
+      }
+      refresh();
+    })
+    .catch(function (e) { if (!OFFLINE) alert("操作失败：" + e.message); });
+}
+
+function deletePost(postId) {
+  api("DELETE", "/demo/admin/posts/" + postId)
+    .then(function () {
+      if (window.desire && window.desire.emit) {
+        window.desire.emit("moderation-applied", { action: "delete", id: postId });
+      }
+      refresh();
+    })
+    .catch(function (e) { if (!OFFLINE) alert("删除失败：" + e.message); });
+}
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "admin",
+  page: { type: "admin" },
+  content: { main: "#admin-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#mods .loading" },
+  views: {
+    mods: { item: "#mods .mod-row", fields: {
+      id: { selector: ".r-id", type: "number" },
+      title: ".r-title",
+      hidden: { selector: ".r-hidden", type: "bool" },
+      likes: { selector: ".r-likes", type: "number" },
+      comments: { selector: ".r-comments", type: "number" }
+    } }
+  },
+  actions: [
+    { name: "toggle-hidden", description: "切换指定帖子的隐藏状态（隐藏后论坛访客不可见）",
+      params: { id: { type: "number", required: true, description: "帖子 id（mods 视图）" } },
+      run: [ { click: ".mod-row[data-pid='{id}'] .hide-btn" } ],
+      effects: "persist" },
+    { name: "delete-post", description: "删除指定帖子（连带评论与点赞，不可恢复）",
+      danger: true,
+      params: { id: { type: "number", required: true, description: "帖子 id（mods 视图）" } },
+      run: [ { click: ".mod-row[data-pid='{id}'] .del-btn" } ],
+      effects: "outbound" }
+  ],
+  events: { "moderation-applied": { watch: ".mod-row" } },
+  context: {
+    persona: "DPP 审核台演示页的助手：演示 danger 动作与内容治理",
+    rules: "操作直接作用于论坛演示的真实数据；删除不可恢复"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  refresh().then(function () {
+    setStatus("on", "演示 API 已连接");
+    document.body.setAttribute("data-demo-ready", "");
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

@@ -159,6 +159,46 @@ pub struct NewsQuery {
   pub page: Option<u32>,
 }
 
+// ── 审核台演示（论坛帖子治理） ────────────────────────────
+
+/// 审核台帖子行：比访客视图多 hidden 位（含已隐藏帖）。
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoAdminPost {
+  pub id: i64,
+  pub author: String,
+  pub title: String,
+  pub content: String,
+  pub likes: i64,
+  pub comments: i64,
+  pub hidden: bool,
+  pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HideReq {
+  pub hidden: bool,
+}
+
+// ── 入驻向导演示（SPA 分步提交） ──────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoWizardApp {
+  pub id: i64,
+  pub shop: String,
+  pub category: String,
+  pub contact: String,
+  pub phone: String,
+  pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WizardApplyReq {
+  pub shop: String,
+  pub category: String,
+  pub contact: String,
+  pub phone: String,
+}
+
 // ── 资讯演示（合成内容，无表） ────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]

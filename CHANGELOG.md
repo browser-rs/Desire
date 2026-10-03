@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.5.9] - 2026-10-03
 ### Added
 
 DPP 实测反馈四项改进（来自产品页 DPP 的真实 Agent 会话复盘）：① `pageAction` 动作完成带导航反馈（click 触发跳转时返回 "→ navigated to …"，此前模型点完不知道页面已换、下一动作在新区报错）；动作找不到时错误信息带当前 URL 并提示 switchTab；② `pageExtract` 文本字段折叠连续空白（HTML 源码换行曾以 `\n` 脏数据进入抽取结果）；③ `getPageSnapshot`/`readTab` 在 DPP 声明页前置提示结构化通道（模型在翻译/总结类任务会跳过 pageProtocol——提示跟到最常用工具上；且 hint 必须前置，工具消息统一 prefix(8000)，尾部追加会被截断剪掉——实测）；④ `findAdCandidates` 候选补 class/id/position/zIndex 字段（此前模型要为"确认选择器"多发 3-4 轮 executeJS）。

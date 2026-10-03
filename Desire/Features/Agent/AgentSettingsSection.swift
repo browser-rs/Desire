@@ -1206,7 +1206,7 @@ struct AgentSettingsSection: View {
             defer { isTestingOllama = false }
             let result = await AIConnectivity.probe(
                 endpoint: store.ollamaHost, model: store.ollamaModel,
-                apiKey: nil, timeout: 10, includeStreamFalse: false)
+                apiKey: nil, timeout: 10)
             ollamaTestStatus = result == "Connected ✓" ? "Connected" : result
         }
     }
@@ -1221,11 +1221,25 @@ struct AgentSettingsSection: View {
             let key = editing ? draftKey : (store.loadAPIKey() ?? "")
             let endpoint = editing ? draftEndpoint : store.endpoint
             let model = editing ? draftModel : store.model
-            let urlStr = endpoint.hasSuffix("/chat/completions") ? endpoint : endpoint + "/chat/completions"
-            cloudTestStatus = await AIConnectivity.probe(
+            let format = editing ? draftFormat : (store.activeProfile?.apiFormat ?? .openai)
+            let headers: [String: String]
+            if editing {
+                var collected: [String: String] = [:]
+                for draft in draftHeaders {
+                    let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty else { continue }
+                    collected[name] = draft.value
+                }
+                headers = collected
+            } else {
+                headers = store.activeHeaders
+            }
+            cloudTestStatus = await AIConnectivity.probeChat(
                 endpoint: endpoint, model: model, apiKey: key,
                 timeout: 15,
-                opencodeSessionHeader: urlStr.contains("opencode"))
+                opencodeSessionHeader: endpoint.contains("opencode"),
+                extraHeaders: headers,
+                anthropic: format == .anthropic)
         }
     }
 }

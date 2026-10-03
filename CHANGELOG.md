@@ -2,6 +2,8 @@
 ### Fixed
 
 Settings provider editor lost the model selector (the dual-protocol refactor removed the `draftModelPicker` row without re-adding it) — restored in place: dropdown over the service's model list + fetched models, with manual-entry fallback.
+"Test Connection" for cloud services now mirrors the real chat request: streaming body + the profile's custom headers + per-protocol endpoint completion (OpenAI `/chat/completions` vs Anthropic `/v1/messages`), and connectivity is judged on the server's first streamed line instead of a full non-streaming generation — gateways whose non-streaming path is slow (e.g. AMD Radeon) no longer report a false 15s timeout while chat works fine.
+
 
 
 ## [v0.5.9] - 2026-10-03

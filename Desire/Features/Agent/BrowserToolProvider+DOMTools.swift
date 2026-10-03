@@ -836,6 +836,30 @@ extension BrowserToolProvider {
                                 "el.value = \(valLit);" +
                                 "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
                             executed.append("selected \(value) on \(selector)")
+                        case "mcp":
+                            // 页面经 DPP 请求宿主 MCP 能力：{server, tool, args}。
+                            // 桥接名与 MCPStore.bridgedToolName 同式（server/tool
+                            // 清洗为小写下划线）。effectiveRisk 已把含 mcp 的
+                            // 动作升为 dangerous——走到这里说明用户已批准。
+                            guard let mc = rawOperand as? [String: Any],
+                                  let mcServer = (mc["server"] as? String), !mcServer.isEmpty,
+                                  let mcTool = (mc["tool"] as? String), !mcTool.isEmpty else {
+                                throw NSError(domain: "dpp", code: 5, userInfo: [NSLocalizedDescriptionKey:
+                                    "mcp step requires {\"server\": …, \"tool\": …}"])
+                            }
+                            func sanitizeID(_ str: String) -> String {
+                                String(str.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "_" })
+                            }
+                            var mcArgs = (mc["args"] as? [String: Any]) ?? [:]
+                            mcArgs = mcArgs.mapValues { fillTemplates(String(describing: $0)) }
+                            let defName = "mcp_\(sanitizeID(mcServer))_\(sanitizeID(mcTool))"
+                            let mcResult = await MCPStore.shared.callTool(
+                                defName: defName,
+                                argumentsJSON: (try? String(data: JSONSerialization.data(withJSONObject: mcArgs), encoding: .utf8)) ?? "{}")
+                            guard !mcResult.hasPrefix("Error:") else {
+                                throw NSError(domain: "dpp", code: 5, userInfo: [NSLocalizedDescriptionKey: "MCP tool \(mcServer)/\(mcTool): \(mcResult)"])
+                            }
+                            executed.append("mcp \(mcServer).\(mcTool) → \(mcResult.prefix(120))")
                         case "navigate":
                             // URL 跳转（schema.org potentialAction 的 URL target
                             // 映射；也用于跨页动作的最后一步）。模板填充后的
@@ -994,6 +1018,11 @@ extension BrowserToolProvider {
             if !protocolSnapshot.ignore.isEmpty {
                 lines.append("Site noise (ignore): \(protocolSnapshot.ignore.joined(separator: ", "))")
             }
+            if !protocolSnapshot.auth.isEmpty {
+                let auth = protocolSnapshot.auth.sorted { $0.key < $1.key }
+                    .map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+                lines.append("Auth guidance (site-authored): \(String(auth.prefix(300)))")
+            }
             if !protocolSnapshot.events.isEmpty {
                 let evs = protocolSnapshot.events.sorted { $0.key < $1.key }
                     .map { "\($0.key) → \($0.value)" }.joined(separator: ", ")
@@ -1131,12 +1160,12 @@ extension BrowserToolProvider {
             }
 
             // 截断按**条目数**（不再把 JSON 字符串从中间切断产出非法 JSON）。
-            func render(_ items: [[String: Any]], pages: Int, scope: String) -> String {
+            func render(_ items: [[String: Any]], pages: Int, scope: String, emptyNoteText: String = "") -> String {
                 let capped = items.count > hardCap ? Array(items.prefix(hardCap)) : items
                 let note = items.count > hardCap ? "\n(…\(items.count) items, capped at \(hardCap))" : ""
                 let data = (try? JSONSerialization.data(withJSONObject: capped)) ?? Data("[]".utf8)
                 let body = String(data: data, encoding: .utf8) ?? "[]"
-                return "Extracted \(viewName) (\(pages) page(s), \(scope)):\n\(body)\(note)"
+                return "Extracted \(viewName) (\(pages) page(s), \(scope)):\n\(body)\(note)\(emptyNoteText)"
             }
 
             let paginationType = view.pagination?.type
@@ -1144,7 +1173,19 @@ extension BrowserToolProvider {
             let infinite = paginationType == "infinite"
             if !allPages || (!paged && !infinite) {
                 // 与分页路径共用 collectPage（此前内联分叉：失败无诊断且行为漂移）
-                return render(await collectPage(), pages: 1, scope: "current")
+                let items = await collectPage()
+                // 空态信号（§4.3 views.empty）：0 条目且空态选择器命中 =
+                // 站点明示"合法空列表"——模型不必盲目重试或换策略。
+                var emptyNote = ""
+                if items.isEmpty, let sel = view.empty, !sel.isEmpty {
+                    let matched = ((try? await dppWebView.callAsyncJavaScript(
+                        "return __desireQueryAll(\(JSString.literal(sel))).length > 0",
+                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                    if matched {
+                        emptyNote = "\n(\(viewName) is legitimately empty — the page's empty-state marker '\(sel)' is showing; do not retry)"
+                    }
+                }
+                return render(items, pages: 1, scope: "current", emptyNoteText: emptyNote)
             }
             // 无限滚动：滚到底 → 等内容增长 → 抽取去重累计；连续两轮无新增
             // 即视为到底（cap 10 轮）。

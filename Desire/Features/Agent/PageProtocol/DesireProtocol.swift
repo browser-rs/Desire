@@ -25,6 +25,9 @@ struct DesireProtocol: Codable, Equatable {
     /// 站点级页面地图（仅 well-known 声明使用）：路径模式 → 页面提示。
     /// 支持精确匹配与 `前缀*` 前缀匹配（更具体的先试）。
     var pages: [String: PageMapEntry] = [:]
+    /// 登录态指引（well-known §4.7）：loginUrl / note 等自由键值。
+    /// Agent 遇到登录墙时可据此引导用户（不自动填凭据）。
+    var auth: [String: String] = [:]
     /// 正文选择器：getPageText 语义下"内容在哪"，排除导航/页脚噪音。
     var contentMain: String? = nil
     /// 明确的噪音排除（导航/页脚/横幅）。
@@ -79,6 +82,7 @@ struct DesireProtocol: Codable, Equatable {
             merged.contentMain = merged.contentMain ?? s.contentMain
             merged.pageType = merged.pageType ?? s.pageType
             merged.profile = merged.profile ?? s.profile
+            if merged.auth.isEmpty { merged.auth = s.auth }
             for (key, value) in s.context where merged.context[key] == nil {
                 merged.context[key] = value
             }
@@ -91,25 +95,27 @@ struct DesireProtocol: Codable, Equatable {
         /// 字段映射（见 FieldSpec）：字符串简写或对象形态（可带类型）。
         var fields: [String: FieldSpec]
         var pagination: Pagination?
+        /// 空态信号选择器：命中且条目为空 = 合法空列表（区别于抽取失败）。
+        var empty: String?
 
-        private enum CodingKeys: String, CodingKey { case item, fields, pagination }
+        private enum PVKeys: String, CodingKey { case item, fields, pagination, empty }
 
-        /// 字段值容错解码：字符串 = 简写；对象 = {selector?, attr?, type?}。
-        /// 单字段结构坏只丢该字段（容错解码第一原则）。
-        init(item: String, fields: [String: FieldSpec], pagination: Pagination? = nil) {
+        init(item: String, fields: [String: FieldSpec], pagination: Pagination? = nil, empty: String? = nil) {
             self.item = item
             self.fields = fields
             self.pagination = pagination
+            self.empty = empty
         }
 
+        /// 字段值容错解码：字符串 = 简写；对象 = {selector?, attr?, type?}——
+        /// 单字段结构坏只丢该字段（容错解码第一原则）。
+        /// item 必须存在、fields 整体类型错误则抛（坏视图被上层跳过并记 warning）。
         init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            // item 必须存在（缺 item 的视图没意义——抛错由上层跳过并记 warning）
+            let c = try decoder.container(keyedBy: PVKeys.self)
             item = try c.decode(String.self, forKey: .item)
             pagination = try? c.decodeIfPresent(Pagination.self, forKey: .pagination)
+            empty = (try? c.decodeIfPresent(String.self, forKey: .empty)) ?? nil
             fields = [:]
-            // fields 缺省 = 空字段集；存在但类型错误则抛（坏视图被跳过并记 warning）。
-            // 字段**值**级别仍容错：单个值非法只丢该字段。
             if let raw = try c.decodeIfPresent([String: DPPValue].self, forKey: .fields) {
                 for (name, value) in raw {
                     switch value {
@@ -126,7 +132,7 @@ struct DesireProtocol: Codable, Equatable {
                         }
                         fields[name] = FieldSpec(expression: expression, type: obj["type"]?.stringValue)
                     default:
-                        break // 非法字段值：丢弃该字段
+                        break
                     }
                 }
             }
@@ -198,7 +204,7 @@ extension DesireProtocol {
 
     private enum CodingKeys: String, CodingKey {
         case protocolVersion, profile, pageType, contentMain, ignore, views
-        case signals, actions, events, context, warnings, pages
+        case signals, actions, events, context, warnings, pages, auth
     }
 
     /// 宽松 JSON 值：任何 JSON 结构都能落下，字段级失败返回 .null 而非抛错。
@@ -283,6 +289,12 @@ extension DesireProtocol {
         if let v = Self.optString(c, .protocolVersion) { protocolVersion = v }
         profile = Self.optString(c, .profile)
         pageType = Self.optString(c, .pageType)
+        // auth：登录态指引（值容错转字符串）
+        if let rawAuth = try? c.decodeIfPresent([String: DPPValue].self, forKey: .auth) {
+            for (key, value) in rawAuth {
+                if let text = value.stringValue { auth[key] = text }
+            }
+        }
         // pages：逐条容错解码（站点级页面地图）
         if let rawPages = try? c.decodeIfPresent([String: DPPValue].self, forKey: .pages) {
             for (pattern, value) in rawPages {

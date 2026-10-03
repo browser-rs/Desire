@@ -328,6 +328,7 @@ Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [eff
 | 合并 | 页面级优先：views/signals/events/context **逐键共存**（页面同名键胜出），actions 按名去重（页面在前），ignore 并集；**站点级 events 一并进监听** |
 | 页面地图 | `pages`：路径模式（精确 / `前缀*`，长前缀优先）→ 提示 type/profile；**页面未声明 profile 时按当前路径回退补全** |
 | 安全边界 | 站点级不能豁免审批："声明能力 ≠ 授权"与页面级同规；well-known 的 danger/outbound 动作同样逐次审批 |
+| 登录指引 | `auth`（自由键值，如 loginUrl/note）：✅ 解析并透出（pageProtocol）；Agent 遇登录墙据此**引导用户**，不自动填凭据 |
 | 其他协议 | file:// 等非 http(s) 页面不拉取（well-known 属 HTTP 语义） |
 
 ## 5. Profile — 场景约定

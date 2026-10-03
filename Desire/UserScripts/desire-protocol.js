@@ -68,6 +68,35 @@ return (function() {
         return out;
     }
 
+    // —— shadow DOM 支持（L1 扫描进 open shadow root）：
+    // roots 递归收集 document 与所有可达的 open shadowRoot；
+    // dppPath 生成跨边界选择器（`>>>` = 下钻 shadow root），供
+    // __desireQueryAll（agentToolWorld）求值。
+    function dppAllRoots() {
+        var roots = [document];
+        for (var r = 0; r < roots.length; r++) {
+            var els = roots[r].querySelectorAll('*');
+            for (var i = 0; i < els.length; i++) {
+                if (els[i].shadowRoot) roots.push(els[i].shadowRoot);
+            }
+        }
+        return roots;
+    }
+    function dppPath(el) {
+        var parts = [];
+        var node = el;
+        while (node && node.nodeType === 1 && node !== document.documentElement) {
+            var root = node.getRootNode();
+            var host = root && root.host;
+            var parent = node.parentNode;
+            var idx = parent ? Array.prototype.indexOf.call(parent.children, node) + 1 : 1;
+            var seg = node.tagName.toLowerCase() + ':nth-child(' + idx + ')';
+            if (host) { parts.unshift('>>> ' + seg); node = host; }
+            else { parts.unshift('> ' + seg); node = parent; }
+        }
+        return 'html' + (parts.length ? ' ' + parts.join(' ') : '');
+    }
+
     // —— 稳定锚点：给元素打 data-dpp-* 属性，生成 document 级可求值的选择器。
     // 此前 L1 用 ':scope > …' 相对路径直接丢给 document.querySelectorAll，
     // 实测 :scope 在 document 级 = <html>，抽到的是 head（假数据）。
@@ -110,16 +139,24 @@ return (function() {
                 el.removeAttribute('data-dpp-items');
             });
         } catch (e) {}
-        var containers = document.querySelectorAll('[data-dpp-view]');
+        var roots = dppAllRoots();
+        function queryAllRoots(sel) {
+            var out = [];
+            for (var ri = 0; ri < roots.length; ri++) {
+                try { out = out.concat(Array.prototype.slice.call(roots[ri].querySelectorAll(sel))); } catch (e) {}
+            }
+            return out;
+        }
+        var containers = queryAllRoots('[data-dpp-view]');
         // ignore 收集先于 views 判空：只标噪音的页面也是合法的 L1。
         var ignoreSelectors = [];
-        var ignores = document.querySelectorAll('[data-dpp-ignore]');
+        var ignores = queryAllRoots('[data-dpp-ignore]');
         for (var m = 0; m < ignores.length; m++) {
             var ig = ignores[m];
             var igSel = ig.id ? '#' + ig.id
                 : (ig.className && typeof ig.className === 'string' && ig.className.trim()
                     ? '.' + ig.className.trim().split(/\s+/).filter(Boolean).join('.') : null);
-            if (!igSel) igSel = anchorFor(ig); // 无 id 无 class → 锚点兜底
+            if (!igSel || ig.getRootNode() !== document) igSel = dppPath(ig); // shadow/跨边界 → 路径
             if (igSel) ignoreSelectors.push(igSel);
         }
         if (!containers.length) {
@@ -155,11 +192,22 @@ return (function() {
                     warnings.push("view '" + viewName + "': container has no item elements, skipped");
                     continue;
                 }
-                var tag = 'dpp-' + (++uidCounter);
-                for (var t = 0; t < items.length; t++) {
-                    try { items[t].setAttribute('data-dpp-items', tag); } catch (e) {}
+                if (items[0].getRootNode() !== document) {
+                    // 条目在 shadow root 内：data-dpp-items 跨边界不可查——
+                    // 生成跨边界路径 `container >>> 相对段`（__desireQueryAll 求值）
+                    var rel = [];
+                    for (var t2 = 0; t2 < items.length; t2++) {
+                        try { items[t2].setAttribute('data-dpp-items', 'rel'); } catch (e) {}
+                    }
+                    var cpath = dppPath(c);
+                    itemPath = cpath + ' >>> [data-dpp-items="rel"]';
+                } else {
+                    var tag = 'dpp-' + (++uidCounter);
+                    for (var t = 0; t < items.length; t++) {
+                        try { items[t].setAttribute('data-dpp-items', tag); } catch (e) {}
+                    }
+                    itemPath = '[data-dpp-items="' + tag + '"]';
                 }
-                itemPath = '[data-dpp-items="' + tag + '"]';
                 fields = relativeFields(items[0],
                     items[0].matches('[data-dpp-field]')
                         ? [items[0]] : Array.prototype.slice.call(items[0].querySelectorAll('[data-dpp-field]')));

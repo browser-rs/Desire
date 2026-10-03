@@ -2171,7 +2171,10 @@ class AgentSessionStore: ObservableObject {
                 }
             }
         }
-        if action.danger == true || action.effects?.lowercased() == "outbound" {
+        // 含 mcp 步骤的动作同样升级：页面在请求**宿主侧能力**（经 DPP 声明），
+        // 不得静默执行——与 outbound/danger 同规。
+        if action.danger == true || action.effects?.lowercased() == "outbound"
+            || action.run?.contains("\"mcp\"") == true {
             return .dangerous
         }
         return base

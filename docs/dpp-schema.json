@@ -229,6 +229,13 @@
           }
         }
       }
+    },
+    "auth": {
+      "type": "object",
+      "description": "站点级登录指引（well-known）：loginUrl、note 等自由键值",
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   },
   "additionalProperties": true

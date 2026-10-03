@@ -168,9 +168,29 @@
     "字段名":   "selector",                  // 子选择器 → textContent
     "字段名":   "@attr",                     // item 自身的属性
     "字段名":   "selector@attr",             // 子选择器的属性
-    "字段名":   "@text"                      // item 自身的 textContent
+    "字段名":   "@text",                     // item 自身的 textContent
+    "字段名":   { "selector": ".price", "type": "price" }   // 对象形态（可带类型）
   },
   "pagination": { "type": "paged", "next": "selector" }
+}
+```
+
+**类型化字段（✅ 实装）**——对象形态的字段可声明 `type`，抽取时强转，
+Agent 直接拿到类型化数据（失败回退原始字符串，宁可不转不可丢数据）：
+
+| type | 语义 |
+|---|---|
+| `string`（默认） | 文本（连续空白折叠） |
+| `number` / `price` | 数值；`price` 额外剔除货币符号与千分位（`¥1,299` → 1299） |
+| `url` | 相对地址按页面解析为绝对 URL |
+| `date` | 解析为 ISO 8601 字符串 |
+| `bool` | `"true"` / `"1"` → true |
+
+```json
+"fields": {
+  "title": ".name",
+  "price": { "selector": ".price", "type": "price" },
+  "link":  { "attr": "href", "type": "url" }
 }
 ```
 
@@ -332,8 +352,8 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
   "actions": [
     { "name": "open-conversation", "params": {"id": {"type":"string","required":true}},
       "run": [{ "click": ".conversation-item[data-conv-id='{id}']" }],
-      "waits": ".thread-loaded" },
-  // ↑ waits 字段暂未实现（示例保留为规范占位）；如需等待用 run 里的 waitFor 步骤
+      "run": [{ "click": ".conversation-item[data-conv-id='{id}']" },
+              { "waitFor": ".thread-loaded" }] },
     { "name": "send-message", "effects": "outbound", "danger": true,
       "params": {"text": {"type":"string","required":true}},
       "run": [{ "fill": {"#input-box": "{text}" } }, { "click": "#btn-send" }] }

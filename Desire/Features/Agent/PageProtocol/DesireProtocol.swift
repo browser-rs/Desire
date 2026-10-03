@@ -88,11 +88,59 @@ struct DesireProtocol: Codable, Equatable {
 
     struct ProtocolView: Codable, Equatable {
         var item: String
-        /// 字段映射：值语法 "selector"（text）/ "@attr"（本元素属性）/
-        /// "selector@attr"（子选择器属性）。"@text" 等价 selector 空。
-        /// 逗号分隔的多个候选按序回退（首个命中者胜，L0 JSON-LD 用）。
-        var fields: [String: String]
+        /// 字段映射（见 FieldSpec）：字符串简写或对象形态（可带类型）。
+        var fields: [String: FieldSpec]
         var pagination: Pagination?
+
+        private enum CodingKeys: String, CodingKey { case item, fields, pagination }
+
+        /// 字段值容错解码：字符串 = 简写；对象 = {selector?, attr?, type?}。
+        /// 单字段结构坏只丢该字段（容错解码第一原则）。
+        init(item: String, fields: [String: FieldSpec], pagination: Pagination? = nil) {
+            self.item = item
+            self.fields = fields
+            self.pagination = pagination
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            // item 必须存在（缺 item 的视图没意义——抛错由上层跳过并记 warning）
+            item = try c.decode(String.self, forKey: .item)
+            pagination = try? c.decodeIfPresent(Pagination.self, forKey: .pagination)
+            fields = [:]
+            // fields 缺省 = 空字段集；存在但类型错误则抛（坏视图被跳过并记 warning）。
+            // 字段**值**级别仍容错：单个值非法只丢该字段。
+            if let raw = try c.decodeIfPresent([String: DPPValue].self, forKey: .fields) {
+                for (name, value) in raw {
+                    switch value {
+                    case .string(let expression):
+                        fields[name] = FieldSpec(expression: expression)
+                    case .object(let obj):
+                        let selector = obj["selector"]?.stringValue ?? ""
+                        let attr = obj["attr"]?.stringValue
+                        let expression: String
+                        if let attr, !attr.isEmpty {
+                            expression = selector.isEmpty ? "@\(attr)" : "\(selector)@\(attr)"
+                        } else {
+                            expression = selector
+                        }
+                        fields[name] = FieldSpec(expression: expression, type: obj["type"]?.stringValue)
+                    default:
+                        break // 非法字段值：丢弃该字段
+                    }
+                }
+            }
+        }
+    }
+
+    /// 视图字段规格：取值表达式 + 可选类型提示。
+    /// 表达式语法（§4.3）："" = item 文本；"@attr"；"selector"；"selector@attr"；
+    /// 逗号分隔的多个候选按序回退（首个命中者胜，L0 JSON-LD 用）。
+    /// 类型（type）：string（默认）| number | price（去货币/千分位）| url（相对转
+    /// 绝对）| date（ISO8601）| bool —— 抽取时强转，agent 直接拿到类型化数据。
+    struct FieldSpec: Codable, Equatable {
+        var expression: String
+        var type: String?
     }
 
     struct Pagination: Codable, Equatable {

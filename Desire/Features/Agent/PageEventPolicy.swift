@@ -33,9 +33,11 @@ enum PageEventPolicy {
 
     /// 事件驱动回合的提示词。注意 auto 档**不**承诺免审批——outbound/danger
     /// 的强制审批在闸门（effectiveRisk），不随档位放水。
+    /// `protocolSummary`（可选）：事件触发时页面声明的视图/动作摘要，
+    /// 让模型直接知道用哪些工具响应（如 "views [thread]; actions [send-message]"）。
     static func eventPrompt(
         host: String, eventName: String, detail: [String: String],
-        timestamp: Date, mode: String
+        timestamp: Date, mode: String, protocolSummary: String? = nil
     ) -> String {
         var lines = [
             "[DPP Event] Page event triggered on \(host):",
@@ -44,6 +46,9 @@ enum PageEventPolicy {
         ]
         for (key, value) in detail.sorted(by: { $0.key < $1.key }) {
             lines.append("- \(key): \(value)")
+        }
+        if let protocolSummary, !protocolSummary.isEmpty {
+            lines.append("- Page protocol: \(protocolSummary)")
         }
         switch mode {
         case modeAuto:

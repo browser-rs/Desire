@@ -94,12 +94,28 @@ final class PageEventHub {
             return
         }
         Self.log.info("DPP event trigger: sending prompt to agent")
-        let prompt = Self.buildEventPrompt(event: event, mode: mode(for: event.host))
+        let prompt = Self.buildEventPrompt(event: event, mode: mode(for: event.host),
+                                           summary: Self.protocolSummary(for: session))
         session.sendMessage(prompt, recordHistory: false)
     }
 
-    static func buildEventPrompt(event: PendingEvent, mode: String) -> String {
+    /// 事件触发时把页面声明的视图/动作名带上——模型不必先探索就知道用
+    /// 哪些工具响应（如 views [thread] → pageExtract("thread") 取新数据）。
+    static func protocolSummary(for session: AgentSessionStore) -> String? {
+        guard let dpp = session.boundTabManager?.selectedTab?.browser.effectiveProtocol else { return nil }
+        var parts: [String] = []
+        if !dpp.views.isEmpty {
+            parts.append("views [\(dpp.views.keys.sorted().joined(separator: ", "))]")
+        }
+        if !dpp.actions.isEmpty {
+            parts.append("actions [\(dpp.actions.map(\.name).joined(separator: ", "))]")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "; ") + " — use pageExtract/pageAction to respond"
+    }
+
+    static func buildEventPrompt(event: PendingEvent, mode: String, summary: String? = nil) -> String {
         PageEventPolicy.eventPrompt(host: event.host, eventName: event.eventName,
-                                    detail: event.detail, timestamp: event.timestamp, mode: mode)
+                                    detail: event.detail, timestamp: event.timestamp, mode: mode,
+                                    protocolSummary: summary)
     }
 }

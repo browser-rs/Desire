@@ -7,6 +7,10 @@ FIXTURE_HTML = open("/tmp/dpp_audit/fixture/index.html").read() if False else ""
 <script type="application/x-desire+json">
 {"protocol":"desire/1","page":{"type":"workbench"},
  "signals":{"ready":"#app-ready","busy":"#busy-flag"},
+ "views":{"prices":{"item":".prow","fields":{
+   "name":".pn",
+   "price":{"selector":".pp","type":"price"},
+   "link":{"selector":"a","attr":"href","type":"url"}}}},
  "actions":[
   {"name":"place-order","description":"下单一台 Widget","effects":"outbound","danger":true,
    "precondition":"#order-btn","run":[{"click":"#order-btn"}],"success":"ORDERED"},
@@ -18,6 +22,8 @@ FIXTURE_HTML = open("/tmp/dpp_audit/fixture/index.html").read() if False else ""
 <img src="/pic.png" alt="pic" width="120" height="90">
 <input id="search" placeholder="search here">
 <a href="https://example.com/one">Link-One</a> <a href="/two">Link-Two</a>
+<div class="prow"><span class="pn">Widget A</span><span class="pp">¥1,299.90</span><a href="/one">详情</a></div>
+<div class="prow"><span class="pn">Widget B</span><span class="pp">$42</span><a href="/two">详情</a></div>
 <button id="order-btn" onclick="order()">Order</button>
 <button id="refresh-btn" onclick="refresh()">Refresh</button>
 <script>
@@ -158,6 +164,7 @@ class FakeLLM(BaseHTTPRequestHandler):
             elif "NETLOG" in mode_text: tool, args = "getNetworkLog", {"maxItems": 10}
             elif "PROTO" in mode_text: tool, args = "pageProtocol", {}
             elif "FEATURES" in mode_text: tool, args = "pageExtract", {"view": "features"}
+            elif "TYPED" in mode_text: tool, args = "pageExtract", {"view": "prices"}
             else: tool, args = "getComments", {"maxItems": 5}
             call = {"index": 0, "id": "call_misc_1", "type": "function",
                     "function": {"name": tool, "arguments": json.dumps(args)}}

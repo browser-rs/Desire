@@ -89,6 +89,9 @@ def main():
         if event_msg:
             check("事件 prompt 带事件名与 host",
                   "new-message" in (event_msg.get("content") or "") and "127.0.0.1" in (event_msg.get("content") or ""))
+            check("事件 prompt 带协议摘要（视图/动作名）",
+                  "Page protocol:" in (event_msg.get("content") or "")
+                  and "views [thread]" in (event_msg.get("content") or ""))
 
         # 等事件回合完成（fake 对非 DPPGATE 文本回 echo）
         try:

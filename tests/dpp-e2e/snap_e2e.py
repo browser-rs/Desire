@@ -70,6 +70,7 @@ def main():
             ("DPPMISC-LINKS 抽链接", "Link-One", "getPageLinks", False),
             ("DPPMISC-COMMENTS 抽评论", "Error", "getComments", True),
             ("DPPFILL 填搜索框", "Filled", "fill（解构签名）", False),
+            ("DPPMISC-TYPED 抽价格", '"price":1299.9', "类型化字段（price 数字/url 绝对化）", False),
         ]:
             state = run_case(prompt)
             text = tool_text(state)

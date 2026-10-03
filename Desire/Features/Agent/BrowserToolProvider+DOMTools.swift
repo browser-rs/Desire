@@ -728,6 +728,22 @@ extension BrowserToolProvider {
                 if !missing.isEmpty {
                     return Self.fail("Action '\(actionName)' missing required argument(s): \(missing.joined(separator: ", "))")
                 }
+                // 声明了类型的参数做基本校验（命中即失败，让模型自查）
+                for (key, spec) in params {
+                    guard let value = actionArgs[key] else { continue }
+                    switch spec.type?.lowercased() {
+                    case "number":
+                        guard Double("\(value)") != nil else {
+                            return Self.fail("Action '\(actionName)' argument '\(key)' expects a number, got '\(value)'")
+                        }
+                    case "boolean":
+                        guard Bool("\(value)") != nil else {
+                            return Self.fail("Action '\(actionName)' argument '\(key)' expects a boolean, got '\(value)'")
+                        }
+                    default:
+                        break
+                    }
+                }
             }
             // 前置条件：precondition 选择器必须存在（此前声明被直接丢弃）。
             if let precondition = action.precondition, !precondition.isEmpty {
@@ -993,11 +1009,25 @@ extension BrowserToolProvider {
             let allPages = (args["all"] as? Bool) ?? false
             let hardCap = 500
 
-            // 字段值 JS：按候选择取器顺序回退（首个非空值胜出）。
+            // 类型强转（§4.3 FieldSpec.type）：抽取时把字符串转成类型化值，
+            // agent 直接拿到数字/绝对 URL/ISO 时间。转换失败回退原始字符串
+            //（宁可不转，不可丢数据）。
+            func coerceJS(type: String) -> String {
+                let typeLit = JSString.literal(type.lowercased())
+                return """
+                if(v){var t=\(typeLit);if(t==='number'||t==='price'){var n=parseFloat(String(v).replace(/[^0-9.eE+-]/g,''));if(!isNaN(n))v=n;}
+                else if(t==='url'){try{v=new URL(v,location.href).href;}catch(e){}}
+                else if(t==='date'){var d=new Date(v);if(!isNaN(d.getTime()))v=d.toISOString();}
+                else if(t==='bool'){var s=String(v).trim().toLowerCase();v=(s==='true'||s==='1');}}
+                """
+            }
+
+            // 字段值 JS：按候选择取器顺序回退（首个非空值胜出），末段类型强转。
             // 路径语法（spec §4.3）："@attr"/"@text"=item 自身属性/文本 ·
             // "selector"=子元素文本 · "selector@attr"=子元素属性 ·
             // 逗号=候选列表（L0 JSON-LD 的 meta 兜底语法）。
-            func fieldValueJS(_ path: String) -> String {
+            func fieldValueJS(_ spec: DesireProtocol.FieldSpec) -> String {
+                let path = spec.expression
                 // 顶层逗号分割（[] () 内的逗号不是分隔符）。
                 var alternatives: [String] = []
                 var current = ""
@@ -1029,11 +1059,14 @@ extension BrowserToolProvider {
                 //（多行 IIFE + 注释会炸语法）；helper 由 extractJS 外层注入一次。
                 // 文本路径折叠连续空白（HTML 源码换行会进 textContent——
                 // 实测抽取结果带 \n 脏数据）；属性值保持原样。
-                return "(function(el){var alts=[\(entries.joined(separator: ","))];" +
-                    "for(var i=0;i<alts.length;i++){var t=alts[i];var v='';" +
-                    "if(t.s===''){v=(t.a===''||t.a==='text')?(el.textContent||'').replace(/\\s+/g,' ').trim():(el.getAttribute(t.a)||'');}" +
-                    "else{var e=__desireQueryOne(el,t.s);if(e){v=(t.a===''||t.a==='text')?(e.textContent||'').replace(/\\s+/g,' ').trim():(e.getAttribute(t.a)||'');}}" +
-                    "if(v)return v;}return '';})(item)"
+                // 两段式：先取原始字符串（候选回退），再按声明类型强转一次。
+                let coerce = spec.type.map { coerceJS(type: $0) } ?? "if(false){}"
+                return "(function(el){var alts=[\(entries.joined(separator: ","))];var v='';" +
+                    "for(var i=0;i<alts.length;i++){var t=alts[i];var cur='';" +
+                    "if(t.s===''){cur=(t.a===''||t.a==='text')?(el.textContent||'').replace(/\\s+/g,' ').trim():(el.getAttribute(t.a)||'');}" +
+                    "else{var e=__desireQueryOne(el,t.s);if(e){cur=(t.a===''||t.a==='text')?(e.textContent||'').replace(/\\s+/g,' ').trim():(e.getAttribute(t.a)||'');}}" +
+                    "if(cur){v=cur;break;}}" +
+                    "\(coerce)return v;})(item)"
             }
 
             // 协议声明的噪音区（ignore）：抽取时跳过落在其子树内的条目

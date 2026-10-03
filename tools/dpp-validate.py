@@ -80,8 +80,16 @@ def validate(d: dict) -> None:
         if not isinstance(item, str) or not item.strip():
             fail(f"view {name!r} 缺 item（或为空选择器）")
         for fname, fpath in (view.get("fields") or {}).items():
-            if not isinstance(fpath, str):
-                fail(f"view {name!r} 字段 {fname!r} 的值必须是字符串（selector[@attr]）")
+            if isinstance(fpath, str):
+                continue
+            if isinstance(fpath, dict):
+                if not isinstance(fpath.get("selector", ""), str) or not isinstance(fpath.get("attr", ""), str):
+                    fail(f"view {name!r} 字段 {fname!r} 对象形态的 selector/attr 必须是字符串")
+                ftype = fpath.get("type")
+                if ftype is not None and ftype not in {"string", "number", "price", "url", "date", "bool"}:
+                    warn(f"view {name!r} 字段 {fname!r} 未知类型 {ftype!r}（运行时回退字符串）")
+            else:
+                fail(f"view {name!r} 字段 {fname!r} 的值必须是字符串或 {{selector/attr/type}} 对象")
         pag = view.get("pagination")
         if pag is not None:
             if not isinstance(pag, dict) or pag.get("type") not in {"paged", "infinite", "none", None}:

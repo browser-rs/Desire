@@ -1142,13 +1142,32 @@ func testDPPDecode() {
           dppDecode("{}")?.isEmpty == true)
     check("DPP：只声明 events 的页面不算空",
           dppDecode("{\"events\": {\"tick\": \".t\"}}")?.isEmpty == false)
+
+    // 类型化字段（FieldSpec）：简写 / 对象形态 / 坏字段容错
+    let typed = dppDecode("""
+    {"views": {"prices": {"item": ".row", "fields": {
+        "name": ".n",
+        "price": {"selector": ".p", "type": "number"},
+        "link": {"attr": "href", "type": "url"},
+        "bad": 42
+    }}}}
+    """)
+    let tf = typed?.views["prices"]?.fields
+    eq("字段：字符串简写 → expression", tf?["name"]?.expression, ".n")
+    check("字段：简写无类型", tf?["name"]?.type == nil)
+    eq("字段：对象形态 selector+type", tf?["price"]?.expression, ".p")
+    eq("字段：对象形态类型", tf?["price"]?.type, "number")
+    eq("字段：attr-only → @href", tf?["link"]?.expression, "@href")
+    eq("字段：attr-only 类型", tf?["link"]?.type, "url")
+    check("字段：非法值（数字）被丢弃", tf?["bad"] == nil)
+    eq("字段：坏字段不拖垮视图", typed?.views["prices"]?.item, ".row")
 }
 testDPPDecode()
 
 // ---------- DPP 站点级/页面级合并（well-known 分层语义） ----------
 
 func dppView(_ item: String) -> DesireProtocol.ProtocolView {
-    DesireProtocol.ProtocolView(item: item, fields: ["n": ".n"], pagination: nil)
+    DesireProtocol.ProtocolView(item: item, fields: ["n": DesireProtocol.FieldSpec(expression: ".n")], pagination: nil)
 }
 
 func testDPPMerge() {

@@ -5,12 +5,12 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = "1"
 axum = {version = "0.8", features = ["ws"]}
-base64 = "0.22"
+base64 = "0.23"
 bcrypt = "0.19"
 chrono = {version = "0.4", features = ["serde"]}
 dotenvy = "0.15"
 hex = "0.4"
-rand = "0.9"
+rand = "0.10"
 jsonwebtoken = {version = "11", features = ["rust_crypto"]}
 redis = { version = "1", features = ["tokio-comp", "connection-manager", "aio"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
@@ -20,8 +20,8 @@ sha2 = "0.11"
 sqlx = {version = "0.9", features = ["runtime-tokio", "mysql", "mysql-rsa", "chrono", "derive", "json", "migrate"]}
 thiserror = "2"
 tokio = {version = "1", features = ["full"]}
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors"] }
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["json", "env-filter"]}
 uuid = {version = "1", features = ["v4"]}
-utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa = { version = "6", features = ["axum_extras", "chrono"] }

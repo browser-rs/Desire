@@ -7,7 +7,7 @@ version = "0.0.1"
 anyhow = { workspace = true }
 axum = { workspace = true }
 bcrypt = { workspace = true }
-captcha = "1.0.0"
+captcha = "1"
 chrono = { workspace = true }
 dotenvy = { workspace = true }
 hex = { workspace = true }

@@ -35,6 +35,8 @@
   <li>「看板现在什么情况」→ <code>pageExtract("metrics")</code>（数值是数字）</li>
   <li>点下面「模拟服务降级」→ 页面出现 error 信号，智能体读状态时会看到「服务异常」</li>
   <li>去别的演示页下个单/发个帖 → 回到这里数据变化触发 <code>stats-updated</code></li>
+  <li>「把看板数据画成柱状图」→ 智能体 <code>pageExtract("metrics")</code> 取数后用
+      <code>whiteboard</code> 工具可视化（宿主内置白板，声明 views 即可被提取渲染）</li>
 </ul>
 
 <div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
@@ -174,7 +176,8 @@ var DPP_DECL = {
   events: { "stats-updated": { watch: ".metric-card" } },
   context: {
     persona: "DPP 看板演示页的助手：演示聚合指标、busy/error 信号与数据变化事件",
-    rules: "指标聚合自其他演示页的真实写入（商店/预约/IM/论坛），5 秒刷新一次"
+    rules: "指标聚合自其他演示页的真实写入（商店/预约/IM/论坛），5 秒刷新一次",
+    visualization: "metrics 视图适合柱状图（value 按指标名分组）"
   }
 };
 

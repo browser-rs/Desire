@@ -125,7 +125,7 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "whiteboard", description: "Render structured visuals on the user's whiteboard panel: mind maps, flowcharts, sequence diagrams (Mermaid syntax) and data charts (ECharts option JSON). action=render replaces the board, append adds blocks, clear empties it. Best for: visualizing relationships, plans, comparisons and trends extracted from pages or your own reasoning. The panel auto-opens for the user.",
+                name: "whiteboard", description: "Render structured visuals on the user's whiteboard panel: mind maps, flowcharts, sequence diagrams (Mermaid syntax) and data charts (ECharts option JSON). action=render replaces the board, append adds blocks, clear empties it. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The panel auto-opens for the user.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear"),
                     "title": AgentJSONSchemaValue(type: "string", description: "Board title"),

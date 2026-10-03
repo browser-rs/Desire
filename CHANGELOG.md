@@ -17,6 +17,8 @@ Whiteboard phase 2: boards persist across relaunches (DiskStore, per-conversatio
 Whiteboard phase 2.5: agent messages containing mermaid code fences now render inline as real diagrams (shared hidden-webview render service with per-source SVG/image caching, graceful fallback to the raw code on failure, one-click "send to whiteboard"); the whiteboard tool message in chat became a card showing block count that opens the panel; the panel gained manual block creation (note/mermaid/chart/table templates entering source-edit mode), .board JSON export and append-import. New shared MermaidRenderService (hidden webview, serial queue, FNV-keyed caches).
 Web selection → whiteboard: right-click on selected text offers "Add to Whiteboard" (same dynamic context-menu pipeline as Search selection), and a browser command `addSelectionToWhiteboard` (menu + bridge) grabs the current tab's selection via JS and appends it as a sourced note block, then opens the panel.
 .board files: double-click association registered (UTImportedTypeDeclaration me.siwi.Desire.board conforming to public.json), and opening a .board file imports it as the active conversation's whiteboard (falls back to a default board when no agent session is active). The panel title is click-to-rename.
+DPP × whiteboard convention (spec §5.1): pages need no new primitives — declared views are extractable by the agent and renderable on the host whiteboard (Mermaid + ECharts local engines); pages may only *suggest* via a free-form `context.visualization` hint (the whiteboard belongs to the user — pages cannot write it). Whiteboard tool description now references DPP view extraction synergy; dashboard demo shows the flow.
+
 
 
 

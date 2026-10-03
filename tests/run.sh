@@ -20,7 +20,7 @@ SOURCES=(
   Desire/Features/Agent/AgentUsage.swift
   Desire/Features/Agent/UsageStats.swift
   Desire/Features/Agent/SecretRedactor.swift
-  Desire/Features/Agent/ContextCompaction.swift
+  Desire/Features/Whiteboard/WhiteboardSpec.swift Desire/Features/Agent/ContextCompaction.swift
   Desire/Features/Agent/AgentTrace.swift
   Desire/Features/Bookmarks/Bookmark.swift
   Desire/Features/Browsing/MediaResource.swift

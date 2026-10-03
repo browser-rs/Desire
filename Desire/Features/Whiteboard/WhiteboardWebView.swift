@@ -8,13 +8,17 @@ import os
 struct WhiteboardWebView: NSViewRepresentable {
     let spec: WhiteboardSpec
     var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)? = nil
+    /// 面板编辑回传：kind = move | delete | edit（index 为块序号）。
+    var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)? = nil
 
     func makeNSView(context: Context) -> WhiteboardWKWebView {
         let webview = WhiteboardWKWebView()
         let config = webview.configuration
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardRender")
+        config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardEdit")
         webview.coordinator = context.coordinator
         webview.onRenderStatus = onRenderStatus
+        webview.onEdit = onEdit
         if let baseURL = Bundle.main.resourceURL {
             webview.loadHTMLString(Self.pageHTML, baseURL: baseURL)
         } else {
@@ -49,24 +53,38 @@ struct WhiteboardWebView: NSViewRepresentable {
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(onRenderStatus: onRenderStatus) }
+    func makeCoordinator() -> Coordinator { Coordinator(onRenderStatus: onRenderStatus, onEdit: onEdit) }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?
-        init(onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?) {
+        var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?
+        init(onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?,
+             onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?) {
             self.onRenderStatus = onRenderStatus
+            self.onEdit = onEdit
         }
 
         func userContentController(_ userContentController: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
-            guard message.name == "whiteboardRender",
-                  let dict = message.body as? [String: Any] else { return }
-            let rendered = dict["rendered"] as? Int ?? 0
-            let errors = dict["errors"] as? [String] ?? []
-            // 成图统计进统一日志——E2E/排查的硬证据（webview 内渲染无法截图验证）
-            Log.agent.info("Whiteboard render: rendered=\(rendered, privacy: .public) errors=[\(errors.joined(separator: ","), privacy: .public)]")
-            Task { @MainActor in
-                self.onRenderStatus?(rendered, errors)
+            guard let dict = message.body as? [String: Any] else { return }
+            if message.name == "whiteboardRender" {
+                let rendered = dict["rendered"] as? Int ?? 0
+                let errors = dict["errors"] as? [String] ?? []
+                // 成图统计进统一日志——E2E/排查的硬证据（webview 内渲染无法截图验证）
+                Log.agent.info("Whiteboard render: rendered=\(rendered, privacy: .public) errors=[\(errors.joined(separator: ","), privacy: .public)]")
+                Task { @MainActor in
+                    self.onRenderStatus?(rendered, errors)
+                }
+                return
+            }
+            if message.name == "whiteboardEdit" {
+                let kind = dict["kind"] as? String ?? ""
+                let index = dict["index"] as? Int ?? -1
+                let delta = dict["delta"] as? Int ?? 0
+                let content = dict["content"] as? String ?? ""
+                Task { @MainActor in
+                    self.onEdit?(kind, index, delta, content)
+                }
             }
         }
     }
@@ -78,6 +96,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         var pendingJSON: String?
         var loaded = false
         var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?
+        var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?
         weak var coordinator: Coordinator?
 
         /// HTML 文档落地后才能推（见 makeNSView 注释）。
@@ -106,6 +125,19 @@ struct WhiteboardWebView: NSViewRepresentable {
       .mermaid-box svg, .chart-box { max-width: 100%; }
       .err { color: #c03a1a; font-size: 12px; }
       .empty { color: #8a7f6f; font-size: 13px; }
+      .block { position: relative; }
+      .block-tools { position: absolute; top: 6px; right: 8px; display: none; gap: 2px; }
+      .block:hover .block-tools { display: flex; }
+      .block-tools button { border: none; background: transparent; cursor: pointer;
+        font-size: 11px; color: #8a7f6f; padding: 2px 4px; border-radius: 4px; }
+      .block-tools button:hover { background: #eee7d7; color: #211b13; }
+      .block-editor { width: 100%; min-height: 110px; font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px; border: 1px solid #d8cfba; border-radius: 6px; padding: 6px 8px; }
+      .editor-actions { display: flex; gap: 6px; margin-top: 6px; }
+      .editor-actions button { font-size: 12px; padding: 3px 10px; }
+      table.md-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+      table.md-table th, table.md-table td { border: 1px solid #d8cfba; padding: 3px 8px; text-align: left; }
+      table.md-table th { background: #eee7d7; }
     </style></head>
     <body>
     <div id="board"><div class="empty">白板是空的——让智能体画点什么。</div></div>
@@ -129,6 +161,19 @@ struct WhiteboardWebView: NSViewRepresentable {
           .replace(/^- (.*)$/gm, "• $1");
       }
 
+      // markdown 表格 → HTML table（| 分隔；第二行分隔线跳过）
+      function renderTable(text) {
+        var rows = text.trim().split("\\n").filter(function (l) { return l.trim(); });
+        var html = '<table class="md-table">';
+        rows.forEach(function (row, ri) {
+          var cells = row.replace(/^\\||\\$/g, "").split("|").map(function (c) { return c.trim(); });
+          if (ri === 1 && cells.every(function (c) { return /^:?-+:?$/.test(c); })) return;
+          html += "<tr>" + cells.map(function (c) {
+            return "<" + (ri === 0 ? "th" : "td") + ">" + miniMarkdown(c) + "</" + (ri === 0 ? "th" : "td") + ">";
+          }).join("") + "</tr>";
+        });
+        return html + "</table>";
+      }
       function el(tag, cls, html) {
         var e = document.createElement(tag);
         if (cls) e.className = cls;
@@ -136,11 +181,66 @@ struct WhiteboardWebView: NSViewRepresentable {
         return e;
       }
 
+      function blockTools(idx) {
+        var bar = el("div", "block-tools");
+        [["\\u2191", "上移", function () { post({ kind: "move", index: idx, delta: -1 }); }],
+         ["\\u2193", "下移", function () { post({ kind: "move", index: idx, delta: 1 }); }],
+         ["\\u270E", "编辑源码", function () { startEdit(idx); }],
+         ["\\u2715", "删除", function () { post({ kind: "delete", index: idx }); }]
+        ].forEach(function (item) {
+          var b = document.createElement("button");
+          b.textContent = item[0];
+          b.title = item[1];
+          b.onclick = item[2];
+          bar.appendChild(b);
+        });
+        return bar;
+      }
+
+      function postEdit(payload) {
+        try { window.webkit.messageHandlers.whiteboardEdit.postMessage(payload); } catch (e) {}
+      }
+
+      var editing = -1;
+      function startEdit(idx) {
+        var block = (window.__currentSpec.blocks || [])[idx];
+        var row = document.querySelectorAll(".block")[idx];
+        if (!block || !row) return;
+        editing = idx;
+        renderBoard(window.__currentSpec);
+      }
+
+      function editorActions(idx) {
+        var actions = el("div", "editor-actions");
+        var save = document.createElement("button");
+        save.textContent = "保存";
+        save.onclick = function () {
+          var editor = document.querySelectorAll(".block")[idx].querySelector(".block-editor");
+          var content = editor ? editor.value : "";
+          editing = -1;
+          postEdit({ kind: "edit", index: idx, content: content });
+        };
+        var cancel = document.createElement("button");
+        cancel.textContent = "取消";
+        cancel.onclick = function () { editing = -1; renderBoard(window.__currentSpec); };
+        actions.appendChild(save); actions.appendChild(cancel);
+        return actions;
+      }
+
       async function renderBlock(block, idx) {
         var wrap = el("div", "block");
-        if (block.title) wrap.appendChild(el("p", "block-title", block.title));
+        var editingThis = editing === idx;
+        if (!editingThis && block.title) wrap.appendChild(el("p", "block-title", block.title));
+        if (!editingThis) wrap.appendChild(blockTools(idx));
         var holder = el("div");
         wrap.appendChild(holder);
+        if (editingThis) {
+          var editor = el("textarea", "block-editor");
+          editor.value = block.content;
+          holder.appendChild(editor);
+          wrap.appendChild(editorActions(idx));
+          return wrap;
+        }
         var type = block.type;
         if (type === "mermaid") {
           var box = el("div", "mermaid-box");
@@ -166,6 +266,8 @@ struct WhiteboardWebView: NSViewRepresentable {
           }
         } else if (type === "note") {
           holder.appendChild(el("div", "note", miniMarkdown(block.content)));
+        } else if (type === "table") {
+          holder.innerHTML = renderTable(block.content);
         } else {
           holder.appendChild(el("p", "err", "未知块类型：" + type));
         }
@@ -173,6 +275,9 @@ struct WhiteboardWebView: NSViewRepresentable {
       }
 
       async function renderBoard(spec) {
+        window.__currentSpec = spec;
+        var keepEditing = editing;
+        editing = -1;
         var board = document.getElementById("board");
         board.textContent = "";
         charts.forEach(function (c) { try { c.dispose(); } catch (e) {} });
@@ -189,6 +294,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         }
         var rendered = 0, errors = [];
         for (var i = 0; i < blocks.length; i++) {
+          if (keepEditing === i) editing = i;
           var before = document.querySelectorAll(".err").length;
           var node = await renderBlock(blocks[i], i);
           board.appendChild(node);
@@ -211,6 +317,8 @@ struct WhiteboardWebView: NSViewRepresentable {
         if (!(window.mermaid && window.echarts)) return;
         mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
         window.renderBoard = function (spec) { queued = spec; run(); };
+        window.__editing = function () { return editing; };
+        window.__startEdit = function (idx) { startEdit(idx); };
         ready = true;
         // Swift 侧的推送可能早于脚本就绪（loadHTMLString 完成前 updateNSView
         // 就跑了）——boot 时补拉早到的 __pendingSpec，否则板永远空。

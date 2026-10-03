@@ -839,7 +839,7 @@ final class AutomationServer {
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared
                 let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
-                let board = store.board(for: conversationID)
+                let board = conversationID.map { store.board(for: $0) } ?? store.mostRecentBoard() ?? WhiteboardSpec()
                 return try Self.json([
                     "conversationId": conversationID ?? "",
                     "title": board.title,

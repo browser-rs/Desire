@@ -27,6 +27,7 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
         static let mermaid = "mermaid"
         static let chart = "chart"
         static let note = "note"
+        static let table = "table"
     }
 
     init(id: UUID = UUID(), type: String, title: String? = nil, content: String) {
@@ -37,7 +38,34 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
     }
 
     var isValid: Bool {
-        guard [WhiteboardBlock.Kind.mermaid, WhiteboardBlock.Kind.chart, WhiteboardBlock.Kind.note].contains(type) else { return false }
+        guard [WhiteboardBlock.Kind.mermaid, WhiteboardBlock.Kind.chart,
+               WhiteboardBlock.Kind.note, WhiteboardBlock.Kind.table].contains(type) else { return false }
         return !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+// MARK: - 块管理变换（纯函数，供面板编辑与单测）
+
+extension WhiteboardSpec {
+    func movingBlock(_ index: Int, delta: Int) -> WhiteboardSpec {
+        var spec = self
+        let target = index + delta
+        guard blocks.indices.contains(index), blocks.indices.contains(target) else { return self }
+        spec.blocks.swapAt(index, target)
+        return spec
+    }
+
+    func deletingBlock(_ index: Int) -> WhiteboardSpec {
+        var spec = self
+        guard blocks.indices.contains(index) else { return self }
+        spec.blocks.remove(at: index)
+        return spec
+    }
+
+    func editingBlock(_ index: Int, content: String) -> WhiteboardSpec {
+        var spec = self
+        guard blocks.indices.contains(index) else { return self }
+        spec.blocks[index].content = content
+        return spec
     }
 }

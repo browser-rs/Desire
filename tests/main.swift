@@ -1235,6 +1235,29 @@ func testDPPSections() {
 }
 testDPPSections()
 
+func testWhiteboardSpec() {
+    let spec = WhiteboardSpec(title: "t", blocks: [
+        WhiteboardBlock(type: "mermaid", content: "graph TD; A-->B"),
+        WhiteboardBlock(type: "chart", content: "{}"),
+        WhiteboardBlock(type: "note", content: "note"),
+    ])
+    // 变换：上移/下移/删除/编辑
+    check("白板：上移交换", spec.movingBlock(2, delta: -1).blocks[1].type == "note")
+    check("白板：下越界不动", spec.movingBlock(2, delta: 1).blocks[2].type == "note")
+    check("白板：删除减一", spec.deletingBlock(1).blocks.count == 2)
+    check("白板：编辑内容", spec.editingBlock(0, content: "x").blocks[0].content == "x")
+    check("白板：编辑越界原样", spec.editingBlock(9, content: "x") == spec)
+    // table 类型合法
+    check("白板：table 合法", WhiteboardBlock(type: "table", content: "|a|b|\n|-|-|\n|1|2|").isValid)
+    check("白板：未知类型非法", !WhiteboardBlock(type: "slide", content: "x").isValid)
+    check("白板：空内容非法", !WhiteboardBlock(type: "note", content: "  ").isValid)
+    // Codable round-trip（含 table）
+    let data = try? JSONEncoder().encode(spec)
+    let back = data.flatMap { try? JSONDecoder().decode(WhiteboardSpec.self, from: $0) }
+    check("白板：Codable 往返", back == spec)
+}
+testWhiteboardSpec()
+
 // ---------- DPP 事件策略（PageEventPolicy 纯逻辑） ----------
 
 func testPageEventPolicy() {

@@ -13,6 +13,9 @@ struct AgentHistoryListView: View {
     /// 列表多选（`List(selection:)`，⌘/⇧ 点击原生支持）。选中 1 条 = 打开该会话，
     /// 选中多条 = 进入批量模式（顶部出现操作条）。
     @State private var selection = Set<UUID>()
+    /// 显式多选模式（头部「选择」进入）：整行点击 = 勾选/取消，不再打开会话。
+    /// 只靠 ⌘-click 没人发现得了批量入口（2026-10-03 用户反馈），这是显式入口。
+    @State private var isSelectionMode = false
     /// 正在行内重命名的会话（由滑动/右键触发）。
     @State private var renamingID: UUID?
     /// 防抖后的搜索词:过滤对每条会话每条消息做全文扫描,直接跟键
@@ -29,7 +32,7 @@ struct AgentHistoryListView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            if selection.count > 1 {
+            if isSelectionMode || selection.count > 1 {
                 batchBar
             } else {
                 searchField
@@ -42,9 +45,14 @@ struct AgentHistoryListView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: selection) { _, newValue in
             // 原生语义：单选 = 打开；多选 = 批量模式（不打开）。
-            if newValue.count == 1, let id = newValue.first, id != sessionStore.conversationId {
+            // 显式多选模式下点击只勾选，绝不打开。
+            if !isSelectionMode, newValue.count == 1, let id = newValue.first, id != sessionStore.conversationId {
                 onSelect(id)
             }
+        }
+        .onExitCommand {
+            // Esc 退出多选模式（重命名态有自己的 onExitCommand，先于这里）。
+            if isSelectionMode { exitSelectionMode() }
         }
     }
 
@@ -59,6 +67,20 @@ struct AgentHistoryListView: View {
             Text("History")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
+            Button {
+                if isSelectionMode {
+                    exitSelectionMode()
+                } else {
+                    isSelectionMode = true
+                    selection.removeAll()
+                }
+            } label: {
+                Text(isSelectionMode ? String(localized: "Done") : String(localized: "Select"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isSelectionMode ? appAccent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(isSelectionMode ? String(localized: "Done") : String(localized: "Select multiple conversations"))
             Text("\(conversationStore.conversations.count)")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -120,6 +142,8 @@ struct AgentHistoryListView: View {
     // MARK: - Batch bar
 
     /// 多选时顶部的操作条：批量删除 / 取消选择。删除前统一确认一次。
+    /// 显式多选模式 0 条也显示（此时第三钮 = Done 退出）；⌘ 圈出来的
+    /// 隐式批量（≥2 条）保持原样（第三钮 = Deselect）。
     private var batchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
@@ -148,18 +172,43 @@ struct AgentHistoryListView: View {
                     .foregroundStyle(.red)
             }
             .buttonStyle(.plain)
+            .disabled(selection.isEmpty)
+            .opacity(selection.isEmpty ? 0.4 : 1)
 
-            Button {
-                selection.removeAll()
-            } label: {
-                Text("Deselect").font(.system(size: 11))
+            if isSelectionMode {
+                Button {
+                    exitSelectionMode()
+                } label: {
+                    Text("Done").font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+            } else {
+                Button {
+                    selection.removeAll()
+                } label: {
+                    Text("Deselect").font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+    }
+
+    private func exitSelectionMode() {
+        isSelectionMode = false
+        selection.removeAll()
+    }
+
+    private func toggleSelection(_ id: UUID) {
+        if selection.contains(id) {
+            selection.remove(id)
+        } else {
+            selection.insert(id)
+        }
     }
 
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
@@ -248,14 +297,20 @@ struct AgentHistoryListView: View {
 
     /// 原生 `List`：多选（⌘/⇧ 点击）、行内左右滑动操作、右键菜单、Delete 键删除
     /// 全部由系统提供——此前是 ScrollView + 自绘卡片，这些一个都没有。
+    /// 显式多选模式下解绑系统选区（点击由行内手势接管=勾选/取消，
+    /// 否则 List 会把 selection 整个替换成被点的那一行），选中态由行首
+    /// 勾选圈表达（原生 `List` 的行不许自绘底色/高亮，圆圈是内容不是高亮）。
     private func listBody(grouped: [HistoryGroup]) -> some View {
-        List(selection: $selection) {
+        List(selection: isSelectionMode ? Binding<Set<UUID>>?.none : $selection) {
             ForEach(grouped) { group in
                 Section {
                     ForEach(group.items) { conv in
                         ConversationRow(
                             conversation: conv,
                             isCurrent: conv.id == sessionStore.conversationId,
+                            isSelecting: isSelectionMode,
+                            isSelected: selection.contains(conv.id),
+                            onToggleSelect: { toggleSelection(conv.id) },
                             isRenaming: renamingID == conv.id,
                             onRename: { newTitle in
                                 conversationStore.rename(conv.id, to: newTitle)
@@ -281,10 +336,19 @@ struct AgentHistoryListView: View {
                             .tint(appAccent)
                         }
                         .contextMenu {
-                            Button("Open") { onSelect(conv.id) }
-                            Button("Rename") { renamingID = conv.id }
-                            Divider()
-                            Button("Delete", role: .destructive) { confirmDelete(conv) }
+                            if isSelectionMode {
+                                Button("Delete", role: .destructive) { confirmDelete(conv) }
+                            } else {
+                                Button("Open") { onSelect(conv.id) }
+                                Button("Rename") { renamingID = conv.id }
+                                // 批量入口的第二条路：右键直接以该行为起点进入多选。
+                                Button("Select") {
+                                    isSelectionMode = true
+                                    selection = [conv.id]
+                                }
+                                Divider()
+                                Button("Delete", role: .destructive) { confirmDelete(conv) }
+                            }
                         }
                     }
                 } header: {
@@ -376,6 +440,10 @@ private struct ConversationRow: View {
     @Environment(\.appAccent) private var appAccent: Color
     let conversation: Conversation
     let isCurrent: Bool
+    /// 显式多选模式：行首画勾选圈、整行点击 = 勾选/取消（状态与回调都在父视图）。
+    let isSelecting: Bool
+    let isSelected: Bool
+    let onToggleSelect: () -> Void
     /// 是否处于行内重命名（由滑动/右键/双击触发，状态在父视图里，才能被这些入口设置）。
     let isRenaming: Bool
     let onRename: (String) -> Void
@@ -388,6 +456,13 @@ private struct ConversationRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
+            if isSelecting {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isSelected ? appAccent : Color.secondary)
+                    .frame(width: 18, alignment: .center)
+                    .padding(.top, 2)
+            }
             // 单个 SF Symbol 取代原来的「18×18 圆角小方块 + 9pt 图标」——
             // 那个方块在 macOS 列表里又小又糊，也和系统图标语言不搭。
             Image(systemName: isCurrent ? "bubble.left.fill" : "bubble.left")
@@ -444,13 +519,16 @@ private struct ConversationRow: View {
         }
         .padding(.vertical, 7)
         .contentShape(Rectangle())
+        // 显式多选：整行点击 = 勾选/取消（List 选区已解绑，见 listBody；
+        // 非多选态不装这个手势，单击仍交给 List 的"选中即打开"语义）。
+        .onTapGesture { if isSelecting { onToggleSelect() } }
         // 不在行里自绘底色、也不放 hover 按钮：原生 List 画高亮，
         // 删除走滑动 / 右键 / Delete 键（用户："hover 的删除按钮可以去掉了"）。
         .onDisappear { cancelRename() }
         // nsui gesture for double-click (NSView-style)
         .onLongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity, pressing: { _ in }, perform: {})
         .background(
-            DoubleClickHandler { onBeginRename() }
+            DoubleClickHandler { if !isSelecting { onBeginRename() } }
         )
         .onChange(of: isEditFocused) { _, focused in
             if !focused && isEditing { commitRename() }

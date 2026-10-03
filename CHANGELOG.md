@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+Conversation history list gained an explicit multi-select mode: a Select button in the header (rows show leading check circles, clicking a row toggles it instead of opening, Esc or Done exits) plus a "Select" entry in the row context menu. Previously batch selection was only reachable via undiscoverable ⌘/⇧-click; plain ⌘-click multi-select still works.
+
 ### Fixed
 
 Settings provider editor lost the model selector (the dual-protocol refactor removed the `draftModelPicker` row without re-adding it) — restored in place: dropdown over the service's model list + fetched models, with manual-entry fallback.

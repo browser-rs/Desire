@@ -2322,6 +2322,28 @@
         }
       }
     },
+    "Add Template" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Template"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加模板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加模板"
+          }
+        }
+      }
+    },
     "Add to Group" : {
       "comment" : "Context menu: add tab to group",
       "localizations" : {
@@ -2525,6 +2547,28 @@
         }
       }
     },
+    "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次页面加载后自动扫描并拦截该站点的高置信度广告候选。手动解除拦截的站点将获得豁免。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次頁面載入後自動掃描並攔截該站點的高置信度廣告候選。手動解除攔截的站點將獲得豁免。"
+          }
+        }
+      }
+    },
     "Agent" : {
       "localizations" : {
         "en" : {
@@ -2676,6 +2720,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "智慧體需要你的確認"
+          }
+        }
+      }
+    },
+    "Agent Persona" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Persona"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体人设"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能體人設"
           }
         }
       }
@@ -2860,6 +2926,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 助手（懸浮窗）"
+          }
+        }
+      }
+    },
+    "AI Auto Ad Clean" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Auto Ad Clean"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 自动广告清理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 自動廣告清理"
+          }
+        }
+      }
+    },
+    "AI auto-blocked %lld element(s) on %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "AI auto-blocked %1$lld element(s) on %2$@"
           }
         }
       }
@@ -3489,6 +3587,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "對所有提供方生效。"
+          }
+        }
+      }
+    },
+    "Applies to this conversation only — never saved to memory." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies to this conversation only — never saved to memory."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅对本次对话生效——绝不写入长期记忆。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅對本次對話生效——絕不寫入長期記憶。"
           }
         }
       }
@@ -5230,6 +5350,28 @@
         }
       }
     },
+    "Button title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Button title"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按钮标题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按鈕標題"
+          }
+        }
+      }
+    },
     "by %@" : {
       "localizations" : {
         "en" : {
@@ -6249,6 +6391,28 @@
         }
       }
     },
+    "Clear session instruction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear session instruction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除会话指令"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除會話指令"
+          }
+        }
+      }
+    },
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -6763,6 +6927,9 @@
           }
         }
       }
+    },
+    "Command + args (e.g. python3 /path/server.py)" : {
+
     },
     "Command Palette…" : {
       "localizations" : {
@@ -8549,6 +8716,28 @@
         }
       }
     },
+    "Custom buttons in the chat quick-action row. Tapping one sends the whole prompt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom buttons in the chat quick-action row. Tapping one sends the whole prompt."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天快捷按钮行的自定义按钮。点击整条发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天快捷按鈕行的自定義按鈕。點擊整條發送。"
+          }
+        }
+      }
+    },
     "Custom Search Engines" : {
       "comment" : "Custom search engines section title",
       "extractionState" : "stale",
@@ -10308,6 +10497,9 @@
         }
       }
     },
+    "DPP" : {
+
+    },
     "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10372,6 +10564,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複製標籤頁"
+          }
+        }
+      }
+    },
+    "e.g. Always answer in Chinese" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Always answer in Chinese"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：始终用中文回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：始終用中文回答"
+          }
+        }
+      }
+    },
+    "e.g. Answer in English for this conversation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Answer in English for this conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：本次对话用英文回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：本次對話用英文回答"
+          }
+        }
+      }
+    },
+    "e.g. Too verbose / wrong assumption" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Too verbose / wrong assumption"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：太啰嗦 / 前提猜错了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：太囉嗦 / 前提猜錯了"
           }
         }
       }
@@ -11564,6 +11822,7 @@
       }
     },
     "Extend the Agent with external tools over MCP (HTTP transport). Experimental." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11584,6 +11843,9 @@
           }
         }
       }
+    },
+    "Extend the Agent with external tools over MCP. HTTP (Streamable) or stdio (local command) transport." : {
+
     },
     "Extend the AI with external tools over MCP (HTTP transport). Experimental." : {
       "extractionState" : "stale",
@@ -11990,6 +12252,9 @@
           }
         }
       }
+    },
+    "File deleted" : {
+
     },
     "File Not Found" : {
 
@@ -13709,6 +13974,9 @@
         }
       }
     },
+    "HTTP" : {
+
+    },
     "http://127.0.0.1:3000/mcp" : {
       "localizations" : {
         "en" : {
@@ -14876,6 +15144,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次同步"
+          }
+        }
+      }
+    },
+    "Learned from: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learned from: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学自：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學自：%@"
           }
         }
       }
@@ -16206,6 +16496,28 @@
         }
       }
     },
+    "Name (e.g. Nova)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (e.g. Nova)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名字（例如：小星）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名字（例如：小星）"
+          }
+        }
+      }
+    },
     "Name (e.g. Wikipedia)" : {
       "comment" : "Add custom search engine name placeholder",
       "extractionState" : "stale",
@@ -16226,6 +16538,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名稱（如：Wikipedia）"
+          }
+        }
+      }
+    },
+    "Name and tone for the assistant. Leave empty for defaults." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name and tone for the assistant. Leave empty for defaults."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "助手的名字与语气。留空使用默认。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "助手的名字與語氣。留空使用預設。"
           }
         }
       }
@@ -17534,6 +17868,7 @@
       }
     },
     "No MCP servers configured. Add a Streamable HTTP endpoint (e.g. a local mcp-proxy)." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17554,6 +17889,9 @@
           }
         }
       }
+    },
+    "No MCP servers configured. Add an HTTP endpoint or a local stdio command." : {
+
     },
     "No media queries found" : {
       "localizations" : {
@@ -18409,6 +18747,28 @@
         }
       }
     },
+    "Off by default — the agent can also toggle this with toggleAutoAdClean." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default — the agent can also toggle this with toggleAutoAdClean."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认关闭——智能体也可以用 toggleAutoAdClean 工具切换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設關閉——智能體也可以用 toggleAutoAdClean 工具切換。"
+          }
+        }
+      }
+    },
     "Off-topic filler content that adds nothing." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18720,6 +19080,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只看失敗"
+          }
+        }
+      }
+    },
+    "Only on %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only on %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅限：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅限：%@"
           }
         }
       }
@@ -19291,6 +19673,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "描邊"
+          }
+        }
+      }
+    },
+    "Output Rules" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output Rules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输出规则"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出規則"
           }
         }
       }
@@ -20672,6 +21076,28 @@
         }
       }
     },
+    "Prompt sent when tapped" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt sent when tapped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击时发送的提示语"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點擊時發送的提示語"
+          }
+        }
+      }
+    },
     "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」." : {
       "localizations" : {
         "en" : {
@@ -20847,6 +21273,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速配置 — 點選自動填入端點和模型。"
+          }
+        }
+      }
+    },
+    "Quick Templates" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Templates"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷模板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷模板"
           }
         }
       }
@@ -21747,6 +22195,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除按鍵"
+          }
+        }
+      }
+    },
+    "Remove rule" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove rule"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除此规则"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除此規則"
+          }
+        }
+      }
+    },
+    "Remove template" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove template"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除此模板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除此模板"
           }
         }
       }
@@ -22744,6 +23236,28 @@
         }
       }
     },
+    "Rules apply to every conversation and take precedence over learned memory." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules apply to every conversation and take precedence over learned memory."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "规则作用于所有会话，与学到的记忆冲突时以规则为准。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規則作用於所有會話，與學到的記憶衝突時以規則為準。"
+          }
+        }
+      }
+    },
     "Run \"%@\" on this page" : {
       "localizations" : {
         "en" : {
@@ -23168,6 +23682,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要為 %@ 儲存密碼嗎？"
+          }
+        }
+      }
+    },
+    "Save preference" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save preference"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住这条偏好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記住這條偏好"
           }
         }
       }
@@ -24194,6 +24730,29 @@
         }
       }
     },
+    "Select multiple conversations" : {
+      "comment" : "Conversation list: tooltip on the Select button that enters multi-selection mode",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select multiple conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量选择会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次選取會話"
+          }
+        }
+      }
+    },
     "Select Chrome Bookmarks File" : {
       "localizations" : {
         "en" : {
@@ -24634,6 +25193,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作階段"
+          }
+        }
+      }
+    },
+    "Session instruction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话指令"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話指令"
+          }
+        }
+      }
+    },
+    "Session instruction (this conversation only)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction (this conversation only)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话指令（仅本次对话）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話指令（僅本次對話）"
           }
         }
       }
@@ -25751,6 +26354,28 @@
         }
       }
     },
+    "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作用于每条回复的长期个人偏好，可随意增删——不必改整段系统提示词。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作用於每條回覆的長期個人偏好，可隨意增刪——不必改整段系統提示詞。"
+          }
+        }
+      }
+    },
     "Start a fresh archivedNNN subfolder after every N files." : {
       "localizations" : {
         "en" : {
@@ -25883,6 +26508,12 @@
           }
         }
       }
+    },
+    "stdio" : {
+
+    },
+    "Stdio (local command)" : {
+
     },
     "Stop" : {
       "comment" : "Stop loading button help",
@@ -27078,6 +27709,9 @@
         }
       }
     },
+    "The command runs as a local subprocess (argv; quote paths with spaces). Tools it exposes join the Agent automatically." : {
+
+    },
     "The current window's tabs will be replaced by the archived session." : {
       "localizations" : {
         "en" : {
@@ -28156,6 +28790,28 @@
         }
       }
     },
+    "Tone (e.g. concise, friendly, no emoji)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone (e.g. concise, friendly, no emoji)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语气（例如：简洁、友好、不用表情）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語氣（例如：簡潔、友好、不用表情）"
+          }
+        }
+      }
+    },
     "Tool calls" : {
       "localizations" : {
         "en" : {
@@ -29192,6 +29848,28 @@
         }
       }
     },
+    "User dislikes: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "User dislikes: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户不喜欢：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用戶不喜歡：%@"
+          }
+        }
+      }
+    },
     "username" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -29822,6 +30500,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 對當前頁面的瞭解。"
+          }
+        }
+      }
+    },
+    "What went wrong? (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What went wrong? (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哪里不对？（可选）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哪裡不對？（可選）"
           }
         }
       }
@@ -30989,6 +31689,9 @@
         }
       }
     },
+    "此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）" : {
+
+    },
     "没有匹配的工具" : {
       "localizations" : {
         "en" : {
@@ -31605,640 +32308,12 @@
         }
       }
     },
-    "Output Rules" : {
+    "页面事件 %@（%@）想要唤起智能体——当前已关闭，可在设置中开启" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Output Rules"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输出规则"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輸出規則"
-          }
-        }
-      }
-    },
-    "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "作用于每条回复的长期个人偏好，可随意增删——不必改整段系统提示词。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "作用於每條回覆的長期個人偏好，可隨意增刪——不必改整段系統提示詞。"
-          }
-        }
-      }
-    },
-    "e.g. Always answer in Chinese" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g. Always answer in Chinese"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：始终用中文回答"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：始終用中文回答"
-          }
-        }
-      }
-    },
-    "Remove rule" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove rule"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除此规则"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除此規則"
-          }
-        }
-      }
-    },
-    "Rules apply to every conversation and take precedence over learned memory." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rules apply to every conversation and take precedence over learned memory."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "规则作用于所有会话，与学到的记忆冲突时以规则为准。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "規則作用於所有會話，與學到的記憶衝突時以規則為準。"
-          }
-        }
-      }
-    },
-    "What went wrong? (optional)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "What went wrong? (optional)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "哪里不对？（可选）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "哪裡不對？（可選）"
-          }
-        }
-      }
-    },
-    "e.g. Too verbose / wrong assumption" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g. Too verbose / wrong assumption"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：太啰嗦 / 前提猜错了"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：太囉嗦 / 前提猜錯了"
-          }
-        }
-      }
-    },
-    "Save preference" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save preference"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "记住这条偏好"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記住這條偏好"
-          }
-        }
-      }
-    },
-    "User dislikes: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "User dislikes: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用户不喜欢：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用戶不喜歡：%@"
-          }
-        }
-      }
-    },
-    "Clear session instruction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear session instruction"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清除会话指令"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清除會話指令"
-          }
-        }
-      }
-    },
-    "Session instruction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session instruction"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话指令"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話指令"
-          }
-        }
-      }
-    },
-    "e.g. Answer in English for this conversation" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g. Answer in English for this conversation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：本次对话用英文回答"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例如：本次對話用英文回答"
-          }
-        }
-      }
-    },
-    "Applies to this conversation only — never saved to memory." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Applies to this conversation only — never saved to memory."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅对本次对话生效——绝不写入长期记忆。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "僅對本次對話生效——絕不寫入長期記憶。"
-          }
-        }
-      }
-    },
-    "Session instruction (this conversation only)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session instruction (this conversation only)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话指令（仅本次对话）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話指令（僅本次對話）"
-          }
-        }
-      }
-    },
-    "Learned from: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Learned from: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "学自：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "學自：%@"
-          }
-        }
-      }
-    },
-    "Only on %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only on %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅限：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "僅限：%@"
-          }
-        }
-      }
-    },
-    "Agent Persona" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent Persona"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "智能体人设"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "智能體人設"
-          }
-        }
-      }
-    },
-    "Name and tone for the assistant. Leave empty for defaults." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name and tone for the assistant. Leave empty for defaults."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "助手的名字与语气。留空使用默认。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "助手的名字與語氣。留空使用預設。"
-          }
-        }
-      }
-    },
-    "Name (e.g. Nova)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name (e.g. Nova)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名字（例如：小星）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名字（例如：小星）"
-          }
-        }
-      }
-    },
-    "Tone (e.g. concise, friendly, no emoji)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tone (e.g. concise, friendly, no emoji)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "语气（例如：简洁、友好、不用表情）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "語氣（例如：簡潔、友好、不用表情）"
-          }
-        }
-      }
-    },
-    "Quick Templates" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quick Templates"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快捷模板"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快捷模板"
-          }
-        }
-      }
-    },
-    "Custom buttons in the chat quick-action row. Tapping one sends the whole prompt." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom buttons in the chat quick-action row. Tapping one sends the whole prompt."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聊天快捷按钮行的自定义按钮。点击整条发送。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聊天快捷按鈕行的自定義按鈕。點擊整條發送。"
-          }
-        }
-      }
-    },
-    "Button title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Button title"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按钮标题"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按鈕標題"
-          }
-        }
-      }
-    },
-    "Prompt sent when tapped" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prompt sent when tapped"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点击时发送的提示语"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點擊時發送的提示語"
-          }
-        }
-      }
-    },
-    "Remove template" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove template"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除此模板"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除此模板"
-          }
-        }
-      }
-    },
-    "Add Template" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Template"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加模板"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加模板"
-          }
-        }
-      }
-    },
-    "AI Auto Ad Clean" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Auto Ad Clean"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 自动广告清理"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 自動廣告清理"
-          }
-        }
-      }
-    },
-    "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "After every page load, high-confidence ad candidates are scanned and blocked automatically for that host. Unblocking a host exempts it."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每次页面加载后自动扫描并拦截该站点的高置信度广告候选。手动解除拦截的站点将获得豁免。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每次頁面載入後自動掃描並攔截該站點的高置信度廣告候選。手動解除攔截的站點將獲得豁免。"
-          }
-        }
-      }
-    },
-    "Off by default — the agent can also toggle this with toggleAutoAdClean." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off by default — the agent can also toggle this with toggleAutoAdClean."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "默认关闭——智能体也可以用 toggleAutoAdClean 工具切换。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預設關閉——智能體也可以用 toggleAutoAdClean 工具切換。"
+            "state" : "new",
+            "value" : "页面事件 %1$@（%2$@）想要唤起智能体——当前已关闭，可在设置中开启"
           }
         }
       }

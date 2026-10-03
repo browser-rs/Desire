@@ -1206,6 +1206,35 @@ func testDPPMerge() {
 }
 testDPPMerge()
 
+func testDPPSections() {
+    // 嵌套 content.sections（页面声明标准形态）
+    let nested = dppDecode("""
+    {"protocol":"desire/1","content":{"main":"#doc","sections":{"faq":"#faq","pricing":"#pricing"}}}
+    """)
+    check("sections：嵌套形态解码", nested?.sections["faq"] == "#faq" && nested?.sections["pricing"] == "#pricing")
+    // 平铺形态（well-known 直喂）
+    let flat = dppDecode("""
+    {"sections":{"changelog":"#log"}}
+    """)
+    check("sections：平铺形态解码", flat?.sections["changelog"] == "#log")
+    // 非字符串值丢弃（宽容解码，不炸整份协议）
+    let bad = dppDecode("""
+    {"sections":{"good":"#g","bad":{"selector":"#x"}},"views":{}}
+    """)
+    check("sections：非字符串值丢弃", bad?.sections["good"] == "#g" && bad?.sections["bad"] == nil)
+    check("sections：坏值记 warning", bad?.warnings.contains { $0.contains("sections") } == true)
+
+    // merge：页面优先、站点补齐
+    let site = DesireProtocol(sections: ["overview": "#site-overview", "faq": "#site-faq"])
+    let page = DesireProtocol(sections: ["faq": "#page-faq"])
+    let merged = DesireProtocol.merged(site: site, page: page)
+    check("sections 合并：页面覆盖同名", merged?.sections["faq"] == "#page-faq")
+    check("sections 合并：站点键补齐", merged?.sections["overview"] == "#site-overview")
+    check("sections 合并：仅站点级", DesireProtocol.merged(site: site, page: nil)?.sections["faq"] == "#site-faq")
+    check("sections 合并：仅页面级", DesireProtocol.merged(site: nil, page: page)?.sections["faq"] == "#page-faq")
+}
+testDPPSections()
+
 // ---------- DPP 事件策略（PageEventPolicy 纯逻辑） ----------
 
 func testPageEventPolicy() {

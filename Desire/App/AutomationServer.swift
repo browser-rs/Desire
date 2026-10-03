@@ -822,6 +822,7 @@ final class AutomationServer {
                     "profile": dpp.profile ?? "",
                     "pages": dpp.pages.count,
                     "pageType": dpp.pageType ?? "", "contentMain": dpp.contentMain ?? "",
+                    "sections": dpp.sections,
                     "ignore": dpp.ignore, "views": views,
                     "signals": dpp.signals,
                     "actions": dpp.actions.map { ["name": $0.name, "description": $0.description ?? "",

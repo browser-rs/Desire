@@ -38,6 +38,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "sections": {
+          "type": "object",
+          "description": "Named content sections (§4.3): semantic region name → CSS selector. Agents can read a single section via getPageText(section).",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -45,7 +53,8 @@
       "type": "object",
       "additionalProperties": {
         "type": "string"
-      }
+      },
+      "description": "Lifecycle signals (§4.2): ready (first render), busy, error, and optional stable (data complete — lazy loads finished)."
     },
     "views": {
       "type": "object",

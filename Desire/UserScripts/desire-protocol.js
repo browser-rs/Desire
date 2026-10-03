@@ -10,7 +10,7 @@
 return (function() {
     var warnings = [];
     function empty() {
-        return { protocolVersion: "desire/1", profile: null, pageType: null, contentMain: null,
+        return { protocolVersion: "desire/1", profile: null, pageType: null, contentMain: null, sections: {},
                  ignore: [], views: {}, signals: {}, actions: [], events: {}, context: {} };
     }
 
@@ -29,6 +29,18 @@ return (function() {
         else if (src.contentMain) out.contentMain = src.contentMain;
         if (Array.isArray(src.ignore)) out.ignore = src.ignore;
         else if (src.content && Array.isArray(src.content.ignore)) out.ignore = src.content.ignore; // 规范 §4.1：ignore 在 content 内
+        // 规范 §4.3：content.sections（命名分区，值 = 选择器字符串）。非字符串值丢弃记 warning。
+        if (src.content && src.content.sections && typeof src.content.sections === "object") {
+            var secs = {};
+            for (var sn in src.content.sections) {
+                var sv = src.content.sections[sn];
+                if (typeof sv === "string") secs[sn] = sv;
+                else warnings.push("content.sections." + sn + " skipped: selector must be a string");
+            }
+            if (Object.keys(secs).length) out.sections = secs;
+        } else if (src.sections && typeof src.sections === "object") {
+            out.sections = src.sections; // 已平铺形态（站点级 well-known 直喂）
+        }
         if (src.views && typeof src.views === "object") out.views = src.views;
         if (src.signals && typeof src.signals === "object") out.signals = src.signals;
         if (Array.isArray(src.actions)) {

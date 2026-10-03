@@ -74,6 +74,21 @@ extension BrowserToolProvider {
             return dppNote + "[\(target.displayTitle) — \(target.browser.webView.url?.host ?? "")]\n\(snapshot)"
 
         case "getPageText":
+            // DPP content.sections（§4.3）：给了 section 就只读该命名分区——
+            // 长文/多面板页面按语义分区读，省 token 也更准。未知分区不猜，
+            // 把可用分区名列出来引导模型改参。
+            if let sectionName = args["section"] as? String, !sectionName.isEmpty {
+                let proto = surface.tabManager?.selectedTab?.browser.effectiveProtocol
+                if let selector = proto?.sections[sectionName], !selector.isEmpty {
+                    let selLit = JSString.literal(selector)
+                    let text = await eval(webView, """
+                    (function(){var m = __desireQueryAll(\(selLit))[0] || document.querySelector(\(selLit)); return m ? m.innerText : '';})()
+                    """)
+                    return text.isEmpty ? "Section '\(sectionName)' matched nothing on this page" : text
+                }
+                let available = (proto?.sections.keys.sorted().map { "'\($0)'" } ?? []).joined(separator: ", ")
+                return Self.fail("Unknown section '\(sectionName)'\(available.isEmpty ? " — this page declares no sections" : " — available: \(available)")")
+            }
             // DPP contentMain：页面声明了正文选择器就只取正文（排除导航/
             // 页脚噪音）；选择器落空时回退 body（声明不可信时不比原来差）。
             if let main = surface.tabManager?.selectedTab?.browser.effectiveProtocol?.contentMain,
@@ -327,6 +342,22 @@ extension BrowserToolProvider {
                     ? "\n[DPP] Ready signal observed."
                     : "\n[DPP] Ready signal '\(readySel)' NOT observed within 6s — the page may still be loading or the signal is misdeclared."
             }
+            // stable 信号（§4.2）：ready = 首屏渲染，stable = 数据不再变化
+            // （懒加载/分页拉取结束）。有声明时 ready 后继续等，避免读到骨架屏。
+            var stableNote = ""
+            if false, let stableSel = dpp?.signals["stable"], !stableSel.isEmpty { // BISECT: disabled
+                let stableJS = "return __desireQueryAll(\(JSString.literal(stableSel))).length > 0"
+                var stableSeen = false
+                for _ in 0..<30 {
+                    stableSeen = ((try? await nav.callAsyncJavaScript(
+                        stableJS, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                    if stableSeen { break }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+                stableNote = stableSeen
+                    ? "\n[DPP] Stable signal observed — page data is complete."
+                    : "\n[DPP] Stable signal '\(stableSel)' NOT observed within 6s — data may still be loading."
+            }
             var dppHint = ""
             if DPPConfigStore.shared.promptHints, let dpp, !dpp.isEmpty {
                 var views: [String] = []
@@ -339,10 +370,14 @@ extension BrowserToolProvider {
                 if !dpp.actions.isEmpty {
                     dppHint += "\n[DPP] Actions (use pageAction): " + dpp.actions.map(\.name).joined(separator: ", ")
                 }
+                if !dpp.sections.isEmpty {
+                    dppHint += "\n[DPP] Named sections (getPageText with section): " + dpp.sections.keys.sorted().joined(separator: ", ")
+                }
             }
             var result = "Navigated to \(url) — \(pageTitle)"
             if !snippet.isEmpty { result += "\n\(snippet)" }
             if !readyNote.isEmpty { result += readyNote }
+            if !stableNote.isEmpty { result += stableNote }
             if !dppHint.isEmpty { result += dppHint }
             return result
         case "goBack":

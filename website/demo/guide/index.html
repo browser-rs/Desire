@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 帮助中心 — 命名分区读取 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）帮助中心演示：长文档按命名分区读取（content.sections）、大表格结构化声明、stable 数据稳定信号。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .search-row { display: flex; gap: 0.5rem; }
+  .search-row input { flex: 1; }
+  input, button { padding: 0.45rem 0.8rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+  section.doc-block { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; padding: 0.7rem 1rem; margin: 0.7rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 0.4rem 0; }
+  th, td { border: 1px solid #d8cfba; padding: 0.35rem 0.6rem; text-align: left; }
+  th { background: #eee7d7; }
+  .stable-note { font-size: 0.78rem; color: #8a7f6f; }
+  .faq-item { border-bottom: 1px dotted #d8cfba; padding: 0.35rem 0; }
+  .faq-item .q { font-weight: 600; font-size: 0.92rem; }
+  .faq-item .a { font-size: 0.88rem; color: #6b6154; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>DPP 帮助中心 <span id="api-status" class="status-pill on">静态演示</span></h1>
+<p>一个长文档帮助中心（无后端）。演示三件事：</p>
+<ul>
+  <li><b>命名分区读取</b>：页面声明了四个 <code>content.sections</code>（overview/pricing/faq/changelog）——
+      对智能体说「<b>只读 FAQ 部分</b>」，它会用 <code>getPageText(section: "faq")</code>，
+      不必整页读。</li>
+  <li><b>大表格结构化</b>：资费对比表按「行 = 条目」声明（见规范 §4.3.2 表格约定）——
+      「两档套餐差在哪」<code>pageExtract("plans")</code> 直接拿结构化行。</li>
+  <li><b>stable 信号</b>：搜索索引在页面载入约 1.5 秒后才建好——
+      <code>ready</code> 之后智能体会继续等 <code>stable</code>，避免读到半成品索引。</li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="guide-app">
+  <div class="search-row">
+    <input id="g-search" placeholder="搜索文档关键词（如：退款）">
+    <button id="g-search-btn">搜索</button>
+  </div>
+
+  <section class="doc-block" id="g-overview">
+    <h2>概览</h2>
+    <p>DPP（Desire Page Protocol）是网页向 AI 智能体声明自身能力的轻量协议：
+    页面用一段 JSON 描述「内容在哪、有什么数据视图、能执行什么动作、何时唤我」，
+    智能体据此结构化读写，不再猜 DOM。分四级接入：L0 零改造（JSON-LD）、
+    L1 属性微标注、L2 声明块、L3 SDK。</p>
+  </section>
+
+  <section class="doc-block" id="g-pricing">
+    <h2>资费对比</h2>
+    <table id="pricing-table">
+      <thead><tr><th>套餐</th><th>月费</th><th>站点数</th><th>事件唤醒</th></tr></thead>
+      <tbody>
+        <tr><td>免费版</td><td>¥0</td><td>1</td><td>不支持</td></tr>
+        <tr><td>专业版</td><td>¥49</td><td>10</td><td>支持</td></tr>
+        <tr><td>旗舰版</td><td>¥199</td><td>不限</td><td>支持 + 优先队列</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="doc-block" id="g-faq">
+    <h2>常见问题</h2>
+    <div class="faq-item"><div class="q">声明了就会被自动执行吗？</div>
+      <div class="a">不会。声明能力 ≠ 授权：出站/危险动作每次都会请求用户批准。</div></div>
+    <div class="faq-item"><div class="q">协议是同步刷新的吗？</div>
+      <div class="a">声明是静态描述；页面数据变化可经事件（events）唤醒智能体。</div></div>
+    <div class="faq-item"><div class="q">退款政策是什么？</div>
+      <div class="a">演示环境没有真实收费——这个问题只是给分区读取做示例的。</div></div>
+  </section>
+
+  <section class="doc-block" id="g-changelog">
+    <h2>更新日志</h2>
+    <p>2026-10-04：新增命名分区读取、stable 信号与表格声明约定。</p>
+    <p>2026-10-03：求值隔离、审批时空一致性、站点级 well-known。</p>
+  </section>
+
+  <div class="stable-note" id="g-stable-note">搜索索引构建中…</div>
+</div>
+
+<p style="margin-top:2rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../guide/">指南</a> · <a href="../../legacy-speaker.html">遗留页(L0)</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+// stable 信号：模拟"搜索索引异步建好"——载入 1.5s 后标记
+setTimeout(function () {
+  document.body.setAttribute("data-stable", "");
+  document.getElementById("g-stable-note").textContent = "搜索索引已就绪（stable 信号已发出）。";
+}, 1500);
+
+function filterDocs(query) {
+  var q = (query || "").trim().toLowerCase();
+  document.querySelectorAll("#guide-app .doc-block").forEach(function (block) {
+    block.style.display = (!q || block.textContent.toLowerCase().indexOf(q) !== -1) ? "" : "none";
+  });
+}
+document.getElementById("g-search-btn").onclick = function () {
+  filterDocs(document.getElementById("g-search").value);
+};
+document.getElementById("g-search").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") filterDocs(document.getElementById("g-search").value);
+});
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "docs",
+  page: { type: "docs" },
+  content: {
+    main: "#guide-app",
+    ignore: [".demo-ad"],
+    sections: {
+      overview: "#g-overview",
+      pricing: "#g-pricing",
+      faq: "#g-faq",
+      changelog: "#g-changelog"
+    }
+  },
+  signals: { ready: "[data-demo-ready]", stable: "[data-stable]" },
+  views: {
+    plans: { item: "#pricing-table tbody tr", fields: {
+      plan: "td:nth-child(1)",
+      monthly: { selector: "td:nth-child(2)", type: "price" },
+      sites: { selector: "td:nth-child(3)", type: "number" },
+      eventWake: "td:nth-child(4)"
+    } }
+  },
+  actions: [
+    { name: "search-docs", description: "按关键词过滤文档章节（只显示命中的分区）",
+      params: { query: { type: "string", required: true } },
+      run: [ { fill: { "#g-search": "{query}" } }, { click: "#g-search-btn" } ],
+      effects: "local" }
+  ],
+  context: {
+    persona: "DPP 帮助中心的助手：演示命名分区读取、表格声明约定与 stable 信号",
+    rules: "本页为协议演示文档；资费为示例，无真实收费"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+document.body.setAttribute("data-demo-ready", "");
+</script>
+</body>
+</html>

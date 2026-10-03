@@ -1001,6 +1001,11 @@ extension BrowserToolProvider {
                 lines.append("Profile: \(profile) — follow the standard '\(profile)' conventions for view/action/event names (spec §5)")
             }
             if let main = protocolSnapshot.contentMain { lines.append("Main content: \(main)") }
+            if !protocolSnapshot.sections.isEmpty {
+                let secs = protocolSnapshot.sections.sorted { $0.key < $1.key }
+                    .map { "\($0.key) ('\($0.value)')" }.joined(separator: ", ")
+                lines.append("Named sections (getPageText with section): \(secs)")
+            }
             if !protocolSnapshot.views.isEmpty {
                 lines.append("Views (use pageExtract):")
                 for name in protocolSnapshot.views.keys.sorted() {

@@ -30,6 +30,10 @@ struct DesireProtocol: Codable, Equatable {
     var auth: [String: String] = [:]
     /// 正文选择器：getPageText 语义下"内容在哪"，排除导航/页脚噪音。
     var contentMain: String? = nil
+    /// 命名分区（§4.3）：语义化的内容区块（comments/pricing/faq…），
+    /// `getPageText(section:)` 可按名只读该分区——长文/多面板页面
+    /// 不必整页读，token 预算与读取精度双赢。
+    var sections: [String: String] = [:]
     /// 明确的噪音排除（导航/页脚/横幅）。
     var ignore: [String] = []
     /// 命名数据视图（抽取主力）。
@@ -83,6 +87,9 @@ struct DesireProtocol: Codable, Equatable {
             merged.pageType = merged.pageType ?? s.pageType
             merged.profile = merged.profile ?? s.profile
             if merged.auth.isEmpty { merged.auth = s.auth }
+            for (name, selector) in s.sections where merged.sections[name] == nil {
+                merged.sections[name] = selector
+            }
             for (key, value) in s.context where merged.context[key] == nil {
                 merged.context[key] = value
             }
@@ -198,14 +205,39 @@ struct DesireProtocol: Codable, Equatable {
     }
 }
 
+// MARK: - 编码（手写：content case 无存储属性，合成会失败）
+
+extension DesireProtocol {
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(protocolVersion, forKey: .protocolVersion)
+        try c.encodeIfPresent(profile, forKey: .profile)
+        try c.encodeIfPresent(pageType, forKey: .pageType)
+        try c.encodeIfPresent(contentMain, forKey: .contentMain)
+        if !sections.isEmpty { try c.encode(sections, forKey: .sections) }
+        if !ignore.isEmpty { try c.encode(ignore, forKey: .ignore) }
+        if !views.isEmpty { try c.encode(views, forKey: .views) }
+        if !signals.isEmpty { try c.encode(signals, forKey: .signals) }
+        if !actions.isEmpty { try c.encode(actions, forKey: .actions) }
+        if !events.isEmpty { try c.encode(events, forKey: .events) }
+        if !context.isEmpty { try c.encode(context, forKey: .context) }
+        if !pages.isEmpty { try c.encode(pages, forKey: .pages) }
+        if !auth.isEmpty { try c.encode(auth, forKey: .auth) }
+        if !warnings.isEmpty { try c.encode(warnings, forKey: .warnings) }
+    }
+}
+
 // MARK: - 容错解码
 
 extension DesireProtocol {
 
     private enum CodingKeys: String, CodingKey {
-        case protocolVersion, profile, pageType, contentMain, ignore, views
-        case signals, actions, events, context, warnings, pages, auth
+        case protocolVersion, profile, pageType, contentMain, sections, ignore, views
+        case signals, actions, events, context, warnings, pages, auth, content
     }
+
+    /// 仅供合成 decode 的 content 对齐（encode 手写，不输出该键）。
+    private var content: ContentBlock? { nil }
 
     /// 宽松 JSON 值：任何 JSON 结构都能落下，字段级失败返回 .null 而非抛错。
     enum DPPValue: Codable, Equatable {
@@ -277,6 +309,13 @@ extension DesireProtocol {
     }
 
     /// 字符串数组：逐元素取字符串，非字符串元素跳过。
+    /// 嵌套 content 块的宽容形态（`{"content": {"main","ignore","sections"}}`）。
+    private struct ContentBlock: Codable {
+        let main: String?
+        let ignore: [String]?
+        let sections: [String: DPPValue]?
+    }
+
     private static func optStringArray(_ c: KeyedDecodingContainer<CodingKeys>, _ k: CodingKeys) -> [String] {
         guard let raw = try? c.decodeIfPresent([DPPValue].self, forKey: k) else { return [] }
         return raw.compactMap(\.stringValue)
@@ -307,6 +346,24 @@ extension DesireProtocol {
             }
         }
         contentMain = Self.optString(c, .contentMain)
+        // sections：命名分区（值容错转字符串，坏值丢弃记 warning）。
+        // 页面声明标准形态是嵌套 content.sections——well-known 直喂等
+        // 不经 JS 归一化的 JSON 也要能解，所以这里做嵌套回退。
+        if let rawSections = try? c.decodeIfPresent([String: DPPValue].self, forKey: .sections) {
+            for (name, value) in rawSections {
+                if let selector = value.stringValue { sections[name] = selector }
+                else { warnings.append("sections['\(name)'] skipped: selector must be a string") }
+            }
+        }
+        if sections.isEmpty, let nested = try? c.decodeIfPresent(ContentBlock.self, forKey: .content) {
+            contentMain = contentMain ?? nested.main
+            if ignore.isEmpty { ignore = nested.ignore ?? [] }
+            if let secs = nested.sections {
+                for (name, value) in secs {
+                    if let selector = value.stringValue { sections[name] = selector }
+                }
+            }
+        }
         ignore = Self.optStringArray(c, .ignore)
         // views：逐视图解码——单个视图结构坏只丢该视图。
         if let rawViews = try? c.decodeIfPresent([String: DPPValue].self, forKey: .views) {

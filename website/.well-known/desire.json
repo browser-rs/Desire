@@ -43,6 +43,10 @@
     "/legacy-speaker.html": {
       "type": "product",
       "profile": "schema.org"
+    },
+    "/demo/guide/": {
+      "type": "docs",
+      "profile": "docs"
     }
   },
   "auth": {

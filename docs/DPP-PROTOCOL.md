@@ -163,13 +163,15 @@ DPP 管**能力**发现与执行。
 | 信号 | 说明 | Agent 行为 |
 |---|---|---|
 | `ready` | 页面就绪（Agent 可开始操作） | navigate 后自动等待此信号再返回结果 |
+| `stable` | **数据完整**（懒加载/增量拉取结束）——与 ready 区分：ready 是首屏渲染，stable 是"再读不会变" | navigate 在 ready 之后继续等 stable（有声明时，6s 超时如实报告），避免读到骨架屏 |
 | `busy` | 正在处理（Agent 暂停操作） | click/fill 后检查 busy，等到消失再返回 |
 | `error` | 错误提示（action 执行后检测） | action 执行后检查 error 信号判断成败 |
 
-> **实现状态（2026-10-02 晚，已接线）**：`navigate` 在页面声明 `signals.ready` 时等
-> 就绪信号出现再返回（6s 超时如实报告）；`pageAction` 完成步骤后等 `signals.busy`
-> 消失再判成败（持续 5s 会在结果里注明）。signals 同时在 `pageProtocol` /
-> `/protocol/inspect` 中展示。
+> **实现状态（2026-10-02 晚，已接线；stable 2026-10-04）**：`navigate` 在页面声明
+> `signals.ready` 时等就绪信号出现再返回（6s 超时如实报告）；声明 `signals.stable`
+> 时 ready 后**继续等 stable**（结果注明是否观察到）；`pageAction` 完成步骤后等
+> `signals.busy` 消失再判成败（持续 5s 会在结果里注明）。signals 同时在
+> `pageProtocol` / `/protocol/inspect` 中展示。
 
 ### 4.3 views — 命名数据视图
 
@@ -210,6 +212,51 @@ Agent 直接拿到类型化数据（失败回退原始字符串，宁可不转�
 - `"paged"`：有下一页按钮 → `pageExtract(all=true)` 自动翻页收集 ✅
 - `"infinite"`：无限滚动 → `pageExtract(all=true)` 滚动到底收集（序列化去重、连续两轮无新增即到底） ✅
 - `"none"`：无分页
+
+#### 4.3.1 content.sections — 命名分区读取（2026-10-04）
+
+痛点：智能体读网页只能"整页文本"或"main 正文"——评论区、资费表、FAQ、
+标签页面板等**语义区块**无法单独读，长文页面整页读浪费 token 且精度差。
+
+```json
+"content": {
+  "main": "#doc",
+  "sections": {
+    "overview": "#g-overview",
+    "pricing": "#g-pricing",
+    "faq": "#g-faq",
+    "changelog": "#g-changelog"
+  }
+}
+```
+
+- 智能体侧：`getPageText(section: "faq")` 只返回该分区文本；未知分区**明确失败**
+  并列出可用分区名（引导模型改参，绝不静默猜）。
+- 声明侧：名字用语义名（智能体可读），值为 CSS 选择器；站点级 well-known 可
+  整表提供，页面级逐键覆盖。
+- 实现状态：✅ 已实装（解码/合并/pageText/hints/inspect 全链）。
+
+#### 4.3.2 表格数据声明约定
+
+大表格（对账单/比价表/资费表）文本化后列对齐全丢——智能体读 HTML 表格是知名
+痛点。DPP 不需要新机制：**用 views 把行声明成条目**，每列是一个字段：
+
+```json
+"views": {
+  "plans": {
+    "item": "#pricing tbody tr",
+    "fields": {
+      "plan": "td:nth-child(1)",
+      "monthly": { "selector": "td:nth-child(2)", "type": "price" },
+      "devices": { "selector": "td:nth-child(3)", "type": "number" }
+    }
+  }
+}
+```
+
+约定：`item` 指向 `tbody tr`，字段用 `td:nth-child(n)` 按列取值并标注类型；
+表头行用 `thead` 的字段名单独声明或省略。`pageExtract("plans")` 即得结构化
+行数据，列对齐由选择器保证。
 
 ### 4.4 actions — 声明式动作
 

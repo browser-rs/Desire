@@ -248,7 +248,7 @@ extension BrowserToolProvider {
             }
             var readyNote = ""
             if let readySel = dpp?.signals["ready"], !readySel.isEmpty {
-                let readyJS = DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(readySel))).length > 0"
+                let readyJS = "return __desireQueryAll(\(JSString.literal(readySel))).length > 0"
                 var readySeen = false
                 for _ in 0..<30 {
                     readySeen = ((try? await nav.callAsyncJavaScript(

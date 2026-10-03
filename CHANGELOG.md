@@ -13,6 +13,10 @@ DPP 第二轮审计修复（五项）：① **跨窗 navigate 链路断裂**—�
 DPP 工具求值面加固（第二轮审计 P2-1）：此前 DPP 查询/动作 JS 与页面同世界，页面覆盖 `window.__desireQueryAll` 即可劫持 Agent 的查询结果与动作目标（探针实证）。现在 DPP 全部选择器求值（views/字段、pageAction 步骤、precondition、signals、事件命中检测）运行在隔离 content world `desireDPPTools`——页面无法覆盖函数或猴补 DOM 原型，click/fill/scroll 语义不变（跨世界实证）；协议解析器与 executeJS 按语义留在页面世界。
 **callAsync 位置传参错位（波及全部 dom-tools 函数，多年潜伏）**：`callAsync` 把参数键按字母序作位置实参传给注入函数——形参顺序 ≠ 字母序的函数全部错位（`__desireClick`/`__desireElementRect` 的 ref/text 形态靠 `__desireResolveEl` 的分支兜底掩盖，`__desireSnapshot` 加 ignoreSels 参数后炸出）。改为**按键对象传参**（`fn({a: a, b: b})`），dom-tools 宿主直调函数一律解构形参（内部互调的位置签名不受影响）。
 第三轮审计：`__desireFillProfile` 解构回归修复——该函数唯一调用方是 FormAutofillStore 的**页面世界位置调用** `__desireFillProfile(p)`，上一轮解构签名迁移只核了 callAsync 调用点、漏了 JS 字符串直调，自动填写会被静默破坏（第三轮静态一致性审计抓到）；恢复位置签名并加"⚠️ 不要解构"标注（含 grep 全部调用方的迁移前置要求）。snap_e2e 回归套件扩展到 10 项：补 getTables/getImages/getPageLinks/getComments/fill 五个迁移后无独立覆盖的工具抽查。
+第三轮审计指导落地（单源化/守卫/页面世界减负）：① **选择器穿透辅助单源化**——`DPPQuery.helperJS`（Swift 字符串）与 dom-tools.js 尾部段的双份拷贝收敛为后者单一来源，删除 DPPQuery.swift 与全部 14 处调用点前置（dom-tools 在 agentToolWorld documentStart 常驻，前置本是冗余）；② **callAsync 键名守卫**——非 JS 标识符的参数键直接报错（此前会静默生成坏 JS）；③ **页面世界减负**——dom-tools.js 只注入隔离世界，页面世界仅保留新拆出的 network-tools.js（__desireGetNetworkLog/__desireWaitForNetworkIdle，依赖页面世界网络钩子），autofill/批注恢复/高亮应用三个宿主调用点随之迁入隔离世界（executeJS 用户代码因此不再能引用 __desire* 实现细节）。
+DPP pageExtract 诊断与路径统一：单页分支与分页路径共用 collectPage（此前内联分叉——失败被 try? 吞掉无诊断、行为漂移），抽取失败现在带日志（空 raw/坏 JSON/异常分类可见）；修复单源化过程中误删抽取 JS 的 `return` 导致抽取恒空（回归由线上 SDK E2E 抓到）。
+
+
 
 
 

@@ -13,6 +13,7 @@
 """
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -204,7 +205,26 @@ def js(expr):
 
 # ---------- 主流程 ----------
 
+def require_autoedit():
+    """闸门 E2E 依赖 autoEdit 档——fullAccess 下闸门第一分支全静默放行，
+    B/C 轮会假绿为"无审批直接执行"（三次踩坑后固化为脚本自检）。"""
+    def read(key):
+        try:
+            return subprocess.run(["defaults", "read", "me.siwi.Desire", key],
+                                  capture_output=True, text=True).stdout.strip()
+        except Exception:
+            return ""
+    level, full = read("aiAccessLevel"), read("aiFullAccess")
+    if level != "1" or full == "1":
+        print(f"✗ 访问等级不是 autoEdit（aiAccessLevel={level or '未设'}, aiFullAccess={full or '未设'}）")
+        print("  先执行：defaults write me.siwi.Desire aiAccessLevel -int 1 && "
+              "defaults write me.siwi.Desire aiFullAccess -bool false")
+        print("  然后**重启 app**（init 只在启动时读取），测完恢复原值。")
+        sys.exit(1)
+    print("✓ 访问等级 = autoEdit")
+
 def main():
+    require_autoedit()
     use_daemon = "--use-daemon" in sys.argv
     fixture = None if use_daemon else serve(FIXTURE_PORT, FixtureHandler)
     fake = None if use_daemon else serve(FAKE_PORT, FakeLLMHandler)

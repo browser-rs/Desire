@@ -237,43 +237,6 @@ async function __desireWaitForElement({selector, timeout}) {
 // 0.3.2 页面感知：网络静默——连续 quietMs 无进行中的 XHR/fetch 且无
 // 新增节点变动。用 PerformanceObserver 兜资源加载，MutationObserver 兜
 // SPA 渲染；两者都静默才算 idle。
-async function __desireWaitForNetworkIdle({timeout, quietMs}) {
-    quietMs = quietMs || 500;
-    var start = Date.now();
-    var lastActivity = Date.now();
-    var inflight = 0;
-    var origOpen = XMLHttpRequest.prototype.open;
-    var origSend = XMLHttpRequest.prototype.send;
-    try {
-        XMLHttpRequest.prototype.open = function () {
-            this.addEventListener("loadstart", function () { inflight++; lastActivity = Date.now(); });
-            this.addEventListener("loadend", function () { inflight--; lastActivity = Date.now(); });
-            return origOpen.apply(this, arguments);
-        };
-    } catch (e) {}
-    var origFetch = window.fetch;
-    try {
-        window.fetch = function () {
-            inflight++; lastActivity = Date.now();
-            return origFetch.apply(this, arguments).finally(function () {
-                inflight--; lastActivity = Date.now();
-            });
-        };
-    } catch (e) {}
-    return await new Promise(function (resolve) {
-        function done(why) {
-            try { XMLHttpRequest.prototype.open = origOpen; } catch (e) {}
-            try { window.fetch = origFetch; } catch (e) {}
-            resolve(why);
-        }
-        (function check() {
-            if (Date.now() - start > (timeout || 5000)) return done("Timeout");
-            if (inflight <= 0 && Date.now() - lastActivity >= quietMs) return done("Network idle");
-            setTimeout(check, 100);
-        })();
-    });
-}
-
 // --- DOM inspection (read-only tier) ---
 
 // Structured page snapshot for the AI agent: cleaned main-content text plus
@@ -937,19 +900,6 @@ async function __desireGetPageMeta() {
     });
 }
 
-async function __desireGetNetworkLog({filter, maxItems}) {
-    maxItems = maxItems || 100;
-    var log = (window.__desireNetLog || []);
-    var out = [];
-    for (var i = log.length - 1; i >= 0 && out.length < maxItems; i--) {
-        var entry = log[i];
-        if (!filter || entry.url.toLowerCase().indexOf(String(filter).toLowerCase()) !== -1) {
-            out.push(entry);
-        }
-    }
-    return out.length ? JSON.stringify({ count: out.length, requests: out.reverse() }) : "No requests captured" + (filter ? " matching filter" : "");
-}
-
 
 // --- 0.3.6 智能表单 ---
 
@@ -1112,8 +1062,11 @@ async function __desireCollectHighlights() {
 }
 
 
-// --- DPP 选择器穿透辅助（shadow DOM `>>>` + 同源 iframe；隔离世界常驻，
-// 页面覆盖不到。与 PageProtocol/DPPQuery.swift 保持同一份实现）---
+// --- 选择器穿透辅助（shadow DOM `>>>` + 同源 iframe）——**单一来源**：
+// 本文件向页面世界与 agentToolWorld 双世界注入，工具侧不再前置任何 helper
+// 副本（第三轮审计指导 2：双份拷贝会漂移）。agentToolWorld 的这份是全部
+// DPP/工具查询的依赖；页面世界的这份无人使用（保留至页面世界 dom-tools
+// 注入裁剪）。---
 (function(){
       if (window.__desireQueryAll) return;
       function qAll(root, sel){ return Array.prototype.slice.call(root.querySelectorAll(sel)); }

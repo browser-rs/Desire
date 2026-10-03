@@ -735,7 +735,7 @@ extension BrowserToolProvider {
                 let present: Bool
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
-                        DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(precondition))).length > 0",
+                        "return __desireQueryAll(\(JSString.literal(precondition))).length > 0",
                         arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                     present = (raw as? Bool) == true
                 } catch {
@@ -766,7 +766,7 @@ extension BrowserToolProvider {
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
                     let ok = ((try? await dppWebView.callAsyncJavaScript(
-                        DPPQuery.helperJS + "\n" + js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                        js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -792,8 +792,7 @@ extension BrowserToolProvider {
                             let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
                             try await runStepJS(
-                                DPPQuery.helperJS +
-                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
+                                                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.value = \(valLit);" +
                                 "el.dispatchEvent(new Event('input', {bubbles: true}));" +
@@ -802,8 +801,7 @@ extension BrowserToolProvider {
                         case "click":
                             let selLit = JSString.literal(value)
                             try await runStepJS(
-                                DPPQuery.helperJS +
-                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
+                                                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(value)));" +
                                 "el.click(); 'ok'")
                             executed.append("clicked \(value)")
@@ -811,8 +809,7 @@ extension BrowserToolProvider {
                             let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
                             try await runStepJS(
-                                DPPQuery.helperJS +
-                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
+                                                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.value = \(valLit);" +
                                 "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
@@ -836,8 +833,7 @@ extension BrowserToolProvider {
                         case "hover":
                             let selLit = JSString.literal(value)
                             try await runStepJS(
-                                DPPQuery.helperJS +
-                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
+                                                                "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found');" +
                                 "['mouseover','mouseenter','mousemove'].forEach(function(t){" +
                                 "el.dispatchEvent(new MouseEvent(t, {bubbles: true}));}); 'ok'")
@@ -860,8 +856,7 @@ extension BrowserToolProvider {
                             UploadIntent.shared.arm([uploadURL])
                             let uploadSelLit = JSString.literal(selector)
                             try await runStepJS(
-                                DPPQuery.helperJS +
-                                "\nvar el = __desireQueryAll(\(uploadSelLit))[0];" +
+                                                                "\nvar el = __desireQueryAll(\(uploadSelLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
                                 "el.click(); 'ok'")
                             // 选择器没触发文件选择器时 intent 会残留——之后用户
@@ -1023,7 +1018,8 @@ extension BrowserToolProvider {
             let ignoreSelsJSON = (try? String(data: JSONEncoder().encode(dppTab.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
 
             // 每页抽取 JS：按 item selector 遍历 + fields 路径映射。
-            // 选择器支持 `>>>` 穿透 shadow DOM（DPPQuery 辅助，幂等注入）。
+            // 选择器支持 `>>>` 穿透 shadow DOM（__desireQueryAll 由 dom-tools.js
+            // 在 agentToolWorld documentStart 常驻，单一来源）。
             func extractJS() -> String {
                 var fieldEntries: [String] = []
                 for (name, path) in view.fields {
@@ -1037,16 +1033,28 @@ extension BrowserToolProvider {
                 function isIgnored(el){for(var k=0;k<ignored.length;k++){if(ignored[k].contains(el))return true;}return false;}
 
                 """
-                return DPPQuery.helperJS
-                    + "\nreturn (function(){var items=[];__desireQueryAll(" + itemLit + ").forEach(function(item){try{\(ignoreGuard)if(isIgnored(item))return;items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
+                return
+                    "return (function(){var items=[];__desireQueryAll(" + itemLit + ").forEach(function(item){try{\(ignoreGuard)if(isIgnored(item))return;items.push({" + fieldEntries.joined(separator: ",") + "});}catch(e){}});return JSON.stringify(items);})()"
             }
 
             func collectPage() async -> [[String: Any]] {
-                guard let raw = try? await dppWebView.callAsyncJavaScript(
-                    extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld) as? String,
-                    let data = raw.data(using: .utf8),
-                    let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
-                return items
+                // 失败路径必须可见（此前 try? 吞掉——抽取恒空无诊断）
+                do {
+                    let raw = try await dppWebView.callAsyncJavaScript(
+                        extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld) as? String
+                    guard let raw, let data = raw.data(using: .utf8) else {
+                        Log.agent.info("DPP extract: empty/nil raw")
+                        return []
+                    }
+                    guard let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                        Log.agent.info("DPP extract: bad JSON \(raw.prefix(200), privacy: .public)")
+                        return []
+                    }
+                    return items
+                } catch {
+                    Log.agent.info("DPP extract error: \(error.localizedDescription, privacy: .public)")
+                    return []
+                }
             }
 
             // 截断按**条目数**（不再把 JSON 字符串从中间切断产出非法 JSON）。
@@ -1062,16 +1070,8 @@ extension BrowserToolProvider {
             let paged = paginationType == "paged" && (view.pagination?.next?.isEmpty == false)
             let infinite = paginationType == "infinite"
             if !allPages || (!paged && !infinite) {
-                do {
-                    let raw = try await dppWebView.callAsyncJavaScript(
-                        extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld
-                    ) as? String
-                    guard let raw, let data = raw.data(using: .utf8) else { return Self.fail("Extraction returned empty") }
-                    let items = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
-                    return render(items, pages: 1, scope: "current")
-                } catch {
-                    return Self.fail("Extraction JS error: \(error.localizedDescription)")
-                }
+                // 与分页路径共用 collectPage（此前内联分叉：失败无诊断且行为漂移）
+                return render(await collectPage(), pages: 1, scope: "current")
             }
             // 无限滚动：滚到底 → 等内容增长 → 抽取去重累计；连续两轮无新增
             // 即视为到底（cap 10 轮）。
@@ -1101,8 +1101,8 @@ extension BrowserToolProvider {
                     // 滚动到底：优先条目的可滚动祖先容器（容器内滚动的站点
                     // 此前无效——只滚 window 静默收不到新条目），兜底 window。
                     _ = try? await dppWebView.callAsyncJavaScript(
-                        DPPQuery.helperJS + """
-                        \n(function(){
+                        """
+                        (function(){
                           var el = __desireQueryAll(\(JSString.literal(view.item)))[0];
                           var node = el;
                           while (node && node !== document.documentElement) {
@@ -1139,11 +1139,11 @@ extension BrowserToolProvider {
                 pages += 1
                 if allItems.count >= hardCap { break }
                 _ = try? await dppWebView.callAsyncJavaScript(
-                    DPPQuery.helperJS + "\nvar n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
+                    "var n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
                     arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 let hasNext = ((try? await dppWebView.callAsyncJavaScript(
-                    DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
+                    "return __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
                     arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 if !hasNext { break }
             }

@@ -356,18 +356,23 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 
 **工具求值不得依赖页面可变的全局。** Agent 的全部页面 JS 求值（DPP 选择
 器、`__desireSnapshot`/`__desireClick` 等 dom-tools 函数、`eval` 帮手）
-运行在隔离 content world `desireAgentTools`，`dom-tools.js` 向页面世界与
-隔离世界**双份注入**——页面既不能覆盖查询函数，也不能猴补 DOM 原型来改写
-Agent 的动作目标（此前曾实证：页面世界里一行 `window.__desireQueryAll = …`
-就能劫持）。DOM 跨世界共享，click/fill/scroll 语义不变。
-**留页面世界的例外**：协议解析器（读页面的 `window.desire` /
-`__desireProtocolExposed`）、**executeJS**（语义就是页面上下文执行）、
-**getNetworkLog / waitForElement(networkIdle)**（依赖 network-monitor 在
-页面世界的 `__desireNetLog` 与 XHR/fetch 猴补）。
+运行在隔离 content world `desireAgentTools`——**dom-tools.js 只注入该世
+界**（第三轮指导 4：页面世界不再注入，页面覆盖/猴补从根上不可达）。DOM
+跨世界共享，click/fill/scroll 语义不变。
+**留页面世界的例外**（各自有独立脚本/语义）：协议解析器（读页面的
+`window.desire` / `__desireProtocolExposed`）、**executeJS**（语义就是
+页面上下文执行）、**network-tools.js**（`__desireGetNetworkLog` 读
+network-monitor 的页面世界状态、`__desireWaitForNetworkIdle` 猴补页面
+XHR/fetch）。
 **配套约定**：`callAsync` 以**按键对象**传参（`fn({a: a, b: b})`），
-dom-tools 宿主直调函数一律解构形参——此前按字母序位置传参，形参顺序 ≠
-字母序的函数全部错位（`__desireSnapshot` 加参后炸出，`__desireClick` 的
-ref/text 形态靠 resolveEl 兜底掩盖多年）。
+dom-tools 宿主直调函数一律解构形参（键名守卫：非 JS 标识符直接报错）；
+**改 dom-tools 函数签名前必须 grep 全部调用方**——存在页面世界 JS 字符串
+位置调用的函数（如 `__desireFillProfile`，唯一调用方 FormAutofillStore）
+**不得解构**，定义处标 `⚠️ 不要解构`。选择器穿透辅助（`__desireQueryAll`）
+**单一来源** = dom-tools.js 尾部段（向 agentToolWorld 常驻），调用点不再
+前置副本；跨世界求值一律 `callAsyncJavaScript(contentWorld:)`
+（`evaluateJavaScript(_:in:in:)` 不回传完成值），数组参数走 JSON 字符串
+（arguments 桥接不认 Swift 数组），JS 体必须有 `return`（无 return 恒 nil）。
 
 ### 6.3 注入防护
 

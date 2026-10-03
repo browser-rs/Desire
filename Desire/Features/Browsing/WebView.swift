@@ -1609,7 +1609,10 @@ struct WebView: NSViewRepresentable {
                 }
             }
             if parent.formAutofillStore.isConfigured {
-                webView.evaluateJavaScript(parent.formAutofillStore.fillScript, completionHandler: nil)
+                // 隔离世界求值（__desireFillProfile 是 dom-tools 的隔离世界成员；
+                // 页面世界已不再注入 dom-tools）
+                webView.evaluateJavaScript(parent.formAutofillStore.fillScript, in: nil,
+                                           in: WebView.agentToolWorld, completionHandler: nil)
             }
             // 页面批注恢复（0.3.7）：按 URL 文本锚定重新包裹高亮。
             // R2-13：首见 URL 的读盘（DiskStore.load 同步 IO）挪后台任务，
@@ -1622,8 +1625,11 @@ struct WebView: NSViewRepresentable {
                     guard !highlights.isEmpty,
                           let data = try? JSONSerialization.data(withJSONObject: highlights),
                           let json = String(data: data, encoding: .utf8) else { return }
-                    _ = try? await webView.evaluateJavaScript(
-                        "__desireRestoreHighlights(\(json))")
+                    // evaluateJavaScript(_:in:in:) 只有完成式形式（无 async/throws
+                    // 重载——await/try? 都会触发 UnnecessaryEffectMarker 警告）
+                    webView.evaluateJavaScript(
+                        "__desireRestoreHighlights(\(json))", in: nil,
+                        in: WebView.agentToolWorld, completionHandler: nil)
                 }
             }
             // 混合内容扫描（0.2.15 加固）：https 页面统计 http:// 子资源。

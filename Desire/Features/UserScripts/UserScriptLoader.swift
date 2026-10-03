@@ -49,13 +49,14 @@ enum UserScriptLoader {
         add("media-sniffer", at: .atDocumentStart)
         // DevTools ▸ Network：子资源计时 + fetch/XHR 钩子（见脚本头注释）。
         add("network-monitor", at: .atDocumentStart)
-        add("dom-tools", at: .atDocumentStart)
-        // 同一份函数注入 Agent 工具隔离世界（WebView.agentToolWorld）——工具
-        // 求值与页面世界隔离，页面覆盖页面世界的同名函数影响不到工具（第二轮
-        // 审计 P2-1）。页面世界副本保留：getNetworkLog/waitForNetworkIdle 依赖
-        // network-monitor 的页面世界状态。
+        // dom-tools.js **只进隔离世界**（agentToolWorld）——页面世界不再注入
+        // （第三轮审计指导 4：页面世界副本自工具求值迁移后只剩死代码；executeJS
+        // 用户代码因此不再能引用 __desire* 函数——它们本就是实现细节）。
+        // 页面世界仅保留 network-tools.js（__desireGetNetworkLog 读 network-monitor
+        // 的页面世界状态；__desireWaitForNetworkIdle 猴补页面 XHR/fetch）。
         scripts.append(WKUserScript(source: load("dom-tools"), injectionTime: .atDocumentStart,
                                      forMainFrameOnly: false, in: WebView.agentToolWorld))
+        add("network-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)
         add("password-detect", at: .atDocumentEnd)

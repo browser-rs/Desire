@@ -230,8 +230,9 @@ final class HeadlessMediaResolver: NSObject {
         scanTask = Task { [weak self] in
             guard let self else { return }
             let body = "return await __desireScanMedia()"
+            // dom-tools 只在隔离世界（页面世界不再注入）
             let payload = (try? await self.webView.callAsyncJavaScript(
-                body, arguments: [:], in: nil, contentWorld: .page
+                body, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld
             ) as? String) ?? ""
             self.absorbScanPayload(payload)
         }

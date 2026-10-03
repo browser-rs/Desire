@@ -65,6 +65,13 @@ class BrowserToolProvider {
         // ≠ 字母序的函数全部中招——__desireSnapshot 加 ignoreSels 后炸出；
         // __desireClick 的 ref/text 形态靠 resolveEl 兜底掩盖多年）。对象
         // 字面量按键传，与形参顺序无关；dom-tools 宿主直调函数一律解构形参。
+        // 键必须是合法 JS 标识符——否则对象字面量直接生成坏 JS（静默语法错）。
+        let invalidKeys = args.keys.filter {
+            $0.range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) == nil
+        }
+        guard invalidKeys.isEmpty else {
+            return "Error: callAsync argument key(s) \(invalidKeys.sorted()) are not valid JS identifiers — fix the call site"
+        }
         let namedArgs = args.keys.map { "\($0): \($0)" }.sorted().joined(separator: ", ")
         let body = "return await \(function)({ \(namedArgs) });"
         do {

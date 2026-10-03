@@ -325,6 +325,7 @@ struct SelectedTabContent: View {
                                         }
                                         tab.browser.webView.evaluateJavaScript(
                                             "__desireApplyHighlight(\(colorIndex))",
+                                            in: nil, in: WebView.agentToolWorld,
                                             completionHandler: nil)
                                         tab.browser.selectionAI = nil
                                     }

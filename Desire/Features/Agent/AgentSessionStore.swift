@@ -962,8 +962,8 @@ class AgentSessionStore: ObservableObject {
             if !dpp.events.isEmpty, let wv = activeWebView {
                 var eventHits: [String] = []
                 for (eventName, selector) in dpp.events {
-                    let checkJS = DPPQuery.helperJS + "\nreturn __desireQueryAll(\(JSString.literal(selector))).length > 0"
-                    // 隔离世界求值（页面覆盖不了我们的查询函数）；helper 的 return 语义见 DPPQuery 注释
+                    let checkJS = "return __desireQueryAll(\(JSString.literal(selector))).length > 0"
+                    // 隔离世界求值（helper 由 dom-tools.js 在该世界 documentStart 常驻）
                     let raw = try? await wv.callAsyncJavaScript(
                         checkJS, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
                     if (raw as? Bool) == true {

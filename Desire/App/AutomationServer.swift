@@ -817,6 +817,8 @@ final class AutomationServer {
                 let dppHost = session.boundTabManager?.selectedTab?.browser.webView.url?.host ?? ""
                 return try Self.json([
                     "declared": true, "version": dpp.protocolVersion,
+                    "profile": dpp.profile ?? "",
+                    "pages": dpp.pages.count,
                     "pageType": dpp.pageType ?? "", "contentMain": dpp.contentMain ?? "",
                     "ignore": dpp.ignore, "views": views,
                     "signals": dpp.signals,

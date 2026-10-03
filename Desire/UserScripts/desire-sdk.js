@@ -93,6 +93,34 @@
                     if (!a.run) warnings.push("action '" + a.name + "' missing run steps");
                 }
             }
+            // Profile 契约检查（规范 §5）：声明 profile = 承诺必选原语存在
+            var PROFILE_REQUIRED = {
+                chat:      { views: ["conversations", "activeThread"], actions: ["send-message"], events: ["new-message"] },
+                catalog:   { views: ["items"], actions: ["search"] },
+                forms:     { views: ["formFields"], actions: ["submit"] },
+                checkout:  { views: ["cart", "orderSummary"], actions: ["place-order"] },
+                monitor:   {},
+                workbench: { views: ["records"] }
+            };
+            if (p.profile) {
+                var need = PROFILE_REQUIRED[p.profile];
+                if (!need) {
+                    warnings.push("unknown profile '" + p.profile + "' — no standard contract to follow");
+                } else {
+                    var viewKeys = Object.keys(p.views || {});
+                    var actionNames = (p.actions || []).map(function(x) { return x.name; });
+                    var eventKeys = Object.keys(p.events || {});
+                    (need.views || []).forEach(function(v) {
+                        if (viewKeys.indexOf(v) === -1) warnings.push("profile '" + p.profile + "' requires view '" + v + "'");
+                    });
+                    (need.actions || []).forEach(function(an) {
+                        if (actionNames.indexOf(an) === -1) warnings.push("profile '" + p.profile + "' requires action '" + an + "'");
+                    });
+                    (need.events || []).forEach(function(ev) {
+                        if (eventKeys.indexOf(ev) === -1) warnings.push("profile '" + p.profile + "' requires event '" + ev + "'");
+                    });
+                }
+            }
             return { valid: true, warnings: warnings, views: Object.keys(p.views || {}) };
         },
 

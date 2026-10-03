@@ -941,6 +941,9 @@ extension BrowserToolProvider {
             guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.effectiveProtocol else { return "This page does not declare a DPP protocol." }
             let siteLevel = surface.tabManager?.selectedTab?.browser.siteProtocol != nil
             var lines = ["Protocol: \(protocolSnapshot.protocolVersion)\(siteLevel ? " (includes site-level /.well-known/desire.json declarations)" : "")"]
+            if let profile = protocolSnapshot.profile {
+                lines.append("Profile: \(profile) — follow the standard '\(profile)' conventions for view/action/event names (spec §5)")
+            }
             if let main = protocolSnapshot.contentMain { lines.append("Main content: \(main)") }
             if !protocolSnapshot.views.isEmpty {
                 lines.append("Views (use pageExtract):")

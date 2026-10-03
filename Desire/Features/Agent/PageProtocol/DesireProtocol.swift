@@ -16,8 +16,15 @@ import Foundation
 /// 或数组（domain: [...]）就整份静默丢弃（实测探针复现）。
 struct DesireProtocol: Codable, Equatable {
     var protocolVersion: String = "desire/1"
+    /// 场景约定名（chat/catalog/forms/checkout/monitor/workbench）——运行
+    /// 时会透传给 Agent（"见 profile 名即知标准语义"，规范 §5）；页面未声明
+    /// 时可经站点级页面地图（pages）回退补全。
+    var profile: String? = nil
     /// 页面类型（chat/catalog/forms/workbench…自由标注，仅供参考）。
     var pageType: String? = nil
+    /// 站点级页面地图（仅 well-known 声明使用）：路径模式 → 页面提示。
+    /// 支持精确匹配与 `前缀*` 前缀匹配（更具体的先试）。
+    var pages: [String: PageMapEntry] = [:]
     /// 正文选择器：getPageText 语义下"内容在哪"，排除导航/页脚噪音。
     var contentMain: String? = nil
     /// 明确的噪音排除（导航/页脚/横幅）。
@@ -71,6 +78,7 @@ struct DesireProtocol: Codable, Equatable {
             }
             merged.contentMain = merged.contentMain ?? s.contentMain
             merged.pageType = merged.pageType ?? s.pageType
+            merged.profile = merged.profile ?? s.profile
             for (key, value) in s.context where merged.context[key] == nil {
                 merged.context[key] = value
             }
@@ -109,6 +117,26 @@ struct DesireProtocol: Codable, Equatable {
         var success: String?
     }
 
+    /// 站点级页面地图条目（well-known 的 pages 值）。
+    struct PageMapEntry: Codable, Equatable {
+        var type: String?
+        var profile: String?
+    }
+
+    /// 页面地图匹配：先精确命中，再长前缀优先的 `前缀*` 模式。
+    func pageMapProfile(for path: String) -> String? {
+        if let exact = pages[path]?.profile { return exact }
+        var best: (len: Int, profile: String)?
+        for (pattern, entry) in pages where pattern.hasSuffix("*") {
+            let prefix = String(pattern.dropLast())
+            guard path.hasPrefix(prefix), let profile = entry.profile else { continue }
+            if best == nil || prefix.count > best!.len {
+                best = (prefix.count, profile)
+            }
+        }
+        return best?.profile
+    }
+
     struct ProtocolParam: Codable, Equatable {
         var type: String?
         var description: String?
@@ -121,8 +149,8 @@ struct DesireProtocol: Codable, Equatable {
 extension DesireProtocol {
 
     private enum CodingKeys: String, CodingKey {
-        case protocolVersion, pageType, contentMain, ignore, views
-        case signals, actions, events, context, warnings
+        case protocolVersion, profile, pageType, contentMain, ignore, views
+        case signals, actions, events, context, warnings, pages
     }
 
     /// 宽松 JSON 值：任何 JSON 结构都能落下，字段级失败返回 .null 而非抛错。
@@ -205,7 +233,19 @@ extension DesireProtocol {
         var warnings: [String] = []
         self.init()
         if let v = Self.optString(c, .protocolVersion) { protocolVersion = v }
+        profile = Self.optString(c, .profile)
         pageType = Self.optString(c, .pageType)
+        // pages：逐条容错解码（站点级页面地图）
+        if let rawPages = try? c.decodeIfPresent([String: DPPValue].self, forKey: .pages) {
+            for (pattern, value) in rawPages {
+                guard let entryData = try? JSONEncoder().encode(value),
+                      let entry = try? JSONDecoder().decode(PageMapEntry.self, from: entryData) else {
+                    warnings.append("pages['\(pattern)'] skipped: structure not decodable")
+                    continue
+                }
+                pages[pattern] = entry
+            }
+        }
         contentMain = Self.optString(c, .contentMain)
         ignore = Self.optStringArray(c, .ignore)
         // views：逐视图解码——单个视图结构坏只丢该视图。

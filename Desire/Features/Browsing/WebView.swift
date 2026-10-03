@@ -86,8 +86,15 @@ class BrowserState: ObservableObject {
     /// 拉取——渐进，不把每次导航升级成站点指纹探针）。消费走 effectiveProtocol。
     var siteProtocol: DesireProtocol? = nil
     /// 站点级 + 页面级合并视图：页面级字段优先，context 逐键覆盖。
+    /// profile 缺省时经站点级页面地图（pages）按当前路径回退补全。
     var effectiveProtocol: DesireProtocol? {
-        DesireProtocol.merged(site: siteProtocol, page: pageProtocol)
+        var merged = DesireProtocol.merged(site: siteProtocol, page: pageProtocol)
+        if var m = merged, m.profile == nil, let path = webView.url?.path,
+           let hint = siteProtocol?.pageMapProfile(for: path) {
+            m.profile = hint
+            merged = m
+        }
+        return merged
     }
     /// 插件消息 handler（extensionWorld + per-plugin world）是否已注册——
     /// Coordinator.observe() 置位、stopObserving() 复位。新 webview 的首次

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://desire.mankong.icu/dpp-schema.json",
+  "title": "Desire Page Protocol declaration (desire/1)",
+  "description": "DPP 声明（页面级 x-desire+json 块 / 站点级 well-known / SDK expose 同一 schema）。演进规则：新增字段可选、未知字段必须忽略、单字段失败不得失败整份（见规范 §4.0）。",
+  "type": "object",
+  "properties": {
+    "protocol": { "type": "string", "pattern": "^desire/[0-9]+$" },
+    "profile": { "enum": ["chat", "catalog", "forms", "checkout", "monitor", "workbench"] },
+    "page": { "type": "object", "properties": { "type": { "type": "string" } } },
+    "content": {
+      "type": "object",
+      "properties": {
+        "main": { "type": "string" },
+        "ignore": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "signals": { "type": "object", "additionalProperties": { "type": "string" } },
+    "views": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["item"],
+        "properties": {
+          "item": { "type": "string", "minLength": 1 },
+          "fields": { "type": "object", "additionalProperties": { "type": "string" } },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "type": { "enum": ["paged", "infinite", "none"] },
+              "next": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "required": { "type": "boolean" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "precondition": { "type": "string" },
+          "run": { "type": "array", "items": { "type": "object" } },
+          "effects": { "enum": ["local", "persist", "outbound"] },
+          "danger": { "type": "boolean" },
+          "success": { "type": "string" }
+        }
+      }
+    },
+    "events": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "required": ["watch"],
+            "properties": {
+              "watch": { "type": "string", "minLength": 1 },
+              "debounce": { "type": "number" },
+              "on": { "enum": ["text-change", "appear"] }
+            }
+          }
+        ]
+      }
+    },
+    "context": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "array"] } },
+    "pages": {
+      "type": "object",
+      "description": "站点级（well-known）页面地图：路径模式（精确或 前缀*）→ 页面提示",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "profile": { "enum": ["chat", "catalog", "forms", "checkout", "monitor", "workbench"] }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

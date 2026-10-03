@@ -59,8 +59,19 @@ def main():
         check("well-known 已合并（inspect 提示 site-level）", "site-level" in proto_text)
         check("站点级动作补齐（site-action 可见）", "site-action" in proto_text)
         check("页面级动作保留", "upload-report" in proto_text)
+        check("页面地图回退 profile（/upload → forms）", "Profile: forms" in proto_text)
 
-        # upload 步骤：UploadIntent + 点击 file input
+        # 页面自声明 profile（/im 声明 chat）
+        bridge("POST", "/navigate", body={"url": "http://127.0.0.1:8877/im"})
+        time.sleep(2)
+        before = run_case("DPPPROTO 查协议")
+        proto_chat = tool_text(bridge("GET", "/agent/messages"))
+        check("页面自声明 profile（/im → chat）", "Profile: chat" in proto_chat)
+
+        # upload 步骤：UploadIntent + 点击 file input（先回到 /upload——上一轮
+        # 的 /im profile 检查把页面留在 IM 页了）
+        bridge("POST", "/navigate", body={"url": "http://127.0.0.1:8877/upload"})
+        time.sleep(1.5)
         before = run_case("DPPUPLOAD 上传报告")
         up = tool_text(bridge("GET", "/agent/messages"))
         check("upload 步骤执行（uploaded via #file）", "uploaded" in up and "via #file" in up)

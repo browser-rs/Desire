@@ -10,7 +10,7 @@
 return (function() {
     var warnings = [];
     function empty() {
-        return { protocolVersion: "desire/1", pageType: null, contentMain: null,
+        return { protocolVersion: "desire/1", profile: null, pageType: null, contentMain: null,
                  ignore: [], views: {}, signals: {}, actions: [], events: {}, context: {} };
     }
 
@@ -22,6 +22,7 @@ return (function() {
         if (!src || typeof src !== "object") return out;
         if (src.protocolVersion) out.protocolVersion = src.protocolVersion;
         else if (src.protocol) out.protocolVersion = src.protocol; // 规范键名是 protocol
+        if (typeof src.profile === "string") out.profile = src.profile;
         if (src.page && src.page.type) out.pageType = src.page.type;
         else if (src.pageType) out.pageType = src.pageType;
         if (src.content && src.content.main) out.contentMain = src.content.main;

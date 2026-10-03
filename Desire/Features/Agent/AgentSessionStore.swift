@@ -939,6 +939,9 @@ class AgentSessionStore: ObservableObject {
         // 到上下文，模型看到就知道页面有新审批/新消息等需要响应）。
         if let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol, !dpp.isEmpty {
             var dppLines: [String] = []
+            if let profile = dpp.profile {
+                dppLines.append("Profile: \(profile) (standard section-§5 conventions apply to view/action/event names)")
+            }
             if !dpp.views.isEmpty {
                 dppLines.append("Views (pageExtract): " + dpp.views.map { name, view -> String in
                     "\(name)(fields: \(view.fields.keys.sorted().joined(separator: ", ")))"

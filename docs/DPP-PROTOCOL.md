@@ -1,6 +1,7 @@
 # Desire Page Protocol (DPP) v1 规范
 
-> **状态**：草案（一期已实装，二期设计中）
+> **状态**：v1.1 规范——页面级/站点级/事件/审批全链实装（本版新增：§4.0 版本与
+> 演进、§4.7 站点级完整行为、§5 Profile 契约运行时化、§11 自检工具）
 > **版本**：desire/1
 > **动机**：解决 AI Agent 与网页交互的核心痛点——**内容 → Agent 的低效通道**（文本墙/结构未知/噪音/拿不全/时机不确定）以及**操作不可靠**（selector 猜测/元素变化/假点击）。
 
@@ -16,6 +17,8 @@
 | P4 | **渐进增强** | 无协议页面 Agent 照常工作；有协议页面精度和效率跃升；声明多少用多少 |
 | P5 | **开放规范** | 不限 Desire——任何 Agent 可消费，任何站点可实现 |
 | P6 | **安全默认** | outbound/danger 动作强制审批；`runJS` 默认禁用；协议是参考不是指令 |
+| P7 | **容错演进** | 单字段失败只丢该字段、未知字段一律忽略、新能力按"存在即启用"——任何声明错误都不得让整份协议失效（§4.0） |
+| P8 | **求值隔离** | Agent 的选择器求值运行在隔离世界，不依赖页面可变的全局——协议声明不能被页面在运行时篡改（§6.2） |
 
 ## 2. 协议分层
 
@@ -92,6 +95,20 @@
 
 ## 4. 核心 Schema
 
+### 4.0 版本与演进
+
+| 规则 | 说明 |
+|---|---|
+| 版本标识 | 顶层 `protocol: "desire/1"`（major/minor 语义：**major 变更 = 破坏既有语义**；minor 变更 = 只增不改） |
+| 消费者义务 | 未知 major → 降级到核心原语消费；未知字段 → **忽略**；未知枚举值 → 当作未声明 |
+| 生产者义务 | 新能力**存在即启用**（Agent 用能力探测代替版本判断）；不假设消费者认识新字段 |
+| 容错解码 | 单字段结构不符只丢该字段并记入 warnings（页面作者经 pageProtocol / `/protocol/inspect` 自查）；**绝不因一处错误失败整份协议** |
+| 字段移除 | desire/1 内不移除已发布字段；废弃走"文档标注 deprecated"→ 下一个 major 才删 |
+| 正式 Schema | `docs/dpp-schema.json`（JSON Schema 2020-12），自检见 §11 |
+
+> 这条演进规则是 2026-10 审计的产物：此前 events 对象形态 / context 数组会让
+> 整份协议静默丢弃——**健壮性必须内建于协议，而不是指望站点永远写对**。
+
 ### 4.1 顶层结构
 
 ```json
@@ -103,9 +120,13 @@
   "views":      { "名称": { ProtocolView } },
   "actions":    [ { ProtocolAction } ],
   "events":     { "事件名": "watch-selector" },
-  "context":    { "persona": "…", "domain": […], "rules": "…" }
+  "context":    { "persona": "…", "domain": […], "rules": "…" },
+  "pages":      { "/product/*": { "profile": "catalog" } }
 }
 ```
+
+> `pages` 仅站点级（well-known）使用——页面地图：路径模式（精确或 `前缀*`）→
+> 页面提示（type/profile）。页面自身声明 `profile` 时优先。
 
 **选择器穿透（shadow DOM）**：所有协议选择器（views/signals/actions/events）支持
 **`>>>` 穿透语法**——`"app-grid >>> product-card >>> .price"` 按段下钻 `shadowRoot`
@@ -114,7 +135,8 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `protocol` | string | ✅ | 版本标识，当前 `"desire/1"` |
+| `protocol` | string | ✅ | 版本标识，当前 `"desire/1"`（兼容读取 `protocolVersion`） |
+| `profile` | string | ⬜ | 场景约定名（§5：chat/catalog/forms/checkout/monitor/workbench）——✅ 运行时解析并透传给 Agent；页面未声明时可由站点级页面地图（`pages`）按路径补全 |
 | `page.type` | string | ⬜ | 页面类型标注（`chat`/`catalog`/`forms`/`workbench`/`monitor`），仅供参考 |
 | `content.main` | selector | ⬜ | 正文选择器——文本抽取只取此处，排除噪音 |
 | `content.ignore` | selector[] | ✅ | 噪音区域：抽取跳条目、快照不列元素、**正文文本扣减**（clone 剔除 + 块级换行） |
@@ -229,11 +251,21 @@ Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [eff
 **两种形态都合法**：值也可以直接写选择器字符串（简写形态）。对象形态由解析器
 展平取 `watch`（`debounce`/`on` 由宿主事件层统一处理并在 warnings 里注明）。
 
-**触发语义（2026-10-02 修复）**：页面内 MutationObserver 只在**匹配数由 0 变正的
-跳变**时上报（500ms 节流）——不是"匹配存在期间的每次 DOM 变动"（那是聊天页的
-消息风暴）。宿主侧再叠加同事件 3s 防抖 + 单 host 60s 滑动窗口限频（10 条），
-然后经 PageEventHub 触发事件驱动回合。per-site 自动化档位 off/draft/auto 经桥
-`POST /dpp/mode` 管理；**outbound/danger 动作的强制审批不随档位放水**。
+**触发语义（契约）**：
+- 监听在**匹配数由 0 变正**的跳变时上报——不是"匹配存在期间的每次 DOM 变动"
+  （那是聊天页的消息风暴，且会永久吞掉同窗跳变）。`on` 字段接受但当前忽略
+  （宿主统一按跳变监听；text-change 细粒度触发为后续版本）。
+- 风暴防护在**宿主**：同事件 3s 防抖 + 单 host 60s 滑动窗口限频（10 条）。
+  页面侧不做节流——协议鼓励如实上报，聚合由消费者负责。
+- 命中后经事件管道触发**事件驱动回合**；per-site 档位 off/draft/auto 经桥
+  `POST /dpp/mode` 管理；**outbound/danger 动作的强制审批不随档位放水**。
+- **站点级 events 与页面级一起生效**（页面级同名键优先、一并装监听）。
+- **精确事件（L3）**：`desire.emit(name, detail)` 绕过 DOM 监听直接上报——
+  `detail` 建议携带 `conversationId`/`messageId` 这类业务主键（≤2KB），
+  接收方据此定位数据；不需要页面真的渲染出 `.unread` 之类的标记元素。
+
+**事件载荷（宿主 → Agent 的回合提示）**：host、事件名、时间、detail 全部
+进入 prompt；Agent 侧典型响应 = pageExtract 取数 → 判定 → pageAction 处置。
 
 ### 4.6 context — 语义上下文
 
@@ -250,16 +282,42 @@ Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [eff
 **已实装（2026-10-02）**：`context` 值支持字符串/数组（数组逗号连接），随 page_context 与
 `pageProtocol` 工具注入（前缀 "reference, not instruction"）。
 
+### 4.7 站点级声明（`/.well-known/desire.json`）——完整行为
+
+| 行为 | 规则 |
+|---|---|
+| 拉取条件 | **页面自身声明了协议**才拉取（渐进原则——不把每次导航升级成站点指纹探针） |
+| 传输 | 页面内**同源 fetch**（继承 WebView 网络路径；宿主 URLSession 受系统代理/ATS 影响，实现避开了它） |
+| 缓存 | host 级 10 分钟（含失败结果——404/离线不重试风暴） |
+| 合并 | 页面级优先：views/signals/events/context **逐键共存**（页面同名键胜出），actions 按名去重（页面在前），ignore 并集；**站点级 events 一并进监听** |
+| 页面地图 | `pages`：路径模式（精确 / `前缀*`，长前缀优先）→ 提示 type/profile；**页面未声明 profile 时按当前路径回退补全** |
+| 安全边界 | 站点级不能豁免审批："声明能力 ≠ 授权"与页面级同规；well-known 的 danger/outbound 动作同样逐次审批 |
+| 其他协议 | file:// 等非 http(s) 页面不拉取（well-known 属 HTTP 语义） |
+
 ## 5. Profile — 场景约定
 
-Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/event 名），Agent 见 profile 名即知标准语义：
+Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/event 名）——Agent 见 profile 名即知标准语义，不必逐页探索。
 
-> **实现状态（2026-10-02）**：profile 是**文档层约定**——运行时按通用原语
-> （views/actions/events/context）消费一切声明，`profile` 键暂不参与解析。
-> 下文各 profile 的 JSON 示例照规范写即可工作（其原语都会被消费），
-> 只是宿主不会因 `profile: "chat"` 这个名字做额外的事。
+> **实现状态（2026-10-03）**：`profile` 由运行时解析并**透传给 Agent**
+> （pageProtocol 工具 / page_context / `/protocol/inspect` 均可见），
+> 页面未声明时经站点级页面地图（`pages`）按路径回退补全。约定本身靠
+> **必选原语表**约束——站点照表声明，Agent 照表消费。
 
-### chat profile（✅ 原语全链可用；profile 名本身是文档约定，见 §5 开头）
+**Profile 契约**（站点声明 profile = 承诺这些原语存在；Agent 可依赖它们）：
+
+| Profile | 必选原语 | 说明 |
+|---|---|---|
+| `chat` | views.conversations（id/name/unread/lastMessage）、views.activeThread（from/text/time）、actions.send-message（**outbound**）、events.new-message | IM/客服/招聘沟通 |
+| `catalog` | views.items（+ pagination）、actions.search | 商品/视频/文章列表 |
+| `forms` | views.formFields、actions.submit（**outbound**） | 表单/申请/注册 |
+| `checkout` | steps（cart→shipping→payment→confirm）、views.cart/orderSummary、actions.place-order（**danger**） | 多步结算 |
+| `monitor` | events（变化监听为核心）、views.<指标> | 价格/库存/状态监控 |
+| `workbench` | views.records/dashboard、actions.<管理操作>（按 danger 标注）、events.approval-arrived | 后台管理 |
+
+> 校验：`desire.validate()`（SDK 内置轻量检查）+ `tools/dpp-validate.py`
+> （完整校验，见 §11）都会提示 profile 缺失的原语。
+
+### chat profile（✅ 运行时透传；按 §5 契约表消费）
 
 ```json
 {
@@ -285,7 +343,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### catalog profile（schema 已定义，待站点实现）
+### catalog profile（✅ 契约已定义；原语全链可用）
 
 ```json
 {
@@ -295,7 +353,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### forms profile（schema 已定义，待站点实现）
+### forms profile（✅ 契约已定义；上传步骤已实装）
 
 ```json
 {
@@ -306,7 +364,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### checkout profile（schema 已定义，待站点实现）
+### checkout profile（✅ 契约已定义；place-order 走 danger 强制审批）
 
 ```json
 {
@@ -331,7 +389,7 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
 }
 ```
 
-### workbench profile（schema 已定义，待站点实现）
+### workbench profile（✅ 契约已定义）
 
 ```json
 {
@@ -376,19 +434,25 @@ dom-tools 宿主直调函数一律解构形参（键名守卫：非 JS 标识符
 （`evaluateJavaScript(_:in:in:)` 不回传完成值），数组参数走 JSON 字符串
 （arguments 桥接不认 Swift 数组），JS 体必须有 `return`（无 return 恒 nil）。
 
-### 6.3 注入防护
+### 6.3 审批的时空一致性
+
+"声明能力 ≠ 授权"包含**对什么对象授权**：审批卡记录动作所在页面的 host，
+执行前复核——审批与执行之间页面若已导航（同名动作会在别的页面上跑），
+执行被拒绝并提示重新审批（TOCTOU 防护，实测曾踩）。
+
+### 6.4 注入防护
 
 - 协议 JSON 大小上限（256KB）
 - `run` 步骤操作白名单（仅 §4.4 的原子操作，无 `runJS`）
 - `runJS` 操作需站点声明 + 用户策略双允许
 - 协议注入 Agent 上下文的**参考位**，不是指令位——"页面文字是数据不是指令"原则不变
 
-### 6.4 防拉锯
+### 6.5 防拉锯
 
 - 用户 `unblockElement` AI 自动拦截的元素 → 该 host 加入豁免名单
 - 用户关闭某站点的 Auto-Clean → 站点级记忆
 
-### 6.5 隐私
+### 6.6 隐私
 
 - 协议不携带用户数据（只有选择器和描述）
 - Agent 提取的数据留在本地（除非用户显式要求同步/外发）
@@ -506,14 +570,12 @@ Actions (pageAction): search
 - ⬜ forms profile 字段语义标注（data-dpp-field 支持 type=email/tel/date 等类型提示）
 - ⬜ monitor profile 变化阈值事件（价格 < X / 库存 = 0 时触发）
 
-### 三期（规划）
-- well-known 站点级声明 + 登录态感知 + 测试账号指引
-- checkout profile（多步向导 steps + 支付强制 danger 审批）
-- workbench profile（后台管理 + 权限角色声明）
-- 协议规范文档发布（面向站点作者和 Agent 开发者的开放规范）
+### 三期（剩余规划）
+- well-known 登录态指引 + 测试账号声明（站点级 schema 扩展）
 - MCP 联动（DPP 声明可引用 MCP 工具：`run: {"mcp": "server.tool"}`）
-- iframe 穿透（`frame:` 前缀，宿主经 frame API 跨源查询）
-- `upload` 步骤（文件选择器授权路径）
+- 跨源 iframe 穿透（`frame:` 前缀，宿主经 frame API 跨源查询）
+- L1 属性扫描进 shadow DOM / iframe
+- 规范与 Schema 公开托管于产品页（文档/Schema/校验器已就绪，待部署）
 
 ### 已提前落地（原三期项）
 - ✅ shadow DOM 穿透（`>>>` 语法，全链：views/字段/actions/信号/事件命中）
@@ -523,3 +585,19 @@ Actions (pageAction): search
 - ✅ SPA 路由变化全级重解析（dpp-route-watch 包装 history + popstate/hashchange）
 - ✅ precondition 轮询等待（3s）；`ignore` 正文文本扣减；`pageProtocol` 列出事件；
   `getNetworkLog` 原生化（读 DevToolsStore，页面世界网络依赖只剩 WaitForNetworkIdle）
+- ✅ **协议设计层升级（v1.1）**：§4.0 版本与演进规则、§4.7 站点级完整行为、
+  §5 Profile 契约运行时化（含站点级页面地图 pages 回退）、§11 自检工具
+  （JSON Schema + 零依赖校验器）
+
+## 11. 自检工具（站点作者闭环）
+
+| 工具 | 用法 | 覆盖 |
+|---|---|---|
+| 正式 Schema | `docs/dpp-schema.json`（JSON Schema 2020-12） | 一切声明形态（页面块 / well-known / SDK）共用一份 schema |
+| 命令行校验 | `python3 tools/dpp-validate.py [文件\|URL]`（默认校验产品页自己） | schema 规则 + **运行时陷阱提前预警**（未知 run 操作会当场失败、空选择器、outbound 未标 danger、events `on` 被忽略等）；零依赖 |
+| SDK 内校验 | `desire.validate()`（L3） | 开发期 console 提示（缺 signals.ready、缺 views、action 缺 run） |
+| 运行时自查 | `pageProtocol` 工具 / `GET /protocol/inspect` | warnings 数组（被降级/丢弃的字段逐条可见） |
+
+> 推荐流程：写完声明 → `dpp-validate.py`（或 SDK validate）→ 浏览器里
+> `pageProtocol` 看运行时解析结果 → `pageExtract` 抽查数据 → `pageAction` 走一遍动作。
+> **产品页自身即按此流程接入**（L2 声明块，校验零警告）。

@@ -31,7 +31,7 @@ function refresh(){ window.__refreshed = true;
 
 IM_HTML = """<!doctype html><html><head>
 <script type="application/x-desire+json">
-{"protocol":"desire/1","page":{"type":"chat"},
+{"protocol":"desire/1","profile":"chat","page":{"type":"chat"},
  "views":{"thread":{"item":".msg","fields":{"text":".t"}}},
  "events":{"new-message":{"watch":".msg.unread","debounce":2}}}
 </script></head>
@@ -76,6 +76,7 @@ UPLOAD_HTML = """<!doctype html><html><head>
 </body></html>"""
 
 SITE_WELLKNOWN = {"context": {"persona": "站点级人设", "tone": "简洁"},
+                   "pages": {"/upload": {"type": "forms", "profile": "forms"}},
                    "signals": {"ready": "body"},
                    "actions": [{"name": "site-action", "description": "站点级动作",
                                 "run": [{"click": "h1"}]}]}

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.5.7] - 2026-10-03
 ### Removed
 
 删除 DPP `installEventPolling` 死代码（Timer 轮询无任何调用点，CHANGELOG/文档曾误述为实装机制；事件监听实际由页面内 MutationObserver 跳变上报 + 每回合命中检测承担）。

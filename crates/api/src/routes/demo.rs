@@ -18,4 +18,9 @@ pub fn router() -> Router<AppState> {
     )
     .route("/demo/orders", post(demo_controller::checkout))
     .route("/demo/orders", get(demo_controller::orders_get))
+    .route("/demo/im/channels", get(demo_controller::im_channels))
+    .route(
+      "/demo/im/messages",
+      get(demo_controller::im_messages).post(demo_controller::im_send),
+    )
 }

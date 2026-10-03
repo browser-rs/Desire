@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP IM 演示 — 客服 & 招聘 · Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol（DPP）IM 演示：一个由演示 API 驱动的精简即时消息页，客服与招聘两个机器人场景。展示消息视图、发送动作、事件驱动的智能体唤醒。">
+<script src="../../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.8rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; vertical-align: middle; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .status-pill.off { color: #c03a1a; border-color: #c03a1a66; }
+  .offline-note { border: 1px solid #c03a1a66; background: #c03a1a0d; color: #c03a1a; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.8rem 0; font-size: 0.88rem; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  #im-tabs { display: flex; gap: 0.5rem; margin: 0.6rem 0; }
+  .im-tab { cursor: pointer; border: 1px solid #d8cfba; border-radius: 6px; padding: 0.35rem 0.8rem; background: #fff; font-size: 0.9rem; }
+  .im-tab.active { background: #211b13; color: #f6f1e7; }
+  .im-tab .tid { font-size: 0.7rem; opacity: 0.65; margin-left: 0.3rem; }
+  #im-msgs { border: 1px solid #d8cfba; border-radius: 8px; background: #fffdf7; min-height: 260px; max-height: 380px; overflow-y: auto; padding: 0.7rem; }
+  .msg-row { display: flex; gap: 0.6rem; align-items: baseline; margin: 0.35rem 0; }
+  .msg-row .sender { font-size: 0.72rem; font-weight: 600; color: #8a7f6f; min-width: 3.2em; text-align: right; }
+  .msg-row.bot .sender { color: #1c5c8a; }
+  .msg-row .text { background: #f1ead9; border-radius: 8px; padding: 0.3rem 0.6rem; max-width: 75%; font-size: 0.92rem; white-space: pre-wrap; }
+  .msg-row.bot .text { background: #e3eef5; }
+  .msg-row .time { font-size: 0.68rem; color: #b3a893; }
+  .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.5rem 0; }
+  .chips button { font-size: 0.8rem; padding: 0.25rem 0.6rem; background: #fff; color: #211b13; }
+  .im-input-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  #im-input { flex: 1; }
+  .empty-hint { color: #8a7f6f; font-size: 0.88rem; padding: 1.2rem; text-align: center; }
+  .loading { color: #6b6154; font-size: 0.88rem; padding: 1.2rem; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  input, button { padding: 0.45rem 0.8rem; border: 1px solid #d8cfba; border-radius: 4px; font-size: 0.95rem; }
+  button { cursor: pointer; background: #211b13; color: #f6f1e7; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<h1>DPP IM 演示 <span id="api-status" class="status-pill">连接中…</span></h1>
+<p>一个由演示 API 驱动的精简即时消息页：两个频道、两个脚本机器人。
+消息落库（服务是多实例部署，状态共享），页面对 Desire 智能体的价值在于
+<b>message-received 事件驱动</b>——新消息到达会自动唤起智能体。试试对智能体说：</p>
+<ul>
+  <li>「看看客服频道有什么新消息」→ <code>pageExtract("messages")</code> 读消息列表</li>
+  <li>「切到招聘频道，跟机器人走一遍流程」→ <code>pageAction("open-channel", …)</code> + <code>send-message</code></li>
+  <li>「有人找我吗？有就回复他」→ 新消息的 <code>message-received</code> 事件会先唤醒智能体</li>
+</ul>
+
+<div class="demo-ad">这是一个用 data-dpp-ignore 标注的假广告横幅（智能体会忽略这里）</div>
+
+<div id="im-app">
+  <div id="im-tabs"></div>
+  <div id="im-msgs"><div class="loading">正在连接演示 API…</div></div>
+  <div class="chips" id="im-chips"></div>
+  <div class="im-input-row">
+    <input id="im-input" placeholder="输入消息，回车或点发送">
+    <button id="im-send">发送</button>
+  </div>
+</div>
+
+<p style="margin-top:2rem"><a href="../">← 返回 Desire 首页</a> · <a href="./">商店演示</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+"use strict";
+// 线上默认 api.mankong.icu；本地调试用 ?api=http://127.0.0.1:18090 覆盖。
+var API_BASE = new URLSearchParams(location.search).get("api") || "https://api.mankong.icu";
+var OFFLINE = false;
+var ACTIVE = "support";
+// 每频道独立的已见游标与缓冲（消息 id 全局自增）
+var LAST_ID = { support: 0, hiring: 0 };
+var BUFFERS = { support: [], hiring: [] };
+var CHANNELS = [
+  { id: "support", name: "客服小助", desc: "退换货 / 发货 / 发票" },
+  { id: "hiring", name: "招聘咨询", desc: "留个姓名，走一遍筛选脚本" }
+];
+var CHIPS = {
+  support: ["怎么退款？", "多久发货？", "能开发票吗？", "人工"],
+  hiring: ["你好，我想了解招聘"]
+};
+
+function clientId() {
+  var key = "dpp-demo-client";
+  var id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-x";
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function api(method, path, body) {
+  return fetch(API_BASE + path, {
+    method: method,
+    headers: { "Content-Type": "application/json", "X-Demo-Client": clientId() },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (res) {
+    return res.json().then(function (envelope) {
+      if (!res.ok || envelope.code !== 0) {
+        throw new Error(envelope.message || ("HTTP " + res.status));
+      }
+      return envelope.data;
+    });
+  });
+}
+
+function setStatus(state, text) {
+  var pill = document.getElementById("api-status");
+  pill.className = "status-pill " + state;
+  pill.textContent = text;
+}
+
+function goOffline(reason) {
+  if (OFFLINE) return;
+  OFFLINE = true;
+  setStatus("off", "演示 API 不可用");
+  var note = document.createElement("div");
+  note.className = "offline-note";
+  note.textContent = "演示 API 未连接（" + reason + "）——IM 演示需要后端支持，请稍后再试。";
+  document.querySelector(".demo-ad").before(note);
+  document.getElementById("im-send").disabled = true;
+}
+
+// ── 渲染 ────────────────────────────────────────────────
+function renderTabs() {
+  var box = document.getElementById("im-tabs");
+  box.textContent = "";
+  CHANNELS.forEach(function (c) {
+    var t = document.createElement("button");
+    t.className = "im-tab" + (c.id === ACTIVE ? " active" : "");
+    t.setAttribute("data-channel", c.id);
+    t.title = c.desc;
+    var n = document.createElement("span"); n.className = "tname"; n.textContent = c.name;
+    var i = document.createElement("span"); i.className = "tid"; i.textContent = c.id;
+    t.appendChild(n); t.appendChild(i);
+    t.onclick = function () { switchChannel(c.id); };
+    box.appendChild(t);
+  });
+}
+
+function renderChips() {
+  var box = document.getElementById("im-chips");
+  box.textContent = "";
+  (CHIPS[ACTIVE] || []).forEach(function (text) {
+    var b = document.createElement("button");
+    b.textContent = text;
+    b.onclick = function () { send(text); };
+    box.appendChild(b);
+  });
+}
+
+function renderMessages() {
+  var box = document.getElementById("im-msgs");
+  box.textContent = "";
+  var list = BUFFERS[ACTIVE];
+  if (!list.length) {
+    var hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = ACTIVE === "hiring"
+      ? "招聘频道还没有消息——点下方「开始咨询」，机器人会走一遍筛选脚本（姓名 → 方向 → 经验）。"
+      : "还没有消息——问点客服问题，或切到招聘频道。";
+    box.appendChild(hint);
+    return;
+  }
+  list.forEach(function (m) {
+    var row = document.createElement("div");
+    row.className = "msg-row " + m.sender;
+    row.setAttribute("data-mid", m.id);
+    var s = document.createElement("span"); s.className = "sender";
+    s.textContent = m.sender === "bot" ? "机器人" : "我";
+    var t = document.createElement("span"); t.className = "text"; t.textContent = m.content;
+    var time = document.createElement("span"); time.className = "time";
+    time.textContent = new Date(m.created_at).toLocaleTimeString();
+    row.appendChild(s); row.appendChild(t); row.appendChild(time);
+    box.appendChild(row);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+// 新机器人消息 → 精确事件（watch 的 0→正边沿只覆盖首条）
+function emitNewBotMessages(msgs) {
+  var bots = msgs.filter(function (m) { return m.sender === "bot"; });
+  if (bots.length && window.desire && window.desire.emit) {
+    window.desire.emit("message-received", { channel: ACTIVE, count: bots.length });
+  }
+}
+
+function absorb(channel, msgs) {
+  var fresh = msgs.filter(function (m) { return m.id > (LAST_ID[channel] || 0); });
+  if (!fresh.length) return;
+  BUFFERS[channel] = BUFFERS[channel].concat(fresh);
+  LAST_ID[channel] = fresh[fresh.length - 1].id;
+  if (channel === ACTIVE) {
+    renderMessages();
+    emitNewBotMessages(fresh);
+  }
+}
+
+// ── 业务 ────────────────────────────────────────────────
+function poll() {
+  if (OFFLINE) return;
+  CHANNELS.forEach(function (c) {
+    api("GET", "/demo/im/messages?channel=" + c.id + "&after_id=" + (LAST_ID[c.id] || 0))
+      .then(function (msgs) { absorb(c.id, msgs); })
+      .catch(function () {});
+  });
+}
+
+function switchChannel(id) {
+  ACTIVE = id;
+  renderTabs();
+  renderChips();
+  renderMessages();
+  if (!BUFFERS[id].length) poll();
+}
+
+function send(text) {
+  text = (text || document.getElementById("im-input").value).trim();
+  if (!text) return;
+  document.getElementById("im-input").value = "";
+  api("POST", "/demo/im/messages", { channel: ACTIVE, content: text })
+    .then(function (msgs) {
+      absorb(ACTIVE, msgs);
+      emitNewBotMessages(msgs);
+    })
+    .catch(function (e) {
+      if (!OFFLINE) alert("发送失败：" + e.message);
+    });
+}
+
+document.getElementById("im-send").onclick = function () { send(); };
+document.getElementById("im-input").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") send();
+});
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  page: { type: "chat" },
+  content: { main: "#im-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#im-msgs .loading" },
+  views: {
+    messages: { item: "#im-msgs .msg-row", fields: {
+      sender: ".sender",
+      text: ".text",
+      time: ".time"
+    } },
+    channels: { item: "#im-tabs .im-tab", fields: {
+      name: ".tname",
+      id: ".tid"
+    } }
+  },
+  actions: [
+    { name: "open-channel", description: "切换到指定频道（support=客服 / hiring=招聘）",
+      params: { channel: { type: "string", required: true } },
+      run: [ { click: ".im-tab[data-channel='{channel}']" } ],
+      effects: "local" },
+    { name: "send-message", description: "在当前频道发送一条消息（存入演示服务，机器人会回）",
+      params: { text: { type: "string", required: true } },
+      run: [ { fill: { "#im-input": "{text}" } }, { click: "#im-send" } ],
+      effects: "persist" }
+  ],
+  events: { "message-received": { watch: "#im-msgs .msg-row.bot" } },
+  context: {
+    persona: "DPP IM 演示页的访客助手：演示消息视图、发送动作与事件驱动",
+    rules: "消息写入演示服务的共享存储；机器人回复是服务端脚本，非真人"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+(function init() {
+  api("GET", "/demo/im/channels").then(function (channels) {
+    if (channels && channels.length) CHANNELS = channels;
+    setStatus("on", "演示 API 已连接");
+    renderTabs();
+    renderChips();
+    renderMessages();
+    document.body.setAttribute("data-demo-ready", "");
+    poll();
+    setInterval(poll, 2500);
+  }).catch(function (e) {
+    goOffline(e.message);
+  });
+})();
+</script>
+</body>
+</html>

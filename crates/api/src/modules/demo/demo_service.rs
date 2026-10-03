@@ -1,36 +1,18 @@
-//! Demo 商店的进程内内存态——不落库、重启即重置，刻意不进 MySQL。
-//! 只服务 website/demo 的 DPP 演示：无鉴权、无敏感数据，所以用
-//! OnceLock + 全局 Mutex，不动 AppState；客户端以 `X-Demo-Client`
-//! 头区分各自的购物车与订单（页面在 localStorage 里生成 UUID）。
+//! Demo 演示场的共享状态（购物车 / 订单 / IM 消息）——落 MySQL。
+//! 部署是多实例 + nginx 轮询（无 sticky），进程内内存会让加购落在
+//! A 实例、结算打到 B 实例，所以演示态也必须进共享存储。无鉴权、
+//! 无敏感数据；客户端以 `X-Demo-Client` 头区分各自的购物车与订单
+//! （页面在 localStorage 里生成 UUID）。金额一律整数分。
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use chrono::NaiveDateTime;
+use sqlx::MySqlPool;
 
-use tokio::sync::Mutex;
-
-use super::demo_model::{DemoCartLine, DemoCartSnapshot, DemoOrder, DemoProduct};
+use super::demo_model::{
+  DemoCartLine, DemoCartSnapshot, DemoImChannel, DemoImMessage, DemoOrder, DemoProduct,
+};
 use crate::errors::AppError;
 
-struct DemoStore {
-  /// client id → 购物车行
-  carts: HashMap<String, Vec<DemoCartLine>>,
-  /// (client id, 订单)，新的在前
-  orders: Vec<(String, DemoOrder)>,
-  seq: u64,
-}
-
-fn store() -> &'static Mutex<DemoStore> {
-  static STORE: OnceLock<Mutex<DemoStore>> = OnceLock::new();
-  STORE.get_or_init(|| {
-    Mutex::new(DemoStore {
-      carts: HashMap::new(),
-      orders: Vec::new(),
-      seq: 0,
-    })
-  })
-}
-
-/// 固定演示目录。价格是演示数据，非真实在售商品。
+/// 固定演示目录。价格是演示数据，非真实在售商品（price 单位 = 分）。
 pub fn products() -> Vec<DemoProduct> {
   vec![
     DemoProduct {
@@ -88,85 +70,351 @@ fn find_product(sku: &str) -> Option<DemoProduct> {
   products().into_iter().find(|p| p.sku == sku)
 }
 
-fn snapshot(lines: &[DemoCartLine]) -> DemoCartSnapshot {
-  DemoCartSnapshot {
-    count: lines.iter().map(|l| l.qty).sum(),
-    total: round2(lines.iter().map(|l| l.subtotal).sum()),
-    items: lines.to_vec(),
-  }
+fn cents_to_yuan(cents: i64) -> f64 {
+  (cents as f64) / 100.0
 }
 
-pub async fn cart_get(client: &str) -> DemoCartSnapshot {
-  let st = store().lock().await;
-  snapshot(st.carts.get(client).map(|v| v.as_slice()).unwrap_or(&[]))
+pub async fn cart_get(pool: &MySqlPool, client: &str) -> Result<DemoCartSnapshot, AppError> {
+  let rows: Vec<(String, i32, i32)> = sqlx::query_as(
+    "SELECT sku, qty, price_cents FROM demo_cart_items WHERE client_id = ? ORDER BY updated_at",
+  )
+  .bind(client)
+  .fetch_all(pool)
+  .await?;
+  let items: Vec<DemoCartLine> = rows
+    .into_iter()
+    .map(|(sku, qty, price_cents)| {
+      let name = find_product(&sku)
+        .map(|p| p.name)
+        .unwrap_or_else(|| sku.clone());
+      DemoCartLine {
+        subtotal: cents_to_yuan(price_cents as i64 * qty as i64),
+        name,
+        price: cents_to_yuan(price_cents as i64),
+        qty: qty as u32,
+        sku,
+      }
+    })
+    .collect();
+  Ok(DemoCartSnapshot {
+    count: items.iter().map(|l| l.qty).sum(),
+    total: (items.iter().map(|l| l.subtotal).sum::<f64>() * 100.0).round() / 100.0,
+    items,
+  })
 }
 
-pub async fn cart_add(client: &str, sku: &str, qty: u32) -> Result<DemoCartSnapshot, AppError> {
+pub async fn cart_add(
+  pool: &MySqlPool,
+  client: &str,
+  sku: &str,
+  qty: u32,
+) -> Result<DemoCartSnapshot, AppError> {
   let product =
     find_product(sku).ok_or_else(|| AppError::NotFound(format!("商品不存在: {sku}")))?;
   let qty = qty.clamp(1, 99);
-  let mut st = store().lock().await;
-  let lines = st.carts.entry(client.to_string()).or_default();
-  if let Some(line) = lines.iter_mut().find(|l| l.sku == sku) {
-    line.qty = (line.qty + qty).min(99);
-    line.subtotal = round2(line.price * line.qty as f64);
-  } else {
-    lines.push(DemoCartLine {
-      sku: product.sku,
-      name: product.name,
-      price: product.price,
-      qty,
-      subtotal: round2(product.price * qty as f64),
-    });
-  }
-  Ok(snapshot(lines))
+  let price_cents = (product.price * 100.0).round() as i32;
+  sqlx::query(
+    "INSERT INTO demo_cart_items (client_id, sku, qty, price_cents) VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE qty = LEAST(99, qty + VALUES(qty)), price_cents = VALUES(price_cents)",
+  )
+  .bind(client)
+  .bind(sku)
+  .bind(qty as i32)
+  .bind(price_cents)
+  .execute(pool)
+  .await?;
+  cart_get(pool, client).await
 }
 
-pub async fn cart_remove(client: &str, sku: &str) -> Result<DemoCartSnapshot, AppError> {
-  let mut st = store().lock().await;
-  let Some(lines) = st.carts.get_mut(client) else {
-    return Err(AppError::NotFound("购物车里没有这个商品".into()));
-  };
-  let before = lines.len();
-  lines.retain(|l| l.sku != sku);
-  if lines.len() == before {
+pub async fn cart_remove(
+  pool: &MySqlPool,
+  client: &str,
+  sku: &str,
+) -> Result<DemoCartSnapshot, AppError> {
+  let result = sqlx::query("DELETE FROM demo_cart_items WHERE client_id = ? AND sku = ?")
+    .bind(client)
+    .bind(sku)
+    .execute(pool)
+    .await?;
+  if result.rows_affected() == 0 {
     return Err(AppError::NotFound(format!("购物车里没有商品: {sku}")));
   }
-  Ok(snapshot(lines))
+  cart_get(pool, client).await
 }
 
-pub async fn checkout(client: &str) -> Result<DemoOrder, AppError> {
-  let mut st = store().lock().await;
-  let Some(lines) = st.carts.get_mut(client) else {
-    return Err(AppError::Validation("购物车为空".into()));
-  };
-  if lines.is_empty() {
+/// 结算：事务内锁定购物车行 → 建订单 + 订单行 → 清空购物车。
+/// FOR UPDATE 保证两实例并发结算同一购物车时不会双花。
+pub async fn checkout(pool: &MySqlPool, client: &str) -> Result<DemoOrder, AppError> {
+  let mut tx = pool.begin().await?;
+  let rows: Vec<(String, i32, i32)> = sqlx::query_as(
+    "SELECT sku, qty, price_cents FROM demo_cart_items WHERE client_id = ? FOR UPDATE",
+  )
+  .bind(client)
+  .fetch_all(&mut *tx)
+  .await?;
+  if rows.is_empty() {
     return Err(AppError::Validation("购物车为空".into()));
   }
-  let count: u32 = lines.iter().map(|l| l.qty).sum();
-  let total = round2(lines.iter().map(|l| l.subtotal).sum());
-  let items = std::mem::take(lines);
-  st.seq += 1;
-  let order = DemoOrder {
-    id: format!("D-{:06}", st.seq),
-    count,
-    total,
+  let mut total_cents: i64 = 0;
+  let mut count: u32 = 0;
+  for (_, qty, price_cents) in &rows {
+    total_cents += *price_cents as i64 * *qty as i64;
+    count += *qty as u32;
+  }
+  let result = sqlx::query("INSERT INTO demo_orders (client_id, total_cents) VALUES (?, ?)")
+    .bind(client)
+    .bind(total_cents as i32)
+    .execute(&mut *tx)
+    .await?;
+  let order_id = result.last_insert_id();
+  for (sku, qty, price_cents) in &rows {
+    let name = find_product(sku)
+      .map(|p| p.name)
+      .unwrap_or_else(|| sku.clone());
+    sqlx::query(
+      "INSERT INTO demo_order_items (order_id, sku, name, price_cents, qty) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(order_id)
+    .bind(sku)
+    .bind(name)
+    .bind(*price_cents)
+    .bind(*qty)
+    .execute(&mut *tx)
+    .await?;
+  }
+  sqlx::query("DELETE FROM demo_cart_items WHERE client_id = ?")
+    .bind(client)
+    .execute(&mut *tx)
+    .await?;
+  tx.commit().await?;
+  let created_at: (NaiveDateTime,) =
+    sqlx::query_as("SELECT created_at FROM demo_orders WHERE id = ?")
+      .bind(order_id)
+      .fetch_one(pool)
+      .await?;
+  let items = rows
+    .into_iter()
+    .map(|(sku, qty, price_cents)| DemoCartLine {
+      subtotal: cents_to_yuan(price_cents as i64 * qty as i64),
+      name: find_product(&sku)
+        .map(|p| p.name)
+        .unwrap_or_else(|| sku.clone()),
+      price: cents_to_yuan(price_cents as i64),
+      qty: qty as u32,
+      sku,
+    })
+    .collect();
+  Ok(DemoOrder {
+    id: format!("D-{order_id:06}"),
     items,
-    created_at: chrono::Utc::now(),
+    count,
+    total: cents_to_yuan(total_cents),
+    created_at: created_at.0,
+  })
+}
+
+pub async fn orders_get(pool: &MySqlPool, client: &str) -> Result<Vec<DemoOrder>, AppError> {
+  let heads: Vec<(i64, i32, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, total_cents, created_at FROM demo_orders WHERE client_id = ? ORDER BY id DESC LIMIT 20",
+  )
+  .bind(client)
+  .fetch_all(pool)
+  .await?;
+  let mut orders = Vec::with_capacity(heads.len());
+  for (id, total_cents, created_at) in heads {
+    let rows: Vec<(String, String, i32, i32)> =
+      sqlx::query_as("SELECT sku, name, price_cents, qty FROM demo_order_items WHERE order_id = ?")
+        .bind(id)
+        .fetch_all(pool)
+        .await?;
+    orders.push(DemoOrder {
+      id: format!("D-{id:06}"),
+      count: rows.iter().map(|(_, _, _, q)| *q as u32).sum(),
+      total: cents_to_yuan(total_cents as i64),
+      items: rows
+        .into_iter()
+        .map(|(sku, name, price_cents, qty)| DemoCartLine {
+          subtotal: cents_to_yuan(price_cents as i64 * qty as i64),
+          price: cents_to_yuan(price_cents as i64),
+          qty: qty as u32,
+          sku,
+          name,
+        })
+        .collect(),
+      created_at,
+    });
+  }
+  Ok(orders)
+}
+
+// ── IM 演示（客服 / 招聘） ────────────────────────────────
+
+pub fn im_channels() -> Vec<DemoImChannel> {
+  vec![
+    DemoImChannel {
+      id: "support".into(),
+      name: "客服小助".into(),
+      desc: "退换货 / 发货 / 发票等常见问题".into(),
+    },
+    DemoImChannel {
+      id: "hiring".into(),
+      name: "招聘咨询".into(),
+      desc: "留下姓名与方向，机器人会走一遍筛选脚本".into(),
+    },
+  ]
+}
+
+fn im_channel_ok(channel: &str) -> bool {
+  im_channels().iter().any(|c| c.id == channel)
+}
+
+pub async fn im_messages(
+  pool: &MySqlPool,
+  client: &str,
+  channel: &str,
+  after_id: i64,
+) -> Result<Vec<DemoImMessage>, AppError> {
+  if !im_channel_ok(channel) {
+    return Err(AppError::NotFound(format!("频道不存在: {channel}")));
+  }
+  // 会话按 (channel, client) 隔离：访客只看到自己的对话，招聘脚本
+  // 的阶段推进也因此天然 per-visitor（0012 迁移）。
+  let rows: Vec<(i64, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, sender, content, created_at FROM demo_im_messages
+     WHERE channel = ? AND client_id = ? AND id > ? ORDER BY id LIMIT 100",
+  )
+  .bind(channel)
+  .bind(client)
+  .bind(after_id)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(|(id, sender, content, created_at)| DemoImMessage {
+        id,
+        channel: channel.to_string(),
+        sender,
+        content,
+        created_at,
+      })
+      .collect(),
+  )
+}
+
+/// 发一条访客消息：访客消息落库后，由服务端的确定性脚本机器人回一条。
+/// 会话按 (channel, client_id) 隔离；机器人逻辑刻意无状态（招聘脚本
+/// 按该访客的消息条数推进阶段）——多实例 + 无 sticky 部署下也天然正确。
+pub async fn im_send(
+  pool: &MySqlPool,
+  client: &str,
+  channel: &str,
+  content: &str,
+) -> Result<Vec<DemoImMessage>, AppError> {
+  if !im_channel_ok(channel) {
+    return Err(AppError::NotFound(format!("频道不存在: {channel}")));
+  }
+  let content = content.trim();
+  if content.is_empty() {
+    return Err(AppError::Validation("消息不能为空".into()));
+  }
+  if content.len() > 500 {
+    return Err(AppError::Validation("消息最长 500 字节".into()));
+  }
+
+  let mut tx = pool.begin().await?;
+  let visitor_id = sqlx::query(
+    "INSERT INTO demo_im_messages (channel, client_id, sender, content) VALUES (?, ?, 'visitor', ?)",
+  )
+  .bind(channel)
+  .bind(client)
+  .bind(content)
+  .execute(&mut *tx)
+  .await?
+  .last_insert_id();
+  let reply = bot_reply(&mut tx, client, channel, content).await?;
+  let bot_id = sqlx::query(
+    "INSERT INTO demo_im_messages (channel, client_id, sender, content) VALUES (?, ?, 'bot', ?)",
+  )
+  .bind(channel)
+  .bind(client)
+  .bind(&reply)
+  .execute(&mut *tx)
+  .await?
+  .last_insert_id();
+  tx.commit().await?;
+
+  // 按插入 id 精确取回这一问一答（并发下也不会混入他人消息）
+  let rows: Vec<(i64, String, String, NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, sender, content, created_at FROM demo_im_messages WHERE id IN (?, ?) ORDER BY id",
+  )
+  .bind(visitor_id)
+  .bind(bot_id)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(|(id, sender, content, created_at)| DemoImMessage {
+        id,
+        channel: channel.to_string(),
+        sender,
+        content,
+        created_at,
+      })
+      .collect(),
+  )
+}
+
+/// 客服关键词 + 招聘无状态脚本（按访客消息条数推进）。
+/// 必须在 im_send 的事务内读（吃 `&mut Transaction`）：用独立连接会
+/// 拿到未含当前消息的 MVCC 快照，计数恒差一——第一条就撞进兜底文案。
+async fn bot_reply(
+  tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+  client: &str,
+  channel: &str,
+  content: &str,
+) -> Result<String, AppError> {
+  if channel == "support" {
+    let c = content.to_lowercase();
+    if c.contains("退款") || c.contains("退货") {
+      return Ok(
+        "支持 7 天无理由退款：在「订单」页找到对应订单点「申请退款」，1-3 个工作日原路退回。"
+          .into(),
+      );
+    }
+    if c.contains("发货") || c.contains("物流") || c.contains("多久") {
+      return Ok("工作日 24 小时内发货，顺丰包邮；下单后可在订单详情查看物流单号。".into());
+    }
+    if c.contains("发票") {
+      return Ok("支持电子发票：订单完成后在订单详情页填写抬头即可开具。".into());
+    }
+    if c.contains("人工") {
+      return Ok("已为您转接人工客服（演示环境）——当前排队 0 人，请描述您的问题。".into());
+    }
+    return Ok("您好，我是演示客服。可以问我：退款、发货时效、发票，或输入「人工」。".into());
+  }
+
+  // hiring：无状态脚本——该访客的第 N 条消息对应第 N 个阶段。
+  let (visitor_count, first): (i64, Option<String>) = {
+    let rows: Vec<(String,)> = sqlx::query_as(
+      "SELECT content FROM demo_im_messages WHERE channel = 'hiring' AND client_id = ? AND sender = 'visitor' ORDER BY id",
+    )
+    .bind(client)
+    .fetch_all(&mut **tx)
+    .await?;
+    let first = rows.first().map(|(c,)| c.clone());
+    (rows.len() as i64, first)
   };
-  st.orders.insert(0, (client.to_string(), order.clone()));
-  Ok(order)
-}
-
-pub async fn orders_get(client: &str) -> Vec<DemoOrder> {
-  let st = store().lock().await;
-  st.orders
-    .iter()
-    .filter(|(owner, _)| owner == client)
-    .map(|(_, o)| o.clone())
-    .collect()
-}
-
-fn round2(v: f64) -> f64 {
-  (v * 100.0).round() / 100.0
+  let reply = match visitor_count {
+    1 => "您好！很高兴认识您。方便告诉我您的姓名或昵称吗？".to_string(),
+    2 => format!(
+      "{}，你好！我们这次在看三个方向：后端 / iOS / 前端。你更感兴趣哪个？",
+      first.unwrap_or_default()
+    ),
+    3 => "好的。这个方向你做了几年？最近一年主要在做什么类型的项目？".to_string(),
+    4 => "收到！演示流程到此为止——真实场景里这里会把简历要点写入候选人库，并在 3 个工作日内联系你。还有什么想问的吗？".to_string(),
+    _ => "（招聘演示脚本已结束）感谢参与，可以用左侧「客服小助」频道继续体验。".to_string(),
+  };
+  Ok(reply)
 }

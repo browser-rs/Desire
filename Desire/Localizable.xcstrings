@@ -2885,6 +2885,29 @@
         }
       }
     },
+    "Agent 对话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Chat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 對話"
+          }
+        }
+      }
+    },
     "Agent 能力" : {
       "localizations" : {
         "en" : {
@@ -32176,6 +32199,29 @@
         }
       }
     },
+    "停止并发送" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop & Send"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止并发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止並發送"
+          }
+        }
+      }
+    },
     "全自动" : {
       "localizations" : {
         "en" : {
@@ -32366,6 +32412,22 @@
         }
       }
     },
+    "在白板面板中编辑与导出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit and export in the whiteboard panel"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在白板面板中編輯與匯出"
+          }
+        }
+      }
+    },
     "完成" : {
       "localizations" : {
         "en" : {
@@ -32436,6 +32498,22 @@
         }
       }
     },
+    "展开或收起白板预览" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand or collapse the board preview"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開或收起白板預覽"
+          }
+        }
+      }
+    },
     "已加入白板 ✓" : {
       "localizations" : {
         "en" : {
@@ -32448,94 +32526,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已加入白板 ✓"
-          }
-        }
-      }
-    },
-    "Agent 对话" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent Chat"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 對話"
-          }
-        }
-      }
-    },
-    "总结本页" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summarize This Page"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "总结本页"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "總結本頁"
-          }
-        }
-      }
-    },
-    "停止并发送" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop & Send"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止并发送"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止並發送"
-          }
-        }
-      }
-    },
-    "聆听中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listening…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聆听中…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聆聽中…"
           }
         }
       }
@@ -32672,6 +32662,29 @@
         }
       }
     },
+    "总结本页" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize This Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "总结本页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "總結本頁"
+          }
+        }
+      }
+    },
     "截取设备屏幕" : {
       "localizations" : {
         "en" : {
@@ -32750,6 +32763,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手動新增區塊（進入原始碼編輯）"
+          }
+        }
+      }
+    },
+    "打开白板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開白板"
           }
         }
       }
@@ -33307,6 +33336,38 @@
         }
       }
     },
+    "白板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板"
+          }
+        }
+      }
+    },
+    "白板 · %lld 块" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard · %lld blocks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板 · %lld 個區塊"
+          }
+        }
+      }
+    },
     "白板已清空" : {
       "localizations" : {
         "en" : {
@@ -33483,6 +33544,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網頁選取範圍"
+          }
+        }
+      }
+    },
+    "聆听中…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聆听中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聆聽中…"
           }
         }
       }
@@ -33868,86 +33952,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
-          }
-        }
-      }
-    },
-    "打开白板" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Whiteboard"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打開白板"
-          }
-        }
-      }
-    },
-    "展开或收起白板预览" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expand or collapse the board preview"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開或收起白板預覽"
-          }
-        }
-      }
-    },
-    "在白板面板中编辑与导出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit and export in the whiteboard panel"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在白板面板中編輯與匯出"
-          }
-        }
-      }
-    },
-    "白板 · %lld 块" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whiteboard · %lld blocks"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白板 · %lld 個區塊"
-          }
-        }
-      }
-    },
-    "白板" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whiteboard"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白板"
           }
         }
       }

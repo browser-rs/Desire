@@ -194,7 +194,9 @@ struct WhiteboardWebView: NSViewRepresentable {
     <script>
     (function () {
       "use strict";
-      var charts = [];
+      // 图表实例按 .block 节点管理（增量渲染复用节点时不 dispose，
+      // 节点被丢弃才 dispose）。
+      var chartByNode = new Map();
       var ready = false;
       var queued = null;
 
@@ -230,17 +232,21 @@ struct WhiteboardWebView: NSViewRepresentable {
         return e;
       }
 
-      function blockTools(idx) {
+      // 工具条按钮不带 index——点击经 #board 的事件委托读 .block 的
+      // dataset.index（节点可被增量渲染复用，捕获式闭包会拿到过期编号）。
+      // 潜伏 bug 修复：旧版这里调 post(...)——那是渲染统计函数（发往
+      // whiteboardRender 通道），move/delete 自二期起就没真正生效过。
+      function blockTools() {
         var bar = el("div", "block-tools");
-        [["\\u2191", "上移", function () { post({ kind: "move", index: idx, delta: -1 }); }],
-         ["\\u2193", "下移", function () { post({ kind: "move", index: idx, delta: 1 }); }],
-         ["\\u270E", "编辑源码", function () { startEdit(idx); }],
-         ["\\u2715", "删除", function () { post({ kind: "delete", index: idx }); }]
+        [["\\u2191", "上移", "move-up"],
+         ["\\u2193", "下移", "move-down"],
+         ["\\u270E", "编辑源码", "edit"],
+         ["\\u2715", "删除", "delete"]
         ].forEach(function (item) {
           var b = document.createElement("button");
           b.textContent = item[0];
           b.title = item[1];
-          b.onclick = item[2];
+          b.dataset.action = item[2];
           bar.appendChild(b);
         });
         return bar;
@@ -278,9 +284,10 @@ struct WhiteboardWebView: NSViewRepresentable {
 
       async function renderBlock(block, idx) {
         var wrap = el("div", "block");
+        wrap.dataset.index = idx;
         var editingThis = editing === idx;
         if (!editingThis && block.title) wrap.appendChild(el("p", "block-title", block.title));
-        if (!editingThis) wrap.appendChild(blockTools(idx));
+        if (!editingThis) wrap.appendChild(blockTools());
         var holder = el("div");
         wrap.appendChild(holder);
         if (editingThis) {
@@ -309,7 +316,7 @@ struct WhiteboardWebView: NSViewRepresentable {
             var option = JSON.parse(block.content);
             var chart = echarts.init(chartBox);
             chart.setOption(option);
-            charts.push(chart);
+            chartByNode.set(wrap, chart);
           } catch (e) {
             holder.appendChild(el("p", "err", "图表渲染失败：" + (e && e.message ? e.message : e)));
           }
@@ -334,35 +341,81 @@ struct WhiteboardWebView: NSViewRepresentable {
         return wrap;
       }
 
+      // 上一次渲染的块（type/title/content + DOM 节点）：增量渲染用——
+      // 内容未变的块直接复用节点，ECharts 实例保留不重建，append/单块
+      // 编辑不再整板闪烁重渲。
+      var lastBlocks = [];
+      var lastNodes = [];
+
+      function disposeNode(node) {
+        var ch = chartByNode.get(node);
+        if (ch) { try { ch.dispose(); } catch (e) {} chartByNode.delete(node); }
+      }
+
+      function sameBlock(a, b) {
+        return a.type === b.type && a.title === b.title && a.content === b.content;
+      }
+
       async function renderBoard(spec) {
         window.__currentSpec = spec;
         var keepEditing = editing;
         editing = -1;
         var board = document.getElementById("board");
-        board.textContent = "";
-        charts.forEach(function (c) { try { c.dispose(); } catch (e) {} });
-        charts = [];
         var blocks = (spec && spec.blocks) || [];
+        var used = lastNodes.map(function () { return false; });
+        board.textContent = "";
         if (!blocks.length) {
+          lastNodes.forEach(disposeNode);
+          lastBlocks = [];
+          lastNodes = [];
           board.appendChild(el("div", "empty", "白板是空的——让智能体画点什么。"));
           post(0, []);
           postHeight();
           return;
         }
         if (spec.title) {
-          var titleBar = el("p", "block-title", spec.title);
-          board.appendChild(titleBar);
+          board.appendChild(el("p", "block-title", spec.title));
         }
         var rendered = 0, errors = [];
+        var newNodes = [];
+        var newMeta = [];
         for (var i = 0; i < blocks.length; i++) {
           if (keepEditing === i) editing = i;
-          var before = document.querySelectorAll(".err").length;
-          var node = await renderBlock(blocks[i], i);
-          board.appendChild(node);
-          var after = document.querySelectorAll(".err").length;
-          if (after > before) errors.push("block " + (i + 1));
-          else rendered++;
+          var node = null;
+          if (keepEditing !== i) {
+            for (var j = 0; j < lastBlocks.length; j++) {
+              if (used[j]) continue;
+              // 编辑态节点（textarea）永不复用；带错误的节点不复用
+              //（同内容重试要真渲染）。
+              if (lastNodes[j].querySelector(".block-editor") ||
+                  lastNodes[j].querySelector(".err")) continue;
+              if (sameBlock(lastBlocks[j], blocks[i])) {
+                node = lastNodes[j];
+                used[j] = true;
+                break;
+              }
+            }
+          }
+          if (node) {
+            node.dataset.index = i;
+            board.appendChild(node);
+            var chart = chartByNode.get(node);
+            if (chart) { try { chart.resize(); } catch (e) {} }
+            rendered++;
+          } else {
+            node = await renderBlock(blocks[i], i);
+            board.appendChild(node);
+            if (node.querySelectorAll(".err").length > 0) errors.push("block " + (i + 1));
+            else rendered++;
+          }
+          newNodes.push(node);
+          newMeta.push({ type: blocks[i].type, title: blocks[i].title, content: blocks[i].content });
         }
+        for (var j = 0; j < lastNodes.length; j++) {
+          if (!used[j]) disposeNode(lastNodes[j]);
+        }
+        lastBlocks = newMeta;
+        lastNodes = newNodes;
         post(rendered, errors);
         postHeight();
       }
@@ -382,6 +435,21 @@ struct WhiteboardWebView: NSViewRepresentable {
             { height: Math.ceil(document.body.scrollHeight) + 2 });
         } catch (e) {}
       }
+
+      // 块工具条事件委托：编号以 .block 的 dataset.index 为准（增量渲染
+      // 复用节点后，闭包捕获的编号会过期）。
+      document.getElementById("board").addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest(".block-tools button") : null;
+        if (!btn) return;
+        var blockEl = btn.closest(".block");
+        var idx = blockEl ? parseInt(blockEl.dataset.index, 10) : NaN;
+        if (isNaN(idx)) return;
+        var act = btn.dataset.action;
+        if (act === "move-up") postEdit({ kind: "move", index: idx, delta: -1 });
+        else if (act === "move-down") postEdit({ kind: "move", index: idx, delta: 1 });
+        else if (act === "edit") startEdit(idx);
+        else if (act === "delete") postEdit({ kind: "delete", index: idx });
+      });
 
       // note 链接点击 → 经桥在浏览器新标签打开（真实导航被 Swift 侧护栏
       // 取消，白板 webview 永远不离开自己的文档）。
@@ -423,7 +491,7 @@ struct WhiteboardWebView: NSViewRepresentable {
       boot();
       var heightTimer = null;
       window.addEventListener("resize", function () {
-        charts.forEach(function (c) { try { c.resize(); } catch (e) {} });
+        chartByNode.forEach(function (c) { try { c.resize(); } catch (e) {} });
         if (heightTimer) clearTimeout(heightTimer);
         heightTimer = setTimeout(postHeight, 150);
       });

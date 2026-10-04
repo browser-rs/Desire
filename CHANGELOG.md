@@ -30,6 +30,8 @@
 ### Changed
 
 - 悬浮球定稿 V3「辅佐触盘」（三方向原型评审后拍板，原型 design/agent-ball/prototype-v1.html）：点球弹出 2×2 径向液态玻璃触盘（大圆按钮依次弹入、热区大、盲点得中），球图标切换 ✕，点触盘外任意处收起，录音时触盘内附实时转写条，语音发出后球旁弹"已发送"胶囊；吸收并行润色的克制口径（无呼吸/无旋转环，忙碌=静态强调环，悬停=轻微放大+brightness，触盘悬停填强调色）。修位置竞态：overlay 冷启动挂载时 GeometryReader 尚在布局链（0×0→900×600→真实尺寸），播种的球心在真实窗口下偏到页面中间（玻璃球"隐身"在深色页面）——球心改为永远由持久化 (edge, offsetFraction)+当前窗口尺寸推导、拖动期间才用临时坐标，位置类竞态整类消除
+- **白板渲染改增量**：每次 spec 推送不再整板重建——内容未变的块直接复用 DOM 节点（ECharts 实例保留不 dispose 重建、Mermaid SVG/图片不重渲），append 与单块编辑不再整板闪烁；被丢弃节点才释放图表实例。编辑态节点与带错误的节点永不复用（保证同内容重试是真渲染）。
+
 
 ### Fixed
 
@@ -37,6 +39,8 @@
 - **「测试连接」误报超时**：改为镜像真实聊天请求（流式 body + 档案自定义请求头 + 按协议补全端点：OpenAI `/chat/completions` vs Anthropic `/v1/messages`），连通性按服务端首个流式行判定而非等完整非流式生成——非流式路径慢的网关（如 AMD Radeon）不再在聊天正常时谎报 15s 超时。
 - **31 个字符串目录键补全翻译**：构建自动抽取产生的未翻译骨架（MCP stdio/HTTP 传输、DPP 徽标、AI 自动拦截 toast、PDF/播放器菜单、成本路由等）补齐 en/zh-Hans/zh-Hant，目录恢复三语全覆盖。
 - **白板 PNG 导出可能空白**：cacheDisplay 拍 WKWebView 合成层不可靠——改为 takeSnapshot 按 `document.body.scrollHeight` 取全文档区域（超出视口的部分 WebKit 会照常渲染，长板不再被裁成一屏），失败回退 cacheDisplay。
+- **白板面板块工具条"上移/下移/删除"自二期起无效（潜伏 bug）**：按钮闭包调用了 `post(...)`——那是渲染统计函数（发往 whiteboardRender 通道），编辑回传应走 `postEdit`（whiteboardEdit 通道），所以只有"编辑源码"真正生效过。改为 #board 事件委托 + 按钮只带 data-action、块编号读 `.block` 的 dataset.index（增量渲染复用节点后编号以 data 属性为准）。
+
 
 
 ## [v0.5.9] - 2026-10-03

@@ -1856,7 +1856,20 @@
       }
     },
     "A small ball hugging the window edge: drag it anywhere, click to expand agent actions (chat, voice, page summary, whiteboard)." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紧贴窗口边缘的小球：可拖到任意位置，点击展开智能体操作（对话、语音、页面总结、白板）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊貼視窗邊緣的小球：可拖到任意位置，點按展開智慧體操作（對話、語音、頁面總結、白板）。"
+          }
+        }
+      }
     },
     "Accent Color" : {
       "extractionState" : "stale",
@@ -2357,7 +2370,20 @@
       }
     },
     "Add Selection to Whiteboard" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将选区添加到白板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將選取範圍加入白板"
+          }
+        }
+      }
     },
     "Add Template" : {
       "localizations" : {
@@ -2450,7 +2476,20 @@
       }
     },
     "Add to Whiteboard" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加到白板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入白板"
+          }
+        }
+      }
     },
     "Added to Reading List" : {
       "localizations" : {
@@ -2699,7 +2738,20 @@
       }
     },
     "Agent Floating Ball" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 懸浮球"
+          }
+        }
+      }
     },
     "Agent is typing" : {
       "localizations" : {
@@ -3644,7 +3696,20 @@
       }
     },
     "Applies immediately; position snaps stay the same." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即生效；吸附位置保持不变。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即生效；吸附位置保持不變。"
+          }
+        }
+      }
     },
     "Applies to all providers." : {
       "localizations" : {
@@ -4611,7 +4676,20 @@
       }
     },
     "Ball Size" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球体尺寸"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球體尺寸"
+          }
+        }
+      }
     },
     "base · %lldpx" : {
       "localizations" : {
@@ -13100,7 +13178,20 @@
       }
     },
     "Floating Ball" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "懸浮球"
+          }
+        }
+      }
     },
     "Focus Address Bar" : {
       "comment" : "Keyboard shortcut",
@@ -16586,7 +16677,20 @@
       }
     },
     "Mermaid 导图/流程图" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid mind map / flowchart"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid 導圖/流程圖"
+          }
+        }
+      }
     },
     "Messages (%lld)" : {
       "localizations" : {
@@ -19282,7 +19386,20 @@
       }
     },
     "Off hides the ball in all browser windows. On shows it on the active window's edge." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关：在所有浏览器窗口隐藏悬浮球。开：在当前活动窗口边缘显示。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關：在所有瀏覽器視窗隱藏懸浮球。開：在目前作用中的視窗邊緣顯示。"
+          }
+        }
+      }
     },
     "Off-topic filler content that adds nothing." : {
       "extractionState" : "stale",
@@ -26532,7 +26649,20 @@
       }
     },
     "Show Whiteboard" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示白板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示白板"
+          }
+        }
+      }
     },
     "Sidebar" : {
       "comment" : "Keyboard shortcut",
@@ -29428,7 +29558,20 @@
       }
     },
     "Toggle Agent Ball" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示/隐藏悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示/隱藏懸浮球"
+          }
+        }
+      }
     },
     "Toggle Orientation" : {
       "extractionState" : "stale",
@@ -31996,7 +32139,20 @@
       }
     },
     "便签" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "便箋"
+          }
+        }
+      }
     },
     "保存" : {
       "localizations" : {
@@ -32021,13 +32177,52 @@
       }
     },
     "全自动" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Auto"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自動"
+          }
+        }
+      }
     },
     "全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Auto: page events wake the agent, which acts right away (sensitive actions still ask)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自動 = 頁面事件直接喚醒智慧體並行動（敏感動作仍會詢問）"
+          }
+        }
+      }
     },
     "关闭" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
+      }
     },
     "内容" : {
       "localizations" : {
@@ -32140,10 +32335,36 @@
       }
     },
     "图表（ECharts）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart (ECharts)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖表（ECharts）"
+          }
+        }
+      }
     },
     "在工具结果中注入 DPP 提示" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inject DPP hints into tool results"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在工具結果中注入 DPP 提示"
+          }
+        }
+      }
     },
     "完成" : {
       "localizations" : {
@@ -32168,16 +32389,68 @@
       }
     },
     "导入 .board（追加块）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import .board (append blocks)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 .board（追加區塊）"
+          }
+        }
+      }
     },
     "导出 .board（JSON）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export .board (JSON)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出 .board（JSON）"
+          }
+        }
+      }
     },
     "导出 PNG 到下载目录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export PNG to Downloads"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出 PNG 到「下載」資料夾"
+          }
+        }
+      }
     },
     "已加入白板 ✓" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to Whiteboard ✓"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入白板 ✓"
+          }
+        }
+      }
     },
     "Agent 对话" : {
       "localizations" : {
@@ -32466,10 +32739,36 @@
       }
     },
     "手动添加块（进入源码编辑）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Block Manually (edit source)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動新增區塊（進入原始碼編輯）"
+          }
+        }
+      }
     },
     "投到白板" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send to Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投到白板"
+          }
+        }
+      }
     },
     "搜索工具" : {
       "localizations" : {
@@ -32582,7 +32881,20 @@
       }
     },
     "更多配置：设置 → AI → DPP 协议" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More options: Settings → AI → DPP Protocol"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多設定：設定 → AI → DPP 協定"
+          }
+        }
+      }
     },
     "未设置" : {
       "localizations" : {
@@ -32607,7 +32919,20 @@
       }
     },
     "本站事件档位（%@）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Site event mode (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站事件檔位（%@）"
+          }
+        }
+      }
     },
     "松开在此标签页打开" : {
       "localizations" : {
@@ -32699,7 +33024,20 @@
       }
     },
     "此页面声明了 Desire Page Protocol — 点击查看与配置" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This page declares the Desire Page Protocol — click to view and configure"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此頁面宣告了 Desire Page Protocol——點按查看與設定"
+          }
+        }
+      }
     },
     "没有匹配的工具" : {
       "localizations" : {
@@ -32834,10 +33172,36 @@
       }
     },
     "清空白板" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空白板"
+          }
+        }
+      }
     },
     "渲染 Mermaid…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rendering Mermaid…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "渲染 Mermaid…"
+          }
+        }
+      }
     },
     "点击区段切换视口宽度" : {
       "localizations" : {
@@ -32884,7 +33248,20 @@
       }
     },
     "点击重命名" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to Rename"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點按重新命名"
+          }
+        }
+      }
     },
     "爱奇艺" : {
       "localizations" : {
@@ -32931,13 +33308,52 @@
       }
     },
     "白板已更新 · %lld 块（点此查看）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard updated · %lld blocks (click to view)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板已更新 · %lld 個區塊（點此查看）"
+          }
+        }
+      }
     },
     "白板已清空" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard cleared"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板已清空"
+          }
+        }
+      }
     },
     "白板是空的——让智能体画点什么。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The whiteboard is empty — ask the agent to draw something."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板是空的——讓智慧體畫點東西。"
+          }
+        }
+      }
     },
     "视频" : {
       "localizations" : {
@@ -33072,7 +33488,20 @@
       }
     },
     "网页选区" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web Selection"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網頁選取範圍"
+          }
+        }
+      }
     },
     "腾讯视频" : {
       "localizations" : {
@@ -33163,10 +33592,36 @@
       }
     },
     "草稿" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
+        }
+      }
     },
     "表格" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表格"
+          }
+        }
+      }
     },
     "让我们认识一下" : {
       "localizations" : {

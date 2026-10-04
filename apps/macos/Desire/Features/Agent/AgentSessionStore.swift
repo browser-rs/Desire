@@ -831,6 +831,14 @@ class AgentSessionStore: ObservableObject {
         streamingVersion += 1
     }
 
+    /// **回合中检查点保存**：save（防抖 stage）+ 立即冲盘。工具边界调用——
+    /// 强杀/崩溃最多丢"正在执行的那一个工具"，已完成的工具结果随检查点落盘，
+    /// 恢复时模型看得到。flushSync 上限 3s、载荷小，工具间隔秒级无感。
+    private func checkpointSave() {
+        saveCurrentConversation()
+        DiskStore.flushSync()
+    }
+
     private func saveCurrentConversation() {
         let id = conversationId ?? UUID()
         conversationId = id
@@ -1464,6 +1472,7 @@ class AgentSessionStore: ObservableObject {
                         toolCallId: tc.id,
                         toolName: tc.function.name
                     ))
+                    checkpointSave()
                     continue
                 case .allowedOnce, .allowedAlways:
                     break
@@ -1499,6 +1508,7 @@ class AgentSessionStore: ObservableObject {
                     promptTokens: subUsage.isEmpty ? nil : subUsage.promptTokens,
                     completionTokens: subUsage.isEmpty ? nil : subUsage.completionTokens
                 ))
+                checkpointSave()
             }
             currentAction = nil
             // Tools may have navigated the page — the context label must
@@ -2131,8 +2141,10 @@ class AgentSessionStore: ObservableObject {
                 toolName: entry.call.function.name,
                 toolDurationMs: Date().timeIntervalSince(entry.startedAt) * 1000
             ))
+            checkpointSave()
         }
         denied.forEach { messages.append($0) }
+        checkpointSave()   // 拒绝结果也是回合轨迹的一部分（恢复时模型要看到）
         streamingVersion += 1
         currentAction = nil
     }

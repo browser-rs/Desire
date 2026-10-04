@@ -448,7 +448,8 @@ final class AutomationServer {
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
-        ep("GET", "/agent/messages", "Live agent conversation + busy", example: "…/agent/messages")
+        ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
+        ep("POST", "/agent/open", "Load a conversation into the live agent panel (crash-recovery: open the interrupted one before /agent/resume)", params: ["conversationId:uuid"], example: #"-d '{"conversationId":"…"}'"#)
         ep("POST", "/agent/feedback", "Rate an assistant message (thumbs up/down); persisted with the conversation", params: ["messageId:string", "vote:up|down|none"], example: #"-d '{"messageId":"…","vote":"up"}'"#)
         ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
         ep("POST", "/filters/probe", "Convert ABP lines to content-blocker JSON and compile them, reporting per-line errors", params: ["abp:string (one rule per line)", "includeHiding?:bool"], example: #"-d '{"abp":"/web_ads/*$image"}'"#)
@@ -1573,6 +1574,22 @@ final class AutomationServer {
                 default:
                     return try Self.json(["error": "action must be resume or discard"])
                 }
+            case ("POST", "/agent/open"):
+                // 装载指定会话到活跃 Agent 面板（强杀后恢复：中断的会话未必是
+                // 面板自动还原的那个，先 open 再 resume）。
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let idString = Self.string(body, "conversationId"),
+                      let id = UUID(uuidString: idString) else {
+                    return try Self.json(["error": "conversationId required"])
+                }
+                session.loadConversation(id)
+                return try Self.json([
+                    "ok": true,
+                    "messages": session.messages.count,
+                    "hasInterruptedTurn": session.hasInterruptedTurn,
+                ])
             case ("GET", "/ads/rules"):
                 return try Self.json(Self.adRules(host: Self.string(body, "host") ?? Self.string(query, "host")))
             case ("POST", "/ads/rules/clear"):

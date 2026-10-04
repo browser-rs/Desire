@@ -259,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSignalHandlers()
+        noticeAbnormalPreviousExit()
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
         // didFinishLaunching，走重试 flush。
         schedulePendingURLRetry()
@@ -282,7 +283,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 崩溃恢复提示（0.6.2）：启动时读上一次的干净退出标志——为 false 且
+    /// 存在即上次异常退出（崩溃/强杀）。标签与会话由既有恢复链路还原，这里
+    /// 只补一句知情提示；被打断的回合在对应会话顶部有「继续」入口
+    /// （turnActive 检查点）。automation 模式跳过弹窗（E2E 友好），只记日志。
+    private func noticeAbnormalPreviousExit() {
+        let key = "app.cleanExit"
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: key) as? Bool
+        defaults.set(false, forKey: key)
+        guard previous == false else { return }  // 首次启动（无标志）不算异常
+        Log.app.info("previous run did not exit cleanly — sessions restored, interrupted turns offer resume")
+        guard !CommandLine.arguments.contains("--automation") else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))  // 等窗口/恢复装配完
+            let alert = NSAlert()
+            alert.messageText = "上次没有正常退出"
+            alert.informativeText = "标签与会话已尽量恢复。Agent 会话里被中断的回合，\n会在该会话顶部给出「继续」入口。"
+            alert.addButton(withTitle: "好")
+            alert.runModal()
+        }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        UserDefaults.standard.set(true, forKey: "app.cleanExit")
         // BUG-K diagnostics: the process occasionally hangs inside exit()
         // after termination is approved. Log everything still alive at the
         // moment we hand control back to AppKit, so a stuck run can be

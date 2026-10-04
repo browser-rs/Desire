@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 悬浮球定稿 V3「辅佐触盘」（三方向原型评审后拍板，原型 design/agent-ball/prototype-v1.html）：点球弹出 2×2 径向液态玻璃触盘（大圆按钮依次弹入、热区大、盲点得中），球图标切换 ✕，点触盘外任意处收起，录音时触盘内附实时转写条，语音发出后球旁弹"已发送"胶囊；吸收并行润色的克制口径（无呼吸/无旋转环，忙碌=静态强调环，悬停=轻微放大+brightness，触盘悬停填强调色）。修位置竞态：overlay 冷启动挂载时 GeometryReader 尚在布局链（0×0→900×600→真实尺寸），播种的球心在真实窗口下偏到页面中间（玻璃球"隐身"在深色页面）——球心改为永远由持久化 (edge, offsetFraction)+当前窗口尺寸推导、拖动期间才用临时坐标，位置类竞态整类消除
+
 ### Added
 
 Conversation history list gained an explicit multi-select mode: a Select button in the header (rows show leading check circles, clicking a row toggles it instead of opening, Esc or Done exits) plus a "Select" entry in the row context menu. Previously batch selection was only reachable via undiscoverable ⌘/⇧-click; plain ⌘-click multi-select still works.

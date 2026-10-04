@@ -236,13 +236,14 @@ struct WhiteboardWebView: NSViewRepresentable {
       // dataset.index（节点可被增量渲染复用，捕获式闭包会拿到过期编号）。
       // 潜伏 bug 修复：旧版这里调 post(...)——那是渲染统计函数（发往
       // whiteboardRender 通道），move/delete 自二期起就没真正生效过。
-      function blockTools() {
+      // image 块不进源码编辑（content 是万字符 base64，textarea 没意义）。
+      function blockTools(canEdit) {
         var bar = el("div", "block-tools");
-        [["\\u2191", "上移", "move-up"],
-         ["\\u2193", "下移", "move-down"],
-         ["\\u270E", "编辑源码", "edit"],
-         ["\\u2715", "删除", "delete"]
-        ].forEach(function (item) {
+        var items = [["\\u2191", "上移", "move-up"],
+         ["\\u2193", "下移", "move-down"]];
+        if (canEdit) items.push(["\\u270E", "编辑源码", "edit"]);
+        items.push(["\\u2715", "删除", "delete"]);
+        items.forEach(function (item) {
           var b = document.createElement("button");
           b.textContent = item[0];
           b.title = item[1];
@@ -287,7 +288,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         wrap.dataset.index = idx;
         var editingThis = editing === idx;
         if (!editingThis && block.title) wrap.appendChild(el("p", "block-title", block.title));
-        if (!editingThis) wrap.appendChild(blockTools());
+        if (!editingThis) wrap.appendChild(blockTools(block.type !== "image"));
         var holder = el("div");
         wrap.appendChild(holder);
         if (editingThis) {

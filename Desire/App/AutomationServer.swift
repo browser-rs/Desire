@@ -503,7 +503,7 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
-        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; conversationId override)", example: "…/whiteboard")
+        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout returns the agent-visible text)", example: "…/whiteboard")
         ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | clear | get (read back) | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
@@ -847,8 +847,13 @@ final class AutomationServer {
                 ])
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared
-                let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+                let conversationID = query["conversationId"]
+                    ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
                 let board = conversationID.map { store.board(for: $0) } ?? store.mostRecentBoard() ?? WhiteboardSpec()
+                // ?format=readout：模型所见文本（get 动作同款），断言"模型看到什么"用
+                if Self.string(query, "format") == "readout" {
+                    return try Self.json(["conversationId": conversationID ?? "", "readout": board.readout()])
+                }
                 return try Self.json([
                     "conversationId": conversationID ?? "",
                     "title": board.title,

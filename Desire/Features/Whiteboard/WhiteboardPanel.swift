@@ -169,18 +169,34 @@ struct WhiteboardPanelView: View {
         }
     }
 
-    /// 导入 .board：块**追加**到当前板（不覆盖既有内容）。
+    /// 导入 .board：当前板为空直接追加；非空时问一次（追加 / 替换 / 取消）。
     private func importBoardFile() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url,
-           let data = try? Data(contentsOf: url),
-           let spec = try? JSONDecoder().decode(WhiteboardSpec.self, from: data) {
-            let id = session.conversationId?.uuidString
-            store.append(spec.blocks, title: spec.title, conversationID: id)
-            exportStatus = "已导入 \(spec.blocks.count) 块 ✓"
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url),
+              let spec = try? JSONDecoder().decode(WhiteboardSpec.self, from: data) else { return }
+        let id = session.conversationId?.uuidString
+        let current = store.board(for: id)
+        var replace = false
+        if !current.blocks.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "导入白板"
+            alert.informativeText = "当前白板已有 \(current.blocks.count) 块。导入「\(spec.title)」（\(spec.blocks.count) 块）："
+            alert.addButton(withTitle: "追加")
+            alert.addButton(withTitle: "替换")
+            alert.addButton(withTitle: "取消")
+            let response = alert.runModal()
+            if response == .alertThirdButtonReturn { return }
+            replace = response == .alertSecondButtonReturn
         }
+        if replace {
+            store.set(WhiteboardSpec(title: spec.title, blocks: spec.blocks), conversationID: id)
+        } else {
+            store.append(spec.blocks, title: spec.title, conversationID: id)
+        }
+        exportStatus = "已导入 \(spec.blocks.count) 块 ✓"
     }
 
     /// 把当前白板窗口内容快照成 PNG 存到下载目录。

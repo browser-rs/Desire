@@ -1,4 +1,6 @@
 import AppKit
+import Combine
+import os
 import SwiftUI
 
 /// Sidebar-style list of saved conversations. Supports search and groups
@@ -8,6 +10,10 @@ struct AgentHistoryListView: View {
     @ObservedObject var sessionStore: AgentSessionStore
     var onSelect: (UUID) -> Void
     var onBack: () -> Void
+    /// 跨窗徽标刷新（liveSessions 的变化不经 @Published，2s 轮询足够——
+    /// 这是个子页面，不是热路径）。
+    @State private var liveTick = false
+    @State private var refreshBag = Set<AnyCancellable>()
 
     @State private var searchText: String = ""
     /// 列表多选（`List(selection:)`，⌘/⇧ 点击原生支持）。选中 1 条 = 打开该会话，
@@ -226,6 +232,9 @@ struct AgentHistoryListView: View {
                 noMatchState
             } else {
                 listBody(grouped: grouped)
+                    .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+                        liveTick.toggle()
+                    }
             }
         }
     }
@@ -265,6 +274,35 @@ struct AgentHistoryListView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 该对话是否正被某个窗口的会话装载（跨窗徽标数据源）。
+    private func liveInfo(for conversationID: UUID) -> (window: String, busy: Bool)? {
+        _ = liveTick  // 依赖 tick 触发重算
+        for entry in AgentScheduler.shared.liveSessions() {
+            guard let store = entry.store, store.conversationId == conversationID else { continue }
+            let title = entry.windowTitle?.isEmpty == false ? entry.windowTitle! : entry.displayLabel
+            return (title, store.isProcessing)
+        }
+        return nil
+    }
+
+    /// "在新窗口打开此会话"：开一个新浏览器窗口，把对话装载进**新窗口的**
+    /// 会话（新窗口的 store 注册后按 id 差集找到它）。
+    private func openInNewWindow(_ conversationID: UUID) {
+        let before = Set(AgentScheduler.shared.liveSessions().map(\.id))
+        CommandBus.shared.send(.newWindow)
+        Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(200))
+                if let fresh = AgentScheduler.shared.liveSessions()
+                    .first(where: { !before.contains($0.id) })?.store {
+                    fresh.loadConversation(conversationID)
+                    return
+                }
+            }
+            Log.agent.warning("openInNewWindow: no new session registered within 4s")
+        }
     }
 
     private func confirmDelete(_ conv: Conversation) {
@@ -317,7 +355,8 @@ struct AgentHistoryListView: View {
                                 if renamingID == conv.id { renamingID = nil }
                             },
                             onBeginRename: { renamingID = conv.id },
-                            onEndRename: { if renamingID == conv.id { renamingID = nil } }
+                            onEndRename: { if renamingID == conv.id { renamingID = nil } },
+                            liveBadge: liveInfo(for: conv.id)
                         )
                         .tag(conv.id)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -340,6 +379,7 @@ struct AgentHistoryListView: View {
                                 Button("Delete", role: .destructive) { confirmDelete(conv) }
                             } else {
                                 Button("Open") { onSelect(conv.id) }
+                                Button("Open in New Window") { openInNewWindow(conv.id) }
                                 Button("Rename") { renamingID = conv.id }
                                 // 批量入口的第二条路：右键直接以该行为起点进入多选。
                                 Button("Select") {
@@ -449,6 +489,8 @@ private struct ConversationRow: View {
     let onRename: (String) -> Void
     let onBeginRename: () -> Void
     let onEndRename: () -> Void
+    /// 跨窗徽标：该对话正被哪个窗口的会话装载（含运行中状态）——nil = 没有窗口打开它
+    var liveBadge: (window: String, busy: Bool)? = nil
 
     @State private var isEditing = false
     @State private var editTitle = ""
@@ -494,6 +536,20 @@ private struct ConversationRow: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(Capsule().fill(appAccent.opacity(0.14)))
+                    }
+                    if let live = liveBadge {
+                        HStack(spacing: 3) {
+                            if live.busy {
+                                Circle().fill(appAccent).frame(width: 5, height: 5)
+                            }
+                            Text(live.busy ? "运行中 · \(live.window)" : live.window)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
                     }
                     Spacer(minLength: 8)
                     // 条数与时间收到右上角：原来塞进副标题、和消息数挤成一行

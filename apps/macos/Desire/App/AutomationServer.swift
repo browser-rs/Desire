@@ -3761,6 +3761,9 @@ final class AutomationServer {
                 "pendingApproval": session.pendingApproval != nil,
                 "messages": session.messages.count,
                 "isNewest": AgentScheduler.shared.deliveryTarget === session,
+                // 双窗口互不串台的断言面：每窗会话当前装载的对话
+                "conversationId": session.conversationId?.uuidString ?? "",
+                "hasInterruptedTurn": session.hasInterruptedTurn,
             ]
         }
         return ["windows": windows]

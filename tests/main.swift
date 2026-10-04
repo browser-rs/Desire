@@ -1310,6 +1310,22 @@ func testWhiteboardSpec() {
         WhiteboardBlock(type: "note", title: "b\($0)", content: "x")
     })
     check("白板：摘要截断到 8 条", many.blockListSummary().hasSuffix("…(+2)"))
+    // markdownExport
+    let mdSpec = WhiteboardSpec(title: "导出板", blocks: [
+        WhiteboardBlock(type: "mermaid", title: "图", content: "graph TD; A-->B"),
+        WhiteboardBlock(type: "chart", content: "{}"),
+        WhiteboardBlock(type: "note", content: "便签正文"),
+        WhiteboardBlock(type: "table", title: "表", content: "| a | b |"),
+        WhiteboardBlock(type: "image", title: "截图", content: "data:image/png;base64,AAAA"),
+    ])
+    let md = mdSpec.markdownExport()
+    check("白板：md 标题", md.hasPrefix("# 导出板"))
+    check("白板：md mermaid 围栏", md.contains("```mermaid\ngraph TD; A-->B\n```"))
+    check("白板：md chart json 围栏", md.contains("```json\n{}\n```"))
+    check("白板：md note 原文", md.contains("\n便签正文\n"))
+    check("白板：md table 原文", md.contains("\n| a | b |\n"))
+    check("白板：md image 括号包裹", md.contains("![截图](data:image/png;base64,AAAA)"))
+    check("白板：md 空板占位", WhiteboardSpec().markdownExport().contains("白板是空的"))
 }
 testWhiteboardSpec()
 

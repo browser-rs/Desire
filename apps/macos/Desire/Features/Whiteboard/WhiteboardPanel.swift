@@ -191,6 +191,8 @@ struct WhiteboardPanelView: View {
             .help("手动添加块（进入源码编辑）")
             CapsuleButton(systemName: "square.and.arrow.up.on.square", action: { exportBoardFile() })
                 .help("导出 .board（JSON）")
+            CapsuleButton(systemName: "doc.plaintext", action: { exportMarkdown() })
+                .help("导出 Markdown")
             CapsuleButton(systemName: "square.and.arrow.down.on.square", action: { importBoardFile() })
                 .help("导入 .board（追加块）")
             CapsuleButton(systemName: "trash", action: { store.clear(conversationID: session.conversationId?.uuidString) })
@@ -206,6 +208,19 @@ struct WhiteboardPanelView: View {
         let id = session.conversationId?.uuidString
         store.append([WhiteboardBlock(type: type, title: nil, content: template)],
                      title: nil, conversationID: id)
+    }
+
+    /// 导出 Markdown（白板内容可贴进任何 Markdown 工具）。
+    private func exportMarkdown() {
+        let spec = store.board(for: session.conversationId?.uuidString)
+        let text = spec.markdownExport()
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.text]
+        panel.nameFieldStringValue = "(\(spec.title)).md".replacingOccurrences(of: "/", with: "-")
+        if panel.runModal() == .OK, let url = panel.url {
+            do { try text.write(to: url, atomically: true, encoding: .utf8); exportStatus = "已导出 ✓" }
+            catch { exportStatus = "写入失败" }
+        }
     }
 
     /// 导出 .board（JSON 文本，含全部块）。

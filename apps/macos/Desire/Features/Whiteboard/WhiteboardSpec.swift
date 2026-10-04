@@ -159,6 +159,34 @@ extension WhiteboardSpec {
         return lines.joined(separator: "\n")
     }
 
+    /// Markdown 导出（面板/桥共用）：mermaid/chart 围栏化、note/table 原文、
+    /// image 内联 data URI（保真优先）。可贴进任何 Markdown 工具。
+    func markdownExport() -> String {
+        guard !blocks.isEmpty else { return "# \(title)\n\n（白板是空的）\n" }
+        var out = ["# \(title)", ""]
+        for (i, block) in blocks.enumerated() {
+            let caption = block.title.map { " \($0)" } ?? ""
+            out.append("## \(i + 1). [\(block.type)]\(caption)")
+            out.append("")
+            switch block.type {
+            case WhiteboardBlock.Kind.mermaid:
+                out.append("```mermaid")
+                out.append(block.content)
+                out.append("```")
+            case WhiteboardBlock.Kind.chart:
+                out.append("```json")
+                out.append(block.content)
+                out.append("```")
+            case WhiteboardBlock.Kind.image:
+                out.append("![\(block.title ?? "image")](\(block.content))")
+            default:
+                out.append(block.content)
+            }
+            out.append("")
+        }
+        return out.joined(separator: "\n")
+    }
+
     /// 单行块摘要（render/append 的工具返回附带）：模型不调 get 也知道
     /// 板上有什么。
     func blockListSummary(limit: Int = 8) -> String {

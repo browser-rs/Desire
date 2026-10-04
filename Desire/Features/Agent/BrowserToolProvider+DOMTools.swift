@@ -494,6 +494,60 @@ extension BrowserToolProvider {
                 store.clear(conversationID: conversationID)
                 return "Whiteboard cleared — the chat card now shows an empty board"
             }
+            // 精细编辑：按 get 回读的块编号（1-based）操作单块——避免为改
+            // 一块重发整板（image 块的 data URI 会吃掉大量 token）。
+            if action == "edit" || action == "delete" || action == "move" {
+                let number = (args["index"] as? Int)
+                    ?? (args["index"] as? Double).map(Int.init)
+                    ?? (args["index"] as? String).flatMap(Int.init)
+                guard let number else {
+                    return Self.fail("Missing index (1-based block number, as shown by action=get)")
+                }
+                let board = store.board(for: conversationID)
+                let index = number - 1
+                guard board.blocks.indices.contains(index) else {
+                    return Self.fail("Block index \(number) out of range — board has \(board.blocks.count) block(s); numbering is 1-based as shown by action=get")
+                }
+                switch action {
+                case "edit":
+                    guard let rawContent = args["content"] else {
+                        return Self.fail("Missing content for edit")
+                    }
+                    let contentText: String
+                    if let text = rawContent as? String {
+                        contentText = text
+                    } else if JSONSerialization.isValidJSONObject(rawContent),
+                              let data = try? JSONSerialization.data(withJSONObject: rawContent),
+                              let text = String(data: data, encoding: .utf8) {
+                        // chart 块的 option 对象与 make(from:) 同口径
+                        contentText = text
+                    } else {
+                        return Self.fail("content must be a string or a JSON object")
+                    }
+                    let updated = board.editingBlock(index, content: contentText)
+                    guard updated.blocks[index].isValid else {
+                        return Self.fail("Invalid content for \(board.blocks[index].type) block\(board.blocks[index].type == "image" ? " (needs a data:image/ URI)" : "")")
+                    }
+                    store.set(updated, conversationID: conversationID)
+                    return "Whiteboard block \(number) edited, now \(updated.blockListSummary())"
+                case "delete":
+                    let updated = board.deletingBlock(index)
+                    store.set(updated, conversationID: conversationID)
+                    return "Whiteboard block \(number) deleted, \(updated.blocks.count) block(s) left"
+                default:
+                    let delta = (args["delta"] as? Int)
+                        ?? (args["delta"] as? Double).map(Int.init)
+                        ?? (args["delta"] as? String).flatMap(Int.init)
+                        ?? 1
+                    guard delta != 0 else { return Self.fail("delta must be non-zero (negative = up, positive = down)") }
+                    let updated = board.movingBlock(index, delta: delta)
+                    guard updated != board else {
+                        return Self.fail("Move out of range (board has \(board.blocks.count) block(s))")
+                    }
+                    store.set(updated, conversationID: conversationID)
+                    return "Whiteboard block \(number) moved \(delta > 0 ? "down" : "up"), now \(updated.blockListSummary())"
+                }
+            }
             guard let rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                 return Self.fail("Missing blocks array (action=render|append needs blocks; clear/get need none)")
             }

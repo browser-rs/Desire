@@ -125,10 +125,12 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks with a data:image/ URI) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it, get reads the current board back (use it to review and refine what you drew). Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
+                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks with a data:image/ URI) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it, get reads the current board back, and edit/delete/move tweak a single block by its 1-based number (from get) — prefer those over re-rendering the whole board when refining, especially to avoid resending image data. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear | get (read the board back as text)"),
+                    "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear | get (read the board back as text) | edit | delete | move"),
                     "title": AgentJSONSchemaValue(type: "string", description: "Board title"),
+                    "index": AgentJSONSchemaValue(type: "integer", description: "Block number (1-based, as shown by get) — for edit/delete/move"),
+                    "delta": AgentJSONSchemaValue(type: "integer", description: "Move offset: negative = up, positive = down (move only)"),
                     "blocks": AgentJSONSchemaValue(type: "array", description: "Blocks to render", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
                         "type": AgentJSONSchemaValue(type: "string", description: "mermaid | chart | note | table | image"),
                         "title": AgentJSONSchemaValue(type: "string", description: "Optional block caption"),

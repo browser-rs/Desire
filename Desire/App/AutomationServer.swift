@@ -504,7 +504,7 @@ final class AutomationServer {
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
         ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; conversationId override)", example: "…/whiteboard")
-        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | clear | get (read back); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
+        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | clear | get (read back) | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
@@ -864,9 +864,9 @@ final class AutomationServer {
                     },
                 ])
             case ("POST", "/whiteboard"):
-                // 自动化写入口（与 whiteboard 工具同权：render/append/clear/get）。
-                // 写操作走 UI 持有的 WhiteboardStore.shared；conversationId 可显式
-                // 指定（缺省 = 活跃会话）。
+                // 自动化写入口（与 whiteboard 工具同权：render/append/clear/get/
+                // edit/delete/move）。写操作走 UI 持有的 WhiteboardStore.shared；
+                // conversationId 可显式指定（缺省 = 活跃会话）。
                 let store = WhiteboardStore.shared
                 let action = Self.string(body, "action") ?? "render"
                 let conversationID = Self.string(body, "conversationId")
@@ -882,6 +882,57 @@ final class AutomationServer {
                 if action == "clear" {
                     store.clear(conversationID: conversationID)
                     return try Self.json(["ok": true, "action": "clear", "blockCount": 0])
+                }
+                // 单块精细编辑（index 为 1-based 块号，与工具/get 同口径）。
+                if action == "edit" || action == "delete" || action == "move" {
+                    let number = (body["index"] as? Int)
+                        ?? (body["index"] as? Double).map(Int.init)
+                        ?? (body["index"] as? String).flatMap(Int.init)
+                    guard let number else {
+                        return try Self.json(["error": "Missing index (1-based block number)"])
+                    }
+                    let board = store.board(for: conversationID)
+                    let index = number - 1
+                    guard board.blocks.indices.contains(index) else {
+                        return try Self.json(["error": "Block index \(number) out of range (board has \(board.blocks.count) block(s))"])
+                    }
+                    switch action {
+                    case "edit":
+                        guard let rawContent = body["content"] else {
+                            return try Self.json(["error": "Missing content for edit"])
+                        }
+                        let contentText: String
+                        if let text = rawContent as? String {
+                            contentText = text
+                        } else if JSONSerialization.isValidJSONObject(rawContent),
+                                  let data = try? JSONSerialization.data(withJSONObject: rawContent),
+                                  let text = String(data: data, encoding: .utf8) {
+                            contentText = text
+                        } else {
+                            return try Self.json(["error": "content must be a string or a JSON object"])
+                        }
+                        let updated = board.editingBlock(index, content: contentText)
+                        guard updated.blocks[index].isValid else {
+                            return try Self.json(["error": "Invalid content for \(board.blocks[index].type) block"])
+                        }
+                        store.set(updated, conversationID: conversationID)
+                        return try Self.json(["ok": true, "action": "edit", "blockCount": updated.blocks.count])
+                    case "delete":
+                        let updated = board.deletingBlock(index)
+                        store.set(updated, conversationID: conversationID)
+                        return try Self.json(["ok": true, "action": "delete", "blockCount": updated.blocks.count])
+                    default:
+                        let delta = (body["delta"] as? Int)
+                            ?? (body["delta"] as? Double).map(Int.init)
+                            ?? (body["delta"] as? String).flatMap(Int.init)
+                            ?? 1
+                        let updated = board.movingBlock(index, delta: delta)
+                        guard updated != board else {
+                            return try Self.json(["error": "Move out of range"])
+                        }
+                        store.set(updated, conversationID: conversationID)
+                        return try Self.json(["ok": true, "action": "move", "blockCount": updated.blocks.count])
+                    }
                 }
                 guard let rawBlocks = body["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                     return try Self.json(["error": "Missing blocks array (action=render|append)"])

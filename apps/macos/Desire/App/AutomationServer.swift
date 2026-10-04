@@ -939,8 +939,13 @@ final class AutomationServer {
                         return try Self.json(["ok": true, "action": "move", "blockCount": updated.blocks.count])
                     }
                 }
-                guard let rawBlocks = body["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
+                guard var rawBlocks = body["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                     return try Self.json(["error": "Missing blocks array (action=render|append)"])
+                }
+                if let evidenceError = WhiteboardEvidence.resolve(
+                    &rawBlocks,
+                    messages: AgentScheduler.shared.deliveryTarget?.messages ?? []) {
+                    return try Self.json(["error": evidenceError])
                 }
                 let blocks = rawBlocks.prefix(12).compactMap(WhiteboardBlock.make(from:))
                 guard !blocks.isEmpty else {

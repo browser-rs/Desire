@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **白板截图上板不再回传 base64（evidence 引用）**：image 块新增 `evidence` 字段（`"last"` = 本会话最近一张 screenshot/screenshotElement 结果，或显式 toolCallId），宿主侧从会话消息就地解析成 data URI——此前模型要把几 MB 的 base64 原样塞进 whiteboard 参数（纯 token 灾难）；解析失败带明确 Error（"call screenshot first"）。桥 `POST /whiteboard` 同一解析器。
+
 ### Changed
 
 - **仓库重组**：主浏览器 Xcode 工程移入 `apps/macos/`（`Desire.xcodeproj` + `Desire/` 源码相对布局原样保留，pbxproj/entitlements/Info.plist 零改动），与 `apps/ios/`（Desire Remote）平台对称，后续可按需扩展 `apps/android/`；`crates/`（rust 后端）留仓库根。同步更新 ci.yml/release.yml/release.sh/tests(run.sh SOURCES)/README 架构树/AGENTS.md 结构区；历史 docs 里的旧路径按当时记录保留不追溯。

@@ -548,8 +548,14 @@ extension BrowserToolProvider {
                     return "Whiteboard block \(number) moved \(delta > 0 ? "down" : "up"), now \(updated.blockListSummary())"
                 }
             }
-            guard let rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
+            guard var rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                 return Self.fail("Missing blocks array (action=render|append needs blocks; clear/get need none)")
+            }
+            // evidence 引用先就地解析成 data URI（模型不必回传几 MB 的 base64）
+            if let evidenceError = WhiteboardEvidence.resolve(
+                &rawBlocks,
+                messages: AgentScheduler.shared.deliveryTarget?.messages ?? []) {
+                return Self.fail(evidenceError)
             }
             var blocks: [WhiteboardBlock] = []
             var skipped = 0

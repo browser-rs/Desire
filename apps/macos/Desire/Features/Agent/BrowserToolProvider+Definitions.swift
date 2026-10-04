@@ -125,7 +125,7 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks with a data:image/ URI) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it, get reads the current board back, and edit/delete/move tweak a single block by its 1-based number (from get) — prefer those over re-rendering the whole board when refining, especially to avoid resending image data. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
+                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks — reference the latest screenshot with evidence:\"last\" instead of resending base64) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it, get reads the current board back, and edit/delete/move tweak a single block by its 1-based number (from get) — prefer those over re-rendering the whole board when refining, especially to avoid resending image data. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear | get (read the board back as text) | edit | delete | move"),
                     "title": AgentJSONSchemaValue(type: "string", description: "Board title"),
@@ -134,7 +134,8 @@ extension BrowserToolProvider {
                     "blocks": AgentJSONSchemaValue(type: "array", description: "Blocks to render", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
                         "type": AgentJSONSchemaValue(type: "string", description: "mermaid | chart | note | table | image"),
                         "title": AgentJSONSchemaValue(type: "string", description: "Optional block caption"),
-                        "content": AgentJSONSchemaValue(type: "string", description: "mermaid: Mermaid source (e.g. 'graph TD; A-->B'); chart: ECharts option JSON string; note: markdown text ([links](url) clickable); table: markdown table; image: data:image/... base64 URI (from screenshot tools)"),
+                        "content": AgentJSONSchemaValue(type: "string", description: "mermaid: Mermaid source (e.g. 'graph TD; A-->B'); chart: ECharts option JSON string; note: markdown text ([links](url) clickable); table: markdown table; image: data:image/... base64 URI"),
+                        "evidence": AgentJSONSchemaValue(type: "string", description: "image blocks only: \"last\" = the latest screenshot result in this conversation, or a screenshot toolCallId — the host fills content from it so you never resend base64"),
                     ], required: ["type", "content"]))),
                 ], required: ["action"])
             )),

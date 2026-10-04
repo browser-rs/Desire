@@ -478,15 +478,16 @@ extension BrowserToolProvider {
             return "Plan updated: \(done)/\(steps.count) done"
 
         case "whiteboard":
-            // 白板（§一期）：结构化块 → 本地 Mermaid/ECharts 双引擎渲染，
-            // 面板自动弹出给用户看。纯 UI 状态（不外发），autoEdit 可自动执行。
+            // 白板（§一期）：结构化块 → 本地 Mermaid/ECharts 双引擎渲染。
+            // 成图**内嵌在聊天里直接看**（工具卡实时预览，2026-10-04 用户
+            // 定案——此前自动弹独立面板，看图要多开一个窗口，不便）；
+            // 编辑/导出由用户点卡片上的「打开白板」。
             let action = args["action"] as? String ?? "render"
             let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
             let store = WhiteboardStore.shared
             if action == "clear" {
                 store.clear(conversationID: conversationID)
-                WhiteboardPanel.shared.show()
-                return "Whiteboard cleared"
+                return "Whiteboard cleared — the chat card now shows an empty board"
             }
             guard let rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                 return Self.fail("Missing blocks array (action=render|append needs blocks; clear needs none)")
@@ -521,8 +522,7 @@ extension BrowserToolProvider {
             } else {
                 store.set(WhiteboardSpec(title: title ?? "白板", blocks: blocks), conversationID: conversationID)
             }
-            WhiteboardPanel.shared.show()
-            return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : "") — panel opened"
+            return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : "") — rendered inline in the chat (user can open the whiteboard panel to edit/export)"
 
         case "setUploadFile":
             // Arms a local file so the NEXT page file-picker auto-submits

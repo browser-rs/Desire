@@ -17,6 +17,11 @@ struct AgentMessageBubble: View {
     var onLearnReason: ((String) -> Void)? = nil
     /// toolCallId → 耗时（毫秒）：工具卡片上直接显示"哪个工具慢"。
     var toolDurations: [String: Double] = [:]
+    /// 当前会话 id（白板内嵌卡读对应会话的板；与面板同口径）。
+    var conversationID: String? = nil
+    /// 是否为会话里最新一张白板卡：最新卡默认展开实时预览，旧卡折叠成一行
+    /// （每张卡各挂一个 WKWebView，全展开既重复显示同一块板又费内存）。
+    var isLatestBoardCard: Bool = true
 
     var body: some View {
         switch message.role {
@@ -35,19 +40,56 @@ struct AgentMessageBubble: View {
                 toolDurations: toolDurations
             )
         case .tool:
-            ToolBubble(content: message.content ?? "", toolName: message.toolName)
+            ToolBubble(
+                content: message.content ?? "",
+                toolName: message.toolName,
+                conversationID: conversationID,
+                isBoardCard: message.isWhiteboardToolResult,
+                isLatestBoardCard: isLatestBoardCard
+            )
         case .system:
             EmptyView()
         }
     }
 }
 
+extension AgentMessage {
+    /// whiteboard 工具的可见结果消息（卡片显示与"最新卡"折叠判定同口径）。
+    /// 判的是工具返回文本（历史会话里旧格式的返回也能识别）。
+    var isWhiteboardToolResult: Bool {
+        guard role == .tool, toolName == "whiteboard" else { return false }
+        let content = self.content ?? ""
+        if let range = content.range(of: "updated: ", options: .backwards) {
+            let digits = content[range.upperBound...].prefix { $0.isNumber }
+            if Int(digits) != nil, content.contains("block") { return true }
+        }
+        return content.contains("cleared") || content.contains("rendered inline")
+    }
+}
+
 // MARK: - User bubble
 
-/// whiteboard 工具卡片：块数摘要 + 点击打开面板。
+/// whiteboard 工具卡片：**聊天内直接内嵌白板实时预览**（与面板同一
+/// `WhiteboardWebView` 双引擎管线——Mermaid/ECharts/表格/便签全支持），
+/// 生成图不再要求另开面板窗口（2026-10-04 用户定案）。头行 = 块数 +
+/// 「打开白板」（编辑/导出仍走面板）。预览观察共享 store：append/clear
+/// 实时跟随（同会话口径，与 MermaidInlineView 一致）。
+/// 深化：**只有最新一张卡默认展开**——每张卡各挂一个 WKWebView（双引擎
+/// JS），且都显示同一块当前板，长会话里全展开既重复又费内存；旧卡折叠成
+/// 一行、箭头按需展开（展开看到的就是当前板）。预览高度按 webview 上报的
+/// 内容自适应（上限 520）——固定 300 会把 320px 高的图表块裁出内部滚动条。
 private struct WhiteboardToolCard: View {
     @Environment(\.appAccent) private var appAccent: Color
-    let blockCount: Int
+    @ObservedObject private var store = WhiteboardStore.shared
+    /// 工具执行时的语义（clear 卡在板已被后续调用重填时仍标注"已清空"）。
+    let didClear: Bool
+    let conversationID: String?
+    var isLatest: Bool = true
+    @State private var userExpanded = false
+    @State private var contentHeight: CGFloat?
+
+    private var board: WhiteboardSpec { store.board(for: conversationID) }
+    private var showsPreview: Bool { !board.blocks.isEmpty && (isLatest || userExpanded) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -56,21 +98,63 @@ private struct WhiteboardToolCard: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 22, alignment: .center)
                 .padding(.top, 2)
-            Button {
-                WhiteboardPanel.shared.show()
-            } label: {
-                HStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
                     Image(systemName: "rectangle.dashed")
                         .font(.system(size: 11))
-                    Text(blockCount > 0 ? "白板已更新 · \(blockCount) 块（点此查看）" : "白板已清空")
+                    Text(headerText)
                         .font(.system(size: 11, weight: .medium))
+                    Spacer(minLength: 8)
+                    if !board.blocks.isEmpty, !isLatest {
+                        Button {
+                            userExpanded.toggle()
+                        } label: {
+                            Image(systemName: userExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .frame(width: 14)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(appAccent.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("展开或收起白板预览")
+                    }
+                    if !board.blocks.isEmpty {
+                        Button {
+                            WhiteboardPanel.shared.show()
+                        } label: {
+                            Label("打开白板", systemImage: "arrow.up.left.and.arrow.down.right")
+                                .font(.system(size: 10, weight: .medium))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(appAccent.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("在白板面板中编辑与导出")
+                    }
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(RoundedRectangle(cornerRadius: 6).fill(appAccent.opacity(0.10)))
+                .foregroundStyle(.secondary)
+                if showsPreview {
+                    WhiteboardWebView(spec: board, onContentHeight: { contentHeight = $0 })
+                        .frame(height: previewHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+                        )
+                }
             }
-            .buttonStyle(.plain)
         }
+    }
+
+    private var headerText: LocalizedStringKey {
+        if board.blocks.isEmpty { return didClear ? "白板已清空" : "白板" }
+        return "白板 · \(board.blocks.count) 块"
+    }
+
+    /// 上报前（webview 还在加载）先用旧默认高度，避免从 0 起跳。
+    private var previewHeight: CGFloat {
+        min(max(180, contentHeight ?? 300), 520)
     }
 }
 
@@ -469,6 +553,10 @@ private struct CritiqueBlock: View {
 private struct ToolBubble: View {
     let content: String
     let toolName: String?
+    var conversationID: String? = nil
+    /// whiteboard 工具的可见结果（判定见 AgentMessage.isWhiteboardToolResult）。
+    var isBoardCard: Bool = false
+    var isLatestBoardCard: Bool = true
 
     private var isBase64Image: Bool {
         content.count > 100 && content.hasPrefix("iVBORw0KGgo")
@@ -480,19 +568,17 @@ private struct ToolBubble: View {
         return NSImage(data: data)
     }
 
-    /// whiteboard 工具的消息特化：显示块数摘要，点击打开白板面板。
-    private var boardBlockCount: Int? {
-        guard toolName == "whiteboard" else { return nil }
-        if let range = content.range(of: "updated: ", options: .backwards) {
-            let digits = content[range.upperBound...].prefix { $0.isNumber }
-            if let n = Int(digits), content.contains("block") { return n }
-        }
-        return content.contains("cleared") ? 0 : nil
+    private var didClearBoard: Bool {
+        content.contains("cleared")
     }
 
     var body: some View {
-        if toolName == "whiteboard", let n = boardBlockCount {
-            WhiteboardToolCard(blockCount: n)
+        if isBoardCard {
+            WhiteboardToolCard(
+                didClear: didClearBoard,
+                conversationID: conversationID,
+                isLatest: isLatestBoardCard
+            )
         } else {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "wrench.adjustable")

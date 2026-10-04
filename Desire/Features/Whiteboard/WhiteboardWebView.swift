@@ -10,12 +10,15 @@ struct WhiteboardWebView: NSViewRepresentable {
     var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)? = nil
     /// 面板编辑回传：kind = move | delete | edit（index 为块序号）。
     var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)? = nil
+    /// 内容总高（pt）：块渲染完与窗口尺寸变化时上报，供聊天内嵌卡自适应高度。
+    var onContentHeight: ((CGFloat) -> Void)? = nil
 
     func makeNSView(context: Context) -> WhiteboardWKWebView {
         let webview = WhiteboardWKWebView()
         let config = webview.configuration
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardRender")
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardEdit")
+        config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardLayout")
         webview.coordinator = context.coordinator
         webview.onRenderStatus = onRenderStatus
         webview.onEdit = onEdit
@@ -30,6 +33,7 @@ struct WhiteboardWebView: NSViewRepresentable {
 
     func updateNSView(_ webview: WhiteboardWKWebView, context: Context) {
         webview.onRenderStatus = onRenderStatus
+        webview.onContentHeight = onContentHeight
         // 变了才推（updateNSView 每轮布局都会进来）；未就绪则挂起，等
         // loadHTMLString 完成回调再推。
         let json = (try? JSONEncoder().encode(spec)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
@@ -53,15 +57,20 @@ struct WhiteboardWebView: NSViewRepresentable {
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(onRenderStatus: onRenderStatus, onEdit: onEdit) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onRenderStatus: onRenderStatus, onEdit: onEdit, onContentHeight: onContentHeight)
+    }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?
         var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?
+        var onContentHeight: ((CGFloat) -> Void)?
         init(onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?,
-             onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?) {
+             onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?,
+             onContentHeight: ((CGFloat) -> Void)?) {
             self.onRenderStatus = onRenderStatus
             self.onEdit = onEdit
+            self.onContentHeight = onContentHeight
         }
 
         func userContentController(_ userContentController: WKUserContentController,
@@ -74,6 +83,13 @@ struct WhiteboardWebView: NSViewRepresentable {
                 Log.agent.info("Whiteboard render: rendered=\(rendered, privacy: .public) errors=[\(errors.joined(separator: ","), privacy: .public)]")
                 Task { @MainActor in
                     self.onRenderStatus?(rendered, errors)
+                }
+                return
+            }
+            if message.name == "whiteboardLayout" {
+                let height = dict["height"] as? Double ?? 0
+                Task { @MainActor in
+                    self.onContentHeight?(CGFloat(height))
                 }
                 return
             }
@@ -97,6 +113,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         var loaded = false
         var onRenderStatus: ((_ rendered: Int, _ errors: [String]) -> Void)?
         var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?
+        var onContentHeight: ((CGFloat) -> Void)?
         weak var coordinator: Coordinator?
 
         /// HTML 文档落地后才能推（见 makeNSView 注释）。
@@ -286,6 +303,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         if (!blocks.length) {
           board.appendChild(el("div", "empty", "白板是空的——让智能体画点什么。"));
           post(0, []);
+          postHeight();
           return;
         }
         if (spec.title) {
@@ -303,12 +321,22 @@ struct WhiteboardWebView: NSViewRepresentable {
           else rendered++;
         }
         post(rendered, errors);
+        postHeight();
       }
 
       function post(rendered, errors) {
         try {
           window.webkit.messageHandlers.whiteboardRender.postMessage(
             { rendered: rendered, errors: errors });
+        } catch (e) {}
+      }
+
+      // 内容总高：body 高度自动包裹内容（与视口无关，不会因 frame 变高而
+      // 只增不减），供内嵌卡把 frame 收敛到内容实际高度。
+      function postHeight() {
+        try {
+          window.webkit.messageHandlers.whiteboardLayout.postMessage(
+            { height: Math.ceil(document.body.scrollHeight) + 2 });
         } catch (e) {}
       }
 
@@ -337,8 +365,11 @@ struct WhiteboardWebView: NSViewRepresentable {
       var bootTimer = setInterval(boot, 50);
       setTimeout(function () { clearInterval(bootTimer); boot(); }, 5000);
       boot();
+      var heightTimer = null;
       window.addEventListener("resize", function () {
         charts.forEach(function (c) { try { c.resize(); } catch (e) {} });
+        if (heightTimer) clearTimeout(heightTimer);
+        heightTimer = setTimeout(postHeight, 150);
       });
     })();
     </script>

@@ -33307,22 +33307,6 @@
         }
       }
     },
-    "白板已更新 · %lld 块（点此查看）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whiteboard updated · %lld blocks (click to view)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白板已更新 · %lld 個區塊（點此查看）"
-          }
-        }
-      }
-    },
     "白板已清空" : {
       "localizations" : {
         "en" : {
@@ -33884,6 +33868,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
+          }
+        }
+      }
+    },
+    "打开白板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開白板"
+          }
+        }
+      }
+    },
+    "展开或收起白板预览" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand or collapse the board preview"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開或收起白板預覽"
+          }
+        }
+      }
+    },
+    "在白板面板中编辑与导出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit and export in the whiteboard panel"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在白板面板中編輯與匯出"
+          }
+        }
+      }
+    },
+    "白板 · %lld 块" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard · %lld blocks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板 · %lld 個區塊"
+          }
+        }
+      }
+    },
+    "白板" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板"
           }
         }
       }

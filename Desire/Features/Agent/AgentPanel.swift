@@ -631,7 +631,8 @@ struct AgentPanel: View {
         _ msg: AgentMessage,
         toolResults: [String: String],
         chipToolIds: Set<String>,
-        toolDurations: [String: Double]
+        toolDurations: [String: Double],
+        latestBoardCardID: UUID?
     ) -> some View {
         if msg.role == .tool,
            let id = msg.toolCallId,
@@ -644,7 +645,9 @@ struct AgentPanel: View {
                 isStreamingTail: isStreamingTail(msg),
                 onFeedback: { vote in store.setFeedback(vote, for: msg.id) },
                 onLearnReason: { learnFromDislike(msg.id, $0) },
-                toolDurations: toolDurations
+                toolDurations: toolDurations,
+                conversationID: store.conversationId?.uuidString,
+                isLatestBoardCard: msg.id == latestBoardCardID
             )
             .id(msg.id)
         }
@@ -658,12 +661,19 @@ struct AgentPanel: View {
                     let toolResults = derivedData.results
                     let chipToolIds = derivedData.chips
                     let toolDurations = derivedData.durations
+                    // 最新一张"可见"白板卡拿实时预览，其余折叠（见 WhiteboardToolCard）。
+                    let latestBoardCardID = store.messages.last { msg in
+                        guard msg.isWhiteboardToolResult else { return false }
+                        if let id = msg.toolCallId { return !chipToolIds.contains(id) }
+                        return true
+                    }?.id
                     ForEach(store.messages) { msg in
                         messageRow(
                             msg,
                             toolResults: toolResults,
                             chipToolIds: chipToolIds,
-                            toolDurations: toolDurations
+                            toolDurations: toolDurations,
+                            latestBoardCardID: latestBoardCardID
                         )
                     }
                     Color.clear

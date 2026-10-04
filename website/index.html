@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗，贴边悬浮球一键唤起语音与总结）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；内置白板（Mermaid/ECharts 本地双引擎：智能体把流程图与图表直接画进聊天，白板面板逐块编辑、拖拽排序，.board/PNG 导出）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。"
     },
     {
       "@type": "FAQPage",
@@ -870,7 +870,7 @@
   <section class="block" id="features">
     <div class="wrap">
       <div class="sec-head reveal">
-        <p class="kicker">六件正事</p>
+        <p class="kicker">七件正事</p>
         <h2 class="title">一台浏览器该有的，与不该缺席的。</h2>
       </div>
       <div class="features">
@@ -881,7 +881,9 @@
             读页面、执行 JavaScript、跑 shell 命令、派子代理分头干活；多窗口各管各的标签，
             还能<b>让它跨窗口操作</b>。做完一件事，从轨迹到耗时逐条可查；浏览器意外退出，
             <b>被打断的回合能原地继续</b>。记忆分画像、事实与摘要，按相关度检索后注入对话；
-            <b>输出规则、人设、每会话指令</b>随你定，点踩的回答沉淀为反馈记忆——默认留在本机。</p>
+            <b>输出规则、人设、每会话指令</b>随你定，点踩的回答沉淀为反馈记忆——默认留在本机。
+            窗口边缘还有一枚可拖的<b>悬浮球</b>：点开即操作盘，语音直说、页面总结，
+            干活时进度环，完工亮起完成徽章。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">02</span>
@@ -916,6 +918,14 @@
           <p class="feature-desc">Console 与 Network 按标签页归档，DOM 树逐层展开、请求可重放；
             响应式模式模拟触屏视口。中键关标签、链接新开，都是顺手的默认。
             还有 <b>MCP 服务器与客户端</b>、六十多个端点的自动化桥——Desire 本身就是你机器上的一个工具。</p>
+        </div>
+        <div class="feature-row reveal">
+          <span class="feature-no">07</span>
+          <h3 class="feature-name">白板：智能体把结论画给你看</h3>
+          <p class="feature-desc">让 Agent 把流程图、思维导图、数据图表<b>直接画进聊天</b>——
+            Mermaid 与 ECharts 双引擎本地渲染，不联网、不上传；画完原地可看，
+            打开白板面板可逐块编辑、<b>拖拽排序</b>，导出 PNG 或 .board 文件；
+            网页选区、截图也能一键上板，图文并排成报告。</p>
         </div>
       </div>
     </div>

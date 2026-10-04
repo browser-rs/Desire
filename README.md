@@ -41,10 +41,22 @@ Persistent **memory** per profile (auto-extracted, editable, queryable),
 **skills** (`useSkill` / `listSkills`) for reusable playbooks, and an
 **evidence store** backing its claims.
 
+**A whiteboard it draws on.** `whiteboard` renders structured visuals —
+Mermaid diagrams (mind maps, flowcharts, sequence), ECharts charts,
+markdown tables and notes — straight into the conversation as live cards
+(local dual-engine pipeline, vendored, zero CDN). A dedicated whiteboard
+panel holds the full board with per-block editing, PNG export and
+`.board` import/export.
+
 **Tab Crew — parallel agents.** `crewDispatch` spawns subagents that each
 work a tab (or a sub-session) concurrently, with `crewStatus` / `crewCancel`
 for coordination. Scheduled tasks (`scheduleTask`) let the agent run jobs
 minutes or hours later and report back via system notification.
+
+**A floating-ball hub.** A draggable glass orb parked on the window edge
+opens quick actions (agent panel, voice input with live transcript, page
+summary, whiteboard), spins a progress ring while the agent works and
+flashes a ready badge when it finishes — global to every browser window.
 
 **Approval policy, not blind trust.** Every risky tool call (shell commands,
 file writes, logins, form posts) routes through a policy engine — per-tool
@@ -55,6 +67,28 @@ events, so even an unattended run can be gated from the outside.
 background thread, sticky-bottom follow with hysteresis (content growth never
 moves your viewport), per-conversation input history (↑/↓), and an agent
 panel that stays responsive while a 40 KB answer streams in.
+
+## Desire Page Protocol (DPP)
+
+Pages can *declare* themselves to the agent — what's on the page, which
+actions exist, which events fire — so it works on declared facts instead
+of DOM guessing. Four adoption levels, from zero-code to full SDK:
+
+- **L0** — plain schema.org JSON-LD; `potentialAction` maps to agent actions
+- **L1** — `data-dpp-*` HTML attributes on interactive elements
+- **L2** — an inline JSON declaration: content regions, typed views, actions, events
+- **L3** — the JS SDK `desire.expose()`, for SPAs and shadow-DOM-heavy apps
+
+The host parses declarations into the agent's context (`pageProtocol`,
+`pageExtract` with typed fields, `pageAction` with preconditions and
+navigation feedback), a site-wide `/.well-known/desire.json` covers whole
+domains, and page events respect a per-site consent level — **declaring
+is not authorization**: page-initiated actions still pass the approval
+policy. Spec: [docs/DPP-PROTOCOL.md](docs/DPP-PROTOCOL.md) with JSON
+Schema and `tools/dpp-validate.py`; the SDK ships from
+[desire.mankong.icu/desire-sdk.js](https://desire.mankong.icu/desire-sdk.js);
+a ten-scenario demo hall (store, IM, forum, booking, news, admin…) runs
+at [desire.mankong.icu/demo](https://desire.mankong.icu/demo/).
 
 ## Also a very capable browser
 
@@ -116,6 +150,21 @@ curl -s -X POST $B/navigate   -d '{"url":"https://example.com"}'
 curl -sN $B/events                                          # watch what happens
 ```
 
+## Accounts, sync & remote
+
+Optional — the browser is fully usable without an account.
+
+- **Sync** — bookmarks, reading list, quick dial, keyboard shortcuts,
+  settings and agent memory/preferences sync across your devices with
+  **end-to-end encryption**: a master key generated on-device, the server
+  stores only ciphertext (HKDF-derived AES-GCM payloads, HMAC-pseudonymized
+  ids). LWW merge with tombstones, per-domain toggles, opt-in history sync
+  with 90-day server retention. The backend is self-hostable Rust in
+  `crates/` (axum + MySQL + Redis).
+- **Desire Remote** (`apps/ios/`) — an iOS companion that mirrors your
+  live agent sessions, sends messages and voice input, and pairs with the
+  Mac via QR code through the same relay.
+
 ## Download
 
 Grab the latest unsigned build from
@@ -157,17 +206,23 @@ Feature-modular, strict three-layer separation:
 ```
 Desire/
 ├── App/              # Entry point, automation bridge, window chrome
-├── Features/         # 34 feature modules
+├── Features/         # 36 feature modules
 │   ├── Agent/        # The agent runtime — the biggest module
 │   ├── Browsing/     # WebView, tabs, toolbar
 │   ├── DevTools/     # In-app developer tools
 │   ├── MCP/          # MCP server + client
+│   ├── Sync/         # E2E-encrypted cross-device sync
+│   ├── Whiteboard/   # Mermaid + ECharts rendering board
 │   └── ...           # Bookmarks, History, Downloads, Privacy, …
 ├── Views/
 │   ├── ContentView.swift   # Composition root
 │   └── Components/         # Reusable primitives
 └── Assets.xcassets
 ```
+
+The repo also carries the self-hosted **sync backend** (`crates/`, Rust —
+axum + MySQL + Redis, migrations via `desire-migrate`) and the
+**Desire Remote** iOS app (`apps/ios/`).
 
 Each module follows **Model → Store → View**:
 

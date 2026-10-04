@@ -14,6 +14,8 @@ final class WhiteboardPanel {
     private var window: NSWindow?
     /// 最后持有的会话（deliveryTarget 是 weak——会话空闲时兜底）。
     private var lastSession: AgentSessionStore?
+    /// ⌘Z/⇧⌘Z 本地键监听（窗口级，rename 输入框编辑中放行）。
+    private var keyMonitor: Any?
 
     private var currentSession: AgentSessionStore? {
         if let target = AgentScheduler.shared.deliveryTarget {
@@ -60,6 +62,7 @@ final class WhiteboardPanel {
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
+        installKeyMonitor()
     }
 
     func hide() {
@@ -67,8 +70,31 @@ final class WhiteboardPanel {
     }
 
     func cleanup() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
         window?.close()
         window = nil
+    }
+
+    /// ⌘Z / ⇧⌘Z 撤销重做（面板窗口为 key 时接管；重命名输入框等
+    /// 字段编辑器活动中放行给系统 undo）。
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window = self.window,
+                  event.window === window, window.isKeyWindow else { return event }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags == .command || flags == [.command, .shift],
+                  event.charactersIgnoringModifiers?.lowercased() == "z" else { return event }
+            if window.firstResponder is NSTextView { return event }
+            let conversationID = self.lastSession?.conversationId?.uuidString
+            if flags == [.command, .shift] {
+                WhiteboardStore.shared.redo(conversationID: conversationID)
+            } else {
+                WhiteboardStore.shared.undo(conversationID: conversationID)
+            }
+            return nil
+        }
     }
 }
 
@@ -138,6 +164,16 @@ struct WhiteboardPanelView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
+            CapsuleButton(systemName: "arrow.uturn.backward", action: {
+                store.undo(conversationID: session.conversationId?.uuidString)
+            })
+            .disabled(!store.canUndo(session.conversationId?.uuidString))
+            .help("撤销（⌘Z）——面板编辑与 Agent 写入都可撤")
+            CapsuleButton(systemName: "arrow.uturn.forward", action: {
+                store.redo(conversationID: session.conversationId?.uuidString)
+            })
+            .disabled(!store.canRedo(session.conversationId?.uuidString))
+            .help("重做（⇧⌘Z）")
             CapsuleButton(systemName: "square.and.arrow.down", action: { exportPNG() })
                 .help("导出 PNG 到下载目录")
             Menu {

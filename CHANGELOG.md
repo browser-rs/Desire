@@ -2,6 +2,8 @@
 ### Added
 
 - **白板截图上板不再回传 base64（evidence 引用）**：image 块新增 `evidence` 字段（`"last"` = 本会话最近一张 screenshot/screenshotElement 结果，或显式 toolCallId），宿主侧从会话消息就地解析成 data URI——此前模型要把几 MB 的 base64 原样塞进 whiteboard 参数（纯 token 灾难）；解析失败带明确 Error（"call screenshot first"）。桥 `POST /whiteboard` 同一解析器。
+- **白板撤销/重做**：store 级快照栈（每会话就近恢复，上限 50，不持久化），覆盖面板编辑**和 Agent 写入**——Agent 误 clear 也救得回；面板工具条 ⮌/⮭ 按钮（空栈禁用）+ 窗口级 ⌘Z/⇧⌘Z（重命名输入框编辑中放行给系统）；桥 `POST /whiteboard` 新增 `undo`/`redo` 动作（自动化同权）。
+
 
 ### Changed
 

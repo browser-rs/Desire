@@ -888,6 +888,14 @@ final class AutomationServer {
                     store.clear(conversationID: conversationID)
                     return try Self.json(["ok": true, "action": "clear", "blockCount": 0])
                 }
+                if action == "undo" || action == "redo" {
+                    let ok = action == "undo"
+                        ? store.undo(conversationID: conversationID)
+                        : store.redo(conversationID: conversationID)
+                    return try Self.json([
+                        "ok": ok, "action": action,
+                        "blockCount": store.board(for: conversationID).blocks.count])
+                }
                 // 单块精细编辑（index 为 1-based 块号，与工具/get 同口径）。
                 if action == "edit" || action == "delete" || action == "move" {
                     let number = (body["index"] as? Int)

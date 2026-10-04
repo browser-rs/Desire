@@ -1245,6 +1245,9 @@ func testWhiteboardSpec() {
     check("白板：上移交换", spec.movingBlock(2, delta: -1).blocks[1].type == "note")
     check("白板：下越界不动", spec.movingBlock(2, delta: 1).blocks[2].type == "note")
     check("白板：删除减一", spec.deletingBlock(1).blocks.count == 2)
+    check("白板：拖拽排序", spec.reorderingBlock(from: 2, to: 0).blocks[0].type == "note")
+    check("白板：拖拽同位原样", spec.reorderingBlock(from: 1, to: 1) == spec)
+    check("白板：拖拽越界原样", spec.reorderingBlock(from: 9, to: 0) == spec)
     check("白板：编辑内容", spec.editingBlock(0, content: "x").blocks[0].content == "x")
     check("白板：编辑越界原样", spec.editingBlock(9, content: "x") == spec)
     // table 类型合法

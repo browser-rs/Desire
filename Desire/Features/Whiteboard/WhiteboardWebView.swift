@@ -167,7 +167,10 @@ struct WhiteboardWebView: NSViewRepresentable {
       .block-title { font-size: 12px; font-weight: 600; color: #8a7f6f; margin: 0 0 6px; }
       .note { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
       .note-link { color: #2b5aa0; text-decoration: underline; cursor: pointer; }
-      .image-box img { max-width: 100%; border-radius: 6px; display: block; }
+      .image-box img { max-width: 100%; border-radius: 6px; display: block; -webkit-user-drag: none; }
+      .block-handle { cursor: grab; margin-right: 3px; user-select: none; }
+      .block.dragging { opacity: 0.45; }
+      .block.drop-target { outline: 2px dashed #b48b3c; outline-offset: -2px; }
       .note h1, .note h2, .note h3 { font-size: 14px; margin: 8px 0 4px; }
       .note strong { font-weight: 700; }
       .mermaid-box svg, .chart-box { max-width: 100%; }
@@ -239,6 +242,11 @@ struct WhiteboardWebView: NSViewRepresentable {
       // image 块不进源码编辑（content 是万字符 base64，textarea 没意义）。
       function blockTools(canEdit) {
         var bar = el("div", "block-tools");
+        var grip = document.createElement("span");
+        grip.className = "block-handle";
+        grip.textContent = "⠿";
+        grip.title = "拖动排序";
+        bar.appendChild(grip);
         var items = [["\\u2191", "上移", "move-up"],
          ["\\u2193", "下移", "move-down"]];
         if (canEdit) items.push(["\\u270E", "编辑源码", "edit"]);
@@ -452,6 +460,45 @@ struct WhiteboardWebView: NSViewRepresentable {
         else if (act === "move-down") postEdit({ kind: "move", index: idx, delta: 1 });
         else if (act === "edit") startEdit(idx);
         else if (act === "delete") postEdit({ kind: "delete", index: idx });
+      });
+
+      // 拖拽排序：手柄 mousedown 才把块置 draggable（不破坏 note 文本
+      // 选择），drop 目标块的 dataset.index 即新位置，经 reorder 回传。
+      var dragFrom = -1;
+      document.getElementById("board").addEventListener("mousedown", function (ev) {
+        var grip = ev.target && ev.target.closest ? ev.target.closest(".block-handle") : null;
+        if (!grip) return;
+        var blockEl = grip.closest(".block");
+        if (blockEl) blockEl.draggable = true;
+      });
+      document.getElementById("board").addEventListener("dragstart", function (ev) {
+        var blockEl = ev.target && ev.target.closest ? ev.target.closest(".block") : null;
+        if (!blockEl || !blockEl.draggable) { ev.preventDefault(); return; }
+        dragFrom = parseInt(blockEl.dataset.index, 10);
+        if (isNaN(dragFrom)) { ev.preventDefault(); return; }
+        ev.dataTransfer.effectAllowed = "move";
+        blockEl.classList.add("dragging");
+      });
+      document.getElementById("board").addEventListener("dragover", function (ev) {
+        ev.preventDefault();
+        var blockEl = ev.target && ev.target.closest ? ev.target.closest(".block") : null;
+        var marked = document.querySelectorAll(".block.drop-target");
+        for (var i = 0; i < marked.length; i++) marked[i].classList.remove("drop-target");
+        if (blockEl) blockEl.classList.add("drop-target");
+      });
+      document.getElementById("board").addEventListener("drop", function (ev) {
+        ev.preventDefault();
+        var blockEl = ev.target && ev.target.closest ? ev.target.closest(".block") : null;
+        var to = blockEl ? parseInt(blockEl.dataset.index, 10) : NaN;
+        if (!isNaN(dragFrom) && !isNaN(to) && to !== dragFrom) {
+          postEdit({ kind: "reorder", index: dragFrom, delta: to });
+        }
+        dragFrom = -1;
+      });
+      document.getElementById("board").addEventListener("dragend", function () {
+        dragFrom = -1;
+        var marked = document.querySelectorAll(".block.dragging, .block.drop-target");
+        for (var i = 0; i < marked.length; i++) marked[i].classList.remove("dragging", "drop-target");
       });
 
       // note 链接点击 → 经桥在浏览器新标签打开（真实导航被 Swift 侧护栏

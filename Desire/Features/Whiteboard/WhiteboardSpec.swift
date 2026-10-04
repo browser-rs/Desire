@@ -98,6 +98,15 @@ extension WhiteboardSpec {
         return spec
     }
 
+    /// 拖拽排序：把 from 位置的块移到 to 位置（0-based，其余块顺移）。
+    func reorderingBlock(from: Int, to: Int) -> WhiteboardSpec {
+        var spec = self
+        guard blocks.indices.contains(from), blocks.indices.contains(to), from != to else { return self }
+        let block = spec.blocks.remove(at: from)
+        spec.blocks.insert(block, at: to)
+        return spec
+    }
+
     func editingBlock(_ index: Int, content: String) -> WhiteboardSpec {
         var spec = self
         guard blocks.indices.contains(index) else { return self }

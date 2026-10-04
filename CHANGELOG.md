@@ -25,6 +25,8 @@
 - **白板：Agent 读板闭环 + image 块**：`whiteboard` 工具新增 `get` 动作（逐块清单回读给模型，超长内容截断、image 只报大小）——"读板→改图"的迭代不再盲写；render/append 的返回附带单行块摘要（模型不调 get 也知道板上有什么）；新 `image` 块类型（`data:image/` URI，截图上板图文混排；拒远程 URL 防外链依赖，单图上限 ~8MB）；note 便签支持 `[链接](url)`，点击经 whiteboardLink 消息在浏览器新标签打开——白板 webview 自身在 loadHTMLString 落地后一切导航被护栏取消、window.open 返回 nil（误点不再把整板打跑）；块解析收口 `WhiteboardBlock.make(from:)`（工具与桥共用，content 接受字符串或 JSON 对象）；append 增设 60 块板容量护栏；桥新增 `POST /whiteboard`（render/append/clear/get 与工具同权，可指定 conversationId）+ `GET /whiteboard` 每块附 200 字符预览。
 - **白板：Agent 单块精细编辑**：`whiteboard` 工具新增 `edit`/`delete`/`move` 动作（1-based 块号，与 `get` 回读编号一致；edit 的 content 接受字符串或 JSON 对象）——修改单块不再重发整板（image 块的 data URI 特别吃 token），"读板→改一块"的迭代闭环补完；桥 `POST /whiteboard` 同步支持三个动作。
 - **白板离屏成图管线（BoardRenderService）**：`/panel/snapshot?name=whiteboard` 从"块清单卡"升级为**真成图**——隐藏 WKWebView 跑与面板同一份 pageHTML 双引擎，串行渲染整板、全内容高 takeSnapshot（按 spec 内容+宽度哈希缓存，宽度可通过 `?w=` 指定），E2E 首次拿到像素级成图证据（返回新增 `rendered`/`errors` 字段；渲染失败回退块清单卡并带 `fallback: "block-card"` 标记）。
+- **白板块拖拽排序**：块工具条新增 ⠿ 手柄（按住才置 draggable，不破坏便签文本选择），drop 目标块即新位置，经 `whiteboardEdit` 通道 `reorder`（index=原位置、delta=目标位置）落到新纯函数 `WhiteboardSpec.reorderingBlock(from:to:)`；拖拽视觉反馈（半透明 + 虚线落点框），增量渲染下其余块节点复用不闪。
+
 
 
 
@@ -44,6 +46,8 @@
 - **31 个字符串目录键补全翻译**：构建自动抽取产生的未翻译骨架（MCP stdio/HTTP 传输、DPP 徽标、AI 自动拦截 toast、PDF/播放器菜单、成本路由等）补齐 en/zh-Hans/zh-Hant，目录恢复三语全覆盖。
 - **白板 PNG 导出可能空白**：cacheDisplay 拍 WKWebView 合成层不可靠——改为 takeSnapshot 按 `document.body.scrollHeight` 取全文档区域（超出视口的部分 WebKit 会照常渲染，长板不再被裁成一屏），失败回退 cacheDisplay。
 - **白板面板块工具条"上移/下移/删除"自二期起无效（潜伏 bug）**：按钮闭包调用了 `post(...)`——那是渲染统计函数（发往 whiteboardRender 通道），编辑回传应走 `postEdit`（whiteboardEdit 通道），所以只有"编辑源码"真正生效过。改为 #board 事件委托 + 按钮只带 data-action、块编号读 `.block` 的 dataset.index（增量渲染复用节点后编号以 data 属性为准）。
+- **白板面板块工具条从未在 app 里生效（接线缺失）**：`WhiteboardPanelView` 渲染 `WhiteboardWebView` 时一直没传 `onEdit`——工具条的移动/删除/编辑源码回传到 Coordinator 后落在 nil 上（二期 E2E 只在探针层验了 JS 流程，没验 app 接线）。现面板持有 onEdit 并把 move/delete/edit 落到 store.apply；聊天内嵌卡保持只读预览不受影响。
+
 
 
 

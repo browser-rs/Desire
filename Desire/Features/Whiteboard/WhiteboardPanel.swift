@@ -85,7 +85,26 @@ struct WhiteboardPanelView: View {
         VStack(spacing: 0) {
             toolbar
             Divider().opacity(0.6)
-            WhiteboardWebView(spec: store.board(for: session.conversationId?.uuidString))
+            WhiteboardWebView(
+                spec: store.board(for: session.conversationId?.uuidString),
+                onEdit: { kind, index, delta, content in
+                    // 面板块工具条/拖拽的唯一落点——此前 onEdit 无人消费，
+                    // 工具条在真实 app 里从未生效过（只有 JS 层探针验过）。
+                    let id = session.conversationId?.uuidString
+                    switch kind {
+                    case "move":
+                        store.apply({ $0 = $0.movingBlock(index, delta: delta) }, conversationID: id)
+                    case "delete":
+                        store.apply({ $0 = $0.deletingBlock(index) }, conversationID: id)
+                    case "reorder":
+                        store.apply({ $0 = $0.reorderingBlock(from: index, to: delta) }, conversationID: id)
+                    case "edit":
+                        store.apply({ $0 = $0.editingBlock(index, content: content) }, conversationID: id)
+                    default:
+                        break
+                    }
+                }
+            )
         }
     }
 

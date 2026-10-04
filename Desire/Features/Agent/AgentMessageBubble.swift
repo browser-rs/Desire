@@ -284,7 +284,10 @@ private struct AssistantBubble: View {
                         MarkdownRendererView(text: text, isLive: isStreamingTail)
                     }
 
-                    if let tcs = message.toolCalls, !tcs.isEmpty {
+                    // whiteboard 调用不进 chip 列表——它的结果消息渲染成
+                    // 白板卡（内嵌实时板），chip 行会跟卡片重复出现。
+                    if let tcs = message.toolCalls?.filter({ $0.function.name != "whiteboard" }),
+                       !tcs.isEmpty {
                         ToolCallList(toolCalls: tcs, results: toolResults, durations: toolDurations)
                     }
 

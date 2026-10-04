@@ -793,8 +793,14 @@ struct AgentPanel: View {
                 },
                 uniquingKeysWith: { current, _ in current }
             )
-            derived.chips = Set(store.messages.flatMap { m in
-                m.role == .assistant ? (m.toolCalls?.map(\.id) ?? []) : []
+            derived.chips = Set(store.messages.flatMap { m -> [String] in
+                guard m.role == .assistant else { return [] }
+                // whiteboard 的结果消息由 WhiteboardToolCard 渲染（聊天内嵌
+                // 实时板）——不 chip 化，否则消息行被 EmptyView 吞掉、白板卡
+                // 永远不出现（2026-10-04 用户实测抓到）。
+                return (m.toolCalls ?? []).compactMap { call in
+                    call.function.name == "whiteboard" ? nil : call.id
+                }
             })
             derived.count = store.messages.count
             derived.tailID = tail?.id

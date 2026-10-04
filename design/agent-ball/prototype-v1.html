@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>悬浮球 UI 重设计 · 原型 v1</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --ink-2: rgba(29,29,31,.62);
+    --ink-3: rgba(29,29,31,.42);
+    --paper: #f5f3ee;
+    --accent: #d6453a;        /* 朱砂 */
+    --green: #30b15c;
+    --red: #e03a2e;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #efede7;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 液态玻璃材质（原型用 backdrop-filter 模拟；真机 = 原生 .glassEffect） ============ */
+  .glass {
+    position: relative;
+    background: rgba(252, 252, 250, .48);
+    -webkit-backdrop-filter: blur(26px) saturate(1.9);
+    backdrop-filter: blur(26px) saturate(1.9);
+    box-shadow:
+      0 1px 1px rgba(255,255,255,.65) inset,
+      0 -1px 2px rgba(0,0,0,.05) inset,
+      0 18px 44px -12px rgba(20,16,8,.35),
+      0 3px 10px -2px rgba(20,16,8,.18);
+  }
+  .glass::before {           /* 顶部镜面高光 */
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(168deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.18) 34%, rgba(255,255,255,0) 62%);
+  }
+  .glass::after {            /* 底缘折光 */
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 0 0 .5px rgba(255,255,255,.55), inset 0 -8px 14px -10px rgba(255,255,255,.5);
+  }
+  .glass-tint-red { background: rgba(224,58,46,.42); }
+
+  /* ============ 球体通用 ============ */
+  .ball {
+    position: absolute; width: 58px; height: 58px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 30; user-select: none;
+    transition: transform .22s cubic-bezier(.3,1.4,.5,1), box-shadow .22s ease;
+  }
+  .ball svg { width: 23px; height: 23px; color: rgba(29,29,31,.82); position: relative; z-index: 2;
+    filter: drop-shadow(0 1px 1px rgba(255,255,255,.4)); }
+  .ball:hover { transform: scale(1.07); }
+  .breathing { animation: breathe 3.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+
+  .ring { position: absolute; inset: -6px; border-radius: 50%; z-index: 1;
+    background: conic-gradient(from 0deg, transparent 0 18%, var(--accent) 55%, transparent 72%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.6px), #000 calc(100% - 1.8px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.6px), #000 calc(100% - 1.8px));
+    animation: spin 1.15s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pulse-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(224,58,46,.55);
+    animation: pulse 1.7s ease-out infinite; }
+  .pulse-ring.d2 { animation-delay: .55s; }
+  @keyframes pulse { from { transform: scale(1); opacity: .8; } to { transform: scale(1.6); opacity: 0; } }
+
+  .badge { position: absolute; top: -3px; right: -3px; width: 19px; height: 19px; border-radius: 50%;
+    background: linear-gradient(180deg, #4cd474, #2ea852); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(46,168,82,.5), 0 0 0 2px rgba(255,255,255,.85); z-index: 3; }
+  .badge svg { width: 10px; height: 10px; color: #fff; filter: none; }
+  .badge.pop { animation: pop .45s cubic-bezier(.3,1.8,.5,1); }
+  @keyframes pop { from { transform: scale(.3); } to { transform: scale(1); } }
+
+  /* ============ V1 卡片菜单 ============ */
+  .v1-card { position: absolute; z-index: 20; width: 238px; border-radius: 21px; padding: 7px;
+    transform-origin: 78% 120%;
+    opacity: 0; transform: scale(.82) translateY(6px); pointer-events: none;
+    transition: opacity .2s ease, transform .32s cubic-bezier(.3,1.5,.5,1); }
+  .demo.open .v1-card { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
+  .v1-head { display: flex; align-items: center; gap: 8px; padding: 7px 9px 8px; }
+  .v1-fav { width: 22px; height: 22px; border-radius: 7px; flex: none;
+    background: linear-gradient(150deg, #f0a05a, #c25b3e 62%, #7c4658);
+    box-shadow: inset 0 0 0 .5px rgba(255,255,255,.4); }
+  .v1-title { font-size: 12px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v1-sub { font-size: 10px; color: var(--ink-3); margin-top: 1px; }
+  .chip-dpp { font-size: 8.5px; font-weight: 700; letter-spacing: .06em; color: var(--accent);
+    background: rgba(214,69,58,.1); border: .5px solid rgba(214,69,58,.35); border-radius: 5px; padding: 2px 5px; flex: none; }
+  .v1-row { display: flex; align-items: center; gap: 10px; padding: 8px 9px; border-radius: 12px; cursor: pointer;
+    transition: background .15s ease; }
+  .v1-row:hover { background: rgba(29,29,31,.06); }
+  .v1-ic { width: 29px; height: 29px; border-radius: 9px; background: rgba(29,29,31,.06); flex: none;
+    display: flex; align-items: center; justify-content: center; }
+  .v1-ic svg { width: 15px; height: 15px; color: rgba(29,29,31,.72); }
+  .v1-row:hover .v1-ic { background: rgba(214,69,58,.1); }
+  .v1-row:hover .v1-ic svg { color: var(--accent); }
+  .v1-label { font-size: 13px; font-weight: 500; letter-spacing: -.005em; }
+  .v1-hint { font-size: 10px; color: var(--ink-3); padding: 6px 10px 4px; border-top: .5px solid rgba(29,29,31,.1);
+    margin-top: 4px; display: flex; justify-content: space-between; }
+  .hairline { height: .5px; background: rgba(29,29,31,.12); margin: 3px 8px 0; }
+
+  /* ============ V2 灵动岛 ============ */
+  .island { position: absolute; z-index: 30; cursor: pointer; user-select: none;
+    height: 36px; width: 68px; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    transition: width .5s cubic-bezier(.3,1.25,.4,1), height .5s cubic-bezier(.3,1.25,.4,1),
+                border-radius .5s cubic-bezier(.3,1.25,.4,1), background .3s ease; }
+  .island .mini { display: flex; align-items: center; gap: 7px; transition: opacity .18s ease; }
+  .island .mini svg { width: 16px; height: 16px; color: rgba(29,29,31,.8); }
+  .island .full { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 18px; gap: 14px;
+    opacity: 0; transition: opacity .22s ease .12s; }
+  .demo2.open .island { width: 470px; height: 66px; border-radius: 33px; }
+  .demo2.open .mini { opacity: 0; position: absolute; }
+  .demo2.open .full { opacity: 1; }
+  .isl-status { display: flex; align-items: center; gap: 8px; flex: none; }
+  .isl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(48,177,92,.6); }
+  .isl-dot.busy { background: transparent; width: 10px; height: 10px;
+    background: conic-gradient(from 0deg, transparent 0 20%, var(--accent) 60%, transparent 75%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.2px), #000 calc(100% - 1.4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.2px), #000 calc(100% - 1.4px));
+    animation: spin 1.1s linear infinite; box-shadow: none; }
+  .isl-txt { font-size: 11px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+  .isl-sep { width: .5px; height: 26px; background: rgba(29,29,31,.14); flex: none; }
+  .isl-act { display: flex; align-items: center; gap: 6px; padding: 8px 11px; border-radius: 18px; cursor: pointer;
+    transition: background .15s ease; flex: none; }
+  .isl-act:hover { background: rgba(29,29,31,.07); }
+  .isl-act svg { width: 15px; height: 15px; color: rgba(29,29,31,.72); }
+  .isl-act:hover svg { color: var(--accent); }
+  .isl-act span { font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+  .isl-rec { background: rgba(224,58,46,.38); }
+  .wave { display: flex; align-items: center; gap: 3px; height: 22px; }
+  .wave i { display: block; width: 3px; border-radius: 2px; background: #fff; animation: wave 1s ease-in-out infinite; }
+  .wave i:nth-child(1) { height: 8px;  animation-delay: 0s; }
+  .wave i:nth-child(2) { height: 15px; animation-delay: .12s; }
+  .wave i:nth-child(3) { height: 21px; animation-delay: .24s; }
+  .wave i:nth-child(4) { height: 13px; animation-delay: .36s; }
+  .wave i:nth-child(5) { height: 7px;  animation-delay: .48s; }
+  @keyframes wave { 0%,100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
+
+  /* ============ V3 辅佐触盘 ============ */
+  .hub-wrap { position: absolute; z-index: 20; transform-origin: 50% 118%;
+    opacity: 0; transform: scale(.7); pointer-events: none;
+    transition: opacity .18s ease, transform .34s cubic-bezier(.3,1.5,.5,1); }
+  .demo3.open .hub-wrap { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .hub { width: 208px; border-radius: 30px; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hub-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; aspect-ratio: 1; border-radius: 50%; cursor: pointer;
+    opacity: 0; transform: scale(.55);
+    transition: opacity .25s ease, transform .38s cubic-bezier(.3,1.7,.5,1), background .15s ease; }
+  .demo3.open .hub-cell { opacity: 1; transform: scale(1); }
+  .demo3.open .hub-cell:nth-child(1) { transition-delay: .05s; }
+  .demo3.open .hub-cell:nth-child(2) { transition-delay: .11s; }
+  .demo3.open .hub-cell:nth-child(3) { transition-delay: .17s; }
+  .demo3.open .hub-cell:nth-child(4) { transition-delay: .23s; }
+  .hub-cell:hover { background: rgba(29,29,31,.07) !important; }
+  .hub-cell .c { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: rgba(29,29,31,.06); }
+  .hub-cell svg { width: 19px; height: 19px; color: rgba(29,29,31,.72); }
+  .hub-cell:hover .c { background: rgba(214,69,58,.12); }
+  .hub-cell:hover svg { color: var(--accent); }
+  .hub-cell b { font-size: 10.5px; font-weight: 500; color: var(--ink-2); }
+  .ball.xmode svg { display: none; }
+  .ball.xmode .xicon { display: block !important; }
+  .ball .xicon { display: none; }
+
+  /* ============ 演示容器 / 浏览器窗mock ============ */
+  .demo { position: relative; }
+  .browser { border-radius: 12px; overflow: hidden; box-shadow: 0 24px 70px -18px rgba(30,20,5,.4), 0 0 0 .5px rgba(0,0,0,.18); }
+  .chrome-dark { background: linear-gradient(180deg, #33322f, #2a2926); padding: 0 14px; }
+  .tabstrip { display: flex; align-items: flex-end; gap: 6px; height: 34px; padding-top: 7px; }
+  .tab { display: flex; align-items: center; gap: 7px; height: 27px; padding: 0 12px; border-radius: 8px 8px 0 0;
+    font-size: 11px; color: rgba(255,255,255,.85); background: rgba(255,255,255,.1); }
+  .tab.active { background: #f5f3ee; color: var(--ink); font-weight: 500; }
+  .tab svg { width: 11px; height: 11px; opacity: .7; }
+  .toolbar { display: flex; align-items: center; gap: 10px; height: 42px; }
+  .tbtn { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.75); }
+  .tbtn svg { width: 14px; height: 14px; }
+  .urlbox { flex: 1; height: 28px; border-radius: 8px; background: rgba(255,255,255,.09);
+    display: flex; align-items: center; gap: 7px; padding: 0 10px; font-size: 11px; color: rgba(255,255,255,.8); }
+  .urlbox svg { width: 11px; height: 11px; opacity: .6; }
+  .page { position: relative; background: var(--paper); height: 470px; overflow: hidden; }
+  .art { max-width: 560px; margin: 0 auto; padding: 34px 0 0; }
+  .photo { height: 150px; border-radius: 12px; margin: 16px 0 18px; position: relative; overflow: hidden;
+    background: linear-gradient(170deg, #f2b06a 0%, #dd7448 34%, #9c4a52 62%, #453a5e 100%); }
+  .photo::after { content: ""; position: absolute; width: 46px; height: 46px; border-radius: 50%; left: 34%; top: 34%;
+    background: radial-gradient(circle, rgba(255,236,190,.95), rgba(255,236,190,0) 70%); }
+  .photo b { position: absolute; left: 14px; bottom: 10px; font-size: 10px; font-weight: 500; color: rgba(255,255,255,.9);
+    letter-spacing: .04em; }
+
+  /* ============ 状态条 ============ */
+  .strip { background: linear-gradient(180deg, #2b2a28, #232220); border-radius: 14px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .cellbox { width: 96px; height: 96px; border-radius: 12px; position: relative; overflow: hidden;
+    background: linear-gradient(160deg, #6b5a4e 0%, #3e3f52 55%, #2a3446 100%); }
+  .cellbox::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(115deg, rgba(255,255,255,.14) 0%, transparent 40%); }
+  .celllabel { font-size: 10.5px; color: rgba(255,255,255,.55); }
+  .cell .ball { position: absolute; left: 50%; top: 50%; margin: -29px 0 0 -29px; }
+  .cell .ball.sm { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  .cell .ball.sm svg { width: 19px; height: 19px; }
+  .cell .island { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); }
+  .cell .hub-wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(.62); opacity: 1; pointer-events: auto; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ 页头 ============ -->
+<header class="max-w-[1080px] mx-auto px-6 pt-14 pb-8">
+  <div class="flex items-end justify-between">
+    <div>
+      <p class="text-[11px] font-semibold tracking-[.14em] text-[color:var(--accent)] mb-2">DESIRE · AGENT 悬浮球</p>
+      <h1 class="text-[30px] font-bold tracking-tight leading-tight">悬浮球 UI 重设计 <span class="text-[color:var(--ink-3)] font-semibold">/ 三方向原型</span></h1>
+      <p class="text-[13px] text-[color:var(--ink-2)] mt-2 leading-relaxed">交互全部可点：单击球展开、点空白处收起。材质为 HTML 模拟（backdrop-filter），真机用 macOS 26 原生 <code class="text-[11.5px] bg-black/[.055] px-1.5 py-0.5 rounded-md">.glassEffect</code>，质感一致。</p>
+    </div>
+    <div class="flex gap-2 text-[12px] font-medium pb-1">
+      <a href="#v1" class="px-3.5 py-1.5 rounded-full bg-black/[.06] hover:bg-black/[.1] transition-colors">V1 珠 · 牋</a>
+      <a href="#v2" class="px-3.5 py-1.5 rounded-full bg-black/[.06] hover:bg-black/[.1] transition-colors">V2 灵动岛</a>
+      <a href="#v3" class="px-3.5 py-1.5 rounded-full bg-black/[.06] hover:bg-black/[.1] transition-colors">V3 触盘</a>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1080px] mx-auto px-6 pb-24 space-y-20">
+
+<!-- ================================================================ V1 -->
+<section id="v1" class="scroll-mt-8">
+  <div class="flex items-baseline gap-3 mb-1.5">
+    <h2 class="text-[19px] font-bold tracking-tight">V1 · 珠与牋 <span class="text-[12px] font-medium text-[color:var(--ink-3)]">稳健演进</span></h2>
+    <span class="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--accent)]/[.09] text-[color:var(--accent)] font-semibold">现有形态的质感重做</span>
+  </div>
+  <p class="text-[13px] text-[color:var(--ink-2)] leading-relaxed mb-5 max-w-[720px]">保留"点球 → 出菜单"的心智。菜单头部新增<b class="font-semibold">当前页面上下文</b>（站点 + 标题 + DPP 标识），让球显得"知道你在哪"；行按钮悬停时染上朱砂。球体：呼吸微动、悬停放大、忙碌外环、录音红玻璃 + 双扩散波纹。</p>
+
+  <div class="browser demo" id="demo1">
+    <div class="chrome-dark">
+      <div class="tabstrip">
+        <div style="display:flex;gap:6px;margin-right:8px;align-items:center;height:27px;">
+          <span style="width:12px;height:12px;border-radius:50%;background:#f45f57;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#f5b02e;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#31c24d;display:inline-block"></span>
+        </div>
+        <div class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M4 10h16"/></svg> 京都 · 三日步行攻略</div>
+        <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/></svg> 鸭川沿岸路线图</div>
+      </div>
+      <div class="toolbar">
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+        <div class="tbtn" style="opacity:.4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12a8 8 0 10-2.3 5.6M20 12V7m0 5h-5"/></svg></div>
+        <div class="urlbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8 10V8a4 4 0 018 0v2"/></svg>
+          travel-notes.example/kyoto-3days
+          <span style="margin-left:auto"></span>
+          <span class="chip-dpp" style="border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.85);background:rgba(255,255,255,.08)">DPP</span>
+        </div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="art px-8">
+        <p class="text-[10px] font-semibold tracking-[.16em] text-[color:var(--ink-3)]">旅行手记 · 秋</p>
+        <h3 class="text-[21px] font-bold tracking-tight mt-1">京都 · 三日步行攻略</h3>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)] mt-3">第一天从东山起步，沿两年坂一路向上，避开正午人流；午后在冈崎的菩提树下歇脚，傍晚折回鸭川西岸看暮色。第二日渡过桂川去岚山，竹林宜早不宜迟。</p>
+        <div class="photo"><b>鸭川 · 傍晚六时的光</b></div>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)]">第三天留给市集与咖啡馆。锦市场的吃食建议少量多样，最后在河原町的旧书铺收尾——三层的盲文书区常有意外之喜。</p>
+      </div>
+
+      <!-- V1 球 + 卡 -->
+      <div class="v1-card glass" style="right:118px; top:26px;">
+        <div class="v1-head">
+          <div class="v1-fav"></div>
+          <div style="min-width:0">
+            <div class="v1-title">京都 · 三日步行攻略</div>
+            <div class="v1-sub">travel-notes.example</div>
+          </div>
+          <span class="chip-dpp" style="margin-left:auto">DPP</span>
+        </div>
+        <div class="hairline"></div>
+        <div style="padding-top:5px">
+          <div class="v1-row"><span class="v1-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 4c4.6 0 8.4 3.1 8.4 7S16.6 18 12 18c-1 0-2-.14-2.9-.4L5.4 19l.8-2.8C4.6 14.9 3.6 13.3 3.6 11c0-3.9 3.8-7 8.4-7z"/></svg></span><span class="v1-label">Agent 对话</span></div>
+          <div class="v1-row"><span class="v1-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11.5a6.2 6.2 0 0012.4 0M12 17.7V21"/></svg></span><span class="v1-label">语音输入</span></div>
+          <div class="v1-row"><span class="v1-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7.5a2 2 0 00-2 2v13a2 2 0 002 2h9a2 2 0 002-2V8l-4.5-4.5z"/><path d="M14 3.5V8h4.5"/><circle cx="11.3" cy="13.2" r="2.4"/><path d="M13.1 15l2 2"/></svg></span><span class="v1-label">总结本页</span></div>
+          <div class="v1-row"><span class="v1-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="4.5" y="5" width="15" height="14" rx="3" stroke-dasharray="3.4 3"/></svg></span><span class="v1-label">打开白板</span></div>
+        </div>
+        <div class="v1-hint"><span>拖动移动位置</span><span>双击直达语音</span></div>
+      </div>
+      <div class="ball glass breathing" style="right:88px; top:302px;" onclick="event.stopPropagation(); this.closest('.demo').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg>
+      </div>
+      <div class="absolute text-[10px] text-[color:var(--ink-3)]" style="right:88px; top:372px;">← 点球展开 · 点空白收起</div>
+    </div>
+  </div>
+
+  <!-- V1 状态条 -->
+  <div class="strip mt-6 px-7 py-6">
+    <div class="grid grid-cols-5 gap-5 max-w-[640px] mx-auto">
+      <div class="cell"><div class="cellbox"><div class="ball sm glass breathing"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg></div></div><span class="celllabel">待机（呼吸）</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass" style="transform:scale(1.09)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg></div></div><span class="celllabel">悬停</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass"><div class="ring"></div><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg></div></div><span class="celllabel">忙碌（外环）</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass glass-tint-red"><div class="pulse-ring"></div><div class="pulse-ring d2"></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" style="color:#fff"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11.5a6.2 6.2 0 0012.4 0M12 17.7V21"/></svg></div></div><span class="celllabel">语音录入</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg><span class="badge pop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></div></div><span class="celllabel">回复就绪</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ V2 -->
+<section id="v2" class="scroll-mt-8">
+  <div class="flex items-baseline gap-3 mb-1.5">
+    <h2 class="text-[19px] font-bold tracking-tight">V2 · 灵动岛 <span class="text-[12px] font-medium text-[color:var(--ink-3)]">会变形的胶囊</span></h2>
+    <span class="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--accent)]/[.09] text-[color:var(--accent)] font-semibold">最具 iPhone 感 · 主推</span>
+  </div>
+  <p class="text-[13px] text-[color:var(--ink-2)] leading-relaxed mb-5 max-w-[720px]">借鉴灵动岛：一个胶囊随状态变形——待机最小、<b class="font-semibold">悬停露名字</b>、点开成完整工具条（状态 + 四个大热区动作）、录音时变成<b class="font-semibold">声纹</b>、回复完成弹出"已回复"。状态不再靠猜，全部写在岛里。</p>
+
+  <div class="browser demo demo2" id="demo2">
+    <div class="chrome-dark">
+      <div class="tabstrip">
+        <div style="display:flex;gap:6px;margin-right:8px;align-items:center;height:27px;">
+          <span style="width:12px;height:12px;border-radius:50%;background:#f45f57;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#f5b02e;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#31c24d;display:inline-block"></span>
+        </div>
+        <div class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M4 10h16"/></svg> 京都 · 三日步行攻略</div>
+      </div>
+      <div class="toolbar">
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+        <div class="tbtn" style="opacity:.4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12a8 8 0 10-2.3 5.6M20 12V7m0 5h-5"/></svg></div>
+        <div class="urlbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8 10V8a4 4 0 018 0v2"/></svg>
+          travel-notes.example/kyoto-3days
+          <span style="margin-left:auto"></span>
+          <span class="chip-dpp" style="border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.85);background:rgba(255,255,255,.08)">DPP</span>
+        </div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="art px-8">
+        <p class="text-[10px] font-semibold tracking-[.16em] text-[color:var(--ink-3)]">旅行手记 · 秋</p>
+        <h3 class="text-[21px] font-bold tracking-tight mt-1">京都 · 三日步行攻略</h3>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)] mt-3">第一天从东山起步，沿两年坂一路向上，避开正午人流；午后在冈崎的菩提树下歇脚，傍晚折回鸭川西岸看暮色。第二日渡过桂川去岚山，竹林宜早不宜迟。</p>
+        <div class="photo" style="height:190px"><b>鸭川 · 傍晚六时的光</b></div>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)]">第三天留给市集与咖啡馆。锦市场的吃食建议少量多样，最后在河原町的旧书铺收尾——三层的盲文书区常有意外之喜。</p>
+      </div>
+
+      <!-- V2 岛（展开态） -->
+      <div class="island glass" style="right:110px; top:186px;" onclick="event.stopPropagation(); this.closest('.demo').classList.toggle('open')">
+        <div class="mini">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg>
+        </div>
+        <div class="full">
+          <div class="isl-status"><span class="isl-dot"></span><span class="isl-txt" style="color:var(--ink);font-weight:600;font-size:12px">智能体</span><span class="isl-txt">随时待命</span></div>
+          <div class="isl-sep"></div>
+          <div class="isl-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 4c4.6 0 8.4 3.1 8.4 7S16.6 18 12 18c-1 0-2-.14-2.9-.4L5.4 19l.8-2.8C4.6 14.9 3.6 13.3 3.6 11c0-3.9 3.8-7 8.4-7z"/></svg><span>对话</span></div>
+          <div class="isl-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11.5a6.2 6.2 0 0012.4 0M12 17.7V21"/></svg><span>语音</span></div>
+          <div class="isl-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7.5a2 2 0 00-2 2v13a2 2 0 002 2h9a2 2 0 002-2V8l-4.5-4.5z"/><path d="M14 3.5V8h4.5"/><circle cx="11.3" cy="13.2" r="2.4"/><path d="M13.1 15l2 2"/></svg><span>总结</span></div>
+          <div class="isl-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="4.5" y="5" width="15" height="14" rx="3" stroke-dasharray="3.4 3"/></svg><span>白板</span></div>
+        </div>
+      </div>
+      <div class="absolute text-[10px] text-[color:var(--ink-3)]" style="right:110px; top:236px;">← 点岛展开 · 悬停看"露名"变形</div>
+    </div>
+  </div>
+
+  <!-- V2 状态条 -->
+  <div class="strip mt-6 px-7 py-6">
+    <div class="grid grid-cols-5 gap-5 max-w-[840px] mx-auto">
+      <div class="cell"><div class="cellbox"><div class="island glass"><div class="mini"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg></div></div></div><span class="celllabel">待机</span></div>
+      <div class="cell"><div class="cellbox"><div class="island glass" style="width:104px"><div class="mini" style="gap:6px"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" style="width:14px;height:14px"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg><b style="font-size:10.5px;font-weight:600">智能体</b></div></div></div><span class="celllabel">悬停（露名）</span></div>
+      <div class="cell"><div class="cellbox"><div class="island glass" style="width:128px"><div class="mini" style="gap:7px"><span class="isl-dot busy"></span><b style="font-size:10.5px;font-weight:600;color:var(--ink-2)">正在处理…</b></div></div></div><span class="celllabel">忙碌</span></div>
+      <div class="cell"><div class="cellbox"><div class="island glass isl-rec" style="width:130px"><div class="mini" style="gap:8px"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span><b style="font-size:10.5px;font-weight:600;color:#fff">聆听中…</b></div></div></div><span class="celllabel">语音录入</span></div>
+      <div class="cell"><div class="cellbox"><div class="island glass" style="width:110px"><div class="mini" style="gap:7px"><span style="width:17px;height:17px;border-radius:50%;background:linear-gradient(180deg,#4cd474,#2ea852);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px rgba(255,255,255,.7)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="width:9px;height:9px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><b style="font-size:10.5px;font-weight:600;color:var(--ink-2)">已回复</b></div></div></div><span class="celllabel">回复就绪</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ V3 -->
+<section id="v3" class="scroll-mt-8">
+  <div class="flex items-baseline gap-3 mb-1.5">
+    <h2 class="text-[19px] font-bold tracking-tight">V3 · 辅佐触盘 <span class="text-[12px] font-medium text-[color:var(--ink-3)]">iOS AssistiveTouch 隐喻</span></h2>
+    <span class="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--accent)]/[.09] text-[color:var(--accent)] font-semibold">大按钮 · 盲操作友好</span>
+  </div>
+  <p class="text-[13px] text-[color:var(--ink-2)] leading-relaxed mb-5 max-w-[720px]">iPhone 辅助触控的原语：点球弹出<b class="font-semibold">径向圆盘</b>，四个大圆形按钮依次弹入，热区大、不看也能点中；球图标同时切换为 ✕（再点收起）。适合"球常驻、动作低频"的用法。</p>
+
+  <div class="browser demo demo3" id="demo3">
+    <div class="chrome-dark">
+      <div class="tabstrip">
+        <div style="display:flex;gap:6px;margin-right:8px;align-items:center;height:27px;">
+          <span style="width:12px;height:12px;border-radius:50%;background:#f45f57;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#f5b02e;display:inline-block"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#31c24d;display:inline-block"></span>
+        </div>
+        <div class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M4 10h16"/></svg> 京都 · 三日步行攻略</div>
+      </div>
+      <div class="toolbar">
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+        <div class="tbtn" style="opacity:.4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 12a8 8 0 10-2.3 5.6M20 12V7m0 5h-5"/></svg></div>
+        <div class="urlbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8 10V8a4 4 0 018 0v2"/></svg>
+          travel-notes.example/kyoto-3days
+          <span style="margin-left:auto"></span>
+          <span class="chip-dpp" style="border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.85);background:rgba(255,255,255,.08)">DPP</span>
+        </div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="art px-8">
+        <p class="text-[10px] font-semibold tracking-[.16em] text-[color:var(--ink-3)]">旅行手记 · 秋</p>
+        <h3 class="text-[21px] font-bold tracking-tight mt-1">京都 · 三日步行攻略</h3>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)] mt-3">第一天从东山起步，沿两年坂一路向上，避开正午人流；午后在冈崎的菩提树下歇脚，傍晚折回鸭川西岸看暮色。</p>
+        <div class="photo"><b>鸭川 · 傍晚六时的光</b></div>
+        <p class="text-[12px] leading-[1.9] text-[color:var(--ink-2)]">第三天留给市集与咖啡馆。锦市场的吃食建议少量多样，最后在河原町的旧书铺收尾。</p>
+      </div>
+
+      <!-- V3 触盘 -->
+      <div class="hub-wrap" style="right:36px; top:26px;">
+        <div class="hub glass">
+          <div class="hub-cell"><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 4c4.6 0 8.4 3.1 8.4 7S16.6 18 12 18c-1 0-2-.14-2.9-.4L5.4 19l.8-2.8C4.6 14.9 3.6 13.3 3.6 11c0-3.9 3.8-7 8.4-7z"/></svg></span><b>Agent 对话</b></div>
+          <div class="hub-cell"><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11.5a6.2 6.2 0 0012.4 0M12 17.7V21"/></svg></span><b>语音输入</b></div>
+          <div class="hub-cell"><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7.5a2 2 0 00-2 2v13a2 2 0 002 2h9a2 2 0 002-2V8l-4.5-4.5z"/><path d="M14 3.5V8h4.5"/><circle cx="11.3" cy="13.2" r="2.4"/><path d="M13.1 15l2 2"/></svg></span><b>总结本页</b></div>
+          <div class="hub-cell"><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="4.5" y="5" width="15" height="14" rx="3" stroke-dasharray="3.4 3"/></svg></span><b>白板</b></div>
+        </div>
+      </div>
+      <div class="ball glass breathing" style="right:108px; top:206px;" onclick="event.stopPropagation(); this.closest('.demo').classList.toggle('open'); this.classList.toggle('xmode')">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l1.9 4.9 4.9 1.9-4.9 1.9L12 17.2l-1.9-4.9-4.9-1.9 4.9-1.9L12 3.6z"/><path d="M18.9 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"/></svg>
+        <svg class="xicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7.5 7.5l9 9M16.5 7.5l-9 9"/></svg>
+      </div>
+      <div class="absolute text-[10px] text-[color:var(--ink-3)]" style="right:88px; top:274px;">← 点球弹盘 · 再点收起</div>
+    </div>
+  </div>
+
+  <!-- V3 状态条 -->
+  <div class="strip mt-6 px-7 py-6">
+    <div class="grid grid-cols-5 gap-5 max-w-[640px] mx-auto">
+      <div class="cell"><div class="cellbox"><div class="ball sm glass breathing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></div></div><span class="celllabel">待机（呼吸）</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass" style="transform:scale(1.09)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></div></div><span class="celllabel">悬停</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass"><div class="ring"></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></div></div><span class="celllabel">忙碌（外环）</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass glass-tint-red"><div class="pulse-ring"></div><div class="pulse-ring d2"></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" style="color:#fff"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11.5a6.2 6.2 0 0012.4 0M12 17.7V21"/></svg></div></div><span class="celllabel">语音录入</span></div>
+      <div class="cell"><div class="cellbox"><div class="ball sm glass"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg><span class="badge pop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></div></div><span class="celllabel">回复就绪</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 对比与建议 -->
+<section>
+  <h2 class="text-[19px] font-bold tracking-tight mb-4">对比与建议</h2>
+  <div class="rounded-2xl overflow-hidden" style="box-shadow:0 0 0 .5px rgba(0,0,0,.12)">
+    <table class="w-full text-[12.5px]" style="border-collapse:collapse">
+      <thead>
+        <tr style="background:rgba(29,29,31,.045)">
+          <th class="text-left font-semibold px-4 py-2.5" style="width:16%">方向</th>
+          <th class="text-left font-semibold px-4 py-2.5" style="width:22%">心智原型</th>
+          <th class="text-left font-semibold px-4 py-2.5">优势</th>
+          <th class="text-left font-semibold px-4 py-2.5">风险 / 代价</th>
+        </tr>
+      </thead>
+      <tbody style="background:#fbfaf7">
+        <tr style="border-top:.5px solid rgba(29,29,31,.1)">
+          <td class="px-4 py-3 font-semibold">V1 珠与牋</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">现有形态的精修</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">改动最小；菜单头带页面上下文；拖动/吸附逻辑完全复用</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">形态上没有惊喜，仍是"球+列表"</td>
+        </tr>
+        <tr style="border-top:.5px solid rgba(29,29,31,.1)">
+          <td class="px-4 py-3 font-semibold">V2 灵动岛 <span class="text-[10px] text-[color:var(--accent)] font-bold ml-1">主推</span></td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">Dynamic Island 变形胶囊</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">状态全部可见（待命/处理/声纹/已回复）；热区大；最具 iPhone 质感；录音态天然出彩</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">吸附时 470pt 宽岛需限宽/收窄排布；拖动手感要重新调</td>
+        </tr>
+        <tr style="border-top:.5px solid rgba(29,29,31,.1)">
+          <td class="px-4 py-3 font-semibold">V3 辅佐触盘</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">iOS AssistiveTouch 圆盘</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">按钮大、盲点得中；弹出动画最有"被伺候"感</td>
+          <td class="px-4 py-3 text-[color:var(--ink-2)]">占屏幕面积大；信息承载弱（放不下上下文/状态文案）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-[12.5px] text-[color:var(--ink-2)] leading-relaxed mt-5 max-w-[760px]">
+    <b class="font-semibold text-[color:var(--ink)]">推荐：V2 为主体，吸收 V1 的菜单头。</b>即"胶囊岛展开后，左端是页面上下文与状态，右端是大热区动作"。三个方向的状态语义（呼吸/外环/声纹/绿徽章）通用，选定形态后原样移植到原生 <code class="text-[11px] bg-black/[.055] px-1.5 py-0.5 rounded-md">glassEffect</code> 实现里。
+  </p>
+</section>
+
+</main>
+
+<footer class="max-w-[1080px] mx-auto px-6 pb-16">
+  <div class="rounded-2xl px-6 py-5" style="background:rgba(29,29,31,.045)">
+    <p class="text-[12px] text-[color:var(--ink-2)] leading-relaxed">
+      <b class="font-semibold text-[color:var(--ink)]">实现注记</b> · 真机材质 = <code class="text-[11px] bg-black/[.06] px-1 rounded">.glassEffect(.regular.interactive(), in: .circle / .capsule / .rect(cornerRadius:))</code>（窗口内 overlay，已验证真折射）；朱砂 = 应用强调色跟随；动效全用 spring（response 0.3–0.5）；拖动/吸附/持久化沿用现有实现不动。尺寸档位（44/52/60）三个方向都保留。
+    </p>
+  </div>
+</footer>
+
+<script>
+  // 点空白收起所有 demo
+  document.addEventListener('click', function(e) {
+    document.querySelectorAll('.demo.open').forEach(function(d) {
+      if (!d.contains(e.target)) d.classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>

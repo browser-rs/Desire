@@ -421,6 +421,8 @@ struct WhiteboardWebView: NSViewRepresentable {
       }
 
       function post(rendered, errors) {
+        // 离屏成图服务（BoardRenderService）以 at 时间戳门控等这次渲染
+        window.__lastRenderStats = { rendered: rendered, errors: errors, at: Date.now() };
         try {
           window.webkit.messageHandlers.whiteboardRender.postMessage(
             { rendered: rendered, errors: errors });

@@ -2658,15 +2658,25 @@ final class AutomationServer {
             return try await devToolsSnapshot(tab: tab)
         }
         if name == "whiteboard" {
-            // 白板快照：离屏渲染当前会话的板。注意渲染块含 WKWebView
-            //（Mermaid/ECharts），NSHostingView 离屏不驱动 webview——
-            // 所以这里返回的是**块清单卡片**而非成图；成图验证走
-            // GET /whiteboard 的块数据 + 用户实测面板。
-            guard let session = AgentScheduler.shared.deliveryTarget else {
-                return ["error": "no active agent session"]
+            // 白板快照：走 BoardRenderService 离屏成图（隐藏双引擎 webview +
+            // 全内容高 takeSnapshot）——离屏 NSHostingView 不驱动 webview，
+            // 成图只能这么拿；失败回退块清单卡（非成图，仅块数据断言）。
+            let session = AgentScheduler.shared.deliveryTarget
+            let board = session.map { WhiteboardStore.shared.board(for: $0.conversationId?.uuidString) }
+                ?? WhiteboardStore.shared.mostRecentBoard()
+                ?? WhiteboardSpec()
+            let snapshotWidth = max(360, width ?? 520)
+            if !board.blocks.isEmpty,
+               let result = try? await BoardRenderService.shared.render(board, width: snapshotWidth),
+               let tiff = result.image.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let png = rep.representation(using: .png, properties: [:]),
+               let base64 = png.base64EncodedString() as String? {
+                return ["format": "png", "base64": base64,
+                        "rendered": result.rendered, "errors": result.errors,
+                        "blocks": board.blocks.count]
             }
-            let board = WhiteboardStore.shared.board(for: session.conversationId?.uuidString)
-            let size = NSSize(width: max(360, width ?? 520), height: max(360, height ?? 560))
+            let size = NSSize(width: snapshotWidth, height: max(360, height ?? 560))
             let rootView = AnyView(WhiteboardSnapshotView(board: board))
             let host = NSHostingView(
                 rootView: rootView
@@ -2684,6 +2694,7 @@ final class AutomationServer {
                 return ["error": "png encode failed"]
             }
             return ["format": "png", "base64": base64,
+                    "fallback": "block-card",
                     "blocks": board.blocks.count]
         }
         if name == "adblock" || name == "passwords" || name == "batch" {

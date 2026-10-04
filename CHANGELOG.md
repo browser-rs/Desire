@@ -24,6 +24,8 @@
 - **聊天内嵌白板卡（2026-10-04 用户定案）**：whiteboard 工具**不再自动弹面板**——每条 whiteboard 工具消息在聊天里直接渲染实时板（与面板同一双引擎管线：Mermaid/ECharts/表格/便签），卡上「打开白板」管编辑导出。深化：**只有最新一张卡默认展开**实时预览、旧卡折叠成一行按需展开（每张卡各挂一个 WebKit 视图且都显示同一块当前板）；预览高度按内容自适应（webview 上报、上限 520pt），替代固定 300pt 裁切 320px 图表块的旧框。
 - **白板：Agent 读板闭环 + image 块**：`whiteboard` 工具新增 `get` 动作（逐块清单回读给模型，超长内容截断、image 只报大小）——"读板→改图"的迭代不再盲写；render/append 的返回附带单行块摘要（模型不调 get 也知道板上有什么）；新 `image` 块类型（`data:image/` URI，截图上板图文混排；拒远程 URL 防外链依赖，单图上限 ~8MB）；note 便签支持 `[链接](url)`，点击经 whiteboardLink 消息在浏览器新标签打开——白板 webview 自身在 loadHTMLString 落地后一切导航被护栏取消、window.open 返回 nil（误点不再把整板打跑）；块解析收口 `WhiteboardBlock.make(from:)`（工具与桥共用，content 接受字符串或 JSON 对象）；append 增设 60 块板容量护栏；桥新增 `POST /whiteboard`（render/append/clear/get 与工具同权，可指定 conversationId）+ `GET /whiteboard` 每块附 200 字符预览。
 - **白板：Agent 单块精细编辑**：`whiteboard` 工具新增 `edit`/`delete`/`move` 动作（1-based 块号，与 `get` 回读编号一致；edit 的 content 接受字符串或 JSON 对象）——修改单块不再重发整板（image 块的 data URI 特别吃 token），"读板→改一块"的迭代闭环补完；桥 `POST /whiteboard` 同步支持三个动作。
+- **白板离屏成图管线（BoardRenderService）**：`/panel/snapshot?name=whiteboard` 从"块清单卡"升级为**真成图**——隐藏 WKWebView 跑与面板同一份 pageHTML 双引擎，串行渲染整板、全内容高 takeSnapshot（按 spec 内容+宽度哈希缓存，宽度可通过 `?w=` 指定），E2E 首次拿到像素级成图证据（返回新增 `rendered`/`errors` 字段；渲染失败回退块清单卡并带 `fallback: "block-card"` 标记）。
+
 
 
 

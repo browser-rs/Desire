@@ -47,6 +47,10 @@
 - **白板 PNG 导出可能空白**：cacheDisplay 拍 WKWebView 合成层不可靠——改为 takeSnapshot 按 `document.body.scrollHeight` 取全文档区域（超出视口的部分 WebKit 会照常渲染，长板不再被裁成一屏），失败回退 cacheDisplay。
 - **白板面板块工具条"上移/下移/删除"自二期起无效（潜伏 bug）**：按钮闭包调用了 `post(...)`——那是渲染统计函数（发往 whiteboardRender 通道），编辑回传应走 `postEdit`（whiteboardEdit 通道），所以只有"编辑源码"真正生效过。改为 #board 事件委托 + 按钮只带 data-action、块编号读 `.block` 的 dataset.index（增量渲染复用节点后编号以 data 属性为准）。
 - **白板面板块工具条从未在 app 里生效（接线缺失）**：`WhiteboardPanelView` 渲染 `WhiteboardWebView` 时一直没传 `onEdit`——工具条的移动/删除/编辑源码回传到 Coordinator 后落在 nil 上（二期 E2E 只在探针层验了 JS 流程，没验 app 接线）。现面板持有 onEdit 并把 move/delete/edit 落到 store.apply；聊天内嵌卡保持只读预览不受影响。
+- **聊天内白板卡从未显示过（chip 化吞掉工具消息，用户实测抓到）**：`chipToolIds` 把 assistant 的**全部** toolCalls id 收进去、消息列表对 chip 化的工具消息一律 EmptyView——whiteboard 的结果消息因此永远不渲染，白板卡（内嵌实时板 + 全部深化）只在数据链路层存在过；用户截图里的 "whiteboard 39ms" 行其实是 assistant 气泡里的 ToolCallList chip。修 = chips 生成排除 whiteboard 调用 + ToolCallList 同步过滤（避免 chip 行与卡片双显）。教训：桥/探针 E2E 只能验数据链路，UI 呈现必须真截图目视。
+- **聊天内白板卡缺水平边距**：卡片外层 HStack 没有像 AssistantBubble/ToolBubble 一样的 `.padding(.horizontal, 12)`——板预览贴死面板右缘（用户实拍反馈）。
+
+
 
 
 

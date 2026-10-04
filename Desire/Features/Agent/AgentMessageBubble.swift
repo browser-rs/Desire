@@ -145,6 +145,9 @@ private struct WhiteboardToolCard: View {
                 }
             }
         }
+        // 与 AssistantBubble/ToolBubble 同款水平边距——没有这条板会贴死面板右缘
+        //（2026-10-04 用户实拍反馈）。
+        .padding(.horizontal, 12)
     }
 
     private var headerText: LocalizedStringKey {

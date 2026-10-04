@@ -626,19 +626,27 @@ final class RemoteControlStore: ObservableObject {
 
     // MARK: - 快照推送（1s 一拍、变化才发；15s 强推兜底）
 
+    /// 快照 JSON 预算（字符）：加密后 base64 须落在信箱 32KB 单条上限内。
+    static let snapshotFrameBudget = 22_000
+
     struct RemoteSnapshotMessage: Codable {
         let id: String
         let role: String
-        let content: String?
-        let reasoning: String?
+        var content: String?
+        var reasoning: String?
         let toolCalls: [String]?
         /// 与 toolCalls 一一对应的参数摘要（各截 160 字符），手机端展开显示
         var toolArgs: [String]? = nil
+        /// 截图类工具结果：原 content 是超长 data URI（截 2000 后是乱码碎片）
+        /// ——改为降采样 JPEG 预览（短边 ≤640、quality 0.55）+ 原始大小，
+        /// 手机端直接渲染成图。
+        var imageKB: Int? = nil
+        var imagePreview: String? = nil
     }
 
     struct RemoteSnapshotFrame: Codable {
         let t: String
-        let messages: [RemoteSnapshotMessage]
+        var messages: [RemoteSnapshotMessage]
         let busy: Bool
         /// 当前遥控的 Mac 会话 id（手机端会话列表高亮用）
         let session: String?
@@ -682,6 +690,23 @@ final class RemoteControlStore: ObservableObject {
         /// 冷启动后名字为 nil 就会被渲染成"未连接 Mac"，与真实的连接状态互相
         /// 矛盾。随快照持续下发后，手机始终有权威名字（Mac 改名也能跟上）。
         var desktop: String? = nil
+        /// 当前会话的白板（2026-10-04 内嵌卡对齐）：标题 + 块清单（preview 截
+        /// 200 字符，**不带 base64**——image 块只报 contentLength，帧不超重）。
+        var board: BoardPayload? = nil
+
+        struct BoardPayload: Codable {
+            var title: String
+            /// image | mermaid | chart | note | table
+            var blocks: [BoardBlockPayload]
+        }
+
+        struct BoardBlockPayload: Codable {
+            var type: String
+            var title: String?
+            /// 内容前 200 字符（image 块 = data URI 前缀，仅供类型判断）
+            var preview: String
+            var contentLength: Int
+        }
 
         struct ApprovalPayload: Codable {
             var id: String
@@ -730,14 +755,26 @@ final class RemoteControlStore: ObservableObject {
         if force { lastForcedPush = Date() }
         // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
         let session = remoteSession
-        let messages = (session?.messages.suffix(100) ?? []).map { message -> RemoteSnapshotMessage in
-            RemoteSnapshotMessage(
+        // 截图消息：content 是超长 data URI（截断后是乱码碎片）——不发原文，
+        // 只报大小；**最近一张**才带降采样预览（帧预算有限，见下方 encode 分层）。
+        let visibleMessages = session?.messages.suffix(100) ?? []
+        let lastImageMessageID = visibleMessages.last { ($0.content ?? "").hasPrefix("data:image/") }?.id
+        let messages = visibleMessages.map { message -> RemoteSnapshotMessage in
+            var msg = RemoteSnapshotMessage(
                 id: message.id.uuidString,
                 role: message.role.rawValue,
                 content: message.content.map { String($0.prefix(2000)) },
                 reasoning: message.reasoning.map { String($0.prefix(600)) },
                 toolCalls: message.toolCalls.map { $0.map(\.function.name) },
                 toolArgs: message.toolCalls.map { $0.map { String($0.function.arguments.prefix(160)) } })
+            if let content = message.content, content.hasPrefix("data:image/") {
+                msg.imageKB = content.count / 1024
+                msg.content = nil
+                if message.id == lastImageMessageID {
+                    msg.imagePreview = Self.downscaledPreviewDataURI(from: content)
+                }
+            }
+            return msg
         }
         // PERF-5：先算**廉价指纹**（整数组合，O(可见消息数)），没变化就不走
         // "映射 100 条消息 + 全量 JSON 编码"的重路径——此前编码只为指纹比对，
@@ -758,6 +795,7 @@ final class RemoteControlStore: ObservableObject {
         fingerprintInput.combine(Self.remoteCanRegenerate(session))
         fingerprintInput.combine(Self.quickActionPayloads()?.count)
         fingerprintInput.combine(AgentPlanStore.shared.lastUpdated)
+        fingerprintInput.combine(WhiteboardStore.shared.lastUpdated)
         fingerprintInput.combine(Self.remoteTokenCount(session))
         fingerprintInput.combine(Host.current().localizedName)
         if session?.isProcessing == true {
@@ -782,7 +820,13 @@ final class RemoteControlStore: ObservableObject {
         let elapsedSeconds = session?.processingStartedAt.map {
             max(0, Int(Date().timeIntervalSince($0)))
         }
-        let frame = RemoteSnapshotFrame(
+        // 帧预算：信箱单条上限 32KB（AES-GCM combined → base64 后），JSON 侧留
+        // 22K。超限逐级降级（长会话 100 条 × 2000 字符的老隐患也顺带收口）：
+        // ① 消息截短（40 条/内容 500）② 只留状态与 board、消息清空。
+        func encodeFrame(_ frame: RemoteSnapshotFrame) -> String? {
+            (try? SyncJSON.makeEncoder().encode(frame)).flatMap { String(data: $0, encoding: .utf8) }
+        }
+        var frame = RemoteSnapshotFrame(
             t: "snapshot", messages: Array(messages),
             busy: session?.isProcessing ?? false,
             // P1-21：报面板**实际**会话（deliveryTarget 跟随桌面切换）而非
@@ -805,12 +849,39 @@ final class RemoteControlStore: ObservableObject {
             paused: session?.isPaused ?? false,
             tokens: Self.remoteTokenCount(session),
             cost: session?.conversationUsage.formattedUSD,
-            desktop: Host.current().localizedName ?? "Mac")
-        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return }
-        let fingerprint = String(data: data, encoding: .utf8) ?? ""
+            desktop: Host.current().localizedName ?? "Mac",
+            board: Self.boardPayload(session?.conversationId?.uuidString))
+        var frameJSON = encodeFrame(frame) ?? ""
+        if frameJSON.count > Self.snapshotFrameBudget {
+            // 二级：减消息量与截断（保住截图预览）
+            frame.messages = messages.suffix(16).map { message -> RemoteSnapshotMessage in
+                var m = message
+                m.content = m.content.map { String($0.prefix(300)) }
+                m.reasoning = m.reasoning.map { String($0.prefix(150)) }
+                m.toolArgs = m.toolArgs.map { $0.map { String($0.prefix(100)) } }
+                return m
+            }
+            frameJSON = encodeFrame(frame) ?? ""
+        }
+        if frameJSON.count > Self.snapshotFrameBudget {
+            // 三级：丢预览（手机只看得到"截图 · N KB"），消息保 16 条短文
+            frame.messages = frame.messages.map { message -> RemoteSnapshotMessage in
+                var m = message
+                m.imagePreview = nil
+                return m
+            }
+            frameJSON = encodeFrame(frame) ?? ""
+        }
+        if frameJSON.count > Self.snapshotFrameBudget {
+            // 四级：只留状态与 board
+            frame.messages = []
+            frameJSON = encodeFrame(frame) ?? ""
+        }
+        guard !frameJSON.isEmpty else { return }
+        let fingerprint = frameJSON
         if !force && fingerprint == lastSnapshotJSON { return }
         lastSnapshotJSON = fingerprint
-        guard let payload = Self.encrypt(data: data, sessionKeyB64: sessionKeyB64) else { return }
+        guard let payload = Self.encrypt(data: Data(frameJSON.utf8), sessionKeyB64: sessionKeyB64) else { return }
         Self.remoteDebug("snapshot push (\(frame.messages.count) msgs, busy=\(frame.busy), force=\(force))")
         pushPayload(payload, lane: "snapshot", replace: true)
     }
@@ -845,6 +916,55 @@ final class RemoteControlStore: ObservableObject {
             id: pending.id.uuidString,
             text: String(pending.question.prefix(800)),
             timeout: Int(UserPromptCenter.answerTimeout))
+    }
+
+    /// 当前会话白板 → 载荷（块清单截断；空板返回 nil——不发空帧）。
+    static func boardPayload(_ conversationID: String?) -> RemoteSnapshotFrame.BoardPayload? {
+        let board = WhiteboardStore.shared.board(for: conversationID)
+        guard !board.blocks.isEmpty else { return nil }
+        return RemoteSnapshotFrame.BoardPayload(
+            title: board.title,
+            blocks: board.blocks.prefix(12).map {
+                RemoteSnapshotFrame.BoardBlockPayload(
+                    type: $0.type, title: $0.title,
+                    preview: String($0.content.prefix(200)),
+                    contentLength: $0.content.count)
+            })
+    }
+
+    /// 截图 data URI → 预算内降采样 JPEG data URI。快照帧有 22K 预算，
+    /// 预览只占 ~10K：按 (边长, 质量) 逐档降级，哪档装得下用哪档。
+    static func downscaledPreviewDataURI(from dataURI: String) -> String? {
+        guard let comma = dataURI.firstIndex(of: ","),
+              let data = Data(base64Encoded: String(dataURI[dataURI.index(after: comma)...]),
+                              options: .ignoreUnknownCharacters),
+              let image = NSImage(data: data) else { return nil }
+        let budget = 12_000
+        for (maxSide, quality) in [(CGFloat(480), 0.5), (CGFloat(360), 0.4),
+                                   (CGFloat(280), 0.32), (CGFloat(220), 0.28),
+                                   (CGFloat(180), 0.25)] {
+            var size = image.size
+            let longest = max(size.width, size.height)
+            guard longest > 0 else { return nil }
+            if longest > maxSide {
+                let scale = maxSide / longest
+                size = NSSize(width: size.width * scale, height: size.height * scale)
+            }
+            guard let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(max(1, size.width)), pixelsHigh: Int(max(1, size.height)),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0) else { continue }
+            rep.size = size
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            image.draw(in: NSRect(origin: .zero, size: size))
+            NSGraphicsContext.restoreGraphicsState()
+            guard let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]),
+                  let uri = "data:image/jpeg;base64,\(jpeg.base64EncodedString())" as String?,
+                  uri.count <= budget else { continue }
+            return uri
+        }
+        return nil
     }
 
     /// `updatePlan` 清单：最多 20 步、每步截 120（按会话读取——计划跟着会话走）。

@@ -97,6 +97,8 @@ final class RemoteClient: ObservableObject {
     /// 本对话累计 token / 成本（未填单价时 cost 为 nil——不显示 0）
     @Published private(set) var tokens: Int?
     @Published private(set) var cost: String?
+    /// Mac 当前会话的白板（快照 board 帧；空板/旧 Mac 为 nil）
+    @Published private(set) var board: RemoteBoard?
 
     // MARK: 按需拉取的只读信息（能力 / 统计 / 轨迹 / 模型）
     //
@@ -758,6 +760,8 @@ final class RemoteClient: ObservableObject {
         if stopping, !busy { stopping = false }
         if tokens != frame.tokens { tokens = frame.tokens }
         if cost != frame.cost { cost = frame.cost }
+        let newBoard = frame.board
+        if board != newBoard { board = newBoard }
         // Mac 名字以快照为准（权威、改名也能跟上），并持久化——此前它只在配对
         // 响应里拿过一次，冷启动后为 nil，界面会显示成"未连接 Mac"。
         if let name = frame.desktop, !name.isEmpty, desktopName != name {

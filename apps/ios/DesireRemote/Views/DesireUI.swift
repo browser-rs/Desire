@@ -303,7 +303,7 @@ struct DesireRowDivider: View {
 
 extension DesireUI {
     /// 大数字缩写（与桌面 `AgentUsage.formatTokens` 同口径）。
-    static func formatTokens(_ count: Int) -> String {
+    nonisolated static func formatTokens(_ count: Int) -> String {
         if count >= 1_000_000 {
             return String(format: "%.1fM", Double(count) / 1_000_000)
         }

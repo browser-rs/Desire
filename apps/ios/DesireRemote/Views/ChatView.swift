@@ -220,6 +220,9 @@ struct ChatView: View {
             }
 
             VStack(spacing: 8) {
+                if let board = client.board, !board.blocks.isEmpty {
+                    BoardStripView(board: board)
+                }
                 if !client.plan.isEmpty {
                     PlanStripView(steps: client.plan)
                 }
@@ -495,6 +498,80 @@ struct PulsingDot: View {
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 isPulsing = true
             }
+        }
+    }
+}
+
+/// Mac 当前会话的白板条（快照 board 帧）：标题 + 逐块类型/标题/预览。
+/// 与任务计划条同层——白板在聊天流里由 Mac 端内嵌卡承担，手机端是
+/// "读板"视图（编辑仍在桌面）。
+struct BoardStripView: View {
+    let board: RemoteBoard
+
+    private var typeIcon: (String, String) {
+        switch board.blocks.first?.type {
+        case "chart": return ("chart.bar", "图表")
+        case "image": return ("photo", "截图")
+        case "table": return ("tablecells", "表格")
+        case "mermaid": return ("flowchart", "流程图")
+        default: return ("note.text", "便签")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "rectangle.dashed")
+                    .foregroundStyle(.tint)
+                Text("白板 · \(board.title)")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(board.blocks.count) 块")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(Array(board.blocks.enumerated()), id: \.offset) { _, block in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Image(systemName: block.type == "image" ? "photo" :
+                              block.type == "chart" ? "chart.bar" :
+                              block.type == "table" ? "tablecells" :
+                              block.type == "mermaid" ? "flowchart" : "note.text")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(block.title ?? typeLabel(block.type))
+                            .font(.caption.weight(.medium))
+                        Spacer()
+                        Text("\(block.contentLength) 字符")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    if block.type != "image", !block.preview.isEmpty {
+                        Text(block.preview)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+    }
+
+    private func typeLabel(_ type: String) -> String {
+        switch type {
+        case "image": return "截图"
+        case "chart": return "图表"
+        case "table": return "表格"
+        case "mermaid": return "流程图"
+        default: return "便签"
         }
     }
 }

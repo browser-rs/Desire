@@ -26,6 +26,23 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     let toolCalls: [String]?
     /// 与 toolCalls 一一对应的参数摘要（Mac 截 160 字符）
     var toolArgs: [String]? = nil
+    /// 截图类工具结果：Mac 侧降采样的 JPEG 预览（data URI）+ 原始大小。
+    /// content 为 nil 时这两个字段描述那张图。
+    var imageKB: Int? = nil
+    var imagePreview: String? = nil
+}
+
+/// Mac 快照里的白板（与面板同一块板；preview 截 200 字符，无 base64）
+struct RemoteBoardBlock: Codable, Equatable {
+    var type: String
+    var title: String?
+    var preview: String
+    var contentLength: Int
+}
+
+struct RemoteBoard: Codable, Equatable {
+    var title: String
+    var blocks: [RemoteBoardBlock]
 }
 
 struct SnapshotFrame: Codable {
@@ -71,6 +88,8 @@ struct SnapshotFrame: Codable {
     var cost: String?
     /// Mac 的显示名（持续下发，冷启动也有真名可显示）
     var desktop: String?
+    /// 当前会话的白板（空板/旧 Mac 不传 → nil）
+    var board: RemoteBoard?
 }
 
 // MARK: - 快照子载荷

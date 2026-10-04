@@ -44,6 +44,12 @@ struct MessageBubble: View {
             }
             }
         case "tool":
+            // 截图类结果：Mac 发来降采样预览（content 为 nil），直接渲染成图
+            if message.imagePreview != nil || (message.imageKB ?? 0) > 0 {
+                ScreenshotResultBubble(message: message)
+            } else if isBoardResult(message) {
+                BoardResultChip()
+            } else
             // 快照里 tool 消息只有结果 content（调用名在 assistant 帧上），
             // 结果常驻显示、默认 4 行折叠，点标签或卡片展开全文
             if (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -159,3 +165,58 @@ struct ToolCallRow: View {
     }
 }
 
+
+
+/// 截图工具结果（快照带降采样预览；旧 Mac 无预览 → 只报大小的 chip）。
+struct ScreenshotResultBubble: View {
+    let message: ChatMessage
+    @State private var image: UIImage?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            RemoteAvatar(icon: "camera.fill", colors: [.gray, .secondary])
+            VStack(alignment: .leading, spacing: 5) {
+                if let dataURI = message.imagePreview,
+                   let comma = dataURI.firstIndex(of: ","),
+                   let data = Data(base64Encoded: String(dataURI[dataURI.index(after: comma)...])),
+                   let decoded = UIImage(data: data) {
+                    Image(uiImage: decoded)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(.separator).opacity(0.4)))
+                        .onAppear { image = decoded }
+                }
+                Text(message.imagePreview != nil
+                     ? "屏幕截图 · \(message.imageKB ?? 0) KB"
+                     : "屏幕截图 · \(message.imageKB ?? 0) KB（预览需新版 Mac 端）")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// whiteboard 工具结果收敛为轻提示——板内容在上方白板条里实时跟随。
+func isBoardResult(_ message: ChatMessage) -> Bool {
+    let c = message.content ?? ""
+    return c.contains("Whiteboard") && (c.contains("updated") || c.contains("cleared") || c.contains("appended") || c.contains("inserted") || c.contains("edited") || c.contains("moved") || c.contains("deleted"))
+}
+
+struct BoardResultChip: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            RemoteAvatar(icon: "rectangle.dashed", colors: [.blue, .indigo])
+            HStack(spacing: 5) {
+                Image(systemName: "rectangle.dashed")
+                Text("白板已更新（见上方白板条）")
+            }
+            .font(.caption2.monospaced())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.tertiarySystemBackground))
+            .clipShape(Capsule())
+        }
+    }
+}

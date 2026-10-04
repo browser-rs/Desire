@@ -481,48 +481,46 @@ extension BrowserToolProvider {
             // 白板（§一期）：结构化块 → 本地 Mermaid/ECharts 双引擎渲染。
             // 成图**内嵌在聊天里直接看**（工具卡实时预览，2026-10-04 用户
             // 定案——此前自动弹独立面板，看图要多开一个窗口，不便）；
-            // 编辑/导出由用户点卡片上的「打开白板」。
+            // 编辑/导出由用户点卡片上的「打开白板」。get 把板读回给模型
+            // ——"读板→改图"的迭代闭环（不再盲写）。
             let action = args["action"] as? String ?? "render"
             let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
             let store = WhiteboardStore.shared
+            if action == "get" {
+                // 查询成功但板为空不是失败（结果为空保持原样）。
+                return store.board(for: conversationID).readout()
+            }
             if action == "clear" {
                 store.clear(conversationID: conversationID)
                 return "Whiteboard cleared — the chat card now shows an empty board"
             }
             guard let rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
-                return Self.fail("Missing blocks array (action=render|append needs blocks; clear needs none)")
+                return Self.fail("Missing blocks array (action=render|append needs blocks; clear/get need none)")
             }
             var blocks: [WhiteboardBlock] = []
             var skipped = 0
             for item in rawBlocks.prefix(12) {
-                guard let type = item["type"] as? String else { skipped += 1; continue }
-                var content: String
-                if let text = item["content"] as? String {
-                    content = text
-                } else if let object = item["content"] {
-                    // chart 的 ECharts option 常被模型给成对象——序列化成 JSON 字符串
-                    guard let data = try? JSONSerialization.data(withJSONObject: object),
-                          let text = String(data: data, encoding: .utf8) else {
-                        skipped += 1; continue
-                    }
-                    content = text
-                } else { skipped += 1; continue }
-                let block = WhiteboardBlock(
-                    type: type,
-                    title: item["title"] as? String,
-                    content: content)
-                if block.isValid { blocks.append(block) } else { skipped += 1 }
+                if let block = WhiteboardBlock.make(from: item) {
+                    blocks.append(block)
+                } else {
+                    skipped += 1
+                }
             }
             guard !blocks.isEmpty else {
-                return Self.fail("No valid blocks (type must be mermaid | chart | note with non-empty content)")
+                return Self.fail("No valid blocks (type must be mermaid | chart | note | table | image; image needs a data:image/ URI)")
             }
             let title = args["title"] as? String
             if action == "append" {
+                let existing = store.board(for: conversationID).blocks.count
+                guard existing + blocks.count <= WhiteboardSpec.maxBlocks else {
+                    return Self.fail("Board would exceed \(WhiteboardSpec.maxBlocks) blocks (currently \(existing)) — consolidate into fewer blocks or clear it first")
+                }
                 store.append(blocks, title: title, conversationID: conversationID)
             } else {
                 store.set(WhiteboardSpec(title: title ?? "白板", blocks: blocks), conversationID: conversationID)
             }
-            return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : "") — rendered inline in the chat (user can open the whiteboard panel to edit/export)"
+            let board = store.board(for: conversationID)
+            return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : ""), now \(board.blockListSummary()) — rendered inline in the chat (user can open the whiteboard panel to edit/export)"
 
         case "setUploadFile":
             // Arms a local file so the NEXT page file-picker auto-submits

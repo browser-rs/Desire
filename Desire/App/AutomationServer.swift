@@ -503,7 +503,8 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
-        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/content length)", example: "…/whiteboard")
+        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; conversationId override)", example: "…/whiteboard")
+        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | clear | get (read back); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
@@ -851,7 +852,58 @@ final class AutomationServer {
                 return try Self.json([
                     "conversationId": conversationID ?? "",
                     "title": board.title,
-                    "blocks": board.blocks.map { ["type": $0.type, "title": $0.title ?? "", "contentLength": $0.content.count] },
+                    // preview = 每块内容前 200 字符（断言块语义用；image 块
+                    // 只报 URI 前缀，不回传万级 base64）。
+                    "blocks": board.blocks.map {
+                        ["type": $0.type,
+                         "title": $0.title ?? "",
+                         "contentLength": $0.content.count,
+                         "preview": $0.type == WhiteboardBlock.Kind.image
+                             ? String($0.content.prefix(30))
+                             : String($0.content.prefix(200))]
+                    },
+                ])
+            case ("POST", "/whiteboard"):
+                // 自动化写入口（与 whiteboard 工具同权：render/append/clear/get）。
+                // 写操作走 UI 持有的 WhiteboardStore.shared；conversationId 可显式
+                // 指定（缺省 = 活跃会话）。
+                let store = WhiteboardStore.shared
+                let action = Self.string(body, "action") ?? "render"
+                let conversationID = Self.string(body, "conversationId")
+                    ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+                if action == "get" {
+                    let board = store.board(for: conversationID)
+                    return try Self.json([
+                        "ok": true,
+                        "title": board.title,
+                        "blocks": board.blocks.map { ["type": $0.type, "title": $0.title ?? "", "contentLength": $0.content.count] },
+                    ])
+                }
+                if action == "clear" {
+                    store.clear(conversationID: conversationID)
+                    return try Self.json(["ok": true, "action": "clear", "blockCount": 0])
+                }
+                guard let rawBlocks = body["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
+                    return try Self.json(["error": "Missing blocks array (action=render|append)"])
+                }
+                let blocks = rawBlocks.prefix(12).compactMap(WhiteboardBlock.make(from:))
+                guard !blocks.isEmpty else {
+                    return try Self.json(["error": "No valid blocks (mermaid|chart|note|table|image)"])
+                }
+                let title = Self.string(body, "title")
+                if action == "append" {
+                    let existing = store.board(for: conversationID).blocks.count
+                    guard existing + blocks.count <= WhiteboardSpec.maxBlocks else {
+                        return try Self.json(["error": "Board would exceed \(WhiteboardSpec.maxBlocks) blocks"])
+                    }
+                    store.append(blocks, title: title, conversationID: conversationID)
+                } else {
+                    store.set(WhiteboardSpec(title: title ?? "白板", blocks: blocks), conversationID: conversationID)
+                }
+                return try Self.json([
+                    "ok": true,
+                    "action": action,
+                    "blockCount": store.board(for: conversationID).blocks.count,
                 ])
             case ("GET", "/dpp/config"):
                 let config = DPPConfigStore.shared

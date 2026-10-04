@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// 白板窗口（一期）：承载**当前活跃 AI 会话**的白板（按 conversationId 取板）。
 /// 单例（AgentScheduler.deliveryTarget 决定显示哪个会话的板；无活跃会话时
@@ -183,30 +184,62 @@ struct WhiteboardPanelView: View {
     }
 
     /// 把当前白板窗口内容快照成 PNG 存到下载目录。
+    /// cacheDisplay 对 WKWebView 的合成层不可靠（常拍出空白/缺内容）——
+    /// 优先 takeSnapshot：先量出全内容高，rect 取整个文档区域（可超出
+    /// 可视视口，WebKit 会渲染该区域），失败再回退 cacheDisplay。
     private func exportPNG() {
         guard let window = NSApp.windows.first(where: { $0.title == "白板" && $0.isVisible }),
               let contentView = window.contentView else {
             exportStatus = "找不到白板窗口"
             return
         }
+        exportStatus = "正在导出…"
+        Task { @MainActor in
+            guard let png = await Self.captureBoardPNG(from: contentView) else {
+                exportStatus = "快照失败"
+                return
+            }
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("白板-\(stamp).png")
+            do {
+                try png.write(to: url)
+                exportStatus = "已存到下载目录 ✓"
+            } catch {
+                exportStatus = "写入失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// 成图：takeSnapshot 拍全内容高（超出视口的部分 WebKit 会渲染出来）。
+    private static func captureBoardPNG(from contentView: NSView) async -> Data? {
+        if let webview = findBoardWebView(in: contentView) {
+            let height = (try? await webview.evaluateJavaScript("document.body.scrollHeight")) as? Double ?? 0
+            if height > 10 {
+                let config = WKSnapshotConfiguration()
+                // 上限防病态巨板（12000pt ≈ 16 屏）。
+                config.rect = NSRect(x: 0, y: 0, width: webview.bounds.width, height: min(height, 12_000))
+                let image: NSImage? = await withCheckedContinuation { cont in
+                    webview.takeSnapshot(with: config) { img, _ in cont.resume(returning: img) }
+                }
+                if let image,
+                   let tiff = image.tiffRepresentation,
+                   let rep = NSBitmapImageRep(data: tiff) {
+                    return rep.representation(using: .png, properties: [:])
+                }
+            }
+        }
         let bounds = contentView.bounds
-        guard let rep = contentView.bitmapImageRepForCachingDisplay(in: bounds) else {
-            exportStatus = "快照失败"
-            return
-        }
+        guard let rep = contentView.bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
         contentView.cacheDisplay(in: bounds, to: rep)
-        guard let png = rep.representation(using: .png, properties: [:]) else {
-            exportStatus = "PNG 编码失败"
-            return
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    private static func findBoardWebView(in view: NSView) -> WhiteboardWebView.WhiteboardWKWebView? {
+        if let webview = view as? WhiteboardWebView.WhiteboardWKWebView { return webview }
+        for sub in view.subviews {
+            if let found = findBoardWebView(in: sub) { return found }
         }
-        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("白板-\(stamp).png")
-        do {
-            try png.write(to: url)
-            exportStatus = "已存到下载目录 ✓"
-        } catch {
-            exportStatus = "写入失败：\(error.localizedDescription)"
-        }
+        return nil
     }
 }

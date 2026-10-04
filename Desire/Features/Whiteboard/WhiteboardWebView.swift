@@ -19,9 +19,12 @@ struct WhiteboardWebView: NSViewRepresentable {
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardRender")
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardEdit")
         config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardLayout")
+        config.userContentController.add(context.coordinator, contentWorld: .page, name: "whiteboardLink")
         webview.coordinator = context.coordinator
         webview.onRenderStatus = onRenderStatus
         webview.onEdit = onEdit
+        // 导航护栏（见 WhiteboardWKWebView.decidePolicyFor）。
+        webview.navigationDelegate = webview
         if let baseURL = Bundle.main.resourceURL {
             webview.loadHTMLString(Self.pageHTML, baseURL: baseURL)
         } else {
@@ -93,6 +96,15 @@ struct WhiteboardWebView: NSViewRepresentable {
                 }
                 return
             }
+            if message.name == "whiteboardLink" {
+                let url = dict["url"] as? String ?? ""
+                // note 里的链接在浏览器新标签打开（白板 webview 自身不导航）。
+                Task { @MainActor in
+                    guard url.hasPrefix("http://") || url.hasPrefix("https://") else { return }
+                    TabSessionCoordinator.shared.activeTabManager?.addTab(url: url)
+                }
+                return
+            }
             if message.name == "whiteboardEdit" {
                 let kind = dict["kind"] as? String ?? ""
                 let index = dict["index"] as? Int ?? -1
@@ -107,7 +119,7 @@ struct WhiteboardWebView: NSViewRepresentable {
 
     /// WKWebView 子类：携带推送状态与回调（updateNSView 每轮布局都会进来，
     /// 状态挂在 view 上避免对 coordinator 做可变竞争）。
-    final class WhiteboardWKWebView: WKWebView {
+    final class WhiteboardWKWebView: WKWebView, WKNavigationDelegate {
         var lastPushedJSON: String?
         var pendingJSON: String?
         var loaded = false
@@ -115,6 +127,23 @@ struct WhiteboardWebView: NSViewRepresentable {
         var onEdit: ((_ kind: String, _ index: Int, _ delta: Int, _ content: String) -> Void)?
         var onContentHeight: ((CGFloat) -> Void)?
         weak var coordinator: Coordinator?
+
+        /// 导航护栏：loadHTMLString 落地后取消一切导航——note 里的误点、
+        /// 表单提交都不再把白板 webview 打跑（渲染层链接走 whiteboardLink
+        /// 消息开浏览器新标签，不产生真实导航）。
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            decisionHandler(loaded ? .cancel : .allow)
+        }
+
+        func webView(_ webView: WKWebView,
+                     createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            // window.open 一律不开新窗。
+            nil
+        }
 
         /// HTML 文档落地后才能推（见 makeNSView 注释）。
         func pushPending() {
@@ -137,6 +166,8 @@ struct WhiteboardWebView: NSViewRepresentable {
                padding: 10px 14px; margin-bottom: 12px; }
       .block-title { font-size: 12px; font-weight: 600; color: #8a7f6f; margin: 0 0 6px; }
       .note { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+      .note-link { color: #2b5aa0; text-decoration: underline; cursor: pointer; }
+      .image-box img { max-width: 100%; border-radius: 6px; display: block; }
       .note h1, .note h2, .note h3 { font-size: 14px; margin: 8px 0 4px; }
       .note strong { font-weight: 700; }
       .mermaid-box svg, .chart-box { max-width: 100%; }
@@ -175,6 +206,7 @@ struct WhiteboardWebView: NSViewRepresentable {
           .replace(/^# (.*)$/gm, "<h1>$1</h1>")
           .replace(/\\*\\*([^*]+)\\*\\*/g, "<strong>$1</strong>")
           .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\\[([^\\]]+)\\]\\((https?:[^)\\s]+)\\)/g, '<a class="note-link" data-href="$2">$1</a>')
           .replace(/^- (.*)$/gm, "• $1");
       }
 
@@ -285,6 +317,17 @@ struct WhiteboardWebView: NSViewRepresentable {
           holder.appendChild(el("div", "note", miniMarkdown(block.content)));
         } else if (type === "table") {
           holder.innerHTML = renderTable(block.content);
+        } else if (type === "image") {
+          if (!/^data:image\\//.test(block.content)) {
+            holder.appendChild(el("p", "err", "Image block must be a data:image/ URI"));
+          } else {
+            var imageBox = el("div", "image-box");
+            var img = document.createElement("img");
+            img.src = block.content;
+            img.alt = block.title || "image";
+            imageBox.appendChild(img);
+            holder.appendChild(imageBox);
+          }
         } else {
           holder.appendChild(el("p", "err", "未知块类型：" + type));
         }
@@ -339,6 +382,19 @@ struct WhiteboardWebView: NSViewRepresentable {
             { height: Math.ceil(document.body.scrollHeight) + 2 });
         } catch (e) {}
       }
+
+      // note 链接点击 → 经桥在浏览器新标签打开（真实导航被 Swift 侧护栏
+      // 取消，白板 webview 永远不离开自己的文档）。
+      document.addEventListener("click", function (ev) {
+        var t = ev.target;
+        var a = t && t.closest ? t.closest(".note-link") : null;
+        if (!a) return;
+        ev.preventDefault();
+        var url = a.getAttribute("data-href");
+        if (url) {
+          try { window.webkit.messageHandlers.whiteboardLink.postMessage({ url: url }); } catch (e) {}
+        }
+      });
 
       function boot() {
         if (ready) return;

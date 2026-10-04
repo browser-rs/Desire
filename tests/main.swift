@@ -1251,10 +1251,46 @@ func testWhiteboardSpec() {
     check("白板：table 合法", WhiteboardBlock(type: "table", content: "|a|b|\n|-|-|\n|1|2|").isValid)
     check("白板：未知类型非法", !WhiteboardBlock(type: "slide", content: "x").isValid)
     check("白板：空内容非法", !WhiteboardBlock(type: "note", content: "  ").isValid)
+    // image 块：只收 data:image/ URI，且有长度上限
+    check("白板：image 合法", WhiteboardBlock(type: "image", content: "data:image/png;base64,AAAA").isValid)
+    check("白板：image 拒远程 URL", !WhiteboardBlock(type: "image", content: "https://example.com/a.png").isValid)
+    check("白板：image 拒非图片 data URI", !WhiteboardBlock(type: "image", content: "data:text/plain;base64,AAAA").isValid)
+    check("白板：image 拒超上限",
+          !WhiteboardBlock(type: "image", content: "data:image/png;base64," + String(repeating: "A", count: WhiteboardBlock.maxImageContentChars)).isValid)
+    // make(from:)：content 对象序列化 + 非法跳过
+    check("白板：make 序列化对象 content",
+          WhiteboardBlock.make(from: ["type": "chart", "content": ["series": []]])?.content == "{\"series\":[]}")
+    check("白板：make 缺 content 返回 nil", WhiteboardBlock.make(from: ["type": "note"]) == nil)
+    check("白板：make 非法类型返回 nil", WhiteboardBlock.make(from: ["type": "slide", "content": "x"]) == nil)
+    check("白板：make image 正常",
+          WhiteboardBlock.make(from: ["type": "image", "content": "data:image/jpeg;base64,AAAA"]) != nil)
     // Codable round-trip（含 table）
     let data = try? JSONEncoder().encode(spec)
     let back = data.flatMap { try? JSONDecoder().decode(WhiteboardSpec.self, from: $0) }
     check("白板：Codable 往返", back == spec)
+    // readout（get 动作）：块清单 + 长内容截断 + image 只报大小
+    let readout = spec.readout()
+    check("白板：readout 带标题与计数", readout.contains("Whiteboard \"t\" — 3 block(s)"))
+    check("白板：readout 逐块标类型", readout.contains("--- block 1 [mermaid]") && readout.contains("--- block 2 [chart]"))
+    check("白板：readout 带内容", readout.contains("graph TD; A-->B"))
+    let longSpec = WhiteboardSpec(title: "t", blocks: [
+        WhiteboardBlock(type: "note", content: String(repeating: "字", count: 100)),
+    ])
+    let truncated = longSpec.readout(maxContentChars: 10)
+    check("白板：readout 截断标注", truncated.contains("[truncated 90 chars]"))
+    let imageSpec = WhiteboardSpec(title: "t", blocks: [
+        WhiteboardBlock(type: "image", title: "截图", content: "data:image/png;base64,AAAAAAAA"),
+    ])
+    let imageReadout = imageSpec.readout()
+    check("白板：readout image 只报大小", imageReadout.contains("~6 bytes") && !imageReadout.contains("data:image"))
+    check("白板：readout 空板", WhiteboardSpec().readout() == "Whiteboard is empty.")
+    // blockListSummary（工具返回摘要）
+    let summary = imageSpec.blockListSummary()
+    check("白板：摘要格式", summary == "1.[image]截图")
+    let many = WhiteboardSpec(title: "t", blocks: (0..<10).map {
+        WhiteboardBlock(type: "note", title: "b\($0)", content: "x")
+    })
+    check("白板：摘要截断到 8 条", many.blockListSummary().hasSuffix("…(+2)"))
 }
 testWhiteboardSpec()
 

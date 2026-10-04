@@ -22,6 +22,8 @@
 - **悬浮球三期**：回复就绪徽章（面板关闭时 Agent 完成，球上绿勾闪现）、iOS 式点外收起（条外点击收起、条内点击照常传给按钮）、球不再渲染成过大的透明板——视图与面板尺寸严格跟随展开状态。
 - 悬浮球重构为浏览器窗口内覆盖层（AgentBallOverlay）：`.glassEffect` 在主窗内可采样网页内容，呈现真实 iOS 26 液态玻璃（独立透明 NSPanel 采样不到跨进程背景，玻璃退化实心灰——两轮实拍定案）；窗口内 SwiftUI 手势完整：拖动任意位置（命名坐标空间修半速）、松手 spring 吸附最近左右缘并持久化、单击开合操作条、双击语音、右键菜单（重置位置/隐藏）；Agent 忙碌进度环 + 回复完成徽章 + 语音实时转写条
 - **聊天内嵌白板卡（2026-10-04 用户定案）**：whiteboard 工具**不再自动弹面板**——每条 whiteboard 工具消息在聊天里直接渲染实时板（与面板同一双引擎管线：Mermaid/ECharts/表格/便签），卡上「打开白板」管编辑导出。深化：**只有最新一张卡默认展开**实时预览、旧卡折叠成一行按需展开（每张卡各挂一个 WebKit 视图且都显示同一块当前板）；预览高度按内容自适应（webview 上报、上限 520pt），替代固定 300pt 裁切 320px 图表块的旧框。
+- **白板：Agent 读板闭环 + image 块**：`whiteboard` 工具新增 `get` 动作（逐块清单回读给模型，超长内容截断、image 只报大小）——"读板→改图"的迭代不再盲写；render/append 的返回附带单行块摘要（模型不调 get 也知道板上有什么）；新 `image` 块类型（`data:image/` URI，截图上板图文混排；拒远程 URL 防外链依赖，单图上限 ~8MB）；note 便签支持 `[链接](url)`，点击经 whiteboardLink 消息在浏览器新标签打开——白板 webview 自身在 loadHTMLString 落地后一切导航被护栏取消、window.open 返回 nil（误点不再把整板打跑）；块解析收口 `WhiteboardBlock.make(from:)`（工具与桥共用，content 接受字符串或 JSON 对象）；append 增设 60 块板容量护栏；桥新增 `POST /whiteboard`（render/append/clear/get 与工具同权，可指定 conversationId）+ `GET /whiteboard` 每块附 200 字符预览。
+
 
 ### Changed
 
@@ -32,6 +34,8 @@
 - **设置页服务编辑器丢模型选择器**：双协议重构删了 `draftModelPicker` 行没加回——原位恢复：下拉 = 服务自带模型清单 + 已拉取模型，保留手动输入兜底。
 - **「测试连接」误报超时**：改为镜像真实聊天请求（流式 body + 档案自定义请求头 + 按协议补全端点：OpenAI `/chat/completions` vs Anthropic `/v1/messages`），连通性按服务端首个流式行判定而非等完整非流式生成——非流式路径慢的网关（如 AMD Radeon）不再在聊天正常时谎报 15s 超时。
 - **31 个字符串目录键补全翻译**：构建自动抽取产生的未翻译骨架（MCP stdio/HTTP 传输、DPP 徽标、AI 自动拦截 toast、PDF/播放器菜单、成本路由等）补齐 en/zh-Hans/zh-Hant，目录恢复三语全覆盖。
+- **白板 PNG 导出可能空白**：cacheDisplay 拍 WKWebView 合成层不可靠——改为 takeSnapshot 按 `document.body.scrollHeight` 取全文档区域（超出视口的部分 WebKit 会照常渲染，长板不再被裁成一屏），失败回退 cacheDisplay。
+
 
 ## [v0.5.9] - 2026-10-03
 ### Added

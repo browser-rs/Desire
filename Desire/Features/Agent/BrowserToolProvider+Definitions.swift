@@ -125,14 +125,14 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax) and data charts (ECharts option JSON) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
+                name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks with a data:image/ URI) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, clear empties it, get reads the current board back (use it to review and refine what you drew). Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear"),
+                    "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | clear | get (read the board back as text)"),
                     "title": AgentJSONSchemaValue(type: "string", description: "Board title"),
                     "blocks": AgentJSONSchemaValue(type: "array", description: "Blocks to render", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
-                        "type": AgentJSONSchemaValue(type: "string", description: "mermaid | chart | note"),
+                        "type": AgentJSONSchemaValue(type: "string", description: "mermaid | chart | note | table | image"),
                         "title": AgentJSONSchemaValue(type: "string", description: "Optional block caption"),
-                        "content": AgentJSONSchemaValue(type: "string", description: "mermaid: Mermaid source (e.g. 'graph TD; A-->B'); chart: ECharts option JSON string; note: markdown text"),
+                        "content": AgentJSONSchemaValue(type: "string", description: "mermaid: Mermaid source (e.g. 'graph TD; A-->B'); chart: ECharts option JSON string; note: markdown text ([links](url) clickable); table: markdown table; image: data:image/... base64 URI (from screenshot tools)"),
                     ], required: ["type", "content"]))),
                 ], required: ["action"])
             )),

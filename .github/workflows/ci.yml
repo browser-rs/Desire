@@ -31,7 +31,7 @@ jobs:
       - name: Build (Release, unsigned)
         run: |
           xcodebuild \
-            -project Desire.xcodeproj \
+            -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
             -configuration Release \
             -destination 'platform=macOS' \
@@ -110,7 +110,7 @@ jobs:
       - name: Build (Release, x86_64 cross-compile, unsigned)
         run: |
           xcodebuild \
-            -project Desire.xcodeproj \
+            -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
             -configuration Release \
             -destination 'platform=macOS' \

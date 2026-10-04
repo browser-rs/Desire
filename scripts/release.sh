@@ -137,7 +137,7 @@ stage_prep() {
   fi
 
   # 版本号：MARKETING_VERSION = $V；CURRENT_PROJECT_VERSION = 旧值 + 1
-  local pbx="Desire.xcodeproj/project.pbxproj"
+  local pbx="apps/macos/Desire.xcodeproj/project.pbxproj"
   local current_build
   current_build=$(grep -m1 "CURRENT_PROJECT_VERSION = " "$pbx" | grep -o '[0-9]\+')
   [ -n "$current_build" ] || die "读不到 CURRENT_PROJECT_VERSION"
@@ -208,7 +208,7 @@ stage_build() {
   log "build：clean Release 构建（零警告闸门）"
   rm -rf "$DD"
   local logfile="/tmp/dd-release-$V-build.log"
-  xcodebuild -project Desire.xcodeproj -scheme Desire -configuration Release \
+  xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
     -derivedDataPath "$DD" clean build 2>&1 | tee "$logfile" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
   grep -q "BUILD SUCCEEDED" "$logfile" || die "构建失败，日志在 $logfile"
   # 路径在 warning: 之前，惯用 grep 匹配不到；只豁免 appintentsmetadataprocessor

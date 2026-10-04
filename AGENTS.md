@@ -2,15 +2,16 @@
 
 ## Project structure
 
+- **仓库布局（2026-10-04 重组）**：`apps/macos/` = 主浏览器 Xcode 工程（`Desire.xcodeproj` + `Desire/` 源码，二者相对布局不变）；`apps/ios/` = DesireRemote；`crates/` = rust 后端；`website/ docs/ scripts/ tests/ tools/` 留仓库根。下文所有 `Desire/…` 路径按项目内相对路径理解（省略 `apps/macos/` 前缀）。
 - **macOS app** (`SDKROOT = macosx`) — not iOS. Target: macOS 26.5.
-- Entrypoint: `Desire/App/DesireApp.swift:11` (`@main struct DesireApp`)
-- Xcode 26.6, Swift 5.0, file-system-synchronized group (all `.swift` files under `Desire/` are auto-included).
+- Entrypoint: `apps/macos/Desire/App/DesireApp.swift:11` (`@main struct DesireApp`)
+- Xcode 26.6, Swift 5.0, file-system-synchronized group (all `.swift` files under `apps/macos/Desire/` are auto-included).
 - No package dependencies, no SPM, no test targets.
 
 ## Build & run
 
-Open `Desire.xcodeproj` in Xcode and build (⌘B) or run (⌘R).
-CLI build: `xcodebuild -project Desire.xcodeproj -scheme Desire build`
+Open `apps/macos/Desire.xcodeproj` in Xcode and build (⌘B) or run (⌘R).
+CLI build: `xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire build`
 
 **Always build before reporting completion.** Unverified claims are unacceptable.
 
@@ -983,7 +984,7 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
 ## 后端（crates/，2026-09-24 起，rust axum + mysql + redis）
 
 - **Monorepo**：根 `Cargo.toml` workspace（members = crates/*）+ `rustfmt.toml`
-  （edition 2024、2 空格）。Xcode 工程只同步 `Desire/` 目录，rust 代码不进 app
+  （edition 2024、2 空格）。Xcode 工程只同步 `apps/macos/Desire/` 目录，rust 代码不进 app
   target，互不干扰。组织方式**照抄 trove（`~/volumes/code/mankong-rs/trove`）**：
   `crates/api`（`desire-api`，用户侧 API，默认 `0.0.0.0:18090`）+ `crates/common`
   （`desire-common`：migrations + `desire-migrate` 执行器 bin）。新增模块 =

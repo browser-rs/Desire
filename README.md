@@ -194,7 +194,7 @@ xattr -cr /Applications/Desire.app
 - macOS 26.5+, Xcode 26.6+ (Apple Silicon)
 
 ```bash
-xcodebuild -project Desire.xcodeproj -scheme Desire build
+xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire build
 ```
 
 Or open `Desire.xcodeproj` in Xcode and press ⌘B.
@@ -204,25 +204,29 @@ Or open `Desire.xcodeproj` in Xcode and press ⌘B.
 Feature-modular, strict three-layer separation:
 
 ```
-Desire/
-├── App/              # Entry point, automation bridge, window chrome
-├── Features/         # 36 feature modules
-│   ├── Agent/        # The agent runtime — the biggest module
-│   ├── Browsing/     # WebView, tabs, toolbar
-│   ├── DevTools/     # In-app developer tools
-│   ├── MCP/          # MCP server + client
-│   ├── Sync/         # E2E-encrypted cross-device sync
-│   ├── Whiteboard/   # Mermaid + ECharts rendering board
-│   └── ...           # Bookmarks, History, Downloads, Privacy, …
-├── Views/
-│   ├── ContentView.swift   # Composition root
-│   └── Components/         # Reusable primitives
-└── Assets.xcassets
+apps/
+├── macos/                  # The browser — main Xcode project
+│   ├── Desire.xcodeproj
+│   └── Desire/
+│       ├── App/            # Entry point, automation bridge, window chrome
+│       ├── Features/       # 36 feature modules
+│       │   ├── Agent/      # The agent runtime — the biggest module
+│       │   ├── Browsing/   # WebView, tabs, toolbar
+│       │   ├── DevTools/   # In-app developer tools
+│       │   ├── MCP/        # MCP server + client
+│       │   ├── Sync/       # E2E-encrypted cross-device sync
+│       │   ├── Whiteboard/ # Mermaid + ECharts rendering board
+│       │   └── ...         # Bookmarks, History, Downloads, Privacy, …
+│       ├── Views/
+│       │   ├── ContentView.swift   # Composition root
+│       │   └── Components/         # Reusable primitives
+│       └── Assets.xcassets
+└── ios/                    # Desire Remote (iOS companion)
 ```
 
 The repo also carries the self-hosted **sync backend** (`crates/`, Rust —
-axum + MySQL + Redis, migrations via `desire-migrate`) and the
-**Desire Remote** iOS app (`apps/ios/`).
+axum + MySQL + Redis, migrations via `desire-migrate`). Android remote
+would slot into `apps/android/`.
 
 Each module follows **Model → Store → View**:
 

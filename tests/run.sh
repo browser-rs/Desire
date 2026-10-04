@@ -6,37 +6,37 @@ set -e
 cd "$(dirname "$0")/.."
 OUT="$(mktemp -d)/puretests"
 SOURCES=(
-  Desire/Features/Agent/AgentMessage.swift
-  Desire/Features/Agent/AgentToolSchema.swift
-  Desire/Features/Agent/PageProtocol/DesireProtocol.swift
-  Desire/Features/Agent/PageEventPolicy.swift
-  Desire/App/Log.swift
-  Desire/Features/Agent/AgentPlanStep.swift
-  Desire/App/JSString.swift
-  Desire/Features/History/HistoryEntry.swift
-  Desire/Features/Agent/RoutingDecision.swift
-  Desire/Features/Agent/Conversation.swift
-  Desire/Features/Agent/ModelPrice.swift
-  Desire/Features/Agent/AgentUsage.swift
-  Desire/Features/Agent/UsageStats.swift
-  Desire/Features/Agent/SecretRedactor.swift
-  Desire/Features/Whiteboard/WhiteboardSpec.swift Desire/Features/Agent/ContextCompaction.swift
-  Desire/Features/Agent/AgentTrace.swift
-  Desire/Features/Bookmarks/Bookmark.swift
-  Desire/Features/Browsing/MediaResource.swift
-  Desire/Features/Downloads/BatchMedia.swift
-  Desire/Features/NewTab/QuickDial.swift
-  Desire/Features/UserScripts/PluginResources.swift
-  Desire/Features/UserScripts/DNRRule.swift
-  Desire/Features/UserScripts/DNRConverter.swift
-  Desire/Features/UserScripts/PluginI18N.swift
-  Desire/Features/ReadingList/ReadingListItem.swift
-  Desire/Features/Agent/AgentQuickTemplate.swift
-  Desire/Features/Sync/SyncModels.swift
-  Desire/Features/Agent/Memory/MemoryModels.swift
-  Desire/Features/Agent/Memory/MemoryRetrieval.swift
-  Desire/Features/Sync/SyncCrypto.swift
-  Desire/Features/Sync/SyncMerge.swift
+  apps/macos/Desire/Features/Agent/AgentMessage.swift
+  apps/macos/Desire/Features/Agent/AgentToolSchema.swift
+  apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
+  apps/macos/Desire/Features/Agent/PageEventPolicy.swift
+  apps/macos/Desire/App/Log.swift
+  apps/macos/Desire/Features/Agent/AgentPlanStep.swift
+  apps/macos/Desire/App/JSString.swift
+  apps/macos/Desire/Features/History/HistoryEntry.swift
+  apps/macos/Desire/Features/Agent/RoutingDecision.swift
+  apps/macos/Desire/Features/Agent/Conversation.swift
+  apps/macos/Desire/Features/Agent/ModelPrice.swift
+  apps/macos/Desire/Features/Agent/AgentUsage.swift
+  apps/macos/Desire/Features/Agent/UsageStats.swift
+  apps/macos/Desire/Features/Agent/SecretRedactor.swift
+  apps/macos/Desire/Features/Whiteboard/WhiteboardSpec.swift apps/macos/Desire/Features/Agent/ContextCompaction.swift
+  apps/macos/Desire/Features/Agent/AgentTrace.swift
+  apps/macos/Desire/Features/Bookmarks/Bookmark.swift
+  apps/macos/Desire/Features/Browsing/MediaResource.swift
+  apps/macos/Desire/Features/Downloads/BatchMedia.swift
+  apps/macos/Desire/Features/NewTab/QuickDial.swift
+  apps/macos/Desire/Features/UserScripts/PluginResources.swift
+  apps/macos/Desire/Features/UserScripts/DNRRule.swift
+  apps/macos/Desire/Features/UserScripts/DNRConverter.swift
+  apps/macos/Desire/Features/UserScripts/PluginI18N.swift
+  apps/macos/Desire/Features/ReadingList/ReadingListItem.swift
+  apps/macos/Desire/Features/Agent/AgentQuickTemplate.swift
+  apps/macos/Desire/Features/Sync/SyncModels.swift
+  apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
+  apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift
+  apps/macos/Desire/Features/Sync/SyncCrypto.swift
+  apps/macos/Desire/Features/Sync/SyncMerge.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

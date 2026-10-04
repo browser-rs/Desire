@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **仓库重组**：主浏览器 Xcode 工程移入 `apps/macos/`（`Desire.xcodeproj` + `Desire/` 源码相对布局原样保留，pbxproj/entitlements/Info.plist 零改动），与 `apps/ios/`（Desire Remote）平台对称，后续可按需扩展 `apps/android/`；`crates/`（rust 后端）留仓库根。同步更新 ci.yml/release.yml/release.sh/tests(run.sh SOURCES)/README 架构树/AGENTS.md 结构区；历史 docs 里的旧路径按当时记录保留不追溯。
+
 
 ## [v0.6.0] - 2026-10-04
 ### Added

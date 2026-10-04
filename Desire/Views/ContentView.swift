@@ -99,6 +99,11 @@ struct ContentView: View {
     /// observing it, adding/removing a bookmark never re-rendered the
     /// toolbar and the star icon never moved.
     @ObservedObject var bookmarkStore: BookmarkStore
+    /// OBSERVED so the ball overlay mounts/unmounts the moment isEnabled
+    /// flips — reading the singleton in `body` without observing it left the
+    /// overlay stale (it only appeared when some other state happened to
+    /// re-render this view).
+    @ObservedObject var ballPanel = AgentBallPanel.shared
     var historyStore: HistoryStore { appState.historyStore }
     var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
     var downloadStore: DownloadStore { appState.downloadStore }
@@ -128,10 +133,7 @@ struct ContentView: View {
             openSettings: { openWindow(id: "settings") },
             toggleWhiteboard: { WhiteboardPanel.shared.toggle() },
             toggleAgentBall: {
-                Log.agent.info("AgentBall toggle closure: ball=\(agentBallPanel != nil) window=\(hostingWindow != nil)")
-                if let ball = agentBallPanel, let hostingWindow {
-                    ball.toggle(in: hostingWindow)
-                }
+                AgentBallPanel.shared.toggle()
             },
             bindings: .init(
                 showHistory: $showHistory,
@@ -233,7 +235,6 @@ struct ContentView: View {
     @State var isSiteFullScreen = false
     @State var showAgentPanel = false
     @State private var hostingWindow: NSWindow?
-    @State private var agentBallPanel: AgentBallPanel?
     @State var aiFloatingPanel: AgentFloatingPanel?
     @State var showDevToolsPanel = false
 
@@ -285,6 +286,12 @@ struct ContentView: View {
         }
         .preferredColorScheme(settings.appearanceTheme == .system ? nil : settings.appearanceTheme == .dark ? .dark : .light)
         .appAccent(settings.accentColor.color)
+        .overlay {
+            // 悬浮球：窗口内覆盖层（真液态玻璃；位置/展开状态自管理）
+            if ballPanel.isEnabled {
+                AgentBallOverlay(state: ballPanel)
+            }
+        }
         .ignoresSafeArea(.all, edges: .top)
         .background(WindowChromeGuard(onWindow: { hostingWindow = $0 }) {
             // This window just became key — record it as the
@@ -302,23 +309,11 @@ struct ContentView: View {
                     accentColor: settings.accentColor.color
                 )
             }
-            if agentBallPanel == nil {
-                let ball = AgentBallPanel.shared
-                ball.onOpenAgentPanel = { showAgentPanel = true }
-                ball.onAskAboutPage = { askAgentAboutPage() }
-                ball.onPageURL = { [tabManager] in
-                    tabManager.selectedTab?.browser.webView.url?.absoluteString
-                }
-                ball.onPageFullscreen = { [tabManager] in
-                    tabManager.selectedTab?.browser.webView.fullscreenState == .inFullscreen
-                }
-                agentBallPanel = ball
-            }
-            if let ball = agentBallPanel, let hostingWindow {
-                // 窗口就绪：开关开启（UserDefaults）则挂载悬浮球
-                if ball.isEnabled {
-                    ball.attach(to: hostingWindow)
-                }
+            let ball = AgentBallPanel.shared
+            ball.onOpenAgentPanel = { showAgentPanel = true }
+            ball.onAskAboutPage = { askAgentAboutPage() }
+            ball.onPageFullscreen = { [tabManager] in
+                tabManager.selectedTab?.browser.webView.fullscreenState == .inFullscreen
             }
             if !isAgentConfigured {
                 // Record this window as the session-persistence target, then
@@ -388,15 +383,6 @@ struct ContentView: View {
         // 面板没开时用户根本看不见，回合会无限挂起（已开则不动，避免误关）。
         .onReceive(UserPromptCenter.shared.$pending) { pending in
             if pending != nil, !showAgentPanel { showAgentPanel = true }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: AgentBallPanel.enabledChangedNotification)) { _ in
-            // 设置页开关 → 本窗口跟随挂载/卸载
-            guard let ball = agentBallPanel else { return }
-            if UserDefaults.standard.bool(forKey: AgentBallPanel.enabledKey), let hostingWindow {
-                ball.attach(to: hostingWindow)
-            } else {
-                ball.detach()
-            }
         }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY

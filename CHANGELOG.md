@@ -22,6 +22,8 @@ Global agent floating ball (phase 1): a non-activating child panel that hugs the
 Agent ball phase 2: a "Floating Ball" toggle in the AI settings (all windows follow via notification, with the ball re-attaching to the last active window), right-click menu on the ball (reset position to the default edge spot, hide the ball), and drag tilt — the ball leans with horizontal drag velocity and springs back upright on release.
 Agent ball phase 2: sensing + interaction. A 2s poll drives (1) a rotating progress ring while the active agent session is processing and (2) auto-hide during element fullscreen (video) with auto-restore on exit — the ball's child panel would otherwise sit behind the fullscreen content window but above the video. Double-click on the ball jumps straight to voice input (skip the menu); a size picker (small/medium/large) landed in the AI settings; the spec push waits for document load. /agentball now reports agentBusy and hiddenForFullscreen.
 Agent ball phase 3: reply-ready badge (green checkmark flashes on the ball when the agent finishes while the panel is closed), iOS-popover outside-tap collapse (any click outside the expanded strip collapses it; taps inside the strip pass to its buttons), and the ball no longer renders as an oversized transparent slab when collapsed — view and panel sizes now follow the expansion state exactly.
+- 悬浮球重构为浏览器窗口内覆盖层（AgentBallOverlay）：`.glassEffect` 在主窗内可采样网页内容，呈现真实 iOS 26 液态玻璃（独立透明 NSPanel 采样不到跨进程背景，玻璃退化实心灰——两轮实拍定案）；窗口内 SwiftUI 手势完整：拖动任意位置（命名坐标空间修半速）、松手 spring 吸附最近左右缘并持久化、单击开合操作条、双击语音、右键菜单（重置位置/隐藏）；Agent 忙碌进度环 + 回复完成徽章 + 语音实时转写条
+
 
 
 

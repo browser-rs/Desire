@@ -113,248 +113,6 @@
         }
       }
     },
-    "Attach declaration summaries (views/actions) to page tool results and page context." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Attach declaration summaries (views/actions) to page tool results and page context."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在页面工具结果与页面上下文里附上声明摘要（视图/动作）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在頁面工具結果與頁面上下文裡附上宣告摘要（視圖/動作）。"
-          }
-        }
-      }
-    },
-    "Auto" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全自动"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全自動"
-          }
-        }
-      }
-    },
-    "DPP Protocol" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DPP Protocol"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DPP 协议"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DPP 協議"
-          }
-        }
-      }
-    },
-    "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "声明了 Desire Page Protocol 的页面，智能体可按声明结构化读取、执行声明动作，并被页面事件唤醒。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "宣告了 Desire Page Protocol 的頁面，智慧體可按宣告結構化讀取、執行宣告動作，並被頁面事件喚醒。"
-          }
-        }
-      }
-    },
-    "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未单独配置的站点的默认自动化档位。全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未單獨設定的站點的預設自動化檔位。全自動 = 頁面事件直接喚醒智慧體並行動（敏感動作仍會詢問）。"
-          }
-        }
-      }
-    },
-    "Draft" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Draft"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "草稿"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "草稿"
-          }
-        }
-      }
-    },
-    "Hints in Tool Results" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hints in Tool Results"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "工具结果中的提示"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "工具結果中的提示"
-          }
-        }
-      }
-    },
-    "New Sites' Events" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Sites' Events"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新站点的事件"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新站點的事件"
-          }
-        }
-      }
-    },
-    "Off disables DPP entirely: no parsing, no hints, no page events." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off disables DPP entirely: no parsing, no hints, no page events."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭后 DPP 完全停用：不解析、无提示、无页面事件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉後 DPP 完全停用：不解析、無提示、無頁面事件。"
-          }
-        }
-      }
-    },
-    "Protocol Parsing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Protocol Parsing"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "协议解析"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "協議解析"
-          }
-        }
-      }
-    },
-    "Remove — fall back to the default level" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove — fall back to the default level"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除——回落到默认档位"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除——回落到預設檔位"
-          }
-        }
-      }
-    },
     "…" : {
       "localizations" : {
         "en" : {
@@ -461,50 +219,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(undecodable image result)"
-          }
-        }
-      }
-    },
-    "开启本站体验" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable for this site"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开启本站体验"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟本站體驗"
-          }
-        }
-      }
-    },
-    "页面事件 %@（%@）想要唤起智能体——当前已关闭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page event %1$@ (%2$@) wants to wake the agent — currently off"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "页面事件 %@（%@）想要唤起智能体——当前已关闭"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉"
           }
         }
       }
@@ -1422,7 +1136,6 @@
           }
         }
       }
-    
     },
     "%lld%%" : {
       "localizations" : {
@@ -2142,6 +1855,9 @@
         }
       }
     },
+    "A small ball hugging the window edge: drag it anywhere, click to expand agent actions (chat, voice, page summary, whiteboard)." : {
+
+    },
     "Accent Color" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2208,7 +1924,6 @@
           }
         }
       }
-    
     },
     "Account" : {
       "extractionState" : "stale",
@@ -2641,6 +2356,9 @@
         }
       }
     },
+    "Add Selection to Whiteboard" : {
+
+    },
     "Add Template" : {
       "localizations" : {
         "en" : {
@@ -2730,6 +2448,9 @@
           }
         }
       }
+    },
+    "Add to Whiteboard" : {
+
     },
     "Added to Reading List" : {
       "localizations" : {
@@ -2977,6 +2698,9 @@
         }
       }
     },
+    "Agent Floating Ball" : {
+
+    },
     "Agent is typing" : {
       "localizations" : {
         "en" : {
@@ -3198,7 +2922,6 @@
           }
         }
       }
-    
     },
     "AI Agent Panel" : {
       "extractionState" : "stale",
@@ -3312,7 +3035,6 @@
           }
         }
       }
-    
     },
     "AI is typing" : {
       "extractionState" : "stale",
@@ -3921,6 +3643,9 @@
         }
       }
     },
+    "Applies immediately; position snaps stay the same." : {
+
+    },
     "Applies to all providers." : {
       "localizations" : {
         "en" : {
@@ -4163,7 +3888,6 @@
           }
         }
       }
-    
     },
     "Ask questions, summarize pages,\ntranslate content, and more." : {
       "localizations" : {
@@ -4368,6 +4092,28 @@
         }
       }
     },
+    "Attach declaration summaries (views/actions) to page tool results and page context." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attach declaration summaries (views/actions) to page tool results and page context."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在页面工具结果与页面上下文里附上声明摘要（视图/动作）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在頁面工具結果與頁面上下文裡附上宣告摘要（視圖/動作）。"
+          }
+        }
+      }
+    },
     "Attach image ( vision models)" : {
       "localizations" : {
         "en" : {
@@ -4477,6 +4223,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "作者"
+          }
+        }
+      }
+    },
+    "Auto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自動"
           }
         }
       }
@@ -4773,7 +4541,6 @@
           }
         }
       }
-    
     },
     "Background" : {
       "extractionState" : "stale",
@@ -4842,6 +4609,9 @@
           }
         }
       }
+    },
+    "Ball Size" : {
+
     },
     "base · %lldpx" : {
       "localizations" : {
@@ -7341,7 +7111,6 @@
           }
         }
       }
-    
     },
     "Command Palette…" : {
       "localizations" : {
@@ -8785,7 +8554,6 @@
           }
         }
       }
-    
     },
     "Couldn't read this session file" : {
       "localizations" : {
@@ -9509,6 +9277,28 @@
         }
       }
     },
+    "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声明了 Desire Page Protocol 的页面，智能体可按声明结构化读取、执行声明动作，并被页面事件唤醒。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宣告了 Desire Page Protocol 的頁面，智慧體可按宣告結構化讀取、執行宣告動作，並被頁面事件喚醒。"
+          }
+        }
+      }
+    },
     "default" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9572,6 +9362,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設（~/Downloads）"
+          }
+        }
+      }
+    },
+    "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default automation level for sites you haven't configured. Auto = the agent wakes on page events and acts (sensitive actions still ask)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未单独配置的站点的默认自动化档位。全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未單獨設定的站點的預設自動化檔位。全自動 = 頁面事件直接喚醒智慧體並行動（敏感動作仍會詢問）。"
           }
         }
       }
@@ -10950,7 +10762,50 @@
           }
         }
       }
-    
+    },
+    "DPP Protocol" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP Protocol"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 协议"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 協議"
+          }
+        }
+      }
+    },
+    "Draft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
+        }
+      }
     },
     "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)." : {
       "extractionState" : "stale",
@@ -12317,7 +12172,6 @@
           }
         }
       }
-    
     },
     "Extend the AI with external tools over MCP (HTTP transport). Experimental." : {
       "extractionState" : "stale",
@@ -12746,7 +12600,6 @@
           }
         }
       }
-    
     },
     "File Not Found" : {
       "localizations" : {
@@ -12769,7 +12622,6 @@
           }
         }
       }
-    
     },
     "File not found on the server (404)" : {
       "localizations" : {
@@ -13246,6 +13098,9 @@
           }
         }
       }
+    },
+    "Floating Ball" : {
+
     },
     "Focus Address Bar" : {
       "comment" : "Keyboard shortcut",
@@ -14279,6 +14134,28 @@
         }
       }
     },
+    "Hints in Tool Results" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hints in Tool Results"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具结果中的提示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具結果中的提示"
+          }
+        }
+      }
+    },
     "History" : {
       "comment" : "History panel title",
       "localizations" : {
@@ -14507,7 +14384,6 @@
           }
         }
       }
-    
     },
     "http://127.0.0.1:3000/mcp" : {
       "localizations" : {
@@ -15880,7 +15756,6 @@
           }
         }
       }
-    
     },
     "Loading translator…" : {
       "localizations" : {
@@ -16709,7 +16584,9 @@
           }
         }
       }
-    
+    },
+    "Mermaid 导图/流程图" : {
+
     },
     "Messages (%lld)" : {
       "localizations" : {
@@ -17493,6 +17370,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新外掛"
+          }
+        }
+      }
+    },
+    "New Sites' Events" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Sites' Events"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新站点的事件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新站點的事件"
           }
         }
       }
@@ -18483,7 +18382,6 @@
           }
         }
       }
-    
     },
     "No media queries found" : {
       "localizations" : {
@@ -19361,6 +19259,31 @@
         }
       }
     },
+    "Off disables DPP entirely: no parsing, no hints, no page events." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off disables DPP entirely: no parsing, no hints, no page events."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后 DPP 完全停用：不解析、无提示、无页面事件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後 DPP 完全停用：不解析、無提示、無頁面事件。"
+          }
+        }
+      }
+    },
+    "Off hides the ball in all browser windows. On shows it on the active window's edge." : {
+
+    },
     "Off-topic filler content that adds nothing." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19964,7 +19887,6 @@
           }
         }
       }
-    
     },
     "Open in QuickTime Player" : {
       "localizations" : {
@@ -19987,7 +19909,6 @@
           }
         }
       }
-    
     },
     "Open in Safari" : {
       "localizations" : {
@@ -20167,7 +20088,6 @@
           }
         }
       }
-    
     },
     "OpenAI / Anthropic / DeepSeek compatible endpoints." : {
       "extractionState" : "stale",
@@ -21772,6 +21692,28 @@
         }
       }
     },
+    "Protocol Parsing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol Parsing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "协议解析"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "協議解析"
+          }
+        }
+      }
+    },
     "Provider" : {
       "localizations" : {
         "en" : {
@@ -22649,6 +22591,28 @@
         }
       }
     },
+    "Remove — fall back to the default level" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove — fall back to the default level"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除——回落到默认档位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除——回落到預設檔位"
+          }
+        }
+      }
+    },
     "Remove Bookmark" : {
       "comment" : "Remove bookmark tooltip",
       "localizations" : {
@@ -22938,7 +22902,6 @@
           }
         }
       }
-    
     },
     "Reopen Closed Tab" : {
       "comment" : "Keyboard shortcut",
@@ -23007,7 +22970,6 @@
           }
         }
       }
-    
     },
     "Replay" : {
       "localizations" : {
@@ -25422,29 +25384,6 @@
         }
       }
     },
-    "Select multiple conversations" : {
-      "comment" : "Conversation list: tooltip on the Select button that enters multi-selection mode",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select multiple conversations"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批量选择会话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次選取會話"
-          }
-        }
-      }
-    },
     "Select Chrome Bookmarks File" : {
       "localizations" : {
         "en" : {
@@ -25507,6 +25446,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "多重選取"
+          }
+        }
+      }
+    },
+    "Select multiple conversations" : {
+      "comment" : "Conversation list: tooltip on the Select button that enters multi-selection mode",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select multiple conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量选择会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次選取會話"
           }
         }
       }
@@ -26569,6 +26531,9 @@
         }
       }
     },
+    "Show Whiteboard" : {
+
+    },
     "Sidebar" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -27222,7 +27187,6 @@
           }
         }
       }
-    
     },
     "Stdio (local command)" : {
       "localizations" : {
@@ -27245,7 +27209,6 @@
           }
         }
       }
-    
     },
     "Stop" : {
       "comment" : "Stop loading button help",
@@ -28462,7 +28425,6 @@
           }
         }
       }
-    
     },
     "The current window's tabs will be replaced by the archived session." : {
       "localizations" : {
@@ -28551,7 +28513,6 @@
           }
         }
       }
-    
     },
     "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings." : {
       "localizations" : {
@@ -29064,7 +29025,6 @@
           }
         }
       }
-    
     },
     "This page may not have a readable article format." : {
       "localizations" : {
@@ -29131,7 +29091,6 @@
           }
         }
       }
-    
     },
     "This removes all cookies and site data of the container. Websites will log you out." : {
       "localizations" : {
@@ -29467,6 +29426,9 @@
           }
         }
       }
+    },
+    "Toggle Agent Ball" : {
+
     },
     "Toggle Orientation" : {
       "extractionState" : "stale",
@@ -31359,7 +31321,6 @@
           }
         }
       }
-    
     },
     "Where captured screenshots are written." : {
       "extractionState" : "stale",
@@ -32034,6 +31995,9 @@
         }
       }
     },
+    "便签" : {
+
+    },
     "保存" : {
       "localizations" : {
         "en" : {
@@ -32055,6 +32019,15 @@
           }
         }
       }
+    },
+    "全自动" : {
+
+    },
+    "全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）" : {
+
+    },
+    "关闭" : {
+
     },
     "内容" : {
       "localizations" : {
@@ -32166,6 +32139,12 @@
         }
       }
     },
+    "图表（ECharts）" : {
+
+    },
+    "在工具结果中注入 DPP 提示" : {
+
+    },
     "完成" : {
       "localizations" : {
         "en" : {
@@ -32184,6 +32163,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成"
+          }
+        }
+      }
+    },
+    "导入 .board（追加块）" : {
+
+    },
+    "导出 .board（JSON）" : {
+
+    },
+    "导出 PNG 到下载目录" : {
+
+    },
+    "已加入白板 ✓" : {
+
+    },
+    "已发送：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已發送：%@"
           }
         }
       }
@@ -32228,6 +32241,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "常駐能力"
+          }
+        }
+      }
+    },
+    "开启本站体验" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable for this site"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启本站体验"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟本站體驗"
           }
         }
       }
@@ -32342,6 +32377,12 @@
         }
       }
     },
+    "手动添加块（进入源码编辑）" : {
+
+    },
+    "投到白板" : {
+
+    },
     "搜索工具" : {
       "localizations" : {
         "en" : {
@@ -32452,6 +32493,9 @@
         }
       }
     },
+    "更多配置：设置 → AI → DPP 协议" : {
+
+    },
     "未设置" : {
       "localizations" : {
         "en" : {
@@ -32474,6 +32518,9 @@
         }
       }
     },
+    "本站事件档位（%@）" : {
+
+    },
     "松开在此标签页打开" : {
       "localizations" : {
         "en" : {
@@ -32495,7 +32542,6 @@
           }
         }
       }
-    
     },
     "标题" : {
       "localizations" : {
@@ -32542,6 +32588,7 @@
       }
     },
     "此页面声明了 Desire Page Protocol — 智能体可按声明结构化读写（试试对智能体说 pageProtocol）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32562,7 +32609,9 @@
           }
         }
       }
-    
+    },
+    "此页面声明了 Desire Page Protocol — 点击查看与配置" : {
+
     },
     "没有匹配的工具" : {
       "localizations" : {
@@ -32696,6 +32745,12 @@
         }
       }
     },
+    "清空白板" : {
+
+    },
+    "渲染 Mermaid…" : {
+
+    },
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -32740,6 +32795,9 @@
         }
       }
     },
+    "点击重命名" : {
+
+    },
     "爱奇艺" : {
       "localizations" : {
         "en" : {
@@ -32783,6 +32841,15 @@
           }
         }
       }
+    },
+    "白板已更新 · %lld 块（点此查看）" : {
+
+    },
+    "白板已清空" : {
+
+    },
+    "白板是空的——让智能体画点什么。" : {
+
     },
     "视频" : {
       "localizations" : {
@@ -32916,6 +32983,9 @@
         }
       }
     },
+    "网页选区" : {
+
+    },
     "腾讯视频" : {
       "localizations" : {
         "en" : {
@@ -33003,6 +33073,12 @@
           }
         }
       }
+    },
+    "草稿" : {
+
+    },
+    "表格" : {
+
     },
     "让我们认识一下" : {
       "localizations" : {
@@ -33158,6 +33234,28 @@
         }
       }
     },
+    "重置位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        }
+      }
+    },
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {
       "localizations" : {
         "en" : {
@@ -33180,7 +33278,52 @@
         }
       }
     },
+    "隐藏悬浮球" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Floating Ball"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏懸浮球"
+          }
+        }
+      }
+    },
+    "页面事件 %@（%@）想要唤起智能体——当前已关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page event %1$@ (%2$@) wants to wake the agent — currently off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面事件 %@（%@）想要唤起智能体——当前已关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉"
+          }
+        }
+      }
+    },
     "页面事件 %@（%@）想要唤起智能体——当前已关闭，可在设置中开启" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33201,7 +33344,6 @@
           }
         }
       }
-    
     }
   },
   "version" : "1.0"

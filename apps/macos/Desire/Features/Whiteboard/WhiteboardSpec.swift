@@ -28,6 +28,9 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
     var type: String
     var title: String?
     var content: String
+    /// chart 块的自定义高度（px，钳制 120-800）；其余类型忽略。
+    /// 旧文件缺键 → nil（可选解码，向后兼容）。
+    var height: Double?
 
     enum Kind {
         static let mermaid = "mermaid"
@@ -41,11 +44,18 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
     /// 把 DiskStore 落盘与 .board JSON 撑爆。
     static let maxImageContentChars = 11_000_000
 
-    init(id: UUID = UUID(), type: String, title: String? = nil, content: String) {
+    init(id: UUID = UUID(), type: String, title: String? = nil, content: String, height: Double? = nil) {
         self.id = id
         self.type = type
         self.title = title
         self.content = content
+        self.height = height
+    }
+
+    /// chart 块渲染高度（px）：显式 height 钳制 120-800，缺省 320。
+    var chartHeight: Double {
+        guard let height, height.isFinite else { return 320 }
+        return min(max(height, 120), 800)
     }
 
     var isValid: Bool {
@@ -75,7 +85,10 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
         } else {
             return nil
         }
-        let block = WhiteboardBlock(type: type, title: item["title"] as? String, content: content)
+        let height = (item["height"] as? Double)
+            ?? (item["height"] as? Int).map(Double.init)
+            ?? (item["height"] as? String).flatMap(Double.init)
+        let block = WhiteboardBlock(type: type, title: item["title"] as? String, content: content, height: height)
         return block.isValid ? block : nil
     }
 }
@@ -95,6 +108,16 @@ extension WhiteboardSpec {
         var spec = self
         guard blocks.indices.contains(index) else { return self }
         spec.blocks.remove(at: index)
+        return spec
+    }
+
+    /// 按位置插入（index 为 0-based"插到此块之前"；nil = 追加到末尾）。
+    /// 越界原样返回（工具层负责换算 1-based 与报错）。
+    func insertingBlocks(_ newBlocks: [WhiteboardBlock], at index: Int?) -> WhiteboardSpec {
+        var spec = self
+        let at = index ?? spec.blocks.count
+        guard at >= 0, at <= spec.blocks.count, !newBlocks.isEmpty else { return self }
+        spec.blocks.insert(contentsOf: newBlocks, at: at)
         return spec
     }
 

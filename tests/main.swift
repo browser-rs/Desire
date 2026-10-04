@@ -1245,6 +1245,22 @@ func testWhiteboardSpec() {
     check("白板：上移交换", spec.movingBlock(2, delta: -1).blocks[1].type == "note")
     check("白板：下越界不动", spec.movingBlock(2, delta: 1).blocks[2].type == "note")
     check("白板：删除减一", spec.deletingBlock(1).blocks.count == 2)
+    // 插入（insert 动作的核心）
+    let ins = WhiteboardSpec(title: "t", blocks: [
+        WhiteboardBlock(type: "note", content: "a"),
+        WhiteboardBlock(type: "note", content: "b"),
+    ])
+    check("白板：插入头部", ins.insertingBlocks([WhiteboardBlock(type: "chart", content: "{}")], at: 0).blocks[0].type == "chart")
+    check("白板：插入中部", ins.insertingBlocks([WhiteboardBlock(type: "chart", content: "{}")], at: 1).blocks.map(\.type) == ["note", "chart", "note"])
+    check("白板：插入越界原样", ins.insertingBlocks([WhiteboardBlock(type: "chart", content: "{}")], at: 5) == ins)
+    check("白板：nil 插入=追加", ins.insertingBlocks([WhiteboardBlock(type: "chart", content: "{}")], at: nil).blocks[2].type == "chart")
+    check("白板：空插入原样", ins.insertingBlocks([], at: 0) == ins)
+    // chart 高度钳制
+    check("白板：chart 高度缺省 320", WhiteboardBlock(type: "chart", content: "{}").chartHeight == 320)
+    check("白板：chart 高度钳制", WhiteboardBlock(type: "chart", content: "{}", height: 9999).chartHeight == 800
+          && WhiteboardBlock(type: "chart", content: "{}", height: 10).chartHeight == 120)
+    check("白板：chart 高度可往返", (try? JSONDecoder().decode(WhiteboardBlock.self, from: JSONEncoder().encode(WhiteboardBlock(type: "chart", content: "{}", height: 500))))?.height == 500)
+    check("白板：旧 JSON 缺 height 解码 nil", (try? JSONDecoder().decode(WhiteboardBlock.self, from: Data(#"{"id":"11111111-1111-1111-1111-111111111111","type":"chart","content":"{}"}"#.utf8)))?.height == nil)
     check("白板：拖拽排序", spec.reorderingBlock(from: 2, to: 0).blocks[0].type == "note")
     check("白板：拖拽同位原样", spec.reorderingBlock(from: 1, to: 1) == spec)
     check("白板：拖拽越界原样", spec.reorderingBlock(from: 9, to: 0) == spec)

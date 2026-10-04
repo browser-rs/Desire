@@ -3,6 +3,8 @@
 
 - **白板截图上板不再回传 base64（evidence 引用）**：image 块新增 `evidence` 字段（`"last"` = 本会话最近一张 screenshot/screenshotElement 结果，或显式 toolCallId），宿主侧从会话消息就地解析成 data URI——此前模型要把几 MB 的 base64 原样塞进 whiteboard 参数（纯 token 灾难）；解析失败带明确 Error（"call screenshot first"）。桥 `POST /whiteboard` 同一解析器。
 - **白板撤销/重做**：store 级快照栈（每会话就近恢复，上限 50，不持久化），覆盖面板编辑**和 Agent 写入**——Agent 误 clear 也救得回；面板工具条 ⮌/⮭ 按钮（空栈禁用）+ 窗口级 ⌘Z/⇧⌘Z（重命名输入框编辑中放行给系统）；桥 `POST /whiteboard` 新增 `undo`/`redo` 动作（自动化同权）。
+- **白板工具 `insert` 动作 + chart 块自定义高度**：`insert`（可选 1-based `index`，缺省=末尾）把块插到指定位置——补齐"逐块精确组装"的最后一块（get/edit/delete/move/insert 全了）；chart 块新增 `height` 字段（px，钳制 120-800，缺省 320；可选解码向后兼容旧 .board/落盘），高个子的图表不再被压扁。桥与工具同权；`insertingBlocks`/高度钳制进单测。
+
 
 
 ### Changed

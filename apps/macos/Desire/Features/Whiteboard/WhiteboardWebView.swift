@@ -319,7 +319,8 @@ struct WhiteboardWebView: NSViewRepresentable {
         } else if (type === "chart") {
           var chartBox = el("div", "chart-box");
           chartBox.style.width = "100%";
-          chartBox.style.height = "320px";
+          var chartH = (typeof block.height === "number" && isFinite(block.height)) ? Math.min(Math.max(block.height, 120), 800) : 320;
+          chartBox.style.height = Math.round(chartH) + "px";
           holder.appendChild(chartBox);
           try {
             var option = JSON.parse(block.content);

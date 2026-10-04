@@ -504,7 +504,7 @@ final class AutomationServer {
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
         ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout returns the agent-visible text)", example: "…/whiteboard")
-        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | clear | get (read back) | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
+        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
@@ -960,12 +960,24 @@ final class AutomationServer {
                     return try Self.json(["error": "No valid blocks (mermaid|chart|note|table|image)"])
                 }
                 let title = Self.string(body, "title")
-                if action == "append" {
+                if action == "append" || action == "insert" {
                     let existing = store.board(for: conversationID).blocks.count
                     guard existing + blocks.count <= WhiteboardSpec.maxBlocks else {
                         return try Self.json(["error": "Board would exceed \(WhiteboardSpec.maxBlocks) blocks"])
                     }
-                    store.append(blocks, title: title, conversationID: conversationID)
+                    if action == "insert" {
+                        let number = (body["index"] as? Int)
+                            ?? (body["index"] as? Double).map(Int.init)
+                            ?? (body["index"] as? String).flatMap(Int.init)
+                            ?? (existing + 1)
+                        let at = number - 1
+                        guard at >= 0, at <= existing else {
+                            return try Self.json(["error": "Insert index \(number) out of range (board has \(existing) block(s))"])
+                        }
+                        store.apply({ $0 = $0.insertingBlocks(blocks, at: at) }, conversationID: conversationID)
+                    } else {
+                        store.append(blocks, title: title, conversationID: conversationID)
+                    }
                 } else {
                     store.set(WhiteboardSpec(title: title ?? "白板", blocks: blocks), conversationID: conversationID)
                 }

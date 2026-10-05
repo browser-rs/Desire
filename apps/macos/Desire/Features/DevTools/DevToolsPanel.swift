@@ -1081,6 +1081,16 @@ private struct NetworkPanel: View {
                         // 面板里直接给入口：规则是全局的，加到 Settings 那套里。
                         Button("Block This URL") { block(r, wholeHost: false) }
                         Button("Block This Host") { block(r, wholeHost: true) }
+                        // 会话级（0.6.6）：不进用户的过滤列表，app 退出即消失。
+                        Button("Block This URL (Session)") {
+                            InterceptStore.shared.addSessionRule(
+                                urlFilter: InterceptRule.exactFilter(for: r.url),
+                                kind: .block, payload: nil)
+                            store.addConsoleMessage(
+                                level: .log,
+                                message: "⛔ blocked url (session): \(r.url)",
+                                tabID: r.tabID)
+                        }
                         Button("Redirect To…") {
                             redirectingRequest = r.id
                             redirectTarget = ""

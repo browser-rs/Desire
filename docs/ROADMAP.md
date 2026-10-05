@@ -286,13 +286,15 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
   不做假 UI**（网络节流若无真实现路径就明说"模拟"并标注）。
 
 **P0（按 spike 结论裁剪）**
-- **ContentRuleList 动态封装 v2**：现有规则引擎加"会话级动态规则"（Agent/用户
-  临时拦截某域、重定向某 URL，随标签页生命周期销毁）；桥端点可驱动。
-  验收：fixture 页断言请求被拦/被重定向，规则随标签关闭清除。
-- **Agent 工具**：`networkRules`（add/clear/list，risk=sideEffect 进审批）；
-  与 DPP `ignore`/`blockElements` 的关系文档化。
-- **响应式收尾**：pixelRatio 模拟（JS 层 `devicePixelRatio` 覆盖 + 截图元数据
-  一致性）；真节流若 spike 判定不可行，UI 文案改"加载节流（模拟）"并去重。
+- ✅ **ContentRuleList 动态封装 v2（提前交付 694f2f9/ca3ee31）**：会话级动态规则
+  （InterceptStore.sessionRules，不持久化、app 退出即消失）；Agent `networkRules`
+  工具（add/list/clear）+ 桥 /intercept/session/* + DevTools Network 右键
+  「Block This URL (Session)」。E2E：marker 法断言主框架拦截、/state 含
+  suspended/domNodes。**spike 结论**：主框架 block 生效但导航静默终止（无委托
+  事件，marker 法断言）；主框架 redirect 在本 WebKit 不生效（工具描述已标注）。
+- **响应式收尾**：pixelRatio 覆写已随 0.6.4 交付（PixelRatioOverride）；
+  剩余 = 响应式桥 bug（/responsive 杀 listener，根因 CGSize 进 JSON 已修
+  30c39a3）后的 E2E 回归 + UA swap 时机验证。
 
 **P1**
 - DevTools Network 页签加"动态规则"入口（右键请求 → 拦截/重定向）。

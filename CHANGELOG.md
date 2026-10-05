@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.6.6] - 2026-10-05
 ### Fixed
 
 - **发现既有自动化 bug：`/responsive` 杀死桥 listener（未修，记录在案）**：POST /responsive（enabled=true）触发响应式装配后，桥 listener 对一切后续请求（含 /state）无响应直至 app 重启——stash 掉本批全部改动后在 HEAD 上同样复现（既有限制，非新引入）。**根因待查**（主 actor 存活——DSP-PING 探针有响应；listener accept/处理循环死）。影响面：仅自动化桥（UI 里的响应式模式正常），pixelRatio 的 E2E 断言因此受阻。

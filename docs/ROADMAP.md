@@ -229,8 +229,12 @@ Cookie 处理误伤登录流程——白名单 + 可回滚（AI Auto-Clean 同�
   查询→事实 top-1 仅 1/4（BM25 同池 3/4）。结论与重测触发条件写进
   docs/VECTOR-MEMORY-SPIKE.md（探针入库 tools/vector-spike/，Apple 更新资产后可复测）；
   0.7 向量记忆不按此路径立项，BM25 保留。
-- 评估集扩面：白板工具契约（get/edit/insert/move 错误分支）与多步工具链
-  （screenshot→evidence）进 agent-eval。（E7 旁路路由已进，2026-10-06）
+- ✅ **评估集扩面（2026-10-06，E8 白板契约已进）**：E8 一条消息 10 个调用按序驱动
+  whiteboard 全部 action——成功文案、Error: 契约分支（越界/缺参/移动越界）、读板
+  闭环（编辑后 get 读回新内容）、screenshot→evidence 引用链（image 块零 base64 回传）。
+  附带修掉真 bug：whiteboard 虽归 `.readonly`（免审批）但写共享板状态，曾被并入
+  只读**并行批**乱序执行——现在顺序敏感的只读工具不进批（orderSensitiveReadonly）。
+  剩余：多步工具链扩面随用例增量补。
 - 工具结果摘要缓存：超长工具结果在压缩时保留"摘要 + 可按需重取"的句柄
   （配合既有上下文压缩）。
 

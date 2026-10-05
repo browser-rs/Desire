@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **白板连续调用不再乱序（0.6.7 评估扩面揪出的真 bug）**：whiteboard 归类为 `.readonly`（免审批直达），但 get/render/edit/delete 操作**同一块板**、有严格顺序语义——此前它会被并进只读工具**并行批**（withTaskGroup 并发执行），模型一条消息里「render 完接着 edit」会乱序竞态。现在顺序敏感的只读工具（orderSensitiveReadonly）不进批、保持串行，其余只读工具的并行加速不受影响。
+
 ### Added
 
 - **评估集 E6（network-rules）转本地专属**：CI 上三次确定性超时（本地稳定全绿），归为环境性差异——默认 CI 跳过并标注，`EVAL_E6=1` 本地显式运行；诊断钩子（fixture 决策日志）保留。
@@ -7,6 +11,8 @@
 - **白板单文件 HTML 分享（0.6.7）**：白板面板新增「导出单文件 HTML」——零外部依赖的静态 viewer（note/table 排版渲染、mermaid/chart 呈现源码、image 内联 data URI），无 Desire 机器双击即可在任意浏览器打开；`WhiteboardHTMLExport` 纯函数生成（进单测 harness）。
 - **三步首启引导（OnboardingFlowView）取代旧单屏**：① 选模型——端上模型卡（按 SystemLanguageModel availability 显隐）与 API Key 卡（直达 AI 设置）；② 隐私防护——广告/追踪拦截开关，绑定真实 ContentBlockerStore；③ 同步与个性化——同步入口 + 称呼/自定义指令；全部可跳过，完成写 `memory.onboardingCompleted`（面板不再显示）。导航统一收进自适应 footer（上一步/跳过/下一步·完成）；`finish()` 空输入不覆写既有个性化档案
 - **旁路成本归账分账 + 成本感知路由 v1（0.6.7 P0 两项）**：① 旁路模型调用（标题/记忆整理/自评/reflect 工具）的用量在 token 总量之外**逐笔记账**（种类 + 实际模型，挂本回合尾助手消息随会话落盘），`AgentUsage.of`/`UsageStats.derive` 按各笔**自己的模型**定价——成本路由后旁路跑的模型 ≠ 主模型也算得对；统计页模型列表新增「旁路调用」行，`/agent/stats` 带 `bypassTokens`。② 设置 → AI 新增「Bypass Calls」档案选择器（桥 `GET|POST /ai/bypass-profile`）：标题/记忆整理走指定（便宜）模型，默认跟随对话；评审档案语义不变（评审者 ≠ 被评审者）。旁路偏好视图直接**注入内存档案**、不读盘——DiskStore writer 在评估/大会话负载下积压可达分钟级，靠盘上读刚建的档案会撞空（评估 E7 实测后修）。评估集新增 E7（bypass-routing）：fixture 逐请求记录 model，断言标题请求走旁路档案、主回合不受影响、统计按实际模型分账。
+- **评估集 E8（whiteboard-contract）**：假 LLM 一条消息连发 10 个调用（7 个 whiteboard + screenshot + evidence append + get），按序断言全部 action 的成功文案与 Error: 契约分支（越界 edit / 缺 index / 移动越界）、读板闭环（编辑后 get 读回 `X-->Y`）、screenshot→evidence 引用链（image 块零 base64 回传、get 读出 `[image]` data URI 占位）。附：E4 失败时打印最终文本的探针，供偶发复现时定位。
+
 
 
 

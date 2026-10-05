@@ -1425,7 +1425,6 @@ class AgentSessionStore: ObservableObject {
                 return
             }
 
-
                 // 空回合判定：自动重试一次；再空就交给可见警告。
                 if hasContent { break }
                 // 第十一批：用户打断的回合直接退出——不重试、不报空响应错误
@@ -1469,10 +1468,13 @@ class AgentSessionStore: ObservableObject {
 
                 // **只读段并行**：从当前位置起连续的 .readonly 工具互不改状态、也从不
                 // 弹审批 —— 并发执行、按原顺序落结果，多读类回合的墙钟立刻减半。
+                // 例外：**顺序敏感的只读**（whiteboard——get/render/edit 写同一块板，
+                // 并发会乱序）不进批，走下面的单调用路径保持串行。
                 var batchEnd = ti
                 while batchEnd < tcs.count,
                       ToolRisk.classify(tcs[batchEnd].function.name) == .readonly,
-                      tcs[batchEnd].function.name != "spawnSubagent" {
+                      tcs[batchEnd].function.name != "spawnSubagent",
+                      !Self.orderSensitiveReadonly.contains(tcs[batchEnd].function.name) {
                     batchEnd += 1
                 }
                 if batchEnd - ti >= 2 {
@@ -2142,6 +2144,11 @@ class AgentSessionStore: ObservableObject {
     }
 
     // MARK: - Tool approval gating
+
+    /// 风险分级是 `.readonly`（免审批）但**写共享状态、调用间有顺序语义**的工具——
+    /// 不进只读并行批（批里并发执行会把顺序打乱）。白板：get/render/edit/delete
+    /// 操作同一块板，「模型一条消息里 render 完紧接着 edit」是文档化的迭代闭环。
+    private static let orderSensitiveReadonly: Set<String> = ["whiteboard"]
 
     /// Decides whether a tool call may run. Returns the outcome — the loop
     /// then either executes the tool, appends a denial, or (if cancelled)

@@ -272,6 +272,55 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush(); self.close_connection = True
             return
 
+        # 白板契约（E8，0.6.7）：一条消息连发 10 个 whiteboard/screenshot 调用——
+        # 顺序敏感的 whiteboard 串行执行后，按序断言成功文案与 Error: 契约分支。
+        if "EVAL-WB" in mode_text and not has_tool:
+            def wb(cid, i, args):
+                return {"index": i, "id": cid, "type": "function",
+                        "function": {"name": "whiteboard",
+                                     "arguments": json.dumps(args, ensure_ascii=False)}}
+            calls = [
+                wb("call_wb1", 0, {"action": "get"}),                                        # 空板读回（非失败）
+                wb("call_wb2", 1, {"action": "edit", "index": 99, "content": "x"}),          # Error: 越界
+                wb("call_wb3", 2, {"action": "delete"}),                                     # Error: 缺 index
+                wb("call_wb4", 3, {"action": "render", "title": "E8", "blocks": [
+                    {"type": "note", "content": "第一块笔记"},
+                    {"type": "mermaid", "content": "flowchart TD\nA-->B"}]}),                # 成功 2 块
+                wb("call_wb5", 4, {"action": "move", "index": 1, "delta": 5}),               # Error: 移动越界
+                wb("call_wb6", 5, {"action": "edit", "index": 2,
+                                   "content": "flowchart TD\nX-->Y"}),                       # 成功改块 2
+                wb("call_wb7", 6, {"action": "get"}),                                        # 读回含 X-->Y
+                {"index": 7, "id": "call_wb8", "type": "function",
+                 "function": {"name": "screenshot", "arguments": "{}"}},                     # 供 evidence 引用
+                wb("call_wb9", 8, {"action": "append", "blocks": [
+                    {"type": "image", "evidence": "last"}]}),                                # 引用最新截图
+                wb("call_wb10", 9, {"action": "get"}),                                       # 读回含 image 块
+            ]
+            chunk = {"id": "chatcmpl-wb", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-wb", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "EVAL-WB" in mode_text and has_tool:
+            reply = "WBDONE"
+            chunk = {"id": "chatcmpl-wb", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-wb", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 会话拦截（NETRULE，0.6.6）：无工具结果 → 发 networkRules(add block)；
         # 有工具结果 → 收尾文本 NETRULE-DONE。
         if "NETRULE" in mode_text and not has_tool:
@@ -670,6 +719,8 @@ def case_overflow_retry():
     msgs = run_case("EVAL-OVERFLOWTEST 请简短回答")
     _, assistant, _ = last_exchange(msgs)
     text = assistant.get("content") or ""
+    if not text.startswith("auth="):
+        print(f"E4-DEBUG final text: {text[:200]!r}")
     check("E4 超限后自动重试并完成回合", text.startswith("auth="))
     check("E4 未把超限当失败丢弃", "⚠️" not in text)
 
@@ -787,13 +838,39 @@ def case_bypass_routing():
         bridge("POST", "/ai/profiles/delete", body={"id": bypass_id})
 
 
+def case_whiteboard_contract():
+    """E8 白板工具契约（0.6.7 评估集扩面）：一条消息 10 个调用按序执行——
+    成功文案、Error: 契约分支（越界/缺参/移动越界）、读板闭环（编辑后 get
+    读回新内容）、screenshot→evidence 引用链（append image 块零 base64 回传）。
+    注：本回合共 13 条消息，/agent/messages 只回 suffix(12) —— user 消息会被
+    截掉，不能走 last_exchange（它的 user 侧会抛 StopIteration），直接取尾。"""
+    bridge("POST", "/agent/new", body={})   # 干净会话 = 空板
+    msgs = run_case("EVAL-WB 白板契约测试")
+    tools = [m for m in msgs if m.get("role") == "tool"]
+    assistant = [m for m in msgs if m.get("role") == "assistant"][-1]
+    check("E8 十次调用全部有结果", len(tools) >= 10)
+    texts = [(t.get("content") or "") for t in tools[-10:]]
+    check("E8 空板 get 非失败", texts[0] == "Whiteboard is empty.")
+    check("E8 越界 edit 报 Error:", texts[1].startswith("Error:") and "out of range" in texts[1])
+    check("E8 缺 index 报 Error:", texts[2].startswith("Error:") and "Missing index" in texts[2])
+    check("E8 render 成功两块", texts[3].startswith("Whiteboard updated: 2 block(s)"))
+    check("E8 move 越界报 Error:", texts[4].startswith("Error:") and "out of range" in texts[4])
+    check("E8 edit 块 2 成功", texts[5].startswith("Whiteboard block 2 edited"))
+    check("E8 get 读回编辑后的内容", "X-->Y" in texts[6] and "2 block(s)" in texts[6])
+    check("E8 screenshot 成功", not texts[7].startswith("Error:"))
+    check("E8 append evidence 成功", texts[8].startswith("Whiteboard appended: 1 block(s)"))
+    check("E8 get 含 image 块（evidence 已解析）", "[image]" in texts[9] and "3 block(s)" in texts[9])
+    check("E8 收尾", "WBDONE" in (assistant.get("content") or ""))
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
          ("E4 overflow-retry", case_overflow_retry),
          ("E5 fixtures-replay", case_fixtures),
          ("E6 network-rules（本地专属，EVAL_E6=1 开启）", case_network_rules),
-         ("E7 bypass-routing", case_bypass_routing)]
+         ("E7 bypass-routing", case_bypass_routing),
+         ("E8 whiteboard-contract", case_whiteboard_contract)]
 
 results = []
 

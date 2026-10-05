@@ -5,6 +5,8 @@
 - **DPP 逐动作放行（0.6.7 首项）**：pageAction 审批卡新增「Always on this site」——把「审批锚点 host × 动作名」持久化到 DPPActionApprovals（DiskStore），gate 侧同 host 同动作后续调用零审批（deny 策略仍前置；含 mcp 步骤的动作不参与本表——宿主侧能力不静默执行）。设置 → 隐私的 Cookie 三档与桥 `/dpp/action-approvals`（allow/list/revoke）管理面同步落地。与访问等级正交：outbound/danger 升级挡的是静默放行，用户的点名授权是显式选择。
 - **DevTools「DPP」检查器页签（0.6.7）**：当前页协议声明的只读检查器——Profile/Page type/Content main/Sections/Ignore、Views 逐字段（DisclosureGroup 展开、类型标注）、Actions（effects: outbound 橙标 / danger 红标 / run 步骤预览）、Events（watch 选择器）、解析 Warnings；**已派发事件流**（PageEventHub 新增环形历史，cap 30）实时滚动。无声明页显示引导说明。
 - **白板单文件 HTML 分享（0.6.7）**：白板面板新增「导出单文件 HTML」——零外部依赖的静态 viewer（note/table 排版渲染、mermaid/chart 呈现源码、image 内联 data URI），无 Desire 机器双击即可在任意浏览器打开；`WhiteboardHTMLExport` 纯函数生成（进单测 harness）。
+- **三步首启引导（OnboardingFlowView）取代旧单屏**：① 选模型——端上模型卡（按 SystemLanguageModel availability 显隐）与 API Key 卡（直达 AI 设置）；② 隐私防护——广告/追踪拦截开关，绑定真实 ContentBlockerStore；③ 同步与个性化——同步入口 + 称呼/自定义指令；全部可跳过，完成写 `memory.onboardingCompleted`（面板不再显示）。导航统一收进自适应 footer（上一步/跳过/下一步·完成）；`finish()` 空输入不覆写既有个性化档案
+
 
 
 

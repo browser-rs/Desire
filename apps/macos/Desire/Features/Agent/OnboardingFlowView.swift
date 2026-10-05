@@ -85,11 +85,6 @@ struct OnboardingFlowView: View {
                     .font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            HStack {
-                Spacer()
-                Button("下一步") { step = 1 }
-                    .buttonStyle(.borderedProminent)
-            }
         }
     }
 
@@ -121,14 +116,6 @@ struct OnboardingFlowView: View {
                     .font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
-            HStack {
-                Button("上一步") { step = 0 }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("下一步") { step = 2 }
-                    .buttonStyle(.borderedProminent)
-            }
         }
     }
 
@@ -157,14 +144,6 @@ struct OnboardingFlowView: View {
             field("称呼", text: $name, placeholder: "怎么称呼你")
             field("自定义指令", text: $custom, placeholder: "例：用中文回答；简洁直接")
             Spacer()
-            HStack {
-                Button("跳过") { finish() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                Button("完成，开始使用") { finish() }
-                    .buttonStyle(.borderedProminent)
-            }
         }
     }
 
@@ -178,11 +157,16 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("跳过") {
-                if step == 2 { finish() } else { step = 2 }
+            Button("跳过") { finish() }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+            if step < 2 {
+                Button("下一步") { step += 1 }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                Button("完成，开始使用") { finish() }
+                    .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
@@ -241,8 +225,11 @@ struct OnboardingFlowView: View {
 
     private func finish() {
         memory.updateProfile { profile in
-            profile.name = name.trimmingCharacters(in: .whitespaces)
-            profile.customInstructions = custom.trimmingCharacters(in: .whitespacesAndNewlines)
+            let n = name.trimmingCharacters(in: .whitespaces)
+            let c = custom.trimmingCharacters(in: .whitespacesAndNewlines)
+            // 空输入不覆写已有档案——跳过引导不该清掉既有个性化。
+            if !n.isEmpty { profile.name = n }
+            if !c.isEmpty { profile.customInstructions = c }
         }
         memory.completeOnboarding()
         onFinish()

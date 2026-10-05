@@ -241,12 +241,13 @@ Features/Bookmarks/
   然后必须 `curl /state` 验证桥活着再继续。
 - **网络抖动会造成假阳性**（example.com 白屏、baidu 间歇失败均发生过）。
   任何"加载失败"结论必须复测两次以上才能定性。
-- **中键/鼠标事件的合成测试**（2026-09 摸索）：webview 内事件用
-  `/execute` 注入 `new MouseEvent("auxclick",{button:1})` 即可；
-  标签栏等 SwiftUI 层事件用 CGEvent.postToPid（只投递给目标进程，
-  不碰其他应用、不切空间）。注意：postToPid 事件坐标不可信（会被
-  替换成系统光标位置，且 y 轴按窗口底部原点翻转），须先
-  CGWarpMouseCursorPosition 到目标点、投递 y 取 `屏高-y`、再还原光标；
+- **中键/鼠标事件的合成测试**（2026-09 摸索；**2026-10-06 更新：postToPid 鼠标
+  注入已失效**）：webview 内事件用 `/execute` 注入 `new MouseEvent("auxclick",{button:1})` 即可；
+  标签栏等 SwiftUI 层事件**曾**用 CGEvent.postToPid——**当前 OS（darwin 27）上
+  postToPid 的鼠标事件不再被主窗消费**（warp 后三种坐标/源变体全试过，新标签
+  按钮零反应；9 月的success案例都在 OS 升级前），键盘注入未复测别依赖。替代：
+  **AXUIElement 直按**（`tools/axpress.swift <pid> <按钮名>`，走无障碍树
+  AXPress，不需要坐标、不碰光标、授权用终端已有的辅助功能权限即可）；
   胶囊实际矩形可从 `log stream --predicate
   'subsystem == "me.siwi.Desire" AND category == "tabs"' --level info`
   的 middle-click 日志里读到。`/downloads/pause|resume` 端点可直接

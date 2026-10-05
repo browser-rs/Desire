@@ -112,6 +112,10 @@ class Settings: ObservableObject {
     @Published var openLinksInBackground: Bool {
         didSet { UserDefaults.standard.set(openLinksInBackground, forKey: "openLinksInBackground") }
     }
+    /// 垂直标签栏（0.6.3）：侧栏形态替代顶部标签栏。
+    @Published var verticalTabBar: Bool {
+        didSet { UserDefaults.standard.set(verticalTabBar, forKey: "verticalTabBar") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -145,6 +149,7 @@ class Settings: ObservableObject {
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
         openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")
+        verticalTabBar = UserDefaults.standard.bool(forKey: "verticalTabBar")
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be

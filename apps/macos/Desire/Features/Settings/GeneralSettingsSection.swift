@@ -136,6 +136,13 @@ struct GeneralSettingsSection: View {
                         isOn: $settings.openLinksInBackground
                     )
                     SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Vertical Tab Bar",
+                        subtitle: "Side-rail tab list instead of the top strip. Drag the divider to resize.",
+                        systemImage: "rectangle.split.2x1",
+                        isOn: $settings.verticalTabBar
+                    )
+                    SettingsRowDivider()
                     SettingsPickerRow(
                         "Suspend Background Tabs After",
                         subtitle: "Free memory by suspending tabs you've switched away from.",

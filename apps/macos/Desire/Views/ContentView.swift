@@ -242,13 +242,16 @@ struct ContentView: View {
     @State var aiFloatingPanel: AgentFloatingPanel?
     @State var showDevToolsPanel = false
 
-    var body: some View {
+    /// 主列（0.6.3）：原 body 的整列内容——垂直标签栏模式下作为 HSplitView
+    /// 的右栏（见 body）。
+    @ViewBuilder
+    var mainStack: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
                 // 只有**站点自己发起的整屏**（视频/元素全屏）才收掉标签栏与
                 // 工具栏——那是 WebKit 的整屏窗口在盖屏。原生窗口全屏（⌃⌘F）
                 // 保持 chrome 可见：全屏浏览不能切标签等于没法用。
-                if !isSiteFullScreen {
+                if !isSiteFullScreen && !settings.verticalTabBar {
                     tabBarSection(for: tab)
                 }
                 SelectedTabContent(
@@ -479,6 +482,68 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) { translateBarOverlay }
+    }
+
+    /// body 壳（0.6.3）：垂直标签栏开启且非站点整屏时，侧栏与主列并排
+    /// （HSplitView 分隔条可拖，宽度由 VerticalTabBarView 的 AppStorage 持久化）；
+    /// 其余情况维持顶部标签栏形态。
+    var body: some View {
+        if settings.verticalTabBar && !isSiteFullScreen {
+            HSplitView {
+                VerticalTabBarView(
+                    tabManager: tabManager,
+                    tabGroupStore: tabGroupStore,
+                    settings: settings,
+                    selectedIndex: tabManager.selectedIndex,
+                    isFullScreen: isWindowFullScreen,
+                    onSelectTab: { index in
+                        isUrlFocused = false
+                        tabManager.selectTab(at: index)
+                    },
+                    onCloseTab: { index in
+                        let tabId = tabManager.tabs[index].id
+                        thumbnailStore.clearThumbnail(for: tabId)
+                        tabManager.closeTab(at: index)
+                    },
+                    onMoveTab: { tabManager.moveTab(from: $0, to: $1) },
+                    onReloadTab: { $0.browser.webView.reload() },
+                    onCopyTabURL: { tab in
+                        if let url = tab.browser.webView.url {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                        }
+                    },
+                    onToggleAudioMute: { index in
+                        tabManager.tabs[index].audioMuted.toggle()
+                    },
+                    onTogglePin: { index in
+                        tabManager.tabs[index].isPinned.toggle()
+                    },
+                    onCloseOtherTabs: { index in
+                        let keptId = tabManager.tabs[index].id
+                        for t in tabManager.tabs where t.id != keptId {
+                            thumbnailStore.clearThumbnail(for: t.id)
+                        }
+                        tabManager.closeOthers(keeping: index)
+                    },
+                    onCloseTabsToRight: { index in
+                        for i in (index + 1..<tabManager.tabs.count) {
+                            thumbnailStore.clearThumbnail(for: tabManager.tabs[i].id)
+                        }
+                        tabManager.closeToTheRight(of: index)
+                    },
+                    onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
+                    tabGroupColor: { [gColors = [Color.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]] tabId in
+                        tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
+                    }
+                )
+                .frame(maxHeight: .infinity)
+                mainStack
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        } else {
+            mainStack
+        }
     }
 
     // MARK: - Actions

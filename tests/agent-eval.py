@@ -133,6 +133,9 @@ class Handler(BaseHTTPRequestHandler):
         mode_text = (msgs_all[last_user_idx].get("content") or "") if last_user_idx >= 0 else ""
         round_msgs = msgs_all[last_user_idx + 1:]
         has_tool = any(m.get("role") == "tool" for m in round_msgs)
+        # 诊断（CI E6 超时用）：每次请求的分支输入落盘。
+        with open("/tmp/eval-fixture-debug.log", "a") as _dbg:
+            _dbg.write(f"req: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}\n")
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -181,38 +184,6 @@ class Handler(BaseHTTPRequestHandler):
 
         # 超限重试模式（OVERFLOWTEST）：第一次报 context length，之后放行。
         body_text = json.dumps(body)
-        # 会话拦截（NETRULE，0.6.6）：无工具结果 → 发 networkRules(add block)；
-        # 有工具结果（"Network rule added"）→ 收尾文本。
-        if "NETRULE" in mode_text and not has_tool:
-            call = {"index": 0, "id": "call_netr_1", "type": "function",
-                    "function": {"name": "networkRules",
-                                 "arguments": json.dumps({"action": "add",
-                                                          "urlFilter": "^https://eval-nrule\\.test/",
-                                                          "kind": "block"})}}
-            chunk = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
-                     "model": model,
-                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
-                                  "finish_reason": None}]}
-            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
-            done = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
-                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
-            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
-            self.wfile.write(b"data: [DONE]\n\n")
-            self.wfile.flush(); self.close_connection = True
-            return
-        if "NETRULE" in mode_text and has_tool:
-            reply = "NETRULE-DONE"
-            chunk = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
-                     "model": model,
-                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
-                                  "finish_reason": None}]}
-            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
-            done = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
-                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
-            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
-            self.wfile.write(b"data: [DONE]\n\n")
-            self.wfile.flush(); self.close_connection = True
-            return
 
         # 提问模式（ASKME）：发一个 askUser 工具调用（验证挂起/超时/自动弹面板）。
         if "ASKME" in mode_text and not has_tool:
@@ -280,12 +251,12 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # 会话拦截（NETRULE，0.6.6）：无工具结果 → 发 networkRules(add block)；
-        # 有工具结果 → 收尾文本。
+        # 有工具结果 → 收尾文本 NETRULE-DONE。
         if "NETRULE" in mode_text and not has_tool:
-            call = {"index": 0, "id": "call_netrules_1", "type": "function",
+            call = {"index": 0, "id": "call_netr_1", "type": "function",
                     "function": {"name": "networkRules",
                                  "arguments": json.dumps({"action": "add",
-                                                          "urlFilter": r"^https://eval-nrule\.test/",
+                                                          "urlFilter": "^https://eval-nrule\\.test/",
                                                           "kind": "block"})}}
             chunk = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
                      "model": model,

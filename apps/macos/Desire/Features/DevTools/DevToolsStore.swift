@@ -132,6 +132,8 @@ class DevToolsStore: ObservableObject {
         case element = "Element"
         /// Chrome 的 Application 页签：Cookie / localStorage / sessionStorage。
         case application = "Application"
+        /// 轻量性能页签（0.6.4）：DOM 节点 / long task / 挂起状态（只读）。
+        case performance = "Performance"
     }
 
     /// 插件存储（Application 页签的"扩展存储"）。Store 依赖 Store 是允许的

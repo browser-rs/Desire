@@ -52,6 +52,15 @@ struct DevToolsPanel: View {
                 ElementPanel(store: store, tab: tab, onStartElementPicker: onStartElementPicker)
             case .application:
                 ApplicationPanel(store: store, tab: tab)
+            case .performance:
+                if let tab {
+                    PerformancePanel(tab: tab)
+                } else {
+                    Text("No tab selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .clipped()
@@ -80,6 +89,7 @@ struct DevToolsPanel: View {
                 case .network: store.clearNetworkRequestsInScope()
                 case .element: store.inspectedElement = nil
                 case .application: break   // 应用页签各自带"清空"（两步确认），不走这里
+                case .performance: break   // 只读指标，无清除语义
                 }
             }, help: "Clear")
 
@@ -125,7 +135,7 @@ struct DevToolsPanel: View {
         switch panel {
         case .console: store.consoleErrorCount + store.consoleWarningCount
         case .network: store.networkFailedCount
-        case .element, .application: nil
+        case .element, .application, .performance: nil
         }
     }
 }
@@ -140,6 +150,7 @@ private extension DevToolsStore.DevPanel {
         case .network: String(localized: "Network")
         case .element: String(localized: "Element")
         case .application: String(localized: "Application")
+        case .performance: String(localized: "Performance")
         }
     }
 
@@ -149,6 +160,7 @@ private extension DevToolsStore.DevPanel {
         case .network: "arrow.left.arrow.right"
         case .element: "viewfinder"
         case .application: "shippingbox"
+        case .performance: "gauge"
         }
     }
 
@@ -157,7 +169,7 @@ private extension DevToolsStore.DevPanel {
         switch self {
         case .console: store.consoleErrorCount > 0 || store.consoleWarningCount > 0
         case .network: store.networkFailedCount > 0
-        case .element, .application: false
+        case .element, .application, .performance: false
         }
     }
 }

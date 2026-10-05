@@ -3,6 +3,8 @@
 
 - **性能优化四件套（0.6.4 首批）**：① **渲染进程崩溃自愈**——`webViewWebContentProcessDidTerminate` 自动重载（10s 节流防崩溃循环），内容区橙色提示条「页面已自动恢复」，didCommit 清除；此前崩溃 = 白屏无提示。② **挂起/唤醒事件日志**——挂起巡检与恢复写 unified log（tabs 分类），内存压力/时长阈值的生效过程可对账。③ **启动分段打点常驻化**——app init → didFinishLaunching → 首窗内容三相位 unified log（探针实测 0/475/517ms，桥就绪 0.82s）。④ **`scripts/perf-launch.sh` 启动探针**——进程启动→桥就绪计时 + 阈值退出码（默认 5s，供本地/CI 门禁）。
 - **大页面守护（0.6.4 第二批）**：page-perf.js 每 5s 上报 DOM 节点数 + long task 计数（PerformanceObserver buffered）——WebKit 无公开 per-tab 内存 API，节点数为约定代理指标（诚实口径）。挂起巡检新增分支：后台标签 >25_000 节点即挂起（豁免集与闲置分支一致），切回自动恢复；标签右键新增「Copy Performance Snapshot」（DOM/long task/挂起态纯文本）；`GET /state` 每标签补 `suspended`/`domNodes`。E2E：26k 节点后台标签在巡检后被挂起、切回自动恢复（domNodes=26004 断言）。
+- **DevTools「Performance」页签（0.6.4 第三批）**：轻量只读——DOM 节点数（超 25k 阈值橙色警示）/ long task 计数与累计耗时 / 挂起状态，数据来自 page-perf.js 上报；不做 flame graph（Web Inspector 自带的重活不重复，见路线图）。
+
 
 
 ### Fixed

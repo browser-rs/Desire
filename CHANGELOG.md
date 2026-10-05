@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.6.4] - 2026-10-05
 ### Added
 
 - **性能优化四件套（0.6.4 首批）**：① **渲染进程崩溃自愈**——`webViewWebContentProcessDidTerminate` 自动重载（10s 节流防崩溃循环），内容区橙色提示条「页面已自动恢复」，didCommit 清除；此前崩溃 = 白屏无提示。② **挂起/唤醒事件日志**——挂起巡检与恢复写 unified log（tabs 分类），内存压力/时长阈值的生效过程可对账。③ **启动分段打点常驻化**——app init → didFinishLaunching → 首窗内容三相位 unified log（探针实测 0/475/517ms，桥就绪 0.82s）。④ **`scripts/perf-launch.sh` 启动探针**——进程启动→桥就绪计时 + 阈值退出码（默认 5s，供本地/CI 门禁）。

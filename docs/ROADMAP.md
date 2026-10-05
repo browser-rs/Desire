@@ -224,8 +224,11 @@ Cookie 处理误伤登录流程——白名单 + 可回滚（AI Auto-Clean 同�
   评审档案（criticProfileID）语义独立保留。
 
 **P1**
-- **向量记忆 spike**：`NLEmbedding` 端上句向量 × BM25 混合检索；先验证 zh-Hans
-  支持质量（对照集 20 条），可行则进 0.7，不可行文档写明结论。
+- ✅ **向量记忆 spike（2026-10-06，结论：不可行）**：`NLEmbedding` zh-Hans 句向量
+  存在（640 维）但区分度不足——原始余弦挤在 0.93–0.98、均值居中后改写/无关仍重叠，
+  查询→事实 top-1 仅 1/4（BM25 同池 3/4）。结论与重测触发条件写进
+  docs/VECTOR-MEMORY-SPIKE.md（探针入库 tools/vector-spike/，Apple 更新资产后可复测）；
+  0.7 向量记忆不按此路径立项，BM25 保留。
 - 评估集扩面：白板工具契约（get/edit/insert/move 错误分支）与多步工具链
   （screenshot→evidence）进 agent-eval。（E7 旁路路由已进，2026-10-06）
 - 工具结果摘要缓存：超长工具结果在压缩时保留"摘要 + 可按需重取"的句柄

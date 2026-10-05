@@ -23,6 +23,7 @@ struct TabBar: View {
     let onMoveTab: (Int, Int) -> Void
     let onReloadTab: (Tab) -> Void
     let onCopyTabURL: (Tab) -> Void
+    let onCopyPerfSnapshot: (Tab) -> Void
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
     let onCloseOtherTabs: (Int) -> Void
@@ -126,6 +127,7 @@ struct TabBar: View {
                                     closeTab: onCloseTab,
                                     reloadTab: onReloadTab,
                                     copyTabURL: onCopyTabURL,
+                                    copyPerfSnapshot: onCopyPerfSnapshot,
                                     toggleAudioMute: onToggleAudioMute,
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
@@ -188,6 +190,7 @@ struct TabBar: View {
                                     closeTab: onCloseTab,
                                     reloadTab: onReloadTab,
                                     copyTabURL: onCopyTabURL,
+                                    copyPerfSnapshot: onCopyPerfSnapshot,
                                     toggleAudioMute: onToggleAudioMute,
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
@@ -312,6 +315,8 @@ struct TabBar: View {
         let closeTab: (Int) -> Void
         let reloadTab: (Tab) -> Void
         let copyTabURL: (Tab) -> Void
+        /// 复制性能快照（0.6.4：DOM 节点/long task/挂起态）。
+        let copyPerfSnapshot: (Tab) -> Void
         let toggleAudioMute: (Int) -> Void
         let togglePin: (Int) -> Void
         let closeOtherTabs: (Int) -> Void
@@ -524,6 +529,7 @@ private struct TabPillView: View {
         Button("Reload") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
         Button("Copy URL") { actions.copyTabURL(tab) }
+        Button("Copy Performance Snapshot") { actions.copyPerfSnapshot(tab) }
             .disabled(tab.isOnNewTabPage)
         Button(index == splitPartnerIndex ? "Remove from Split" : "Show Alongside (Split)") {
             actions.toggleSplit(index)

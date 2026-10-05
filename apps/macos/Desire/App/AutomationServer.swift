@@ -327,7 +327,7 @@ final class AutomationServer {
                         "example": "curl -s \(method == "GET" ? "" : "-X \(method) ")\(baseURL)\(path) → \(example)"])
         }
         // Browsing
-        ep("GET", "/state", "All tabs (index/title/url/incognito/selected) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
+        ep("GET", "/state", "All tabs (index/title/url/incognito/selected/suspended/domNodes) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
         ep("POST", "/navigate", "Navigate a tab", params: ["url:string (required)", "index?:int"], example: #"-d '{"url":"https://example.com"}'"#)
         ep("POST", "/back", "Go back", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/forward", "Go forward", params: ["index?:int"], example: "-d '{}'")
@@ -1832,6 +1832,8 @@ final class AutomationServer {
                 "url": tab.browser.webView.url?.absoluteString ?? tab.urlString,
                 "incognito": tab.isIncognito,
                 "selected": tm?.selectedIndex == i,
+                "suspended": tab.isSuspended,
+                "domNodes": tab.browser.lastDomNodeCount,
             ]
         }
         return [

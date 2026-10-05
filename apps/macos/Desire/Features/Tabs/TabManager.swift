@@ -89,6 +89,18 @@ class Tab: ObservableObject {
         }
     }
 
+    /// 性能快照（0.6.4，右键"复制性能快照"）：代理指标 + 标识，纯文本进剪贴板。
+    var perfSnapshotText: String {
+        let url = browser.webView.url?.absoluteString ?? urlString
+        return """
+        URL: \(url)
+        Title: \(displayTitle)
+        DOM nodes: \(browser.lastDomNodeCount)
+        Long tasks: \(browser.lastLongTaskCount) (total \(browser.lastLongTaskMs)ms)
+        Suspended: \(isSuspended)
+        """
+    }
+
     /// 是否正在播放音频
     var isPlayingAudio: Bool {
         browser.isPlayingAudio
@@ -294,6 +306,22 @@ class TabManager: ObservableObject {
                     tab.browser.webView.loadHTMLString("", baseURL: nil)
                 }
             }
+        }
+
+        // 大页面守护（0.6.4）：后台标签 DOM 节点数超阈值即挂起——WebKit 无公开
+        // per-tab 内存 API，节点数是约定好的代理指标（page-perf.js 每 5s 上报；
+        // 诚实口径已写进路线图）。豁免集与闲置分支一致；阈值 25_000 节点。
+        let bloated = tabs.filter { tab in
+            tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito
+                && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id)
+                && !tab.isSuspended && tab.browser.lastDomNodeCount > 25_000
+        }
+        for tab in bloated {
+            Log.tabs.info("tab suspended (large page: \(tab.browser.lastDomNodeCount, privacy: .public) DOM nodes): \(tab.displayTitle, privacy: .public)")
+            tab.captureSuspendedState()
+            tab.isSuspended = true
+            tab.browser.webView.stopLoading()
+            tab.browser.webView.loadHTMLString("", baseURL: nil)
         }
 
         deepSuspendIfNeeded()

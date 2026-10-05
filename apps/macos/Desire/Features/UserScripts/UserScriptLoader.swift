@@ -39,6 +39,8 @@ enum UserScriptLoader {
             }
         }
         add("console-intercept", at: .atDocumentStart)
+        // 大页面守护 + 性能快照数据面（0.6.4）：DOM 节点数 + long task 计数
+        add("page-perf", at: .atDocumentEnd)
         // SPA 路由变化 → DPP 重解析（页面世界：必须包住页面自己的 history 调用）
         add("dpp-route-watch", at: .atDocumentStart)
         // 曾在此注入 fullscreen-shim（覆盖 Element.prototype.requestFullscreen

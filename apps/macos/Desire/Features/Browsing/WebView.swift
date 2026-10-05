@@ -137,6 +137,10 @@ class BrowserState: ObservableObject {
     @Published var isMuted: Bool = false
     /// 渲染进程崩溃自愈中（0.6.4）：自动重载完成（didCommit）即清除。
     @Published var contentProcessCrashed = false
+    /// 大页面守护代理指标（page-perf.js 每 5s 上报；WebKit 无公开 per-tab 内存）。
+    @Published var lastDomNodeCount = 0
+    @Published var lastLongTaskCount = 0
+    @Published var lastLongTaskMs = 0
     @Published var isReadingMode = false
     /// **内建 PDF 查看器**：主框架导航落 PDF 且 WKWebView 不显示时，取消
     /// 导航、下载到本地临时文件、置此 URL——SelectedTabContent 渲染
@@ -641,7 +645,7 @@ struct WebView: NSViewRepresentable {
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "elementPicker", "videoAdBlocked", "devConsole", "netEntry",
-            "otpDetect",
+            "otpDetect", "pagePerf",
         ]
 
         /// desireExt handler 注册台账（associated object 挂 webview，见
@@ -1107,6 +1111,10 @@ struct WebView: NSViewRepresentable {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "pagePerf", let dict = message.body as? [String: Int] {
+                parent.state.lastDomNodeCount = dict["domNodes"] ?? 0
+                parent.state.lastLongTaskCount = dict["longTasks"] ?? 0
+                parent.state.lastLongTaskMs = dict["longTaskMs"] ?? 0
             } else if message.name == "desireProtocolEvent", let dict = message.body as? [String: Any] {
                 let eventHost = parent.state.webView.url?.host ?? ""
                 let eventName = dict["eventName"] as? String ?? ""

@@ -69,6 +69,10 @@ extension ContentView {
                     NSPasteboard.general.setString(url.absoluteString, forType: .string)
                 }
             },
+            onCopyPerfSnapshot: { tab in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(tab.perfSnapshotText, forType: .string)
+            },
             onCloseOtherTabs: { index in
                 // 清除其他标签页的缩略图缓存
                 let keptId = tabManager.tabs[index].id

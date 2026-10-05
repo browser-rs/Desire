@@ -77,15 +77,15 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    /// 音频静音状态（通过 BrowserState 控制）
+    /// 音频静音状态：**劫持式**（TabAudioControl，0.6.3 升级）——原一次性
+    /// `e.muted = true` 会被站点 1.5s 后的取消静音脚本破功（视频站播放器
+    /// 惯用手法）；劫持 getter 后站点 set 无效。browser.isMuted 保持同步
+    /// 供 TabBar 图标与既有管线（audioState 检测）使用。
     var audioMuted: Bool {
         get { browser.isMuted }
         set {
             browser.isMuted = newValue
-            let js = newValue
-                ? "document.querySelectorAll('audio, video').forEach(e => e.muted = true)"
-                : "document.querySelectorAll('audio, video').forEach(e => e.muted = false)"
-            browser.webView.evaluateJavaScript(js, completionHandler: nil)
+            Task { await TabAudioControl.apply(newValue, to: browser.webView) }
         }
     }
 
@@ -279,8 +279,12 @@ class TabManager: ObservableObject {
         let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
         // 豁免：选中、分屏伙伴、固定、新标签页、无痕、**正在播放音频**（内存
-        // 压力分支一直有这条豁免；常规巡检漏过——听歌 30 分钟被静默切歌，BUG-3）。
-        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio {
+        // 压力分支一直有这条豁免；常规巡检漏过——听歌 30 分钟被静默切歌，BUG-3）、
+        // **Agent 正在操作的标签**（0.6.2 检查点后 Agent 常跑长任务——后台标签
+        // 被挂起 = 正在执行的页面动作被腰斩，工具结果报错）。
+        let busyAgentTabIDs = Set(AgentScheduler.shared.liveSessions()
+            .compactMap { $0.store?.boundTabManager?.selectedTab?.id })
+        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id) {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 if !tab.isSuspended {
                     tab.captureSuspendedState()

@@ -269,6 +269,9 @@ class BrowserState: ObservableObject {
         for script in UserScriptLoader.builtinScripts() {
             config.userContentController.addUserScript(script)
         }
+        // 站点静音劫持（0.6.3，page world）：static 部分常驻；开关由
+        // Tab.isMuted 的 didSet 经 TabAudioControl.apply 运行时切换。
+        config.userContentController.addUserScript(TabAudioControl.userScript())
         // WebExtension API runtime — isolated world (page JS can't see it).
         if let extScript = UserScriptLoader.extensionAPIScript() {
             config.userContentController.addUserScript(extScript)

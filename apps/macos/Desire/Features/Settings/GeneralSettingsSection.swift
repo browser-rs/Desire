@@ -143,6 +143,13 @@ struct GeneralSettingsSection: View {
                         isOn: $settings.verticalTabBar
                     )
                     SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Large Page Guard",
+                        subtitle: "Auto-suspend background tabs over 25,000 DOM nodes (proxy for memory; selected, pinned, audio and agent-busy tabs are exempt).",
+                        systemImage: "scale.3d",
+                        isOn: $settings.largePageGuard
+                    )
+                    SettingsRowDivider()
                     SettingsPickerRow(
                         "Suspend Background Tabs After",
                         subtitle: "Free memory by suspending tabs you've switched away from.",

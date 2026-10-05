@@ -311,6 +311,8 @@ class TabManager: ObservableObject {
         // 大页面守护（0.6.4）：后台标签 DOM 节点数超阈值即挂起——WebKit 无公开
         // per-tab 内存 API，节点数是约定好的代理指标（page-perf.js 每 5s 上报；
         // 诚实口径已写进路线图）。豁免集与闲置分支一致；阈值 25_000 节点。
+        // 设置「Large Page Guard」可关（默认开）。
+        guard UserDefaults.standard.object(forKey: "largePageGuard") as? Bool ?? true else { return }
         let bloated = tabs.filter { tab in
             tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito
                 && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id)

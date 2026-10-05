@@ -116,6 +116,10 @@ class Settings: ObservableObject {
     @Published var verticalTabBar: Bool {
         didSet { UserDefaults.standard.set(verticalTabBar, forKey: "verticalTabBar") }
     }
+    /// 大页面守护（0.6.4）：后台标签 DOM 节点超阈值（25k）自动挂起。
+    @Published var largePageGuard: Bool {
+        didSet { UserDefaults.standard.set(largePageGuard, forKey: "largePageGuard") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -150,6 +154,7 @@ class Settings: ObservableObject {
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
         openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")
         verticalTabBar = UserDefaults.standard.bool(forKey: "verticalTabBar")
+        largePageGuard = UserDefaults.standard.object(forKey: "largePageGuard") as? Bool ?? true
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be

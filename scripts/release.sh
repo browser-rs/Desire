@@ -227,8 +227,12 @@ stage_smoke() {
   rm -rf "$SMOKE_DIR"; mkdir -p "$SMOKE_DIR"
   ditto "$APP" "$SMOKE_DIR/Desire.app"
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
+  # 启动性能探针（0.6.4）：计时 open → 桥就绪，>10s 记警告（不拦发版——
+  # 首次启动含会话恢复/索引重建，噪声大；数值供版本间对账）。
+  SMOKE_START=$(python3 -c 'import time; print(time.time())')
   open "$SMOKE_DIR/Desire.app" --args --automation
   bridge_wait 30 || die "桥 30 秒内没起来（/state 无响应）——查 /usr/bin/log show --predicate 'process == \"Desire\"'"
+  python3 -c "print(f'启动→桥就绪: {time.time()-$SMOKE_START:.1f}s（参考基线：开发机 0.8s；>10s 查日志分段）')"
   curl -s -m 5 http://127.0.0.1:8799/agent/stats | grep -q "conversations" || die "/agent/stats 异常"
   curl -s -m 5 http://127.0.0.1:8799/ai/profiles | grep -q "profiles" || die "/ai/profiles 异常"
   app_quit

@@ -745,7 +745,6 @@ def main():
     args, _ = parser.parse_known_args()
     BRIDGE = args.base
     if args.fixtures:
-        import os
         if os.path.exists(args.fixtures):
             with open(args.fixtures, encoding="utf-8") as fh:
                 FIXTURE_ITEMS.extend(json.load(fh).get("fixtures", []))

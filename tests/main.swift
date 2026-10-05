@@ -1310,6 +1310,22 @@ func testWhiteboardSpec() {
         WhiteboardBlock(type: "note", title: "b\($0)", content: "x")
     })
     check("白板：摘要截断到 8 条", many.blockListSummary().hasSuffix("…(+2)"))
+    // HTML 导出（0.6.7）
+    let htmlSpec = WhiteboardSpec(title: "导出板", blocks: [
+        WhiteboardBlock(type: "mermaid", title: "图", content: "graph TD; A-->B"),
+        WhiteboardBlock(type: "chart", title: "表", content: "{}"),
+        WhiteboardBlock(type: "note", content: "便签 <b>原文</b>"),
+        WhiteboardBlock(type: "table", content: "| 列 |\n| --- |\n| a |"),
+        WhiteboardBlock(type: "image", content: "data:image/png;base64,AAAA"),
+    ])
+    let html = WhiteboardHTMLExport.document(for: htmlSpec)
+    check("白板：HTML 标题转义", html.contains("<title>导出板</title>"))
+    check("白板：HTML mermaid 源码块", html.contains("graph TD; A--&gt;B"))
+    check("白板：HTML note 转义", html.contains("便签 &lt;b&gt;原文&lt;/b&gt;"))
+    check("白板：HTML 表格行", html.contains("<th>列</th>") && html.contains("<td>a</td>"))
+    check("白板：HTML image 内联", html.contains("data:image/png;base64,AAAA"))
+    check("白板：HTML 空板占位", WhiteboardHTMLExport.document(for: WhiteboardSpec()).contains("白板为空"))
+    check("白板：HTML 表格解析", WhiteboardHTMLExport.markdownTableHTML("| a | b |").contains("<th>a</th><th>b</th>"))
     // markdownExport
     let mdSpec = WhiteboardSpec(title: "导出板", blocks: [
         WhiteboardBlock(type: "mermaid", title: "图", content: "graph TD; A-->B"),

@@ -191,6 +191,8 @@ struct WhiteboardPanelView: View {
             .help("手动添加块（进入源码编辑）")
             CapsuleButton(systemName: "square.and.arrow.up.on.square", action: { exportBoardFile() })
                 .help("导出 .board（JSON）")
+            CapsuleButton(systemName: "globe", action: { exportHTMLViewer() })
+                .help("导出单文件 HTML（离线可读的分享页）")
             CapsuleButton(systemName: "doc.plaintext", action: { exportMarkdown() })
                 .help("导出 Markdown")
             CapsuleButton(systemName: "square.and.arrow.down.on.square", action: { importBoardFile() })
@@ -208,6 +210,20 @@ struct WhiteboardPanelView: View {
         let id = session.conversationId?.uuidString
         store.append([WhiteboardBlock(type: type, title: nil, content: template)],
                      title: nil, conversationID: id)
+    }
+
+    /// 导出单文件 HTML viewer（0.6.7）：零依赖静态页——无 Desire 机器
+    /// 双击可读；mermaid/chart 呈现源码，image 内联显示。
+    private func exportHTMLViewer() {
+        let spec = store.board(for: session.conversationId?.uuidString)
+        let html = WhiteboardHTMLExport.document(for: spec)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.html]
+        panel.nameFieldStringValue = "(\(spec.title)).html".replacingOccurrences(of: "/", with: "-")
+        if panel.runModal() == .OK, let url = panel.url {
+            do { try html.write(to: url, atomically: true, encoding: .utf8); exportStatus = "已导出 ✓" }
+            catch { exportStatus = "写入失败" }
+        }
     }
 
     /// 导出 Markdown（白板内容可贴进任何 Markdown 工具）。

@@ -74,7 +74,8 @@ struct AgentPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             if !memory.onboardingCompleted {
-                AgentOnboardingView()
+                // 三步首启引导（0.6.7）：模型/拦截/同步+个性化（取代旧单屏）。
+                OnboardingFlowView(onFinish: {})
             } else if showMemory {
                 AgentMemoryView(onBack: { showMemory = false })
             } else if showHistory {

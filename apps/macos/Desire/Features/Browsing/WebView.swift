@@ -135,6 +135,8 @@ class BrowserState: ObservableObject {
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
     @Published var isMuted: Bool = false
+    /// 渲染进程崩溃自愈中（0.6.4）：自动重载完成（didCommit）即清除。
+    @Published var contentProcessCrashed = false
     @Published var isReadingMode = false
     /// **内建 PDF 查看器**：主框架导航落 PDF 且 WKWebView 不显示时，取消
     /// 导航、下载到本地临时文件、置此 URL——SelectedTabContent 渲染
@@ -582,6 +584,8 @@ struct WebView: NSViewRepresentable {
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
+        /// 上次渲染进程崩溃自动重载的时间（防循环节流）。
+        var lastCrashReloadAt: Date?
         var parent: WebView
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
@@ -1290,6 +1294,22 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        /// 渲染进程崩溃（0.6.4）：表现为白屏/交互消失。自动重载一次恢复；
+        /// 10s 内二次崩溃不再自动重载（防崩溃循环），改落日志让用户手动刷新。
+        /// 已流出的表单内容不保（进程已死，如实标注）。
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            let now = Date()
+            if let last = lastCrashReloadAt, now.timeIntervalSince(last) < 10 {
+                Log.app.error("WebContent process crashed again within 10s — skipping auto-reload (crash loop guard)")
+                parent.state.contentProcessCrashed = true
+                return
+            }
+            lastCrashReloadAt = now
+            Log.app.error("WebContent process crashed — auto-reloading \(webView.url?.absoluteString ?? "", privacy: .public)")
+            parent.state.contentProcessCrashed = true
+            webView.reload()
+        }
+
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             // 只清这个标签页的日志：导航的是它，别的标签页的日志不该被顺手抹掉。
             if parent.devToolsStore.clearConsoleOnNavigate {
@@ -1390,6 +1410,7 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            parent.state.contentProcessCrashed = false
             // Response headers arrived — the watchdog did its job.
             disarmLoadTimeout()
             // 广告规则可能刚被改过（本地覆盖文件 / 远程包）：把页面里旧代数的

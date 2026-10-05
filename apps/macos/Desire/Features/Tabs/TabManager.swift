@@ -287,6 +287,7 @@ class TabManager: ObservableObject {
         for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id) {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 if !tab.isSuspended {
+                    Log.tabs.info("tab suspended (idle \(Int(-tab.lastAccessed.timeIntervalSinceNow), privacy: .public)s): \(tab.displayTitle, privacy: .public)")
                     tab.captureSuspendedState()
                     tab.isSuspended = true
                     tab.browser.webView.stopLoading()
@@ -363,6 +364,9 @@ class TabManager: ObservableObject {
     }
 
     func unsuspend(_ tab: Tab) {
+        if tab.isSuspended {
+            Log.tabs.info("tab unsuspended: \(tab.displayTitle, privacy: .public)")
+        }
         guard tab.isSuspended else { return }
         tab.isSuspended = false
         tab.restoreSuspendedState()

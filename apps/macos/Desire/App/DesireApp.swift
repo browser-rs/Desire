@@ -37,10 +37,15 @@ enum StartupMetric {
 
 @main
 struct DesireApp: App {
+    /// 启动分段基准（0.6.4 性能深化）：init/didFinishLaunching/首窗 onAppear
+    /// 三个相位各打一条 unified log（category app），与 632ms 基线对账用。
+    /// 跨类型同文件可见（AppDelegate/ContentView 都要读）。
+    static let launchStart = Date()
     @StateObject private var appState = AppState()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        Log.app.info("launch phase: app init +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         StartupMetric.anchorLaunch()
         // Localhost-only test automation bridge — inert unless the app is
         // launched with --automation (external drivers: curl / CI).
@@ -258,6 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.app.info("launch phase: didFinishLaunching +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         installSignalHandlers()
         noticeAbnormalPreviousExit()
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于

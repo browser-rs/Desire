@@ -55,6 +55,22 @@ struct SelectedTabContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if tab.browser.contentProcessCrashed {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                        .font(.system(size: 10))
+                    Text("渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保")
+                        .font(.system(size: 11))
+                    Spacer()
+                    Button("刷新") { tab.browser.webView.reload() }
+                        .font(.system(size: 11, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(appAccent)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.12))
+            }
             Group {
                 if !isFullScreen {
                     GeometryReader { geo in

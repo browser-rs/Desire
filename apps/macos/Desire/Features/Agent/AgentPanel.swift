@@ -267,7 +267,13 @@ struct AgentPanel: View {
                     approval: approval,
                     onAllowOnce: { store.resolveApproval(.allowOnce) },
                     onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
-                    onDeny: { store.resolveApproval(.deny) }
+                    onDeny: { store.resolveApproval(.deny) },
+                    onAlwaysAllowOnSite: { _ in
+                        // DPP 逐动作放行（0.6.7）：host 从审批锚点取，
+                        // store.resolveApproval(.alwaysAllow) 内部记录 site grant。
+                        store.resolveApproval(.alwaysAllow, siteGrant: true)
+                    },
+                    siteHost: store.pendingApprovalSiteHost
                 )
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)

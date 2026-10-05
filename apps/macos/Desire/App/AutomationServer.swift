@@ -1056,6 +1056,28 @@ final class AutomationServer {
                 }
                 PageEventHub.shared.setMode(mode, for: host)
                 return try Self.json(["ok": true, "host": host, "mode": PageEventHub.shared.mode(for: host)])
+            case ("GET", "/dpp/action-approvals"):
+                // DPP 逐动作放行清单（0.6.7）：host × action 的用户授权。
+                return try Self.json([
+                    "rules": DPPActionApprovals.shared.all().map { r in
+                        ["id": r.id.uuidString, "host": r.host, "action": r.actionName]
+                    }
+                ])
+            case ("POST", "/dpp/action-approvals/allow"):
+                guard let host = Self.string(body, "host"), let action = Self.string(body, "action") else {
+                    return try Self.json(["error": "host and action required"])
+                }
+                DPPActionApprovals.shared.allow(host: host, actionName: action)
+                return try Self.json(["ok": true, "host": host, "action": action])
+            case ("POST", "/dpp/action-approvals/revoke"):
+                if let ruleID = Self.string(body, "id").flatMap(UUID.init) {
+                    DPPActionApprovals.shared.revoke(ruleID: ruleID)
+                } else if let host = Self.string(body, "host"), let action = Self.string(body, "action") {
+                    DPPActionApprovals.shared.revoke(host: host, actionName: action)
+                } else {
+                    return try Self.json(["error": "id or host+action required"])
+                }
+                return try Self.json(["ok": true])
             case ("GET", "/downloads/dangerous"):
                 let tm = try tabManager
                 if let pending = tm?.selectedTab?.browser.pendingDangerousDownload {
@@ -1222,7 +1244,8 @@ final class AutomationServer {
             case ("POST", "/approvals/resolve"):
                 return try Self.json(Self.resolvePendingApproval(
                     Self.string(body, "decision") ?? "",
-                    window: Self.string(body, "window")
+                    window: Self.string(body, "window"),
+                    siteGrant: body["siteGrant"] as? Bool ?? false
                 ))
             case ("POST", "/devtools/eval"):
                 return try await Self.json(Self.devToolsEval(js: Self.string(body, "js") ?? "", index: Self.index(body)))
@@ -3663,7 +3686,7 @@ final class AutomationServer {
     /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.
     /// Lets external test drivers exercise the dangerous-tool path end to
     /// end without a human click.
-    private static func resolvePendingApproval(_ decision: String, window: String? = nil) throws -> [String: Any] {
+    private static func resolvePendingApproval(_ decision: String, window: String? = nil, siteGrant: Bool = false) throws -> [String: Any] {
         guard let session = resolveSession(window), session.pendingApproval != nil else {
             return ["error": "no pending approval"]
         }

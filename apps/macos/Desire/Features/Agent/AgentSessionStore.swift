@@ -105,6 +105,11 @@ class AgentSessionStore: ObservableObject {
     /// (or deny) a tool call. The UI renders `ToolApprovalBar` from this.
     /// See `docs/ARCHITECTURE.md` (AgentRuntime v2, roadmap L3 stage 2).
     @Published var pendingApproval: PendingToolApproval?
+    /// 审批卡展示用：pageAction 审批时的页面 host（DPP 逐动作放行的站点名）。
+    var pendingApprovalSiteHost: String? {
+        guard let approval = pendingApproval else { return nil }
+        return dppActionHostByCall[approval.toolCall.id]
+    }
 
     /// FULL ACCESS mode: when on, EVERY tool — including dangerous-tier
     /// `executeJS` — runs without approval prompts. The user has explicitly
@@ -2185,6 +2190,28 @@ class AgentSessionStore: ObservableObject {
         dppActionHostByCall.removeValue(forKey: callID)
     }
 
+    /// gate 内读取（**不取出**——执行侧复核还要用同一锚点）。
+    private func peekDPPActionHost(for callID: String) -> String? {
+        dppActionHostByCall[callID]
+    }
+
+    /// pageAction 的动作名（args.name）。
+    private func dppActionName(for toolCall: AgentToolCall) -> String? {
+        (try? JSONSerialization.jsonObject(with: Data(toolCall.function.arguments.utf8)) as? [String: Any])
+            .flatMap { $0["name"] as? String }
+    }
+
+    /// 动作是否含 mcp 步骤（宿主侧能力请求——不参与逐动作放行）。
+    private func dppActionHasMCP(for toolCall: AgentToolCall) -> Bool {
+        guard let args = try? JSONSerialization.jsonObject(with: Data(toolCall.function.arguments.utf8)) as? [String: Any],
+              let name = args["name"] as? String,
+              let dpp = toolProvider.surface?.tabManager?.selectedTab?.browser.effectiveProtocol,
+              let action = dpp.actions.first(where: { $0.name == name }) else {
+            return false
+        }
+        return action.run?.contains("\"mcp\"") == true
+    }
+
     private func effectiveRisk(for toolCall: AgentToolCall) -> ToolRisk {
         let base = ToolRisk.classify(toolCall.function.name)
         guard toolCall.function.name == "pageAction",
@@ -2233,6 +2260,20 @@ class AgentSessionStore: ObservableObject {
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: toolCall.function.name, decision: "denied (policy)", source: "policy")
             return .denied
+        }
+
+        // DPP 逐动作放行（0.6.7）：用户在审批卡上对「本站 × 此动作」的点名
+        // 授权——优先于访问等级与 danger/outbound 升级（deny 仍前置）。
+        // 例外：含 mcp 步骤的动作不参与本表（页面请求宿主侧能力不静默执行）。
+        if toolCall.function.name == "pageAction",
+           let host = peekDPPActionHost(for: toolCall.id),
+           let actionName = dppActionName(for: toolCall),
+           DPPActionApprovals.shared.allows(host: host, actionName: actionName),
+           !dppActionHasMCP(for: toolCall) {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: "pageAction",
+                decision: "allowed (site grant: \(host) × \(actionName))", source: "dpp site grant")
+            return .allowedOnce
         }
 
         // 自动编辑：浏览器内的页面编辑类自动通过；**三个例外**——runCommand
@@ -2320,11 +2361,18 @@ class AgentSessionStore: ObservableObject {
     }
 
     /// Called by the UI (`ToolApprovalBar`) when the user decides.
-    func resolveApproval(_ decision: ApprovalDecision) {
+    /// `siteGrant`：DPP 逐动作放行——把「审批锚点 host × 动作名」持久化为
+    /// 本站始终允许（0.6.7）。
+    func resolveApproval(_ decision: ApprovalDecision, siteGrant: Bool = false) {
         approvalTimeoutTask?.cancel()
         approvalTimeoutTask = nil
         guard let approval = pendingApproval else { return }
         pendingApproval = nil
+        if siteGrant, decision == .alwaysAllow,
+           let host = dppActionHostByCall[approval.toolCall.id],
+           let actionName = dppActionName(for: approval.toolCall) {
+            DPPActionApprovals.shared.allow(host: host, actionName: actionName)
+        }
         ApprovalPolicyStore.shared.recordHistory(
             toolName: approval.toolCall.function.name,
             decision: decision == .deny ? "denied" : "allowed",
@@ -2333,6 +2381,15 @@ class AgentSessionStore: ObservableObject {
         // runCommand 被批准 = 用户认可这条命令 → binary 顺带入系统访问
         // 允许列表（下次同类命令免审批）。 Dangerous 层级也入列——审批卡
         // 上展示的就是完整命令行，批准即信任。
+        // DPP 逐动作放行（0.6.7）：pageAction 的 Always Allow 升级为
+        // 「本站 × 此动作」点名授权（host 取审批时锚点，不删——执行侧复核
+        // 仍需同一锚点）。
+        if decision == .alwaysAllow, approval.toolCall.function.name == "pageAction",
+           let host = dppActionHostByCall[approval.toolCall.id],
+           let actionName = dppActionName(for: approval.toolCall) {
+            DPPActionApprovals.shared.allow(host: host, actionName: actionName)
+        }
+
         if decision != .deny, approval.toolCall.function.name == "runCommand",
            let args = try? JSONSerialization.jsonObject(with: Data(approval.toolCall.function.arguments.utf8)) as? [String: Any],
            let tool = args["tool"] as? String {

@@ -16,6 +16,11 @@ struct ToolApprovalBar: View {
     let onAllowOnce: () -> Void
     let onAlwaysAllow: () -> Void
     let onDeny: () -> Void
+    /// DPP 逐动作放行（0.6.7）：pageAction 审批卡专属——「本站始终允许此动作」。
+    /// host 取自审批锚点；为 nil（非 pageAction/无锚点）时不显示。
+    var onAlwaysAllowOnSite: ((String) -> Void)? = nil
+    /// 审批时记录的页面 host（供按钮文案）。
+    var siteHost: String? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -45,11 +50,23 @@ struct ToolApprovalBar: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(approval.risk == .dangerous)
+                    if let onAlwaysAllowOnSite {
+                        Button("Always on \(siteHost ?? "this site")", action: { onAlwaysAllowOnSite(siteHost ?? "") })
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                     Button("Deny", role: .destructive, action: onDeny)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
                 .padding(.top, 2)
+                // 逐动作放行的语义说明（0.6.7）：授权粒度是「站点 × 动作」，
+                // 与 Always Allow（按工具名）不同层。
+                if onAlwaysAllowOnSite != nil {
+                    Text("“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 0)
         }

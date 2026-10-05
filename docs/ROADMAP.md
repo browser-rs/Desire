@@ -213,17 +213,21 @@ Cookie 处理误伤登录流程——白名单 + 可回滚（AI Auto-Clean 同�
 ## 0.6.7 — Agent 成本与检索
 
 **P0**
-- **旁路成本归账**：crew/critic/标题/记忆整理的 token 记到会话（挂消息或会话级
+- ✅ **旁路成本归账（2026-10-06 交付）**：crew/critic/标题/记忆整理的 token 记到会话（挂消息或会话级
   汇总字段），成本页区分"主回合/旁路"。验收：一次含标题生成与 crew 的回合，
-  `GET /agent/stats` 总量 = 主回合 + 旁路。
-- **成本感知路由 v1**：偏好里可选"旁路调用用便宜模型"（默认关）；标题/记忆整理
-  走指定档。验收：假端点断言旁路请求的 model 字段。
+  `GET /agent/stats` 总量 = 主回合 + 旁路。**实现**：旁路逐笔（种类 + 实际模型）挂尾助手消息
+  的 `bypassUsage` 数组随会话落盘，`AgentUsage.of`/`UsageStats.derive` 按各笔自己的模型定价，
+  统计页与 `/agent/stats` 给 `bypassTokens`；crew 此前已由系统备注归账。
+- ✅ **成本感知路由 v1（2026-10-06 交付）**：偏好里可选"旁路调用用便宜模型"（默认关）；标题/记忆整理
+  走指定档。验收：假端点断言旁路请求的 model 字段。**实现**：设置 → AI「Bypass Calls」选择器 +
+  桥 `/ai/bypass-profile`（评估 E7 断言 fixture 收到的标题请求 model = 旁路档案模型、主回合不变）；
+  评审档案（criticProfileID）语义独立保留。
 
 **P1**
 - **向量记忆 spike**：`NLEmbedding` 端上句向量 × BM25 混合检索；先验证 zh-Hans
   支持质量（对照集 20 条），可行则进 0.7，不可行文档写明结论。
 - 评估集扩面：白板工具契约（get/edit/insert/move 错误分支）与多步工具链
-  （screenshot→evidence）进 agent-eval。
+  （screenshot→evidence）进 agent-eval。（E7 旁路路由已进，2026-10-06）
 - 工具结果摘要缓存：超长工具结果在压缩时保留"摘要 + 可按需重取"的句柄
   （配合既有上下文压缩）。
 

@@ -57,6 +57,8 @@ MISSING_PATH = os.environ.get("EVAL_MISSING_PATH")
 # OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
 # 用于验证应用会"压缩预算减半重试"。
 overflow_seen = 0
+# E7：逐请求记录（model/system 首段/末条 user）——断言旁路路由后的请求模型。
+REQUESTS = []
 # 每次请求前延迟（秒）：用来放大"正文完成后还在跑额外模型调用"的时间差。
 DELAY = float(os.environ.get("FAKE_DELAY", "0"))
 
@@ -84,6 +86,15 @@ class Handler(BaseHTTPRequestHandler):
         return "".join(blocks)
 
     def do_GET(self):
+        # /requests：dump 已记录的请求（E7 断言旁路路由后的 model 字段）。
+        if self.path.startswith("/requests"):
+            body = json.dumps({"requests": REQUESTS}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         # /reset：清空 OVERFLOW 计数（评估脚本用，保证用例确定性）。
         if self.path.startswith("/reset"):
             global overflow_seen
@@ -126,6 +137,12 @@ class Handler(BaseHTTPRequestHandler):
         text = (f"auth={auth}; tenant={tenant}; model={model}; "
                 f"sysCount={sys_count}; sysAt={sys_positions}; notesInSystem={has_notes}")
 
+        # 标题生成请求（system 含 "conversation title"）：回一个固定短标题——
+        # 太长的回复会被 generateTitle 的 ≤80 字守卫拒绝、记账不落盘。
+        system_text = (msgs_all[0].get("content") or "") if msgs_all else ""
+        if "conversation title" in system_text:
+            text = "评估标题"
+
         # 分支判据只看最后一条 user 消息 + 本轮（其后）的工具结果。历史轮次里
         # 的用例关键词绝不能影响本轮分支——否则 E4 的请求体里带着 E2/E3 的
         # 关键词，会串到别人的分支（2026-09-24，eval 三查三改才定位到这）。
@@ -133,6 +150,8 @@ class Handler(BaseHTTPRequestHandler):
         mode_text = (msgs_all[last_user_idx].get("content") or "") if last_user_idx >= 0 else ""
         round_msgs = msgs_all[last_user_idx + 1:]
         has_tool = any(m.get("role") == "tool" for m in round_msgs)
+        # E7：逐请求记录（model + system 首段 + 末条 user），供 GET /requests 断言。
+        REQUESTS.append({"model": model, "system": system_text[:160], "lastUser": mode_text[:64]})
         # 诊断（CI E6 超时用）：分支输入落盘 + stderr（CI 日志可见）。
         import sys as _sys
         _line = f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}"
@@ -719,12 +738,62 @@ def case_fixtures():
 
 # ---------- 主流程 ----------
 
+def case_bypass_routing():
+    """E7 旁路成本路由（0.6.7）：旁路档案指向同一 fixture（便宜模型名），
+    断言 ① 标题生成请求带旁路档案的 model（成本感知路由生效）；
+    ② 主回合仍走 eval 档案的模型；③ 记账按实际模型分账进统计。"""
+    created = bridge("POST", "/ai/profiles", body={
+        "name": "eval-bypass",
+        "endpoint": fixture_endpoint(),
+        "model": "fake-bypass",
+        "key": "eval-key-1234567890",
+    })
+    bypass_id = created["id"]
+    bridge("POST", "/ai/bypass-profile", body={"id": bypass_id})
+    check("E7 路由已登记", (bridge("GET", "/ai/bypass-profile") or {}).get("profileId") == bypass_id)
+    try:
+        bridge("POST", "/agent/new", body={})   # 标题生成每会话只跑一次：必须新会话
+        run_case("EVAL-BYPASS 请用一句话回应")
+        # 标题请求在回合结束**之后**才发（isProcessing 交还之后）——轮询 fixture 记录。
+        deadline = time.time() + 20
+        requests = []
+        bypass_titles = []
+        while time.time() < deadline:
+            requests = json.loads(fixture_bridge("GET", "/requests")).get("requests", [])
+            bypass_titles = [r for r in requests
+                             if r.get("model") == "fake-bypass"
+                             and "conversation title" in (r.get("system") or "")]
+            if bypass_titles:
+                break
+            time.sleep(0.5)
+        check("E7 标题请求走旁路档案的模型", len(bypass_titles) >= 1)
+        check("E7 主回合仍走 eval 档案的模型", any(
+            r.get("model") == "fake-1" and "conversation title" not in (r.get("system") or "")
+            for r in requests))
+        # 记账：旁路逐笔按实际模型分账。会话落盘在 DiskStore 上排队（评估负载下
+        # 积压可达分钟级）——轮询统计直到出现 fake-bypass 桶或超时。
+        deadline = time.time() + 30
+        stats = {}
+        while time.time() < deadline:
+            stats = bridge("GET", "/agent/stats")
+            if any(m.get("model") == "fake-bypass" for m in stats.get("models", [])):
+                break
+            time.sleep(1)
+        check("E7 统计含旁路 token", (stats.get("bypassTokens") or 0) > 0)
+        check("E7 统计分模型含 fake-bypass（按实际跑的模型归账）", any(
+            m.get("model") == "fake-bypass" for m in stats.get("models", [])))
+    finally:
+        bridge("POST", "/ai/bypass-profile", body={})   # 清除路由，不污染后续/其他用例
+        bridge("POST", "/ai/profiles/delete", body={"id": bypass_id})
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
          ("E4 overflow-retry", case_overflow_retry),
          ("E5 fixtures-replay", case_fixtures),
-         ("E6 network-rules（本地专属，EVAL_E6=1 开启）", case_network_rules)]
+         ("E6 network-rules（本地专属，EVAL_E6=1 开启）", case_network_rules),
+         ("E7 bypass-routing", case_bypass_routing)]
 
 results = []
 

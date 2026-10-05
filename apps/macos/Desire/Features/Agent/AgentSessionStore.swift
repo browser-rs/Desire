@@ -1861,7 +1861,7 @@ class AgentSessionStore: ObservableObject {
 
     /// 一次自评调用：**同一个模型、不带工具、只看轨迹**。失败或取消返回 nil
     /// （自评永远不能把一轮正常回合变成失败）。
-    func runCritique(goal: String, trace: String, onUsage: ((Int, Int) -> Void)? = nil) async -> String? {
+    func runCritique(goal: String, trace: String, onUsage: ((Int, Int, String?) -> Void)? = nil) async -> String? {
         guard !goal.isEmpty, !trace.isEmpty else { return nil }
         let request: [AgentMessage] = [
             AgentMessage(role: .system, content: Self.critiquePrompt),
@@ -1871,14 +1871,25 @@ class AgentSessionStore: ObservableObject {
         let reviewingPrefs = preference.criticPreferences() ?? preference
         let reviewer = reviewingPrefs.provider
         var text = ""
+        // 用量在流结束后统一上报（OpenAI 兼容线 `.usage` 先于 `.model` 到）。
+        var usagePrompt = 0
+        var usageCompletion = 0
+        var reportedModel: String?
         do {
             for try await event in reviewer.stream(messages: request, tools: [], prefs: reviewingPrefs) {
                 if isCancelled { return nil }
                 switch event {
                 case .text(let delta): text += delta
-                case .usage(let prompt, let completion): onUsage?(prompt, completion)
+                case .usage(let prompt, let completion):
+                    usagePrompt = prompt
+                    usageCompletion = completion
+                case .model(let name): reportedModel = name
                 default: break
                 }
+            }
+            if usagePrompt > 0 || usageCompletion > 0 {
+                onUsage?(usagePrompt, usageCompletion,
+                         reportedModel ?? (reviewingPrefs.model.isEmpty ? nil : reviewingPrefs.model))
             }
         } catch {
             Log.agent.info("self-review call failed: \(error.localizedDescription, privacy: .public)")
@@ -1894,7 +1905,12 @@ class AgentSessionStore: ObservableObject {
         let turn = currentTurnTrace()
         guard !turn.trace.isEmpty else { return "Nothing to review yet — no actions taken in this turn." }
         let goal = question.isEmpty ? turn.goal : "\(turn.goal)\n（额外关注：\(question)）"
-        guard let critique = await runCritique(goal: goal, trace: turn.trace) else {
+        // reflect 发生在回合中途：归账到当前尾助手消息（它此刻正流式/已带工具调用）。
+        let tailID = messages.last(where: { $0.role == .assistant })?.id
+        guard let critique = await runCritique(goal: goal, trace: turn.trace,
+                                               onUsage: { [weak self] p, c, m in
+                                                   self?.attributeBypassUsage("reflect", p, c, model: m, to: tailID)
+                                               }) else {
             return "Self-review unavailable (the model returned nothing)."
         }
         return critique
@@ -2015,7 +2031,9 @@ class AgentSessionStore: ObservableObject {
         guard turn.toolCount >= 3 || turn.dangerous else { return }
         guard let critique = await runCritique(
             goal: turn.goal, trace: turn.trace,
-            onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailAssistantID) }
+            onUsage: { [weak self] p, c, m in
+                self?.attributeBypassUsage("critique", p, c, model: m, to: tailAssistantID)
+            }
         ) else { return }
         // P1-18：按 id 定位写回——await 期间新回合可能已 append 助手消息，
         // 活体 lastIndex 会把评语写进新回合正在流式的消息。
@@ -2031,11 +2049,13 @@ class AgentSessionStore: ObservableObject {
 
     // MARK: - 旁路调用成本记账
 
-    /// 旁路模型调用（标题/记忆整理/自评）的 token 归账：记到**本回合的
+    /// 旁路模型调用（标题/记忆整理/自评/reflect）的 token 归账：记到**本回合的
     /// 尾助手消息**（按 id 定位——await 期间新回合可能已开始，P1-18 同款
-    /// 防护）并累加会话计数器。`AgentUsage.of` 对任何带 token 的消息计数，
-    /// 面板与统计因此自动包含旁路成本（此前只算主循环，数字偏小）。
-    private func attributeBypassUsage(_ prompt: Int, _ completion: Int, to tailID: UUID?) {
+    /// 防护）并累加会话计数器；同时把**逐笔明细**（种类 + 实际模型）记在同一
+    /// 消息上——成本路由后旁路跑的模型 ≠ 主模型，成本要按真跑的那个算，
+    /// `AgentUsage.of`/`UsageStats.derive` 据此把主回合与旁路分开定价。
+    private func attributeBypassUsage(_ kind: String, _ prompt: Int, _ completion: Int,
+                                      model: String?, to tailID: UUID?) {
         guard prompt > 0 || completion > 0 else { return }
         usagePromptTokens += prompt
         usageCompletionTokens += completion
@@ -2044,16 +2064,30 @@ class AgentSessionStore: ObservableObject {
               let idx = messages.lastIndex(where: { $0.id == tailID && $0.role == .assistant }) else { return }
         messages[idx].promptTokens = (messages[idx].promptTokens ?? 0) + prompt
         messages[idx].completionTokens = (messages[idx].completionTokens ?? 0) + completion
+        var records = messages[idx].bypassUsage ?? []
+        records.append(AgentBypassUsage(kind: kind, model: model,
+                                        promptTokens: prompt, completionTokens: completion))
+        messages[idx].bypassUsage = records
+    }
+
+    /// 旁路调用（标题/记忆整理）的偏好视图：配置了旁路档案就用它（便宜模型），
+    /// 否则 nil 回落 = 跟随对话模型。每次调用现取（同 criticPreferences 的理由：
+    /// 轻量实例、无共享状态）。
+    private var bypassPrefs: AgentPreferenceStore {
+        preference.bypassPreferences() ?? preference
     }
 
     private func generateTitleIfNeeded() async {
         guard !titleGenerated, messages.count >= 2,
               messages.contains(where: { $0.role == .user }) else { return }
         titleGenerated = true
+        let prefs = bypassPrefs
         let tailID = messages.last(where: { $0.role == .assistant })?.id
         guard let title = await MemoryExtractor.generateTitle(
-            preference: preference, messages: Array(messages.prefix(6)),
-            onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
+            preference: prefs, messages: Array(messages.prefix(6)),
+            onUsage: { [weak self] p, c, m in
+                self?.attributeBypassUsage("title", p, c, model: m, to: tailID)
+            }
         ) else { return }
         conversationTitle = title
         saveCurrentConversation()
@@ -2071,13 +2105,16 @@ class AgentSessionStore: ObservableObject {
               snapshot.contains(where: { $0.role == .assistant }) else { return }
 
         if snapshot.count - memoryProcessedCount >= 4 {
+            let prefs = bypassPrefs
             let tailID = snapshot.last(where: { $0.role == .assistant })?.id
             await MemoryExtractor.extractFacts(
-                preference: preference,
+                preference: prefs,
                 memory: AgentMemoryStore.shared,
                 messages: Array(snapshot.suffix(14)),
                 source: conversationId.flatMap { conversationStore.conversation(for: $0)?.title },
-                onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
+                onUsage: { [weak self] p, c, m in
+                    self?.attributeBypassUsage("facts", p, c, model: m, to: tailID)
+                }
             )
         }
         // R2-2：摘要此前只有"≥12 条"的总量门槛、没有增量门控——对话过 12 条后
@@ -2085,13 +2122,16 @@ class AgentSessionStore: ObservableObject {
         // 白付钱/额度）。与 facts 同款增量门控：新增 ≥6 条才重新摘要。
         if messages.count >= 12, messages.count - summarizedCount >= 6,
            let conversationId = conversationId {
+            let prefs = bypassPrefs
             let tailID = snapshot.last(where: { $0.role == .assistant })?.id
             await MemoryExtractor.summarize(
-                preference: preference,
+                preference: prefs,
                 memory: AgentMemoryStore.shared,
                 conversationId: conversationId,
                 messages: Array(snapshot.suffix(40)),
-                onUsage: { [weak self] p, c in self?.attributeBypassUsage(p, c, to: tailID) }
+                onUsage: { [weak self] p, c, m in
+                    self?.attributeBypassUsage("summary", p, c, model: m, to: tailID)
+                }
             )
             summarizedCount = snapshot.count
         }

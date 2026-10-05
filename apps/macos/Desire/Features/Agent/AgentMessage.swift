@@ -4,6 +4,20 @@ enum AgentMessageRole: String, Codable, Sendable {
     case system, user, assistant, tool
 }
 
+/// 一笔**旁路模型调用**（标题生成/记忆整理/自评/reflect 工具）的逐笔用量。
+/// 这些调用发生在回合收尾（或 reflect 工具内），token 既已并入所在助手消息的
+/// 总量，这里再单独成行——因为成本路由后旁路**跑的模型可能 ≠ 主模型**，成本要
+/// 按真跑的那个算，就必须知道每笔的模型。随会话落盘；旧会话没有此字段 = 旁路
+/// 无法从总量里拆出，全部按主回合计（口径见 `AgentUsage.of`）。
+struct AgentBypassUsage: Codable, Equatable, Sendable {
+    /// "title" / "facts" / "summary" / "critique" / "reflect"
+    var kind: String
+    /// 实际请求所用模型（响应自报的 `model` 优先）。
+    var model: String?
+    var promptTokens: Int
+    var completionTokens: Int
+}
+
 struct AgentMessage: Identifiable, Codable, Sendable {
     let id: UUID
     let role: AgentMessageRole
@@ -36,6 +50,9 @@ struct AgentMessage: Identifiable, Codable, Sendable {
     /// before persistence so conversation files stay small). Optional, so
     /// conversations saved before this field existed still decode.
     var imageDataURIs: [String]?
+    /// 本回合收尾旁路调用（标题/记忆整理/自评）的逐笔用量；token 已并入上面的
+    /// prompt/completion 总量，这里只为"按笔拆模型、分主旁路"保留明细。
+    var bypassUsage: [AgentBypassUsage]?
     let createdAt: Date
 
     init(role: AgentMessageRole, content: String? = nil, toolCalls: [AgentToolCall]? = nil, toolCallId: String? = nil, toolName: String? = nil, images: [String]? = nil, reasoning: String? = nil, critique: String? = nil, verificationNote: String? = nil, feedback: String? = nil, toolDurationMs: Double? = nil, promptTokens: Int? = nil, completionTokens: Int? = nil, model: String? = nil) {

@@ -56,6 +56,19 @@ class AgentPreferenceStore: ObservableObject {
             }
         }
     }
+    /// 旁路调用档案（成本感知路由 v1，0.6.7）：标题生成/记忆整理（事实+摘要）这类
+    /// **不参与对话的轻调用**改走指定服务——通常是个便宜模型。nil = 跟随对话模型
+    /// （默认，行为与引入前完全一致）。自评不在此列：它有语义独立的 criticProfileID
+    /// （评审者 ≠ 被评审者）。
+    @Published var bypassProfileID: UUID? {
+        didSet {
+            if let bypassProfileID {
+                UserDefaults.standard.set(bypassProfileID.uuidString, forKey: "aiBypassProfile")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "aiBypassProfile")
+            }
+        }
+    }
 
     /// 回合结束后是否自动自评（只在"≥3 次工具调用或含高风险动作"的回合跑）。
     @Published var selfReviewEnabled: Bool {
@@ -352,6 +365,30 @@ class AgentPreferenceStore: ObservableObject {
         return store
     }
 
+    /// 旁路调用（标题/记忆整理）的偏好视图：机制与 `criticPreferences()` 相同——
+    /// 返回一个**指向旁路档案**的轻量实例，调用方拿它发请求、读它的 `model` 记账。
+    /// 没配置 / 档案不存在 / 档案没 Key → nil = 跟随对话模型（宁可用贵模型干活，
+    /// 也别让标题生成静默失败）。
+    func bypassPreferences() -> AgentPreferenceStore? {
+        guard let id = bypassProfileID,
+              let profile = profiles.first(where: { $0.id == id }) else {
+            Log.agent.info("bypass routing: profile not set or missing from the live store")
+            return nil
+        }
+        let store = AgentPreferenceStore(skipKeyStateRefresh: true)
+        // **直接注入内存里的档案**，不指望 DiskStore：writer 在高负载（评估、
+        // 大会话连续落盘）下积压可达分钟级，刚建的档案靠盘上读会撞空——
+        // 0.6.7 E7 实测"档案在内存里、盘上还没有"的窗口远比 500ms 防抖长。
+        store.profiles = [profile]
+        guard (store.loadAPIKey(profileID: id, interactive: false) ?? "").isEmpty == false else {
+            Log.agent.error("bypass profile has no API key — bypass calls fall back to the chat's model")
+            return nil
+        }
+        store.activateProfile(id: id)
+        store.providerKind = .cloud
+        return store
+    }
+
     var provider: any ModelProvider {
         switch providerKind {
         case .cloud:
@@ -409,6 +446,9 @@ class AgentPreferenceStore: ObservableObject {
         selfReviewEnabled = UserDefaults.standard.object(forKey: "agentSelfReview") as? Bool ?? true
         if let raw = UserDefaults.standard.string(forKey: "agentCriticProfile") {
             criticProfileID = UUID(uuidString: raw)
+        }
+        if let raw = UserDefaults.standard.string(forKey: "aiBypassProfile") {
+            bypassProfileID = UUID(uuidString: raw)
         }
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),

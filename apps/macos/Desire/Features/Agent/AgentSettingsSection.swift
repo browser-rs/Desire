@@ -493,6 +493,20 @@ struct AgentSettingsSection: View {
                     }
                 )
                 SettingsRowDivider()
+                SettingsPickerRow(
+                    "Bypass Calls",
+                    subtitle: String(localized: "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran."),
+                    systemImage: "arrow.uturn.backward",
+                    selection: $store.bypassProfileID,
+                    options: [nil] + store.profiles.map { Optional($0.id) },
+                    label: { id in
+                        guard let id, let profile = store.profiles.first(where: { $0.id == id }) else {
+                            return String(localized: "Same as the chat")
+                        }
+                        return profile.name
+                    }
+                )
+                SettingsRowDivider()
                 SettingsToggleRow(
                     "Self-review After Tool Runs",
                     subtitle: String(localized: "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply."),

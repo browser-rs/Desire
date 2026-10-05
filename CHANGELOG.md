@@ -6,6 +6,8 @@
 - **DevTools「DPP」检查器页签（0.6.7）**：当前页协议声明的只读检查器——Profile/Page type/Content main/Sections/Ignore、Views 逐字段（DisclosureGroup 展开、类型标注）、Actions（effects: outbound 橙标 / danger 红标 / run 步骤预览）、Events（watch 选择器）、解析 Warnings；**已派发事件流**（PageEventHub 新增环形历史，cap 30）实时滚动。无声明页显示引导说明。
 - **白板单文件 HTML 分享（0.6.7）**：白板面板新增「导出单文件 HTML」——零外部依赖的静态 viewer（note/table 排版渲染、mermaid/chart 呈现源码、image 内联 data URI），无 Desire 机器双击即可在任意浏览器打开；`WhiteboardHTMLExport` 纯函数生成（进单测 harness）。
 - **三步首启引导（OnboardingFlowView）取代旧单屏**：① 选模型——端上模型卡（按 SystemLanguageModel availability 显隐）与 API Key 卡（直达 AI 设置）；② 隐私防护——广告/追踪拦截开关，绑定真实 ContentBlockerStore；③ 同步与个性化——同步入口 + 称呼/自定义指令；全部可跳过，完成写 `memory.onboardingCompleted`（面板不再显示）。导航统一收进自适应 footer（上一步/跳过/下一步·完成）；`finish()` 空输入不覆写既有个性化档案
+- **旁路成本归账分账 + 成本感知路由 v1（0.6.7 P0 两项）**：① 旁路模型调用（标题/记忆整理/自评/reflect 工具）的用量在 token 总量之外**逐笔记账**（种类 + 实际模型，挂本回合尾助手消息随会话落盘），`AgentUsage.of`/`UsageStats.derive` 按各笔**自己的模型**定价——成本路由后旁路跑的模型 ≠ 主模型也算得对；统计页模型列表新增「旁路调用」行，`/agent/stats` 带 `bypassTokens`。② 设置 → AI 新增「Bypass Calls」档案选择器（桥 `GET|POST /ai/bypass-profile`）：标题/记忆整理走指定（便宜）模型，默认跟随对话；评审档案语义不变（评审者 ≠ 被评审者）。旁路偏好视图直接**注入内存档案**、不读盘——DiskStore writer 在评估/大会话负载下积压可达分钟级，靠盘上读刚建的档案会撞空（评估 E7 实测后修）。评估集新增 E7（bypass-routing）：fixture 逐请求记录 model，断言标题请求走旁路档案、主回合不受影响、统计按实际模型分账。
+
 
 
 

@@ -33955,6 +33955,72 @@
           }
         }
       }
+    },
+    "Bypass Calls" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass Calls"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路调用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路呼叫"
+          }
+        }
+      }
+    },
+    "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合结束后那些安静的旁路调用（会话标题、记忆抽取与摘要）走哪个服务——可以选个便宜模型，也可以跟随当前对话。用量照常逐笔记账，并按实际运行的模型计价。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合結束後那些安靜的旁路呼叫（對話標題、記憶擷取與摘要）走哪個服務——可以選個便宜模型，也可以跟隨目前對話。用量照常逐筆記帳，並按實際執行的模型計價。"
+          }
+        }
+      }
+    },
+    "Bypass calls (title / memory / self-review)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass calls (title / memory / self-review)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路调用（标题 / 记忆 / 自评）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路呼叫（標題 / 記憶 / 自評）"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

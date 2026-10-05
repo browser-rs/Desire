@@ -123,6 +123,52 @@ eq("统计：分模型桶数", stats.models.count, 2)
 check("统计：逐日连续（近 30 天无断档）", stats.recentDays(30).count == 30)
 check("统计：recentDays 首日是 29 天前", cal.isDate(stats.recentDays(30).first!.id, inSameDayAs: dayAt(29, 0)))
 
+// ---------- 旁路用量分账（0.6.7：标题/记忆/自评按笔记模型，主回合 ≠ 旁路）----------
+
+do {
+    let splitPrices: [String: ModelPrice] = [
+        "main-model": ModelPrice(inputPerMTok: 3, outputPerMTok: 15),
+        "cheap-model": ModelPrice(inputPerMTok: 0.1, outputPerMTok: 0.4),
+    ]
+    // 真实记账的形态：消息总量 = 主回合 + 旁路逐笔之和（attributeBypassUsage 写入时已相加）。
+    var mixed = msg(.assistant, "答", model: "main-model", p: 1_400, c: 230)
+    mixed.bypassUsage = [
+        AgentBypassUsage(kind: "title", model: "cheap-model", promptTokens: 300, completionTokens: 20),
+        AgentBypassUsage(kind: "facts", model: nil, promptTokens: 100, completionTokens: 10),
+    ]
+    let split = AgentUsage.of([mixed]) { $0.flatMap { splitPrices[$0] } }
+    eq("分账：prompt 总量含旁路", split.promptTokens, 1_400)
+    eq("分账：completion 总量含旁路", split.completionTokens, 230)
+    eq("分账：旁路部分", split.bypassTokens, 430)
+    check("分账：nil 模型笔没单价 → 总额不给", split.usd == nil && split.hasUnpriced)
+
+    // 全部可定价：金额按各笔**自己的**单价折算
+    //   主回合 (1000×3 + 200×15)/1M = 0.006；title (300×0.1 + 20×0.4)/1M = 0.000038
+    var titleOnly = msg(.assistant, "答2", model: "main-model", p: 1_300, c: 220)
+    titleOnly.bypassUsage = [
+        AgentBypassUsage(kind: "title", model: "cheap-model", promptTokens: 300, completionTokens: 20),
+    ]
+    let priced = AgentUsage.of([titleOnly]) { $0.flatMap { splitPrices[$0] } }
+    check("分账：旁路按自己模型的单价计价", abs((priced.usd ?? -1) - 0.006038) < 1e-9)
+    check("分账：全部有价 → 金额给出", priced.usd != nil && !priced.hasUnpriced)
+
+    // 旧格式（无旁路明细）：全部按消息模型计——旁路 0
+    let legacy = msg(.assistant, "旧", model: "main-model", p: 1_000, c: 200)
+    let legacyUsage = AgentUsage.of([legacy]) { $0.flatMap { splitPrices[$0] } }
+    eq("分账：旧会话旁路为 0", legacyUsage.bypassTokens, 0)
+    check("分账：旧会话金额照算", abs((legacyUsage.usd ?? -1) - 0.006) < 1e-9)
+
+    // UsageStats：分模型桶按各自模型归账
+    let stats2 = UsageStats.derive(from: [conv("分账", [mixed])]) { $0.flatMap { splitPrices[$0] } }
+    eq("统计：旁路 token", stats2.bypassTokens, 430)
+    let buckets = Dictionary(uniqueKeysWithValues: stats2.models.map { ($0.id, $0.tokens) })
+    eq("统计：主模型桶 = 主回合部分", buckets["main-model"] ?? 0, 1_200)
+    eq("统计：cheap 模型桶 = title 笔", buckets["cheap-model"] ?? 0, 320)
+    eq("统计：nil 模型落 unattributed", buckets[UsageStats.subagentModelKey] ?? 0, 110)
+    // 总额口径不变：所有桶之和 = 消息总量（主 + 旁路，不重不漏）
+    eq("统计：桶之和 = 总量", stats2.models.reduce(0) { $0 + $1.tokens }, 1_630)
+}
+
 // ---------- ContextCompaction ----------
 
 func sizedTurn(_ text: String, withTool: Bool = false) -> [AgentMessage] {

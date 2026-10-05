@@ -444,6 +444,8 @@ final class AutomationServer {
         ep("GET", "/ai/profiles", "Model services: endpoint/model/headers/key state + which is active", example: "…/ai/profiles")
         ep("POST", "/ai/profiles", "Create (no id) or update a model service; key supported", params: ["id?:uuid", "name:string", "endpoint:string", "model?:string", "models?:array", "headers?:object", "key?:string"], example: #"-d '{"name":"My gateway","endpoint":"https://host/v1/chat/completions","model":"gpt-4o","key":"sk-…"}'"#)
         ep("POST", "/ai/profiles/activate", "Switch the active model service", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("GET", "/ai/bypass-profile", "Which service runs the quiet bypass calls (title / memory); null = same as the chat", example: "…/ai/bypass-profile")
+        ep("POST", "/ai/bypass-profile", "Route bypass calls (title / memory extraction / summaries) to a service — usually a cheaper model; omit id to clear", params: ["id?:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
@@ -1279,6 +1281,23 @@ final class AutomationServer {
                 return try Self.json(Self.aiSetModel(Self.string(body, "model") ?? ""))
             case ("POST", "/ai/profiles/activate"):
                 return try Self.json(Self.aiProfileActivate(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/ai/bypass-profile"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                var payload: [String: Any] = ["profileId": NSNull()]
+                if let id = pref.bypassProfileID { payload["profileId"] = id.uuidString }
+                return try Self.json(payload)
+            case ("POST", "/ai/bypass-profile"):
+                // 旁路调用（标题/记忆整理）走哪个档案；不带 id = 清除（跟随对话模型）。
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                if let raw = Self.string(body, "id") {
+                    guard let id = UUID(uuidString: raw), pref.profiles.contains(where: { $0.id == id }) else {
+                        return try Self.json(["error": "unknown profile id"])
+                    }
+                    pref.bypassProfileID = id
+                    return try Self.json(["ok": true, "profileId": raw])
+                }
+                pref.bypassProfileID = nil
+                return try Self.json(["ok": true, "profileId": NSNull()])
             case ("POST", "/ai/profiles/delete"):
                 return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
             case ("GET", "/ai/prices"):
@@ -3463,6 +3482,7 @@ final class AutomationServer {
             "totalTokens": stats.totalTokens,
             "promptTokens": stats.promptTokens,
             "completionTokens": stats.completionTokens,
+            "bypassTokens": stats.bypassTokens,
             "turns": stats.turns,
             "conversations": stats.conversations,
             "peakDayTokens": stats.peakDayTokens,

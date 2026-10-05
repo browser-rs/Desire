@@ -13,14 +13,15 @@ enum MemoryExtractor {
 
     /// Extracts durable USER facts (preferences, habits, corrections) from
     /// the conversation tail and merges them into the memory store.
-    /// `onUsage(prompt, completion)`：旁路调用的 token 上报——面板/统计此前
-    /// 少记这部分（标题/记忆整理/自评都走额外模型调用）。
+    /// `onUsage(prompt, completion, model)`：旁路调用的 token 上报 + 实际所用模型
+    /// （响应自报的 `model` 优先，服务端没给才退回请求时所选）。成本路由后旁路
+    /// 跑的模型可能 ≠ 主模型，逐笔记账要带上它。
     static func extractFacts(
         preference: AgentPreferenceStore,
         memory: AgentMemoryStore,
         messages: [AgentMessage],
         source: String? = nil,
-        onUsage: ((Int, Int) -> Void)? = nil
+        onUsage: ((Int, Int, String?) -> Void)? = nil
     ) async {
         guard preference.memoryLearning else { return }
         let transcript = transcript(of: messages, maxChars: 6000)
@@ -82,7 +83,7 @@ enum MemoryExtractor {
         memory: AgentMemoryStore,
         conversationId: UUID,
         messages: [AgentMessage],
-        onUsage: ((Int, Int) -> Void)? = nil
+        onUsage: ((Int, Int, String?) -> Void)? = nil
     ) async {
         guard preference.memoryLearning else { return }
         let transcript = transcript(of: messages, maxChars: 8000)
@@ -105,7 +106,7 @@ enum MemoryExtractor {
     /// Generates a short conversation title in the user's language.
     static func generateTitle(
         preference: AgentPreferenceStore, messages: [AgentMessage],
-        onUsage: ((Int, Int) -> Void)? = nil
+        onUsage: ((Int, Int, String?) -> Void)? = nil
     ) async -> String? {
         let transcript = transcript(of: messages, maxChars: 2000)
         guard !transcript.isEmpty else { return nil }
@@ -142,7 +143,7 @@ enum MemoryExtractor {
 
     private static func collectText(
         preference: AgentPreferenceStore, system: String, user: String,
-        onUsage: ((Int, Int) -> Void)? = nil
+        onUsage: ((Int, Int, String?) -> Void)? = nil
     ) async -> String {
         var output = ""
         let messages = [
@@ -150,13 +151,25 @@ enum MemoryExtractor {
             AgentMessage(role: .user, content: user),
         ]
         let provider = preference.provider
+        // 用量在流**结束后**统一上报：OpenAI 兼容线上 `.usage` 先于 `.model` 到，
+        // 边收边报会拿不到响应自报的模型。
+        var usagePrompt = 0
+        var usageCompletion = 0
+        var reportedModel: String?
         do {
             for try await event in provider.stream(messages: messages, tools: [], prefs: preference) {
                 switch event {
                 case .text(let delta): output += delta
-                case .usage(let prompt, let completion): onUsage?(prompt, completion)
+                case .usage(let prompt, let completion):
+                    usagePrompt = prompt
+                    usageCompletion = completion
+                case .model(let name): reportedModel = name
                 default: break
                 }
+            }
+            if usagePrompt > 0 || usageCompletion > 0 {
+                onUsage?(usagePrompt, usageCompletion,
+                         reportedModel ?? (preference.model.isEmpty ? nil : preference.model))
             }
         } catch {
             log.debug("memory call failed: \(error.localizedDescription, privacy: .public)")

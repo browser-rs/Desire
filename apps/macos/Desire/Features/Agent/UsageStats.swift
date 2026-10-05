@@ -36,6 +36,9 @@ struct UsageStats {
     var totalTokens = 0
     var promptTokens = 0
     var completionTokens = 0
+    /// 其中旁路调用（标题/记忆整理/自评）的部分——上面是**含旁路的总量**，
+    /// 主回合 = 总量 − 旁路。旧会话没有旁路明细，旁路为 0。
+    var bypassTokens = 0
     /// 用户消息条数（"轮"）。
     var turns = 0
     var conversations = 0
@@ -91,20 +94,35 @@ struct UsageStats {
                 stats.promptTokens += prompt
                 stats.completionTokens += completion
 
-                let key = message.model.flatMap { $0.isEmpty ? nil : $0 } ?? subagentModelKey
-                buckets[day, default: DayBucket()].tokens += tokens
-                buckets[day, default: DayBucket()].byModel[key, default: 0] += tokens
-                modelBuckets[key, default: ModelBucket()].tokens += tokens
-                modelBuckets[key, default: ModelBucket()].prompt += prompt
-                modelBuckets[key, default: ModelBucket()].completion += completion
-
-                if let known = price(key == subagentModelKey ? nil : key),
-                   let amount = known.cost(promptTokens: prompt, completionTokens: completion) {
-                    stats.cost = (stats.cost ?? 0) + amount
-                    modelBuckets[key, default: ModelBucket()].cost += amount
-                } else {
-                    stats.unpricedTokens += tokens
-                    modelBuckets[key, default: ModelBucket()].unpriced = true
+                // 旁路明细拆出后按各笔自己的模型归账；主回合 = 总量 − 旁路。
+                let bypass = message.bypassUsage ?? []
+                let bypassPrompt = bypass.reduce(0) { $0 + $1.promptTokens }
+                let bypassCompletion = bypass.reduce(0) { $0 + $1.completionTokens }
+                stats.bypassTokens += bypassPrompt + bypassCompletion
+                let modelKey: (String?) -> String = { model in
+                    model.flatMap { $0.isEmpty ? nil : $0 } ?? subagentModelKey
+                }
+                func attribute(_ p: Int, _ c: Int, key: String) {
+                    guard p > 0 || c > 0 else { return }
+                    let part = p + c
+                    buckets[day, default: DayBucket()].tokens += part
+                    buckets[day, default: DayBucket()].byModel[key, default: 0] += part
+                    modelBuckets[key, default: ModelBucket()].tokens += part
+                    modelBuckets[key, default: ModelBucket()].prompt += p
+                    modelBuckets[key, default: ModelBucket()].completion += c
+                    if let known = price(key == subagentModelKey ? nil : key),
+                       let amount = known.cost(promptTokens: p, completionTokens: c) {
+                        stats.cost = (stats.cost ?? 0) + amount
+                        modelBuckets[key, default: ModelBucket()].cost += amount
+                    } else {
+                        stats.unpricedTokens += part
+                        modelBuckets[key, default: ModelBucket()].unpriced = true
+                    }
+                }
+                attribute(max(0, prompt - bypassPrompt), max(0, completion - bypassCompletion),
+                          key: modelKey(message.model))
+                for record in bypass {
+                    attribute(record.promptTokens, record.completionTokens, key: modelKey(record.model))
                 }
             }
         }

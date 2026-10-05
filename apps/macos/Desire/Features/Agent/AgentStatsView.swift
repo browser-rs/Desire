@@ -574,6 +574,24 @@ struct AgentStatsView: View {
                         .padding(.leading, 15)
                 }
             }
+            if stats.bypassTokens > 0 {
+                Divider().opacity(0.4)
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 8)
+                    Text(String(localized: "Bypass calls (title / memory / self-review)"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 10)
+                    Text(AgentUsage.formatTokens(stats.bypassTokens))
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

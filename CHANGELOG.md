@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.6.3] - 2026-10-05
 ### Added
 
 - **站点静音升级为劫持式（0.6.3 首项）**：原实现是逐元素一次性 `e.muted = true`——视频站播放器 1.5s 后自己取消静音就破功。现 documentStart 注入 page world 的 `HTMLMediaElement.muted/volume` 劫持（getter 分层：强制档恒 0 音量、非强制放行站点值），运行时开关 + MutationObserver 兜底迟到元素；独立宿主 spike 验证 round-trip（强制后站点 set false 读回 1、解除读回 0）。**Tab 挂起巡检新增豁免：Agent 正在操作的标签**（长任务的页面动作被挂起=腰斩）。

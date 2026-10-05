@@ -257,6 +257,68 @@ struct SelectedTabContent: View {
         }
     }
 
+    /// 划词工具条构造（0.6.5 拆出——闭包加到 6 个后 body 内 type-check 超时）。
+    private func selectionAIBar(_ selection: SelectionAIInfo) -> some View {
+        SelectionAIBar(
+            onExplain: {
+                onAskAI("请用中文解释以下选中文本的含义，如有术语请一并说明：\n\n\(selection.text)")
+                tab.browser.selectionAI = nil
+            },
+            onTranslate: {
+                onAskAI("将以下内容翻译成中文（若原文已是中文则翻译成英文），只输出译文：\n\n\(selection.text)")
+                tab.browser.selectionAI = nil
+            },
+            onAsk: {
+                content.aiSession.addSelectedTextContext(selection.text)
+                showAgentPanel = true
+                tab.browser.selectionAI = nil
+            },
+            onCopy: {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(selection.text, forType: .string)
+                tab.browser.selectionAI = nil
+            },
+            onSearch: { searchSelection(selection.text) },
+            onHighlight: { colorIndex in
+                if let url = tab.browser.webView.url?.absoluteString {
+                    AnnotationStore.shared.add(
+                        url: url, text: selection.text,
+                        colorIndex: colorIndex)
+                }
+                tab.browser.webView.evaluateJavaScript(
+                    "__desireApplyHighlight(\(colorIndex))",
+                    in: nil, in: WebView.agentToolWorld,
+                    completionHandler: nil)
+                tab.browser.selectionAI = nil
+            }
+        )
+    }
+
+    /// 划词"搜索"（0.6.5）：与右键"搜索…"同管线——URL 形文本直达，其余走默认引擎；
+    /// 后台打开偏好生效（makeActive 取反）。
+    private func searchSelection(_ text: String) {
+        let settings = content.settings
+        guard let destination = URLResolution.resolve(text, settings: settings) else { return }
+        let target: String
+        switch destination {
+        case .url(let urlString):
+            target = urlString
+        case .search(let query, let engine):
+            target = URLResolution.searchURL(query: query, target: engine)?.absoluteString ?? text
+        }
+        content.tabManager.addTab(
+            url: target,
+            incognito: tab.isIncognito,
+            javaScriptEnabled: settings.isJavaScriptEnabled,
+            contentBlocker: content.contentBlocker,
+            videoAdBlocker: content.videoAdBlocker,
+            autoPlayPolicy: settings.autoPlayPolicy,
+            newTabPosition: settings.newTabPosition,
+            containerID: tab.containerID,
+            makeActive: !settings.openLinksInBackground
+        )
+    }
+
     private func openDroppedFile(_ url: URL) {
         // 与地址栏共用一份本地文件打开实现（BrowsingActions）。
         content.b.openLocalFileInTab(url, for: tab)
@@ -318,38 +380,14 @@ struct SelectedTabContent: View {
                     content.makeWebView(for: tab)
                         .overlay(alignment: .topLeading) {
                             // AI bar next to the user's text selection.
+                            // 构造拆方法（0.6.5）：闭包束加到 6 个后 body 内
+                            // 表达式 type-check 超时（onLearnReason 同款先例）。
                             if let selection = tab.browser.selectionAI {
-                                SelectionAIBar(
-                                    onExplain: {
-                                        onAskAI("请用中文解释以下选中文本的含义，如有术语请一并说明：\n\n\(selection.text)")
-                                        tab.browser.selectionAI = nil
-                                    },
-                                    onTranslate: {
-                                        onAskAI("将以下内容翻译成中文（若原文已是中文则翻译成英文），只输出译文：\n\n\(selection.text)")
-                                        tab.browser.selectionAI = nil
-                                    },
-                                    onAsk: {
-                                        content.aiSession.addSelectedTextContext(selection.text)
-                                        showAgentPanel = true
-                                        tab.browser.selectionAI = nil
-                                    },
-                                    onHighlight: { colorIndex in
-                                        if let url = tab.browser.webView.url?.absoluteString {
-                                            AnnotationStore.shared.add(
-                                                url: url, text: selection.text,
-                                                colorIndex: colorIndex)
-                                        }
-                                        tab.browser.webView.evaluateJavaScript(
-                                            "__desireApplyHighlight(\(colorIndex))",
-                                            in: nil, in: WebView.agentToolWorld,
-                                            completionHandler: nil)
-                                        tab.browser.selectionAI = nil
-                                    }
-                                )
-                                .offset(
-                                    x: min(max(selection.viewportX * tab.browser.pageZoom, 8), max(geo.size.width - 220, 8)),
-                                    y: min(max(selection.viewportY * tab.browser.pageZoom + 10, 8), max(geo.size.height - 40, 8))
-                                )
+                                selectionAIBar(selection)
+                                    .offset(
+                                        x: min(max(selection.viewportX * tab.browser.pageZoom, 8), max(geo.size.width - 220, 8)),
+                                        y: min(max(selection.viewportY * tab.browser.pageZoom + 10, 8), max(geo.size.height - 40, 8))
+                                    )
                             }
                         }
                         .frame(width: responsiveW, height: responsiveH)

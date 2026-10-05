@@ -6,12 +6,22 @@ struct SelectionAIBar: View {
     let onExplain: () -> Void
     let onTranslate: () -> Void
     let onAsk: () -> Void
+    /// 复制选中文本（0.6.5 划词工具条补全）。
+    var onCopy: (() -> Void)? = nil
+    /// 默认搜索引擎搜选中文本（0.6.5）。
+    var onSearch: (() -> Void)? = nil
     /// 划选高亮（0.3.7）：色板下标回调（AnnotationStore.palette）。
     var onHighlight: ((Int) -> Void)? = nil
     private let highlightColors = ["#ffe066", "#b2f2bb", "#a5d8ff", "#fcc2d7"]
 
     var body: some View {
         HStack(spacing: 2) {
+            if let onSearch {
+                barButton("搜索", icon: "magnifyingglass", action: onSearch)
+            }
+            if let onCopy {
+                barButton("复制", icon: "doc.on.doc", action: onCopy)
+            }
             barButton("解释", icon: "text.bubble", action: onExplain)
             barButton("翻译", icon: "character.bubble", action: onTranslate)
             barButton("问 Agent", icon: "wand.and.stars", action: onAsk)

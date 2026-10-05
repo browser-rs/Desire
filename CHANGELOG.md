@@ -2,6 +2,8 @@
 ### Added
 
 - **Reader TTS 朗读（0.6.5 首项）**：阅读模式工具条新增朗读按钮——AVSpeechSynthesizer 端上合成（零费用、数据不出机），CJK 占比自动选 zh-CN/en-US voice，暂停/继续/停止三态；离开阅读模式自动停止（onDisappear），通知 "readerSpeechStop" 可全局停。批量编辑教训重申：本轮 ReaderView 的按钮注入用 python 脚本误删 Back 按钮内部结构——构建前 git diff 抓到，Edit 工具重做。
+- **划词工具条补全（0.6.5）**：SelectionAIBar 新增「搜索」「复制」——搜索与右键"搜索…"同管线（URL 形文本直达、其余走默认引擎，后台打开偏好生效），复制进剪贴板；浮条现有七动作（搜索/复制/解释/翻译/问 Agent/高亮×4）。构造拆出 `selectionAIBar(_:)` 方法（闭包加到 6 个后 body 内表达式 type-check 超时，onLearnReason 同款先例）。
+
 
 
 ## [v0.6.4] - 2026-10-05

@@ -58,8 +58,14 @@ final class InterceptStore: ObservableObject {
     static let shared = InterceptStore()
 
     @Published private(set) var rules: [InterceptRule] = []
+    /// 会话级动态规则（0.6.4→0.6.6）：Agent `networkRules` 工具与 DevTools
+    /// 右键的临时拦截/重定向——**不持久化**，app 退出即消失；与持久规则共用
+    /// 编译/分发机制（compile key 前缀区分）。
+    @Published private(set) var sessionRules: [InterceptRule] = []
 
     private var compiled: [String: WKContentRuleList] = [:]
+    /// 规则归属（编译竞态检查用）。
+    private enum Scope { case persistent, session }
     private struct WeakController { weak var controller: WKUserContentController? }
     private var registered: [WeakController] = []
     private var addedPerController: [ObjectIdentifier: [(ruleID: UUID, list: WKContentRuleList)]] = [:]
@@ -105,6 +111,36 @@ final class InterceptStore: ObservableObject {
         DiskStore.save(rules, key: Self.storageKey)
     }
 
+    // MARK: - 会话级动态规则（不持久化；0.6.6）
+
+    /// 新增会话规则：与持久规则同一编译/分发管线，但**不落盘**、可整体清除。
+    @discardableResult
+    func addSessionRule(urlFilter: String, kind: InterceptRule.Kind, payload: String?) -> InterceptRule? {
+        let trimmed = urlFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if kind == .redirect && (payload ?? "").isEmpty { return nil }
+        let rule = InterceptRule(id: UUID(), urlFilter: trimmed, kind: kind, payload: payload)
+        sessionRules.append(rule)
+        compileAndDistribute(rule, scope: .session)
+        return rule
+    }
+
+    func removeSessionRule(id: UUID) {
+        sessionRules.removeAll { $0.id == id }
+        removeEverywhere(ruleID: id)
+    }
+
+    func clearSessionRules() {
+        let ids = sessionRules.map(\.id)
+        sessionRules.removeAll()
+        ids.forEach { removeEverywhere(ruleID: $0) }
+    }
+
+    /// 会话规则是否存活（编译竞态期可能已被删——分发前检查用）。
+    private func liveSessionRule(id: UUID) -> Bool {
+        sessionRules.contains { $0.id == id }
+    }
+
     // MARK: - WebKit distribution
 
     /// Registers a webview's content controller and applies every existing
@@ -119,16 +155,25 @@ final class InterceptStore: ObservableObject {
                 addedPerController[ObjectIdentifier(controller), default: []].append((rule.id, list))
             }
         }
+        // 会话级规则同样应用到新注册的 webview（每个新 webview 都要受约束）。
+        for rule in sessionRules {
+            if let list = compiled[compileKey(rule, session: true)] {
+                controller.add(list)
+                addedPerController[ObjectIdentifier(controller), default: []].append((rule.id, list))
+            }
+        }
     }
 
-    private func compileKey(_ rule: InterceptRule) -> String {
-        "intercept-\(rule.id.uuidString)"
+    private func compileKey(_ rule: InterceptRule, session: Bool = false) -> String {
+        session ? "intercept-session-\(rule.id.uuidString)" : "intercept-\(rule.id.uuidString)"
     }
 
-    private func compileAndDistribute(_ rule: InterceptRule) {
+    /// `scope`：persistent 规则查 `rules`（编译竞态期删除检查），session 规则
+    /// 查 `sessionRules`（不落盘）。
+    private func compileAndDistribute(_ rule: InterceptRule, scope: Scope = .persistent) {
         let source = Self.webkitRuleJSON(for: rule)
         guard let store = WKContentRuleListStore.default() else { return }
-        let key = compileKey(rule)
+        let key = compileKey(rule, session: scope == .session)
         store.compileContentRuleList(forIdentifier: key, encodedContentRuleList: source) { [weak self] list, error in
             guard let self, let list else {
                 Self.log.error("intercept: compile failed for \(rule.urlFilter, privacy: .public): \(error?.localizedDescription ?? "?", privacy: .public)")
@@ -137,13 +182,16 @@ final class InterceptStore: ObservableObject {
             Task { @MainActor in
                 // 第十批：编译回调（几十 ms）期间规则可能已被删除——先查存在
                 // 再分发，否则已删规则被 add 回所有 controller 常驻到重启。
-                guard self.rules.contains(where: { $0.id == rule.id }) else {
+                let stillLive = scope == .session
+                    ? self.liveSessionRule(id: rule.id)
+                    : self.rules.contains(where: { $0.id == rule.id })
+                guard stillLive else {
                     Self.log.info("intercept: rule removed during compile — discarding")
                     return
                 }
                 self.compiled[key] = list
                 self.addEverywhere(list: list, ruleID: rule.id)
-                Self.log.info("intercept: rule live (\(rule.kind.rawValue, privacy: .public) \(rule.urlFilter, privacy: .public))")
+                Self.log.info("intercept: rule live (\(rule.kind.rawValue, privacy: .public) \(rule.urlFilter, privacy: .public)\(scope == .session ? ", session" : ""))")
             }
         }
     }

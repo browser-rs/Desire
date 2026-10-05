@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **会话级网络拦截（0.6.6 spike 收敛）**：InterceptStore 新增 `sessionRules`（不持久化，app 退出即消失）——Agent `networkRules` 工具（add/list/clear）与桥 `POST /intercept/session/add|clear` 可为自动化任务临时屏蔽坏分析器/重定向 CDN，不污染用户过滤列表。**spike 结论（独立宿主双验证）**：① 主框架 **block 生效**但导航静默终止（无 didFail/didCommit，页面停旧渲染——marker 法断言）；② 主框架 **redirect 不生效**（WebKit 限制，工具描述已标注）；③ 工具清单/`GET /intercept` 带 session 标记。
+
 
 ## [v0.6.5] - 2026-10-05
 ### Added

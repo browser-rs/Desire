@@ -582,6 +582,35 @@ extension BrowserToolProvider {
             let board = store.board(for: conversationID)
             return "Whiteboard \(action == "append" ? "appended" : "updated"): \(blocks.count) block(s)\(skipped > 0 ? ", \(skipped) skipped" : ""), now \(board.blockListSummary()) — rendered inline in the chat (user can open the whiteboard panel to edit/export)"
 
+        case "networkRules":
+            // 会话级拦截（0.6.6）：规则不持久化、app 退出即消失——Agent 可为
+            // 自动化任务临时屏蔽坏分析器/重定向坏 CDN，不污染用户的过滤列表。
+            let action = args["action"] as? String ?? "list"
+            switch action {
+            case "add":
+                guard let urlFilter = args["urlFilter"] as? String, !urlFilter.isEmpty else {
+                    return Self.fail("Missing urlFilter (WebKit url-filter regex)")
+                }
+                let kindString = args["kind"] as? String ?? "block"
+                guard let kind = InterceptRule.Kind(rawValue: kindString) else {
+                    return Self.fail("kind must be block | redirect")
+                }
+                guard InterceptStore.shared.addSessionRule(
+                    urlFilter: urlFilter, kind: kind, payload: args["payload"] as? String) != nil else {
+                    return Self.fail("Invalid rule (redirect requires payload URL)")
+                }
+                return "Network rule added (session): \(kind.rawValue) \(urlFilter) — applies immediately, gone on app exit"
+            case "clear":
+                InterceptStore.shared.clearSessionRules()
+                return "All session network rules cleared"
+            default: // list
+                let rules = InterceptStore.shared.sessionRules
+                guard !rules.isEmpty else { return "No session network rules." }
+                return rules.enumerated().map { i, r in
+                    "\(i + 1). [\(r.kind.rawValue)] \(r.urlFilter)\(r.payload.map { " → \($0)" } ?? "")"
+                }.joined(separator: "\n")
+            }
+
         case "setUploadFile":
             // Arms a local file so the NEXT page file-picker auto-submits
             // it (the open panel is intercepted in the UI delegate). This

@@ -12,8 +12,13 @@ extension AutomationServer {
     static func interceptRules() -> [String: Any] {
         ["rules": InterceptStore.shared.rules.map { r -> [String: Any] in
             ["id": r.id.uuidString, "urlFilter": r.urlFilter, "kind": r.kind.rawValue,
-             "payload": r.payload ?? "", "enabled": r.isEnabled]
-        }]
+             "payload": r.payload ?? "", "enabled": r.isEnabled, "session": false]
+        },
+         // 会话级动态规则（0.6.6）：networkRules 工具/DevTools 的临时拦截
+         "sessionRules": InterceptStore.shared.sessionRules.map { r -> [String: Any] in
+             ["id": r.id.uuidString, "urlFilter": r.urlFilter, "kind": r.kind.rawValue,
+              "payload": r.payload ?? "", "session": true]
+         }]
     }
 
     static func addInterceptRule(urlFilter: String, kind: String, payload: String?) -> [String: Any] {

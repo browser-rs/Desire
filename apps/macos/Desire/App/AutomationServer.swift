@@ -1418,6 +1418,21 @@ final class AutomationServer {
                 ))
             case ("POST", "/intercept/clear"):
                 return try Self.json(Self.clearInterceptRules())
+            case ("POST", "/intercept/session/add"):
+                // 会话级动态规则（0.6.6）：不持久化，app 退出即消失；
+                // networkRules 工具与 DevTools 的临时拦截走这里。
+                guard let urlFilter = Self.string(body, "urlFilter"), !urlFilter.isEmpty else {
+                    return try Self.json(["error": "urlFilter required"])
+                }
+                let kind = InterceptRule.Kind(rawValue: Self.string(body, "kind") ?? "block") ?? .block
+                guard let rule = InterceptStore.shared.addSessionRule(
+                    urlFilter: urlFilter, kind: kind, payload: Self.string(body, "payload")) else {
+                    return try Self.json(["error": "invalid rule (redirect needs payload)"])
+                }
+                return try Self.json(["ok": true, "id": rule.id.uuidString, "session": true])
+            case ("POST", "/intercept/session/clear"):
+                InterceptStore.shared.clearSessionRules()
+                return try Self.json(["ok": true, "cleared": "session"])
             case ("POST", "/extract"):
                 return try await Self.json(Self.extract(
                     kind: Self.string(body, "kind") ?? "table",

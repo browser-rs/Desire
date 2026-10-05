@@ -125,6 +125,15 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "networkRules", description: "Session-scoped network interception: block or redirect requests matching a URL filter (WebKit url-filter regex syntax, e.g. '^https?://tracker\\\\.example/'). Rules are SESSION-scoped — they vanish when the app exits and never touch the user's saved filter lists. Use for: neutralizing a site's broken analytics while automating, testing ad-block behavior, redirecting a flaky CDN to a mirror. action=add requires urlFilter; clear removes all session rules; list reads them back.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "add | list | clear"),
+                    "urlFilter": AgentJSONSchemaValue(type: "string", description: "WebKit url-filter regex (add only)"),
+                    "kind": AgentJSONSchemaValue(type: "string", description: "block (default) | redirect"),
+                    "payload": AgentJSONSchemaValue(type: "string", description: "Redirect target URL (redirect only; $1 substitutes capture groups)"),
+                ], required: ["action"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "whiteboard", description: "Render structured visuals inline in the chat: mind maps, flowcharts, sequence diagrams (Mermaid syntax), data charts (ECharts option JSON), markdown tables/notes and screenshots (image blocks — reference the latest screenshot with evidence:\"last\" instead of resending base64) appear directly in the conversation as a live board card. action=render replaces the board, append adds blocks, insert adds blocks at a position, clear empties it, get reads the current board back, and edit/delete/move tweak a single block by its 1-based number (from get) — prefer those over re-rendering the whole board when refining, especially to avoid resending image data. Best for: visualizing relationships, plans, comparisons and trends extracted from pages (pair with pageExtract on DPP views) or your own reasoning. The user can open the whiteboard panel from the card to edit or export.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | insert (with index) | clear | get (read the board back as text) | edit | delete | move"),

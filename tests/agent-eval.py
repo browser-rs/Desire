@@ -133,9 +133,12 @@ class Handler(BaseHTTPRequestHandler):
         mode_text = (msgs_all[last_user_idx].get("content") or "") if last_user_idx >= 0 else ""
         round_msgs = msgs_all[last_user_idx + 1:]
         has_tool = any(m.get("role") == "tool" for m in round_msgs)
-        # 诊断（CI E6 超时用）：每次请求的分支输入落盘。
+        # 诊断（CI E6 超时用）：分支输入落盘 + stderr（CI 日志可见）。
+        import sys as _sys
+        _line = f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}"
         with open("/tmp/eval-fixture-debug.log", "a") as _dbg:
-            _dbg.write(f"req: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}\n")
+            _dbg.write(_line + "\n")
+        print(_line, file=_sys.stderr)
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

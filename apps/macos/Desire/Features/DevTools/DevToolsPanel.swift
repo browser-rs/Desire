@@ -865,6 +865,8 @@ private struct ConsolePanel: View {
 private struct NetworkPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
+    /// 会话拦截规则（0.6.6 徽标/清除按钮的数据源）。
+    @ObservedObject var interceptStore = InterceptStore.shared
     var tab: Tab?
     /// 在应用里新标签页打开（面板自己不开窗，交给 ContentView 的 tabManager）。
     var onOpenURLInNewTab: ((String) -> Void)?
@@ -938,18 +940,31 @@ private struct NetworkPanel: View {
                 Button("Export Log…") {
                     _ = store.exportNetworkLog(filteredRequests)
                 }
+                Divider()
+                // 会话级拦截规则（0.6.6）：入口 + 一眼可见的数量与清除。
+                Button("Clear Session Network Rules") {
+                    InterceptStore.shared.clearSessionRules()
+                }
+                .disabled(InterceptStore.shared.sessionRules.isEmpty)
             } label: {
-                Image(systemName: "square.on.square")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
+                HStack(spacing: 4) {
+                    Image(systemName: "square.on.square")
+                    if !InterceptStore.shared.sessionRules.isEmpty {
+                        Text("⚡\(InterceptStore.shared.sessionRules.count)")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(appAccent)
+                    }
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Copy")
+            .help("Session network rules — temp block/redirect, gone on app exit")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

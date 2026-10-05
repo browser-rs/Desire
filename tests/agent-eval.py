@@ -181,6 +181,39 @@ class Handler(BaseHTTPRequestHandler):
 
         # 超限重试模式（OVERFLOWTEST）：第一次报 context length，之后放行。
         body_text = json.dumps(body)
+        # 会话拦截（NETRULE，0.6.6）：无工具结果 → 发 networkRules(add block)；
+        # 有工具结果（"Network rule added"）→ 收尾文本。
+        if "NETRULE" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_netr_1", "type": "function",
+                    "function": {"name": "networkRules",
+                                 "arguments": json.dumps({"action": "add",
+                                                          "urlFilter": "^https://eval-nrule\\.test/",
+                                                          "kind": "block"})}}
+            chunk = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "NETRULE" in mode_text and has_tool:
+            reply = "NETRULE-DONE"
+            chunk = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 提问模式（ASKME）：发一个 askUser 工具调用（验证挂起/超时/自动弹面板）。
         if "ASKME" in mode_text and not has_tool:
             call = {"index": 0, "id": "call_ask_1", "type": "function",
@@ -240,6 +273,39 @@ class Handler(BaseHTTPRequestHandler):
                                   "finish_reason": None}]}
             self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             done = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        # 会话拦截（NETRULE，0.6.6）：无工具结果 → 发 networkRules(add block)；
+        # 有工具结果 → 收尾文本。
+        if "NETRULE" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_netrules_1", "type": "function",
+                    "function": {"name": "networkRules",
+                                 "arguments": json.dumps({"action": "add",
+                                                          "urlFilter": r"^https://eval-nrule\.test/",
+                                                          "kind": "block"})}}
+            chunk = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-nr", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "NETRULE" in mode_text and has_tool:
+            reply = "NETRULE-DONE"
+            chunk = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-nr2", "object": "chat.completion.chunk", "created": int(time.time()),
                     "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
@@ -620,6 +686,26 @@ def case_overflow_retry():
 FIXTURE_ITEMS = []
 
 
+def case_network_rules():
+    """networkRules 会话拦截（0.6.6）：加规则 → 断言轨迹与 /intercept 的
+    sessionRules → 清理。"""
+    msgs = run_case("EVAL-NETRULE 屏蔽 eval-nrule.test 的请求")
+    _, assistant, tools = last_exchange(msgs)
+    turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+    step = next((s for s in turn.get("steps") or [] if s.get("action") == "networkRules"), None)
+    check("E6 networkRules 被调用", step is not None)
+    result = (step or {}).get("result") or ""
+    check("E6 工具结果确认会话规则", "Network rule added (session)" in result)
+    check("E6 轨迹无 threwError", step.get("threwError") is not True)
+    seen = assistant.get("content") or ""
+    check("E6 收尾文本", "NETRULE-DONE" in seen)
+    intercept = bridge("GET", "/intercept")
+    sessions = intercept.get("sessionRules") or []
+    check("E6 /intercept 会话规则在场", any("eval-nrule" in (x.get("urlFilter") or "") for x in sessions))
+    # 清理：清掉会话规则（不依赖模型）
+    bridge("POST", "/intercept/session/clear")
+
+
 def case_fixtures():
     """真实 👍 语料回放：每条 goal 在假端点环境跑一个完整回合，断言系统
     契约在个性化改动后仍成立（system 唯一第 0 位 + notes 折叠语义）。
@@ -662,7 +748,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
          ("E4 overflow-retry", case_overflow_retry),
-         ("E5 fixtures-replay", case_fixtures)]
+         ("E5 fixtures-replay", case_fixtures),
+         ("E6 network-rules", case_network_rules)]
 
 results = []
 

@@ -10,6 +10,8 @@
 - **会话级网络拦截（0.6.6 spike 收敛）**：InterceptStore 新增 `sessionRules`（不持久化，app 退出即消失）——Agent `networkRules` 工具（add/list/clear）与桥 `POST /intercept/session/add|clear` 可为自动化任务临时屏蔽坏分析器/重定向 CDN，不污染用户过滤列表。**spike 结论（独立宿主双验证）**：① 主框架 **block 生效**但导航静默终止（无 didFail/didCommit，页面停旧渲染——marker 法断言）；② 主框架 **redirect 不生效**（WebKit 限制，工具描述已标注）；③ 工具清单/`GET /intercept` 带 session 标记。
 - **pixelRatio 模拟生效（0.6.6 响应式收尾）**：`PixelRatioOverride` 覆写 `window.devicePixelRatio`（defineProperty 可配置、保存原描述符可还原）——此前 ResponsiveConfig.pixelRatio 只是工具栏文案（"@2x"），页面 JS 从未读到模拟值。接线：响应式启用时 apply、退出时还原、bar 上 DPR 步进菜单（1/2/3x）+ onChange 实时调整、`/responsive` 桥加 pixelRatio 参数。
 - **DevTools Network 会话拦截入口**：请求右键菜单新增「Block This URL (Session)」——走 0.6.6 的会话规则（不进用户过滤列表、app 退出即消失），命中写 Console 日志（⛔ 前缀）供对账。
+- **评估集扩面（E6 network-rules）**：agent-eval 新增会话拦截用例——networkRules(add) 被调用、工具结果确认会话规则、无 threwError、/intercept 的 sessionRules 在场，清理自动执行；评估 24/24。
+
 
 
 

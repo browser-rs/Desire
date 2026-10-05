@@ -319,6 +319,8 @@ class AgentSessionStore: ObservableObject {
     @Published private(set) var hasInterruptedTurn = false
     /// 回合进行中（落盘到 Conversation.turnActive）。
     private var turnCheckpointActive = false
+    /// 流式检查点节流（flushTail 高频，3s 一拍落盘）。
+    private var lastStreamCheckpoint = Date()
     /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
     @Published private(set) var lastPromptTokens = 0
     /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
@@ -865,9 +867,18 @@ class AgentSessionStore: ObservableObject {
         // Persist WITHOUT image payloads — a few screenshots would balloon
         // the conversation JSON (and every launch's loadAll) to megabytes.
         // The text survives; images are session-scoped.
-        let persistedMessages = messages.map { msg -> AgentMessage in
+        // 落盘副本**现脱敏**当前回合的 assistant 文本（流式检查点让保存变得
+        // 高频——磁盘上任何时刻都不该有未脱敏原文；内存不动，回合结束的
+        // redactTurnSecrets 才改内存并触发 UI 更新）。只扫最后一条 user 之后
+        // 的 assistant——更早的回合已在各自的回合收尾脱敏过。
+        let lastUserIdx = messages.lastIndex(where: { $0.role == .user })
+        let persistedMessages = messages.enumerated().map { index, msg -> AgentMessage in
             var copy = msg
             copy.imageDataURIs = nil
+            if let lastUserIdx, index > lastUserIdx, msg.role == .assistant,
+               let text = copy.content, !text.isEmpty {
+                copy.content = SecretRedactor.redact(text, knownKeys: preference.secretsForRedaction())
+            }
             return copy
         }
         // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
@@ -1162,6 +1173,7 @@ class AgentSessionStore: ObservableObject {
         var hitIterationCap = false
         // 检查点：回合开工即落盘"进行中"——此后任何一步都有断点可循。
         turnCheckpointActive = true
+        lastStreamCheckpoint = Date()
         // 窗口标题跟随选中标签——回合开始刷一次注册表快照。
         windowTitle = boundTabManager?.windowTitle
         AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
@@ -1242,6 +1254,12 @@ class AgentSessionStore: ObservableObject {
                         messages[idx] = msg
                     }
                     streamingVersion += 1
+                    // 流式检查点（3s 节流）：长回答打一半强杀，已流出的正文
+                    // 随检查点落盘（落盘侧已脱敏，见 persistedMessages）。
+                    if Date().timeIntervalSince(lastStreamCheckpoint) > 3 {
+                        lastStreamCheckpoint = Date()
+                        checkpointSave()
+                    }
                 }
                 for try await event in stream {
                     if isCancelled {

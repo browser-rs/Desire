@@ -388,6 +388,13 @@ struct ContentView: View {
         .onReceive(UserPromptCenter.shared.$pending) { pending in
             if pending != nil, !showAgentPanel { showAgentPanel = true }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            // 多窗口联动：deliveryTarget 跟随 key window——此前只有
+            // "最新创建者接管"，切回旧窗后语音/定时/无 window 桥调用仍会
+            // 打到新窗的会话（0.6.2 验收抓到）。
+            guard note.object as? NSWindow === hostingWindow else { return }
+            AgentScheduler.shared.deliveryTarget = aiSession
+        }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
             // window, not in every open window at once.

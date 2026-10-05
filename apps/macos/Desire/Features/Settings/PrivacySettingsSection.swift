@@ -50,6 +50,28 @@ struct PrivacySettingsStoreSection: View {
                     )
                     SettingsRowDivider()
 
+                    // Cookie 弹窗自动处理（0.6.5）：分段三档，默认关。
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal")
+                                .foregroundStyle(.secondary)
+                            Text("Cookie Banner Auto-Handling")
+                            Spacer()
+                            Picker("", selection: $settings.cookieBannerPolicy) {
+                                Text("Off").tag("off")
+                                Text("Reject All").tag("reject")
+                                Text("Accept All").tag("accept")
+                            }
+                            .labelsHidden()
+                            .frame(width: 130)
+                        }
+                        Text("Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                    SettingsRowDivider()
+
                     SettingsToggleRow(
                         "HTTPS Upgrade",
                         subtitle: "Try to upgrade HTTP requests to HTTPS automatically.",

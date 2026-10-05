@@ -131,6 +131,12 @@ extension ContentView {
                 // 聚合统计（广告拦截面板的数据源）：站点 key 原样入库。
                 AdBlockStatsStore.shared.record(count: count, site: site, action: action)
             },
+            onCookieGuardHandled: { pref, label in
+                // Cookie 弹窗自动处理命中（0.6.5）：toast 告知（视频拦截同款通道）。
+                let verb = pref == "reject" ? String(localized: "已拒绝") : String(localized: "已接受")
+                videoAdBlockerToast = String(localized: "Cookie 弹窗\(verb)（\(label)）")
+                scheduleVideoAdBlockerToastReset()
+            },
             onInspectedElement: { element in
                 devToolsStore.setInspectedElement(element)
             },

@@ -120,6 +120,10 @@ class Settings: ObservableObject {
     @Published var largePageGuard: Bool {
         didSet { UserDefaults.standard.set(largePageGuard, forKey: "largePageGuard") }
     }
+    /// Cookie 弹窗自动处理（0.6.5）：off | reject | accept（默认 off）。
+    @Published var cookieBannerPolicy: String {
+        didSet { UserDefaults.standard.set(cookieBannerPolicy, forKey: "cookieBannerPolicy") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -155,6 +159,7 @@ class Settings: ObservableObject {
         openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")
         verticalTabBar = UserDefaults.standard.bool(forKey: "verticalTabBar")
         largePageGuard = UserDefaults.standard.object(forKey: "largePageGuard") as? Bool ?? true
+        cookieBannerPolicy = UserDefaults.standard.string(forKey: "cookieBannerPolicy") ?? "off"
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be

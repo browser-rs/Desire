@@ -286,6 +286,23 @@ class BrowserState: ObservableObject {
         for script in UserScriptLoader.builtinScripts() {
             config.userContentController.addUserScript(script)
         }
+        // Cookie 弹窗自动处理（0.6.5）：policy 变化对新导航生效（与站点
+        // 偏好模式一致）；内插偏好给 cookie-banner-guard.js。
+        let cookiePolicy = AppState.live?.settings.cookieBannerPolicy ?? "off"
+        if cookiePolicy != "off" {
+            let guard_js = """
+            window.__desireCookiePref = '\(cookiePolicy)';
+            """
+            config.userContentController.addUserScript(
+                WKUserScript(source: guard_js, injectionTime: .atDocumentStart,
+                             forMainFrameOnly: false, in: .page))
+            if let url = Bundle.main.url(forResource: "cookie-banner-guard", withExtension: "js"),
+               let source = try? String(contentsOf: url, encoding: .utf8) {
+                config.userContentController.addUserScript(
+                    WKUserScript(source: source, injectionTime: .atDocumentEnd,
+                                 forMainFrameOnly: false, in: .page))
+            }
+        }
         // 站点静音劫持（0.6.3，page world）：static 部分常驻；开关由
         // Tab.isMuted 的 didSet 经 TabAudioControl.apply 运行时切换。
         config.userContentController.addUserScript(TabAudioControl.userScript())
@@ -487,6 +504,8 @@ struct WebView: NSViewRepresentable {
     /// "youtube" / "bilibili" / "tencent" / ... `actionKey` is optional
     /// ("skip" / "seek") — when set the count is already 1.
     var onVideoAdBlocked: ((Int, String?, String?) -> Void)?
+    /// Cookie 弹窗自动处理命中（0.6.5）：(pref, buttonLabel)。
+    var onCookieGuardHandled: ((String, String) -> Void)?
     var onInspectedElement: ((InspectedElement) -> Void)?
     /// WebExtension API（0.2.13）：tabs.* 的宿主窗口通道。
     var onQueryTabs: (() -> [[String: Any]])?
@@ -656,7 +675,7 @@ struct WebView: NSViewRepresentable {
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "elementPicker", "videoAdBlocked", "devConsole", "netEntry",
-            "otpDetect", "pagePerf",
+            "otpDetect", "pagePerf", "cookieGuardHandled",
         ]
 
         /// desireExt handler 注册台账（associated object 挂 webview，见
@@ -1122,6 +1141,8 @@ struct WebView: NSViewRepresentable {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"
             } else if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+            } else if message.name == "cookieGuardHandled", let dict = message.body as? [String: String] {
+                parent.onCookieGuardHandled?(dict["pref"] ?? "", dict["label"] ?? "")
             } else if message.name == "pagePerf", let dict = message.body as? [String: Int] {
                 parent.state.lastDomNodeCount = dict["domNodes"] ?? 0
                 parent.state.lastLongTaskCount = dict["longTasks"] ?? 0

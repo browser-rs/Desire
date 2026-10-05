@@ -187,11 +187,15 @@ thread dispatch stuck` 计数 = 0）、三语补全（新键 en/zh-Hant 显式�
 - **划词工具条**：选中文字浮出轻工具条（搜索/复制/翻译/问 Agent/加入白板），
   定位选区 rect（JS `getBoundingClientRect` 上报），与右键菜单项并存可配。
   验收：五动作各通其既有管线，浮条不遮选区。
-- **隐私仪表盘**：设置或新标签页入口——本周拦截统计（广告/追踪器/Cookie/
-  first-click 劫持各计数，按站点 Top 列表），数据全部本地（无遥测红线不变）。
-  验收：计数与 DevTools 拦截记录对账一致。
-- **Cookie 弹窗自动处理**：规则化一键接受/拒绝（EasyList Cookie 词表转换 +
-  用户默认偏好"全拒/全受/每次问"），命中走既有提示条通道可回滚。
+- ✅ **隐私仪表盘点盘（2026-10-05）**：拦截统计**已存在**——AdBlockStatsStore
+  （total/today/perDomain/recent）+ AdBlockPanel（大数字/Top 站点/最近事件）+
+  菜单（工具 → Ad Blocking Stats）+ 桥 /ads/stats。**平台限制**：WKContentRuleList
+  无拦截回调 API，EasyList 内容规则的拦截数无法精确计数（诚实口径，除非未来
+  走 JS 近似扫描）。增量 = Cookie 弹窗自动处理（见下）。
+- **Cookie 弹窗自动处理（轻量版先行）**：cookie-banner-guard.js 按已知 CMP
+  词表（OneTrust/CookieBot/cookie-banner/gdpr 等关键词）识别弹窗与按钮，
+  按用户偏好自动点击"拒绝/接受"；设置三档（关/全拒/全受，默认关）；
+  命中走提示条通道。
 - **视频速度控制**：页面内视频悬浮控制（0.5–3x、快捷键步进），注入管线
   复用（页面世界 user script + 悬浮 UI）；与 PiP/全屏共存。
 

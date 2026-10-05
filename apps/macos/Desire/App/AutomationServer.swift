@@ -689,13 +689,25 @@ final class AutomationServer {
                     tab.responsiveConfig.customWidth = preset.width
                     tab.responsiveConfig.customHeight = preset.height
                 }
-                tab.responsiveConfig.isEnabled = enabled   // onChange → Applier
-                if let pr = (body["pixelRatio"] as? Double) ?? (Self.string(body, "pixelRatio").flatMap(Double.init)) {
-                    // 响应式启用中实时调整 DPR 覆写（onChange → PixelRatioOverride）
-                    tab.responsiveConfig.pixelRatio = min(4, max(1, pr))
+                let pixelRatio = (body["pixelRatio"] as? Double) ?? (Self.string(body, "pixelRatio").flatMap(Double.init))
+                let size = tab.responsiveConfig.effectiveSize
+                // 配置变更**异步**执行（0.6.6）：同步走会触发 SwiftUI onChange →
+                // Applier（UA 换装/触摸模拟/DPR 覆写三层 evaluateJavaScript），
+                // 响应发不出去、桥 listener 随后整体失联（E2E 实测）。跳一帧
+                // 再改配置，响应先回。
+                Task { @MainActor in
+                    tab.responsiveConfig.isEnabled = enabled   // onChange → Applier
+                    if let pixelRatio {
+                        tab.responsiveConfig.pixelRatio = min(4, max(1, pixelRatio))
+                    }
                 }
-                return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize,
-                                      "pixelRatio": tab.responsiveConfig.pixelRatio])
+                // 注意：size 是 CGSize——NSJSONSerialization 不能序列化，
+                // ObjC 异常穿 async 帧会把主 actor 打成僵尸（桥全灭）。
+                return try Self.json([
+                    "ok": true, "enabled": enabled,
+                    "size": ["width": Double(size.width), "height": Double(size.height)],
+                    "pixelRatio": pixelRatio ?? tab.responsiveConfig.pixelRatio,
+                ])
             case ("GET", "/approvals"):
                 return try Self.json(Self.pendingApproval(window: Self.string(query, "window")))
             case ("GET", "/beforeunload"):

@@ -2,6 +2,8 @@
 ### Fixed
 
 - **发现既有自动化 bug：`/responsive` 杀死桥 listener（未修，记录在案）**：POST /responsive（enabled=true）触发响应式装配后，桥 listener 对一切后续请求（含 /state）无响应直至 app 重启——stash 掉本批全部改动后在 HEAD 上同样复现（既有限制，非新引入）。**根因待查**（主 actor 存活——DSP-PING 探针有响应；listener accept/处理循环死）。影响面：仅自动化桥（UI 里的响应式模式正常），pixelRatio 的 E2E 断言因此受阻。
+- **POST /responsive 挂死桥 listener（根因修复）**：响应载荷里的 **CGSize** 无法被 NSJSONSerialization 序列化——ObjC 异常穿 async 帧把主 actor 打成僵尸态（已知事故模式第 3 例），桥对一切后续请求无响应。修复：size 序列化为 width/height 字典；配置变更移入异步 Task（响应先回、UI 变更随后）。E2E：/responsive 不再挂、dpr 覆写 2→3→还原 2 全程桥存活。
+
 
 ### Added
 

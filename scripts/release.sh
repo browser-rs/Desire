@@ -232,7 +232,7 @@ stage_smoke() {
   SMOKE_START=$(python3 -c 'import time; print(time.time())')
   open "$SMOKE_DIR/Desire.app" --args --automation
   bridge_wait 30 || die "桥 30 秒内没起来（/state 无响应）——查 /usr/bin/log show --predicate 'process == \"Desire\"'"
-  python3 -c "print(f'启动→桥就绪: {time.time()-$SMOKE_START:.1f}s（参考基线：开发机 0.8s；>10s 查日志分段）')"
+  python3 -c "import time; print(f'启动→桥就绪: {time.time()-$SMOKE_START:.1f}s（参考基线：开发机 0.8s；>10s 查日志分段）')"
   curl -s -m 5 http://127.0.0.1:8799/agent/stats | grep -q "conversations" || die "/agent/stats 异常"
   curl -s -m 5 http://127.0.0.1:8799/ai/profiles | grep -q "profiles" || die "/ai/profiles 异常"
   app_quit

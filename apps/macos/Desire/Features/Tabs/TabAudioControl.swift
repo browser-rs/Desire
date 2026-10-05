@@ -60,6 +60,10 @@ enum TabAudioControl {
           return 'ok';
         })();
         """
-        _ = try? await webView.evaluateJavaScript(js, in: nil, in: .page)
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            webView.evaluateJavaScript(js, in: nil, in: .page) { _ in
+                cont.resume()
+            }
+        }
     }
 }

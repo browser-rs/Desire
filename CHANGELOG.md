@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- **0.6.3 发版闸门拦截一条 Release 警告**：TabAudioControl 的 `try? await` 打在同步 evaluateJavaScript 上（Release 配置下 WKWebView 无 async 重载推导）——改 withCheckedContinuation 包装。
+
+
 ## [v0.6.3] - 2026-10-05
 ### Added
 

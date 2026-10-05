@@ -54,6 +54,7 @@ PORT = int(os.environ.get("EVAL_PORT") or 8880)
 SECRET_PATH = os.environ.get("EVAL_SECRET_PATH")
 SECRET2_PATH = os.environ.get("EVAL_SECRET2_PATH")
 MISSING_PATH = os.environ.get("EVAL_MISSING_PATH")
+BIG_PATH = os.environ.get("EVAL_BIG_PATH")
 # OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
 # 用于验证应用会"压缩预算减半重试"。
 overflow_seen = 0
@@ -460,6 +461,66 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
+        # 工具结果摘要缓存（E9，0.6.7）：读 20KB 大文件 → 应用把结果截成
+        # 「头部 + getToolResult 句柄」→ 模型按句柄取回全文（含 END 哨兵）。
+        # 三轮分支；任一轮形态不符都回可判定的降级文本。
+        if "EVAL-BIG" in mode_text:
+            tool_msgs = [m for m in msgs_all if m.get("role") == "tool"]
+            if not tool_msgs:
+                call = {"index": 0, "id": "call_e9a", "type": "function",
+                        "function": {"name": "readFile",
+                                     "arguments": json.dumps({"path": BIG_PATH})}}
+                chunk = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                        "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            last_tool = tool_msgs[-1]
+            content = last_tool.get("content") or ""
+            if len(tool_msgs) == 1:
+                if "getToolResult(callId:" not in content or "truncated" not in content:
+                    reply = "E9DONE-notrunc"
+                else:
+                    # 从 stub 里解析总长，切**尾部** 3000 字符（END 哨兵所在）
+                    import re as _re
+                    m = _re.search(r"(\d+) chars total", content)
+                    total = int(m.group(1)) if m else 0
+                    call = {"index": 0, "id": "call_e9b", "type": "function",
+                            "function": {"name": "getToolResult",
+                                         "arguments": json.dumps({"callId": last_tool.get("tool_call_id"),
+                                                                  "offset": max(0, total - 3000),
+                                                                  "length": 3000})}}
+                    chunk = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                             "model": model,
+                             "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                          "finish_reason": None}]}
+                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                    done = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                            "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                    self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush(); self.close_connection = True
+                    return
+            else:
+                reply = "E9DONE-full" if "EVALBIG-END-SENTINEL" in content else "E9DONE-partial"
+            chunk = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-e9", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 长回答压力模式：提示里含 BIGSTREAM 时流式吐 ~40KB Markdown（含代码块、
         # 列表、表格），用来复现"流式输出卡死"。
         if "BIGPLAIN" in mode_text or "BIGSTREAM" in mode_text:
@@ -572,6 +633,12 @@ def ensure_workdir():
         "aws: AKIAIOSFODNN7EXAMPLE\n"
         "header: Bearer abcdefghijklmnopqrstuvwxyz\n")
     (workdir / "secret2.txt").write_text("second target for the parallel-read batch\n")
+    # E9（工具结果摘要缓存）：~20KB 大文件——头部 600 字符之外才有 END 哨兵，
+    # 截断 stub 里看不到它，getToolResult 取回全文才可见。
+    big = workdir / "big.txt"
+    filler = "".join(f"line {i:05d}: filler text for the oversized tool result test\n" for i in range(700))
+    big.write_text("EVALBIG-BEGIN head of a very large tool result\n" + filler +
+                   "\nEVALBIG-END-SENTINEL tail marker beyond the truncation head\n")
     script = workdir / "fixture.py"
     script.write_text(FIXTURE_SOURCE)
     port_file = workdir / "port"
@@ -580,7 +647,8 @@ def ensure_workdir():
                  "EVAL_PORT_FILE": str(port_file),
                  "EVAL_SECRET_PATH": str(secret),
                  "EVAL_SECRET2_PATH": str(workdir / "secret2.txt"),
-                 "EVAL_MISSING_PATH": str(workdir / "missing.txt")}
+                 "EVAL_MISSING_PATH": str(workdir / "missing.txt"),
+                 "EVAL_BIG_PATH": str(big)}
     global fixture_proc
     err_file = open(workdir / "fixture.err", "wb")
     fixture_proc = subprocess.Popen(
@@ -863,6 +931,17 @@ def case_whiteboard_contract():
     check("E8 收尾", "WBDONE" in (assistant.get("content") or ""))
 
 
+def case_tool_result_summary():
+    """E9 工具结果摘要缓存（0.6.7）：readFile 20KB → 请求里被截成
+    「头部 + getToolResult 句柄」（fixture 在第二轮只见 stub，END 哨兵不可见）
+    → 模型按句柄调 getToolResult 取回全文 → END 哨兵可见。全链由 fixture
+    侧断言（stub 形态、句柄取回），eval 侧断言最终收敛 E9DONE-full。"""
+    bridge("POST", "/agent/new", body={})
+    msgs = run_case("EVAL-BIG 请读取并确认大文件内容")
+    _, assistant, _ = last_exchange(msgs)
+    check("E9 截断→句柄→取回全文 全链收敛", (assistant.get("content") or "") == "E9DONE-full")
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -870,7 +949,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E5 fixtures-replay", case_fixtures),
          ("E6 network-rules（本地专属，EVAL_E6=1 开启）", case_network_rules),
          ("E7 bypass-routing", case_bypass_routing),
-         ("E8 whiteboard-contract", case_whiteboard_contract)]
+         ("E8 whiteboard-contract", case_whiteboard_contract),
+         ("E9 tool-result-summary", case_tool_result_summary)]
 
 results = []
 

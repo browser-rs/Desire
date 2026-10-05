@@ -150,6 +150,14 @@ extension BrowserToolProvider {
                 ], required: ["action"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getToolResult", description: "Read back the FULL content of an earlier tool result that was summarized in your context (oversized results are replaced by a head excerpt + this handle). Pass the toolCallId shown in the truncation marker. Optional offset/length (characters, 0-based) to slice huge results — default returns the whole content.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "callId": AgentJSONSchemaValue(type: "string", description: "The tool call id whose result to read (from the truncation marker)"),
+                    "offset": AgentJSONSchemaValue(type: "integer", description: "Optional 0-based character offset (default 0)"),
+                    "length": AgentJSONSchemaValue(type: "integer", description: "Optional max characters to return (default 20000)"),
+                ], required: ["callId"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

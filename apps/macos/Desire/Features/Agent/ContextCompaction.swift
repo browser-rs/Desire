@@ -62,6 +62,38 @@ enum ContextCompaction {
         return out
     }
 
+    /// **超长工具结果的请求侧摘要**（0.6.7 工具结果摘要缓存）：kept 轮次里的 tool
+    /// 消息若超过阈值，**请求里**替换为「头部摘要 + 重取句柄」——落盘内容保持完整
+    /// （面板/轨迹/历史会话都读原文）。模型需要全文时按句柄调 `getToolResult` 取回
+    /// （或切片）。只动请求副本（AgentMessage 是值类型），每轮从完整 `messages`
+    /// 重建，天然幂等。
+    static func summarizingOversizedToolResults(
+        _ messages: [AgentMessage],
+        threshold: Int = 8_000,
+        headChars: Int = 600
+    ) -> (messages: [AgentMessage], savedChars: Int) {
+        var saved = 0
+        var out: [AgentMessage] = []
+        out.reserveCapacity(messages.count)
+        for message in messages {
+            guard message.role == .tool,
+                  let content = message.content, content.count > threshold,
+                  let callID = message.toolCallId, !callID.isEmpty else {
+                out.append(message)
+                continue
+            }
+            let omitted = content.count - headChars
+            let stub = String(content.prefix(headChars))
+                + "\n[…tool result truncated: \(content.count) chars total, \(omitted) omitted — "
+                + "call getToolResult(callId: \"\(callID)\") to read the full content (supports offset/length slices)]"
+            saved += content.count - stub.count
+            var trimmed = message
+            trimmed.content = stub
+            out.append(trimmed)
+        }
+        return (out, saved)
+    }
+
     /// **全数组未配对 tool_calls 清洗**（P0-F）：工具循环中途被取消时，assistant
     /// 的部分 tool_calls 已落结果、其余没有——原样发给 OpenAI 兼容服务会被以
     /// "tool_calls must be followed by tool messages" 拒绝，**且之后每一轮都如此**

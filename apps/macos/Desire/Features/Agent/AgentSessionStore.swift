@@ -1024,6 +1024,13 @@ class AgentSessionStore: ObservableObject {
         // P0-F：先修未配对 tool_calls（工具循环中途取消的残留），再进压缩——
         // 否则严格端点对之后每条请求都 400，会话报废。
         var request = ContextCompaction.repairUnpairedToolCalls(kept)
+        // 工具结果摘要缓存（0.6.7）：超长工具结果在**请求里**换成「头部 + 重取句柄」，
+        // 全文仍在会话里（getToolResult 按句柄取回）——大结果不再每轮重复吃上下文。
+        let (summarized, toolCharsSaved) = ContextCompaction.summarizingOversizedToolResults(request)
+        request = summarized
+        if toolCharsSaved > 0 {
+            Log.agent.info("tool-result summary: \(toolCharsSaved) chars replaced by handles in this request")
+        }
 
         // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
         // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，
@@ -1387,6 +1394,9 @@ class AgentSessionStore: ObservableObject {
                 try await runStream()
             } catch let error where assistantMsg == nil && !contextRetried
                                     && Self.isContextOverflowError(error) {
+                // 诊断钩子：E4 曾出现"错误匹配却未重试"的偶发（4 连挂后自愈、
+                // 无法复现）——这两行让统一日志能直接回答"重试路径走没走"。
+                Log.agent.info("overflow-retry: compacting once and retrying")
                 // 上下文超限：压缩预算减半后重试一次。被裁轮次由机械摘要顶替（见
                 // ContextCompaction），所以重试不是"失忆重发"；成功后预算被记住，
                 // 后续回合沿用 —— 相当于按这家服务的真实窗口做了校准。
@@ -1421,11 +1431,10 @@ class AgentSessionStore: ObservableObject {
                     return
                 }
             } catch {
+                Log.agent.error("overflow-retry: GENERIC catch fired (assistantMsg nil=\(assistantMsg == nil), contextRetried=\(contextRetried), overflowMatch=\(Self.isContextOverflowError(error)))")
                 fail(error)
                 return
             }
-
-                // 空回合判定：自动重试一次；再空就交给可见警告。
                 if hasContent { break }
                 // 第十一批：用户打断的回合直接退出——不重试、不报空响应错误
                 //（打断 ≠ 模型出错，报错误会误导且打断标记会被覆盖）。

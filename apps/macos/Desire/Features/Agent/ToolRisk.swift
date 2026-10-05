@@ -95,6 +95,8 @@ enum ToolRisk: Int, Comparable {
         "togglePictureInPicture",
         // Past-conversation search / reading (local files, read-only)
         "searchConversations", "readConversation",
+        // Reads back an already-stored tool result (session memory, read-only)
+        "getToolResult",
         // Self-critique (one extra model call; changes nothing)
         "reflect",
     ]

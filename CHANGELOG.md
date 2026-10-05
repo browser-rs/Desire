@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **统一日志新增重试路径诊断钩子**：上下文超限的"压缩减半重试"与终态 fail 两条路各留一行日志——E4 评估曾出现"错误匹配却未重试"的偶发（4 连挂后自愈、无法复现），此后统一日志可直接回答"重试路径走没走"。
+
 ### Fixed
 
 - **白板连续调用不再乱序（0.6.7 评估扩面揪出的真 bug）**：whiteboard 归类为 `.readonly`（免审批直达），但 get/render/edit/delete 操作**同一块板**、有严格顺序语义——此前它会被并进只读工具**并行批**（withTaskGroup 并发执行），模型一条消息里「render 完接着 edit」会乱序竞态。现在顺序敏感的只读工具（orderSensitiveReadonly）不进批、保持串行，其余只读工具的并行加速不受影响。
@@ -12,6 +16,8 @@
 - **三步首启引导（OnboardingFlowView）取代旧单屏**：① 选模型——端上模型卡（按 SystemLanguageModel availability 显隐）与 API Key 卡（直达 AI 设置）；② 隐私防护——广告/追踪拦截开关，绑定真实 ContentBlockerStore；③ 同步与个性化——同步入口 + 称呼/自定义指令；全部可跳过，完成写 `memory.onboardingCompleted`（面板不再显示）。导航统一收进自适应 footer（上一步/跳过/下一步·完成）；`finish()` 空输入不覆写既有个性化档案
 - **旁路成本归账分账 + 成本感知路由 v1（0.6.7 P0 两项）**：① 旁路模型调用（标题/记忆整理/自评/reflect 工具）的用量在 token 总量之外**逐笔记账**（种类 + 实际模型，挂本回合尾助手消息随会话落盘），`AgentUsage.of`/`UsageStats.derive` 按各笔**自己的模型**定价——成本路由后旁路跑的模型 ≠ 主模型也算得对；统计页模型列表新增「旁路调用」行，`/agent/stats` 带 `bypassTokens`。② 设置 → AI 新增「Bypass Calls」档案选择器（桥 `GET|POST /ai/bypass-profile`）：标题/记忆整理走指定（便宜）模型，默认跟随对话；评审档案语义不变（评审者 ≠ 被评审者）。旁路偏好视图直接**注入内存档案**、不读盘——DiskStore writer 在评估/大会话负载下积压可达分钟级，靠盘上读刚建的档案会撞空（评估 E7 实测后修）。评估集新增 E7（bypass-routing）：fixture 逐请求记录 model，断言标题请求走旁路档案、主回合不受影响、统计按实际模型分账。
 - **评估集 E8（whiteboard-contract）**：假 LLM 一条消息连发 10 个调用（7 个 whiteboard + screenshot + evidence append + get），按序断言全部 action 的成功文案与 Error: 契约分支（越界 edit / 缺 index / 移动越界）、读板闭环（编辑后 get 读回 `X-->Y`）、screenshot→evidence 引用链（image 块零 base64 回传、get 读出 `[image]` data URI 占位）。附：E4 失败时打印最终文本的探针，供偶发复现时定位。
+- **工具结果摘要缓存 + getToolResult 重取句柄（0.6.7 P1 收官）**：超长工具结果（readFile 60KB 上限、大页面 executeJS 等）过去在 kept 轮次里**每轮原样重发**、独吃上下文——现在请求组装时替换为「600 字符头部 + 截断标记（含总长与 getToolResult 句柄）」，落盘与会话内存保持**全文**（面板/轨迹/历史不受影响）。新工具 `getToolResult(callId, offset, length)`（readonly 免审批）按句柄读回全文或任意切片，模型「先看摘要、需要再取」；上下文压力大的多工具回合墙钟与 token 双降。纯函数（`ContextCompaction.summarizingOversizedToolResults`）进单测 harness；评估 E9 全链断言（readFile 20KB → stub 里 END 哨兵不可见 → 按句柄尾部切片取回 → 哨兵可见）。
+
 
 
 

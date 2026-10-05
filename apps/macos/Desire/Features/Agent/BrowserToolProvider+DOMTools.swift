@@ -477,6 +477,31 @@ extension BrowserToolProvider {
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 
+        case "getToolResult":
+            // 工具结果摘要缓存的重取侧（0.6.7）：按句柄（tool_call_id）读回完整
+            // 结果。落盘的 tool 消息永远是全文 —— 摘要只发生在请求组装时，会话
+            // 内存里也保有全文（压缩只裁请求，不动 messages）。
+            guard let callID = args["callId"] as? String, !callID.isEmpty else {
+                return Self.fail("Missing callId (from the truncation marker)")
+            }
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                return Self.fail("No live agent session")
+            }
+            guard let toolMessage = session.messages.last(where: { $0.role == .tool && $0.toolCallId == callID }),
+                  let content = toolMessage.content, !content.isEmpty else {
+                return Self.fail("No tool result for callId \(callID) — it may belong to another conversation or window")
+            }
+            let total = content.count
+            let offset = min(max((args["offset"] as? Int)
+                ?? (args["offset"] as? Double).map(Int.init) ?? 0, 0), total)
+            let requestedLength = (args["length"] as? Int)
+                ?? (args["length"] as? Double).map(Int.init) ?? 20_000
+            let slice = String(content.dropFirst(offset).prefix(max(0, requestedLength)))
+            guard !slice.isEmpty else {
+                return Self.fail("Empty slice at offset \(offset) (result is \(total) chars)")
+            }
+            return "[chars \(offset)–\(offset + slice.count) of \(total)]\n\(slice)"
+
         case "whiteboard":
             // 白板（§一期）：结构化块 → 本地 Mermaid/ECharts 双引擎渲染。
             // 成图**内嵌在聊天里直接看**（工具卡实时预览，2026-10-04 用户

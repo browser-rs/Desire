@@ -169,6 +169,42 @@ do {
     eq("统计：桶之和 = 总量", stats2.models.reduce(0) { $0 + $1.tokens }, 1_630)
 }
 
+// ---------- 工具结果摘要缓存（0.6.7：请求侧截断 + 重取句柄）----------
+
+do {
+    func toolMsg(_ id: String, _ content: String) -> AgentMessage {
+        var m = AgentMessage(role: .tool, content: content, toolCallId: id, toolName: "readFile")
+        return m
+    }
+    let big = String(repeating: "甲乙丙丁", count: 3_000)   // 12_000 chars
+    let small = "短结果"
+    let user = AgentMessage(role: .user, content: "问")
+    let original = [
+        user,
+        toolMsg("call_x", big),
+        toolMsg("call_y", small),
+        AgentMessage(role: .tool, content: big, toolCallId: nil, toolName: "readFile"),  // 无句柄：截不了
+    ]
+    let (summarized, saved) = ContextCompaction.summarizingOversizedToolResults(original)
+    eq("摘要：消息数不变", summarized.count, original.count)
+    check("摘要：短结果与无句柄消息原样", summarized[2].content == small && summarized[3].content == big)
+    let stub = summarized[1].content ?? ""
+    check("摘要：超长结果被截短", stub.count < 1_000 && saved > 10_000)
+    check("摘要：头部摘要在", stub.hasPrefix(String(big.prefix(600))))
+    check("摘要：句柄含 callId", stub.contains("getToolResult(callId: \"call_x\")"))
+    check("摘要：标注总长与省略数", stub.contains("\(big.count) chars total") && stub.contains("\(big.count - 600) omitted"))
+    // 落盘原文不动（summarized 是副本）
+    check("摘要：原消息内容不被修改", original[1].content == big)
+    // 幂等：对截断结果再跑一遍不再变化（长度低于阈值自然跳过，但stub含句柄也须不二次截）
+    let (again, saved2) = ContextCompaction.summarizingOversizedToolResults(summarized)
+    eq("摘要：二次运行为幂等", saved2, 0)
+    check("摘要：二次运行内容不变", again[1].content == stub)
+    // 边界：恰好等于阈值 → 不截
+    let exact = String(repeating: "x", count: 8_000)
+    let (_, saved3) = ContextCompaction.summarizingOversizedToolResults([toolMsg("call_z", exact)])
+    eq("摘要：等于阈值不截", saved3, 0)
+}
+
 // ---------- ContextCompaction ----------
 
 func sizedTurn(_ text: String, withTool: Bool = false) -> [AgentMessage] {

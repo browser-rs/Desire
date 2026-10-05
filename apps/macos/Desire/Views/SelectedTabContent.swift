@@ -434,6 +434,12 @@ struct SelectedTabContent: View {
                                 TouchSimulation.remove(from: tab.browser.webView)
                             }
                         }
+                        .onChange(of: tab.responsiveConfig.pixelRatio) { _, value in
+                            // 响应式启用中实时调整 DPR 覆写（0.6.6 收尾）。
+                            if tab.responsiveConfig.isEnabled {
+                                PixelRatioOverride.apply(value, to: tab.browser.webView)
+                            }
+                        }
                         .onChange(of: tab.responsiveConfig.isEnabled) { _, enabled in
                             // UA swap + reload: the single funnel so
                             // every enable/disable entry point behaves

@@ -1,7 +1,13 @@
 ## [Unreleased]
+### Fixed
+
+- **发现既有自动化 bug：`/responsive` 杀死桥 listener（未修，记录在案）**：POST /responsive（enabled=true）触发响应式装配后，桥 listener 对一切后续请求（含 /state）无响应直至 app 重启——stash 掉本批全部改动后在 HEAD 上同样复现（既有限制，非新引入）。**根因待查**（主 actor 存活——DSP-PING 探针有响应；listener accept/处理循环死）。影响面：仅自动化桥（UI 里的响应式模式正常），pixelRatio 的 E2E 断言因此受阻。
+
 ### Added
 
 - **会话级网络拦截（0.6.6 spike 收敛）**：InterceptStore 新增 `sessionRules`（不持久化，app 退出即消失）——Agent `networkRules` 工具（add/list/clear）与桥 `POST /intercept/session/add|clear` 可为自动化任务临时屏蔽坏分析器/重定向 CDN，不污染用户过滤列表。**spike 结论（独立宿主双验证）**：① 主框架 **block 生效**但导航静默终止（无 didFail/didCommit，页面停旧渲染——marker 法断言）；② 主框架 **redirect 不生效**（WebKit 限制，工具描述已标注）；③ 工具清单/`GET /intercept` 带 session 标记。
+- **pixelRatio 模拟生效（0.6.6 响应式收尾）**：`PixelRatioOverride` 覆写 `window.devicePixelRatio`（defineProperty 可配置、保存原描述符可还原）——此前 ResponsiveConfig.pixelRatio 只是工具栏文案（"@2x"），页面 JS 从未读到模拟值。接线：响应式启用时 apply、退出时还原、bar 上 DPR 步进菜单（1/2/3x）+ onChange 实时调整、`/responsive` 桥加 pixelRatio 参数。
+
 
 
 ## [v0.6.5] - 2026-10-05

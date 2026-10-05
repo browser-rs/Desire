@@ -510,7 +510,7 @@ final class AutomationServer {
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
-        ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int"], example: "-d '{\"enabled\":true}'")
+        ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int", "pixelRatio?:number"], example: "-d '{\"enabled\":true,\"pixelRatio\":3}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
         return eps
     }()
@@ -690,7 +690,12 @@ final class AutomationServer {
                     tab.responsiveConfig.customHeight = preset.height
                 }
                 tab.responsiveConfig.isEnabled = enabled   // onChange → Applier
-                return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize])
+                if let pr = (body["pixelRatio"] as? Double) ?? (Self.string(body, "pixelRatio").flatMap(Double.init)) {
+                    // 响应式启用中实时调整 DPR 覆写（onChange → PixelRatioOverride）
+                    tab.responsiveConfig.pixelRatio = min(4, max(1, pr))
+                }
+                return try Self.json(["ok": true, "size": tab.responsiveConfig.effectiveSize,
+                                      "pixelRatio": tab.responsiveConfig.pixelRatio])
             case ("GET", "/approvals"):
                 return try Self.json(Self.pendingApproval(window: Self.string(query, "window")))
             case ("GET", "/beforeunload"):

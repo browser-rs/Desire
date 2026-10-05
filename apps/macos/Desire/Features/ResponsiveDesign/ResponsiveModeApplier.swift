@@ -28,10 +28,21 @@ enum ResponsiveModeApplier {
             if tab.responsiveConfig.touchSimulationEnabled {
                 TouchSimulation.apply(to: webView)
             }
+            // pixelRatio 覆写（0.6.6 收尾）：页面 JS 读 devicePixelRatio 返回
+            // 模拟值——此前 ResponsiveConfig.pixelRatio 只是工具栏文案。
+            PixelRatioOverride.apply(tab.responsiveConfig.pixelRatio, to: webView)
         } else {
             webView.customUserAgent = nil   // back to the desktop Safari UA
             TouchSimulation.remove(from: webView)
+            PixelRatioOverride.remove(from: webView)
         }
+    }
+
+    /// pixelRatio 运行中调整（bar 步进器；仅响应式启用时有意义）。
+    static func applyPixelRatio(_ value: Double, to tab: Tab) {
+        guard tab.responsiveConfig.isEnabled else { return }
+        tab.responsiveConfig.pixelRatio = value
+        PixelRatioOverride.apply(value, to: tab.browser.webView)
     }
 
     /// Device-class UA for the current viewport width. Keeps the desktop UA

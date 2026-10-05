@@ -186,13 +186,27 @@ struct ResponsiveDesignBar: View {
         }
     }
 
-    /// 元信息：当前断点名 · DPR · UA 类型。
+    /// 元信息：当前断点名 · DPR · UA 类型。DPR 可步进（0.6.6 收尾：覆写
+    /// devicePixelRatio 使页面 JS 读到模拟值——此前只是工具栏文案；生效由
+    /// SelectedTabContent 的 onChange 驱动 PixelRatioOverride）。
     private var metaChip: some View {
         HStack(spacing: 5) {
             Image(systemName: "point.3.connected.trianglepath.dotted")
                 .font(.system(size: 9))
-            Text("断点 \(activeBreakpointName) · @\(Int(config.pixelRatio))x · \(uaClass)")
+            Text("断点 \(activeBreakpointName) · \(uaClass)")
                 .font(.system(size: 11))
+            Menu {
+                ForEach([1.0, 2.0, 3.0], id: \.self) { ratio in
+                    Button("@\(Int(ratio))x") {
+                        config.pixelRatio = ratio
+                    }
+                }
+            } label: {
+                Text("@\(Int(config.pixelRatio))x")
+                    .font(.system(size: 11))
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 34)
         }
         .foregroundStyle(.secondary)
     }

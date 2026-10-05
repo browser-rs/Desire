@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.6.2] - 2026-10-05
 ### Fixed
 
 - **⌘N / newWindow 静默失效（多窗口联动 E2E 抓到的既有 bug）**：带值 `WindowGroup(for: UUID.self)` 的 `openWindow` 必须用 `id:value:` 重载且 **value 传真 UUID**——id 单参重载与 `value: nil` 都是静默 no-op（新窗开不出来，桥 newWindow、CommandBus 路径全灭）。传真 UUID 直达新会话（等价 onAppear 的 mint 路径）。双窗 E2E 验收：桥按 window 参数分别 send，两窗各自会话零串台、conversationId 独立。
@@ -7,7 +7,7 @@
 
 - **回合中检查点保存**：每个工具结果写入会话时立即落盘并冲盘（`checkpointSave` = save + `DiskStore.flushSync`，含并行批与拒绝结果）——此前只在回合开工/结束落盘，中途强杀会丢掉整段工具结果，恢复时模型只看到 "[interrupted]" 占位；现在恢复后模型能看到强杀前已完成的每一步。配套桥端点 `POST /agent/open`（把指定会话装载进活跃面板——强杀后面板自动还原的不一定是被打断的那个会话，先 open 再 resume）。
 - **崩溃恢复提示**：启动时读干净退出标志（正常退出置位、启动即清除）——上次异常退出（崩溃/强杀）时提示"标签与会话已尽量恢复，被中断的回合在会话顶部有「继续」入口"；automation 模式只记日志不弹窗（E2E 友好）。
-- **多窗口 Agent 联动 v1（部分）**：会话历史列表新增跨窗徽标（对话正被哪个窗口装载、是否运行中，2s 轻刷新）与右键「在新窗口打开」（开新窗并按会话注册差集装载对话）；桥 `GET /agent/windows` 每窗补 `conversationId`/`hasInterruptedTurn`（双窗互不串台的断言面）。**发现既有 bug**：CommandBus 路径的 `.newWindow` 静默失效（`openWindow` 对带值 WindowGroup 的 id 单参重载 no-op，延后调用同样不开窗）——⌘N/桥 newWindow 疑似同源，待专修（UI 供项在第二窗口存在时已可用）。
+- **多窗口 Agent 联动 v1（部分）**：会话历史列表新增跨窗徽标（对话正被哪个窗口装载、是否运行中，2s 轻刷新）与右键「在新窗口打开」（开新窗并按会话注册差集装载对话）；桥 `GET /agent/windows` 每窗补 `conversationId`/`hasInterruptedTurn`（双窗互不串台的断言面）。**顺带修掉既有 bug ⌘N/newWindow 静默失效**（见 Fixed：带值 WindowGroup 的 openWindow 需传真 UUID）。
 - **Agent 可靠性三连（0.6.2 深化）**：① **流式检查点**——最终回答的流式写回按 3s 节流落盘，长回答打一半强杀不再丢已流出正文（恢复时完整保留）；② **落盘副本现脱敏**——saveCurrentConversation 的副本层对当前回合 assistant 文本先 `SecretRedactor` 再写（流式检查点让保存高频化后，磁盘任何时刻都不该有未脱敏原文；内存不动，回合收尾的 redactTurnSecrets 才触发 UI 更新）；③ **deliveryTarget 跟随 key window**——此前只有"最新创建者接管"，切回旧窗后语音/定时/无 window 桥调用仍打到新窗会话（didBecomeKey 通知重绑，Cmd+` 切窗实测翻转）。
 
 

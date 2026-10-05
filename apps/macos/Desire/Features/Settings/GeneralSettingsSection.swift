@@ -129,6 +129,13 @@ struct GeneralSettingsSection: View {
                         label: newTabPositionLabel
                     )
                     SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Open Links in Background",
+                        subtitle: "⌘-click and middle-click open the link in a new tab without switching to it.",
+                        systemImage: "macwindow.on.rectangle",
+                        isOn: $settings.openLinksInBackground
+                    )
+                    SettingsRowDivider()
                     SettingsPickerRow(
                         "Suspend Background Tabs After",
                         subtitle: "Free memory by suspending tabs you've switched away from.",

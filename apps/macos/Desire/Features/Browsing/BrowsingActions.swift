@@ -505,7 +505,8 @@ extension BrowsingActions {
                                         contentBlocker: contentBlocker,
                                         videoAdBlocker: videoAdBlocker,
                                         autoPlayPolicy: settings.autoPlayPolicy,
-                                        newTabPosition: settings.newTabPosition)
+                                        newTabPosition: settings.newTabPosition,
+                                        makeActive: !settings.openLinksInBackground)
             },
             onSearchText: { [weak self] text in
                 guard let self else { return }

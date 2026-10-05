@@ -403,7 +403,9 @@ class TabManager: ObservableObject {
         persistSession()
     }
 
-    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil) {
+    /// `makeActive = false`：后台打开（不抢选中——"后台打开"偏好，0.6.3）。
+    /// 仅影响选中态；插入位置仍随 `newTabPosition`。
+    func addTab(url: String? = nil, incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, newTabPosition: NewTabPosition = .end, containerID: UUID? = nil, profileDataStore: WKWebsiteDataStore? = nil, makeActive: Bool = true) {
         // P0-A：显式参数缺省时兜底窗口的档案 store——此前该参数全仓无人传，
         // Profile 的 cookie 隔离整条链路断在这里（切人物后登录态全进默认
         // store，跨档案串档）。
@@ -415,11 +417,11 @@ class TabManager: ObservableObject {
         switch newTabPosition {
         case .end:
             tabs.append(tab)
-            selectedIndex = tabs.count - 1
+            if makeActive { selectedIndex = tabs.count - 1 }
         case .afterCurrent:
             let insertIndex = min(selectedIndex + 1, tabs.count)
             tabs.insert(tab, at: insertIndex)
-            selectedIndex = insertIndex
+            if makeActive { selectedIndex = insertIndex }
         }
         persistSession()
     }

@@ -108,6 +108,10 @@ class Settings: ObservableObject {
     @Published var suspendAfterMinutes: Double {
         didSet { UserDefaults.standard.set(suspendAfterMinutes, forKey: "suspendAfterMinutes") }
     }
+    /// 链接"在后台打开"（⌘点击/中键开新标签不切换；0.6.3）。
+    @Published var openLinksInBackground: Bool {
+        didSet { UserDefaults.standard.set(openLinksInBackground, forKey: "openLinksInBackground") }
+    }
     @Published private(set) var screenshotFolder: URL {
         didSet { UserDefaults.standard.set(screenshotFolder.path, forKey: "desire.screenshotFolder.path") }
     }
@@ -140,6 +144,7 @@ class Settings: ObservableObject {
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
+        openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")
 
         // Screenshot folder: resolve from bookmark first, else fall back to
         // the persisted path, else to the default Pictures directory. Must be

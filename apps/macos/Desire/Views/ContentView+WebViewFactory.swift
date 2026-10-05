@@ -45,7 +45,7 @@ extension ContentView {
             onOpenLinkInNewTab: { url in
                 // Inherit the source tab's identity — "open in new tab" from
                 // a private/container tab must not leak into the default store.
-                tabManager.addTab(url: url.absoluteString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID)
+                tabManager.addTab(url: url.absoluteString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID, makeActive: !settings.openLinksInBackground)
             },
             onSearchText: { text in
                 // Right-click "Search …": route through the shared resolver

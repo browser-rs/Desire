@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **⌘N / newWindow 静默失效（多窗口联动 E2E 抓到的既有 bug）**：带值 `WindowGroup(for: UUID.self)` 的 `openWindow` 必须用 `id:value:` 重载且 **value 传真 UUID**——id 单参重载与 `value: nil` 都是静默 no-op（新窗开不出来，桥 newWindow、CommandBus 路径全灭）。传真 UUID 直达新会话（等价 onAppear 的 mint 路径）。双窗 E2E 验收：桥按 window 参数分别 send，两窗各自会话零串台、conversationId 独立。
+
 ### Added
 
 - **回合中检查点保存**：每个工具结果写入会话时立即落盘并冲盘（`checkpointSave` = save + `DiskStore.flushSync`，含并行批与拒绝结果）——此前只在回合开工/结束落盘，中途强杀会丢掉整段工具结果，恢复时模型只看到 "[interrupted]" 占位；现在恢复后模型能看到强杀前已完成的每一步。配套桥端点 `POST /agent/open`（把指定会话装载进活跃面板——强杀后面板自动还原的不一定是被打断的那个会话，先 open 再 resume）。

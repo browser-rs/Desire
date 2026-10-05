@@ -162,13 +162,11 @@ struct ContentView: View {
                     // NSHostingView+NSWindow approach so window lifecycle,
                     // state restoration, and standard chrome are handled by
                     // SwiftUI. See docs/ARCHITECTURE.md (L2 multi-window).
-                    // 带值组的 openWindow 必须用 id:value: 重载（id 单参重载
-                    // 对 WindowGroup(for:) 静默 no-op）。且**必须跳一帧**：
-                    // 从 CommandBus 派发栈里同步调用时环境动作静默失效
-                    // （E2E 实测，2026-10-05）——与夺焦/弹面板同一类规矩。
-                    Task { @MainActor in
-                        openWindow(id: "main", value: UUID?.none)
-                    }
+                    // 带值组的 openWindow 有两个坑（2026-10-05 E2E 实测）：
+                    // ① 必须用 id:value: 重载——id 单参重载对 WindowGroup(for:)
+                    //    静默 no-op；② value 不能传 nil——nil 是 no-op 语义，
+                    //    传真 UUID 直达新会话（等价 onAppear 的 mint 路径）。
+                    openWindow(id: "main", value: UUID())
                 },
                 toggleBookmark: { toggleBookmark() },
                 toggleFullScreen: { toggleFullScreen() },

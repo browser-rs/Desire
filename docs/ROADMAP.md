@@ -98,8 +98,10 @@ thread dispatch stuck` 计数 = 0）、三语补全（新键 en/zh-Hant 显式�
   （工具结果边界 flushSync，强杀最多丢一个执行中的工具）、桥 `POST /agent/open`
   （强杀后显式装载被中断的会话）与崩溃恢复提示。验收通过：强杀 → 重开 → open →
   resume → 最终回答产出、goal/answer/steps 轨迹连续。
-- **多窗口 Agent 联动 v1**：面板跟随前台窗口（deliveryTarget 已跟随，补跨窗会话
-  列表与"在新窗口打开此会话"）。验收：双窗口各自会话互不串台（桥断言）。
+- ✅ **多窗口 Agent 联动 v1**：会话列表跨窗徽标（哪个窗口装载/运行中）+ 右键
+  「在新窗口打开」+ 桥 `/agent/windows` 补 conversationId/hasInterruptedTurn；
+  顺带修掉 ⌘N/newWindow 静默失效（带值组 openWindow 需传真 UUID，nil 是 no-op）。
+  验收通过：桥按 window 分别 send，双窗会话零串台、conversationId 独立。
 - **崩溃恢复对话框**：启动时检测上次异常退出（(existing 已有会话恢复，补显式
   "恢复了 N 个标签/会话"提示与"重新打开"动作）。
 

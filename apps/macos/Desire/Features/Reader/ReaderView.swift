@@ -8,6 +8,21 @@ struct ReaderView: View {
     let onClose: () -> Void
 
     @State private var settings = ReaderSettings.load()
+    @ObservedObject private var speech = ReaderSpeechService.shared
+    /// 朗读源剥离 HTML 后的纯文本（body 出现一次后缓存，避免每帧重剥）。
+    @State private var plainText: String = ""
+
+    private var speechText: String { plainText.isEmpty ? Self.stripHTML(contentHTML) : plainText }
+
+    private static func stripHTML(_ html: String) -> String {
+        html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +48,42 @@ struct ReaderView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+
+                // TTS 朗读（0.6.5）：端上合成，暂停/继续/停止三态。
+                HStack(spacing: 4) {
+                    if speech.isSpeaking {
+                        Button {
+                            speech.togglePause()
+                        } label: {
+                            Image(systemName: speech.isPaused ? "play.fill" : "pause.fill")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help(speech.isPaused ? "Resume Reading" : "Pause Reading")
+
+                        Button {
+                            speech.stop()
+                        } label: {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Stop Reading")
+                    } else {
+                        Button {
+                            speech.speak(speechText)
+                        } label: {
+                            Image(systemName: "speaker.wave.3")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Read Aloud")
+                    }
+                }
+                .foregroundStyle(speech.isSpeaking ? Color.accentColor : .secondary)
 
                 // 行距切换（紧凑/标准/宽松）
                 Menu {
@@ -104,6 +155,8 @@ struct ReaderView: View {
                     .id(settingsIdentity) // 设置变化重载（HTML 模板内联样式）
             }
         }
+        // 离开阅读模式即停朗读（切标签/关面板不残留语音）。
+        .onDisappear { speech.stop() }
     }
 
     private var settingsIdentity: String {

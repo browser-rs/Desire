@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **Reader TTS 朗读（0.6.5 首项）**：阅读模式工具条新增朗读按钮——AVSpeechSynthesizer 端上合成（零费用、数据不出机），CJK 占比自动选 zh-CN/en-US voice，暂停/继续/停止三态；离开阅读模式自动停止（onDisappear），通知 "readerSpeechStop" 可全局停。批量编辑教训重申：本轮 ReaderView 的按钮注入用 python 脚本误删 Back 按钮内部结构——构建前 git diff 抓到，Edit 工具重做。
+
 
 ## [v0.6.4] - 2026-10-05
 ### Added

@@ -329,6 +329,7 @@ final class AutomationServer {
         // Browsing
         ep("GET", "/state", "All tabs (index/title/url/incognito/selected/suspended/domNodes) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
         ep("POST", "/navigate", "Navigate a tab", params: ["url:string (required)", "index?:int"], example: #"-d '{"url":"https://example.com"}'"#)
+        ep("POST", "/video-speed", "Set video playback rate for the selected tab (persisted per page via video-speed.js)", params: ["rate:number (0.25-3)", "window?:uuid"], example: #"-d '{"rate":1.5}'"#)
         ep("POST", "/back", "Go back", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/forward", "Go forward", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/reload", "Reload", params: ["index?:int"], example: "-d '{}'")
@@ -588,6 +589,18 @@ final class AutomationServer {
                 return try Self.json(Self.appState())
             case ("POST", "/navigate"):
                 return try await Self.json(Self.navigate(Self.string(body, "url"), index: Self.index(body)))
+            case ("POST", "/video-speed"):
+                // 视频速度接管（0.6.5）：rate 钳制 0.25–3，经 video-speed.js
+                // 应用到当前与未来媒体元素。E2E：executeJS 读 playbackRate 断言。
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let rate = (body["rate"] as? Double) ?? (Self.string(body, "rate").flatMap(Double.init)) else {
+                    return try Self.json(["error": "rate required (0.25–3)"])
+                }
+                let clamped = min(3, max(0.25, rate))
+                session.boundTabManager?.selectedTab?.browser.setPlaybackRate(clamped)
+                return try Self.json(["ok": true, "rate": clamped])
             case ("POST", "/back"):
                 return try await Self.json(Self.goBack(index: Self.index(body)))
             case ("POST", "/forward"):

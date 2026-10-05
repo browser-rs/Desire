@@ -139,9 +139,20 @@ class BrowserState: ObservableObject {
     @Published var contentProcessCrashed = false
     /// 大页面守护代理指标（page-perf.js 每 5s 上报；WebKit 无公开 per-tab 内存）。
     @Published var lastDomNodeCount = 0
+    /// 视频速度接管值（0.6.5；1 = 未接管）。
+    @Published var playbackRate: Double = 1
     @Published var lastLongTaskCount = 0
     @Published var lastLongTaskMs = 0
     @Published var isReadingMode = false
+
+    /// 视频速度接管（0.6.5）：经 video-speed.js 页面桥应用到当前与未来
+    /// 媒体元素；rate 钳制 0.25–3。
+    func setPlaybackRate(_ rate: Double) {
+        playbackRate = min(3, max(0.25, rate))
+        webView.evaluateJavaScript(
+            "window.__desireVideoSpeed && window.__desireVideoSpeed.set(\(playbackRate))",
+            completionHandler: nil)
+    }
     /// **内建 PDF 查看器**：主框架导航落 PDF 且 WKWebView 不显示时，取消
     /// 导航、下载到本地临时文件、置此 URL——SelectedTabContent 渲染
     /// PDFViewerView（PDFKit）。nil = 非 PDF 查看态。关闭 = 置 nil 并回

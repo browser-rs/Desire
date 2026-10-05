@@ -40,6 +40,19 @@ class BrowserWKWebView: WKWebView {
             let bgImageURL = info["bgImageUrl"].flatMap(URL.init)
             let selection = info["selection"]
 
+            // 视频速度（0.6.5）：子菜单步进，接管值经 video-speed.js 应用到
+            // 当前与未来媒体元素；对无视频页面同样可用（pre-armed）。
+            let speedItem = NSMenuItem(title: String(localized: "Video Speed"), action: nil, keyEquivalent: "")
+            let speedMenu = NSMenu()
+            for rate in [0.5, 1.0, 1.25, 1.5, 2.0, 3.0] {
+                let mi = NSMenuItem(title: String(format: "%.2gx", rate), action: #selector(self.setVideoSpeed(_:)), keyEquivalent: "")
+                mi.target = self
+                mi.representedObject = rate
+                speedMenu.addItem(mi)
+            }
+            speedItem.submenu = speedMenu
+            menu.addItem(speedItem)
+
             if let sel = selection, !sel.isEmpty {
                 let truncated = sel.count > 30 ? String(sel.prefix(30)) + "…" : sel
                 let search = NSMenuItem(title: String(localized: "Search “\(truncated)”"), action: #selector(self.searchSelection), keyEquivalent: "")
@@ -140,6 +153,13 @@ class BrowserWKWebView: WKWebView {
                 }
             }
         }
+    }
+
+    @objc private func setVideoSpeed(_ sender: NSMenuItem) {
+        guard let rate = sender.representedObject as? Double else { return }
+        evaluateJavaScript(
+            "window.__desireVideoSpeed && window.__desireVideoSpeed.set(\(rate))",
+            completionHandler: nil)
     }
 
     @objc private func searchSelection(_ sender: NSMenuItem) {

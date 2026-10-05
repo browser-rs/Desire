@@ -35,6 +35,16 @@ final class PageEventHub: ObservableObject {
     /// 策略常量/纯逻辑在 PageEventPolicy（进纯逻辑单测）。
     private var hostEventTimes: [String: [Date]] = [:]
     private var recentEvents: [String: Date] = [:]
+    /// 已派发事件环形历史（0.6.7 DevTools DPP 检查器消费）。
+    struct FiredEvent: Identifiable, Equatable {
+        let id = UUID()
+        let at: Date
+        let host: String
+        let name: String
+        let detail: [String: String]
+    }
+    @Published private(set) var firedEvents: [FiredEvent] = []
+    private static let firedEventsCap = 30
 
     private init() {
         siteModes = UserDefaults.standard.dictionary(forKey: "dpp.eventModes") as? [String: String] ?? [:]
@@ -94,6 +104,11 @@ final class PageEventHub: ObservableObject {
         if let last = recentEvents[debounceKey],
            now.timeIntervalSince(last) < PageEventPolicy.debounceInterval { return }
         recentEvents[debounceKey] = now
+        // 检查器事件流（0.6.7）：环形历史供 DevTools DPP 页签展示。
+        firedEvents.insert(FiredEvent(at: now, host: host, name: eventName, detail: detail), at: 0)
+        if firedEvents.count > Self.firedEventsCap {
+            firedEvents.removeLast(firedEvents.count - Self.firedEventsCap)
+        }
         // 事件风暴防护 ②：单 host 滑动窗口限频（60s 内 ≤10 条）
         guard var times = PageEventPolicy.filterRateWindow(hostEventTimes[host] ?? [], now: now) else {
             Self.log.info("DPP event dropped (rate window): \(host, privacy: .public)")

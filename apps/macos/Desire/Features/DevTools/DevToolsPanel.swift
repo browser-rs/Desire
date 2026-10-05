@@ -61,6 +61,15 @@ struct DevToolsPanel: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+            case .dpp:
+                if let tab {
+                    DPPInspectorPanel(tab: tab)
+                } else {
+                    Text("No tab selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .clipped()
@@ -90,6 +99,7 @@ struct DevToolsPanel: View {
                 case .element: store.inspectedElement = nil
                 case .application: break   // 应用页签各自带"清空"（两步确认），不走这里
                 case .performance: break   // 只读指标，无清除语义
+                case .dpp: break           // 只读声明树，无清除语义
                 }
             }, help: "Clear")
 
@@ -135,7 +145,7 @@ struct DevToolsPanel: View {
         switch panel {
         case .console: store.consoleErrorCount + store.consoleWarningCount
         case .network: store.networkFailedCount
-        case .element, .application, .performance: nil
+        case .element, .application, .performance, .dpp: nil
         }
     }
 }
@@ -151,6 +161,7 @@ private extension DevToolsStore.DevPanel {
         case .element: String(localized: "Element")
         case .application: String(localized: "Application")
         case .performance: String(localized: "Performance")
+        case .dpp: String(localized: "DPP")
         }
     }
 
@@ -161,6 +172,7 @@ private extension DevToolsStore.DevPanel {
         case .element: "viewfinder"
         case .application: "shippingbox"
         case .performance: "gauge"
+        case .dpp: "doc.text.magnifyingglass"
         }
     }
 
@@ -169,7 +181,7 @@ private extension DevToolsStore.DevPanel {
         switch self {
         case .console: store.consoleErrorCount > 0 || store.consoleWarningCount > 0
         case .network: store.networkFailedCount > 0
-        case .element, .application, .performance: false
+        case .element, .application, .performance, .dpp: false
         }
     }
 }

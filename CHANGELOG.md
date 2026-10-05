@@ -3,6 +3,8 @@
 
 - **评估集 E6（network-rules）转本地专属**：CI 上三次确定性超时（本地稳定全绿），归为环境性差异——默认 CI 跳过并标注，`EVAL_E6=1` 本地显式运行；诊断钩子（fixture 决策日志）保留。
 - **DPP 逐动作放行（0.6.7 首项）**：pageAction 审批卡新增「Always on this site」——把「审批锚点 host × 动作名」持久化到 DPPActionApprovals（DiskStore），gate 侧同 host 同动作后续调用零审批（deny 策略仍前置；含 mcp 步骤的动作不参与本表——宿主侧能力不静默执行）。设置 → 隐私的 Cookie 三档与桥 `/dpp/action-approvals`（allow/list/revoke）管理面同步落地。与访问等级正交：outbound/danger 升级挡的是静默放行，用户的点名授权是显式选择。
+- **DevTools「DPP」检查器页签（0.6.7）**：当前页协议声明的只读检查器——Profile/Page type/Content main/Sections/Ignore、Views 逐字段（DisclosureGroup 展开、类型标注）、Actions（effects: outbound 橙标 / danger 红标 / run 步骤预览）、Events（watch 选择器）、解析 Warnings；**已派发事件流**（PageEventHub 新增环形历史，cap 30）实时滚动。无声明页显示引导说明。
+
 
 
 

@@ -134,6 +134,8 @@ class DevToolsStore: ObservableObject {
         case application = "Application"
         /// 轻量性能页签（0.6.4）：DOM 节点 / long task / 挂起状态（只读）。
         case performance = "Performance"
+        /// DPP 检查器（0.6.7）：页面声明树 + 事件流（只读）。
+        case dpp = "DPP"
     }
 
     /// 插件存储（Application 页签的"扩展存储"）。Store 依赖 Store 是允许的

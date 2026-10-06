@@ -1,4 +1,14 @@
 ## [Unreleased]
+### Added
+
+- **App Intents（0.6.10 生态）**：四个系统意图进 Shortcuts.app/Siri——① Open Link in Desire（URL 参数，活动标签加载）；② Ask Desire Agent（提示词入、**最终回答出**——发送后按"新 assistant 消息 + 不再处理中"轮询收敛，5 分钟上限，与评估脚本同一判据）；③ Capture Page to Whiteboard（当前页 WKWebView 快照 → JPEG data URI → 白板 image 块，落到活动会话的板）；④ Schedule Desire Task（名称+提示词+everyMinutes/dailyAt 双参，运行期裁决，与 scheduleTask 工具同一条 add 链路）。AppShortcutsProvider 注册四个 Siri 短语；四个类名均已进构建产物 Metadata.appintents（系统动作库可见）。Shortcuts.app 编排"早报"自动化（打开站点→问 Agent→进白板）的走查待用户。
+
+- **DPP 跨源子框架声明聚合（0.7 切片一，spike 立项后首个交付）**：WebView 注入全框架采集器（forMainFrameOnly:false，.page 世界）——每个框架（含跨源）上报自身 URL，宿主对未见过的框架经 `callAsyncJavaScript(in: frameInfo)` 跑同一归一化解析，子框架视图/动作/事件**补齐进 effectiveProtocol**（同名键主框架优先，帧来源条目盖 `sourceFrame` 戳供切片二 per-frame 提取/动作路由）。导航即清空、采集幂等（已见框架丢弃）。E2E：双源 fixture（8877 主页内嵌 8878 跨源框架）——子框架 `frameProducts` 视图聚合可见（日志 views=1）。框架级提取与动作路由留切片二。
+
+- **DPP 跨源子框架提取与动作路由（0.7 切片二）**：声明来自跨源子框架的视图与动作，`pageExtract` 的抽取/翻页/空态等待与 `pageAction` 的前置检查/步骤 JS 全部**送进所属框架执行**（`callAsyncJavaScript(in: frameInfo)`——`__desireQueryAll` 在 agentToolWorld 对全部框架常驻，天然可用）；框架已导航走 → 明确失败让模型 `pageProtocol` 刷新。切片一的 `sourceFrame` 戳即路由依据。E12 全链验收：双源 fixture 抽取跨源框架视图，**哨兵只在子框架 DOM 里**、抽取结果含哨兵 = per-frame 执行的唯一证明（顺带修正 E12 fixture 字段作用域——fields 相对 item 元素解析，spec §4.3）。
+
+
+## [v0.6.9] - 2026-10-07
 ### Changed
 
 - **截图标注盘点说明（0.6.9 规划校准）**：路线图列的「截图标注编辑器」实际早已随 v0.6.x 前的截图功能交付（捕获浮层内七种工具：箭头/矩形/椭圆/画笔/马赛克/文字/序号 + 调色板 + 撤销重做，标注烘焙进保存的 PNG）——本版只补 OCR，标注不再重复建设。
@@ -8,20 +18,17 @@
 
 ### Added
 
+### Added
+
+- **截图 OCR（0.6.9）**：截图浮层工具栏新增「识别文字」——选区走 Vision 端上识别（zh-Hans + en-US 精确档，**显式 API 调用**，与已关闭的 Live Text 自动浮层无关；数据不出机），结果浮层可选中复制或一键进白板 note（落到当前 Agent 会话的板）。识别对象是**纯截图**（不含已画标注——用户自己打的字本来就是文本）。已用渲染已知中英文本的位图验收（两段全中）。
+
 - **DPP 一键上板（0.6.9）**：`whiteboard` 工具新增 `from: "extract"`——把**上一条 pageExtract 结果**直接转成板（视图名说明 note + Markdown 表格，列 = 条目键并集排序、单元格截 80 字符防炸帧、40 行封顶），模型不必把抽取数据再抄一遍；title 缺省用视图名。spec §5.1 语义不变（仍是宿主写板，页面无权写板）。转换器纯函数进单测 harness；评估 E11 全链（demo 商店页 pageExtract → from:"extract" → note+table 出板）。
 
 - **白板模板库（0.6.9）**：面板「+」菜单新增「从模板创建」——内置五套预置块组合（竞品对比/周报/流程复盘/会议纪要/SWOT），一键追加成板。模板即普通块数组；**分享复用既有 .board 导入/导出**（导出整板即可分享，不另设格式）。
 
-- **截图 OCR（0.6.9）**：截图浮层工具栏新增「识别文字」——选区走 Vision 端上识别（zh-Hans + en-US 精确档，**显式 API 调用**，与已关闭的 Live Text 自动浮层无关；数据不出机），结果浮层可选中复制或一键进白板 note（落到当前 Agent 会话的板）。识别对象是**纯截图**（不含已画标注——用户自己打的字本来就是文本）。已用渲染已知中英文本的位图验收（两段全中）。
-
 - **悬浮球 v4：可定制触盘 + 拖拽投递**：① 触盘 2×2 槽位**八选四**（Agent 对话/语音/总结本页/白板/截图/翻译本页/任务计划/自定义提示词），设置 → 悬浮球四个选择器换槽（同能力换槽 = 两槽互换，永不丢能力），槽位与「自定义提示词」文本持久化（坏档回退 V3 定稿布局）；② **拖拽投递**——拖链接（URL）或网页选区（文本）到球上，球放大 + 强调环提示，松手打开 Agent 面板并以带上下文的提示起回合（链接 → "打开并阅读总结"；选区 → 原文随提示投喂，2000 字符封顶）。新钩子 `onSendPrompt`/`onScreenshot` 由 ContentView 注入；槽位解码器纯函数进单测 harness（410 项）。触盘/拖拽交互走查待用户实测。
+
 - **白板演示模式（0.6.9 P1）**：面板工具条新增「演示」——逐块步进放映（复用同一双引擎渲染管线出单块 spec），底部 ←/→ 步进条 + Esc 退出；放映态不响应编辑，块仍保留原位。
-- **App Intents（0.6.10 生态）**：四个系统意图进 Shortcuts.app/Siri——① Open Link in Desire（URL 参数，活动标签加载）；② Ask Desire Agent（提示词入、**最终回答出**——发送后按"新 assistant 消息 + 不再处理中"轮询收敛，5 分钟上限，与评估脚本同一判据）；③ Capture Page to Whiteboard（当前页 WKWebView 快照 → JPEG data URI → 白板 image 块，落到活动会话的板）；④ Schedule Desire Task（名称+提示词+everyMinutes/dailyAt 双参，运行期裁决，与 scheduleTask 工具同一条 add 链路）。AppShortcutsProvider 注册四个 Siri 短语；四个类名均已进构建产物 Metadata.appintents（系统动作库可见）。Shortcuts.app 编排"早报"自动化（打开站点→问 Agent→进白板）的走查待用户。
-- **DPP 跨源子框架声明聚合（0.7 切片一，spike 立项后首个交付）**：WebView 注入全框架采集器（forMainFrameOnly:false，.page 世界）——每个框架（含跨源）上报自身 URL，宿主对未见过的框架经 `callAsyncJavaScript(in: frameInfo)` 跑同一归一化解析，子框架视图/动作/事件**补齐进 effectiveProtocol**（同名键主框架优先，帧来源条目盖 `sourceFrame` 戳供切片二 per-frame 提取/动作路由）。导航即清空、采集幂等（已见框架丢弃）。E2E：双源 fixture（8877 主页内嵌 8878 跨源框架）——子框架 `frameProducts` 视图聚合可见（日志 views=1）。框架级提取与动作路由留切片二。
-- **DPP 跨源子框架提取与动作路由（0.7 切片二）**：声明来自跨源子框架的视图与动作，`pageExtract` 的抽取/翻页/空态等待与 `pageAction` 的前置检查/步骤 JS 全部**送进所属框架执行**（`callAsyncJavaScript(in: frameInfo)`——`__desireQueryAll` 在 agentToolWorld 对全部框架常驻，天然可用）；框架已导航走 → 明确失败让模型 `pageProtocol` 刷新。切片一的 `sourceFrame` 戳即路由依据。E12 全链验收：双源 fixture 抽取跨源框架视图，**哨兵只在子框架 DOM 里**、抽取结果含哨兵 = per-frame 执行的唯一证明（顺带修正 E12 fixture 字段作用域——fields 相对 item 元素解析，spec §4.3）。
-
-
-
 
 
 

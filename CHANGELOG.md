@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.6.10] - 2026-10-07
 ### Added
 
 - **App Intents（0.6.10 生态）**：四个系统意图进 Shortcuts.app/Siri——① Open Link in Desire（URL 参数，活动标签加载）；② Ask Desire Agent（提示词入、**最终回答出**——发送后按"新 assistant 消息 + 不再处理中"轮询收敛，5 分钟上限，与评估脚本同一判据）；③ Capture Page to Whiteboard（当前页 WKWebView 快照 → JPEG data URI → 白板 image 块，落到活动会话的板）；④ Schedule Desire Task（名称+提示词+everyMinutes/dailyAt 双参，运行期裁决，与 scheduleTask 工具同一条 add 链路）。AppShortcutsProvider 注册四个 Siri 短语；四个类名均已进构建产物 Metadata.appintents（系统动作库可见）。Shortcuts.app 编排"早报"自动化（打开站点→问 Agent→进白板）的走查待用户。
@@ -6,8 +6,6 @@
 - **DPP 跨源子框架声明聚合（0.7 切片一，spike 立项后首个交付）**：WebView 注入全框架采集器（forMainFrameOnly:false，.page 世界）——每个框架（含跨源）上报自身 URL，宿主对未见过的框架经 `callAsyncJavaScript(in: frameInfo)` 跑同一归一化解析，子框架视图/动作/事件**补齐进 effectiveProtocol**（同名键主框架优先，帧来源条目盖 `sourceFrame` 戳供切片二 per-frame 提取/动作路由）。导航即清空、采集幂等（已见框架丢弃）。E2E：双源 fixture（8877 主页内嵌 8878 跨源框架）——子框架 `frameProducts` 视图聚合可见（日志 views=1）。框架级提取与动作路由留切片二。
 
 - **DPP 跨源子框架提取与动作路由（0.7 切片二）**：声明来自跨源子框架的视图与动作，`pageExtract` 的抽取/翻页/空态等待与 `pageAction` 的前置检查/步骤 JS 全部**送进所属框架执行**（`callAsyncJavaScript(in: frameInfo)`——`__desireQueryAll` 在 agentToolWorld 对全部框架常驻，天然可用）；框架已导航走 → 明确失败让模型 `pageProtocol` 刷新。切片一的 `sourceFrame` 戳即路由依据。E12 全链验收：双源 fixture 抽取跨源框架视图，**哨兵只在子框架 DOM 里**、抽取结果含哨兵 = per-frame 执行的唯一证明（顺带修正 E12 fixture 字段作用域——fields 相对 item 元素解析，spec §4.3）。
-- **DPP 跨源子框架动作与提取路由（0.7 切片二 + E12/E13 全链验收）**：声明来自跨源子框架的视图与动作，`pageExtract` 的抽取/翻页/空态等待与 `pageAction` 的前置检查/步骤 JS 全部**送进所属框架执行**（`callAsyncJavaScript(in: frameInfo)`——`__desireQueryAll` 在 agentToolWorld 对全部框架常驻）；框架已导航走 → 明确失败让模型 `pageProtocol` 刷新。切片一的 `sourceFrame` 戳即路由依据。E12 验证提取（哨兵只在子框架 DOM、出现在结果里 = per-frame 执行的唯一证明）；E13 验证动作全链（跨源点击 → 框架内状态变化 → 提取读回）。顺带修一个真缺口：**L2 内联声明的 actions 对象形态此前被归一化器静默丢弃**（只认数组）——现在对象形态（命名 map，与 views/events 对称）正常生效，坏条目给 warning。
-
 
 
 ## [v0.6.9] - 2026-10-07

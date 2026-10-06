@@ -49,6 +49,22 @@ return (function() {
                 if (copy.run) copy.run = JSON.stringify(copy.run);
                 return copy;
             });
+        } else if (src.actions && typeof src.actions === "object") {
+            // 对象形态（命名 map，与 views/events 对称的 L2 写法）：键即动作名。
+            // 此前静默丢弃——L2 页面按对称直觉写 actions 会整段失效且无诊断。
+            var namedActs = [];
+            for (var an in src.actions) {
+                var av = src.actions[an];
+                if (av && typeof av === "object") {
+                    var copy2 = Object.assign({}, av);
+                    if (!copy2.name) copy2.name = an;
+                    if (copy2.run) copy2.run = JSON.stringify(copy2.run);
+                    namedActs.push(copy2);
+                } else {
+                    warnings.push("actions." + an + " skipped: expected object");
+                }
+            }
+            if (namedActs.length) out.actions = namedActs;
         }
         if (src.events && typeof src.events === "object") {
             var evs = {};

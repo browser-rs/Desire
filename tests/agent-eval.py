@@ -592,6 +592,43 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush(); self.close_connection = True
             return
 
+        # 跨源 pageAction（E13，本地专属）：pageAction("frame-toggle") 路由
+        # 进子框架点击 → pageExtract 读回状态 → E13DONE-on。
+        if "EVAL-FRAME-ACT" in mode_text:
+            tool_msgs = [m for m in msgs_all if m.get("role") == "tool"]
+            if not tool_msgs:
+                call = {"index": 0, "id": "call_e13a", "type": "function",
+                        "function": {"name": "pageAction",
+                                     "arguments": json.dumps({"name": "frame-toggle"})}}
+                finish = "tool_calls"
+            elif len(tool_msgs) == 1:
+                call = {"index": 0, "id": "call_e13b", "type": "function",
+                        "function": {"name": "pageExtract",
+                                     "arguments": json.dumps({"view": "frameState"})}}
+                finish = "tool_calls"
+            else:
+                extract = tool_msgs[-1].get("content") or ""
+                reply = "E13DONE-on" if "E13-FRAME-ON" in extract else "E13DONE-off"
+                call = None
+                finish = "stop"
+            if call is not None:
+                chunk = {"id": "chatcmpl-e13", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+            else:
+                chunk = {"id": "chatcmpl-e13", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-e13", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 跨源子框架提取（E12，本地专属）：pageExtract("frameProducts") →
         # 抽取结果含哨兵（per-frame 执行证明）→ E12DONE-frame。
         if "EVAL-FRAME" in mode_text:
@@ -1086,11 +1123,19 @@ def case_dpp_frame_extract():
         '<iframe src="http://127.0.0.1:18878/frame.html" width="300" height="150"></iframe>'
         '<script>window.__desireProtocolExposed = {views: {main: {item: "h1"}}};</script></html>')
     # 字段相对 **item 元素** 解析（spec §4.3）——哨兵必须放进 item 子树。
+    # E13 增强：框架内按钮 + 状态 span + click handler + action 声明
+    # （pageAction 的点击与状态变化都发生在**子框架**——读回状态即全链证明）
     (work / "frame.html").write_text(
         '<html><h1 data-frame="yes">Cross-origin frame content '
         '<span id="marker">E12-FRAME-SENTINEL</span></h1>'
+        '<button id="frame-btn">toggle</button><span id="frame-state">off</span>'
         '<script>window.__desireProtocolExposed = {views: {frameProducts: {'
-        'item: "[data-frame]", fields: {title: {selector: "#marker"}}}}};'
+        'item: "[data-frame]", fields: {title: {selector: "#marker"},'
+        'state: {selector: "#frame-state"}}}},'
+        'actions: {"frame-toggle": {run: [{click: "#frame-btn"}],'
+        'effects: "local"}}};'
+        'document.getElementById("frame-btn").addEventListener("click",'
+        'function(){document.getElementById("frame-state").textContent = "E13-FRAME-ON";});'
         '</script></html>')
     servers = []
     for port in (18877, 18878):
@@ -1117,6 +1162,56 @@ def case_dpp_frame_extract():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def case_dpp_frame_action():
+    """E13 跨源 pageAction 全链（0.7 切片二）：动作声明在跨源子框架——
+    pageAction 路由进框架点击按钮（框架内 handler 置状态），pageExtract
+    读回状态文本。三段全在子框架内完成 = 动作路由的真验收。"""
+    import subprocess, tempfile, pathlib
+    work = pathlib.Path(tempfile.mkdtemp(prefix="dpp-iframe-act-"))
+    (work / "main.html").write_text(
+        '<html><h1>Main frame</h1>'
+        '<iframe src="http://127.0.0.1:18879/frame.html" width="300" height="150"></iframe>'
+        '<script>window.__desireProtocolExposed = {views: {main: {item: "h1"}}};</script></html>')
+    (work / "frame.html").write_text(
+        '<html><h1 data-frame="yes">Frame</h1>'
+        '<button id="frame-btn">toggle</button><span id="frame-state">off</span>'
+        '<script>window.__desireProtocolExposed = {views: {frameState: {'
+        'item: "body", fields: {state: {selector: "#frame-state"}}}},'
+        'actions: {"frame-toggle": {run: [{click: "#frame-btn"}],'
+        'effects: "local"}}};'
+        'document.getElementById("frame-btn").addEventListener("click",'
+        'function(){document.getElementById("frame-state").textContent = "E13-FRAME-ON";});'
+        '</script></html>')
+    servers = []
+    for port in (18878, 18879):
+        servers.append(subprocess.Popen(
+            [sys.executable, "-m", "http.server", str(port), "--directory", str(work)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    time.sleep(1)
+    try:
+        bridge("POST", "/navigate", body={"url": "http://127.0.0.1:18879/main.html"})
+        time.sleep(3.5)
+        bridge("POST", "/agent/new", body={})
+        msgs = run_case("EVAL-FRAME-ACT 点跨源框架的按钮")
+        tools = [m for m in msgs if m.get("role") == "tool"]
+        assistant = [m for m in msgs if m.get("role") == "assistant"][-1]
+        check("E13 两次工具调用完成", len(tools) >= 2)
+        for i, t in enumerate(tools):
+            r = t.get("content") or ""
+            if i == 0 and "clicked" not in r and "Action executed" not in r:
+                print(f"E13-DEBUG tool[0]: {r[:200]!r}")
+        act_result = tools[0].get("content") or ""
+        check("E13 pageAction 成功（路由进子框架）",
+              "Action executed" in act_result or "clicked" in act_result)
+        extract = tools[-1].get("content") or ""
+        check("E13 提取读回框架内状态变化", "E13-FRAME-ON" in extract)
+        check("E13 收尾", "E13DONE-on" in (assistant.get("content") or ""))
+    finally:
+        for s in servers:
+            s.terminate()
+        shutil.rmtree(work, ignore_errors=True)
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1128,7 +1223,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E9 tool-result-summary", case_tool_result_summary),
          ("E10 evidence-chain（本地专属，EVAL_E10=1 开启）", case_evidence_chain),
          ("E11 dpp-board（本地专属，EVAL_E11=1 开启）", case_dpp_board),
-         ("E12 dpp-frame-extract（本地专属，EVAL_E12=1 开启）", case_dpp_frame_extract)]
+         ("E12 dpp-frame-extract（本地专属，EVAL_E12=1 开启）", case_dpp_frame_extract),
+         ("E13 dpp-frame-action（本地专属，EVAL_E13=1 开启）", case_dpp_frame_action)]
 
 results = []
 
@@ -1172,6 +1268,9 @@ def main():
                 continue
             if case is case_dpp_frame_extract and os.environ.get("EVAL_E12") != "1":
                 results.append((name + " — CI 跳过（本地 EVAL_E12=1 运行）", True, ""))
+                continue
+            if case is case_dpp_frame_action and os.environ.get("EVAL_E13") != "1":
+                results.append((name + " — CI 跳过（本地 EVAL_E13=1 运行）", True, ""))
                 continue
             try:
                 case()

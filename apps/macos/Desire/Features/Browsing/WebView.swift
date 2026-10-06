@@ -85,10 +85,20 @@ class BrowserState: ObservableObject {
     /// DPP 站点级声明（`/.well-known/desire.json`，仅在页面声明了协议时
     /// 拉取——渐进，不把每次导航升级成站点指纹探针）。消费走 effectiveProtocol。
     var siteProtocol: DesireProtocol? = nil
+    /// 跨源子框架的 DPP 声明（0.7 切片一）：每个未见过的框架 URL 一条，
+    /// frameInfo 供 per-frame 提取/动作（切片二）定位框架。导航即清空。
+    struct FrameProtocolEntry {
+        let url: URL
+        let frameInfo: WKFrameInfo
+        let declaration: DesireProtocol
+    }
+    var frameProtocols: [FrameProtocolEntry] = []
     /// 站点级 + 页面级合并视图：页面级字段优先，context 逐键覆盖。
-    /// profile 缺省时经站点级页面地图（pages）按当前路径回退补全。
+    /// profile 缺省时经站点级页面地图（pages）按当前路径回补全。
     var effectiveProtocol: DesireProtocol? {
-        var merged = DesireProtocol.merged(site: siteProtocol, page: pageProtocol)
+        var merged = DesireProtocol.merged(
+            site: siteProtocol, page: pageProtocol,
+            frames: frameProtocols.map { ($0.url.absoluteString, $0.declaration) })
         if var m = merged, m.profile == nil, let path = webView.url?.path,
            let hint = siteProtocol?.pageMapProfile(for: path) {
             m.profile = hint
@@ -707,6 +717,19 @@ struct WebView: NSViewRepresentable {
             contentController.removeScriptMessageHandler(
                 forName: "desireProtocolControl", contentWorld: .page)
             contentController.add(self, contentWorld: .page, name: "desireProtocolControl")
+            // DPP 全框架采集器（0.7 跨源视图切片一）：每个框架（含跨源）上报
+            // 自身 URL——宿主对未见过的框架跑归一化解析（in: frameInfo）。
+            let dppFrameScript = WKUserScript(source: """
+try {
+  window.webkit.messageHandlers.dppFrame.postMessage(
+    JSON.stringify({href: location.href}));
+} catch (e) {
+  try { window.webkit.messageHandlers.dppFrame.postMessage(
+    JSON.stringify({href: location.href, err: String(e)})); } catch (e2) {}
+}
+""", injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
+            contentController.addUserScript(dppFrameScript)
+            contentController.add(self, contentWorld: .page, name: "dppFrame")
             registerPluginWorldHandlers(webView, coordinator: self)
             // 登记本 tab 的 webview（tabs.sendMessage 的寻址表；快速切标签
             // 重建 representable 时 observe 重跑，登记随之刷新）。
@@ -1126,6 +1149,14 @@ struct WebView: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            // DPP 全框架采集器（0.7 切片一）：早退处理，不进下方长链——
+            // 该 else-if 链已对类型检查器过重（加一个分支就 "failed to produce
+            // diagnostic"），新消息名一律走这种前置早退模式。
+            if message.name == "dppFrame", let body = message.body as? String {
+                handleDPPFrameMessage(body, message: message,
+                                      webView: message.webView ?? parent.state.webView)
+                return
+            }
             if message.name == "desireExt" {
                 // Isolated-world WebExtension RPC (see extensionWorld).
                 // per-plugin world 的消息同样进这条路径（world 由 ext 推导）。
@@ -1376,6 +1407,7 @@ struct WebView: NSViewRepresentable {
             parent.state.pageProtocol = nil
             parent.state.pageProtocolChecked = false
             parent.state.siteProtocol = nil
+            parent.state.frameProtocols = []
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -1549,6 +1581,62 @@ struct WebView: NSViewRepresentable {
 
         /// SPA 重新 expose 的防抖重解析任务（desireProtocolControl 消息）。
         private var reparseTask: Task<Void, Never>?
+
+        // MARK: - 跨源子框架声明聚合（0.7 切片一）
+
+        private func handleDPPFrameMessage(_ body: String, message: WKScriptMessage, webView: WKWebView) {
+            guard DPPConfigStore.shared.enabled else { return }
+            guard let obj = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: String],
+                  let href = obj["href"], let url = URL(string: href) else { return }
+            noteFrameProtocol(url: url, frameInfo: message.frameInfo,
+                              webView: message.webView ?? webView)
+        }
+
+        private var pendingFrameParse: [(url: URL, frameInfo: WKFrameInfo)] = []
+        private var frameParseTask: Task<Void, Never>?
+
+        /// 采集器上报一个框架：主框架走既有解析；未见过的子框架记下来，
+        /// 防抖后逐框架跑归一化解析（evaluateJavaScript in: frameInfo——
+        /// 跨源可达性已由 spike 实测，见 docs/DPP-CROSS-ORIGIN-SPIKE.md）。
+        private func noteFrameProtocol(url: URL, frameInfo: WKFrameInfo, webView: WKWebView) {
+            guard DPPConfigStore.shared.enabled else { return }
+            guard url != webView.url else { return }
+            guard !parent.state.frameProtocols.contains(where: { $0.url == url }),
+                  !pendingFrameParse.contains(where: { $0.url == url }) else { return }
+            pendingFrameParse.append((url, frameInfo))
+            frameParseTask?.cancel()
+            frameParseTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                guard !Task.isCancelled, let self else { return }
+                await self.parseFrameProtocols(webView: webView)
+            }
+        }
+
+        private func parseFrameProtocols(webView: WKWebView) async {
+            let pending = pendingFrameParse
+            pendingFrameParse.removeAll()
+            let script = UserScriptLoader.load("desire-protocol")
+            guard !script.isEmpty else { return }
+            for (url, frameInfo) in pending {
+                // 站点级 events 不注入子框架（宿主站点协议属主框架语境）。
+                let raw: String? = try? await withCheckedThrowingContinuation { cont in
+                    webView.callAsyncJavaScript(
+                        script, arguments: ["hostExtraEvents": ""],
+                        in: frameInfo, in: .page) { result in
+                        switch result {
+                        case .success(let value): cont.resume(returning: value as? String)
+                        case .failure(let error): cont.resume(throwing: error)
+                        }
+                    }
+                }
+                guard let raw, let data = raw.data(using: .utf8), raw != "null",
+                      let parsed = try? JSONDecoder().decode(DesireProtocol.self, from: data),
+                      !parsed.isEmpty else { continue }
+                parent.state.frameProtocols.append(
+                    .init(url: url, frameInfo: frameInfo, declaration: parsed))
+                Log.agent.info("DPP frame parse: \(url.absoluteString.prefix(90), privacy: .public) views=\(parsed.views.count, privacy: .public) actions=\(parsed.actions.count, privacy: .public)")
+            }
+        }
 
         /// 解析页面 DPP 协议（desire-protocol.js 归一化四形态）→ 缓存
         /// state.pageProtocol。静默：解析失败 = 无协议，工具走启发式。

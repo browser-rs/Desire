@@ -17,6 +17,8 @@
 - **悬浮球 v4：可定制触盘 + 拖拽投递**：① 触盘 2×2 槽位**八选四**（Agent 对话/语音/总结本页/白板/截图/翻译本页/任务计划/自定义提示词），设置 → 悬浮球四个选择器换槽（同能力换槽 = 两槽互换，永不丢能力），槽位与「自定义提示词」文本持久化（坏档回退 V3 定稿布局）；② **拖拽投递**——拖链接（URL）或网页选区（文本）到球上，球放大 + 强调环提示，松手打开 Agent 面板并以带上下文的提示起回合（链接 → "打开并阅读总结"；选区 → 原文随提示投喂，2000 字符封顶）。新钩子 `onSendPrompt`/`onScreenshot` 由 ContentView 注入；槽位解码器纯函数进单测 harness（410 项）。触盘/拖拽交互走查待用户实测。
 - **白板演示模式（0.6.9 P1）**：面板工具条新增「演示」——逐块步进放映（复用同一双引擎渲染管线出单块 spec），底部 ←/→ 步进条 + Esc 退出；放映态不响应编辑，块仍保留原位。
 - **App Intents（0.6.10 生态）**：四个系统意图进 Shortcuts.app/Siri——① Open Link in Desire（URL 参数，活动标签加载）；② Ask Desire Agent（提示词入、**最终回答出**——发送后按"新 assistant 消息 + 不再处理中"轮询收敛，5 分钟上限，与评估脚本同一判据）；③ Capture Page to Whiteboard（当前页 WKWebView 快照 → JPEG data URI → 白板 image 块，落到活动会话的板）；④ Schedule Desire Task（名称+提示词+everyMinutes/dailyAt 双参，运行期裁决，与 scheduleTask 工具同一条 add 链路）。AppShortcutsProvider 注册四个 Siri 短语；四个类名均已进构建产物 Metadata.appintents（系统动作库可见）。Shortcuts.app 编排"早报"自动化（打开站点→问 Agent→进白板）的走查待用户。
+- **DPP 跨源子框架声明聚合（0.7 切片一，spike 立项后首个交付）**：WebView 注入全框架采集器（forMainFrameOnly:false，.page 世界）——每个框架（含跨源）上报自身 URL，宿主对未见过的框架经 `callAsyncJavaScript(in: frameInfo)` 跑同一归一化解析，子框架视图/动作/事件**补齐进 effectiveProtocol**（同名键主框架优先，帧来源条目盖 `sourceFrame` 戳供切片二 per-frame 提取/动作路由）。导航即清空、采集幂等（已见框架丢弃）。E2E：双源 fixture（8877 主页内嵌 8878 跨源框架）——子框架 `frameProducts` 视图聚合可见（日志 views=1）。框架级提取与动作路由留切片二。
+
 
 
 

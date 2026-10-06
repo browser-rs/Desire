@@ -60,7 +60,36 @@ struct DesireProtocol: Codable, Equatable {
     /// **页面级优先**。字典类（views/signals/events/context）逐键合并——
     /// 页面覆盖同名键、站点补齐独有键（站点页面地图与页面视图共存）；
     /// actions 按动作名去重（页面在前）；ignore 取并集。
-    static func merged(site: DesireProtocol?, page: DesireProtocol?) -> DesireProtocol? {
+    static func merged(site: DesireProtocol?, page: DesireProtocol?,
+                       frames: [(url: String, protocol: DesireProtocol)] = []) -> DesireProtocol? {
+        var page = page
+        if !frames.isEmpty {
+            // 跨源子框架声明（0.7 切片一）：只**补齐**页面/主框架没有的键并盖
+            // 来源框架戳——同名视图/动作主框架优先；提取与动作在切片二按戳路由。
+            if page != nil || true {
+                var combined = page ?? DesireProtocol()
+                for frame in frames {
+                    let fp = frame.protocol
+                    for (name, view) in fp.views where combined.views[name] == nil {
+                        var v = view
+                        v.sourceFrame = frame.url
+                        combined.views[name] = v
+                    }
+                    let known = Set(combined.actions.map(\.name))
+                    for var action in fp.actions where !known.contains(action.name) {
+                        action.sourceFrame = frame.url
+                        combined.actions.append(action)
+                    }
+                    for (name, event) in fp.events where combined.events[name] == nil {
+                        combined.events[name] = event
+                    }
+                    for selector in fp.ignore where !combined.ignore.contains(selector) {
+                        combined.ignore.append(selector)
+                    }
+                }
+                page = combined
+            }
+        }
         switch (site, page) {
         case (nil, nil): return nil
         case (let s, nil): return s
@@ -104,6 +133,9 @@ struct DesireProtocol: Codable, Equatable {
         var pagination: Pagination?
         /// 空态信号选择器：命中且条目为空 = 合法空列表（区别于抽取失败）。
         var empty: String?
+        /// 跨源来源框架 URL（0.7 切片一）：nil = 主框架/页面级声明。Optional
+        /// = 旧声明解码兼容；聚合时由宿主盖戳，供 per-frame 提取定位框架。
+        var sourceFrame: String? = nil
 
         private enum PVKeys: String, CodingKey { case item, fields, pagination, empty }
 
@@ -163,6 +195,8 @@ struct DesireProtocol: Codable, Equatable {
     }
 
     struct ProtocolAction: Codable, Equatable {
+        /// 跨源来源框架 URL（0.7 切片一）：nil = 主框架/页面级声明。
+        var sourceFrame: String? = nil
         var name: String
         var description: String?
         var params: [String: ProtocolParam]?

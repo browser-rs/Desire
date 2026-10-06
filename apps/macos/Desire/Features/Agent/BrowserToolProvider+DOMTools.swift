@@ -906,6 +906,17 @@ extension BrowserToolProvider {
                     ? "No DPP protocol or actions on this page (currently at \(currentURL.prefix(120))) — if this action belongs to another tab, switchTab back to it first"
                     : "Unknown action. Available: \(available)")
             }
+            // per-frame 路由（0.7 切片二）：声明来自跨源子框架的动作 → 前置
+            // 检查与步骤 JS 全进所属框架执行（同 pageExtract）。
+            var actionFrame: WKFrameInfo?
+            if let sourceFrame = action.sourceFrame {
+                actionFrame = dppTab.browser.frameProtocols.first {
+                    $0.url.absoluteString == sourceFrame
+                }?.frameInfo
+                guard actionFrame != nil else {
+                    return Self.fail("Action '\(actionName)' is declared in a cross-origin frame that has navigated away — call pageProtocol to refresh, then retry")
+                }
+            }
             // effects: outbound / danger: true 的强制审批不在本工具里做——
             // AgentSessionStore.effectiveRisk 在闸门处读取动作声明并升级为
             // .dangerous（协议声明能力 ≠ 授权，DPP-PROTOCOL §6.1）。
@@ -947,7 +958,7 @@ extension BrowserToolProvider {
                     do {
                         let raw = try await dppWebView.callAsyncJavaScript(
                             "return __desireQueryAll(\(JSString.literal(precondition))).length > 0",
-                            arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
+                            arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld)
                         if (raw as? Bool) == true { present = true; break }
                     } catch {
                         Log.agent.info("DPP pageAction precondition eval error: \(error.localizedDescription, privacy: .public)")
@@ -974,12 +985,12 @@ extension BrowserToolProvider {
                 return filled
             }
             func runStepJS(_ js: String) async throws {
-                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
+                _ = try await dppWebView.callAsyncJavaScript(js, arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld)
             }
             func waitFor(_ js: String, what: String) async -> String? {
                 for _ in 0..<10 {
                     let ok = ((try? await dppWebView.callAsyncJavaScript(
-                        js, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                        js, arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                     if ok { return nil }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -1156,7 +1167,7 @@ extension BrowserToolProvider {
                 var busyGone = false
                 for _ in 0..<10 {
                     busyGone = ((try? await dppWebView.callAsyncJavaScript(
-                        busyJS, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) != true)
+                        busyJS, arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld) as? Bool) != true)
                     if busyGone { break }
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -1169,7 +1180,7 @@ extension BrowserToolProvider {
             if let errorSel = protocolSnapshot.signals["error"], !errorSel.isEmpty {
                 let errorPresent = ((try? await dppWebView.callAsyncJavaScript(
                     "return __desireQueryAll(\(JSString.literal(errorSel))).length > 0",
-                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                    arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 if errorPresent {
                     return Self.fail("Action '\(actionName)' steps executed but the page's error signal '\(errorSel)' is showing — treat the action as failed and read the page's error message. Steps executed: \(executed.joined(separator: " → "))")
                 }
@@ -1179,7 +1190,7 @@ extension BrowserToolProvider {
             if let successText = action.success, !successText.isEmpty {
                 let found = ((try? await dppWebView.callAsyncJavaScript(
                     "return document.body.innerText.includes(\(JSString.literal(successText)))",
-                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                    arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
             return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)\(navNote)"
@@ -1249,6 +1260,20 @@ extension BrowserToolProvider {
             }
             let allPages = (args["all"] as? Bool) ?? false
             let hardCap = 500
+
+            // per-frame 路由（0.7 切片二）：声明来自跨源子框架的视图 → 抽取与
+            // 翻页 JS 全部进所属框架执行（__desireQueryAll 在 agentToolWorld
+            // 对全部框架常驻，spike 实测跨源可达）。框架已不在（子框架导航）→
+            // 明确失败让模型刷新协议。
+            var targetFrame: WKFrameInfo?
+            if let sourceFrame = view.sourceFrame {
+                targetFrame = dppTab.browser.frameProtocols.first {
+                    $0.url.absoluteString == sourceFrame
+                }?.frameInfo
+                guard targetFrame != nil else {
+                    return Self.fail("View '\(viewName)' is declared in a cross-origin frame that has navigated away — call pageProtocol to refresh, then retry")
+                }
+            }
 
             // 类型强转（§4.3 FieldSpec.type）：抽取时把字符串转成类型化值，
             // agent 直接拿到数字/绝对 URL/ISO 时间。转换失败回退原始字符串
@@ -1339,7 +1364,7 @@ extension BrowserToolProvider {
                 // 失败路径必须可见（此前 try? 吞掉——抽取恒空无诊断）
                 do {
                     let raw = try await dppWebView.callAsyncJavaScript(
-                        extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: nil, contentWorld: WebView.agentToolWorld) as? String
+                        extractJS(), arguments: ["ignoreSels": ignoreSelsJSON], in: targetFrame, contentWorld: WebView.agentToolWorld) as? String
                     guard let raw, let data = raw.data(using: .utf8) else {
                         Log.agent.info("DPP extract: empty/nil raw")
                         return []
@@ -1376,7 +1401,7 @@ extension BrowserToolProvider {
                 if items.isEmpty, let sel = view.empty, !sel.isEmpty {
                     let matched = ((try? await dppWebView.callAsyncJavaScript(
                         "return __desireQueryAll(\(JSString.literal(sel))).length > 0",
-                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                        arguments: [:], in: targetFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                     if matched {
                         emptyNote = "\n(\(viewName) is legitimately empty — the page's empty-state marker '\(sel)' is showing; do not retry)"
                     }
@@ -1425,7 +1450,7 @@ extension BrowserToolProvider {
                           window.scrollTo(0, document.body.scrollHeight);
                         })(); 'ok'
                         """,
-                        arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
+                        arguments: [:], in: targetFrame, contentWorld: WebView.agentToolWorld)
                     try? await Task.sleep(nanoseconds: 900_000_000)
                 }
                 return render(allItems, pages: rounds, scope: "infinite scroll")
@@ -1450,11 +1475,11 @@ extension BrowserToolProvider {
                 if allItems.count >= hardCap { break }
                 _ = try? await dppWebView.callAsyncJavaScript(
                     "var n = __desireQueryAll(\(JSString.literal(nextSel)))[0]; if (n) { n.click(); } 'ok'",
-                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)
+                    arguments: [:], in: targetFrame, contentWorld: WebView.agentToolWorld)
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 let hasNext = ((try? await dppWebView.callAsyncJavaScript(
                     "return __desireQueryAll(\(JSString.literal(nextSel))).length > 0",
-                    arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? Bool) == true)
+                    arguments: [:], in: targetFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 if !hasNext { break }
             }
             return render(allItems, pages: pages, scope: "full pagination")

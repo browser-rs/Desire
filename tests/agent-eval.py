@@ -592,6 +592,38 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush(); self.close_connection = True
             return
 
+        # 跨源子框架提取（E12，本地专属）：pageExtract("frameProducts") →
+        # 抽取结果含哨兵（per-frame 执行证明）→ E12DONE-frame。
+        if "EVAL-FRAME" in mode_text:
+            tool_msgs = [m for m in msgs_all if m.get("role") == "tool"]
+            if not tool_msgs:
+                call = {"index": 0, "id": "call_e12a", "type": "function",
+                        "function": {"name": "pageExtract",
+                                     "arguments": json.dumps({"view": "frameProducts"})}}
+                finish = "tool_calls"
+            else:
+                result = tool_msgs[-1].get("content") or ""
+                reply = "E12DONE-frame" if "E12-FRAME-SENTINEL" in result else "E12DONE-miss"
+                call = None
+                finish = "stop"
+            if call is not None:
+                chunk = {"id": "chatcmpl-e12", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+            else:
+                chunk = {"id": "chatcmpl-e12", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-e12", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 长回答压力模式：提示里含 BIGSTREAM 时流式吐 ~40KB Markdown（含代码块、
         # 列表、表格），用来复现"流式输出卡死"。
         if "BIGPLAIN" in mode_text or "BIGSTREAM" in mode_text:
@@ -1042,6 +1074,49 @@ def case_dpp_board():
     check("E11 收尾", "E11DONE-board" in (assistant.get("content") or ""))
 
 
+def case_dpp_frame_extract():
+    """E12 DPP 跨源子框架提取（0.7 切片二，本地专属）：双源 fixture
+    （18877 主页内嵌 18878 跨源 iframe，各自带 L2 声明）——主框架看不到
+    子框架 DOM，pageExtract("frameProducts") 抽到的哨兵 = per-frame 执行
+    的唯一证明。默认 CI 跳过；EVAL_E12=1 本地显式运行。"""
+    import subprocess, tempfile, pathlib
+    work = pathlib.Path(tempfile.mkdtemp(prefix="dpp-iframe-"))
+    (work / "main.html").write_text(
+        '<html><h1>Main frame</h1>'
+        '<iframe src="http://127.0.0.1:18878/frame.html" width="300" height="150"></iframe>'
+        '<script>window.__desireProtocolExposed = {views: {main: {item: "h1"}}};</script></html>')
+    # 字段相对 **item 元素** 解析（spec §4.3）——哨兵必须放进 item 子树。
+    (work / "frame.html").write_text(
+        '<html><h1 data-frame="yes">Cross-origin frame content '
+        '<span id="marker">E12-FRAME-SENTINEL</span></h1>'
+        '<script>window.__desireProtocolExposed = {views: {frameProducts: {'
+        'item: "[data-frame]", fields: {title: {selector: "#marker"}}}}};'
+        '</script></html>')
+    servers = []
+    for port in (18877, 18878):
+        servers.append(subprocess.Popen(
+            [sys.executable, "-m", "http.server", str(port), "--directory", str(work)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    time.sleep(1)
+    try:
+        bridge("POST", "/navigate", body={"url": "http://127.0.0.1:18877/main.html"})
+        time.sleep(3.5)   # 主框架解析 + 子框架采集防抖 + per-frame 解析
+        bridge("POST", "/agent/new", body={})
+        msgs = run_case("EVAL-FRAME 抽取跨源框架的商品")
+        tools = [m for m in msgs if m.get("role") == "tool"]
+        assistant = [m for m in msgs if m.get("role") == "assistant"][-1]
+        check("E12 一次工具调用完成", len(tools) >= 1)
+        result = tools[-1].get("content") or ""
+        if "E12-FRAME-SENTINEL" not in result:
+            print(f"E12-DEBUG result: {result[:260]!r}")
+        check("E12 抽取结果含子框架哨兵（per-frame 执行）", "E12-FRAME-SENTINEL" in result)
+        check("E12 收尾", "E12DONE-frame" in (assistant.get("content") or ""))
+    finally:
+        for s in servers:
+            s.terminate()
+        shutil.rmtree(work, ignore_errors=True)
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1052,7 +1127,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E8 whiteboard-contract", case_whiteboard_contract),
          ("E9 tool-result-summary", case_tool_result_summary),
          ("E10 evidence-chain（本地专属，EVAL_E10=1 开启）", case_evidence_chain),
-         ("E11 dpp-board（本地专属，EVAL_E11=1 开启）", case_dpp_board)]
+         ("E11 dpp-board（本地专属，EVAL_E11=1 开启）", case_dpp_board),
+         ("E12 dpp-frame-extract（本地专属，EVAL_E12=1 开启）", case_dpp_frame_extract)]
 
 results = []
 
@@ -1093,6 +1169,9 @@ def main():
                 continue
             if case is case_dpp_board and os.environ.get("EVAL_E11") != "1":
                 results.append((name + " — CI 跳过（本地 EVAL_E11=1 运行）", True, ""))
+                continue
+            if case is case_dpp_frame_extract and os.environ.get("EVAL_E12") != "1":
+                results.append((name + " — CI 跳过（本地 EVAL_E12=1 运行）", True, ""))
                 continue
             try:
                 case()

@@ -24,6 +24,13 @@ CLI build: `xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire build
 - Hardened Runtime is enabled.
 - `COMBINE_HIDPI_IMAGES = YES` — use `@2x` asset variants for Retina.
 - Bundle ID: `me.siwi.Desire`, team: `F8JZTX6J52`.
+- **本机 Xcode 比 CI 新时，"本地全量构建绿"不等于"CI 绿"**（2026-10-06 v0.6.7 发版）：
+  本机已升 Xcode 27（Swift 6.4），CI runner 还是 Xcode 26——OnboardingFlowView 的
+  `@ObservedObject private var memory` 把 memberwise init 降成 private，Xcode 27 已
+  放宽跨文件构造、26 仍拒绝。结果：本地 clean Release 构建全过、CI 两架构连红 5 次
+  才在发版闸门暴露。规矩：**带新语法/访问级敏感的提交，推送后扫一眼
+  `gh run list --limit 1`，别等发版**；struct 带 private 存储属性又要跨文件构造的，
+  显式写 internal init。
 
 ## Browser-specific context
 

@@ -106,32 +106,96 @@ struct WhiteboardPanelView: View {
     @State private var exportStatus: String?
     @State private var renamingTitle = false
     @State private var titleDraft = ""
+    /// 演示模式（0.6.9 P1）：逐块步进放映，渲染复用同一 WhiteboardWebView
+    ///（单块 spec）；Esc/退出按钮回编辑态。
+    @State private var presenting = false
+    @State private var presentIndex = 0
+
+    private var conversationKey: String? { session.conversationId?.uuidString }
+    private var liveBoard: WhiteboardSpec { store.board(for: conversationKey) }
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-            Divider().opacity(0.6)
-            WhiteboardWebView(
-                spec: store.board(for: session.conversationId?.uuidString),
-                onEdit: { kind, index, delta, content in
-                    // 面板块工具条/拖拽的唯一落点——此前 onEdit 无人消费，
-                    // 工具条在真实 app 里从未生效过（只有 JS 层探针验过）。
-                    let id = session.conversationId?.uuidString
-                    switch kind {
-                    case "move":
-                        store.apply({ $0 = $0.movingBlock(index, delta: delta) }, conversationID: id)
-                    case "delete":
-                        store.apply({ $0 = $0.deletingBlock(index) }, conversationID: id)
-                    case "reorder":
-                        store.apply({ $0 = $0.reorderingBlock(from: index, to: delta) }, conversationID: id)
-                    case "edit":
-                        store.apply({ $0 = $0.editingBlock(index, content: content) }, conversationID: id)
-                    default:
-                        break
+            if presenting {
+                presentToolbar
+                Divider().opacity(0.6)
+                WhiteboardWebView(spec: presentSpec, onEdit: { _, _, _, _ in })
+                presentControls
+            } else {
+                toolbar
+                Divider().opacity(0.6)
+                WhiteboardWebView(
+                    spec: liveBoard,
+                    onEdit: { kind, index, delta, content in
+                        // 面板块工具条/拖拽的唯一落点——此前 onEdit 无人消费，
+                        // 工具条在真实 app 里从未生效过（只有 JS 层探针验过）。
+                        switch kind {
+                        case "move":
+                            store.apply({ $0 = $0.movingBlock(index, delta: delta) }, conversationID: conversationKey)
+                        case "delete":
+                            store.apply({ $0 = $0.deletingBlock(index) }, conversationID: conversationKey)
+                        case "reorder":
+                            store.apply({ $0 = $0.reorderingBlock(from: index, to: delta) }, conversationID: conversationKey)
+                        case "edit":
+                            store.apply({ $0 = $0.editingBlock(index, content: content) }, conversationID: conversationKey)
+                        default:
+                            break
+                        }
                     }
-                }
-            )
+                )
+            }
         }
+    }
+
+    // MARK: - 演示模式（逐块步进）
+
+    private var presentSpec: WhiteboardSpec {
+        let blocks = liveBoard.blocks
+        guard blocks.indices.contains(presentIndex) else { return WhiteboardSpec() }
+        let block = blocks[presentIndex]
+        return WhiteboardSpec(title: block.title ?? "第 \(presentIndex + 1) 块", blocks: [block])
+    }
+
+    private var presentToolbar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "play.rectangle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(appAccent)
+            Text("演示中 — \(liveBoard.title)")
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+            Spacer()
+            CapsuleButton(systemName: "xmark", action: { presenting = false })
+                .help("退出放映（块仍保留）")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var presentControls: some View {
+        let count = liveBoard.blocks.count
+        return HStack(spacing: 14) {
+            CapsuleButton(systemName: "chevron.left") { presentIndex = max(0, presentIndex - 1) }
+                .disabled(presentIndex == 0)
+                .help("上一块（←）")
+            Text(count == 0 ? "空板" : "第 \(min(presentIndex + 1, count)) / \(count) 块")
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+            CapsuleButton(systemName: "chevron.right") { presentIndex = min(count - 1, presentIndex + 1) }
+                .disabled(presentIndex >= count - 1)
+                .help("下一块（→）")
+            Spacer()
+            Text("←/→ 键步进，Esc 退出")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .windowBackgroundColor))
+        // 步进键：放映态把左右方向键接管过来（面板窗口无输入框抢键）。
+        .onKeyPress(.leftArrow) { presentIndex = max(0, presentIndex - 1); return .handled }
+        .onKeyPress(.rightArrow) { presentIndex = min(count - 1, presentIndex + 1); return .handled }
+        .onKeyPress(.escape) { presenting = false; return .handled }
     }
 
     private var toolbar: some View {
@@ -164,6 +228,11 @@ struct WhiteboardPanelView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
+            CapsuleButton(systemName: "play.rectangle", action: {
+                presentIndex = 0
+                presenting = liveBoard.blocks.count > 0
+            })
+            .help("演示模式（逐块放映）")
             CapsuleButton(systemName: "arrow.uturn.backward", action: {
                 store.undo(conversationID: session.conversationId?.uuidString)
             })

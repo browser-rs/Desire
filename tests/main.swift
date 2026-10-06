@@ -271,6 +271,47 @@ do {
                                  updatedAt: Date()) == nil)
 }
 
+// ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
+
+do {
+    let extract = """
+    Extracted products (2 page(s), full pagination):
+    [{"title":"机械键盘","price":329,"sku":"kb-01"},{"title":"4K 显示器","price":1999,"sku":"mon-4k"},{"title":"人体工学椅","price":1299.9,"sku":"chair-erg"}]
+    """
+    var viewName: String?
+    let blocks = WhiteboardExtract.blocks(fromToolResult: extract, viewNameOut: &viewName)
+    check("一键上板：解析出 note+table 两块", blocks?.count == 2)
+    eq("一键上板：视图名", viewName, "products")
+    let table = blocks?[1].content ?? ""
+    check("一键上板：表格含全部键（排序稳定）",
+          table.contains("price") && table.contains("sku") && table.contains("title"))
+    check("一键上板：行数=条目数", table.components(separatedBy: "\n").count >= 2 + 3)
+    check("一键上板：数字保真", table.contains("1999") && table.contains("1299.9"))
+
+    // 非抽取形态 → nil（调用方让模型先 pageExtract）
+    check("一键上板：非抽取文本返回 nil",
+          WhiteboardExtract.blocks(fromToolResult: "Error: Missing view", viewNameOut: &viewName) == nil)
+
+    // 空列表 → 空块数组（合法空抽取）
+    let empty = "Extracted products (1 page(s), single):\n[]"
+    let emptyBlocks = WhiteboardExtract.blocks(fromToolResult: empty, viewNameOut: &viewName)
+    check("一键上板：空抽取给空块数组", emptyBlocks?.isEmpty == true)
+
+    // 长单元格截短（防炸帧）
+    let long = "Extracted items (1 page(s), single):\n[{\"body\":\"\(String(repeating: "长", count: 500))\"}]"
+    let longBlocks = WhiteboardExtract.blocks(fromToolResult: long, viewNameOut: &viewName)
+    check("一键上板：单元格截短", (longBlocks?.last?.content.count ?? 999) < 2000)
+
+    // 模板库：五套内置、每套块类型合法
+    check("模板库：内置五套", WhiteboardTemplates.builtIn.count == 5)
+    check("模板库：每套块非空且类型合法", WhiteboardTemplates.builtIn.allSatisfy { template in
+        !template.blocks.isEmpty && template.blocks.allSatisfy {
+            [WhiteboardBlock.Kind.note, WhiteboardBlock.Kind.table, WhiteboardBlock.Kind.mermaid,
+             WhiteboardBlock.Kind.chart, WhiteboardBlock.Kind.image].contains($0.type)
+        }
+    })
+}
+
 // ---------- 拉取侧跨设备删除（0.6.8：平铺域墓碑补齐）----------
 
 do {

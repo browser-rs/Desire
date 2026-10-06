@@ -555,6 +555,43 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush(); self.close_connection = True
             return
 
+        # DPP 一键上板（E11，本地专属）：demo 商店页 pageExtract → whiteboard
+        # from:"extract" 一条指令出板。生产网络依赖 → 默认 CI 跳过（EVAL_E11=1）。
+        if "EVAL-BOARD" in mode_text:
+            tool_msgs = [m for m in msgs_all if m.get("role") == "tool"]
+            if not tool_msgs:
+                call = {"index": 0, "id": "call_e11a", "type": "function",
+                        "function": {"name": "pageExtract",
+                                     "arguments": json.dumps({"view": "products"})}}
+                finish = "tool_calls"
+            elif len(tool_msgs) == 1:
+                call = {"index": 0, "id": "call_e11b", "type": "function",
+                        "function": {"name": "whiteboard",
+                                     "arguments": json.dumps({"action": "render", "from": "extract"})}}
+                finish = "tool_calls"
+            else:
+                result = tool_msgs[-1].get("content") or ""
+                reply = "E11DONE-board" if "Whiteboard updated" in result and "2 block(s)" in result else "E11DONE-miss"
+                call = None
+                finish = "stop"
+            if call is not None:
+                chunk = {"id": "chatcmpl-e11", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+            else:
+                chunk = {"id": "chatcmpl-e11", "object": "chat.completion.chunk", "created": int(time.time()),
+                         "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-e11", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 长回答压力模式：提示里含 BIGSTREAM 时流式吐 ~40KB Markdown（含代码块、
         # 列表、表格），用来复现"流式输出卡死"。
         if "BIGPLAIN" in mode_text or "BIGSTREAM" in mode_text:
@@ -988,6 +1025,23 @@ def case_evidence_chain():
     check("E10 收尾", "EVIDONE" in (assistant.get("content") or ""))
 
 
+def case_dpp_board():
+    """E11 DPP 一键上板（0.6.9，本地专属）：demo 商店页 pageExtract →
+    whiteboard from:"extract" 一条指令出板（note + table 两块）。生产网络
+    依赖，默认 CI 跳过；EVAL_E11=1 本地显式运行（需先 POST /navigate 到 demo 商店）。"""
+    bridge("POST", "/navigate", body={"url": "https://desire.mankong.icu/demo/"})
+    time.sleep(3)   # DPP L3 SDK 声明注入
+    bridge("POST", "/agent/new", body={})
+    msgs = run_case("EVAL-BOARD 把商品列表做成白板")
+    tools = [m for m in msgs if m.get("role") == "tool"]
+    assistant = [m for m in msgs if m.get("role") == "assistant"][-1]
+    check("E11 两步工具链完成", len(tools) >= 2)
+    check("E11 一条指令出板（note+table）",
+          "Whiteboard updated" in (tools[-1].get("content") or "")
+          and "2 block(s)" in (tools[-1].get("content") or ""))
+    check("E11 收尾", "E11DONE-board" in (assistant.get("content") or ""))
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -997,7 +1051,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E7 bypass-routing", case_bypass_routing),
          ("E8 whiteboard-contract", case_whiteboard_contract),
          ("E9 tool-result-summary", case_tool_result_summary),
-         ("E10 evidence-chain（本地专属，EVAL_E10=1 开启）", case_evidence_chain)]
+         ("E10 evidence-chain（本地专属，EVAL_E10=1 开启）", case_evidence_chain),
+         ("E11 dpp-board（本地专属，EVAL_E11=1 开启）", case_dpp_board)]
 
 results = []
 
@@ -1035,6 +1090,9 @@ def main():
                 continue
             if case is case_evidence_chain and os.environ.get("EVAL_E10") != "1":
                 results.append((name + " — CI 跳过（本地 EVAL_E10=1 运行）", True, ""))
+                continue
+            if case is case_dpp_board and os.environ.get("EVAL_E11") != "1":
+                results.append((name + " — CI 跳过（本地 EVAL_E11=1 运行）", True, ""))
                 continue
             try:
                 case()

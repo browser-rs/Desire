@@ -138,6 +138,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "action": AgentJSONSchemaValue(type: "string", description: "render (replace board) | append | insert (with index) | clear | get (read the board back as text) | edit | delete | move"),
                     "title": AgentJSONSchemaValue(type: "string", description: "Board title"),
+                    "from": AgentJSONSchemaValue(type: "string", description: "\"extract\" = build the board from the last pageExtract result (a header note + a markdown table of the items) — no blocks array needed. Works with render/append/insert."),
                     "index": AgentJSONSchemaValue(type: "integer", description: "1-based position — target block for edit/delete/move; insert position (before this block, default = end) for insert"),
                     "delta": AgentJSONSchemaValue(type: "integer", description: "Move offset: negative = up, positive = down (move only)"),
                     "blocks": AgentJSONSchemaValue(type: "array", description: "Blocks to render", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [

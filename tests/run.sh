@@ -39,6 +39,8 @@ SOURCES=(
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
   apps/macos/Desire/Features/Sync/WhiteboardSync.swift
+  apps/macos/Desire/Features/Whiteboard/WhiteboardExtract.swift
+  apps/macos/Desire/Features/Whiteboard/WhiteboardTemplates.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

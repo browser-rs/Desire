@@ -573,8 +573,40 @@ extension BrowserToolProvider {
                     return "Whiteboard block \(number) moved \(delta > 0 ? "down" : "up"), now \(updated.blockListSummary())"
                 }
             }
-            guard var rawBlocks = args["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
-                return Self.fail("Missing blocks array (action=render|append needs blocks; clear/get need none)")
+            // DPP 一键管线（0.6.9）：from:"extract" = 上一条 pageExtract 结果直接
+            // 出板（说明 note + Markdown 表格）——模型不必把抽取数据再抄一遍。
+            // spec §5.1 语义不变：仍是宿主在写板，页面无权写板。
+            var extractViewName: String?
+            var titleOverride: String?
+            var rawBlocks: [[String: Any]]
+            if let from = args["from"] as? String, from == "extract" {
+                guard action == "render" || action == "append" || action == "insert" else {
+                    return Self.fail("from:\"extract\" works with render, append or insert")
+                }
+                guard let messages = AgentScheduler.shared.deliveryTarget?.messages,
+                      let extractResult = messages.last(where: {
+                          $0.role == .tool && $0.toolName == "pageExtract"
+                      })?.content,
+                      let blocks = WhiteboardExtract.blocks(fromToolResult: extractResult, viewNameOut: &extractViewName)
+                else {
+                    return Self.fail("No pageExtract result to render from — call pageExtract first")
+                }
+                guard !blocks.isEmpty else {
+                    return Self.fail("The last pageExtract returned no items — nothing to render")
+                }
+                if args["title"] == nil, let viewName = extractViewName {
+                    titleOverride = viewName
+                }
+                rawBlocks = blocks.map { block in
+                    var dict: [String: Any] = ["type": block.type, "content": block.content]
+                    if let title = block.title { dict["title"] = title }
+                    return dict
+                }
+            } else {
+                guard let provided = args["blocks"] as? [[String: Any]], !provided.isEmpty else {
+                    return Self.fail("Missing blocks array (action=render|append needs blocks; clear/get need none)")
+                }
+                rawBlocks = provided
             }
             // evidence 引用先就地解析成 data URI（模型不必回传几 MB 的 base64）
             if let evidenceError = WhiteboardEvidence.resolve(
@@ -594,7 +626,7 @@ extension BrowserToolProvider {
             guard !blocks.isEmpty else {
                 return Self.fail("No valid blocks (type must be mermaid | chart | note | table | image; image needs a data:image/ URI)")
             }
-            let title = args["title"] as? String
+            let title = titleOverride ?? (args["title"] as? String)
             if action == "append" {
                 let existing = store.board(for: conversationID).blocks.count
                 guard existing + blocks.count <= WhiteboardSpec.maxBlocks else {

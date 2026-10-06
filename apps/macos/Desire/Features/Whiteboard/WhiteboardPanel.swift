@@ -181,6 +181,12 @@ struct WhiteboardPanelView: View {
                 Button("Mermaid 导图/流程图") { addBlock(WhiteboardBlock.Kind.mermaid, "graph TD\n    A[节点] --> B[节点]") }
                 Button("图表（ECharts）") { addBlock(WhiteboardBlock.Kind.chart, "{\"xAxis\":{\"data\":[\"A\",\"B\"]},\"yAxis\":{},\"series\":[{\"type\":\"bar\",\"data\":[1,2]}]}") }
                 Button("表格") { addBlock(WhiteboardBlock.Kind.table, "| 列一 | 列二 |\n| --- | --- |\n| a | b |") }
+                Divider()
+                Menu("从模板创建") {
+                    ForEach(WhiteboardTemplates.builtIn) { template in
+                        Button("\(template.name)") { applyTemplate(template) }
+                    }
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 13))
@@ -188,9 +194,9 @@ struct WhiteboardPanelView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("手动添加块（进入源码编辑）")
+            .help("手动添加块（进入源码编辑）/ 从模板创建")
             CapsuleButton(systemName: "square.and.arrow.up.on.square", action: { exportBoardFile() })
-                .help("导出 .board（JSON）")
+                .help("导出 .board（JSON）——模板也能这样分享")
             CapsuleButton(systemName: "globe", action: { exportHTMLViewer() })
                 .help("导出单文件 HTML（离线可读的分享页）")
             CapsuleButton(systemName: "doc.plaintext", action: { exportMarkdown() })
@@ -210,6 +216,12 @@ struct WhiteboardPanelView: View {
         let id = session.conversationId?.uuidString
         store.append([WhiteboardBlock(type: type, title: nil, content: template)],
                      title: nil, conversationID: id)
+    }
+
+    /// 模板一键成板（0.6.9）：整组块追加到当前板（maxBlocks 护栏由 store 侧管）。
+    private func applyTemplate(_ template: WhiteboardTemplate) {
+        store.append(template.blocks, title: template.name,
+                     conversationID: session.conversationId?.uuidString)
     }
 
     /// 导出单文件 HTML viewer（0.6.7）：零依赖静态页——无 Desire 机器

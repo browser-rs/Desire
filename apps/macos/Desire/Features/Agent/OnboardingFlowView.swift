@@ -6,6 +6,13 @@ import FoundationModels
 struct OnboardingFlowView: View {
     var onFinish: () -> Void
 
+    /// 显式 internal init：`@ObservedObject private var memory` 会把 memberwise
+    /// init 降成 private（CI 的 Xcode 26 编译器据此拒绝跨文件构造；本机 Xcode 27
+    /// 已放宽，所以本地构建看不见这个错——CI 红、本地绿的根因）。
+    init(onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+    }
+
     @ObservedObject private var memory = AgentMemoryStore.shared
     /// 全局 store 走 AppState.live（同 AutomationServer 模式）；缺席时各步降级。
     private var preference: AgentPreferenceStore? { AppState.live?.aiPreference }

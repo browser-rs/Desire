@@ -365,10 +365,14 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
   仅支持"声明式透传"（iframe 页自声明 + 宿主聚合）。
 
 **P1**
-- **App Intents（系统快捷指令）**：暴露"打开 URL / 问 Agent（文本入、结果出）/
+- ✅ **App Intents（2026-10-06 交付）**：暴露"打开 URL / 问 Agent（文本入、结果出）/
   截当前页到白板 / 启动定时任务"四个 Intent——Shortcuts.app 与 Siri 可编排
   Desire（AI 原生定位的系统级出口）。验收：快捷指令 App 里编排"早报"自动化
   （打开站点 → 问 Agent 总结 → 结果进白板）。
+  **实现**：Features/Intents/DesireIntents.swift 四意图 + AppShortcutsProvider 四短语；
+  问 Agent 的"结果出"按"新 assistant 消息 + 不再处理中"轮询收敛（5 分钟上限，与
+  评估脚本同一判据）。全部类名进构建产物 Metadata.appintents（系统动作库可见）；
+  Shortcuts 编排走查待用户（快捷指令 App 里搜 Desire 即见四个动作）。
 - **首启引导**：三步（选模型：端上一键 / 填 key；开拦截默认档；配同步可选），
   每步可跳过；完成后落一个样例会话。
 - DPP 文档站（website/dpp/：规范速览 + SDK 三行接入 + 在线校验器）。

@@ -112,10 +112,21 @@ at [desire.mankong.icu/demo](https://desire.mankong.icu/demo/).
 - **WebExtensions** — manifest loading with a `browser.*` polyfill, per-extension
   storage namespaces, popup support.
 - **Everyday** — tab groups, pinned tabs, tab suspension, split view
-  (native `HSplitView`), responsive design mode, reader mode, find-in-page,
-  picture-in-picture, screenshots (full page / element), translation,
-  keyboard shortcut customization, trilingual UI (English / 简体中文 /
-  繁體中文).
+  (native `HSplitView`), responsive design mode, reader mode with text-to-speech,
+  find-in-page, picture-in-picture, screenshots (region capture with an
+  annotation toolkit — arrows/shapes/mosaic/text — plus on-device OCR via
+  Vision), per-site forced dark mode, cookie-banner auto-handling, video
+  playback-speed control, translation, keyboard shortcut customization,
+  trilingual UI (English / 简体中文 / 繁體中文).
+- **Creation toolchain** — a structured whiteboard (mermaid/charts/tables/notes)
+  embedded in chat with edit/undo/present modes, an extraction one-liner that
+  turns `pageExtract` results into boards, built-in board templates, HTML/Markdown
+  export; a customizable floating-ball hub (8 capabilities, pick 4) with
+  drag-and-drop delivery of links and selections to the agent.
+- **System integration** — four App Intents for Shortcuts & Siri (open URL,
+  ask-the-agent with the final answer returned, capture page to whiteboard,
+  schedule recurring agent tasks); an iOS companion (Desire Remote) that
+  mirrors sessions, agent state, and the whiteboard.
 
 ## Automation: bridge + MCP
 

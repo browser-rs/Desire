@@ -65,23 +65,44 @@ jobs:
           APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
           echo "path=$APP" >> "$GITHUB_OUTPUT"
 
-      - name: Launch smoke test
+      - name: Launch smoke test + startup budget (0.6.4)
         run: |
           APP="${{ steps.app.outputs.path }}"
+          # 0.6.4 性能预算：launch → /state 就绪的墙钟进入门禁。CI runner 比
+          # 本机慢（本机基线 632ms / 预算 700ms）——门禁放宽到 2s 挡退化，
+          # 实测值照常打印供趋势观察。冷启动首启会被字体/缓存拖长，取
+          # 第二次启动的值（与本地探针手法一致）。
           open "$APP" --args --automation
           OK=no
           for i in $(seq 1 30); do
-            # The automation bridge is up when /state answers with the tab list.
             if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
               OK=yes
               break
             fi
             sleep 1
           done
+          pkill -x Desire || true
+          sleep 2
+          # 第二次启动 = 预算测量对象（缓存已热）
+          T0=$(python3 -c 'import time; print(time.time())')
+          open "$APP" --args --automation
+          READY=no
+          for i in $(seq 1 30); do
+            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
+              READY=yes
+              break
+            fi
+            sleep 0.2
+          done
+          T1=$(python3 -c 'import time; print(time.time())')
+          ELAPSED=$(python3 -c "print(int(($T1 - $T0) * 1000))")
+          echo "startup budget: ${ELAPSED}ms (gate 2000ms on CI; local budget 700ms)"
           STARTUP=$(log show --last 2m --predicate 'subsystem == "me.siwi.Desire"' --style compact 2>/dev/null | grep -c "startup: first window interactive" || true)
-          echo "smoke: $OK (startup log lines: $STARTUP)"
+          echo "smoke: $OK / ready: $READY (startup log lines: $STARTUP)"
           pkill -x Desire || true
           [ "$OK" = yes ] || { echo "::error::launch smoke test failed — /state never answered"; exit 1; }
+          [ "$READY" = yes ] || { echo "::error::second launch never became ready"; exit 1; }
+          [ "$ELAPSED" -le 2000 ] || { echo "::error::startup budget blown on CI: ${ELAPSED}ms > 2000ms — investigate before release"; exit 1; }
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v4

@@ -361,8 +361,10 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 - ✅ **首启三步引导（提前交付 7bdfb95，2026-10-06）**：OnboardingFlowView 取代旧单屏——选模型（端上卡按
   availability 显隐）/ 隐私防护（真实 ContentBlockerStore 开关）/ 同步与个性化；全部可跳过，导航统一自适应
   footer，`finish()` 空输入不覆写既有档案。
-- **跨源 iframe**：DPP 声明穿透跨源 iframe（同源已有）——按 spike 结论，可能
-  仅支持"声明式透传"（iframe 页自声明 + 宿主聚合）。
+- ✅ **跨源 iframe spike（2026-10-06 完成，结论：完整可行）**：三问实测全 Yes——
+  用户脚本进跨源子框架（forMainFrameOnly:false，双世界）、子框架消息带 frameInfo 到达、
+  `evaluateJavaScript(in: frameInfo)` 定向跨源框架读声明与 DOM。0.7 立项：声明聚合 +
+  per-frame 提取（实现路径与两个时序注意点见 docs/DPP-CROSS-ORIGIN-SPIKE.md）。
 
 **P1**
 - ✅ **App Intents（2026-10-06 交付）**：暴露"打开 URL / 问 Agent（文本入、结果出）/

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desire Page Protocol — 让页面成为智能体的一等公民</title>
+<meta name="description" content="Desire Page Protocol（DPP）：一个声明式页面协议——站点用 well-known、页面属性或一行 SDK 脚本声明自己的结构化数据与可执行动作，Desire 浏览器的智能体据此精确读取与操作页面，无需脆弱的猜测。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
+<style>
+  /* 设计令牌：墨与朱（与产品页同源） */
+  :root {
+    --paper:      #f6f1e7;
+    --paper-2:    #eee7d7;
+    --ink:        #211b13;
+    --ink-soft:   #6a6150;
+    --cinnabar:   #c03a1a;
+    --cinnabar-d: #93290e;
+    --hairline:   rgba(33, 27, 19, 0.16);
+    --hairline-2: rgba(33, 27, 19, 0.32);
+    --gold:       #b98a2f;
+    --font-display: "Hoefler Text", "Songti SC", "STSongti-SC-Regular", "Georgia", serif;
+    --font-body:    -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono:    "SF Mono", "Menlo", "Consolas", monospace;
+    --w: min(980px, 92vw);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.75; }
+  ::selection { background: var(--cinnabar); color: var(--paper); }
+  a { color: var(--cinnabar-d); text-underline-offset: 3px; }
+  .wrap { width: var(--w); margin: 0 auto; }
+
+  header { padding: 34px 0 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 18px; }
+  .brand .seal { width: 34px; height: 34px; border-radius: 7px; background: var(--cinnabar); color: var(--paper);
+    font-family: "Kaiti SC", "STKaiti", serif; font-size: 20px; display: grid; place-items: center; }
+  .brand a { text-decoration: none; color: var(--ink); }
+
+  .hero { padding: 64px 0 40px; border-bottom: 1px solid var(--hairline); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(34px, 6vw, 56px); line-height: 1.15; letter-spacing: 0.5px; }
+  .hero h1 em { font-style: normal; color: var(--cinnabar); }
+  .hero p.lead { margin-top: 18px; font-size: 19px; color: var(--ink-soft); max-width: 720px; }
+  .hero .cta { margin-top: 26px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 10px 22px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 15px; }
+  .btn.primary { background: var(--cinnabar); color: var(--paper); }
+  .btn.primary:hover { background: var(--cinnabar-d); }
+  .btn.ghost { border: 1px solid var(--hairline-2); color: var(--ink); }
+  .btn.ghost:hover { border-color: var(--cinnabar); color: var(--cinnabar-d); }
+
+  section { padding: 46px 0; border-bottom: 1px solid var(--hairline); }
+  h2 { font-family: var(--font-display); font-size: 27px; margin-bottom: 14px; }
+  h2 .no { color: var(--cinnabar); font-size: 18px; margin-right: 10px; font-family: var(--font-mono); }
+  p { margin: 10px 0; color: var(--ink); }
+  .muted { color: var(--ink-soft); font-size: 14.5px; }
+
+  .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 20px; }
+  .level { background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 12px; padding: 18px; }
+  .level b { font-family: var(--font-mono); color: var(--cinnabar-d); }
+  .level .t { font-weight: 700; margin-bottom: 6px; }
+
+  pre { background: var(--ink); color: #ece3cd; border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.6; margin: 14px 0; }
+  code { font-family: var(--font-mono); font-size: 0.92em; background: var(--paper-2); border-radius: 4px; padding: 1px 6px; }
+  pre code { background: none; padding: 0; }
+
+  ul.plain { list-style: none; margin-top: 12px; }
+  ul.plain li { padding: 9px 0 9px 26px; position: relative; border-bottom: 1px dashed var(--hairline); }
+  ul.plain li:last-child { border-bottom: none; }
+  ul.plain li::before { content: "·"; position: absolute; left: 8px; color: var(--cinnabar); font-weight: 900; }
+
+  footer { padding: 34px 0 48px; color: var(--ink-soft); font-size: 13.5px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="brand"><span class="seal">欲</span><a href="/">Desire 浏览器</a><span style="color:var(--ink-soft)">/</span><span>DPP</span></div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>Desire Page Protocol<br><em>让页面成为智能体的一等公民</em></h1>
+    <p class="lead">DPP 是一个声明式页面协议：站点告诉智能体「我有什么数据、能做什么动作」，
+      智能体据此精确读取与操作页面——不再靠脆弱的猜测去猜选择器。</p>
+    <div class="cta">
+      <a class="btn primary" href="https://desire.mankong.icu/demo/">进入演示商店</a>
+      <a class="btn ghost" href="https://desire.mankong.icu/desire-sdk.js">查看 SDK（desire-sdk.js）</a>
+    </div>
+  </div>
+
+  <section id="levels">
+    <h2><span class="no">01</span>三层接入，一分钟上线</h2>
+    <p>按投入从低到高，三个层级随时可用、可以叠加（高层级覆盖低层级）：</p>
+    <div class="levels">
+      <div class="level"><b>L0</b><div class="t">well-known 站点声明</div>
+        在 <code>/.well-known/desire.json</code> 放一份 JSON：站点级页面地图、登录态指引。
+        不改一行业务代码。</div>
+      <div class="level"><b>L2</b><div class="t">页面内联声明</div>
+        页面脚本直接设置 <code>window.__desireProtocolExposed = {…}</code>（原生声明形态，
+        无需引外部 SDK）；噪音区在元素上标 <code>data-dpp-ignore</code>。</div>
+      <div class="level"><b>L3</b><div class="t">SDK 一行接入</div>
+        <code>&lt;script src="https://desire.mankong.icu/desire-sdk.js"&gt;&lt;/script&gt;</code>
+        自动发现数据视图与动作，支持事件（order-placed 等）主动唤起智能体。</div>
+    </div>
+  </section>
+
+  <section id="views">
+    <h2><span class="no">02</span>声明什么：views · actions · events</h2>
+    <p>一个典型的 L3 声明长这样（来自演示商店）：</p>
+<pre><code>desire.expose({
+  views: {
+    products: { item: ".card[data-sku]",
+      fields: { title: ".name", price: {selector: ".price", type: "price"},
+                sku: {selector: ".", attr: "data-sku"} } }
+  },
+  actions: {
+    "add-to-cart": { params: {sku: {type: "string", required: true}},
+                     run: [{click: ".card[data-sku='{sku}'] button.add"}],
+                     effects: "persist" },
+    checkout: { run: [{click: "#checkout-btn"}], effects: "outbound" }
+  },
+  events: { "order-placed": {watch: ".toast.order"} }
+});</code></pre>
+    <ul class="plain">
+      <li><b>views</b> —— 结构化数据视图：选择器 + 字段类型（price/number/url/date 自动转换），<code>pageExtract("products")</code> 一次读全，支持 paged / infinite 自动翻页。</li>
+      <li><b>actions</b> —— 声明式动作：<code>pageAction("add-to-cart", {sku})</code>；
+        <code>effects: "outbound"</code> 的动作（下单、提交）会先向用户请求批准，危险操作不静默。</li>
+      <li><b>events</b> —— 事件唤起： watched 的 DOM 事件发生时（如订单落定），智能体被自动唤醒处理。</li>
+      <li><b>ignore</b> —— 噪音区：广告位、推荐流标上 <code>data-dpp-ignore</code>，智能体视而不见。</li>
+    </ul>
+  </section>
+
+  <section id="sdk">
+    <h2><span class="no">03</span>L3 SDK：一行脚本，全量能力</h2>
+    <p>在任意页面引入：</p>
+    <pre><code>&lt;script defer src="https://desire.mankong.icu/desire-sdk.js"&gt;&lt;/script&gt;</code></pre>
+    <p>SDK 提供类型化字段抽取、动作执行器、事件观察与自动化翻页；与 Desire 的信任分级
+      （站点声明 &lt; 页面声明 &lt; 用户显式指令）天然协同——声明只描述能力，执行永远经过用户的
+      访问等级与审批闸门。</p>
+    <p class="muted">隐私边界：声明与抽取全部在本机完成，页面数据不上传；跨源 iframe 的声明聚合与
+      定向提取在宿主侧实现，页面之间互相不可见。</p>
+  </section>
+
+  <section id="demo">
+    <h2><span class="no">04</span>演示商店：真实请求的活样本</h2>
+    <p><a href="https://desire.mankong.icu/demo/">desire.mankong.icu/demo/</a> 是一个按 DPP
+      接入的迷你商店：购物车与下单是<b>真实请求</b>（写入演示服务的内存，非真实交易）。用 Desire 打开后对智能体说：</p>
+    <ul class="plain">
+      <li>「列出商品」→ <code>pageExtract("products")</code> 读结构化数据（价格已转数字、SKU 可加购）</li>
+      <li>「把 sku 是 kb-01 的商品加入购物车，再来一把」→ <code>pageAction("add-to-cart", …)</code></li>
+      <li>「去结算」→ <code>pageAction("checkout")</code>——该动作声明了 <code>effects: "outbound"</code>，会先向你请求批准</li>
+      <li>下单成功的那一刻 → 订单列表出现新行，<code>order-placed</code> 事件自动唤起智能体</li>
+    </ul>
+    <p class="muted">页面右下角的虚线框是 <code>data-dpp-ignore</code> 标注的噪音横幅——智能体会绕开它。</p>
+  </section>
+
+  <section id="compat">
+    <h2><span class="no">05</span>兼容性与边界</h2>
+    <ul class="plain">
+      <li>非 Desire 浏览器完全无感：声明只是页面里的静态数据，不执行任何行为。</li>
+      <li>同源 iframe 的声明与提取已支持；跨源 iframe 已完成可行性验证（宿主侧聚合与定向提取），后续版本交付。</li>
+      <li>单页应用：SPA 路由变化会触发重新解析，声明可随时更新。</li>
+      <li>well-known 支持登录态指引（loginUrl 等），帮助智能体在需要时引导用户登录。</li>
+    </ul>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      DPP 由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 ·
+      演示服务仅存内存、无持久化 · 本页零外部依赖
+    </div>
+  </footer>
+</div>
+</body>
+</html>

@@ -31,6 +31,8 @@
 > 结构化读取（features/capabilities/faqs 等视图与 current-release 版本）。
 
 产品页：https://desire.mankong.icu/
+DPP 文档（页面协议：声明 views/actions/events、SDK 一行接入、演示商店）：https://desire.mankong.icu/dpp/
+演示商店（按 DPP 接入的迷你商店，购物车下单为演示服务内存请求）：https://desire.mankong.icu/demo/
 下载（GitHub Releases，未签名构建，需一次 xattr -cr）：https://github.com/browser-rs/Desire/releases/latest
 源码（MIT）：https://github.com/browser-rs/Desire
 

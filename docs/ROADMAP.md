@@ -71,7 +71,7 @@ thread dispatch stuck` 计数 = 0）、三语补全（新键 en/zh-Hant 显式�
 | 0.6.8 | 跨设备一致 | 白板同步域（第九类）、Remote 完成通知与长会话分页、同步诊断页 | 已交付待发布 |
 | 0.6.9 | 创作工具链 | 截图标注+OCR、悬浮球 v4 可定制触盘、白板模板/演示、DPP board 管线 | 规划 |
 | 0.6.10 | 页面控制与生态 | 拦截/节流收敛、DPP 逐动作审批/检查器、白板分享、App Intents、引导 | 规划 |
-| 0.7（展望） | 平台扩张 | Android Remote、向量记忆全量、passkey（等 Apple）、社区分享 | 展望 |
+| 0.7（展望→已细化） | 平台扩张与智能深化 | 见文末「0.7 路线篇」 | 规划（待定方向） |
 
 ---
 
@@ -505,3 +505,47 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 
 > 0.1.x–0.3.x 的逐条详细规划原文见 git 历史（本文件重写前的版本）；
 > 0.4.x–0.6.0 的交付记录以 CHANGELOG 各版本段为准。
+
+
+# 0.7 路线篇（2026-10-07 起草，方向待定稿）
+
+> 0.6.x 收官时盘点：跨源 iframe 已提前完成主体（切片一二+E12/E13）、向量记忆的
+> NLEmbedding 路径已否、passkey 卡 Apple entitlement。0.7 的候选主线四条，
+> **优先级与组合待用户定稿**（Android 是平台级投入，需要安卓设备实测配合）：
+
+## 0.7.A — Android Remote（平台扩张主打）
+- Kotlin/Compose 从零建 `apps/android/DesireRemote`，对齐 iOS DesireRemote 的
+  能力子集：会话列表/镜像对话/语音输入/审批与提问卡/白板帧。
+- 复用服务端零改动（remote_inbox 双 lane + WS express 已是平台无关）；
+  E2E 走 tools/api-remote-smoke.py 同一套（Android 端推送/拉取语义对齐）。
+- 里程碑：M0 连接与配对（扫码）→ M1 会话镜像与对话 → M2 审批/语音 → M3 白板帧。
+- 依赖：Android Studio 工程、一台安卓真机（推送与通知的走查）。
+
+## 0.7.B — 记忆检索升级（向量记忆的可行路径）
+- 捆绑小型多语言 embedding 模型（Core ML / MLX，30-80MB 档）× BM25 混合：
+  BM25 为主、向量做零词法重叠时的补召回（居中白化后比——原始余弦不可用的
+  教训见 docs/VECTOR-MEMORY-SPIKE.md）。
+- 先 spike：模型选型（multilingual-e5-small 的 Core ML 转换等）+ 包体积/
+  首推理延迟实测 + 对照集（复用向量 spike 的 20 句 + 记忆池真实样本），
+  **结论驱动交付**，不达标不硬上。
+
+## 0.7.C — DPP 深化收尾
+- L1 扫描进 shadow DOM：盘点确认**已交付**（dppAllRoots + `>>>` 路径在用）——
+  从 backlog 划掉。
+- 审批卡/DevTools 检查器的跨源标注（视图来自子框架时标注来源 URL，切片二的
+  sourceFrame 已有数据面）。
+- 文档站扩充：spec 全文页（§1-§7 逐节）、SDK API 参考；部署节奏并入发版手动活。
+
+## 0.7.D — passkey 与 WebAuthn（外部依赖观察项）
+- 前置：Apple 签发 private-key-credential 相关 entitlement（申请流程在 docs/，
+  未获批复前不动工）。
+- 获批后的范围：ASAuthorizationPlatformPublicKeyCredentialProvider 接入
+  密码库（自动填充联动）+ Agent 场景的"登录态指引"联动。
+
+## 0.7.E — 社区分享（轻量先行）
+- .board 文件已是分享载体；0.7 只做**规范与信任面**：.board 的 schema 版本化 +
+  导入信任提示（宏/脚本类内容不进白板格式）+ 产品页模板 Gallery 页（静态列举，
+  零后端）。重社区功能（上传/评论）明确不做。
+
+**节奏**：0.7.x 延续"先规划后发货"；每条主线独立成版（0.7.A/0.7.B/…），不混装。
+默认顺序 = A → B → C 收尾 → E；D 随 Apple 批复插入。

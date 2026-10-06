@@ -68,7 +68,8 @@ final class ScreenshotOverlayView: NSView {
             onRedraw: { [weak self] in self?.redraw() },
             onSave: { [weak self] in self?.saveImage() },
             onCopy: { [weak self] in self?.copyImage() },
-            onCancel: { [weak self] in self?.cancel() }
+            onCancel: { [weak self] in self?.cancel() },
+            onOCR: { [weak self] in self?.recognizeSelectionText() }
         )
         let hosting: NSHostingView<AnyView> = NSHostingView(rootView: AnyView(toolbar.appAccent(AppAccent.current)))
         hosting.translatesAutoresizingMaskIntoConstraints = false
@@ -687,8 +688,70 @@ final class ScreenshotOverlayView: NSView {
         nextNumber = 1
         selectionRect = .zero
         mode = .idle
+        dismissOCRPanel()
         needsDisplay = true
         positionToolbar()
+    }
+
+    // MARK: - 截图 OCR（0.6.9）
+
+    private var ocrHostingView: NSHostingView<AnyView>?
+
+    /// 选区文字识别：裁剪选区 → Vision（端上，显式 API——与已关闭的 Live Text
+    /// 无关）→ 结果浮层（复制 / 进白板 note）。识别的是**纯截图**，不含标注。
+    private func recognizeSelectionText() {
+        if textField != nil { commitTextField() }
+        guard !selectionRect.isEmpty, selectionRect.width > 1, selectionRect.height > 1,
+              !toolbarModel.ocrInProgress,
+              let crop = ScreenshotCapture.cropImage(capturedImage, to: selectionRect) else { return }
+        toolbarModel.ocrInProgress = true
+        Task { @MainActor in
+            defer { toolbarModel.ocrInProgress = false }
+            let text: String
+            do {
+                text = try await VisionOCRService.recognize(image: crop).text
+            } catch {
+                text = error.localizedDescription
+            }
+            showOCRPanel(text: text)
+        }
+    }
+
+    private func showOCRPanel(text: String) {
+        dismissOCRPanel()
+        let panelView = ScreenshotOCRPanel(
+            text: text,
+            onCopy: { [weak self] in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                self?.dismissOCRPanel()
+            },
+            onToWhiteboard: { [weak self] in
+                let note = WhiteboardBlock(type: WhiteboardBlock.Kind.note,
+                                           title: String(localized: "Screenshot text"),
+                                           content: text)
+                WhiteboardStore.shared.append(
+                    [note], title: String(localized: "Screenshot text"),
+                    conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+                self?.dismissOCRPanel()
+            },
+            onClose: { [weak self] in self?.dismissOCRPanel() })
+        let hosting = NSHostingView(rootView: AnyView(panelView.appAccent(AppAccent.current)))
+        // 摆位：优先选区右侧贴齐，越界折返左侧，垂直钳在视图内。
+        let size = CGSize(width: 320, height: 340)
+        var origin = CGPoint(x: selectionRect.maxX + 12, y: selectionRect.minY)
+        if origin.x + size.width > bounds.maxX - 8 {
+            origin.x = max(8, selectionRect.minX - size.width - 12)
+        }
+        origin.y = min(max(8, origin.y), max(8, bounds.height - size.height - 8))
+        hosting.frame = NSRect(origin: origin, size: size)
+        addSubview(hosting)
+        ocrHostingView = hosting
+    }
+
+    private func dismissOCRPanel() {
+        ocrHostingView?.removeFromSuperview()
+        ocrHostingView = nil
     }
 
     // MARK: - Color picker

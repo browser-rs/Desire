@@ -27,6 +27,7 @@ struct ScreenshotToolbar: View {
     let onSave: () -> Void
     let onCopy: () -> Void
     let onCancel: () -> Void
+    let onOCR: () -> Void
 
     private struct ToolItem: Hashable {
         let tool: ScreenshotTool
@@ -78,6 +79,7 @@ struct ScreenshotToolbar: View {
                 Divider()
                     .frame(height: 18)
                     .padding(.horizontal, 2)
+                actionButton(icon: "doc.text.viewfinder", help: "识别文字 (OCR)", action: onOCR, enabled: !model.ocrInProgress)
                 actionButton(icon: "square.and.arrow.down", help: "Save", action: onSave, enabled: true)
                 actionButton(icon: "doc.on.doc", help: "Copy", action: onCopy, enabled: true)
             }
@@ -268,3 +270,54 @@ struct ScreenshotToolbar: View {
     }
 }
 
+
+/// OCR 结果浮层（0.6.9 截图 OCR）：识别文本（可选中、可滚）+ 复制 / 进白板。
+@MainActor
+struct ScreenshotOCRPanel: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let text: String
+    let onCopy: () -> Void
+    let onToWhiteboard: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.viewfinder")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(appAccent)
+                Text("识别文字")
+                    .font(.footnote.weight(.semibold))
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            ScrollView {
+                Text(text)
+                    .font(.system(size: 12))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: .infinity)
+            HStack(spacing: 6) {
+                Button("复制") { onCopy() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button("进白板") { onToWhiteboard() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                Spacer()
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadow(radius: 4)
+        )
+    }
+}

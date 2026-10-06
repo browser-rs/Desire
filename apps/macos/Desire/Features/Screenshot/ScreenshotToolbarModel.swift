@@ -14,4 +14,6 @@ import Foundation
     /// True when the active color came from NSColorPanel (not the palette).
     /// Used to render the "custom" swatch with the current picked color.
     @Published var customColor: ScreenshotColor?
+    /// OCR 进行中（0.6.9 截图 OCR）：按钮禁用防重入。
+    @Published var ocrInProgress = false
 }

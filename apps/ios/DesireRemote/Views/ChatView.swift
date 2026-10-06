@@ -79,8 +79,31 @@ struct ChatView: View {
                 if client.connectionState.contains("重连") || client.connectionState.contains("断开") {
                     reconnectBanner
                 }
-                if client.messages.isEmpty {
+                if client.messages.isEmpty && client.earlierMessages.isEmpty {
                     chatEmptyState
+                }
+                // 长会话分页（0.6.8）：还有更早的（或已翻出过）就给入口
+                if client.hasMoreEarlier || !client.earlierMessages.isEmpty {
+                    Button {
+                        client.loadEarlier()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if client.loadingEarlier {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text(client.loadingEarlier ? "加载中…" : "加载更早")
+                                .font(.footnote)
+                        }
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(client.loadingEarlier)
+                }
+                ForEach(client.earlierMessages) { message in
+                    MessageBubble(message: message).id(message.id)
                 }
                 ForEach(client.messages) { message in
                     MessageBubble(message: message).id(message.id)

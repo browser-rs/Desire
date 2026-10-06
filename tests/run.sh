@@ -38,6 +38,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
+  apps/macos/Desire/Features/Sync/WhiteboardSync.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

@@ -205,6 +205,72 @@ do {
     eq("摘要：等于阈值不截", saved3, 0)
 }
 
+// ---------- 白板云同步（0.6.8 第九类：每会话一文档 LWW + 剥图/回填 + 墓碑）----------
+
+do {
+    func block(_ type: String, _ content: String) -> WhiteboardBlock {
+        WhiteboardBlock(type: type, content: content)
+    }
+    // collect 侧：image 块剥成占位符，其余原样
+    let imageBlock = block(WhiteboardBlock.Kind.image, "data:image/jpeg;base64,AAAA")
+    let local = WhiteboardSpec(title: "板 A", blocks: [
+        block(WhiteboardBlock.Kind.note, "笔记"),
+        imageBlock,
+    ])
+    let payload = WhiteboardSync.payload(for: local, conversationId: "conv-1",
+                                         updatedAt: Date(timeIntervalSince1970: 1000))!
+    eq("白板同步：payload 会话 id", payload.conversationId, "conv-1")
+    check("白板同步：image 已剥占位符", payload.blocks[1].content == WhiteboardSync.imagePlaceholder)
+    check("白板同步：占位符块保住 UUID（回填键）", payload.blocks[1].id == imageBlock.id)
+
+    // apply：远端新文档盖写 + 占位符按本地同 UUID 块回填原图
+    let wire = syncWire(id: "conv-1", updatedAt: Date(timeIntervalSince1970: 1500),
+                        payload: payload)
+    let baseBoards = ["conv-1": WhiteboardSpec(title: "旧", blocks: [
+        block(WhiteboardBlock.Kind.note, "旧笔记"),
+        imageBlock,   // 本地原图
+    ])]
+    let baseTimes = ["conv-1": Date(timeIntervalSince1970: 500)]
+    let out = WhiteboardSync.apply(base: baseBoards, base: baseTimes, remote: [wire], tombstones: [:])
+    check("白板同步：远端较新盖写", out.times["conv-1"] == Date(timeIntervalSince1970: 1500))
+    check("白板同步：盖写后标题更新", out.boards["conv-1"]?.title == "板 A")
+    check("白板同步：占位符回填本地原图",
+          out.boards["conv-1"]?.blocks[1].content == "data:image/jpeg;base64,AAAA")
+
+    // apply：远端旧 → 忽略；同刻 → 忽略
+    let older = syncWire(id: "conv-1", updatedAt: Date(timeIntervalSince1970: 800), payload: payload)
+    let out2 = WhiteboardSync.apply(base: out.boards, base: out.times, remote: [older], tombstones: [:])
+    check("白板同步：远端旧忽略", out2.times["conv-1"] == Date(timeIntervalSince1970: 1500))
+    let equal = syncWire(id: "conv-1", updatedAt: Date(timeIntervalSince1970: 1500), payload: payload)
+    let out3 = WhiteboardSync.apply(base: out.boards, base: out.times, remote: [equal], tombstones: [:])
+    check("白板同步：同刻忽略（幂等）", out3.boards["conv-1"] == out.boards["conv-1"])
+
+    // apply：新会话板创建
+    let fresh = WhiteboardSync.Payload(conversationId: "conv-2", title: "新板",
+                                       blocks: [block(WhiteboardBlock.Kind.mermaid, "graph TD;A-->B")],
+                                       updatedAt: Date(timeIntervalSince1970: 2000))
+    let out4 = WhiteboardSync.apply(base: out3.boards, base: out3.times,
+                                    remote: [syncWire(id: "conv-2", updatedAt: fresh.updatedAt, payload: fresh)],
+                                    tombstones: [:])
+    check("白板同步：远端新板创建", out4.boards["conv-2"]?.title == "新板")
+
+    // apply：墓碑比本地旧 → 本端赢保留；墓碑比本地新 → 删
+    let out5 = WhiteboardSync.apply(base: out4.boards, base: out4.times, remote: [],
+                                    tombstones: ["conv-2": Date(timeIntervalSince1970: 1000)])
+    check("白板同步：旧墓碑被本端赢", out5.boards["conv-2"] != nil)
+    let out6 = WhiteboardSync.apply(base: out5.boards, base: out5.times, remote: [],
+                                    tombstones: ["conv-2": Date(timeIntervalSince1970: 3000)])
+    check("白板同步：新墓碑落地删除", out6.boards["conv-2"] == nil && out6.times["conv-2"] == nil)
+
+    // collect 侧：体量护栏（超限返回 nil）
+    let huge = WhiteboardSpec(title: "巨板", blocks: (0..<60).map { _ in
+        block(WhiteboardBlock.Kind.note, String(repeating: "字", count: 5000))
+    })
+    check("白板同步：超限板返回 nil 跳过",
+          WhiteboardSync.payload(for: huge, conversationId: "conv-3",
+                                 updatedAt: Date()) == nil)
+}
+
 // ---------- ContextCompaction ----------
 
 func sizedTurn(_ text: String, withTool: Bool = false) -> [AgentMessage] {

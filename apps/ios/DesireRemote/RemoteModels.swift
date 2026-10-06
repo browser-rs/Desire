@@ -32,6 +32,15 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var imagePreview: String? = nil
 }
 
+/// 「加载更早」回包（0.6.8 长会话分页）：Mac 按手机当前最旧消息 id 往回
+/// 取一帧；hasMore = 更上面还有。
+struct EarlierMessagesFrame: Codable {
+    var t: String
+    var session: String
+    var hasMore: Bool
+    var messages: [ChatMessage]
+}
+
 /// Mac 快照里的白板（与面板同一块板；preview 截 200 字符，无 base64）
 struct RemoteBoardBlock: Codable, Equatable {
     var type: String

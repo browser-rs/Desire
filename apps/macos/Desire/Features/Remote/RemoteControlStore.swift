@@ -217,7 +217,27 @@ final class RemoteControlStore: ObservableObject {
         pollInbox()
         // 快照 15s 强推一拍兜底（平时变化才发）：手机错过一帧也能在半分钟内追平
         pushSnapshot(force: Date().timeIntervalSince(lastForcedPush) > 15)
+        notifyTurnCompletionIfNeeded()
         claimWatchTick()
+    }
+
+    /// Remote 完成通知（0.6.8）：回合 busy→idle 沿检测到就往 controller lane
+    /// 发一帧 `turnDone`——手机端收到后按自身前后台决定是否弹本地通知
+    /// （iOS 对前台 app 默认不展示本地通知，正好是"页面在前台就不打扰"）。
+    /// 失败收场的回合同样通知——用户要知道它停了。**只在已配对时发**。
+    private var lastTickBusy = false
+    private func notifyTurnCompletionIfNeeded() {
+        let busyNow = remoteSession?.isProcessing ?? false
+        defer { lastTickBusy = busyNow }
+        guard lastTickBusy, !busyNow, isEnabled, sessionKeyB64 != nil,
+              let session = remoteSession else { return }
+        let title = session.conversationId
+            .flatMap { AppState.live?.conversationStore.conversation(for: $0)?.title }
+        let snippet = session.messages.last(where: { $0.role == .assistant })
+            .flatMap { $0.content.map { String($0.prefix(160)) } }
+        sendInner(["t": "turnDone",
+                   "text": title ?? String(localized: "Conversation"),
+                   "body": snippet ?? String(localized: "Turn finished.")])
     }
 
     func noteLinkActivity() {
@@ -485,6 +505,38 @@ final class RemoteControlStore: ObservableObject {
             sendInnerRaw(sessionsFrame())
         case "sync":
             pushSnapshot(force: true)
+        case "fetchEarlier":
+            // 长会话分页（0.6.8）：手机端点「加载更早」，按它当前最旧消息的 id
+            // 往回取一帧。快照只发 suffix(100) 且每秒整体替换——更早的消息必须
+            // 独立成帧（earlierMessages），由手机端存侧缓冲、不参与快照替换。
+            struct EarlierFrame: Codable {
+                var t: String
+                var session: String
+                var hasMore: Bool
+                var messages: [RemoteSnapshotMessage]
+            }
+            func send(_ frame: EarlierFrame) {
+                if let data = try? SyncJSON.makeEncoder().encode(frame),
+                   let json = String(data: data, encoding: .utf8) {
+                    sendInnerRaw(json)
+                }
+            }
+            guard let app = AppState.live,
+                  let sid = inner.session ?? remoteSession?.conversationId?.uuidString,
+                  let conversationID = UUID(uuidString: sid),
+                  let conversation = app.conversationStore.conversation(for: conversationID) else {
+                send(EarlierFrame(t: "earlierMessages", session: inner.session ?? "",
+                                  hasMore: false, messages: []))
+                return
+            }
+            let all = conversation.messages
+            let anchorID = inner.id.flatMap(UUID.init(uuidString:))
+            let anchorIndex = anchorID.flatMap { id in all.firstIndex { $0.id == id } } ?? all.count
+            let start = max(0, anchorIndex - Self.earlierBatchSize)
+            let slice = all[start..<anchorIndex]
+            send(EarlierFrame(t: "earlierMessages", session: sid,
+                              hasMore: start > 0,
+                              messages: Self.mapMessagesForRemote(slice)))
         case "getMemory":
             if let json = memoryFrame() { sendInnerRaw(json) }
         case "deleteMemory":
@@ -750,16 +802,18 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
-    private func pushSnapshot(force: Bool) {
-        guard isEnabled, case .signedIn = syncStore.authState else { return }
-        if force { lastForcedPush = Date() }
-        // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
-        let session = remoteSession
-        // 截图消息：content 是超长 data URI（截断后是乱码碎片）——不发原文，
-        // 只报大小；**最近一张**才带降采样预览（帧预算有限，见下方 encode 分层）。
-        let visibleMessages = session?.messages.suffix(100) ?? []
-        let lastImageMessageID = visibleMessages.last { ($0.content ?? "").hasPrefix("data:image/") }?.id
-        let messages = visibleMessages.map { message -> RemoteSnapshotMessage in
+    /// 分页帧的批量与截断口径：20 条 × 内容 800 字符 ≈ 16KB，安全落在信箱
+    /// 32KB（base64 后）上限内——快照的 2000 字符口径在这里会爆。
+    private static let earlierBatchSize = 20
+
+    /// 快照/分页共用的消息映射：截图只报大小（previewLastImage 时最近一张带
+    /// 降采样预览），正文/思考/工具参数按快照口径截短。
+    private static func mapMessagesForRemote(
+        _ slice: ArraySlice<AgentMessage>, previewLastImage: Bool = false
+    ) -> [RemoteSnapshotMessage] {
+        let lastImageMessageID = previewLastImage
+            ? slice.last { ($0.content ?? "").hasPrefix("data:image/") }?.id : nil
+        return slice.map { message -> RemoteSnapshotMessage in
             var msg = RemoteSnapshotMessage(
                 id: message.id.uuidString,
                 role: message.role.rawValue,
@@ -776,6 +830,17 @@ final class RemoteControlStore: ObservableObject {
             }
             return msg
         }
+    }
+
+    private func pushSnapshot(force: Bool) {
+        guard isEnabled, case .signedIn = syncStore.authState else { return }
+        if force { lastForcedPush = Date() }
+        // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
+        let session = remoteSession
+        // 截图消息：content 是超长 data URI（截断后是乱码碎片）——不发原文，
+        // 只报大小；**最近一张**才带降采样预览（帧预算有限，见下方 encode 分层）。
+        let messages = Self.mapMessagesForRemote(session?.messages.suffix(100) ?? [],
+                                                 previewLastImage: true)
         // PERF-5：先算**廉价指纹**（整数组合，O(可见消息数)），没变化就不走
         // "映射 100 条消息 + 全量 JSON 编码"的重路径——此前编码只为指纹比对，
         // Agent 流式期间每秒与 flush 节拍叠在 MainActor 上。字段必须与下方

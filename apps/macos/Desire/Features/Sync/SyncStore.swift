@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import LocalAuthentication
 import Network
+import OSLog
 import Security
 
 /// 云同步会话与编排（Store 层）：登录态（令牌存 Keychain）、每域拉取游标、
@@ -140,8 +141,9 @@ final class SyncStore: ObservableObject {
         let storedServer = defaults.string(forKey: serverKey) ?? ""
         serverBaseURL = storedServer.isEmpty ? Self.defaultServerBaseURL : storedServer
         for domain in SyncDomain.allCases {
-            // 浏览历史 opt-in（高频日志型数据 + 隐私敏感），默认关；其余域默认开
-            let fallback = domain == .history ? false : true
+            // opt-in 默认关：浏览历史（高频日志型 + 隐私敏感）、白板（板属个人
+            // 创作，默认仅本机）；其余域默认开
+            let fallback = domain == .history || domain == .whiteboard ? false : true
             enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
         if let data = keychainReadData(masterKeyAccount) {
@@ -166,6 +168,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(agentPreferenceStore.objectWillChange, domain: .agentPrefs)
         observeLocalChanges(agentMemoryStore.objectWillChange, domain: .agentMemory)
         observeLocalChanges(historyStore.objectWillChange, domain: .history)
+        observeLocalChanges(WhiteboardStore.shared.objectWillChange, domain: .whiteboard)
     }
 
     private func observeLocalChanges(
@@ -717,6 +720,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
+            DomainAdapter(domain: .whiteboard, collect: collectWhiteboards, apply: applyWhiteboards, clear: clearWhiteboardsPending),
         ]
     }
 
@@ -1303,6 +1307,73 @@ final class SyncStore: ObservableObject {
             serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .history, masterKeyBase64: master)) ?? "")
         }
         historyStore.clearPendingDeletions(Set(real))
+    }
+
+    // MARK: - 白板域（0.6.8 第九类，每会话一文档的 KV 域）
+
+    private func collectWhiteboards(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for (conversationId, spec) in WhiteboardStore.shared.boardsByConversation {
+            // 无戳的旧板（v2 存储迁移前创建且未变更过）：盖当前时间参与 LWW，
+            // 下轮起以真实变更时间滚动。
+            let updatedAt = WhiteboardStore.shared.updatedTimes[conversationId] ?? Date()
+            guard let payload = WhiteboardSync.payload(for: spec, conversationId: conversationId,
+                                                       updatedAt: updatedAt) else {
+                Log.app.warning("whiteboard sync: board \(conversationId, privacy: .public) over payload budget — skipped")
+                continue
+            }
+            items.append(encryptedWire(domain: .whiteboard, realID: conversationId,
+                                       clientUpdatedAt: updatedAt, deleted: false,
+                                       payload: payload, master: master))
+        }
+        for (id, deletedAt) in WhiteboardStore.shared.pendingDeletions {
+            items.append(encryptedTombstone(domain: .whiteboard, realID: id,
+                                            clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyWhiteboards(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        // 墓碑（payload NULL）先解出：**正向 HMAC 匹配**本地会话 id——远端删除
+        // 跨设备落地（decryptItems 只处理非删除项，平铺域至今缺这一步）。
+        var tombstones: [String: Date] = [:]
+        let store = WhiteboardStore.shared
+        let candidateIDs = store.allConversationIDs + Array(store.pendingDeletions.keys)
+        for item in items where item.deleted == true {
+            for localID in candidateIDs where item.clientId == (try? SyncCrypto.hmacClientID(
+                localID, domain: .whiteboard, masterKeyBase64: master)) {
+                tombstones[localID] = item.clientUpdatedAt
+            }
+        }
+        let decrypted = decryptItems(items, domain: .whiteboard, master: master, as: WhiteboardSync.Payload.self) { item, payload in
+            SyncWireItem<WhiteboardSync.Payload>(
+                clientId: payload.conversationId,
+                clientUpdatedAt: item.clientUpdatedAt,
+                deleted: item.deleted,
+                payload: payload,
+                updatedAt: item.updatedAt
+            )
+        }
+        let outcome = WhiteboardSync.apply(
+            base: store.boardsByConversation, base: store.updatedTimes,
+            remote: decrypted, tombstones: tombstones)
+        // 逐键写入（replaceForSync 不进撤销栈、不盖本地戳；objectWillChange
+        // 已在本调用外层的 applyingRemote 窗口内）。
+        let changedKeys = Set(outcome.boards.keys).union(Set(store.boardsByConversation.keys))
+        for key in changedKeys {
+            let spec = outcome.boards[key]
+            let time = outcome.times[key]
+            if spec != store.boardsByConversation[key] || time != store.updatedTimes[key] {
+                store.replaceForSync(spec, conversationID: key, updatedAt: time)
+            }
+        }
+    }
+
+    private func clearWhiteboardsPending(_ serverIDs: Set<String>, master: String) {
+        let real = WhiteboardStore.shared.pendingDeletions.keys.filter {
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0, domain: .whiteboard, masterKeyBase64: master)) ?? "")
+        }
+        WhiteboardStore.shared.clearPendingDeletions(Set(real))
     }
 
     // MARK: - 加解密小工具

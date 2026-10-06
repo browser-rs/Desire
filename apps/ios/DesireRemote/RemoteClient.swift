@@ -47,6 +47,11 @@ final class RemoteClient: ObservableObject {
     @Published var desktopName: String?
     @Published var connectionState = "未连接"
     @Published var messages: [ChatMessage] = []
+    /// 长会话分页（0.6.8）：「加载更早」取回的侧缓冲——快照每秒**整体替换**
+    /// messages，更早的消息绝不能混进去，否则下一秒就被冲掉。随会话切换清空。
+    @Published private(set) var earlierMessages: [ChatMessage] = []
+    @Published private(set) var hasMoreEarlier = false
+    @Published private(set) var loadingEarlier = false
     @Published var busy = false
     /// Mac 离线时发出的消息（排队中，上线后送达）
     @Published var queuedOffline = false
@@ -395,6 +400,7 @@ final class RemoteClient: ObservableObject {
     /// 手机没有会话密钥（只在配对码里传），于是登录成功后仍卡在配对页。
     func claimPairing(_ info: LoginPairingInfo) async throws {
         sessionKeyB64 = info.sessionKeyB64
+        RemoteNotifications.requestPermissionIfNeeded()
         let token = try await currentToken()
         let resp: ClaimResp = try await API.send(
             "POST", baseURL, "/remote/pairing/claim",
@@ -408,6 +414,8 @@ final class RemoteClient: ObservableObject {
         KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
         hasSavedPairing = true
         messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
         busy = false
         phase = .main
         connectWS()
@@ -449,6 +457,8 @@ final class RemoteClient: ObservableObject {
         desktopDeviceID = nil
         accessToken = nil
         messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
         sessions = []
         pendingNewSession = false
         memory = nil
@@ -712,6 +722,25 @@ final class RemoteClient: ObservableObject {
                 trace = try? JSONDecoder().decode(RemoteTrace.self, from: data)
             case "models":
                 models = try? JSONDecoder().decode(RemoteModels.self, from: data)
+            case "earlierMessages":
+                // 长会话分页（0.6.8）：追加进侧缓冲（按 id 去重），不碰 messages
+                // ——快照每秒整体替换 messages，侧缓冲绝不能混进去。
+                if let frame = try? JSONDecoder().decode(EarlierMessagesFrame.self, from: data) {
+                    loadingEarlier = false
+                    hasMoreEarlier = frame.hasMore
+                    var merged = earlierMessages
+                    for message in frame.messages where !merged.contains(where: { $0.id == message.id }) {
+                        merged.append(message)
+                    }
+                    earlierMessages = merged
+                }
+            case "turnDone":
+                // Remote 完成通知（0.6.8）：iOS 对前台 app 默认不展示本地通知，
+                // 系统行为正好 = "页面在前台就不打扰"；后台/杀掉后由推送通道的
+                // 缺位兜底（本地通知只在 app 活着时能收到，快照通道在线即触发）。
+                let title = root["text"] as? String ?? "Conversation"
+                let body = root["body"] as? String ?? ""
+                RemoteNotifications.postTurnDone(title: title, body: body)
             case "error":
                 // Mac 端反馈（例如"没有活跃的 Agent 会话"）：显示成连接状态旁白。
                 if let message = root["message"] as? String, !message.isEmpty {
@@ -867,6 +896,8 @@ final class RemoteClient: ObservableObject {
         pushFrame(["t": "clear"], replace: false)
         // 本地先清（不等下一帧）：点了"新对话"就该立刻看到空对话
         messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
         approval = nil
         question = nil
         plan = []
@@ -917,6 +948,20 @@ final class RemoteClient: ObservableObject {
         pushFrame(["t": "sessions"], replace: false)
     }
 
+    /// 长会话分页（0.6.8）：把当前持有的最旧消息 id 发给 Mac，回包落在
+    /// earlierMessages 侧缓冲。锚点优先取缓冲头（连续上翻），回退到快照头。
+    func loadEarlier() {
+        guard !loadingEarlier, let anchor = earlierMessages.first?.id ?? messages.first?.id else { return }
+        loadingEarlier = true
+        pushFrame(["t": "fetchEarlier", "session": selectedSessionID ?? "", "id": anchor],
+                  replace: false)
+        // 安全网：Mac 离线/丢帧时 6s 后放行，按钮不至于永久转圈
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            await MainActor.run { self?.loadingEarlier = false }
+        }
+    }
+
     /// 让 Mac 新建一个会话并切过去（列表页"+"按钮）。
     /// 乐观切换：不等 Mac 回帧，先进空聊天室（Mac 离线时该指令会在其上线后
     /// 补执行）；Mac 创建后的第一帧快照带 session 字段，据此锁定选中会话。
@@ -924,6 +969,8 @@ final class RemoteClient: ObservableObject {
         pendingNewSession = true
         selectedSessionID = nil
         messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
         busy = false
         queuedOffline = false
         connectionState = desktopOnline ? "已连接" : "Mac 离线"
@@ -948,6 +995,8 @@ final class RemoteClient: ObservableObject {
         if selectedSessionID == id {
             selectedSessionID = nil
             messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
             pendingNewSession = false
         }
         pushFrame(["t": "deleteSession", "session": id], replace: false)
@@ -970,6 +1019,8 @@ final class RemoteClient: ObservableObject {
         pendingNewSession = false
         selectedSessionID = id
         messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
         busy = false
         phase = .main
         var dict: [String: String] = ["t": "select"]

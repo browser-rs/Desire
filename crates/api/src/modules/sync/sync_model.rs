@@ -8,7 +8,10 @@ use utoipa::ToSchema;
 /// - agent_memory:client_id = HMAC(事实/摘要 id 或 "profile"),payload = 条目本体;
 /// - agent_prefs:client_id = 偏好键名,payload = 值本体;
 /// - history:client_id = HMAC(访问 UUID),payload = 条目本体——**专表存储**
-///   (见 table_for;高频日志型数据,服务端 90 天 TTL,客户端 opt-in 默认关闭)。
+///   (见 table_for;高频日志型数据,服务端 90 天 TTL,客户端 opt-in 默认关闭);
+/// - whiteboard:client_id = HMAC(会话 UUID),payload = 整板文档(块数组,服务端
+///   不解读)——每会话一文档的 KV 域,客户端 opt-in 默认关闭;image 块的 data URI
+///   在客户端 collect 时已剥成占位符,payload 通常为小体量 JSON。
 /// E2E 开启后以上 client_id 与 payload 在库里均为不透明形态(HMAC/密文)。
 pub const DOMAINS: &[&str] = &[
   "bookmarks",
@@ -19,6 +22,7 @@ pub const DOMAINS: &[&str] = &[
   "agent_memory",
   "agent_prefs",
   "history",
+  "whiteboard",
 ];
 
 /// 域 → 存储表。history 独立成表(0007):写入频繁、体量大、有独立 TTL,

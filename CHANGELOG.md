@@ -1,4 +1,10 @@
 ## [Unreleased]
+### Added
+
+- **白板同步域（第九类，opt-in 默认关，0.6.8）**：每会话一文档的 KV 域——client_id = HMAC(会话 UUID)、payload = 整板密文（服务端白名单 + 通用表）。三条新语义：① **image 块 data URI 不随同步传输**——collect 剥成占位符（截图数百 KB，服务端 payload ≤256KB），apply 按块 UUID 从本地板回填原图；② 板级更新时间随文档走（`replaceForSync` 不盖本地戳，LWW 裁决依据不漂移）；③ **拉取侧跨设备删除首次落地**——远端墓碑 payload 为 NULL，靠正向 HMAC 匹配本地会话 id 落地（decryptItems 跳过墓碑是八类平铺域的既有缺口，白板域是第一个做对的，其余域缺口记 ROADMAP）。显式清空落墓碑、容量淘汰不落（与历史域同口径）；单测 +12（进 harness），服务端 E2E `tools/wb-sync-e2e.sh` 4/4（白名单/push/墓碑/pull）。
+- **Remote 完成通知**：Mac 在链路循环里检测回合 busy→idle 沿，往 controller lane 发 `turnDone` 帧（会话标题 + 回答摘要）；iOS 收到后发**本地**通知——iOS 对前台 app 默认不展示本地通知，"页面在前台就不打扰"即系统行为；本地通知仅进程存活时可达（app 被杀收不到是平台事实，不承诺推送）。通知权限在配对成功时懒请求。
+- **Remote 长会话分页**：快照只发最近 100 条且每秒整体替换——更早的消息走独立帧：iOS「加载更早」→ `fetchEarlier`（携带当前最旧消息 id）→ Mac 从落盘会话取前 20 条（×800 字符，安全落在信箱 32KB 内）回 `earlierMessages`；iOS 存**侧缓冲**（按 id 去重、不参与快照替换、随会话切换清空）。Mac 消息映射抽成快照/分页共用 helper。
+
 
 ## [v0.6.7] - 2026-10-06
 ### Changed

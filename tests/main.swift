@@ -312,6 +312,25 @@ do {
     })
 }
 
+// ---------- 悬浮球触盘槽位（0.6.9 v4：八选四持久化解码）----------
+
+do {
+    // 合法四枚 → 原样
+    let good = BallCapability.decodeSlots(["translate", "screenshot", "plan", "customPrompt"])
+    eq("球槽位：合法档原样", good.map { $0.rawValue },
+       ["translate", "screenshot", "plan", "customPrompt"])
+    // 重复项 → 去重保序（恰好四枚即修复，不丢用户配置）
+    let duped = BallCapability.decodeSlots(["voice", "voice", "plan", "whiteboard", "translate"])
+    eq("球槽位：重复去重保序", duped.map { $0.rawValue },
+       ["voice", "plan", "whiteboard", "translate"])
+    // 未知值 + 数量不足 → 回退默认
+    let broken = BallCapability.decodeSlots(["translate", "nope"])
+    eq("球槽位：坏档回退默认", broken, BallCapability.defaultSlots)
+    // 顺序保序（触盘 2×2 位置语义）
+    let reordered = BallCapability.decodeSlots(["plan", "translate", "voice", "summarize"])
+    check("球槽位：顺序保序", reordered[0] == .plan && reordered[2] == .voice)
+}
+
 // ---------- 拉取侧跨设备删除（0.6.8：平铺域墓碑补齐）----------
 
 do {

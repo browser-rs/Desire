@@ -34087,6 +34087,116 @@
           }
         }
       }
+    },
+    "Hub Slots" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Slots"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘槽位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤槽位"
+          }
+        }
+      }
+    },
+    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择悬浮球触盘上的四个动作。选中已被其他槽位占用的能力时，两个槽位互换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇懸浮球觸盤上的四個動作。選中已被其他槽位佔用的能力時，兩個槽位互換。"
+          }
+        }
+      }
+    },
+    "Custom Prompt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Prompt"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义提示词"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自訂提示詞"
+          }
+        }
+      }
+    },
+    "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent as a new agent turn when the Custom Prompt hub slot is tapped."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点触盘上的「自定义提示词」槽位时，作为一条新回合发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點觸盤上的「自訂提示詞」槽位時，作為一條新回合發送。"
+          }
+        }
+      }
+    },
+    "e.g. Summarize this page and give me three takeaways" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Summarize this page and give me three takeaways"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：总结本页并给出三点建议"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：總結本頁並給出三點建議"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

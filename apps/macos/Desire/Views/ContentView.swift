@@ -321,6 +321,12 @@ struct ContentView: View {
             let ball = AgentBallPanel.shared
             ball.onOpenAgentPanel = { showAgentPanel = true }
             ball.onAskAboutPage = { askAgentAboutPage() }
+            // v4：翻译/自定义提示词/拖拽投递的通用发话口 + 截图槽位。
+            ball.onSendPrompt = { text in
+                aiSession.sendMessage(text)
+                showAgentPanel = true
+            }
+            ball.onScreenshot = { startScreenshot() }
             ball.onPageFullscreen = { [tabManager] in
                 tabManager.selectedTab?.browser.webView.fullscreenState == .inFullscreen
             }

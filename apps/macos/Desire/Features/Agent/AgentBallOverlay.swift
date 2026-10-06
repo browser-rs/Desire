@@ -38,6 +38,8 @@ struct AgentBallOverlay: View {
     @State private var lastTap: Date?
     @State private var dragTilt: Double = 0
     @State private var hoverScale: CGFloat = 1.0
+    /// 拖拽投递悬停（v4）：拖链接/选区悬到球上时球放大 + 强调环。
+    @State private var dropHover = false
     /// 语音已发送提示（球旁玻璃胶囊，短暂显示）。
     @State private var sentToast: String?
     @State private var toastTask: Task<Void, Never>?
@@ -175,6 +177,27 @@ struct AgentBallOverlay: View {
         }
         .gesture(dragGesture(in: size))
         .animation(.spring(response: 0.32, dampingFraction: 0.7), value: state.replyFlash)
+        // 拖拽投递（v4）：拖链接/选区文本到球上 → 球放大 + 强调环提示，松手
+        // 以带上下文的提示起回合。悬停态优先于普通 hover 缩放。
+        .scaleEffect(dropHover ? 1.16 : hoverScale)
+        .overlay {
+            if dropHover {
+                Circle()
+                    .stroke(appAccent.opacity(0.9), lineWidth: 3)
+                    .frame(width: ballSize + 14, height: ballSize + 14)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            state.deliverDrop(url.absoluteString)
+            return true
+        } isTargeted: { dropHover = $0 }
+        .dropDestination(for: String.self) { texts, _ in
+            guard let text = texts.first else { return false }
+            state.deliverDrop(text)
+            return true
+        } isTargeted: { dropHover = $0 }
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: dropHover)
     }
 
     private enum BallIcon { case target, close, mic }
@@ -317,31 +340,21 @@ private struct AgentBallHub: View {
     let appear: Bool
 
     @State private var hovered: Int?
+    /// 拖拽投递悬停（v4）：拖链接/选区悬到球上时球放大 + 强调环。
+    @State private var dropHover = false
 
     var body: some View {
         VStack(spacing: 10) {
             VStack(spacing: 10) {
+                // v4：槽位可定制（八选四，设置 → 悬浮球配置）——按钮渲染与
+                // 触发统一走 BallCapability，布局仍是 V3 定稿的 2×2。
                 HStack(spacing: 10) {
-                    cell(0, icon: "bubble.left.and.text.bubble.right", title: "Agent 对话") {
-                        state.isExpanded = false
-                        state.openAgentPanel()
-                    }
-                    cell(1,
-                         icon: state.voice.isRecording ? "stop.circle.fill" : "mic.fill",
-                         title: state.voice.isRecording ? "停止并发送" : "语音输入",
-                         recording: state.voice.isRecording) {
-                        state.voice.toggle()
-                    }
+                    hubCell(state.slots[0])
+                    hubCell(state.slots[1])
                 }
                 HStack(spacing: 10) {
-                    cell(2, icon: "doc.text.magnifyingglass", title: "总结本页") {
-                        state.isExpanded = false
-                        state.askAboutPage()
-                    }
-                    cell(3, icon: "rectangle.dashed", title: "白板") {
-                        state.isExpanded = false
-                        state.openWhiteboard()
-                    }
+                    hubCell(state.slots[2])
+                    hubCell(state.slots[3])
                 }
             }
             if state.voice.isRecording {
@@ -350,6 +363,16 @@ private struct AgentBallHub: View {
             }
         }
         .padding(14)
+    }
+
+    @ViewBuilder
+    private func hubCell(_ capability: BallCapability) -> some View {
+        let recording = capability == .voice && state.voice.isRecording
+        let title = recording ? "停止并发送" : capability.displayName
+        let icon = recording ? "stop.circle.fill" : capability.icon
+        cell(capability.hashValue, icon: icon, title: title, recording: recording) {
+            state.perform(capability)
+        }
     }
 
     private func cell(_ index: Int, icon: String, title: String,

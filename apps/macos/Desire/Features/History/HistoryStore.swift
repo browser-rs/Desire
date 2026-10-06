@@ -24,6 +24,8 @@ class HistoryStore: ObservableObject {
     /// Legacy UserDefaults key — read once during migration, then deleted.
     private let legacyKey = "desire.history"
     private let maxEntries = 500
+    /// 云同步墓碑上限（0.6.8）：超限淘汰最旧的，见 pruneDeletions。
+    private static let maxDeletions = 5000
 
     init() {
         load()
@@ -170,7 +172,20 @@ class HistoryStore: ObservableObject {
     }
 
     private func saveDeletions() {
+        pruneDeletions()
         DiskStore.save(pendingDeletions, key: scopedDeletionsKey)
+    }
+
+    /// 墓碑上限（0.6.8）：同步裁决会及时清空，但反复"清空历史→同步失败"的
+    /// 异常链路可能无限累积——超限淘汰**最旧**的墓碑。被淘汰的删除交给服务端
+    /// 90 天 TTL 收敛（丢墓碑 ≠ 数据复活：行随 TTL 过期消失）。
+    private func pruneDeletions() {
+        guard pendingDeletions.count > Self.maxDeletions else { return }
+        let keep = pendingDeletions
+            .sorted { $0.value > $1.value }
+            .prefix(Self.maxDeletions)
+            .map { ($0.key, $0.value) }
+        pendingDeletions = Dictionary(uniqueKeysWithValues: keep)
     }
 
     /// AppState.applyProfile 驱动（0.3.5）。

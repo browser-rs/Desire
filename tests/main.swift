@@ -271,6 +271,38 @@ do {
                                  updatedAt: Date()) == nil)
 }
 
+// ---------- 拉取侧跨设备删除（0.6.8：平铺域墓碑补齐）----------
+
+do {
+    // 平铺：墓碑 ≥ 本地戳 → 删；本地戳更新 → 留；无命中 → 不动
+    let dialKeep = QuickDial(id: UUID(), title: "留", url: "https://k.example", icon: "", sort: 0,
+                             updatedAt: Date(timeIntervalSince1970: 3000))
+    let dialDrop = QuickDial(id: UUID(), title: "删", url: "https://d.example", icon: "", sort: 1,
+                             updatedAt: Date(timeIntervalSince1970: 1000))
+    var dials = [dialKeep, dialDrop]
+    PullTombstones.apply(to: &dials,
+                         deleted: [dialKeep.id.uuidString: Date(timeIntervalSince1970: 2000),
+                                   dialDrop.id.uuidString: Date(timeIntervalSince1970: 2000),
+                                   "ghost": Date()],
+                         idOf: { $0.id.uuidString }, updatedAtOf: { $0.updatedAt })
+    eq("拉取删除：本地新者保留", dials.map { $0.title }, ["留"])
+    check("拉取删除：同刻墓碑收敛删除", !dials.contains { $0.title == "删" })
+
+    // 树：父命中 → 整棵子树移除；子单独命中 → 只删子
+    let doomedChild = Bookmark.leaf(title: "子", url: "https://c.example")
+    let doomedParent = Bookmark.folder(title: "删我", children: [doomedChild])
+    let survivor = Bookmark.leaf(title: "旁支", url: "https://s.example")
+    let tPast = Date(timeIntervalSince1970: 1)
+    let tree = PullTombstones.filterTree(
+        [doomedParent, survivor],
+        deleted: [doomedParent.id.uuidString: tPast, doomedChild.id.uuidString: tPast])
+    eq("拉取删除：树父删整棵子树", tree.map { $0.title }, ["旁支"])
+    let onlyChildDoomed = PullTombstones.filterTree(
+        [Bookmark.folder(title: "父", children: [doomedChild, survivor])],
+        deleted: [doomedChild.id.uuidString: Date(timeIntervalSince1970: 9999)])
+    eq("拉取删除：子墓碑只删子", onlyChildDoomed.first?.children.map { $0.title }, ["旁支"])
+}
+
 // ---------- ContextCompaction ----------
 
 func sizedTurn(_ text: String, withTool: Bool = false) -> [AgentMessage] {

@@ -37,6 +37,18 @@ enum SyncDomain: String, CaseIterable {
     }
 }
 
+/// 单域的同步诊断计数（0.6.8 同步日志，纯值类型进 harness 无需——仅 Codable 持久化）。
+/// 累计口径：pushed = 实际发出的条数（含墓碑）；pulled = 游标增量收到的条数；
+/// conflicts = LWW 输掉（服务端胜者回写落地）的条数。lastConflictMark 取
+/// clientId 尾 8 位——HMAC 本身无语义，仅作"哪条、何时"的对时记号。
+struct SyncDomainDiag: Codable, Equatable {
+    var pushed = 0
+    var pulled = 0
+    var conflicts = 0
+    var lastConflictAt: Date?
+    var lastConflictMark: String?
+}
+
 /// 一轮同步的域级结果聚合（纯逻辑，tests/run.sh 覆盖）：哪些域成功、哪些失败、
 /// 全局错误文案怎么拼。域间错误隔离后，一轮可以"部分成功"——据此决定
 /// lastSyncAt 是否推进、全局 lastError 是否刷新。

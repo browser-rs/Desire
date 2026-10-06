@@ -199,6 +199,40 @@ enum FlatSyncMerge {
     }
 }
 
+// MARK: - 拉取侧跨设备删除（0.6.8 补齐白板域之外的真缺口）
+
+/// 远端墓碑（payload = NULL，decryptItems 拿不到）的拉取侧落地。调用方先用
+/// **正向 HMAC** 把墓碑 clientId 匹配回本地真实 id（本端持有候选集，服务器
+/// 不解读），这里只做纯裁决：**墓碑时间 ≥ 本地戳 → 删**（同刻收敛，与
+/// FlatSyncMerge 同刻删除语义一致）；本地戳更新 → 保留（本端赢，下轮 push
+/// 以新戳重推，服务端复活）。
+enum PullTombstones {
+    /// 平铺列表：按 id 删除被墓碑裁决的元素。
+    static func apply<Element>(
+        to items: inout [Element], deleted: [String: Date],
+        idOf: (Element) -> String, updatedAtOf: (Element) -> Date?
+    ) {
+        guard !deleted.isEmpty else { return }
+        items.removeAll { element in
+            guard let t = deleted[idOf(element)] else { return false }
+            return (updatedAtOf(element) ?? .distantPast) <= t
+        }
+    }
+
+    /// 书签树：被裁决节点连同**整棵子树**移除——父节点删除时子节点不应
+    /// 走"孤儿归位"复活成根节点（它们在服务端本就各有墓碑）。
+    static func filterTree(_ nodes: [Bookmark], deleted: [String: Date]) -> [Bookmark] {
+        guard !deleted.isEmpty else { return nodes }
+        return nodes.compactMap { node in
+            if let t = deleted[node.id.uuidString],
+               (node.updatedAt ?? .distantPast) <= t { return nil }
+            var kept = node
+            kept.children = filterTree(node.children, deleted: deleted)
+            return kept
+        }
+    }
+}
+
 /// 便捷构造：平铺条目 → 线路条目（id 用客户端稳定字符串；UUID 域传 uuidString）。
 func syncWire<P>(
     id: String, updatedAt: Date?, deleted: Bool = false, payload: P

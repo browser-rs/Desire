@@ -44,6 +44,10 @@ final class SyncStore: ObservableObject {
     private var lastAuthError: Error?
     /// 各域最近一次同步结果（ok 时间 / failed 文案）。
     @Published private(set) var domainStatus: [SyncDomain: DomainStatus] = [:]
+    /// 同步诊断（0.6.8 同步日志）：逐域累计推送条数 / 拉取条数 / LWW 冲突次数
+    /// 与最近一次冲突（条目记号 = clientId 尾段 + 时间）。随 UserDefaults 持久化，
+    /// 设置 → Sync 的诊断区块展示。
+    @Published private(set) var diagnostics: [SyncDomain: SyncDomainDiag] = [:]
     /// 同步服务器地址（设置页/桥可改，立即生效）。
     @Published private(set) var serverBaseURL: String
     /// 用户选择的同步类目（缺省全开）。关闭 = 跳过该域 push/pull；
@@ -157,6 +161,12 @@ final class SyncStore: ObservableObject {
             startSyncInfrastructure()
         }
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date
+        if let raw = defaults.data(forKey: Self.diagnosticsKey),
+           let decoded = try? JSONDecoder().decode([String: SyncDomainDiag].self, from: raw) {
+            diagnostics = Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value in
+                SyncDomain(rawValue: key).map { ($0, value) }
+            })
+        }
         // 变更驱动：源 store 一动就标脏 + 排防抖同步。注意 AgentPreferenceStore
         // 的任何变化（不只提示词）都会标脏 agentPrefs——多标无害（未变化的
         // collect 返回空、不产生 push），换来的是订阅层零特判。
@@ -724,6 +734,33 @@ final class SyncStore: ObservableObject {
         ]
     }
 
+    // MARK: - 诊断计数（0.6.8 同步日志）
+
+    private static let diagnosticsKey = "sync.diagnostics"
+
+    /// 各域当前待删墓碑数（同步日志里展示"待删 N"——正常应在裁决后归零，
+    /// 长期不为 0 = 该域的同步持续失败，是需要看的信号）。
+    var pendingTombstoneCounts: [SyncDomain: Int] {
+        [
+            .bookmarks: bookmarkStore.pendingDeletions.count,
+            .quickDials: quickDialStore.pendingDeletions.count,
+            .readingList: readingListStore.pendingDeletions.count,
+            .agentMemory: agentMemoryStore.pendingDeletions.count,
+            .history: historyStore.pendingDeletions.count,
+            .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
+        ]
+    }
+
+    private func recordDiag(_ domain: SyncDomain, update: (inout SyncDomainDiag) -> Void) {
+        var diag = diagnostics[domain] ?? SyncDomainDiag()
+        update(&diag)
+        diagnostics[domain] = diag
+        if let data = try? JSONEncoder().encode(
+            Dictionary(uniqueKeysWithValues: diagnostics.map { ($0.key.rawValue, $0.value) })) {
+            defaults.set(data, forKey: Self.diagnosticsKey)
+        }
+    }
+
     private func runSyncCycle() async throws -> SyncCycleOutcome {
         let token = try await validAccessToken()
         guard let master = masterKeyBase64 else {
@@ -806,6 +843,16 @@ final class SyncStore: ObservableObject {
                     // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
                     adapter.clear(Set(pushResults.map(\.clientId)), master)
                 }
+                // 诊断：pushed = 实发条数；conflict = LWW 输掉（服务端胜者回写）。
+                recordDiag(domain) { diag in
+                    diag.pushed += items.count
+                    let conflicted = pushResults.filter { $0.status == "conflict" }
+                    if let last = conflicted.last {
+                        diag.conflicts += conflicted.count
+                        diag.lastConflictAt = Date()
+                        diag.lastConflictMark = String(last.clientId.suffix(8))
+                    }
+                }
             }
         }
 
@@ -822,6 +869,7 @@ final class SyncStore: ObservableObject {
         }
         var finalCursor: String?
         var pages = 0
+        var pulledThisCycle = 0
         while pages < 50 {
             pages += 1
             let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
@@ -840,6 +888,7 @@ final class SyncStore: ObservableObject {
                 }
             }
             applyRemotely { adapter.apply(filtered, master) }
+            pulledThisCycle += filtered.count
             if let last = response.items.last {
                 let newCursor = "\(last.updatedAt ?? "")|\(last.id ?? 0)"
                 // 无进展断页：整页都是已见行时游标不动，必须退出（否则同页
@@ -853,6 +902,8 @@ final class SyncStore: ObservableObject {
         }
         if let finalCursor {
             defaults.set(finalCursor, forKey: cursorKey(domain))
+            // 诊断：pulled = 本轮游标增量收到的条数（已过滤已见行）。
+            recordDiag(domain) { $0.pulled += pulledThisCycle }
         }
     }
 
@@ -895,9 +946,12 @@ final class SyncStore: ObservableObject {
                 updatedAt: item.updatedAt
             )
         }
-        bookmarkStore.replaceForSync(
-            BookmarkSync.merge(base: bookmarkStore.bookmarks, remote: decrypted)
-        )
+        let merged = BookmarkSync.merge(base: bookmarkStore.bookmarks, remote: decrypted)
+        let deleted = matchPullTombstones(
+            items, master: master, domain: .bookmarks,
+            candidateIDs: BookmarkSync.flatten(merged).map { $0.id.uuidString })
+        // 命中墓碑的节点连同子树移除（父删时子不应"孤儿归位"复活成根）。
+        bookmarkStore.replaceForSync(PullTombstones.filterTree(merged, deleted: deleted))
     }
 
     private func clearBookmarksPending(_ serverIDs: Set<String>, master: String) {
@@ -931,9 +985,14 @@ final class SyncStore: ObservableObject {
                 updatedAt: item.updatedAt
             )
         }
-        quickDialStore.replaceForSync(
-            QuickDialSync.merge(base: quickDialStore.dials, remote: decrypted)
-        )
+        var merged = QuickDialSync.merge(base: quickDialStore.dials, remote: decrypted)
+        PullTombstones.apply(
+            to: &merged,
+            deleted: matchPullTombstones(
+                items, master: master, domain: .quickDials,
+                candidateIDs: quickDialStore.dials.map { $0.id.uuidString }),
+            idOf: { $0.id.uuidString }, updatedAtOf: { $0.updatedAt })
+        quickDialStore.replaceForSync(merged)
     }
 
     private func clearQuickDialsPending(_ serverIDs: Set<String>, master: String) {
@@ -967,9 +1026,14 @@ final class SyncStore: ObservableObject {
                 updatedAt: item.updatedAt
             )
         }
-        readingListStore.replaceForSync(
-            ReadingListSync.merge(base: readingListStore.items, remote: decrypted)
-        )
+        var merged = ReadingListSync.merge(base: readingListStore.items, remote: decrypted)
+        PullTombstones.apply(
+            to: &merged,
+            deleted: matchPullTombstones(
+                items, master: master, domain: .readingList,
+                candidateIDs: readingListStore.items.map { $0.id.uuidString }),
+            idOf: { $0.id.uuidString }, updatedAtOf: { $0.updatedAt })
+        readingListStore.replaceForSync(merged)
     }
 
     private func clearReadingListPending(_ serverIDs: Set<String>, master: String) {
@@ -1297,9 +1361,14 @@ final class SyncStore: ObservableObject {
                 updatedAt: item.updatedAt
             )
         }
-        historyStore.replaceForSync(
-            HistorySync.merge(base: historyStore.entries, remote: decrypted)
-        )
+        var merged = HistorySync.merge(base: historyStore.entries, remote: decrypted)
+        PullTombstones.apply(
+            to: &merged,
+            deleted: matchPullTombstones(
+                items, master: master, domain: .history,
+                candidateIDs: historyStore.entries.map { $0.id.uuidString }),
+            idOf: { $0.id.uuidString }, updatedAtOf: { $0.updatedAt })
+        historyStore.replaceForSync(merged)
     }
 
     private func clearHistoryPending(_ serverIDs: Set<String>, master: String) {
@@ -1377,6 +1446,26 @@ final class SyncStore: ObservableObject {
     }
 
     // MARK: - 加解密小工具
+
+    /// 拉取墓碑 → 本地真实 id（0.6.8：跨设备删除的拉取侧补齐）。墓碑 payload
+    /// 为 NULL，只能拿 clientId（HMAC）与**本端候选集**正向匹配；服务器不解读
+    /// id，本端持有哪些元素就只能删哪些——没在本地出现过的远端删除天然无感。
+    private func matchPullTombstones(
+        _ items: [SyncWireItem<SyncEncryptedPayload>], master: String,
+        domain: SyncDomain, candidateIDs: [String]
+    ) -> [String: Date] {
+        var out: [String: Date] = [:]
+        let tombstones = items.filter { $0.deleted == true }
+        guard !tombstones.isEmpty else { return out }
+        for id in candidateIDs {
+            guard let hmac = try? SyncCrypto.hmacClientID(id, domain: domain, masterKeyBase64: master)
+            else { continue }
+            for tombstone in tombstones where tombstone.clientId == hmac {
+                out[id] = tombstone.clientUpdatedAt
+            }
+        }
+        return out
+    }
 
     private func encryptedWire<T: Encodable>(
         domain: SyncDomain, realID: String, clientUpdatedAt: Date?,

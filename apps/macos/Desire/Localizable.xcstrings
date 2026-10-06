@@ -34043,6 +34043,50 @@
           }
         }
       }
+    },
+    "Sync Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步日誌"
+          }
+        }
+      }
+    },
+    "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐域累计。冲突 = 服务端数据更新、已自动采纳服务端版本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐域累計。衝突 = 伺服器資料較新、已自動採納伺服器版本。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

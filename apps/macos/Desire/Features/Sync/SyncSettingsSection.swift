@@ -334,6 +334,42 @@ struct SyncSettingsSection: View {
         keySection
         passwordSection
         categoriesSection
+        diagnosticsSection
+    }
+
+    /// 同步日志（0.6.8）：逐域累计 推送/拉取/冲突 与最近一次冲突记号。
+    /// 冲突 = LWW 输掉（服务端胜者已自动回写落地）——这里只是让它**可见**。
+    private var diagnosticsSection: some View {
+        SettingsSection(
+            title: String(localized: "Sync Log"),
+            subtitle: String(localized: "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically."),
+            icon: "list.bullet.rectangle"
+        ) {
+            ForEach(SyncDomain.allCases, id: \.self) { domain in
+                SettingsRow(domain.displayName,
+                            subtitle: diagText(store.diagnostics[domain],
+                                               tombstones: store.pendingTombstoneCounts[domain] ?? 0)) { }
+                if domain != SyncDomain.allCases.last {
+                    SettingsRowDivider()
+                }
+            }
+        }
+    }
+
+    private func diagText(_ diag: SyncDomainDiag?, tombstones: Int) -> String {
+        guard let diag, diag.pushed > 0 || diag.pulled > 0 || tombstones > 0 else {
+            return "尚无同步流量"
+        }
+        var text = "推送 \(diag.pushed) 条 · 拉取 \(diag.pulled) 条"
+        if diag.conflicts > 0 {
+            let when = diag.lastConflictAt.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? ""
+            let mark = diag.lastConflictMark ?? ""
+            text += " · 冲突 \(diag.conflicts) 条（最近 \(when) #\(mark)）"
+        }
+        if tombstones > 0 {
+            text += " · 待删墓碑 \(tombstones)"
+        }
+        return text
     }
 
     private func syncSection(_ account: String) -> some View {

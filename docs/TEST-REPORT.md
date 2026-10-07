@@ -558,3 +558,12 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   （190 条池的 8 条样本）——按域全量列表需走 /execute document.cookie
 - 补充：/devtools/application/delete 对 cookie 的 key 形状 = `name@domain`
   （只传 name 会 "no such cookie"）——ep 文档已补示例与说明
+
+### 批次 I：历史清理端点 + 读写作用域语义确认 ✓
+- 新增 /history/remove（id 精确删除；/history 条目补 id 字段）——走查残渣清理
+- 语义确认（勿再挖）：
+  - /history 读 **fresh 档案作用域实例**（持久化只读视图，与 UI live store
+    无共享态）；/history/remove 写 **live store**（防抖 ≥500ms 落盘）——
+    删除后立刻读可能仍见旧条目（写读延迟，非 bug），断言需留防抖时间
+  - 同族：/bookmarks 已改读 live store（BUG-C）；/history 维持 fresh 读
+    （历史是持久化数据，读盘语义正确）

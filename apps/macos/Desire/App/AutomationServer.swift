@@ -410,6 +410,7 @@ final class AutomationServer {
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
+        ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
@@ -423,7 +424,7 @@ final class AutomationServer {
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string (cookie|localStorage|sessionStorage|extension|indexedDB|cache|cacheAll|serviceWorker)", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"indexedDB","key":"mydb"}'"#)
         ep("POST", "/devtools/application/set", "Write a cookie / localStorage / sessionStorage / extension key", params: ["kind:string", "key:string", "value:string", "domain?:string (cookies)", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo","value":"bar"}'"#)
-        ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string", "key:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"cookie","key":"name@domain"}'"#, note: "cookie 的 key 形状 = name@domain（面板行 id 同款）")
+        ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker (cookie 的 key = name@domain，面板行 id 同款)", params: ["kind:string", "key:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"cookie","key":"name@domain"}'"#)
         ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
         ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
@@ -765,6 +766,12 @@ final class AutomationServer {
                 return try Self.json(Self.pendingApproval(window: Self.string(query, "window")))
             case ("GET", "/beforeunload"):
                 return try Self.json(Self.beforeUnloadState(index: Self.index(query)))
+            case ("POST", "/history/remove"):
+                guard let app = AppState.live, let id = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "missing/invalid id"])
+                }
+                app.historyStore.removeEntry(id: id)
+                return try Self.json(["ok": true])
             case ("GET", "/reader"):
                 return try Self.json(Self.readerState(index: Self.index(query)))
             case ("GET", "/console"):
@@ -2707,7 +2714,9 @@ final class AutomationServer {
         // newest-first (addEntry inserts at 0) — prefix is the most recent.
         let historyStore = HistoryStore()
         historyStore.applyScope(profileID: ProfileStore.shared.activeProfileID)
-        let entries = historyStore.entries.prefix(count).map { ["title": $0.title, "url": $0.url] }
+        let entries = historyStore.entries.prefix(count).map {
+            ["id": $0.id.uuidString, "title": $0.title, "url": $0.url]
+        }
         return ["entries": Array(entries)]
     }
 

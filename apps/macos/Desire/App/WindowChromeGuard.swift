@@ -11,13 +11,17 @@ struct WindowChromeGuard: NSViewRepresentable {
     var onBecomeKey: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
+        // **不能用"async 后查一次 view.window"**——慢盘/慢窗口服务器（CI
+        // runner）上此刻视图可能还没进窗口层级，静默 return 后 attach 永不
+        // 发生：标签页管理器挂不上，/navigate 全部 "no such tab"（0.7.0
+        // 发版 CI 三连红才现形）。改为 viewDidMoveToWindow 生命周期驱动，
+        // 视图何时进窗口就何时触发。
+        let probe = AttachProbe()
+        probe.onWindow = { window in
             onWindow?(window)
             context.coordinator.protect(window: window, onBecomeKey: onBecomeKey)
         }
-        return view
+        return probe
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
@@ -28,6 +32,19 @@ struct WindowChromeGuard: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
+    }
+
+    /// 进窗口层级即触发一次 onWindow（viewDidMoveToWindow 对"晚挂载"可靠）。
+    private final class AttachProbe: NSView {
+        var onWindow: ((NSWindow) -> Void)?
+        private var fired = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard !fired, let window else { return }
+            fired = true
+            onWindow?(window)
+        }
     }
 
     final class Coordinator {

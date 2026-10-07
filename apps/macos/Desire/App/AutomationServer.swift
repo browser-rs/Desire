@@ -887,10 +887,21 @@ final class AutomationServer {
                 if let enabled = body["enabled"] as? Bool {
                     AgentBallPanel.shared.setEnabled(enabled)
                 }
+                if let showsAll = body["showsAll"] as? Bool {
+                    AgentBallPanel.shared.hubShowsAll = showsAll
+                }
+                // 等价一次拖放松手（动作选择菜单的验证入口）。
+                if let drop = body["pendingDrop"] as? String {
+                    AgentBallPanel.shared.deliverDrop(drop)
+                }
+                if body["cancelDrop"] as? Bool == true {
+                    AgentBallPanel.shared.cancelDrop()
+                }
                 return try Self.json([
                     "ok": true,
                     "enabled": AgentBallPanel.shared.isEnabled,
                     "expanded": AgentBallPanel.shared.isExpanded,
+                    "showsAll": AgentBallPanel.shared.hubShowsAll,
                 ])
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared

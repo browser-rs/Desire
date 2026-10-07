@@ -330,6 +330,13 @@ struct ContentView: View {
             ball.onPageFullscreen = { [tabManager] in
                 tabManager.selectedTab?.browser.webView.fullscreenState == .inFullscreen
             }
+            // v5：触盘菜单头的页面上下文（favicon + 标题）。
+            ball.pageContextProvider = { [tabManager] in
+                guard let tab = tabManager.selectedTab else { return nil }
+                let title = tab.displayTitle.trimmingCharacters(in: .whitespaces)
+                return .init(title: title.isEmpty ? "新标签页" : title,
+                             urlString: tab.urlString)
+            }
             if !isAgentConfigured {
                 // Record this window as the session-persistence target, then
                 // bind the AI agent to a surface pinned to THIS window's

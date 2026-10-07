@@ -24,6 +24,19 @@ final class AgentBallPanel: ObservableObject {
     @Published private(set) var agentBusy = false
     /// Agent 回复完成提醒（busy 下降沿触发，数秒后自动消失）。
     @Published private(set) var replyFlash = false
+    /// 回复预览（v5）：徽章在窗时悬停球出气泡——免开面板先睹答了什么。
+    @Published private(set) var replyPreview: String?
+    /// 触盘 2×2 ⇄ 全 8 能力（4×2）切换（长按球 / 盘上 ⌄ / 桥 POST /agentball）。
+    @Published var hubShowsAll = false
+    /// 拖拽投递的待决载荷（v5）：松手不直接发送，弹动作选择，点选才起回合。
+    @Published var pendingDrop: String?
+
+    /// 页面上下文（触盘菜单头）：宿主窗口注入（每窗一个覆盖层）。
+    struct PageContext {
+        let title: String
+        let urlString: String
+    }
+    var pageContextProvider: (() -> PageContext?)?
     /// 页面元素全屏（视频等）时球让位——覆盖层会压在全屏内容上。
     @Published private(set) var hiddenForFullscreen = false
     let voice = VoiceInputManager()
@@ -97,13 +110,22 @@ final class AgentBallPanel: ObservableObject {
     private func poll() {
         guard isEnabled else { return }
         let busy = AgentScheduler.shared.deliveryTarget?.isProcessing ?? false
-        if busy != agentBusy { agentBusy = busy }
-        if agentBusy, !busy {
-            replyFlash = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(6))
-                guard !Task.isCancelled else { return }
-                self.replyFlash = false
+        if busy != agentBusy {
+            agentBusy = busy
+            if !busy {
+                // busy 下降沿 = 回合刚结束 → 徽章 + 回复预览。
+                //（此前写成 `if agentBusy, !busy`——agentBusy 上方刚赋成 busy，
+                // 条件永假，徽章从未亮过；v5 顺手修掉。）
+                replyFlash = true
+                replyPreview = AgentScheduler.shared.deliveryTarget?.messages
+                    .last(where: { $0.role == .assistant })?
+                    .content.map { String($0.prefix(120)) }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(6))
+                    guard !Task.isCancelled else { return }
+                    self.replyFlash = false
+                    self.replyPreview = nil
+                }
             }
         }
         let inFS = onPageFullscreen?() ?? false
@@ -187,18 +209,47 @@ extension AgentBallPanel {
         }
     }
 
-    /// 拖拽投递（v4）：拖链接/选区到球上 → 打开面板并以带上下文的提示起回合。
+    /// 拖拽投递（v5）：松手先存待决载荷并弹动作选择——投递语义从
+    /// "固定动作"升级为"带意图"。点选后才起回合；点外即弃。
     func deliverDrop(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        isExpanded = false
+        pendingDrop = trimmed
+    }
+
+    enum DropAction {
+        case summarize, translate, ask
+    }
+
+    /// 待决载荷是不是 http(s) 链接（动作选择菜单的文案分叉）。
+    var pendingDropIsURL: Bool {
+        guard let raw = pendingDrop else { return false }
+        return URL(string: raw)?.scheme?.hasPrefix("http") == true
+    }
+
+    func resolveDrop(_ action: DropAction) {
+        guard let raw = pendingDrop else { return }
+        pendingDrop = nil
+        let isURL = URL(string: raw)?.scheme?.hasPrefix("http") == true
+        let subject = isURL ? "这个链接（\(raw)）" : "下面这段选区内容：\n\(String(raw.prefix(2000)))"
         let prompt: String
-        if let url = URL(string: trimmed), url.scheme?.hasPrefix("http") == true {
-            prompt = "请打开这个链接（\(trimmed)）并阅读总结要点。"
-        } else {
-            prompt = "请基于下面这段选区内容处理：\n\(String(trimmed.prefix(2000)))"
+        switch action {
+        case .summarize:
+            prompt = "请阅读并总结\(subject)的要点。"
+        case .translate:
+            prompt = "请阅读\(subject)并把内容翻译成中文（若原文已是中文则译成英文），保留标题与结构。"
+        case .ask:
+            prompt = isURL
+                ? "请打开这个链接（\(raw)），读完后向我汇报页面上有什么。"
+                : "请基于\(subject)回答我的问题。"
         }
         openAgentPanel()
         onSendPrompt?(prompt)
+    }
+
+    func cancelDrop() {
+        pendingDrop = nil
     }
 
 }

@@ -7,12 +7,15 @@ import SwiftUI
 /// - 交互 = iOS AssistiveTouch：点球弹出径向触盘（2×2 大圆按钮依次弹入，
 ///   热区大、盲点得中），球图标切换 ✕；点触盘外任意处 / 再点球收起；
 ///   拖动任意位置、松手 spring 吸附最近左右缘（命名坐标空间，见 body 注释）；
-/// - 动效口径（并行润色定下的"克制"原则，勿回退）：**不做常驻动画**
-///   （无呼吸/无旋转环——忙碌 = 静态强调环），悬停 = 轻微放大 + brightness；
-///   唯一例外是触盘按钮的弹入 stagger（V3 定稿时用户明确批准）与录音扩散波纹
-///   （录音是瞬态活跃态）；
-/// - 状态全在球上：忙碌静态环 / 录音红玻璃 + 波纹 / 回复就绪绿徽章；
-///   录音时触盘内附实时转写条；语音发出后球旁弹"已发送"玻璃胶囊（3.6s 自散）；
+/// - 动效口径（v5 方向 A「绽放」定稿，design/agent-ball/prototype-v2.html
+///   2026-10-07 用户拍板）：开盘 = 盘从球的位置弹性放大 + 格子外弹过冲 +
+///   一次性掠光；**不做常驻装饰动画**（无呼吸），悬停 = 轻微放大 + brightness；
+///   瞬态活跃态例外：触盘弹入 stagger、录音波纹 + 球内五柱波形、忙碌缺口弧旋转；
+/// - 状态全在球上：忙碌缺口弧 / 录音红玻璃 + 波形 / 回复就绪绿徽章
+///   （悬停球出回复预览气泡）；录音时触盘内附实时转写条；
+///   语音发出后球旁弹"已发送"玻璃胶囊（3.6s 自散）；
+/// - 触盘带页面上下文菜单头（favicon + 标题 + 问本页）；长按球或 ⌄
+///   切换全 8 能力（4×2）；拖拽投递松手弹动作选择（总结/翻译/提问）；
 /// - 位置持久化（吸附侧 + 纵向比例）。
 struct AgentBallOverlay: View {
     /// overlay 的固定坐标空间名（拖动手势用，见 body 注释）。
@@ -50,10 +53,13 @@ struct AgentBallOverlay: View {
     private let hubCell: CGFloat = 84
     private let hubGap: CGFloat = 10
     private let hubPad: CGFloat = 14
-    private var hubWidth: CGFloat { hubPad * 2 + hubCell * 2 + hubGap }
-    private var hubHeight: CGFloat {
-        hubPad * 2 + hubCell * 2 + hubGap + (state.voice.isRecording ? 44 : 0)
-    }
+    /// 开盘掠光（v5 方向 A）+ 球按下压感（微交互精修）。
+    @State private var shimmer = false
+    @State private var pressing = false
+    /// 长按计时起点（DragGesture onChanged 首帧起算；≥0.4s = 全 8 能力切换）。
+    @State private var pressStarted: Date?
+    /// 球悬停（回复预览气泡的显示条件之一）。
+    @State private var ballHovering = false
 
     var body: some View {
         GeometryReader { geo in
@@ -64,13 +70,30 @@ struct AgentBallOverlay: View {
                     // 打开期间页面点击不可用——命令模式语义，与 AssistiveTouch 一致。
                     Color.clear
                         .contentShape(Rectangle())
-                        .onTapGesture { state.isExpanded = false }
+                        .onTapGesture {
+                            state.isExpanded = false
+                            state.cancelDrop()
+                        }
                     hub(in: geo.size)
                         .transition(.opacity)
                 }
                 if !state.hiddenForFullscreen {
                     ball(in: geo.size)
                         .position(ballPosition(in: geo.size))
+                }
+                // 回复预览气泡（v5）：徽章在窗 + 悬停球 → 免开面板先睹。
+                if state.replyFlash, let preview = state.replyPreview,
+                   !state.isExpanded, ballHovering, !state.hiddenForFullscreen {
+                    replyBubble(preview, in: geo.size)
+                        .transition(.scale(scale: 0.94, anchor: .trailing).combined(with: .opacity))
+                }
+                // 拖投动作选择（v5）：松手后挂在球旁，点选才起回合。
+                if state.pendingDrop != nil, !state.hiddenForFullscreen {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { state.cancelDrop() }
+                    dropMenu(in: geo.size)
+                        .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
                 }
                 if let toast = sentToast, !state.hiddenForFullscreen {
                     toastPill(toast, in: geo.size)
@@ -84,6 +107,8 @@ struct AgentBallOverlay: View {
             // 触盘弹出/收起与球图标 ✕ 切换由这一个动画驱动。
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: state.isExpanded)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sentToast)
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: state.pendingDrop)
+            .animation(.easeOut(duration: 0.2), value: ballHovering)
             .onChange(of: state.voiceTranscriptSent) { _, sent in
                 guard let sent, !sent.isEmpty else { return }
                 toastTask?.cancel()
@@ -120,10 +145,9 @@ struct AgentBallOverlay: View {
             if state.voice.isRecording {
                 BallPulseRing(size: ballSize)
             }
-            // 忙碌：静态强调环（不做常驻旋转——克制；状态由环的有无表达）
+            // 忙碌：缺口弧旋转（v5 微交互精修——替代整圈静环，动而不闹）
             if state.agentBusy {
-                Circle()
-                    .stroke(appAccent.opacity(0.9), lineWidth: 2)
+                BusyArc(color: appAccent)
                     .frame(width: ballSize + 10, height: ballSize + 10)
             }
             // 回复就绪徽章（busy 下降沿闪光）
@@ -139,7 +163,7 @@ struct AgentBallOverlay: View {
                 .offset(x: ballSize * 0.34, y: -ballSize * 0.30)
                 .transition(.scale.combined(with: .opacity))
             }
-            // 液态玻璃球体：图标 = 目标环 ↔ ✕（录音时 = 麦克风，红玻璃）
+            // 液态玻璃球体：图标 = 目标环 ↔ ✕（录音时 = 球内五柱波形，红玻璃）
             ZStack {
                 targetIcon
                     .opacity(iconState == .target ? 1 : 0)
@@ -149,11 +173,12 @@ struct AgentBallOverlay: View {
                     .foregroundStyle(Color.primary.opacity(0.75))
                     .opacity(iconState == .close ? 1 : 0)
                     .scaleEffect(iconState == .close ? 1 : 0.55)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: ballSize * 0.34, weight: .medium))
-                    .foregroundStyle(.white)
-                    .opacity(iconState == .mic ? 1 : 0)
-                    .scaleEffect(iconState == .mic ? 1 : 0.55)
+                if state.voice.isRecording {
+                    // 录音波形（v5 微交互精修：球内五柱起伏，替代静态麦克风）
+                    BallWaveform(color: .white)
+                        .opacity(iconState == .mic ? 1 : 0)
+                        .scaleEffect(iconState == .mic ? 1 : 0.55)
+                }
             }
             .frame(width: ballSize, height: ballSize)
             .glassEffect(
@@ -163,11 +188,12 @@ struct AgentBallOverlay: View {
                 in: .circle
             )
         }
-        .scaleEffect(hoverScale)
+        .scaleEffect(dropHover ? 1.16 : hoverScale * (pressing ? 0.9 : 1))
         .rotationEffect(.degrees(dragTilt))
         .brightness(hoverScale > 1 ? 0.03 : 0)
         .contentShape(Circle())
         .onHover { hovering in
+            ballHovering = hovering
             withAnimation(.easeOut(duration: 0.15)) { hoverScale = hovering ? 1.05 : 1.0 }
         }
         .contextMenu {
@@ -225,9 +251,16 @@ struct AgentBallOverlay: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.overlaySpace))
             .onChanged { value in
                 guard !state.isExpanded else { return }
-                if dragStartCenter == nil { dragStartCenter = restingCenter(in: size) }
+                if dragStartCenter == nil {
+                    dragStartCenter = restingCenter(in: size)
+                    pressStarted = Date()
+                }
+                pressing = dragged == false
                 let t = value.translation
-                if abs(t.width) > 4 || abs(t.height) > 4 { dragged = true }
+                if abs(t.width) > 4 || abs(t.height) > 4 {
+                    dragged = true
+                    pressing = false
+                }
                 if dragged, let start = dragStartCenter {
                     var c = CGPoint(x: start.x + t.width, y: start.y + t.height)
                     c.x = min(max(c.x, ballSize / 2 + 4), max(ballSize / 2 + 4, size.width - ballSize / 2 - 4))
@@ -241,6 +274,7 @@ struct AgentBallOverlay: View {
                     dragStartCenter = nil
                     dragPos = nil
                     dragged = false
+                    pressing = false
                 }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { dragTilt = 0 }
                 if dragged {
@@ -248,6 +282,17 @@ struct AgentBallOverlay: View {
                     lastTap = nil
                     return
                 }
+                // 长按（≥0.4s）= 2×2 ⇄ 全 8 能力切换（v5；本分支先于点按
+                // 开合返回，天然吞掉本次点按）。
+                if let started = pressStarted, Date().timeIntervalSince(started) >= 0.4 {
+                    pressStarted = nil
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        state.hubShowsAll.toggle()
+                    }
+                    state.isExpanded = true
+                    return
+                }
+                pressStarted = nil
                 if state.voice.isRecording {
                     // 录音中点击球 = 开合触盘（停止入口在触盘的"停止并发送"）
                     lastTap = nil
@@ -285,6 +330,17 @@ struct AgentBallOverlay: View {
 
     // MARK: - 触盘（2×2 径向圆按钮，球上方或下方）
 
+    /// 全 8 能力模式的格子尺寸（4×2，比主格小一号）。
+    private var hubCellSmall: CGFloat { 52 }
+    private var hubWidth: CGFloat {
+        state.hubShowsAll ? hubPad * 2 + hubCellSmall * 4 + hubGap * 3 : hubPad * 2 + hubCell * 2 + hubGap
+    }
+    private var hubHeight: CGFloat {
+        let grid = state.hubShowsAll ? hubCellSmall * 2 + hubGap : hubCell * 2 + hubGap
+        // +26 = 菜单头（favicon + 页面标题 + 问本页）
+        return hubPad * 2 + grid + 26 + (state.voice.isRecording ? 44 : 0)
+    }
+
     private func hub(in size: CGSize) -> some View {
         let c = restingCenter(in: size)
         let above = c.y - ballSize / 2 - 10 - hubHeight < 8
@@ -293,13 +349,128 @@ struct AgentBallOverlay: View {
             : c.y - ballSize / 2 - 10 - hubHeight / 2
         let halfW = hubWidth / 2
         let hubX = min(max(c.x, halfW + 6), max(halfW + 6, size.width - halfW - 6))
-        return AgentBallHub(state: state, cellSize: hubCell, appear: hubAppeared)
+        return AgentBallHub(state: state, cellSize: state.hubShowsAll ? hubCellSmall : hubCell,
+                            appear: hubAppeared)
             .frame(width: hubWidth)
             .glassEffect(.regular, in: .rect(cornerRadius: 26))
+            // v5 · 方向 A「绽放」：盘从球的位置弹性放大（锚点朝球一侧）。
+            .scaleEffect(hubAppeared ? 1 : 0.55, anchor: above ? .bottom : .top)
+            .animation(.spring(response: 0.42, dampingFraction: 0.78), value: hubAppeared)
+            // 开盘一次性掠光（0.8s，延迟到格子弹出中段）。
+            .overlay { hubShimmer }
             .onTapGesture {}  // 吞掉触盘背景点击：不落到"点外收起"层
             .position(x: hubX, y: hubY)
-            .onAppear { hubAppeared = true }
-            .onDisappear { hubAppeared = false }
+            .onAppear {
+                hubAppeared = true
+                shimmer = false
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(40))
+                    shimmer = true
+                    try? await Task.sleep(for: .milliseconds(1100))
+                    shimmer = false
+                }
+            }
+            .onDisappear {
+                hubAppeared = false
+                shimmer = false
+            }
+    }
+
+    /// 掠光：斜向白渐变从右扫到左（掩在盘形里，不挡交互）。
+    @ViewBuilder
+    private var hubShimmer: some View {
+        if shimmer {
+            GeometryReader { geo in
+                LinearGradient(colors: [.clear, .white.opacity(0.42), .clear],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .frame(width: geo.size.width * 0.55)
+                    .offset(x: shimmer ? geo.size.width : -geo.size.width)
+                    .animation(.easeOut(duration: 0.8), value: shimmer)
+            }
+            .clipShape(.rect(cornerRadius: 26))
+            .allowsHitTesting(false)
+        }
+    }
+
+    // MARK: - 球旁浮卡（v5：回复预览气泡 / 拖投动作选择）
+
+    /// 浮卡横向落点：球在哪缘，卡就朝窗口内侧展开。
+    private func sideCardX(_ c: CGPoint, in size: CGSize, width: CGFloat) -> CGFloat {
+        let onLeft = c.x < size.width / 2
+        let x = onLeft ? c.x + ballSize / 2 + 10 + width / 2
+                       : c.x - ballSize / 2 - 10 - width / 2
+        return max(width / 2 + 6, x)
+    }
+
+    private func replyBubble(_ preview: String, in size: CGSize) -> some View {
+        let c = ballPosition(in: size)
+        let width: CGFloat = 232
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("已回复 · 刚刚")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(.green)
+            Text(preview)
+                .font(.system(size: 11.5))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Button {
+                state.openAgentPanel()
+            } label: {
+                Text("打开对话 →")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(appAccent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(11)
+        .frame(width: width, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .onTapGesture {}  // 卡内点击不落到关闭层（「打开对话」自己有回调）
+        .position(x: sideCardX(c, in: size, width: width), y: c.y)
+    }
+
+    private func dropMenu(in size: CGSize) -> some View {
+        let c = ballPosition(in: size)
+        let width: CGFloat = 176
+        let isURL = state.pendingDropIsURL
+        let noun = isURL ? "此链接" : "此选区"
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(isURL ? "链接已拖入" : "选区已拖入")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
+            dropItem("sparkles", "总结\(noun)") { state.resolveDrop(.summarize) }
+            dropItem("character.book.closed", "翻译\(noun)") { state.resolveDrop(.translate) }
+            dropItem(isURL ? "arrow.up.forward" : "questionmark.bubble",
+                     isURL ? "打开并询问" : "就此提问") { state.resolveDrop(.ask) }
+        }
+        .padding(6)
+        .frame(width: width, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .onTapGesture {}
+        .position(x: sideCardX(c, in: size, width: width), y: c.y)
+    }
+
+    private func dropItem(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 10.5))
+                    .frame(width: 14)
+                Text(label)
+                    .font(.system(size: 11.5))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 已发送胶囊
@@ -346,26 +517,91 @@ private struct AgentBallHub: View {
     var body: some View {
         VStack(spacing: 10) {
             VStack(spacing: 10) {
-                // v4：槽位可定制（八选四，设置 → 悬浮球配置）——按钮渲染与
-                // 触发统一走 BallCapability，布局仍是 V3 定稿的 2×2。
-                // 编号 = 槽位**位置**（0…3，同时是弹入动画的 stagger 序号）——
-                // 别改成 hashValue：它每次启动随机且量级 ±2^63，乘进动画
-                // delay 就是天文数字，格子会永远停在 opacity 0（实测）。
-                HStack(spacing: 10) {
-                    hubCell(0, state.slots[0])
-                    hubCell(1, state.slots[1])
-                }
-                HStack(spacing: 10) {
-                    hubCell(2, state.slots[2])
-                    hubCell(3, state.slots[3])
+                hubHead
+                if state.hubShowsAll {
+                    // 全 8 能力（v5：八选四限制取消；设置页只管前四槽排序）。
+                    let all = BallCapability.allCases
+                    HStack(spacing: 8) {
+                        hubCell(0, all[0])
+                        hubCell(1, all[1])
+                        hubCell(2, all[2])
+                        hubCell(3, all[3])
+                    }
+                    HStack(spacing: 8) {
+                        hubCell(4, all[4])
+                        hubCell(5, all[5])
+                        hubCell(6, all[6])
+                        hubCell(7, all[7])
+                    }
+                    .transition(.opacity.combined(with: .scale(0.96)))
+                } else {
+                    // 主槽 2×2（V3 定稿布局；编号 = 槽位**位置** 0…3，同时是
+                    // 弹入动画的 stagger 序号——别改成 hashValue：它每次启动
+                    // 随机且量级 ±2^63，乘进动画 delay 就是天文数字，格子会
+                    // 永远停在 opacity 0（实测）。
+                    HStack(spacing: 10) {
+                        hubCell(0, state.slots[0])
+                        hubCell(1, state.slots[1])
+                    }
+                    HStack(spacing: 10) {
+                        hubCell(2, state.slots[2])
+                        hubCell(3, state.slots[3])
+                    }
+                    moreChip
+                        .transition(.opacity)
                 }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: state.hubShowsAll)
             if state.voice.isRecording {
                 transcriptChip
                     .transition(.opacity)
             }
         }
         .padding(14)
+    }
+
+    /// 页面上下文菜单头（v5）：favicon + 页面标题 + 「问本页」。
+    @ViewBuilder
+    private var hubHead: some View {
+        if let ctx = state.pageContextProvider?() {
+            HStack(spacing: 7) {
+                FaviconView(urlString: ctx.urlString, size: 15)
+                Text(ctx.title)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                Button {
+                    state.askAboutPage()
+                } label: {
+                    Text("问本页")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2.5)
+                        .background(appAccent.opacity(0.14), in: Capsule())
+                        .foregroundStyle(appAccent)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 2)
+            .padding(.bottom, 9)
+            .opacity(appear ? 1 : 0)
+            .animation(.easeOut(duration: 0.32).delay(0.24), value: appear)
+        }
+    }
+
+    private var moreChip: some View {
+        Button {
+            state.hubShowsAll = true
+        } label: {
+            Text("⌄ 全部 8 项")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
+        .buttonStyle(.plain)
+        .opacity(appear ? 1 : 0)
+        .animation(.easeOut(duration: 0.3).delay(0.3), value: appear)
     }
 
     @ViewBuilder
@@ -420,9 +656,10 @@ private struct AgentBallHub: View {
                 hovered = hovering ? index : (hovered == index ? nil : hovered)
             }
         }
-        .scaleEffect(appear ? 1 : 0.55)
+        .scaleEffect(appear ? 1 : 0.4)
         .opacity(appear ? 1 : 0)
-        .animation(.spring(response: 0.34, dampingFraction: 0.72).delay(Double(index) * 0.055),
+        .offset(y: appear ? 0 : 14)
+        .animation(.spring(response: 0.4, dampingFraction: 0.68).delay(Double(index) * 0.05),
                    value: appear)
     }
 
@@ -446,6 +683,42 @@ private struct AgentBallHub: View {
 
 /// 单圈从球缘向外扩散消隐的红环（录音是瞬态活跃态——红玻璃本身已
 /// 改变整个球，一圈波纹足够，不做多圈连发）。
+/// 忙碌缺口弧（v5 微交互精修）：3/4 圆弧持续旋转——动而不闹
+/// （替代原整圈静环；克制口径的例外与录音波纹同规：瞬态活跃态）。
+private struct BusyArc: View {
+    let color: Color
+    @State private var spinning = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.72)
+            .stroke(color.opacity(0.9), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(spinning ? 360 : 0))
+            .animation(.linear(duration: 1.1).repeatForever(autoreverses: false), value: spinning)
+            .onAppear { spinning = true }
+    }
+}
+
+/// 录音球内五柱波形（v5 微交互精修）：起伏错相，替代静态麦克风。
+private struct BallWaveform: View {
+    let color: Color
+    @State private var animate = false
+    private let peaks: [CGFloat] = [10, 16, 11, 17, 8]
+
+    var body: some View {
+        HStack(spacing: 2.5) {
+            ForEach(0..<5, id: \.self) { i in
+                Capsule()
+                    .fill(color)
+                    .frame(width: 2.6, height: animate ? peaks[i] : 5)
+                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: false)
+                        .delay(Double(i) * 0.09), value: animate)
+            }
+        }
+        .onAppear { animate = true }
+    }
+}
+
 private struct BallPulseRing: View {
     var size: CGFloat
     @State private var on = false

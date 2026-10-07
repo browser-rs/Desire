@@ -157,6 +157,9 @@
         }
       }
     },
+    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {
+
+    },
     "(%@)" : {
       "localizations" : {
         "en" : {
@@ -311,6 +314,9 @@
         }
       }
     },
+    "@%lldx" : {
+
+    },
     "#%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -333,6 +339,9 @@
           }
         }
       }
+    },
+    "%@" : {
+
     },
     "%@  %@" : {
       "localizations" : {
@@ -1358,6 +1367,9 @@
         }
       }
     },
+    "←/→ 键步进，Esc 退出" : {
+
+    },
     "+%lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1468,6 +1480,9 @@
           }
         }
       }
+    },
+    "⚡%lld" : {
+
     },
     "✓ Default" : {
       "localizations" : {
@@ -1894,6 +1909,9 @@
         }
       }
     },
+    "Accept All" : {
+
+    },
     "Access Level" : {
       "localizations" : {
         "en" : {
@@ -1960,6 +1978,9 @@
           }
         }
       }
+    },
+    "Actions (%lld)" : {
+
     },
     "Active model: %@" : {
       "extractionState" : "stale",
@@ -3518,6 +3539,9 @@
         }
       }
     },
+    "Always on %@" : {
+
+    },
     "Always-Allowed Tools" : {
       "localizations" : {
         "en" : {
@@ -3954,6 +3978,9 @@
           }
         }
       }
+    },
+    "Ask Desire Agent" : {
+
     },
     "Ask every time" : {
       "localizations" : {
@@ -4402,6 +4429,9 @@
           }
         }
       }
+    },
+    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {
+
     },
     "Auto-fill email and phone number on checkout and sign-up forms." : {
       "extractionState" : "stale",
@@ -5251,6 +5281,9 @@
         }
       }
     },
+    "Block This URL (Session)" : {
+
+    },
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5657,6 +5690,51 @@
         }
       }
     },
+    "Bypass Calls" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass Calls"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路调用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路呼叫"
+          }
+        }
+      }
+    },
+    "Bypass calls (title / memory / self-review)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass calls (title / memory / self-review)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路调用（标题 / 记忆 / 自评）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路呼叫（標題 / 記憶 / 自評）"
+          }
+        }
+      }
+    },
     "Cache" : {
       "comment" : "Clear cache option",
       "localizations" : {
@@ -5882,6 +5960,12 @@
           }
         }
       }
+    },
+    "Capture Page to Desire Whiteboard" : {
+
+    },
+    "Capture to Whiteboard" : {
+
     },
     "Change Password" : {
       "extractionState" : "stale",
@@ -6676,6 +6760,9 @@
         }
       }
     },
+    "Clear Session Network Rules" : {
+
+    },
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -7056,6 +7143,9 @@
           }
         }
       }
+    },
+    "Close Tabs to the Right" : {
+
     },
     "Close Window" : {
       "localizations" : {
@@ -8005,6 +8095,9 @@
         }
       }
     },
+    "Conversation" : {
+
+    },
     "Conversation history" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8028,6 +8121,9 @@
         }
       }
     },
+    "Cookie Banner Auto-Handling" : {
+
+    },
     "Cookie Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8047,6 +8143,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cookie 政策"
+          }
+        }
+      }
+    },
+    "Cookie 弹窗%@（%@）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cookie 弹窗%1$@（%2$@）"
           }
         }
       }
@@ -8478,6 +8584,9 @@
         }
       }
     },
+    "Copy Performance Snapshot" : {
+
+    },
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -8723,6 +8832,9 @@
           }
         }
       }
+    },
+    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {
+
     },
     "Create Group" : {
       "localizations" : {
@@ -9039,6 +9151,28 @@
         }
       }
     },
+    "Custom Prompt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Prompt"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义提示词"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自訂提示詞"
+          }
+        }
+      }
+    },
     "Custom Search Engines" : {
       "comment" : "Custom search engines section title",
       "extractionState" : "stale",
@@ -9130,6 +9264,9 @@
           }
         }
       }
+    },
+    "Daily At (HH:MM)" : {
+
     },
     "daily at %02d:%02d" : {
       "localizations" : {
@@ -9377,6 +9514,12 @@
           }
         }
       }
+    },
+    "Declaration" : {
+
+    },
+    "Declaration frames (%lld)" : {
+
     },
     "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
       "localizations" : {
@@ -11020,6 +11163,28 @@
         }
       }
     },
+    "e.g. Summarize this page and give me three takeaways" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Summarize this page and give me three takeaways"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：总结本页并给出三点建议"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：總結本頁並給出三點建議"
+          }
+        }
+      }
+    },
     "e.g. Too verbose / wrong assumption" : {
       "localizations" : {
         "en" : {
@@ -11155,6 +11320,9 @@
           }
         }
       }
+    },
+    "EasyList 内容规则" : {
+
     },
     "Edit" : {
       "localizations" : {
@@ -11752,6 +11920,9 @@
         }
       }
     },
+    "Events (%lld)" : {
+
+    },
     "every %lld min" : {
       "localizations" : {
         "en" : {
@@ -11773,6 +11944,9 @@
           }
         }
       }
+    },
+    "Every N Minutes" : {
+
     },
     "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
       "localizations" : {
@@ -13153,6 +13327,9 @@
           }
         }
       }
+    },
+    "Fired events (latest %lld)" : {
+
     },
     "First Name" : {
       "extractionState" : "stale",
@@ -14585,6 +14762,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "https://…"
+          }
+        }
+      }
+    },
+    "Hub Slots" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Slots"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘槽位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤槽位"
           }
         }
       }
@@ -17027,6 +17226,9 @@
         }
       }
     },
+    "Mute Tab" : {
+
+    },
     "name" : {
       "localizations" : {
         "en" : {
@@ -18085,6 +18287,9 @@
         }
       }
     },
+    "No DPP declaration on this page" : {
+
+    },
     "No element inspected" : {
       "localizations" : {
         "en" : {
@@ -18128,6 +18333,9 @@
           }
         }
       }
+    },
+    "No events yet." : {
+
     },
     "No extension storage" : {
       "localizations" : {
@@ -19117,6 +19325,12 @@
         }
       }
     },
+    "No tab selected" : {
+
+    },
+    "No text found in this image." : {
+
+    },
     "No token usage recorded yet." : {
       "localizations" : {
         "en" : {
@@ -19828,6 +20042,9 @@
         }
       }
     },
+    "Open a URL in the Desire browser's active tab." : {
+
+    },
     "Open clipboard link" : {
       "localizations" : {
         "en" : {
@@ -20006,6 +20223,9 @@
         }
       }
     },
+    "Open in New Window" : {
+
+    },
     "Open in Preview" : {
       "localizations" : {
         "en" : {
@@ -20071,6 +20291,9 @@
           }
         }
       }
+    },
+    "Open Link in Desire" : {
+
     },
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
@@ -20611,6 +20834,9 @@
         }
       }
     },
+    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {
+
+    },
     "Paid promotions and creator self-promotion readouts." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20705,6 +20931,9 @@
           }
         }
       }
+    },
+    "Parse warnings" : {
+
     },
     "Password" : {
       "extractionState" : "stale",
@@ -20999,6 +21228,9 @@
         }
       }
     },
+    "Pause Reading" : {
+
+    },
     "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
       "localizations" : {
         "en" : {
@@ -21087,6 +21319,31 @@
           }
         }
       }
+    },
+    "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐域累计。冲突 = 服务端数据更新、已自动采纳服务端版本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐域累計。衝突 = 伺服器資料較新、已自動採納伺服器版本。"
+          }
+        }
+      }
+    },
+    "Performance" : {
+
     },
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
@@ -21243,6 +21500,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從頁面選取"
+          }
+        }
+      }
+    },
+    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择悬浮球触盘上的四个动作。选中已被其他槽位占用的能力时，两个槽位互换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇懸浮球觸盤上的四個動作。選中已被其他槽位佔用的能力時，兩個槽位互換。"
           }
         }
       }
@@ -21788,6 +22067,9 @@
         }
       }
     },
+    "Prompt" : {
+
+    },
     "Prompt sent when tapped" : {
       "localizations" : {
         "en" : {
@@ -22099,6 +22381,9 @@
           }
         }
       }
+    },
+    "Read Aloud" : {
+
     },
     "Reader Mode" : {
       "comment" : "Enter reader mode tooltip",
@@ -22549,6 +22834,9 @@
           }
         }
       }
+    },
+    "Reject All" : {
+
     },
     "Relaunching…" : {
       "localizations" : {
@@ -23849,6 +24137,9 @@
         }
       }
     },
+    "Resume Reading" : {
+
+    },
     "Resume the unanswered prompt" : {
       "localizations" : {
         "en" : {
@@ -24731,6 +25022,12 @@
         }
       }
     },
+    "Schedule Desire Task" : {
+
+    },
+    "Schedule Task" : {
+
+    },
     "Scheduled task failed" : {
       "localizations" : {
         "en" : {
@@ -24890,6 +25187,9 @@
           }
         }
       }
+    },
+    "Screenshot text" : {
+
     },
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
@@ -25725,6 +26025,31 @@
         }
       }
     },
+    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {
+
+    },
+    "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent as a new agent turn when the Custom Prompt hub slot is tapped."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点触盘上的「自定义提示词」槽位时，作为一条新回合发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點觸盤上的「自訂提示詞」槽位時，作為一條新回合發送。"
+          }
+        }
+      }
+    },
     "Sent to the model on every request. Leave empty to use the default." : {
       "localizations" : {
         "en" : {
@@ -26034,6 +26359,9 @@
           }
         }
       }
+    },
+    "Session network rules — temp block/redirect, gone on app exit" : {
+
     },
     "Session Storage" : {
       "comment" : "Site data type label",
@@ -27474,6 +27802,9 @@
         }
       }
     },
+    "Stop Reading" : {
+
+    },
     "Stored in the macOS Keychain." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28018,6 +28349,28 @@
         }
       }
     },
+    "Sync Log" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步日誌"
+          }
+        }
+      }
+    },
     "Sync Now" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28399,6 +28752,9 @@
           }
         }
       }
+    },
+    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {
+
     },
     "Temperature" : {
       "localizations" : {
@@ -30136,6 +30492,9 @@
         }
       }
     },
+    "Turn finished." : {
+
+    },
     "turns" : {
       "localizations" : {
         "en" : {
@@ -30315,6 +30674,9 @@
         }
       }
     },
+    "Unmute Tab" : {
+
+    },
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -30359,6 +30721,9 @@
           }
         }
       }
+    },
+    "Unpin Tab" : {
+
     },
     "Unverified" : {
       "localizations" : {
@@ -31035,6 +31400,9 @@
         }
       }
     },
+    "Video Speed" : {
+
+    },
     "Video Tasks" : {
       "localizations" : {
         "en" : {
@@ -31147,6 +31515,9 @@
           }
         }
       }
+    },
+    "Views (%lld)" : {
+
     },
     "Voice input" : {
       "localizations" : {
@@ -31692,6 +32063,28 @@
         }
       }
     },
+    "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合结束后那些安静的旁路调用（会话标题、记忆抽取与摘要）走哪个服务——可以选个便宜模型，也可以跟随当前对话。用量照常逐笔记账，并按实际运行的模型计价。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回合結束後那些安靜的旁路呼叫（對話標題、記憶擷取與摘要）走哪個服務——可以選個便宜模型，也可以跟隨目前對話。用量照常逐筆記帳，並按實際執行的模型計價。"
+          }
+        }
+      }
+    },
     "White" : {
       "localizations" : {
         "en" : {
@@ -31710,6 +32103,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "白色"
+          }
+        }
+      }
+    },
+    "Whiteboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiteboard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板"
           }
         }
       }
@@ -32051,6 +32466,9 @@
         }
       }
     },
+    "上一块（←）" : {
+
+    },
     "上一条提问还没有收到回答" : {
       "localizations" : {
         "en" : {
@@ -32095,7 +32513,20 @@
         }
       }
     },
+    "上一步" : {
+
+    },
+    "下一块（→）" : {
+
+    },
+    "下一步" : {
+
+    },
+    "个性化（可选）" : {
+
+    },
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32116,6 +32547,9 @@
           }
         }
       }
+    },
+    "从模板创建" : {
+
     },
     "任务计划" : {
       "localizations" : {
@@ -32336,6 +32770,9 @@
         }
       }
     },
+    "刷新" : {
+
+    },
     "取消" : {
       "localizations" : {
         "en" : {
@@ -32379,6 +32816,9 @@
           }
         }
       }
+    },
+    "固定" : {
+
     },
     "图表（ECharts）" : {
       "localizations" : {
@@ -32428,6 +32868,12 @@
         }
       }
     },
+    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {
+
+    },
+    "复制" : {
+
+    },
     "完成" : {
       "localizations" : {
         "en" : {
@@ -32450,6 +32896,9 @@
         }
       }
     },
+    "完成，开始使用" : {
+
+    },
     "导入 .board（追加块）" : {
       "localizations" : {
         "en" : {
@@ -32467,6 +32916,7 @@
       }
     },
     "导出 .board（JSON）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32481,6 +32931,12 @@
           }
         }
       }
+    },
+    "导出 .board（JSON）——模板也能这样分享" : {
+
+    },
+    "导出 Markdown" : {
+
     },
     "导出 PNG 到下载目录" : {
       "localizations" : {
@@ -32497,6 +32953,9 @@
           }
         }
       }
+    },
+    "导出单文件 HTML（离线可读的分享页）" : {
+
     },
     "展开或收起白板预览" : {
       "localizations" : {
@@ -32552,6 +33011,9 @@
         }
       }
     },
+    "已拒绝" : {
+
+    },
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -32573,6 +33035,18 @@
           }
         }
       }
+    },
+    "已接受" : {
+
+    },
+    "已登录：%@" : {
+
+    },
+    "已知追踪与分析请求" : {
+
+    },
+    "已静音" : {
+
     },
     "常驻能力" : {
       "localizations" : {
@@ -32619,6 +33093,7 @@
       }
     },
     "开始使用" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32661,6 +33136,9 @@
           }
         }
       }
+    },
+    "当前指标" : {
+
     },
     "总结本页" : {
       "extractionState" : "stale",
@@ -32752,6 +33230,7 @@
       }
     },
     "手动添加块（进入源码编辑）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32766,6 +33245,9 @@
           }
         }
       }
+    },
+    "手动添加块（进入源码编辑）/ 从模板创建" : {
+
     },
     "打开白板" : {
       "localizations" : {
@@ -32798,6 +33280,15 @@
           }
         }
       }
+    },
+    "拦截广告" : {
+
+    },
+    "拦截追踪器" : {
+
+    },
+    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {
+
     },
     "搜索工具" : {
       "localizations" : {
@@ -32843,6 +33334,12 @@
         }
       }
     },
+    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {
+
+    },
+    "播放中" : {
+
+    },
     "放弃" : {
       "localizations" : {
         "en" : {
@@ -32866,6 +33363,7 @@
       }
     },
     "断点 %@ · @%lldx · %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32883,6 +33381,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "斷點 %1$@ · @%2$lldx · %3$@"
+          }
+        }
+      }
+    },
+    "断点 %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "断点 %1$@ · %2$@"
           }
         }
       }
@@ -32984,6 +33492,9 @@
           }
         }
       }
+    },
+    "标签页" : {
+
     },
     "标题" : {
       "localizations" : {
@@ -33232,6 +33743,15 @@
         }
       }
     },
+    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {
+
+    },
+    "演示中 — %@" : {
+
+    },
+    "演示模式（逐块放映）" : {
+
+    },
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -33422,6 +33942,9 @@
         }
       }
     },
+    "空板" : {
+
+    },
     "立即更新全部" : {
       "localizations" : {
         "en" : {
@@ -33443,6 +33966,19 @@
           }
         }
       }
+    },
+    "第 %lld / %lld 块" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "第 %1$lld / %2$lld 块"
+          }
+        }
+      }
+    },
+    "第 %lld/3 步" : {
+
     },
     "继续回合" : {
       "localizations" : {
@@ -33594,6 +34130,7 @@
       }
     },
     "自定义指令" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33638,6 +34175,7 @@
       }
     },
     "花 10 秒设置偏好，之后每次对话都会生效。全部可随时修改。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33692,6 +34230,7 @@
       }
     },
     "让我们认识一下" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33734,6 +34273,18 @@
           }
         }
       }
+    },
+    "设置暂不可用——可在设置 → AI 里稍后配置。" : {
+
+    },
+    "设置暂不可用，稍后可在设置 → 隐私开启。" : {
+
+    },
+    "识别文字" : {
+
+    },
+    "识别文字 (OCR)" : {
+
     },
     "跳过" : {
       "localizations" : {
@@ -33801,6 +34352,9 @@
         }
       }
     },
+    "进白板" : {
+
+    },
     "退出响应式模式" : {
       "localizations" : {
         "en" : {
@@ -33822,6 +34376,15 @@
           }
         }
       }
+    },
+    "退出放映（块仍保留）" : {
+
+    },
+    "配置同步（设置页）" : {
+
+    },
+    "重做（⇧⌘Z）" : {
+
     },
     "重新生成" : {
       "localizations" : {
@@ -33952,248 +34515,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
-          }
-        }
-      }
-    },
-    "Bypass Calls" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bypass Calls"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "旁路调用"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "旁路呼叫"
-          }
-        }
-      }
-    },
-    "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Which service runs the quiet background calls (conversation title, memory extraction and summaries) after agent turns — pick a cheaper model, or leave it on the chat's own. Usage is still recorded per call and priced by the model that actually ran."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回合结束后那些安静的旁路调用（会话标题、记忆抽取与摘要）走哪个服务——可以选个便宜模型，也可以跟随当前对话。用量照常逐笔记账，并按实际运行的模型计价。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回合結束後那些安靜的旁路呼叫（對話標題、記憶擷取與摘要）走哪個服務——可以選個便宜模型，也可以跟隨目前對話。用量照常逐筆記帳，並按實際執行的模型計價。"
-          }
-        }
-      }
-    },
-    "Bypass calls (title / memory / self-review)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bypass calls (title / memory / self-review)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "旁路调用（标题 / 记忆 / 自评）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "旁路呼叫（標題 / 記憶 / 自評）"
-          }
-        }
-      }
-    },
-    "Whiteboard" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whiteboard"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白板"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白板"
-          }
-        }
-      }
-    },
-    "Sync Log" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sync Log"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同步日志"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同步日誌"
-          }
-        }
-      }
-    },
-    "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Per-domain totals. Conflicts are cases where the server had newer data — the server copy was applied automatically."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "逐域累计。冲突 = 服务端数据更新、已自动采纳服务端版本。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "逐域累計。衝突 = 伺服器資料較新、已自動採納伺服器版本。"
-          }
-        }
-      }
-    },
-    "Hub Slots" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hub Slots"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触盘槽位"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸盤槽位"
-          }
-        }
-      }
-    },
-    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择悬浮球触盘上的四个动作。选中已被其他槽位占用的能力时，两个槽位互换。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇懸浮球觸盤上的四個動作。選中已被其他槽位佔用的能力時，兩個槽位互換。"
-          }
-        }
-      }
-    },
-    "Custom Prompt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom Prompt"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自定义提示词"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自訂提示詞"
-          }
-        }
-      }
-    },
-    "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sent as a new agent turn when the Custom Prompt hub slot is tapped."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点触盘上的「自定义提示词」槽位时，作为一条新回合发送。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點觸盤上的「自訂提示詞」槽位時，作為一條新回合發送。"
-          }
-        }
-      }
-    },
-    "e.g. Summarize this page and give me three takeaways" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g. Summarize this page and give me three takeaways"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例：总结本页并给出三点建议"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例：總結本頁並給出三點建議"
           }
         }
       }

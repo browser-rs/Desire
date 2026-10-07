@@ -45,13 +45,16 @@ jobs:
           open "$APP" --args --automation
           OK=no
           for i in $(seq 1 30); do
-            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
+            # 新 runner 镜像上 `open` 不再保证激活：未激活进程里 WKWebView
+            # 创建会永久阻塞（0.7.0 发版三连红定位），必须等到 isActive。
+            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"isActive": true'; then
               OK=yes
               break
             fi
+            osascript -e 'tell application "Desire" to activate' 2>/dev/null || true
             sleep 1
           done
-          [ "$OK" = yes ] || { echo "::error::app never came up — eval suite needs the bridge"; exit 1; }
+          [ "$OK" = yes ] || { echo "::error::app never activated — browser endpoints would hang"; exit 1; }
 
       - name: Agent eval suite (fixture endpoint, deterministic)
         run: |

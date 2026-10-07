@@ -1267,16 +1267,27 @@ def case_har_export():
         diag = bridge("GET", "/devtools")
         print("E15 DIAG devtools:", json.dumps(diag, ensure_ascii=False)[:800])
         # 兜底：显式建签导航（不走 activeTabManager 的 resolveIndex）。
-        nav = bridge("POST", "/new-tab", body={"url": BRIDGE + "/state"})
-        print("E15 DIAG new-tab resp:", json.dumps(nav, ensure_ascii=False)[:200])
-        # 主线程采样：new-tab 若挂起，栈会指明卡在 WKWebView 创建的哪一步。
+        # new-tab 可能挂起（未激活进程的 WKWebView 创建阻塞）——并发发射，
+        # 挂起期间采样主线程，栈会指明卡在哪一步。
+        import threading
         import subprocess
+        holder = {}
+        def fire():
+            try:
+                holder["resp"] = bridge("POST", "/new-tab", body={"url": BRIDGE + "/state"})
+            except Exception as exc:
+                holder["resp"] = f"raised: {exc}"
+        t = threading.Thread(target=fire)
+        t.start()
+        time.sleep(5)
         subprocess.run(["sample", "Desire", "2", "-file", "/tmp/desire-sample.txt"],
                        capture_output=True)
         with open("/tmp/desire-sample.txt") as fh:
             sample_text = fh.read()
-        main_section = sample_text[sample_text.find("main-thread"):][:1500] if "main-thread" in sample_text else sample_text[:1500]
-        print("E15 DIAG sample(main):", main_section)
+        marker = sample_text.find("main-thread")
+        print("E15 DIAG sample(main):", sample_text[marker:marker + 1800] if marker >= 0 else sample_text[:1800])
+        t.join(timeout=30)
+        print("E15 DIAG new-tab resp:", json.dumps(holder.get("resp"), ensure_ascii=False)[:200])
         for _ in range(20):
             time.sleep(0.5)
             entries = bridge("GET", "/devtools/har?scope=all").get("log", {}).get("entries", [])

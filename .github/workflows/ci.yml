@@ -55,7 +55,22 @@ jobs:
 
       - name: Agent eval suite (fixture endpoint, deterministic)
         run: |
-          python3 tests/agent-eval.py --cleanup
+          EVAL_RC=0
+          python3 tests/agent-eval.py --cleanup || EVAL_RC=$?
+          if [ "$EVAL_RC" != "0" ]; then
+            echo "=== Desire app log tail (launch/window) ==="
+            /usr/bin/log show --last 15m --info --debug --predicate 'process == "Desire"' --style compact 2>/dev/null | grep -iE "launch|window|onboarding|phase|error|fault" | tail -40 || true
+            echo "=== onboardingDone defaults ==="
+            defaults read me.siwi.Desire desire.onboardingDone 2>&1 || true
+            echo "=== CGWindowList (all Desire windows) ==="
+            echo 'import CoreGraphics; import Foundation; let l = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]; for w in l where (w[kCGWindowOwnerName as String] as? String) == "Desire" { print(w[kCGWindowNumber as String] as? Int ?? -1, w[kCGWindowBounds as String] ?? [:], w[kCGWindowLayer as String] ?? -1) }' > /tmp/wl.swift
+            swift /tmp/wl.swift 2>&1 || true
+          fi
+          exit $EVAL_RC
+
+      - name: Stop eval app instance
+        if: always()
+        run: |
           pkill -x Desire || true
           sleep 2
 

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>悬浮球 v5 · 展开动画与功能扩充 · 原型 v2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --ink-2: rgba(29,29,31,.62);
+    --ink-3: rgba(29,29,31,.42);
+    --paper: #f5f3ee;
+    --accent: #d6453a;
+    --green: #30b15c;
+    --gold: #b98a2f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+    background: #efede7; color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    margin: 0; padding: 0 0 80px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+  h1 { font-size: 26px; letter-spacing: .2px; margin: 0; }
+  h2 { font-size: 19px; margin: 0 0 4px; }
+  .lead { color: var(--ink-2); font-size: 14px; }
+
+  /* ============ 液态玻璃（原型模拟；真机 = 原生 .glassEffect） ============ */
+  .glass {
+    position: relative;
+    background: rgba(252,252,250,.5);
+    -webkit-backdrop-filter: blur(26px) saturate(1.9);
+    backdrop-filter: blur(26px) saturate(1.9);
+    box-shadow:
+      0 1px 1px rgba(255,255,255,.65) inset,
+      0 -1px 2px rgba(0,0,0,.05) inset,
+      0 18px 44px -12px rgba(20,16,8,.35),
+      0 3px 10px -2px rgba(20,16,8,.18);
+  }
+  .glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(168deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.18) 34%, rgba(255,255,255,0) 62%);
+  }
+  .dark-stage .glass {
+    background: rgba(40,38,36,.5);
+    box-shadow:
+      0 1px 1px rgba(255,255,255,.28) inset,
+      0 -1px 2px rgba(0,0,0,.2) inset,
+      0 18px 44px -12px rgba(0,0,0,.55),
+      0 3px 10px -2px rgba(0,0,0,.3);
+  }
+  .dark-stage .glass::before {
+    background: linear-gradient(168deg, rgba(255,255,255,.3) 0%, rgba(255,255,255,.08) 34%, rgba(255,255,255,0) 62%);
+  }
+
+  /* ============ 舞台（模拟浏览器窗口一角） ============ */
+  .stage {
+    position: relative; height: 340px; border-radius: 16px; overflow: hidden;
+    background:
+      radial-gradient(600px 240px at 20% 0%, rgba(214,69,58,.06), transparent),
+      linear-gradient(180deg, #ece9e1, #e4e1d8);
+    border: 1px solid rgba(29,29,31,.1);
+  }
+  .stage .page-mock { position: absolute; inset: 0; padding: 26px 200px 0 26px; }
+  .stage .page-mock .bar { height: 12px; border-radius: 6px; background: rgba(29,29,31,.08); margin-bottom: 12px; }
+  .stage .page-mock .card {
+    height: 64px; border-radius: 10px; background: rgba(255,255,255,.6);
+    border: 1px solid rgba(29,29,31,.06); margin-bottom: 10px;
+  }
+  .dark-stage {
+    background:
+      radial-gradient(600px 240px at 20% 0%, rgba(214,69,58,.1), transparent),
+      linear-gradient(180deg, #2b2926, #232120);
+  }
+  .dark-stage .page-mock .bar { background: rgba(255,255,255,.09); }
+  .dark-stage .page-mock .card { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.05); }
+
+  /* ============ 球 ============ */
+  .ball {
+    position: absolute; right: 22px; bottom: 26px; width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 30; user-select: none; -webkit-user-select: none;
+    transition: transform .2s cubic-bezier(.3,1.4,.5,1);
+  }
+  .ball svg { width: 22px; height: 22px; color: rgba(29,29,31,.85); position: relative; z-index: 2; }
+  .dark-stage .ball svg { color: rgba(255,255,255,.88); }
+  .ball:hover { transform: scale(1.06); }
+  .ball.pressing { transform: scale(.93); }
+  .ball .icon-x { display: none; }
+  .ball.open .icon-target { display: none; }
+  .ball.open .icon-x { display: block; }
+
+  /* ============ 触盘公共 ============ */
+  .hub {
+    position: absolute; right: 22px; bottom: 26px; z-index: 20;
+    width: 232px; border-radius: 26px; padding: 14px;
+    transform-origin: 100% 100%;
+    visibility: hidden;
+  }
+  .hub.show { visibility: visible; }
+  .hub-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 2px 4px 10px; opacity: 0; transform: translateY(6px);
+  }
+  .hub-head .favicon { width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg,#d6453a,#b98a2f); }
+  .hub-head .t { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .hub-head .ask {
+    font-size: 10.5px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+    background: rgba(214,69,58,.14); color: var(--accent); font-weight: 600; flex: none;
+  }
+  .hub-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .hub-grid.eight { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cell {
+    border-radius: 18px; padding: 10px 4px 8px; text-align: center; cursor: pointer;
+    background: rgba(255,255,255,.34);
+    border: 1px solid rgba(255,255,255,.4);
+    transition: background .15s ease, transform .15s cubic-bezier(.3,1.4,.5,1);
+    opacity: 0;
+  }
+  .dark-stage .cell { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+  .cell:hover { background: rgba(214,69,58,.16); transform: translateY(-2px) scale(1.04); }
+  .cell:active { transform: scale(.94); }
+  .cell svg { width: 19px; height: 19px; color: rgba(29,29,31,.78); }
+  .dark-stage .cell svg { color: rgba(255,255,255,.85); }
+  .cell .lb { font-size: 10px; color: var(--ink-2); margin-top: 4px; }
+  .dark-stage .cell .lb { color: rgba(255,255,255,.65); }
+  .more-chip {
+    grid-column: 1 / -1; text-align: center; font-size: 10px; color: var(--ink-3);
+    padding-top: 2px; cursor: pointer; opacity: 0;
+  }
+  .more-chip:hover { color: var(--accent); }
+
+  /* ============ 方向 A · 绽放 Bloom ============ */
+  .hub.a { transform: scale(.55); opacity: 0; }
+  .hub.a.show { animation: aHub .46s cubic-bezier(.32,1.5,.42,1) forwards; }
+  @keyframes aHub {
+    0% { transform: scale(.55); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .hub.a.show::after {           /* 开盘一次性掠光 */
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.5) 48%, transparent 62%);
+    background-size: 220% 100%; background-position: 120% 0;
+    animation: aShine .8s .18s ease-out forwards;
+  }
+  @keyframes aShine { to { background-position: -120% 0; } }
+  .hub.a .cell { transform: scale(.4) translateY(14px); }
+  .hub.a.show .cell { animation: aCell .5s cubic-bezier(.3,1.55,.45,1) forwards; }
+  .hub.a.show .cell:nth-child(1) { animation-delay: .05s; }
+  .hub.a.show .cell:nth-child(2) { animation-delay: .1s; }
+  .hub.a.show .cell:nth-child(3) { animation-delay: .15s; }
+  .hub.a.show .cell:nth-child(4) { animation-delay: .2s; }
+  .hub.a.show .hub-head { animation: aHead .4s .26s ease-out forwards; }
+  .hub.a.show .more-chip { animation: aHead .4s .3s ease-out forwards; }
+  @keyframes aCell {
+    0% { opacity: 0; transform: scale(.4) translateY(14px); }
+    70% { opacity: 1; transform: scale(1.05) translateY(-1px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes aHead { to { opacity: 1; transform: translateY(0); } }
+  .ball.a.squash { transform: scale(.9); }
+  .ball.a.open { transform: scale(1); }
+
+  /* ============ 方向 B · 液态形变 Morph ============ */
+  .stage.b .ball { transition: width .24s cubic-bezier(.32,1.25,.4,1), height .24s .06s cubic-bezier(.32,1.25,.4,1),
+                                          border-radius .24s ease, transform .2s ease; }
+  .stage.b.open .ball {
+    width: 232px; height: 218px; border-radius: 26px; cursor: default;
+    /* 球即盘：形变后隐藏球图标，内容交给 hub 内容层 */
+  }
+  .stage.b.open .ball svg { opacity: 0; transform: rotate(90deg) scale(.6); transition: all .18s ease; }
+  .stage.b .page-mock { transition: filter .3s ease, opacity .3s ease; }
+  .stage.b.open .page-mock { filter: blur(3px) brightness(.92); }
+  .hub.b { right: auto; left: auto; visibility: visible; opacity: 0; pointer-events: none;
+           width: 204px; padding: 14px; }
+  .stage.b.open .hub.b { pointer-events: auto; opacity: 1; transition: opacity .05s .16s; }
+  .hub.b .cell { filter: blur(8px); transform: translateY(10px); }
+  .stage.b.open .hub.b .cell {
+    animation: bCell .42s cubic-bezier(.3,1.3,.45,1) forwards;
+  }
+  .stage.b.open .hub.b .cell:nth-child(1) { animation-delay: .2s; }
+  .stage.b.open .hub.b .cell:nth-child(2) { animation-delay: .25s; }
+  .stage.b.open .hub.b .cell:nth-child(3) { animation-delay: .3s; }
+  .stage.b.open .hub.b .cell:nth-child(4) { animation-delay: .35s; }
+  .stage.b.open .hub.b .hub-head { animation: aHead .38s .42s ease-out forwards; }
+  @keyframes bCell {
+    0% { opacity: 0; filter: blur(8px); transform: translateY(10px); }
+    100% { opacity: 1; filter: blur(0); transform: translateY(0); }
+  }
+
+  /* ============ 方向 C · 轨道汇聚 Orbit ============ */
+  .hub.c { transform: scale(.92) rotate(-7deg); opacity: 0; }
+  .hub.c.show { animation: cHub .5s cubic-bezier(.3,1.35,.45,1) forwards; }
+  @keyframes cHub {
+    0% { transform: scale(.92) rotate(-7deg); opacity: 0; }
+    60% { opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .hub.c .cell { transform: rotate(38deg) scale(.5); }
+  .hub.c.show .cell { animation: cCell .55s cubic-bezier(.28,1.5,.42,1) forwards; }
+  .hub.c.show .cell:nth-child(1) { animation-delay: .04s; }
+  .hub.c.show .cell:nth-child(2) { animation-delay: .1s; }
+  .hub.c.show .cell:nth-child(3) { animation-delay: .16s; }
+  .hub.c.show .cell:nth-child(4) { animation-delay: .22s; }
+  @keyframes cCell {
+    0% { opacity: 0; transform: rotate(38deg) scale(.5); }
+    100% { opacity: 1; transform: rotate(0) scale(1); }
+  }
+  .orbit-trail {
+    position: absolute; right: 8px; bottom: -4px; width: 150px; height: 150px; z-index: 10;
+    border: 1.5px dashed rgba(214,69,58,.4); border-radius: 50%;
+    opacity: 0; pointer-events: none;
+  }
+  .stage.c.armed .orbit-trail { animation: cTrail .7s ease-out; }
+  @keyframes cTrail { 0% { opacity: 0; transform: scale(.5) rotate(-40deg); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05) rotate(0); } }
+
+  /* ============ 微交互条 ============ */
+  .micro { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .micro .blk { text-align: center; }
+  .micro .cap { font-size: 11.5px; color: var(--ink-2); margin-top: 8px; }
+  .demo-ball { position: relative; width: 56px; height: 56px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+  .demo-ball svg { width: 22px; height: 22px; color: rgba(29,29,31,.85); position: relative; z-index: 2; }
+  .press-demo:active { transform: scale(.9); }
+  .busy-ring { position: absolute; inset: -7px; border-radius: 50%;
+    border: 2px solid rgba(214,69,58,.9);
+    border-top-color: transparent; animation: spin 1.1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .flash-badge { position: absolute; top: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--green); display: flex; align-items: center; justify-content: center;
+    animation: pop .5s cubic-bezier(.3,1.6,.45,1); }
+  .flash-badge svg { width: 9px; height: 9px; color: #fff; }
+  @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+  .wave { display: flex; gap: 2.5px; align-items: flex-end; height: 18px; }
+  .wave i { width: 3px; border-radius: 2px; background: var(--accent); animation: wave 1s ease-in-out infinite; }
+  .wave i:nth-child(1) { height: 8px; animation-delay: 0s; }
+  .wave i:nth-child(2) { height: 15px; animation-delay: .12s; }
+  .wave i:nth-child(3) { height: 10px; animation-delay: .24s; }
+  .wave i:nth-child(4) { height: 16px; animation-delay: .36s; }
+  .wave i:nth-child(5) { height: 7px; animation-delay: .48s; }
+  @keyframes wave { 0%,100% { transform: scaleY(.55); } 50% { transform: scaleY(1); } }
+
+  /* 回复预览气泡 */
+  .reply-pop {
+    position: absolute; right: 70px; bottom: 6px; width: 230px; border-radius: 14px; padding: 10px 12px;
+    opacity: 0; transform: translateX(8px) scale(.96); pointer-events: none;
+    transition: all .22s cubic-bezier(.3,1.3,.45,1); z-index: 5; text-align: left;
+  }
+  .reply-host:hover .reply-pop, .reply-host.stay .reply-pop { opacity: 1; transform: translateX(0) scale(1); }
+  .reply-pop .rp-t { font-size: 10px; color: var(--green); font-weight: 700; }
+  .reply-pop .rp-x { font-size: 12px; color: var(--ink); margin-top: 3px; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .reply-pop .rp-go { font-size: 10.5px; color: var(--accent); font-weight: 600; margin-top: 5px; }
+
+  /* 拖拽投递动作选择 */
+  .drop-host { position: relative; display: inline-block; }
+  .drop-menu {
+    position: absolute; right: 64px; bottom: -4px; width: 168px; border-radius: 14px; padding: 6px;
+    opacity: 0; transform: scale(.9); transform-origin: 100% 90%; pointer-events: none;
+    transition: all .24s cubic-bezier(.3,1.4,.45,1); z-index: 5; text-align: left;
+  }
+  .drop-host.drop .drop-menu { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .drop-host.drop .demo-ball { transform: scale(1.12); }
+  .drop-menu .di { font-size: 12px; padding: 7px 10px; border-radius: 9px; cursor: pointer; display: flex; gap: 7px; align-items: center; }
+  .drop-menu .di:hover { background: rgba(214,69,58,.14); color: var(--accent); }
+  .drop-menu .di svg { width: 13px; height: 13px; }
+
+  /* 二级触盘（长按演示用按钮驱动） */
+  .seg { display: inline-flex; border-radius: 999px; border: 1px solid rgba(29,29,31,.14); overflow: hidden; font-size: 12px; }
+  .seg button { border: 0; background: transparent; padding: 5px 14px; cursor: pointer; color: var(--ink-2); font-size: 12px; }
+  .seg button.on { background: var(--ink); color: #f5f3ee; }
+
+  table.cmp { border-collapse: collapse; width: 100%; font-size: 13px; background: #fff; border-radius: 12px; overflow: hidden; }
+  table.cmp th, table.cmp td { border: 1px solid rgba(29,29,31,.09); padding: 9px 13px; text-align: left; vertical-align: top; }
+  table.cmp th { background: var(--paper); font-weight: 700; }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 9px; border-radius: 999px; font-weight: 600; }
+  .pill.low { background: rgba(48,177,92,.14); color: #1c7c3c; }
+  .pill.mid { background: rgba(185,138,47,.16); color: #8a6516; }
+  .reco { background: #fff; border: 1px solid rgba(29,29,31,.1); border-radius: 12px; padding: 14px 18px; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap" style="padding-top:34px">
+  <h1>悬浮球 v5 · 展开动画与功能扩充 <span style="color:var(--ink-3);font-weight:400">原型 v2</span></h1>
+  <p class="lead" style="max-width:760px">三个<b>展开动画方向</b>（A 绽放 / B 液态形变 / C 轨道汇聚）+ 四项<b>功能扩充</b>。
+    每个舞台里的球都<b>真的能点</b>：点球展开、点 ✕ 或点空白收起、悬停看微交互。
+    玻璃材质为 CSS 模拟，真机映射原生 <code>.glassEffect</code>。评审拍板后再写 SwiftUI。</p>
+
+  <!-- ================= 方向 A ================= -->
+  <div class="mt-10">
+    <h2>方向 A · 绽放 Bloom <span class="lead">— 盘从球心弹性放大，格子向外弹出 + 一次性掠光</span></h2>
+    <p class="lead">球先轻微下压（蓄力），触盘从球的位置放大弹出；四格依次向外弹出带过冲，开盘瞬间一道玻璃掠光。收起 = 逆向快速合拢。</p>
+    <div class="stage mt-3" id="stageA">
+      <div class="page-mock">
+        <div class="bar" style="width:44%"></div>
+        <div class="bar" style="width:70%"></div>
+        <div class="card"></div><div class="card"></div>
+      </div>
+      <div class="orbit-trail" style="display:none"></div>
+      <div class="hub glass a" id="hubA">
+        <div class="hub-head">
+          <div class="favicon"></div><div class="t">DPP 嵌入场景 — 跨源 iframe 声明聚合</div>
+          <div class="ask">问本页</div>
+        </div>
+        <div class="hub-grid" id="gridA">
+          <div class="cell">CNN1<div class="lb">Agent 对话</div></div>
+          <div class="cell">CNN2<div class="lb">语音输入</div></div>
+          <div class="cell">CNN3<div class="lb">总结本页</div></div>
+          <div class="cell">CNN4<div class="lb">白板</div></div>
+          <div class="more-chip" id="moreA">⌄ 长按球或点此：展开全部 8 项</div>
+        </div>
+      </div>
+      <div class="ball glass a" id="ballA" title="点击展开/收起（长按 0.4s = 全部 8 项）">
+        <svg class="icon-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+        <svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </div>
+    </div>
+    <p class="lead mt-2">运动参数：盘 scale .55→1（spring response .46s，轻微过冲）；格 stagger 50ms，各带 5% 过冲；掠光 0.8s 一次。<b>二级触盘</b>：长按球 0.4s（或点「⌄」）→ 2×2 交叉淡出为 4×2 八格（设置里的"八选四"限制就此取消）。
+      <span class="seg" style="margin-left:6px"><button id="segA4" class="on" onclick="toggleEight('A',false)">4 格</button><button id="segA8" onclick="toggleEight('A',true)">8 格</button></span></p>
+  </div>
+
+  <!-- ================= 方向 B ================= -->
+  <div class="mt-12">
+    <h2>方向 B · 液态形变 Morph <span class="lead">— 球本身被拉开成触盘，背景渐进聚焦压暗</span></h2>
+    <p class="lead">不弹出新盘：球在原地被"拉开"——先变宽、慢半拍变高（液态拉伸），圆→圆角矩形，格子在盘内从模糊中浮起；页面背景同时模糊压暗（聚焦感）。收起 = 先收高再收宽。</p>
+    <div class="stage dark-stage b mt-3" id="stageB">
+      <div class="page-mock">
+        <div class="bar" style="width:44%"></div>
+        <div class="bar" style="width:70%"></div>
+        <div class="card"></div><div class="card"></div>
+      </div>
+      <div class="hub b glass" id="hubB">
+        <div class="hub-head">
+          <div class="favicon"></div><div class="t">DPP 嵌入场景 — 跨源 iframe 声明聚合</div>
+          <div class="ask">问本页</div>
+        </div>
+        <div class="hub-grid">
+          <div class="cell">CNN1<div class="lb">Agent 对话</div></div>
+          <div class="cell">CNN2<div class="lb">语音输入</div></div>
+          <div class="cell">CNN3<div class="lb">总结本页</div></div>
+          <div class="cell">CNN4<div class="lb">白板</div></div>
+        </div>
+      </div>
+      <div class="ball glass" id="ballB" title="点击：球被拉开成触盘">
+        <svg class="icon-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+      </div>
+    </div>
+    <p class="lead mt-2">运动参数：宽 0.24s + 高延迟 0.06s（液态拉伸）；格 blur 8→0 + 上浮，stagger 50ms；背景 blur 3px + brightness .92。真机映射 <code>matchedGeometryEffect</code> + 两段式尺寸动画；<b>风险</b>：玻璃材质在形变中间态可能闪（需真机验证）。</p>
+  </div>
+
+  <!-- ================= 方向 C ================= -->
+  <div class="mt-12">
+    <h2>方向 C · 轨道汇聚 Orbit <span class="lead">— 格子沿弧线旋入，盘面带 -7°→0° 的落定旋转，悬停视差</span></h2>
+    <p class="lead">开盘前一道虚线轨道闪现（AssistiveTouch 语汇），格子带着 38° 自旋沿弧线汇聚落位，盘面反向微旋对齐。悬停某格时整盘向该格方向轻微倾斜（视差）。</p>
+    <div class="stage c mt-3" id="stageC">
+      <div class="page-mock">
+        <div class="bar" style="width:44%"></div>
+        <div class="bar" style="width:70%"></div>
+        <div class="card"></div><div class="card"></div>
+      </div>
+      <div class="orbit-trail"></div>
+      <div class="hub glass c" id="hubC" style="transform-style:preserve-3d">
+        <div class="hub-head">
+          <div class="favicon"></div><div class="t">DPP 嵌入场景 — 跨源 iframe 声明聚合</div>
+          <div class="ask">问本页</div>
+        </div>
+        <div class="hub-grid" id="gridC" style="transition: transform .25s ease">
+          <div class="cell">CNN1<div class="lb">Agent 对话</div></div>
+          <div class="cell">CNN2<div class="lb">语音输入</div></div>
+          <div class="cell">CNN3<div class="lb">总结本页</div></div>
+          <div class="cell">CNN4<div class="lb">白板</div></div>
+        </div>
+      </div>
+      <div class="ball glass" id="ballC" title="点击展开/收起">
+        <svg class="icon-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+        <svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </div>
+    </div>
+    <p class="lead mt-2">运动参数：盘 rotate −7°→0 + scale .92→1；格 rotate 38°→0 自旋汇入，stagger 60ms；开盘前轨道虚线闪现 0.7s；悬停视差 = 盘面朝光标方向倾斜 ≤4°（真机 <code>rotation3DEffect</code> 跟踪悬停点）。</p>
+  </div>
+
+  <!-- ================= 功能扩充 ================= -->
+  <div class="mt-14">
+    <h2>功能扩充（四项，与动画方向正交）</h2>
+    <div class="grid grid-cols-2 gap-6 mt-4">
+      <div class="reco">
+        <b>① 全 8 能力触盘</b>
+        <p class="lead mt-1">长按球（或盘上「⌄」）2×2 ⇄ 4×2 交叉切换（方向 A 舞台可试）——取消设置里"八选四"，设置页只留<b>前四槽排序</b>。</p>
+      </div>
+      <div class="reco">
+        <b>② 页面上下文菜单头（已在三方向盘中）</b>
+        <p class="lead mt-1">盘顶一行：页面 favicon + 标题（超长截断）+ 「问本页」chip——盘即页面上下文启动器，"问本页"直接起回合。</p>
+      </div>
+      <div class="reco">
+        <b>③ 回复就绪预览气泡</b>
+        <p class="lead mt-1">回复完成徽章出现后，悬停球 → 气泡预览回答前两行 + 「打开」；不用打开面板就知道答了什么。</p>
+        <div class="drop-host reply-host stay" style="margin-top:10px">
+          <div class="demo-ball glass" style="transform:scale(.9)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+            <div class="flash-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div>
+          </div>
+          <div class="reply-pop glass">
+            <div class="rp-t">已回复 · 刚刚</div>
+            <div class="rp-x">这页的跨源声明来自 widget 框架，会员卡视图有两处选择器可以简化…</div>
+            <div class="rp-go">打开对话 →</div>
+          </div>
+        </div>
+      </div>
+      <div class="reco">
+        <b>④ 拖拽投递动作选择</b>
+        <p class="lead mt-1">拖链接/选区到球上 → 松手不再直接发送，弹迷你选择（总结 / 翻译 / 打开并问）——投递语义从"固定动作"升级为"带意图"。</p>
+        <div class="drop-host" id="dropHost" style="margin-top:10px">
+          <div class="demo-ball glass" onclick="document.getElementById('dropHost').classList.toggle('drop')" title="点击模拟拖入">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <div class="drop-menu glass">
+            <div class="di">✦ 总结此链接</div>
+            <div class="di">文 翻译此链接</div>
+            <div class="di">↗ 打开并询问</div>
+          </div>
+        </div>
+        <p class="lead" style="font-size:11px;margin-top:6px">（原型里点球模拟"拖入松手"）</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 微交互精修 ================= -->
+  <div class="mt-14">
+    <h2>微交互精修（不分方向，全量应用）</h2>
+    <div class="micro mt-4">
+      <div class="blk">
+        <div class="demo-ball glass press-demo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <div class="cap">按下压感 scale .9<br>（现在没有，加上）</div>
+      </div>
+      <div class="blk">
+        <div class="demo-ball glass" style="position:relative">
+          <div class="busy-ring"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <div class="cap">忙碌环 + 缺口旋转<br>（替代现在的整圈静环）</div>
+      </div>
+      <div class="blk">
+        <div class="demo-ball glass" style="position:relative">
+          <div class="wave" style="position:absolute"><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="cap">录音：球内五柱波形<br>（替代现在只有外圈波纹）</div>
+      </div>
+      <div class="blk">
+        <div class="demo-ball glass" style="position:relative">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+          <div class="flash-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div>
+        </div>
+        <div class="cap">回复徽章弹性 pop<br>（现有，保留）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 对比与实现映射 ================= -->
+  <div class="mt-14">
+    <h2>三方向对比与 SwiftUI 实现映射</h2>
+    <table class="cmp mt-3">
+      <tr><th></th><th>A 绽放 Bloom</th><th>B 液态形变 Morph</th><th>C 轨道汇聚 Orbit</th></tr>
+      <tr><th>气质</th><td>轻快、直给，AssistiveTouch 正统续作</td><td>最"液态玻璃"，系统级质感</td><td>最有仪式感，动势最强</td></tr>
+      <tr><th>总时长</th><td>≈0.55s</td><td>≈0.55s（液态两段）</td><td>≈0.7s（含轨道闪现）</td></tr>
+      <tr><th>SwiftUI 实现</th><td>scaleEffect + delayed spring + 掩模渐变掠光——<b>全是现有积木</b></td><td>matchedGeometryEffect + 两段式尺寸 + 背景模糊层</td><td>rotationEffect 弧线入位 + rotation3DEffect 视差</td></tr>
+      <tr><th>风险</th><td><span class="pill low">低</span> 纯组合</td><td><span class="pill mid">中</span> 玻璃形变中间态需真机验证（NSGlassEffectView 对 morph 的支持未知）</td><td><span class="pill mid">中</span> 视差跟踪需手势/悬停坐标，弧线语义在 2×2 网格上稍弱</td></tr>
+      <tr><th>与现有代码距离</th><td>最近（V3 弹入的加强版）</td><td>中（开合路径重构）</td><td>中</td></tr>
+    </table>
+    <div class="reco mt-4">
+      <b>我的推荐：A 为主干</b>（低风险、与 V3 定稿语言一脉相承），吸收 B 的「背景聚焦压暗」与 C 的「悬停视差」作为全局微交互；功能四项全做（①②③④ 与方向正交）。
+      你拍板：单选 A/B/C，或"组合 D"（A + 压暗 + 视差）。
+    </div>
+  </div>
+
+  <p class="lead mt-10" style="color:var(--ink-3)">原型 v2 · design/agent-ball/prototype-v2.html · 拍板后写 SwiftUI（AgentBallOverlay.swift）</p>
+</div>
+
+<script>
+// 图标占位 → 真实 SVG（cell 内 "CNN*" 文本替换为图标）
+const ICONS = {
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>',
+  board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3" stroke-dasharray="3 3"/></svg>',
+  cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>',
+  lang: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h10M8 3v2M11 5c-1 4-4 7-7 9M6 9c1.5 3 4 5.5 7 7"/><path d="M13 21l4-9 4 9M14.5 17.5h5"/></svg>',
+  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 15l2 2 4-4" stroke-width="1.6"/></svg>',
+  wand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L15 9M15 9l2 2M17.5 4.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7zM6.5 12.5l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z"/></svg>'
+};
+const NAMES = ["Agent 对话", "语音输入", "总结本页", "白板", "截图", "翻译本页", "任务计划", "自定义提示词"];
+const KEYS = [chatIcon(), "mic", "doc", "board", "cam", "lang", "plan", "wand"];
+function chatIcon() { return "chat"; }
+
+function fillCells(grid, count) {
+  grid.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement("div");
+    d.className = "cell";
+    d.innerHTML = ICONS[KEYS[i]] + '<div class="lb">' + NAMES[i] + "</div>";
+    grid.appendChild(d);
+  }
+  if (count === 4) {
+    const m = document.createElement("div");
+    m.className = "more-chip"; m.id = grid.id === "gridA" ? "moreA" : "";
+    m.textContent = "⌄ 长按球或点此：展开全部 8 项";
+    if (grid.id === "gridA") m.onclick = () => toggleEight("A", true);
+    grid.appendChild(m);
+  }
+}
+fillCells(document.getElementById("gridA"), 4);
+fillCells(document.getElementById("gridC"), 4);
+// B 的格子也填真图标
+document.querySelectorAll("#hubB .cell").forEach((c, i) => {
+  c.innerHTML = ICONS[KEYS[i]] + '<div class="lb">' + NAMES[i] + "</div>";
+});
+
+// 展开状态管理：点球开合；点舞台空白收起
+function wireToggle(stageId, ballId, dir) {
+  const stage = document.getElementById(stageId);
+  const ball = document.getElementById(ballId);
+  ball.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opening = !stage.classList.contains("open");
+    setStage(stage, dir, opening);
+  });
+  stage.addEventListener("click", () => {
+    if (stage.classList.contains("open")) setStage(stage, dir, false);
+  });
+  stage.querySelectorAll(".cell,.hub-head,.drop-menu").forEach((el) => {
+    el.addEventListener("click", (e) => e.stopPropagation());
+  });
+}
+function setStage(stage, dir, open) {
+  const ball = stage.querySelector(".ball");
+  const hub = stage.querySelector(".hub");
+  if (dir === "B") {
+    stage.classList.toggle("open", open);
+    return;
+  }
+  if (open) {
+    if (dir === "C") { stage.classList.remove("armed"); void stage.offsetWidth; stage.classList.add("armed"); }
+    ball.classList.add("open");
+    hub.classList.remove("show"); void hub.offsetWidth; hub.classList.add("show");
+    hub.style.visibility = "visible";
+  } else {
+    ball.classList.remove("open");
+    hub.classList.remove("show");
+    hub.style.visibility = "hidden";
+  }
+}
+wireToggle("stageA", "ballA", "A");
+wireToggle("stageB", "ballB", "B");
+wireToggle("stageC", "ballC", "C");
+
+// 长按球 = 8 格切换（方向 A）
+let pressTimer = null;
+const ballA = document.getElementById("ballA");
+ballA.addEventListener("mousedown", () => {
+  ballA.classList.add("pressing");
+  pressTimer = setTimeout(() => { toggleEight("A", true); ballA.classList.remove("pressing"); }, 400);
+});
+["mouseup", "mouseleave"].forEach((ev) => ballA.addEventListener(ev, () => {
+  ballA.classList.remove("pressing");
+  clearTimeout(pressTimer);
+}));
+
+function toggleEight(dir, eight) {
+  const grid = document.getElementById("grid" + dir);
+  fillCells(grid, eight ? 8 : 4);
+  document.getElementById("segA4").classList.toggle("on", !eight);
+  document.getElementById("segA8").classList.toggle("on", eight);
+  // 重新触发弹入
+  const stage = document.getElementById("stage" + dir);
+  if (stage.classList.contains("open") || dir === "A") {
+    const hub = stage.querySelector(".hub");
+    hub.classList.remove("show"); void hub.offsetWidth; hub.classList.add("show");
+  }
+}
+
+// 方向 C 悬停视差
+const gridC = document.getElementById("gridC");
+gridC.addEventListener("mousemove", (e) => {
+  const r = gridC.getBoundingClientRect();
+  const dx = (e.clientX - r.left) / r.width - 0.5;
+  const dy = (e.clientY - r.top) / r.height - 0.5;
+  gridC.style.transform = `perspective(600px) rotateY(${dx * 7}deg) rotateX(${-dy * 7}deg)`;
+});
+gridC.addEventListener("mouseleave", () => { gridC.style.transform = ""; });
+</script>
+</body>
+</html>

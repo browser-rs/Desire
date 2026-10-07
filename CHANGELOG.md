@@ -9,6 +9,8 @@
 
 - **悬浮球触盘格子不可见（展开只有空玻璃盘）**：v4 定制槽位把 `capability.hashValue` 当格子编号传进了弹入动画的 stagger 延迟——hashValue 每次启动随机且量级 ±2^63，乘 0.055 后是天文数字秒，正数槽位的动画永不开始、格子永停在 opacity 0（四格全可见概率仅 1/16，此前测试是撞上负值的运气）。改回位置序号 0…3。附带：桥新增 `POST /agentball`（开合/显隐驱动——darwin 27 上 CGEvent 已死、球是手势判定非 AXButton，这是悬浮球唯一的自动化入口）；修复 DevTools DPP 检查器缺失 `import WebKit` 的编译错误
 - **DevTools 后台标签页记录断流（0.7.5）**：console/network 的接收端此前挂在 SwiftUI 视图生命周期上（makeNSView 挂 / dismantle 摘），标签页一转后台记录即断，"全部标签页"只剩被前台化过的名单。新 `DevToolsRecorder`（app 级单例）在 Tab 创建时挂上、挂起重建随新 webview 重装，后台标签页持续记录。**附带修掉一颗跨源切片时代的地雷**：`dppFrame` handler add 前没有 remove——切回含 DPP 声明的标签必抛 NSInvalidArgumentException 直接崩（NSViewLayout 内 `_crashOnException`）；补 remove-before-add + user script 关联对象台账防重复注入
+- **跨源 DPP 的 about:blank 竞态**：iframe 导航落定前的瞬时文档上报声明时，宿主按 frameInfo 求值常已落在**导航后**的文档上——目标框架的声明被注册两遍（about:blank 与真 URL 各一条，实测 `demo/embed/?widget=` 双源场景）；宿主侧跳过 about:blank 上报（真导航后脚本以真实 URL 重报），注册幂等。**悬浮球 v5 手感打磨**：触盘翻转判定补计 ⌄ chip 行高（贴上下边时位置更准）、全 8 能力小格标签缩字容忍（"自定义提示词"不再硬截）
+
 
 
 ### Added

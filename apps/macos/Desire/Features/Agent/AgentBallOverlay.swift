@@ -336,9 +336,12 @@ struct AgentBallOverlay: View {
         state.hubShowsAll ? hubPad * 2 + hubCellSmall * 4 + hubGap * 3 : hubPad * 2 + hubCell * 2 + hubGap
     }
     private var hubHeight: CGFloat {
-        let grid = state.hubShowsAll ? hubCellSmall * 2 + hubGap : hubCell * 2 + hubGap
-        // +26 = 菜单头（favicon + 页面标题 + 问本页）
-        return hubPad * 2 + grid + 26 + (state.voice.isRecording ? 44 : 0)
+        let grid: CGFloat = state.hubShowsAll ? hubCellSmall * 2 + hubGap : hubCell * 2 + hubGap
+        // +26 = 菜单头（favicon + 页面标题 + 问本页）；+16 = ⌄ chip 行（仅 2×2）
+        let chip: CGFloat = state.hubShowsAll ? 0 : 16
+        var height = hubPad * 2 + grid + 26 + chip
+        if state.voice.isRecording { height += 44 }
+        return height
     }
 
     private func hub(in size: CGSize) -> some View {
@@ -639,7 +642,8 @@ private struct AgentBallHub: View {
                 }
                 .frame(width: 46, height: 46)
                 Text(title)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: cellSize < 60 ? 9.5 : 10.5, weight: .medium))
+                    .minimumScaleFactor(cellSize < 60 ? 0.8 : 1)
                     .foregroundStyle(recording
                                      ? AnyShapeStyle(Color.red)
                                      : hoveredCell

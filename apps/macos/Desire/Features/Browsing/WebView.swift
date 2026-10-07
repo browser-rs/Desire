@@ -1586,6 +1586,11 @@ try {
         private func noteFrameProtocol(url: URL, frameInfo: WKFrameInfo, webView: WKWebView) {
             guard DPPConfigStore.shared.enabled else { return }
             guard url != webView.url else { return }
+            // about:blank 是 iframe 导航落定前的瞬时文档——此刻按 frameInfo
+            // 求值常已落在**导航后**的文档上，会把目标框架的声明重复注册
+            // 一遍（实测 embed?widget= 场景 about:blank 与真 URL 各一条）。
+            // 跳过：真导航完成后 dppFrame 脚本会以真实 URL 重新上报。
+            guard url.absoluteString != "about:blank" else { return }
             guard !parent.state.frameProtocols.contains(where: { $0.url == url }),
                   !pendingFrameParse.contains(where: { $0.url == url }) else { return }
             pendingFrameParse.append((url, frameInfo))

@@ -516,7 +516,7 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 >
 > | 版本 | 主题 | 内容 |
 > |---|---|---|
-> | 0.7.1 | 记忆检索升级（B） | 阶段一混合规则 ✗（8/15 持平）；阶段二 bge 门槛 ✓（13/15，25MB）待立项 |
+> | 0.7.1 | 记忆检索升级（B） | ✓ 阶段一混合规则 ✗（8/15 持平）；阶段二 bge CoreML 已实装（13/15，int8 22MB） |
 > | 0.7.2 | DPP：demo 扩展 + C 收尾 | 演示场丰富、跨源标注、文档站扩规范 |
 > | 0.7.3 | 悬浮球 v5 | 功能扩充 + 展开动画/视觉设计（原型评审） |
 > | 0.7.4+ | 安全迭代 ×N | 审计→修复循环（桥/提示注入/工具闸门/下载/插件面） |
@@ -537,12 +537,15 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
   （30 事实 × 15 查询，`tools/vector-spike/hybrid-probe.swift`）上**无增益**——
   混合 top-1 8/15 == 纯 BM25 8/15，零重叠子集 NLE 兜底 0/6（期望事实排至
   第 5–30 名）。不进产品；数据与分析见 docs/VECTOR-MEMORY-SPIKE.md。
-- **阶段二（捆绑 embedding 模型）——门槛已通过（2026-10-07），待立项实装**：
-  bge-small-zh-v1.5 经 llama.cpp 用同一对照集评出真增益——带官方查询指令前缀
-  top-1 **13/15**（BM25 8/15）、top-3 15/15、零重叠子集 4/6（BM25/NLE 均 0/6）；
-  q8_0 量化（~25MB）质量与 f16 一致，单条 ~4ms。数据与遗留决策点（运行时路径
-  Core ML vs 内嵌 vs 纯 Swift、体积代价、融合口径）见 docs/VECTOR-MEMORY-SPIKE.md
-  「阶段二门槛评测」。实装单独立项，验收集沿用 tools/vector-spike/ 两探针。
+- **阶段二（捆绑 embedding 模型）✓ 已实装（2026-10-07，Core ML 路线）**：
+  bge-small-zh-v1.5 int8 量化（`Models/BGEZh.mlpackage`，22MB，构建期编译
+  mlmodelc）+ Swift WordPiece 分词（`BGEEmbedder`，nonisolated，后台推理）
+  + `MemoryRetrieval.rankWithVectors`（向量主排，BM25 为模型缺失/失败时的
+  降级路径）。转换与评测脚本在 tools/vector-spike/（转换组合：python3.12 +
+  torch 2.6 + coremltools 8.3——torch 2.14 太新会被 ct 9 拒）。验证：离线与
+  **应用内**（桥 `/memory/retrieval-eval`）同跑 30×15 对照集均 top-1 13/15、
+  top-3 15/15（BM25 基线 8/15），词法陷阱查询修复；评估套件 41/41，真实回合
+  日志 `memory rank … via=vector`。
 
 ## 0.7.C — DPP 深化收尾
 - L1 扫描进 shadow DOM：盘点确认**已交付**（dppAllRoots + `>>>` 路径在用）——

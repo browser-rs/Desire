@@ -1329,6 +1329,83 @@ func testMemoryRetrieval() {
 }
 testMemoryRetrieval()
 
+// ---------- MemoryRetrieval.rankWithVectors：向量主排 + BM25 降级 ----------
+
+func testVectorRanking() {
+    func fact(_ content: String, pinned: Bool = false, daysAgo: Double = 0) -> MemoryFact {
+        var f = MemoryFact(content: content, category: "fact", pinned: pinned)
+        f.updatedAt = Date().addingTimeInterval(-daysAgo * 86400)
+        return f
+    }
+    let a = fact("用户偏好用中文回答问题", daysAgo: 9)
+    let b = fact("下载失败时应该自动重试", daysAgo: 1)
+    // 人造向量：a 与查询同向（正交基只取第 0/1 维）
+    let qa = [1.0, 0.1, 0.0]
+    let va = [1.0, 0.0, 0.0]
+    let vb = [0.0, 1.0, 0.0]
+    let vecs = [a.id: va, b.id: vb]
+
+    let r1 = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "无关词面",
+                                             queryVector: qa, vectorsByFactID: vecs)
+    check("向量主排命中同向事实", r1.first?.id == a.id)
+
+    // 零词法重叠对照：rank 退化为最近优先（b 新 → b 前），向量主排仍命中 a
+    let nolexBM25 = MemoryRetrieval.rank(facts: [a, b], query: "zzz-qqq")
+    let nolexVec = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "zzz-qqq",
+                                                   queryVector: qa, vectorsByFactID: vecs)
+    check("零重叠 BM25 退化最近优先", nolexBM25.first?.id == b.id)
+    check("零重叠向量主排不退化", nolexVec.first?.id == a.id)
+
+    // pinned 仍恒定最前
+    let p = fact("置顶事实", pinned: true)
+    let r2 = MemoryRetrieval.rankWithVectors(facts: [a, b, p], query: "q",
+                                             queryVector: qa, vectorsByFactID: vecs)
+    check("向量主排 pinned 恒定最前", r2.first?.id == p.id && r2.dropFirst().first?.id == a.id)
+
+    // 个别事实缺向量：缺的沉底，不回退全量 BM25
+    let r3 = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "q",
+                                             queryVector: qa,
+                                             vectorsByFactID: [a.id: va])
+    check("缺向量事实不参与向量排序", r3.contains(where: { $0.id == a.id }))
+
+    // queryVector 缺失/零向量 → 整体回退 BM25（模型缺失的降级路径）
+    let bm25 = MemoryRetrieval.rank(facts: [a, b], query: "下载失败")
+    let r4 = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "下载失败",
+                                             queryVector: nil, vectorsByFactID: vecs)
+    check("nil 查询向量回退 BM25", r4.map(\.id) == bm25.map(\.id))
+    let r5 = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "下载失败",
+                                             queryVector: [0, 0, 0], vectorsByFactID: vecs)
+    check("零向量回退 BM25", r5.map(\.id) == bm25.map(\.id))
+
+    // 全部事实都无向量 → 回退 BM25
+    let r6 = MemoryRetrieval.rankWithVectors(facts: [a, b], query: "下载失败",
+                                             queryVector: qa, vectorsByFactID: [:])
+    check("无事实向量回退 BM25", r6.map(\.id) == bm25.map(\.id))
+
+    // topK 上限同样生效
+    var many: [MemoryFact] = []
+    var manyVecs: [UUID: [Double]] = [:]
+    for i in 0..<40 {
+        let f = fact("条目 \(i)", daysAgo: Double(i))
+        many.append(f)
+        manyVecs[f.id] = [Double(i % 2), Double(i % 3), 1.0]
+    }
+    let r7 = MemoryRetrieval.rankWithVectors(facts: many, query: "q",
+                                             queryVector: [1, 0, 0],
+                                             vectorsByFactID: manyVecs)
+    check("向量主排 topK 上限（40→12）", r7.count == MemoryRetrieval.Params().topK)
+
+    // 平分按最近优先
+    let y = fact("平分甲", daysAgo: 5)
+    let z = fact("平分乙", daysAgo: 1)
+    let half = [1.0, 1.0, 0.0]
+    let r8 = MemoryRetrieval.rankWithVectors(facts: [y, z], query: "q",
+                                             queryVector: [1.0, 1.0, 0.5],
+                                             vectorsByFactID: [y.id: half, z.id: half])
+    check("余弦平分最近优先", r8.first?.id == z.id)
+}
+testVectorRanking()
+
 // ---------- DPP 协议容错解码（2026-10-02 审计修复） ----------
 
 func dppDecode(_ json: String) -> DesireProtocol? {

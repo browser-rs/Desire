@@ -241,10 +241,10 @@ final class AgentMemoryStore: ObservableObject {
     /// facts (pinned first), and the most recent other-conversation
     /// summaries. Nil when there's nothing to say.
     /// - Parameters:
-    ///   - query: 当前对话的检索查询（最近几条 user 消息拼接）——BM25 挑
-    ///     最相关的少数条目注入；nil/空 = 最近优先兜底。
+    ///   - query: 当前对话的检索查询（最近几条 user 消息拼接）。检索 = 向量
+    ///     主排（BGEEmbedder 在场时）+ BM25 降级；nil/空 = 最近优先兜底。
     func promptBlock(excluding currentConversation: UUID?, currentHost: String? = nil,
-                     query: String? = nil) -> String? {
+                     query: String? = nil) async -> String? {
         var lines: [String] = []
 
         let profile = archive.profile
@@ -258,7 +258,7 @@ final class AgentMemoryStore: ObservableObject {
         }
 
         // Domain-scoped facts only inject when the current page matches.
-        // 注入量 = pinned 恒定 + BM25 相关性 top-K（全量注入曾到 200 条，
+        // 注入量 = pinned 恒定 + 相关性 top-K（全量注入曾到 200 条，
         // 爆上下文且稀释注意力）。
         let loweredHost = (currentHost ?? "").lowercased()
         let scoped = archive.facts
@@ -268,8 +268,8 @@ final class AgentMemoryStore: ObservableObject {
                     || loweredHost.contains(scope)
                     || scope.hasSuffix("." + loweredHost)
             }
-        let facts = MemoryRetrieval.rank(facts: scoped, query: query ?? "")
-        Log.agent.info("memory rank: query='\((query ?? "").prefix(60), privacy: .public)' scoped=\(scoped.count, privacy: .public) selected=\(facts.count, privacy: .public) first='\(facts.first(where: { !$0.pinned })?.content.prefix(40) ?? "-", privacy: .public)'")
+        let facts = await retrieveRanked(scoped: scoped, query: query ?? "")
+        Log.agent.info("memory rank: query='\((query ?? "").prefix(60), privacy: .public)' scoped=\(scoped.count, privacy: .public) selected=\(facts.count, privacy: .public) via=\(BGEEmbedder.isAvailable ? "vector" : "bm25", privacy: .public) first='\(facts.first(where: { !$0.pinned })?.content.prefix(40) ?? "-", privacy: .public)'")
         for fact in facts where !fact.content.isEmpty {
             let scopeTag = (fact.scope.isEmpty || fact.scope.lowercased() == "global") ? "" : " [\(fact.scope)]"
             lines.append("- (\(fact.category))\(scopeTag) \(fact.content)")
@@ -286,5 +286,43 @@ final class AgentMemoryStore: ObservableObject {
 
         guard !lines.isEmpty else { return nil }
         return "[User memory — apply silently, never recite]\n" + lines.joined(separator: "\n")
+    }
+
+    /// 向量主排 + BM25 降级。事实向量按 (id, content hash) 缓存在内存
+    /// （进程内 800KB 上限 @200 条 × 512 维；hashValue 每次启动随机化——
+    /// 缓存本来就只活一轮，无跨启动语义）。
+    private var vectorCache: [UUID: (contentHash: Int, vector: [Double])] = [:]
+
+    private func retrieveRanked(scoped: [MemoryFact], query: String) async -> [MemoryFact] {
+        guard BGEEmbedder.isAvailable else {
+            return MemoryRetrieval.rank(facts: scoped, query: query)
+        }
+        // 查询与事实两路嵌入并行；推理在后台，主 actor 只做缓存查改。
+        let queryTask = Task.detached(priority: .userInitiated) {
+            BGEEmbedder.embedQuery(query)
+        }
+        var vectors: [UUID: [Double]] = [:]
+        var missing: [MemoryFact] = []
+        for fact in scoped {
+            if let cached = vectorCache[fact.id], cached.contentHash == fact.content.hashValue {
+                vectors[fact.id] = cached.vector
+            } else {
+                missing.append(fact)
+            }
+        }
+        if !missing.isEmpty {
+            let computed = await Task.detached(priority: .utility) { () -> [(UUID, Int, [Double])] in
+                missing.compactMap { fact in
+                    BGEEmbedder.embedFact(fact.content).map { (fact.id, fact.content.hashValue, $0) }
+                }
+            }.value
+            for (id, hash, vector) in computed {
+                vectors[id] = vector
+                vectorCache[id] = (hash, vector)
+            }
+        }
+        let queryVector = await queryTask.value
+        return MemoryRetrieval.rankWithVectors(facts: scoped, query: query,
+                                               queryVector: queryVector, vectorsByFactID: vectors)
     }
 }

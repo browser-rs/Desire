@@ -1058,7 +1058,7 @@ class AgentSessionStore: ObservableObject {
             .suffix(3)
             .compactMap { $0.content }
             .joined(separator: " ")
-        let memoryBlock = AgentMemoryStore.shared.promptBlock(
+        let memoryBlock = await AgentMemoryStore.shared.promptBlock(
             excluding: conversationId,
             currentHost: currentHost,
             query: retrievalQuery

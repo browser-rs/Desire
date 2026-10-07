@@ -1819,6 +1819,10 @@ final class AutomationServer {
                 ))
             case ("POST", "/memory/facts/delete"):
                 return try Self.json(Self.deleteMemoryFact(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/memory/embed"):
+                return try await Self.json(Self.embedProbe(text: Self.string(body, "text") ?? ""))
+            case ("POST", "/memory/retrieval-eval"):
+                return try await Self.json(Self.retrievalEval(body: body))
             case ("GET", "/skills"):
                 return try Self.json(Self.listSkills())
             case ("POST", "/skills/reload"):
@@ -4645,6 +4649,69 @@ final class AutomationServer {
             ["id": f.id.uuidString, "content": f.content, "category": f.category,
              "pinned": f.pinned, "scope": f.scope, "updatedAt": ISO.string(from: f.updatedAt)]
         }]
+    }
+
+    /// 端上句向量探针（0.7.1 阶段二链路验证）：单条文本 → 维度/范数/耗时。
+    private static func embedProbe(text: String) async -> [String: Any] {
+        guard BGEEmbedder.isAvailable else { return ["available": false] }
+        guard !text.isEmpty else { return ["available": true, "error": "missing text"] }
+        let start = Date()
+        let vector = await Task.detached(priority: .userInitiated) {
+            BGEEmbedder.embed(text)
+        }.value
+        let ms = Date().timeIntervalSince(start) * 1000
+        guard let vector else { return ["available": true, "embedded": false] }
+        return ["available": true, "dim": vector.count, "ms": ms,
+                "head": Array(vector.prefix(4))]
+    }
+
+    /// 向量检索回归（应用内 30×15 验收集跑法）：body 带
+    /// `facts: [{content, category}]` 与 `queries: [{q, expect}]`，
+    /// 返回逐查询的 top-5 位次与汇总命中率——与 tools/vector-spike 的
+    /// 离线探针同一套对照集、同一决策语义（rankWithVectors）。
+    private static func retrievalEval(body: [String: Any]) async -> [String: Any] {
+        guard BGEEmbedder.isAvailable else { return ["available": false] }
+        let factBody = body["facts"] as? [[String: Any]] ?? []
+        let queryBody = body["queries"] as? [[String: Any]] ?? []
+        guard !factBody.isEmpty, !queryBody.isEmpty else {
+            return ["available": true, "error": "missing facts/queries"]
+        }
+        let memFacts = factBody.map {
+            MemoryFact(content: $0["content"] as? String ?? "",
+                       category: $0["category"] as? String ?? "fact")
+        }
+        let evalQueries: [(String, Int)] = queryBody.compactMap {
+            guard let q = $0["q"] as? String else { return nil }
+            return (q, $0["expect"] as? Int ?? 0)
+        }
+        let indexByID = Dictionary(uniqueKeysWithValues:
+            memFacts.enumerated().map { ($1.id, $0) })
+        let vectors = await Task.detached(priority: .userInitiated) {
+            var result: [UUID: [Double]] = [:]
+            for fact in memFacts {
+                if let v = BGEEmbedder.embedFact(fact.content) {
+                    result[fact.id] = v
+                }
+            }
+            return result
+        }.value
+        var results: [[String: Any]] = []
+        var top1 = 0, top3 = 0
+        for (q, expect) in evalQueries {
+            let queryVector = await Task.detached(priority: .userInitiated) {
+                BGEEmbedder.embedQuery(q)
+            }.value
+            let ranked = MemoryRetrieval.rankWithVectors(
+                facts: memFacts, query: q, queryVector: queryVector, vectorsByFactID: vectors)
+            let order = ranked.compactMap { indexByID[$0.id] }
+            let pos = order.firstIndex(of: expect).map { $0 + 1 } ?? -1
+            if pos == 1 { top1 += 1 }
+            if pos >= 1 && pos <= 3 { top3 += 1 }
+            results.append(["q": q, "expect": expect, "rank": pos,
+                            "top5": Array(order.prefix(5))])
+        }
+        return ["available": true, "total": evalQueries.count, "top1": top1,
+                "top3": top3, "results": results]
     }
 
     private static func exportMemory() throws -> [String: Any] {

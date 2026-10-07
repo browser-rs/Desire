@@ -128,3 +128,36 @@ NLE 的失败不是"差一点"——期望事实的排位是第 17 / 30（垫底
    （本轮数据支持"向量为主、BM25 兜底"或简单加权，融合权重需第二轮对照定）；
    现有 BM25 保留为资源不足时的降级路径。
 4. 验收集沿用本探针（30×15），新形态事实/查询进集后重跑两脚本即可。
+
+## 实装（0.7.1，2026-10-07）——Core ML 路线落地
+
+上面的遗留决策点逐条落定：
+
+1. **运行时 = Core ML**（系统框架，仓库保持零第三方依赖）。转换链一次性：
+   **python3.12 venv + torch 2.6 + transformers 4.49 + coremltools 8.3**
+   （torch 2.14 / coremltools 9 / python 3.14 的过新组合会在常量折叠处直接
+   崩——版本配平是硬约束），脚本 `tools/vector-spike/convert-bge-coreml.py`。
+2. **体积 = int8 量化 22MB**（fp16 45MB 与 int8 在 30×15 上逐查询一致；
+   `Models/BGEZh.mlpackage` 构建期自动编译成 mlmodelc 进 bundle，词表
+   `BGEZhVocab.txt` 108KB 随包）。
+3. **融合 = 向量主排、BM25 降级**：`MemoryRetrieval.rankWithVectors`
+   （Foundation-only，harness 有单测）——查询向量缺失/零向量/全部事实无向量
+   时整体回退 `rank`；个别事实缺向量只是不参与向量排序。事实向量按
+   (id, content hash) 缓存在 `AgentMemoryStore` 内存（200 条 × 512 维
+   ≈ 800KB 上限，进程内）。推理封装 `BGEEmbedder`（nonisolated enum，
+   WordPiece 自带，模型/词表缺失一律 nil 降级，记忆功能绝不因模型问题挂掉）。
+4. **验证三重**：离线 CoreML 评测（`eval-coreml.py`，HF 分词器口径）与
+   **应用内回归**（桥 `POST /memory/retrieval-eval`，同 30×15、走真实
+   Swift 分词 + CoreML + rankWithVectors 链）**均 13/15 top-1、15/15 top-3**，
+   两条近失（第 2 名）与离线完全一致——分词实现无损；评估套件 41/41；
+   真实回合日志 `memory rank … via=vector`。延迟：单条 ~4-21ms
+   （冷加载含首条），批量 30 条 ~百 ms 级。
+
+### 修过的坑（重走此路必读）
+
+- **int8 量化 API**：coremltools 8.3 是函数式 `linear_quantize_weights`，
+  不是 `optimize(...)`（9.0 才有）。
+- **attention_mask 必须与 input_ids 同步 pad**——只在真实 token 上置 1 后
+  忘了补零，越界直接 SIGTRAP（应用内首验抓到）。
+- `String(slice of Unicode.Scalar)` 没有构造器，要过
+  `String.UnicodeScalarView(slice)`。

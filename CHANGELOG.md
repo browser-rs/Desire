@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **记忆检索升级：端上句向量主排（0.7.1 阶段二）**——内置 bge-small-zh-v1.5（int8 量化 22MB，Core ML 系统框架推理，`Models/BGEZh.mlpackage` 构建期编译）+ 自带 WordPiece 分词，`MemoryRetrieval.rankWithVectors` 按"向量主排、BM25 降级"融合：模型缺失/嵌入失败自动回退纯 BM25，记忆功能不因模型问题挂掉。30 条事实 × 15 查询验收集上 top-1 13/15（纯 BM25 8/15），零词法重叠改写查询从 0/6 到 4/6；离线与应用内（桥 `/memory/retrieval-eval`）结果一致，评估套件 41/41。事实向量按内容哈希缓存于内存（200 条 ≈ 800KB 上限），推理后台执行（单条 ~4-21ms）。转换/评测脚本入库 tools/vector-spike/，数据与分析见 docs/VECTOR-MEMORY-SPIKE.md
+
 
 ## [v0.6.10] - 2026-10-07
 ### Added

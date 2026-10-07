@@ -133,4 +133,54 @@ enum MemoryRetrieval {
         }
         return pinned + selected
     }
+
+    // MARK: 向量主排（0.7.1 阶段二）
+
+    /// 向量排序。pinned 恒定在前；非 pinned 按 queryVector 与事实向量的余弦
+    /// 取 topK（平分按最近优先）。`queryVector` 为 nil/零向量、或**没有任何**
+    /// 事实带可用向量（模型缺失、嵌入失败）时整体回退 BM25 `rank`——
+    /// 模型在场时向量为主（30×15 验收集 13/15 vs BM25 8/15，见
+    /// docs/VECTOR-MEMORY-SPIKE.md），BM25 只做降级路径。
+    /// 个别事实缺向量 = 不参与向量排序（不会因此回退全量 BM25）。
+    static func rankWithVectors(facts: [MemoryFact], query: String,
+                                queryVector: [Double]?,
+                                vectorsByFactID: [UUID: [Double]],
+                                params: Params = Params()) -> [MemoryFact] {
+        guard let qv = usableVector(queryVector) else {
+            return rank(facts: facts, query: query, params: params)
+        }
+        let pinned = facts.filter { $0.pinned }
+        let pool = facts.filter { !$0.pinned }
+        guard !pool.isEmpty else { return pinned }
+        var scored: [(fact: MemoryFact, score: Double)] = []
+        for fact in pool {
+            guard let fv = usableVector(vectorsByFactID[fact.id]) else { continue }
+            scored.append((fact, cosine(qv, fv)))
+        }
+        guard !scored.isEmpty else {
+            return rank(facts: facts, query: query, params: params)
+        }
+        let selected = scored
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                return lhs.fact.updatedAt > rhs.fact.updatedAt
+            }
+            .prefix(params.topK)
+            .map(\.fact)
+        return pinned + selected
+    }
+
+    /// 非空且范数非零才算可用（全零向量会把余弦变成 0/0）。
+    private static func usableVector(_ v: [Double]?) -> [Double]? {
+        guard let v, !v.isEmpty, v.contains(where: { $0 != 0 }) else { return nil }
+        return v
+    }
+
+    private static func cosine(_ a: [Double], _ b: [Double]) -> Double {
+        guard a.count == b.count else { return 0 }
+        var dot = 0.0, na = 0.0, nb = 0.0
+        for i in 0..<a.count { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i] }
+        guard na > 0, nb > 0 else { return 0 }
+        return dot / (na.squareRoot() * nb.squareRoot())
+    }
 }

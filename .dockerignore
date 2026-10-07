@@ -1,62 +1,90 @@
-# 构建上下文 = 仓库根;Dockerfile 只需要 Cargo.toml/Cargo.lock/crates/docker(config.toml)。
-# 原则:上下文越小构建缓存命中率越高;秘密文件绝不进构建层。
+# 构建上下文 = 仓库根;Dockerfile 只 COPY docker/config.toml + Cargo.toml/lock
+# + crates/（migrate 镜像还要 crates/common/migrations）。原则:上下文越小构建
+# 缓存命中率越高;秘密文件绝不进构建层。
+# （2026-10-08 重写：仓库 2026-10-04 重组后旧条目 Desire/Desire.xcodeproj 已失效，
+#  apps/ 整个 40M Swift 应用都在进上下文——按新布局收口。）
 
 # ---- 秘密与本地配置(绝不进构建上下文)----
 .env
 .env.*
 !.env.*.example
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.crt
+*.der
+id_rsa*
+id_ed25519*
+secrets/
+credentials*
 
 # ---- Rust 构建产物 ----
 target
 **/target
 
-# ---- macOS 应用 / Xcode(后端镜像不需要;Desire/ 含全部 Swift 源与产物)----
+# ---- 应用端 / 本地构建产物（后端镜像不需要）----
+apps/
+build/
 Desire
 Desire.xcodeproj
-build
-DerivedData
+*.xcworkspace
+*.xcodeproj
+*.xcresult
+*.app
 *.ipa
 *.dmg
-*.app
+*.pkg
+*.mobileprovision
+*.provisionprofile
 
-# ---- 文档、工具、运维 ----
-docs
-tools
-scripts
-examples
-tests
+# ---- 网站 / 设计稿 / 文档 / 工具 / 运维（后端镜像不需要）----
+website/
+design/
+docs/
+tools/
+scripts/
+examples/
+tests/
+.github/
 
-# ---- 日志 ----
+# ---- 根级文档（crates/ 内的 README 不受影响：模式只锚定根级）----
+*.md
+
+# ---- 日志与临时文件 ----
 *.log
-
-# ---- 打包物与密钥 ----
-*.zip
-*.tar
-*.gz
-*.tgz
-*.pem
-*.key
 *.tmp
 *.swp
 *~
 
-# ---- IDE / 编辑器 / 系统文件 ----
-.idea
-.vscode
-.superpowers
-.trae
-.zcode
-*.xcworkspace
-*.xcodeproj
+# ---- 打包物 ----
+*.zip
+*.tar
+*.gz
+*.tgz
+
+# ---- IDE / 编辑器 / AI 工具 / 系统文件 ----
+.idea/
+.vscode/
+.superpowers/
+.trae/
+.zcode/
+.claude/
+.agents/
+.DS_Store
 **/.DS_Store
+Thumbs.db
 
 # ---- 版本库元数据 ----
 .git
 .gitignore
 .gitattributes
+.dockerignore
 
-# 显式保留镜像构建所需(防未来误删)
+# ---- 显式保留镜像构建所需(防未来误删)----
 !Cargo.toml
 !Cargo.lock
 !crates/
+!docker/
 !docker/config.toml

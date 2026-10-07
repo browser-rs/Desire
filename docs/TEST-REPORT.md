@@ -451,3 +451,13 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - **AX 树枚举器**（/tmp/axdump.swift 模式）：列出全部 AXButton/AXTextField
   及标题——GUI 测试第一步先 dump 树找元素名
 - 窗口截图仅前台有意义；遮挡期用 /screenshot（桥内管线）
+
+### 测试四：插件 / 密码 / 档案 ✓
+- **插件系统全链路**：创建（userscript + background）→ 列表 → 内容脚本注入
+  （DOM 标记验证）→ 后台 runtime（bg-eval 探针读回）→ chrome.storage 回环
+  （set/get 42 ✓）→ 卸载后注入消失、列表干净。
+  注意：`/plugins/bg-eval` **不 await promise**——异步结果用探针落 window
+  再轮询（直接返回 promise 得到 null，不是 bug）。
+- **密码 CRUD**：add/list/delete 全通；列表元数据不含密码字段（隐私口径 ✓）。
+  响应键为 `entries`。
+- **档案增删**：named persona 创建/删除干净（默认档案不在 named 列表，符合语义）。

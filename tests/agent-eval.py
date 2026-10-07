@@ -1261,14 +1261,20 @@ def case_har_export():
     check("E15 log.version == 1.2",
           bridge("GET", "/devtools/har?scope=all").get("log", {}).get("version") == "1.2")
     if not entries:
-        # CI 专属失败的诊断口：把记录器状态全量打出来再判失败。
+        # CI 专属失败的诊断口：窗口/标签状态 + 记录器状态全量打出再判失败。
+        state = bridge("GET", "/state")
+        print("E15 DIAG /state:", json.dumps(state, ensure_ascii=False)[:600])
         diag = bridge("GET", "/devtools")
-        print("E15 DIAG devtools:", json.dumps(diag, ensure_ascii=False)[:1200])
-        nav = bridge("POST", "/navigate", body={"url": BRIDGE + "/state"})
-        print("E15 DIAG navigate resp:", json.dumps(nav, ensure_ascii=False)[:200])
-        time.sleep(3)
-        entries = bridge("GET", "/devtools/har?scope=all").get("log", {}).get("entries", [])
-        print("E15 DIAG entries after re-nav:", len(entries))
+        print("E15 DIAG devtools:", json.dumps(diag, ensure_ascii=False)[:800])
+        # 兜底：显式建签导航（不走 activeTabManager 的 resolveIndex）。
+        nav = bridge("POST", "/new-tab", body={"url": BRIDGE + "/state"})
+        print("E15 DIAG new-tab resp:", json.dumps(nav, ensure_ascii=False)[:200])
+        for _ in range(20):
+            time.sleep(0.5)
+            entries = bridge("GET", "/devtools/har?scope=all").get("log", {}).get("entries", [])
+            if entries:
+                break
+        print("E15 DIAG entries after new-tab:", len(entries))
     check("E15 entries >= 1", len(entries) >= 1)
     if entries:
         e = entries[-1]

@@ -567,3 +567,10 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
     删除后立刻读可能仍见旧条目（写读延迟，非 bug），断言需留防抖时间
   - 同族：/bookmarks 已改读 live store（BUG-C）；/history 维持 fresh 读
     （历史是持久化数据，读盘语义正确）
+
+### 全力模式批次 J：全量评估 + 内容拦截 ✓
+- **全量评估套件 68/68 通过**（E1–E15 全开，含 E10 证据链/E11 白板/E12/E13
+  跨源框架/E14 桥闸/E15 HAR——最新构建最大规模回归全绿）
+- **内容拦截实测**：本地测试页含 `#ad-banner`（EasyList China 已知形态）与
+  `.sponsor-link`（通用类名）——前者被**从 DOM 移除**（非隐藏），后者保留
+  （无误伤）✓；拦截规则库 EasyList China 18140 条 + EasyList 在册更新正常

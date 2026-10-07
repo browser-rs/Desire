@@ -246,6 +246,12 @@ Features/Bookmarks/
 - 启动流程（顺序敏感）：
   `pkill -9 -x Desire; sleep 2; open <app> --args --automation; sleep 6`
   然后必须 `curl /state` 验证桥活着再继续。
+- **CI runner 上应用无法激活**（0.7.0 发版实测：`isActive` 恒 false，
+  osascript activate 无效）——**浏览器端点（/navigate /new-tab /execute 等）
+  在 CI 上全部挂起**（未激活进程里 WKWebView 创建阻塞）。浏览器依赖的
+  eval 用例必须 `EVAL_E*=1` 门控本地跑（E10-E13/E15 惯例）；CI 只跑
+  agent/桥纯接口用例。另注：`/state` 的 `"selected": 0` 在零标签页时
+  也存在——启动探活别拿它当"有标签页"的证据。
 - **网络抖动会造成假阳性**（example.com 白屏、baidu 间歇失败均发生过）。
   任何"加载失败"结论必须复测两次以上才能定性。
 - **中键/鼠标事件的合成测试**（2026-09 摸索；**2026-10-06 更新：postToPid 鼠标

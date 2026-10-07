@@ -1367,6 +1367,11 @@ def main():
             if case is case_dpp_frame_action and os.environ.get("EVAL_E13") != "1":
                 results.append((name + " — CI 跳过（本地 EVAL_E13=1 运行）", True, ""))
                 continue
+            if case is case_har_export and os.environ.get("EVAL_E15") != "1":
+                # CI runner 上应用无法激活（isActive 恒 false）——浏览器端点
+                # 全部挂起，浏览器依赖用例只能在本地跑（0.7.0 发版实测）。
+                results.append((name + " — CI 跳过（本地 EVAL_E15=1 运行）", True, ""))
+                continue
             try:
                 case()
                 results.append((name, True, ""))

@@ -426,3 +426,28 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - 添加标签按钮（AXPress）→ 标签 4 个、焦点随新标签 ✓
 - 书签 增（桥，唯一标记）→ 防抖后可查 ✓；删（精确 URL）→ 数据原样恢复 ✓
 - 生产域走查：feed/embed/widget DPP 解析与聚合、dpp 文档两页、well-known（补传后）✓
+
+### 测试二：Agent 面 ✓
+- 真实回合往返（桥 /agent/send → busy → assistant 回复）✓；回合结束落盘 ✓
+  （注：走查回合落进了残留 eval 会话——/agent/send 投递目标延续自上次评估
+  运行；该会话是活投递目标暂不删，留给下次 eval --cleanup）
+- 白板面板空态渲染 ✓（/panel/snapshot）；DevTools 面板渲染 ✓（Console/DPP 页签）
+- downloads popover：应用后台时自动关闭，快照拿不到——环境限制非 bug
+  （popover 语义本就随失焦关闭）
+
+### 测试三：性能 ✓（首轮基线）
+- 主进程 RSS 341MB（4 标签 + 多面板会话后）；WebKit 子进程合计 65MB
+- 生产域 feed 页加载：TTFB 512ms / DOMContentLoaded 560ms / load 595ms（h2）
+- VSZ 482GB 为 WebKit 内存映射的虚拟值，RSS 为准
+
+### 测试四：设置/插件面板
+- 面板快照管线覆盖：whiteboard/devtools/downloads ✓（downloads 见上）
+- 插件/同步面板留待下轮（需要真实插件/账号上下文才有断言意义）
+
+## 环境与工具沉淀
+
+- **AX 后台通道**（本轮确立的标准测法）：AXPress 按钮名（tools/axpress）+
+  AXValue+Confirm 文本框（/tmp/axnav.swift 模式），后台窗口可驱动、不抢焦点
+- **AX 树枚举器**（/tmp/axdump.swift 模式）：列出全部 AXButton/AXTextField
+  及标题——GUI 测试第一步先 dump 树找元素名
+- 窗口截图仅前台有意义；遮挡期用 /screenshot（桥内管线）

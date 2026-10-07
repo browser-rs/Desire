@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.0] - 2026-10-07
 ### Security
 
 - **0.7.4 安全第一轮（审计→修复，详见 docs/SECURITY-AUDIT-0.7.4.md）**：① 桥（127.0.0.1:8799）新增 Host/Origin 双闸——此前浏览器里打开的恶意页面可用 no-cors POST 直接驱动 `/agent/send`/`/execute`（不预检、副作用照发），DNS rebinding 还能读到响应；现在非本机 Host、非本机 Origin（含 `null`）一律 403 + fault 日志，curl/CI/MCP 等本机客户端不受影响（六例实测 200/403/403/403/200/200）；② 窗口标题（页面可控的 `<title>`）进系统提示 `<environment>` 段前消毒（换行压平/尖括号剥除/封长）——此前可伪造段边界注入伪指令；③ 下载文件名穿越收口——Content-Disposition 的 `../../.zshenv` 在 `.replace` 策略下能写出 Downloads，现统一过 `FilePathing.sanitizeFileName`（取末段/禁隐敓名/空名兜底，截图落盘共用顺带设防）

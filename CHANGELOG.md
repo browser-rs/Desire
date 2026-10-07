@@ -1,4 +1,16 @@
-## [Unreleased]
+## [v0.7.2] - 2026-10-08
+### Added
+
+- **桥端点补全（测试卫生）**：`POST /history/remove`（按 id 精确删历史条目）+ `GET /history` 条目补 id 字段；/devtools/application/delete 的 cookie key 形状（name@domain）写入端点文档
+
+### Fixed
+
+- **桥 GET /bookmarks 读错作用域永远返回空**：端点按 0.3.5 惯例新建"活跃档案作用域"实例读取——现代多档案架构下活跃档案桶为空，桥返回书签永远 `entries: []`（add/remove 却走 live store，同族端点读写不同源）。改读 `AppState.live.bookmarkStore`（与 UI 同源），验证返回 6 条真实书签
+- **窗口挂载竞态**：WindowChromeGuard 的一次性 `DispatchQueue.main.async` 探测在视图未进窗口层级时静默放弃——慢盘/窗口服务器繁忙（CI runner）时 `appState.attach` 永不发生，标签页管理器挂不上。改为 AttachProbe 生命周期驱动（viewDidMoveToWindow 可靠触发）
+- **白板表格分隔线渲染成数据行**：Swift 导出（markdownTableHTML）与 JS 渲染（renderTable）双实现均缺分隔线行跳过——`| --- |` 行被当数据画进表格。双修 + 4 项 harness 单测（含带对齐冒号的 GitHub 形态）
+- **PDF 内建查看器被错误页遮蔽**：PDF 拦截的 decisionHandler(.cancel) 让 WebKit 以 code 102"帧框加载已中断"（WebKitErrorFrameLoadInterruptedByPolicyChange）收尾导航；didFailProvisionalNavigation 的取消分支只认 NSURLErrorCancelled(-999)，102 漏网 → lastError 被设 → 错误页盖住已下载完成的 PDF 查看器（HTTPS PDF 正常、HTTP PDF 必现）。修复 = 102 与 -999 同判"非页面错误"；presentPDFViewer 补 fetch 埋点（Log.pdf 类目新增）
+
+
 
 ## [v0.7.1] - 2026-10-07
 ### Added

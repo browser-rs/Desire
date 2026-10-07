@@ -423,6 +423,7 @@ final class AutomationServer {
         ep("POST", "/devtools/edit", "Edit inline style/attributes of an element", params: ["selector:string", "style?:json", "attributes?:json"], example: #"-d '{"selector":"h1","style":{"color":"red"}}'"#)
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string (cookie|localStorage|sessionStorage|extension|indexedDB|cache|cacheAll|serviceWorker)", "key?:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"indexedDB","key":"mydb"}'"#)
         ep("POST", "/devtools/application/set", "Write a cookie / localStorage / sessionStorage / extension key", params: ["kind:string", "key:string", "value:string", "domain?:string (cookies)", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"localStorage","key":"foo","value":"bar"}'"#)
+        ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker", params: ["kind:string", "key:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"cookie","key":"name@domain"}'"#, note: "cookie 的 key 形状 = name@domain（面板行 id 同款）")
         ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
         ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")

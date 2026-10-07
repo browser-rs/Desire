@@ -556,3 +556,5 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   localStorage 写 → 页面回读 ✓；delete ✓
 - 发现（非 bug）：/devtools/application 的 cookies 只回计数 + 截断样例
   （190 条池的 8 条样本）——按域全量列表需走 /execute document.cookie
+- 补充：/devtools/application/delete 对 cookie 的 key 形状 = `name@domain`
+  （只传 name 会 "no such cookie"）——ep 文档已补示例与说明

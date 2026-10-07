@@ -574,3 +574,13 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - **内容拦截实测**：本地测试页含 `#ad-banner`（EasyList China 已知形态）与
   `.sponsor-link`（通用类名）——前者被**从 DOM 移除**（非隐藏），后者保留
   （无误伤）✓；拦截规则库 EasyList China 18140 条 + EasyList 在册更新正常
+
+### 批次 I 补充：同步链路重场景 ✓（本地 api 全链路）
+- 本地 api 起服（.env 真密码 DATABASE_URL + container redis 认证 + MIGRATIONS_DIR）
+- 注册（captcha 签发→code 校验）→ 桥登录 → 全量推送（书签树 9 项落库）
+- 加书签→/sync/now→推送；删→/sync/now→mysql 墓碑计数 ✓（E2E 加密下按
+  条数/墓碑计数断言，payload 为密文不可 LIKE）
+- **发现（中等，未修）**：切 /sync/server 后若存在过期会话令牌，登录流程的
+  会话刷新会先失败并自愈登出——过程中 server 显示回退生产（重试即正常），
+  疑似登录前置刷新与服务器切换的时序问题，单发不复现，留观
+- 清理：登出 → 生产地址恢复 → 本地 api 停服

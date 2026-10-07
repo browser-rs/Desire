@@ -11,12 +11,13 @@ build/
 xcuserdata/
 *.xccheckout
 *.moved-aside
-DerivedData
+DerivedData/
 *.hmap
 *.ipa
 *.xcuserstate
 *.xcworkspace
 !project.xcworkspace/contents.xcworkspacedata
+*.xcresult
 
 # Swift Package Manager
 .build/
@@ -24,25 +25,46 @@ Package.resolved
 
 # CocoaPods
 Pods/
-
-# Carthage
 Carthage/Build
-
-# macOS
-.DS_Store
-
-# Trae agent working files
-.trae/
-
-# Local debug scripts (not part of the app)
-test_ai_stream.swift
-
-# Superpowers brainstorming artifacts
-.superpowers/
-
-# ZCode agent working files
-.zcode/
 
 # Rust backend
 /target
+
+# ---- 秘密与本地配置（.env.api.example 样例显式保留）----
 .env
+.env.*
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.crt
+*.der
+*.mobileprovision
+*.provisionprofile
+id_rsa*
+id_ed25519*
+secrets/
+credentials*
+
+# ---- macOS / 系统杂项 ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.ips
+*.crash
+*.swp
+*~
+
+# ---- Agent 工具工作文件 ----
+.trae/
+.superpowers/
+.zcode/
+.claude/
+.agents/
+
+# ---- 其他 ----
+# 本地调试脚本（不属于应用）
+test_ai_stream.swift
+node_modules/

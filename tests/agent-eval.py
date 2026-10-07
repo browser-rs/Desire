@@ -1260,6 +1260,15 @@ def case_har_export():
     log = {"version": "1.2", "entries": entries}
     check("E15 log.version == 1.2",
           bridge("GET", "/devtools/har?scope=all").get("log", {}).get("version") == "1.2")
+    if not entries:
+        # CI 专属失败的诊断口：把记录器状态全量打出来再判失败。
+        diag = bridge("GET", "/devtools")
+        print("E15 DIAG devtools:", json.dumps(diag, ensure_ascii=False)[:1200])
+        nav = bridge("POST", "/navigate", body={"url": BRIDGE + "/state"})
+        print("E15 DIAG navigate resp:", json.dumps(nav, ensure_ascii=False)[:200])
+        time.sleep(3)
+        entries = bridge("GET", "/devtools/har?scope=all").get("log", {}).get("entries", [])
+        print("E15 DIAG entries after re-nav:", len(entries))
     check("E15 entries >= 1", len(entries) >= 1)
     if entries:
         e = entries[-1]

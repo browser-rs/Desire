@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 
 BRIDGE = "http://127.0.0.1:8799"
@@ -1212,6 +1213,58 @@ def case_dpp_frame_action():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def case_bridge_guard():
+    """E14：桥的 Host/Origin 双闸（0.7.4 安全轮回归）。
+    urllib 默认不带 Origin；403 会抛 HTTPError，按状态码断言。"""
+    def code(req):
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    ok = urllib.request.Request(BRIDGE + "/state")
+    check("E14 正常 curl 形态（无 Origin）200", code(ok) == 200)
+
+    rebind = urllib.request.Request(BRIDGE + "/state")
+    rebind.add_header("Host", "evil.example.com")
+    check("E14 恶意 Host（DNS rebinding）403", code(rebind) == 403)
+
+    cross = urllib.request.Request(BRIDGE + "/navigate", method="POST", data=b"{}")
+    cross.add_header("Content-Type", "application/json")
+    cross.add_header("Origin", "https://evil.example.com")
+    check("E14 跨站 Origin 403", code(cross) == 403)
+
+    nulled = urllib.request.Request(BRIDGE + "/navigate", method="POST", data=b"{}")
+    nulled.add_header("Content-Type", "application/json")
+    nulled.add_header("Origin", "null")
+    check("E14 Origin null（file:// 源）403", code(nulled) == 403)
+
+    local = urllib.request.Request(BRIDGE + "/state")
+    local.add_header("Origin", "http://127.0.0.1:8799")
+    check("E14 本机 Origin 200", code(local) == 200)
+
+
+def case_har_export():
+    """E15：HAR 1.2 导出（0.7.5 DevTools 回归）。
+    导航到桥自身的 /state（必然可达），断言条目与结构；再验 scope 过滤错误路径。"""
+    bridge("POST", "/navigate", body={"url": BRIDGE + "/state"})
+    time.sleep(2)
+    har = bridge("GET", "/devtools/har?scope=all")
+    log = har.get("log", {})
+    check("E15 log.version == 1.2", log.get("version") == "1.2")
+    entries = log.get("entries", [])
+    check("E15 entries >= 1", len(entries) >= 1)
+    if entries:
+        e = entries[-1]
+        check("E15 entry 结构完整",
+              all(k in e for k in ("request", "response", "timings", "startedDateTime")))
+        check("E15 request 必备字段",
+              all(k in e.get("request", {}) for k in ("method", "url", "headers", "queryString")))
+    bad = bridge("GET", "/devtools/har?scope=tab=not-a-uuid")
+    check("E15 非法 tab uuid 报错", "error" in bad)
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1224,7 +1277,9 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E10 evidence-chain（本地专属，EVAL_E10=1 开启）", case_evidence_chain),
          ("E11 dpp-board（本地专属，EVAL_E11=1 开启）", case_dpp_board),
          ("E12 dpp-frame-extract（本地专属，EVAL_E12=1 开启）", case_dpp_frame_extract),
-         ("E13 dpp-frame-action（本地专属，EVAL_E13=1 开启）", case_dpp_frame_action)]
+         ("E13 dpp-frame-action（本地专属，EVAL_E13=1 开启）", case_dpp_frame_action),
+         ("E14 bridge-guard", case_bridge_guard),
+         ("E15 har-export", case_har_export)]
 
 results = []
 

@@ -385,3 +385,44 @@ SIGNAL Segmentation fault: 11
 断言竞态，属 macOS 26 平台 bug。已向 Apple Feedback 渠道建议报障
 （附本报告崩溃签名）。缓解思路（后续评估）：进入/退出响应式时对
 webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
+
+---
+
+# 功能实测报告（第二轮，2026-10-07/08 · v0.7.1 后）
+
+测试方式：Debug 构建 + 自动化桥（数据断言）+ **AX 后台通道**（AXPress / AXValue+Confirm，
+不抢焦点）+ 窗口截图（仅 Desire 前台时有意义）。全局鼠标/键盘注入（cliclick）在
+用户使用机器时**不可用**：事件落点在真实前台应用（Helium/ZCode），且 Secure Input
+开启时按键被系统丢弃——此路不通，已放弃。
+
+## 通道结论（重要，影响后续所有测试）
+
+| 通道 | 可用性 | 说明 |
+|---|---|---|
+| 自动化桥 | ✓ | 数据断言主通道；不受焦点/遮挡影响 |
+| AX 后台通道 | ✓ | AXPress 按钮加 AXValue+Confirm 导航，后台窗口可直接驱动 |
+| 窗口截图（screencapture -l） | 仅前台 | ** Desire 被遮挡时 WebKit 停止合成，截图拿到过期帧（黑屏）** |
+| 桥内截图（/screenshot） | ✓ | 走 webview 离屏管线，强制实时渲染——遮挡期的视觉验证用它 |
+| 全局注入（cliclick） | ✗ | 用户在用时落点错误 + Secure Input 丢键 |
+
+## 发现的问题
+
+### BUG-C（中，已修）：桥 GET /bookmarks 读错作用域，永远返回空
+- 复现：应用书签栏 6-7 条时，`GET /bookmarks` 返回 `entries: []`
+- 根因：端点按 0.3.5 惯例 `BookmarkStore()` 新实例 + 活跃档案 scope 读取；
+  现代多档案架构下活跃档案桶为空 → 永远空。add/remove 走 live store 读写正常
+  （同一端点族读写不同源）。
+- 修复：改读 `AppState.live?.bookmarkStore`（与 add/remove 同源）。
+- 验证：修复后返回 6 条（含 in-session 添加的 GitHub/Stack Overflow）。
+
+### 非问题澄清：第一轮 BUG-B（example.com 白屏）为遮挡伪影
+-本轮 example.com 同样"白屏"，但 page/text 全文在、console 零错误、桥内截图
+ 内容完整——页面渲染正常，只是 Desire 被遮挡时窗口合成停止（WebKit NearSuspended
+ 机制），窗口截图拿到过期帧。BUG-A/BUG-B 视为历史环境误报结案。
+
+## 通过项（本轮）
+- AX 后台导航（URL 字段 set+confirm）→ example.com/im/ 互切 ✓
+- 工具栏 返回/前进（AXPress）→ URL 随动 ✓
+- 添加标签按钮（AXPress）→ 标签 4 个、焦点随新标签 ✓
+- 书签 增（桥，唯一标记）→ 防抖后可查 ✓；删（精确 URL）→ 数据原样恢复 ✓
+- 生产域走查：feed/embed/widget DPP 解析与聚合、dpp 文档两页、well-known（补传后）✓

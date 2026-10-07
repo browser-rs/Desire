@@ -2711,9 +2711,12 @@ final class AutomationServer {
     }
 
     private static func bookmarks() throws -> [String: Any] {
-        // 新实例须落在当前活跃人物的桶上（0.3.5），否则永远读默认桶。
-        let store = BookmarkStore()
-        store.applyScope(profileID: ProfileStore.shared.activeProfileID)
+        // 读 **live 窗口 store**（与 add/remove 同源）——0.3.5 的"新实例按活跃
+        // 人物开桶"在现代多档案架构下读到的是活跃档案的空桶，桥返回的书签
+        // 永远是空的（0.7.1 走查实测：live 7 条 / GET 0 条）。
+        guard let store = AppState.live?.bookmarkStore else {
+            return ["entries": []]
+        }
         let entries = store.leafEntries.map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
     }

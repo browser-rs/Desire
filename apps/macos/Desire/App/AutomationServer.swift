@@ -878,6 +878,20 @@ final class AutomationServer {
                     "agentBusy": AgentBallPanel.shared.agentBusy,
                     "hiddenForFullscreen": AgentBallPanel.shared.hiddenForFullscreen,
                 ])
+            case ("POST", "/agentball"):
+                // 开合/显隐驱动（darwin 27 上 CGEvent 已死、球又是手势判定
+                // 不是 AXButton——这是悬浮球唯一的自动化入口；E2E 截图用）。
+                if let expanded = body["expanded"] as? Bool {
+                    AgentBallPanel.shared.isExpanded = expanded
+                }
+                if let enabled = body["enabled"] as? Bool {
+                    AgentBallPanel.shared.setEnabled(enabled)
+                }
+                return try Self.json([
+                    "ok": true,
+                    "enabled": AgentBallPanel.shared.isEnabled,
+                    "expanded": AgentBallPanel.shared.isExpanded,
+                ])
             case ("GET", "/whiteboard"):
                 let store = WhiteboardStore.shared
                 let conversationID = query["conversationId"]

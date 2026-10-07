@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit // MemberImportVisibility：FrameProtocolEntry.url 定义面
 
 /// DevTools「DPP」页签（0.6.7）：当前页 Desire 协议声明的只读检查器——
 /// 声明树（views 逐字段选择器 / actions 的 effects·danger 标注 / events /

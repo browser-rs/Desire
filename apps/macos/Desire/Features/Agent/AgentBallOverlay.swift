@@ -348,13 +348,16 @@ private struct AgentBallHub: View {
             VStack(spacing: 10) {
                 // v4：槽位可定制（八选四，设置 → 悬浮球配置）——按钮渲染与
                 // 触发统一走 BallCapability，布局仍是 V3 定稿的 2×2。
+                // 编号 = 槽位**位置**（0…3，同时是弹入动画的 stagger 序号）——
+                // 别改成 hashValue：它每次启动随机且量级 ±2^63，乘进动画
+                // delay 就是天文数字，格子会永远停在 opacity 0（实测）。
                 HStack(spacing: 10) {
-                    hubCell(state.slots[0])
-                    hubCell(state.slots[1])
+                    hubCell(0, state.slots[0])
+                    hubCell(1, state.slots[1])
                 }
                 HStack(spacing: 10) {
-                    hubCell(state.slots[2])
-                    hubCell(state.slots[3])
+                    hubCell(2, state.slots[2])
+                    hubCell(3, state.slots[3])
                 }
             }
             if state.voice.isRecording {
@@ -366,11 +369,11 @@ private struct AgentBallHub: View {
     }
 
     @ViewBuilder
-    private func hubCell(_ capability: BallCapability) -> some View {
+    private func hubCell(_ index: Int, _ capability: BallCapability) -> some View {
         let recording = capability == .voice && state.voice.isRecording
         let title = recording ? "停止并发送" : capability.displayName
         let icon = recording ? "stop.circle.fill" : capability.icon
-        cell(capability.hashValue, icon: icon, title: title, recording: recording) {
+        cell(index, icon: icon, title: title, recording: recording) {
             state.perform(capability)
         }
     }

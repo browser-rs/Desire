@@ -584,3 +584,11 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   会话刷新会先失败并自愈登出——过程中 server 显示回退生产（重试即正常），
   疑似登录前置刷新与服务器切换的时序问题，单发不复现，留观
 - 清理：登出 → 生产地址恢复 → 本地 api 停服
+
+### 批次 I 补充：密码自动填充 + 保存提示 ✓
+- **自动填充**：seed 凭据（127.0.0.1/zz-user）→ 打开同域登录表单 →
+  user 字段自动填充 "zz-user" ✓
+- **保存提示**：表单提交新凭据 → pendingSave {kind: save, username} 出现 ✓
+  （/passwords/resolve save:false 可程序化驳回）
+- **教训**：测试端口会被残留 fixture 服务器占口（eval 套件的 8899 fixture
+  存活导致登录页请求拿到 fixture JSON）——起本地服务前先查端口占用

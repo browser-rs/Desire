@@ -7,13 +7,40 @@ struct WhiteboardSpec: Codable, Equatable {
     var title: String
     var blocks: [WhiteboardBlock]
 
+    /// .board 文件 schema 版本（0.7.1 社区分享）：导出写入，导入校验。
+    /// 当前唯一版本 = "desire-board/1"；旧文件缺键按 /1 读（可选解码）；
+    /// 更高版本结构未知，导入侧明确拒绝——静默解码会丢字段，宁拒不丢。
+    static let boardSchemaVersion = "desire-board/1"
+
+    var schemaVersion: String? = nil
+
     /// 一块板的块数上限（工具层护栏）：renderBoard 逐块渲染，块数失控
     /// 会把双引擎渲染与 DiskStore 落盘一起拖垮。面板编辑不受此限。
     static let maxBlocks = 60
 
-    init(title: String = "白板", blocks: [WhiteboardBlock] = []) {
+    init(title: String = "白板", blocks: [WhiteboardBlock] = [], schemaVersion: String? = nil) {
         self.title = title
         self.blocks = blocks
+        self.schemaVersion = schemaVersion
+    }
+
+    /// 导出用：带当前 schema 版本的副本。
+    var shareable: WhiteboardSpec {
+        var copy = self
+        copy.schemaVersion = Self.boardSchemaVersion
+        return copy
+    }
+
+    /// 导入信任摘要（0.7.1）：标题 + 块数 + 按类型的数量明细 + 数据安全性声明。
+    /// .board 是纯数据（Mermaid 源码 / 图表配置 / Markdown / 图片 URI），
+    /// 不含脚本或宏——这句话写进对话框，是导入信任的落点。
+    var importSummary: String {
+        let counts = Dictionary(grouping: blocks, by: \.type)
+            .map { "\($0.key) ×\($0.value.count)" }
+            .sorted()
+            .joined(separator: "、")
+        return "「\(title)」— \(blocks.count) 块（\(counts)）。\n"
+            + ".board 是纯数据文件（图表源码 / Markdown / 图片），不含脚本或宏；渲染由本地引擎完成。"
     }
 }
 

@@ -1,0 +1,1 @@
+{"title":"流程复盘","schemaVersion":"desire-board\/1","blocks":[{"title":"事件链","content":"graph LR\n    A[触发] --> B[处理]\n    B --> C{卡点?}\n    C -->|是| D[复盘]\n    C -->|否| E[交付]","id":"E934B3BC-29D0-4B96-996A-C8FE3CFD2451","type":"mermaid"},{"content":"## 复盘\n- 哪里卡住了：\n- 根因：\n- 下次怎么做：","id":"2D3B94C1-7164-4DCE-8A6B-A15C679785F9","type":"note"}]}

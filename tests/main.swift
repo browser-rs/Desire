@@ -1696,6 +1696,32 @@ testPageEventPolicy()
 
 // ---------- 汇总 ----------
 
+// ---------- 0.7.1 社区分享：.board schema 版本 / 信任摘要 ----------
+
+func testBoardShare() {
+    // 导出带版本
+    let spec = WhiteboardSpec(title: "分享板", blocks: [
+        WhiteboardBlock(type: WhiteboardBlock.Kind.note, content: "hello"),
+        WhiteboardBlock(type: WhiteboardBlock.Kind.mermaid, content: "graph LR"),
+    ])
+    let encoded = String(decoding: (try? JSONEncoder().encode(spec.shareable)) ?? Data(), as: UTF8.self)
+    // JSONEncoder 默认转义 "/" 为 \/——断言不含斜杠的前缀
+    check("导出带 schema 版本", encoded.contains("desire-board"))
+
+    // 旧文件缺版本键 → 解码成功、版本 nil（按 /1 读）
+    let legacy = "\"title\":\"旧板\",\"blocks\":[]"
+    let legacyJSON = "{\(legacy)}"
+    let decoded = try? JSONDecoder().decode(WhiteboardSpec.self, from: Data(legacyJSON.utf8))
+    check("旧文件缺版本键兼容", decoded?.schemaVersion == nil && decoded?.title == "旧板")
+
+    // 信任摘要：标题 + 块数 + 类型明细 + 纯数据声明
+    let summary = spec.importSummary
+    check("摘要含标题与块数", summary.contains("分享板") && summary.contains("2 块"))
+    check("摘要含类型明细", summary.contains("note ×1") && summary.contains("mermaid ×1"))
+    check("摘要含纯数据声明", summary.contains("不含脚本或宏"))
+}
+testBoardShare()
+
 // ---------- 0.7.4 安全轮：文件名消毒 / 页面文本消毒 ----------
 
 func testSanitizers() {

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>白板模板 Gallery — Desire</title>
+<meta name="description" content="Desire 白板模板 Gallery：竞品对比、周报、流程复盘、会议纪要、SWOT——下载 .board 文件，在 Desire 白板面板一键导入。纯数据格式，不含脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --paper: #f6f1e7; --paper-2: #eee7d7; --ink: #211b13; --ink-soft: #6a6150;
+    --cinnabar: #c03a1a; --cinnabar-d: #93290e; --hairline: rgba(33,27,19,0.16);
+    --hairline-2: rgba(33,27,19,0.32);
+    --font-display: "Hoefler Text", "Songti SC", "STSongti-SC-Regular", "Georgia", serif;
+    --font-body: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+    --w: min(980px, 92vw);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.75; }
+  ::selection { background: var(--cinnabar); color: var(--paper); }
+  a { color: var(--cinnabar-d); text-underline-offset: 3px; }
+  .wrap { width: var(--w); margin: 0 auto; }
+
+  header { padding: 34px 0 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 18px; }
+  .brand .seal { width: 34px; height: 34px; border-radius: 7px; background: var(--cinnabar); color: var(--paper);
+    font-family: "Kaiti SC", "STKaiti", serif; font-size: 20px; display: grid; place-items: center; }
+  .brand a { text-decoration: none; color: var(--ink); }
+
+  .hero { padding: 56px 0 30px; }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(30px, 5vw, 46px); line-height: 1.2; }
+  .hero h1 em { font-style: normal; color: var(--cinnabar); }
+  .hero p.lead { margin-top: 14px; font-size: 18px; color: var(--ink-soft); max-width: 720px; }
+
+  .howto { background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 12px;
+    padding: 14px 20px; margin: 20px 0 8px; font-size: 14.5px; }
+  .howto b { color: var(--cinnabar-d); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 24px; }
+  .tpl { background: #fffdf7; border: 1px solid var(--hairline); border-radius: 14px; padding: 20px;
+    display: flex; flex-direction: column; gap: 10px; }
+  .tpl h2 { font-family: var(--font-display); font-size: 20px; }
+  .tpl .types { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tpl .type { font-family: var(--font-mono); font-size: 11px; padding: 1px 8px; border-radius: 999px;
+    background: var(--paper-2); color: var(--ink-soft); }
+  .tpl p { font-size: 13.5px; color: var(--ink-soft); }
+  .tpl .dl { margin-top: auto; display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 999px; background: var(--cinnabar); color: var(--paper);
+    text-decoration: none; font-weight: 600; font-size: 14px; width: fit-content; }
+  .tpl .dl:hover { background: var(--cinnabar-d); }
+
+  .trust { margin-top: 30px; background: var(--paper-2); border: 1px solid var(--hairline);
+    border-radius: 12px; padding: 14px 20px; font-size: 14px; }
+  .trust b { color: var(--cinnabar-d); }
+
+  footer { padding: 34px 0 48px; color: var(--ink-soft); font-size: 13.5px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="brand"><span class="seal">欲</span><a href="/">Desire 浏览器</a><span style="color:var(--ink-soft)">/</span><span>白板模板 Gallery</span></div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>白板模板 <em>Gallery</em></h1>
+    <p class="lead">五个即用模板，覆盖最常见的"动手前整理"场景。下载 .board 文件，
+      在 Desire 的白板面板里导入即得——也可以直接拖进窗口。</p>
+  </div>
+
+  <div class="howto">
+    <b>导入方式</b>：下载 .board → 打开 Desire → Agent 面板 → 白板 → 工具栏的
+    <b>导入按钮</b>（或把文件拖进 Desire 窗口）。导入时会显示内容摘要供你确认。
+  </div>
+
+  <div class="grid">
+    <div class="tpl">
+      <h2>竞品对比</h2>
+      <div class="types"><span class="type">note×1</span><span class="type">table×1</span></div>
+      <p>先填结论，对比矩阵只放支撑事实——价格/功能/生态/服务四个维度开箱即用。</p>
+      <a class="dl" href="boards/competitor.board" download>下载 .board</a>
+    </div>
+    <div class="tpl">
+      <h2>周报</h2>
+      <div class="types"><span class="type">note×1</span></div>
+      <p>本周完成 / 下周计划 / 风险与求助，三段式骨架。</p>
+      <a class="dl" href="boards/weekly.board" download>下载 .board</a>
+    </div>
+    <div class="tpl">
+      <h2>流程复盘</h2>
+      <div class="types"><span class="type">mermaid×1</span><span class="type">note×1</span></div>
+      <p>Mermaid 事件链画出卡点，配复盘三问——哪里卡住、根因、对策。</p>
+      <a class="dl" href="boards/retro.board" download>下载 .board</a>
+    </div>
+    <div class="tpl">
+      <h2>会议纪要</h2>
+      <div class="types"><span class="type">note×1</span><span class="type">table×1</span></div>
+      <p>结论先行：决议表 + 待办表，散会即归档。</p>
+      <a class="dl" href="boards/meeting.board" download>下载 .board</a>
+    </div>
+    <div class="tpl">
+      <h2>SWOT</h2>
+      <div class="types"><span class="type">table×1</span></div>
+      <p>优势 / 劣势 / 机会 / 威胁四象限矩阵。</p>
+      <a class="dl" href="boards/swot.board" download>下载 .board</a>
+    </div>
+  </div>
+
+  <div class="trust">
+    <b>格式与信任</b>：.board 是<b>纯数据文件</b>（Mermaid 源码 / 图表配置 / Markdown / 图片），
+    不含脚本或宏；渲染全部由 Desire 本地引擎完成。导入前应用会显示内容摘要供你确认；
+    文件带 schema 版本，旧版本 Desire 导入过新的文件时会明确提示。
+  </div>
+
+  <footer>
+    由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 ·
+    模板定义见仓库 WhiteboardTemplates.swift（tools/gen-board-gallery.swift 生成 .board）·
+    本页零外部依赖
+  </footer>
+</div>
+</body>
+</html>

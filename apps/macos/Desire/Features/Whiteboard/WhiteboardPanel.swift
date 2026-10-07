@@ -104,6 +104,8 @@ struct WhiteboardPanelView: View {
     @ObservedObject private var store = WhiteboardStore.shared
     @Environment(\.appAccent) private var appAccent: Color
     @State private var exportStatus: String?
+    /// 导入反馈（含失败原因——版本过新/文件无效，0.7.1）。
+    @State private var importStatus: String?
     @State private var renamingTitle = false
     @State private var titleDraft = ""
     /// 演示模式（0.6.9 P1）：逐块步进放映，渲染复用同一 WhiteboardWebView
@@ -223,6 +225,11 @@ struct WhiteboardPanelView: View {
                     .help("点击重命名")
             }
             Spacer()
+            if let importStatus {
+                Text(importStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let exportStatus {
                 Text(exportStatus)
                     .font(.system(size: 10))
@@ -322,7 +329,7 @@ struct WhiteboardPanelView: View {
 
     /// 导出 .board（JSON 文本，含全部块）。
     private func exportBoardFile() {
-        let spec = store.board(for: session.conversationId?.uuidString)
+        let spec = store.board(for: session.conversationId?.uuidString).shareable
         guard let data = try? JSONEncoder().encode(spec) else {
             exportStatus = "编码失败"
             return
@@ -336,34 +343,59 @@ struct WhiteboardPanelView: View {
         }
     }
 
-    /// 导入 .board：当前板为空直接追加；非空时问一次（追加 / 替换 / 取消）。
+    /// 导入 .board（0.7.1 社区分享）：信任摘要常显（标题/块数/类型明细 +
+    /// 纯数据声明），schema 未知版本明确拒绝；当前板非空时追加/替换/取消。
     private func importBoardFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
+        // .board 的 UTType（Info.plist 已声明，conforms to public.json）优先——
+        // 之前只放 .json 会把 .board 扩展名的文件灰掉。
+        panel.allowedContentTypes = [UTType("me.siwi.Desire.board") ?? .json]
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url,
-              let data = try? Data(contentsOf: url),
-              let spec = try? JSONDecoder().decode(WhiteboardSpec.self, from: data) else { return }
+              let data = try? Data(contentsOf: url) else { return }
+
+        let spec: WhiteboardSpec
+        do {
+            spec = try JSONDecoder().decode(WhiteboardSpec.self, from: data)
+        } catch {
+            // 解码失败时区分「版本过新」与「文件无效」——前者给升级指引。
+            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let v = obj["schemaVersion"] as? String, v != WhiteboardSpec.boardSchemaVersion {
+                importStatus = "schema \(v) 过新——请升级 Desire 后重试"
+            } else {
+                importStatus = "不是有效的 .board 文件"
+            }
+            return
+        }
+        if let v = spec.schemaVersion, v != WhiteboardSpec.boardSchemaVersion {
+            importStatus = "schema \(v) 过新——请升级 Desire 后重试"
+            return
+        }
+
         let id = session.conversationId?.uuidString
         let current = store.board(for: id)
-        var replace = false
-        if !current.blocks.isEmpty {
-            let alert = NSAlert()
-            alert.messageText = "导入白板"
-            alert.informativeText = "当前白板已有 \(current.blocks.count) 块。导入「\(spec.title)」（\(spec.blocks.count) 块）："
+        let alert = NSAlert()
+        alert.messageText = "导入白板"
+        alert.informativeText = spec.importSummary
+            + (current.blocks.isEmpty ? "" : "\n\n当前白板已有 \(current.blocks.count) 块。")
+        if current.blocks.isEmpty {
+            alert.addButton(withTitle: "导入")
+            alert.addButton(withTitle: "取消")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            store.set(WhiteboardSpec(title: spec.title, blocks: spec.blocks), conversationID: id)
+        } else {
             alert.addButton(withTitle: "追加")
             alert.addButton(withTitle: "替换")
             alert.addButton(withTitle: "取消")
             let response = alert.runModal()
             if response == .alertThirdButtonReturn { return }
-            replace = response == .alertSecondButtonReturn
+            if response == .alertSecondButtonReturn {
+                store.set(WhiteboardSpec(title: spec.title, blocks: spec.blocks), conversationID: id)
+            } else {
+                store.append(spec.blocks, title: spec.title, conversationID: id)
+            }
         }
-        if replace {
-            store.set(WhiteboardSpec(title: spec.title, blocks: spec.blocks), conversationID: id)
-        } else {
-            store.append(spec.blocks, title: spec.title, conversationID: id)
-        }
-        exportStatus = "已导入 \(spec.blocks.count) 块 ✓"
+        importStatus = "已导入 \(spec.blocks.count) 块 ✓"
     }
 
     /// 把当前白板窗口内容快照成 PNG 存到下载目录。

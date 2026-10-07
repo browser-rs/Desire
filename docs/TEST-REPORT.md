@@ -522,3 +522,20 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - `open -a Desire` 在双副本机器拉起 /Applications 安装版（同数据目录并发写）
   ——**禁用**，测试启动一律显式路径
 - cmd 组合键误注入触发 ⌘H 隐藏应用（窗口全离屏、截图黑帧）——取消隐藏即恢复
+
+### 批次 F：同步链路重场景 ✓
+- 本地 desire-api 起服（dev 三件套：DATABASE_URL=root+真密码@127.0.0.1:3306/desire、
+  DESIRE_REDIS_URL=container redis 带认证、MIGRATIONS_DIR 仓库根）
+- 注册（captcha 签发/校验流程）→ 桥 /sync/login → **首轮全量推送**（书签树
+  9 项 + agent_memory 44 + agent_prefs + keyboard_shortcuts 落库 user 72）
+- 加 ZZ-SYNC 书签 → /sync/now → **mysql 实证**：sync_items 7 活项 + 删除后
+  2 条墓碑（deleted_at 置位），agent_memory 等域随全脏推送一并上
+- 删书签 → /sync/now → 墓碑条数 3 ✓
+- 清理：/sync/logout → /sync/server 恢复生产地址 ✓ → 本地 api 停服 ✓
+- 数据复核：登出后书签 6 条原样（含 in-session 的 GitHub/Stack Overflow）
+
+### 发现（非 bug，行为确认）
+- 注册接口需要 captcha_id/captcha_code（GET /auth/captcha 签发，dev 下 code
+  直接可见可自动化）
+- /sync/server 的参数名是 baseURL（GET 无路由——原值从 /sync/status.server 读）
+- chrome.storage.bg-eval 返回 null = promise 未 await（探针模式解），已记报告

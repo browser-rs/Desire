@@ -113,6 +113,11 @@ class Tab: ObservableObject {
         // broader isolation boundary than per-tab containers).
         let resolvedDataStore = profileDataStore ?? containerID.flatMap { ContainerStore.shared.dataStore(for: $0) }
         browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerDataStore: resolvedDataStore)
+        // DevTools 记录器（0.7.5）：console/network 接收端随 webview 创建
+        // 挂上（归属 = 本 tab id），后台标签页也持续记录——此前接收端随
+        // SwiftUI 视图挂/卸，转后台即断流。
+        browser.webView.devToolsTabID = id
+        DevToolsRecorder.shared.install(in: browser.webView)
         browser.webView.allowsBackForwardNavigationGestures = true
         if let url {
             urlString = url

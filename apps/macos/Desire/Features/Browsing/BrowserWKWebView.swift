@@ -9,6 +9,9 @@ class BrowserWKWebView: WKWebView {
     /// Opens `url` in a new tab bound to `container` (isolated cookies) —
     /// wired by ContentView to TabManager.addTab.
     var onOpenInContainer: ((URL, TabContainer) -> Void)?
+    /// 所属标签页（DevToolsRecorder 的归属依据，0.7.5）——Tab.init 创建
+    /// 后立刻设置；rebuildWebView 换新视图时从旧视图带过去。
+    var devToolsTabID: UUID?
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)

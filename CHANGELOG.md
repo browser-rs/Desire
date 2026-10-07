@@ -6,12 +6,16 @@
 ### Fixed
 
 - **悬浮球触盘格子不可见（展开只有空玻璃盘）**：v4 定制槽位把 `capability.hashValue` 当格子编号传进了弹入动画的 stagger 延迟——hashValue 每次启动随机且量级 ±2^63，乘 0.055 后是天文数字秒，正数槽位的动画永不开始、格子永停在 opacity 0（四格全可见概率仅 1/16，此前测试是撞上负值的运气）。改回位置序号 0…3。附带：桥新增 `POST /agentball`（开合/显隐驱动——darwin 27 上 CGEvent 已死、球是手势判定非 AXButton，这是悬浮球唯一的自动化入口）；修复 DevTools DPP 检查器缺失 `import WebKit` 的编译错误
+- **DevTools 后台标签页记录断流（0.7.5）**：console/network 的接收端此前挂在 SwiftUI 视图生命周期上（makeNSView 挂 / dismantle 摘），标签页一转后台记录即断，"全部标签页"只剩被前台化过的名单。新 `DevToolsRecorder`（app 级单例）在 Tab 创建时挂上、挂起重建随新 webview 重装，后台标签页持续记录。**附带修掉一颗跨源切片时代的地雷**：`dppFrame` handler add 前没有 remove——切回含 DPP 声明的标签必抛 NSInvalidArgumentException 直接崩（NSViewLayout 内 `_crashOnException`）；补 remove-before-add + user script 关联对象台账防重复注入
+
 
 ### Added
 
 - **记忆检索升级：端上句向量主排（0.7.1 阶段二）**——内置 bge-small-zh-v1.5（int8 量化 22MB，Core ML 系统框架推理，`Models/BGEZh.mlpackage` 构建期编译）+ 自带 WordPiece 分词，`MemoryRetrieval.rankWithVectors` 按"向量主排、BM25 降级"融合：模型缺失/嵌入失败自动回退纯 BM25，记忆功能不因模型问题挂掉。30 条事实 × 15 查询验收集上 top-1 13/15（纯 BM25 8/15），零词法重叠改写查询从 0/6 到 4/6；离线与应用内（桥 `/memory/retrieval-eval`）结果一致，评估套件 41/41。事实向量按内容哈希缓存于内存（200 条 ≈ 800KB 上限），推理后台执行（单条 ~4-21ms）。转换/评测脚本入库 tools/vector-spike/，数据与分析见 docs/VECTOR-MEMORY-SPIKE.md
 - **DPP 0.7.2 收尾三件**：① 演示场新增三场景——`demo/feed/`（infinite 滚动 + shadow DOM 卡片，前导 `>>>` 字段声明）、`demo/embed/` + `demo/widget/`（宿主聚合内嵌小组件声明，`?widget=` 指向第二 origin 即真跨源，同源回退默认可玩）、well-known 页面地图补全 feed/embed/widget 条目与 loginUrl 指引；② 跨源标注——动作声明自跨源子框架时审批卡亮出来源框架 host（"声明来自嵌入框架 X（跨源）"），DevTools DPP 检查器新增 Declaration frames 段（逐框架列出来源 URL、跨源标红）并给 views/actions 条目加 frame 标签；③ 文档站扩充——`website/dpp/spec.html`（规范全文渲染页，由 docs/DPP-PROTOCOL.md 经 tools/gen-dpp-spec-page.py 生成）、`website/dpp/sdk.html`（expose/emit/validate API 参考 + 宿主行为 + 上线检查单），DPP 首页导航与兼容性说明同步（跨源 iframe 已交付、十二场景入口）
 - **悬浮球 v5（方向 A「绽放」拍板落地，design/agent-ball/prototype-v2.html 评审定稿）**：展开动画 = 盘从球的位置弹性放大（锚点朝球侧）+ 格子外弹过冲（scale .4 + 上浮，stagger 50ms）+ 开盘一次性掠光；**功能四项**——① 全 8 能力触盘（长按球 0.4s 或盘上 ⌄ 切换 2×2 ⇄ 4×2，八选四限制取消，设置页只管前四槽排序）② 触盘页面上下文菜单头（favicon + 页面标题 + 「问本页」直达回合）③ 回复就绪预览气泡（徽章在窗时悬停球预览回答前两行，免开面板）④ 拖拽投递动作选择（松手弹"总结/翻译/打开并问"迷你菜单，投递语义从固定动作升级为带意图）；**微交互精修**——按下压感 scale .9、忙碌环改缺口弧旋转、录音改球内五柱波形。附带修复：`poll()` 里 `if agentBusy, !busy` 是死代码（上一行刚赋值，条件永假）——回复就绪徽章从未亮过，改 busy 下降沿判定并同帧抓取回复预览。桥 `POST /agentball` 增 `showsAll`/`pendingDrop`/`cancelDrop` 驱动位（球唯一自动化入口的补全）
+- **DevTools Network 页签 HAR 1.2 导出**：面板导出按钮（所见即所得——当前作用域+过滤条件下的请求，含请求/响应头、body、资源计时分段、失败原因、WS/SSE 帧按 Chrome `_webSocketMessages` 约定）+ 桥端点 `GET /devtools/har?scope=all|current|tab=<uuid>`；构建器 `HARExport` 面板与桥共用同一套。附带修桥 query 解析：值里带 `=` 的键值对（scope=tab=<uuid>）此前被 maxSplits 2 整对丢弃
+
 
 
 

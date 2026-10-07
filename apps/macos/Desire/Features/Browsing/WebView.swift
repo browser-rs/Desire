@@ -421,6 +421,9 @@ class BrowserState: ObservableObject {
         old.navigationDelegate = nil
         old.uiDelegate = nil
         let fresh = Self.makeWebView(configuration: config)
+        // DevTools 记录器随新视图重装（0.7.5）——归属从旧视图带过去。
+        fresh.devToolsTabID = old.devToolsTabID
+        DevToolsRecorder.shared.install(in: fresh)
         PrivacyModeStore.shared.registerWebView(fresh)
         fresh.loadHTMLString("", baseURL: nil)
         webView = fresh
@@ -684,8 +687,11 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "devConsole", "netEntry",
-            "otpDetect", "pagePerf", "cookieGuardHandled",
+            "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf",
+            "cookieGuardHandled",
+            // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
+            // 在 webview 创建时独占注册——这里 remove-before-add 会把记录
+            // 器摘掉，后台标签页的记录就断了。
         ]
 
         /// desireExt handler 注册台账（associated object 挂 webview，见
@@ -694,6 +700,10 @@ struct WebView: NSViewRepresentable {
             var entries: [String: WKScriptMessageHandler] = [:]
         }
         static let extHandlerLedgerKey = "desireExtHandlerLedger"
+        /// dppFrame user script 注入台账（observe 每次重跑都 addUserScript
+        /// 会层层叠加——postMessage N 倍；user script 无枚举/单删 API，
+        /// 只能关联对象标记"已注入"）。
+        static let dppFrameScriptKey = "dppFrameScriptInstalled"
 
         func observe(_ webView: WKWebView) {
             let contentController = webView.configuration.userContentController
@@ -719,7 +729,9 @@ struct WebView: NSViewRepresentable {
             contentController.add(self, contentWorld: .page, name: "desireProtocolControl")
             // DPP 全框架采集器（0.7 跨源视图切片一）：每个框架（含跨源）上报
             // 自身 URL——宿主对未见过的框架跑归一化解析（in: frameInfo）。
-            let dppFrameScript = WKUserScript(source: """
+            if objc_getAssociatedObject(webView, Self.dppFrameScriptKey) == nil {
+                objc_setAssociatedObject(webView, Self.dppFrameScriptKey, true, .OBJC_ASSOCIATION_RETAIN)
+                let dppFrameScript = WKUserScript(source: """
 try {
   window.webkit.messageHandlers.dppFrame.postMessage(
     JSON.stringify({href: location.href}));
@@ -728,7 +740,13 @@ try {
     JSON.stringify({href: location.href, err: String(e)})); } catch (e2) {}
 }
 """, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
-            contentController.addUserScript(dppFrameScript)
+                contentController.addUserScript(dppFrameScript)
+            }
+            // handler add 前必须 remove——否则重复宿主化（切标签回位）时
+            // WebKit 对重名 handler 直接抛 NSInvalidArgumentException
+            //（0.7.5 实测：切回含 dppFrame 的标签即崩）。
+            contentController.removeScriptMessageHandler(
+                forName: "dppFrame", contentWorld: .page)
             contentController.add(self, contentWorld: .page, name: "dppFrame")
             registerPluginWorldHandlers(webView, coordinator: self)
             // 登记本 tab 的 webview（tabs.sendMessage 的寻址表；快速切标签
@@ -1197,41 +1215,6 @@ try {
                     guard !Task.isCancelled, let self else { return }
                     await self.parsePageProtocol(webView: reparseWebView)
                 }
-            } else if message.name == "netEntry", let dict = message.body as? [String: Any] {
-                noteTabInDevTools()
-                parent.devToolsStore.applyNetworkEvent(dict, tabID: parent.tabID)
-                // webRequest.onBeforeRequest（MV3 观察语义）：请求 start 一发。
-                if (dict["phase"] as? String) == "start" {
-                    var details: [String: Any] = [
-                        "url": dict["url"] as? String ?? "",
-                        "tabId": parent.tabID.uuidString,
-                        "frameId": 0,
-                    ]
-                    if let resourceType = dict["resourceType"] as? String {
-                        details["type"] = resourceType
-                    }
-                    if let method = dict["method"] as? String {
-                        details["method"] = method
-                    }
-                    PluginBackgroundRuntime.shared.fireWebRequest(details: details)
-                }
-            } else if message.name == "devConsole", let dict = message.body as? [String: Any],
-                      let levelStr = dict["level"] as? String,
-                      let msgText = dict["message"] as? String {
-                let level = ConsoleMessage.Level(rawValue: levelStr) ?? .log
-                let url = dict["url"] as? String
-                let line = dict["line"] as? Int
-                let column = dict["column"] as? Int
-                noteTabInDevTools()
-                parent.devToolsStore.addConsoleMessage(
-                    level: level,
-                    message: msgText,
-                    url: url,
-                    line: line,
-                    column: column,
-                    tabID: parent.tabID,
-                    parts: ConsoleMessage.parseParts(dict["parts"])
-                )
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
                        let usernameName = dict["username"],
                        let host = parent.state.webView.url?.host {

@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import SwiftUI
 import WebKit
 
@@ -933,6 +934,9 @@ private struct NetworkPanel: View {
 
             failuresToggle
 
+            // HAR 导出（0.7.5）：所见即所得——当前作用域 + 过滤条件下的请求。
+            HoverIcon(systemName: "square.and.arrow.up", action: { exportHAR() }, help: "Export HAR")
+
             Spacer(minLength: 4)
 
             // 汇总：条数 + 传输字节（排查"页面为什么慢/重"第一眼要看的数）。
@@ -1463,6 +1467,18 @@ private struct NetworkPanel: View {
     private func statusTint(_ status: Int?) -> Color {
         guard let status else { return .secondary }
         return statusColor(status)
+    }
+
+    /// HAR 1.2 导出（0.7.5）：拿 `filteredRequests`（作用域+过滤同屏）。
+    private func exportHAR() {
+        guard let json = HARExport.jsonString(from: filteredRequests) else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "desire-network.har"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? json.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private var filteredRequests: [NetworkRequest] {

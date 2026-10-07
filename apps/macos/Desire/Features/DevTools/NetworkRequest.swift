@@ -309,3 +309,109 @@ struct NetworkRequest: Identifiable, Codable {
         )
     }
 }
+
+// MARK: - HAR 1.2 导出（0.7.5 DevTools 迭代）
+
+/// 作用域内请求 → HAR 1.2 文档（面板导出按钮与桥端点共用，勿另算一套）。
+/// 全部收敛在 nonisolated enum 里（NetworkRequest 是 Sendable 值类型，
+/// 字段读取无隔离问题；computed entry 挂在类型上会被默认 MainActor 隔离，
+/// key path 会炸——勿挪回 extension）。
+nonisolated enum HARExport {
+
+    private static let harISO: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static func headers(_ dict: [String: String]?) -> [[String: String]] {
+        (dict ?? [:]).sorted { $0.key < $1.key }.map { ["name": $0.key, "value": $0.value] }
+    }
+
+    /// 单条请求 → HAR entry（字段缺失按规范给 -1/0，不臆造）。
+    static func entry(for r: NetworkRequest) -> [String: Any] {
+        var timings: [String: Any] = ["send": 0, "wait": -1, "receive": -1,
+                                      "blocked": -1, "dns": -1, "connect": -1, "ssl": -1]
+        if let t = r.timing {
+            func ms(_ v: Double?) -> Any { v.map { ($0 * 1000 * 100).rounded() / 100 } ?? -1 }
+            timings["blocked"] = ms(t.blocked)
+            timings["dns"] = ms(t.dns)
+            timings["connect"] = ms(t.connect)
+            timings["ssl"] = t.tls == nil ? -1 : ms(t.tls)
+            timings["wait"] = ms(t.ttfb)
+            timings["receive"] = ms(t.download)
+        }
+        let total: Double = r.duration.map { ($0 * 1000 * 100).rounded() / 100 }
+            ?? (r.endTime.map { $0.timeIntervalSince(r.startTime) * 1000 } ?? 0)
+        let requestHeaders = headers(r.requestHeaders)
+        var request: [String: Any] = [
+            "method": r.method,
+            "url": r.url,
+            "httpVersion": "HTTP/1.1",
+            "cookies": [] as [[String: String]],
+            "headers": requestHeaders,
+            "queryString": (URLComponents(string: r.url)?.queryItems ?? []).map {
+                ["name": $0.name, "value": $0.value ?? ""]
+            },
+            "headersSize": -1,
+            "bodySize": r.requestBody.map { $0.utf8.count } ?? 0,
+        ]
+        if let requestBody = r.requestBody, !requestBody.isEmpty {
+            let contentType = r.requestHeaders?["Content-Type"]
+                ?? r.requestHeaders?["content-type"] ?? "text/plain"
+            request["postData"] = ["mimeType": contentType, "text": requestBody]
+        }
+        var content: [String: Any] = ["size": r.size ?? -1, "mimeType": r.mimeType ?? "x-unknown"]
+        if let body = r.responseBody { content["text"] = body }
+        var entry: [String: Any] = [
+            "startedDateTime": harISO.string(from: r.startTime),
+            "time": total,
+            "request": request,
+            "response": [
+                "status": r.failed ? 0 : (r.statusCode ?? 0),
+                "statusText": r.errorMessage ?? (r.statusText ?? ""),
+                "httpVersion": "HTTP/1.1",
+                "cookies": [] as [[String: String]],
+                "headers": headers(r.responseHeaders),
+                "content": content,
+                "redirectURL": "",
+                "headersSize": -1,
+                "bodySize": r.size ?? -1,
+            ],
+            "cache": [:] as [String: Any],
+            "timings": timings,
+            "_resourceType": r.resourceType.rawValue,
+        ]
+        if r.failed {
+            entry["_error"] = r.errorMessage ?? "request failed"
+        }
+        if let initiator = r.initiator { entry["_initiator"] = initiator }
+        if r.streaming, !r.frames.isEmpty {
+            // Chrome 约定的 WS 帧扩展字段（SSE 顺带：direction 同语义）。
+            entry["_webSocketMessages"] = r.frames.map { frame in
+                ["type": frame.direction == .outbound ? "send" : "receive",
+                 "time": harISO.string(from: frame.timestamp),
+                 "opcode": 1,
+                 "data": frame.payload]
+            }
+        }
+        return entry
+    }
+
+    static func document(from requests: [NetworkRequest]) -> [String: Any] {
+        [
+            "log": [
+                "version": "1.2",
+                "creator": ["name": "Desire DevTools", "version": "1.0"],
+                "pages": [] as [[String: Any]],
+                "entries": requests.sorted { $0.startTime < $1.startTime }.map { entry(for: $0) },
+            ],
+        ]
+    }
+
+    static func jsonString(from requests: [NetworkRequest]) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: document(from: requests),
+                                                     options: [.prettyPrinted, .sortedKeys]) else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
+}

@@ -414,6 +414,7 @@ final class AutomationServer {
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
         ep("GET", "/devtools", "DevTools panel state (scoped counters, tab list, totals)", example: "…/devtools")
+        ep("GET", "/devtools/har", "HAR 1.2 export of captured network requests (same records as the panel)", params: ["scope?:string(all|current|tab=<uuid>)"], example: "…/devtools/har?scope=all")
         ep("POST", "/devtools/config", "Runtime toggles (console clearing, Application section, tab scope)", params: ["clearConsoleOnNavigate?:bool", "applicationSection?:string", "tabScope?:current|all|<tab uuid>"], example: #"-d '{"tabScope":"all"}'"#)
         ep("POST", "/devtools/preview", "Fetch a page resource via the page (cookies included) and save it as PNG", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8878/pixel.png"}'"#)
         ep("POST", "/devtools/replay", "Re-send a recorded request from the page (same path as the ↻ button)", params: ["url:string", "index?:int"], example: #"-d '{"url":"http://127.0.0.1:8879/api/data"}'"#)
@@ -616,8 +617,10 @@ final class AutomationServer {
         let path = String(pathComponents[0])
         var query: [String: String] = [:]
         if pathComponents.count > 1 {
+            // maxSplits 1：值里允许带 `=`（如 scope=tab=<uuid>）——此前按 2 切，
+            // 三段的键值对被整对丢弃（0.7.5 HAR 端点首踩）。
             for pair in pathComponents[1].split(separator: "&") {
-                let kv = pair.split(separator: "=", maxSplits: 2)
+                let kv = pair.split(separator: "=", maxSplits: 1)
                 guard kv.count == 2 else { continue }
                 query[String(kv[0])] = String(kv[1]).removingPercentEncoding ?? String(kv[1])
             }
@@ -1327,6 +1330,29 @@ final class AutomationServer {
                 return try await Self.json(Self.devToolsInspect(selector: Self.string(body, "selector") ?? "", index: Self.index(body)))
             case ("GET", "/devtools"):
                 return try Self.json(Self.devToolsState())
+            case ("GET", "/devtools/har"):
+                // HAR 1.2 导出（0.7.5）：作用域与面板同源（TabScope）。
+                // ?scope=all|current|tab=<uuid>，缺省 = 当前面板作用域。
+                let store = AppState.live?.devToolsStore
+                let scopeParam = query["scope"]
+                let requests: [NetworkRequest]
+                switch scopeParam {
+                case "all":
+                    requests = store?.networkRequests ?? []
+                case "current":
+                    requests = store?.scopedNetworkRequests ?? []
+                case .some(let v) where v.hasPrefix("tab="):
+                    guard let id = UUID(uuidString: String(v.dropFirst(4))) else {
+                        return try Self.json(["error": "bad tab uuid"])
+                    }
+                    requests = (store?.networkRequests ?? []).filter { $0.tabID == id }
+                default:
+                    requests = store?.scopedNetworkRequests ?? []
+                }
+                guard let json = HARExport.jsonString(from: requests) else {
+                    return try Self.json(["error": "har serialization failed"])
+                }
+                return json
             case ("POST", "/devtools/edit"):
                 return try await Self.json(Self.devToolsEdit(
                     selector: Self.string(body, "selector") ?? "",

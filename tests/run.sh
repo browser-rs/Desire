@@ -23,6 +23,8 @@ SOURCES=(
   apps/macos/Desire/Features/Whiteboard/WhiteboardSpec.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardHTMLExport.swift apps/macos/Desire/Features/Agent/ContextCompaction.swift
   apps/macos/Desire/Features/Agent/AgentTrace.swift
+  apps/macos/Desire/App/FilePathing.swift
+  apps/macos/Desire/Features/Agent/AgentTextSanitizer.swift
   apps/macos/Desire/Features/Bookmarks/Bookmark.swift
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift

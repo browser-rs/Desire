@@ -132,12 +132,16 @@ enum AgentPromptBuilder {
         formatter.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
         environment.append("Current time: \(formatter.string(from: Date()))")
         // 多窗口 Agent：>1 个窗口时列出窗口清单（id 短码 + 标题 + 是否本窗），
-        // 模型用 listWindows / window 参数跨窗操作。
+        // 模型用 listWindows / window 参数跨窗操作。**标题是页面可控的**
+        // （<title> 由页面设置）——换行/尖括号会让它在 <environment> 段里
+        // 伪造结构或夹带伪指令（提示注入面，0.7.4 安全轮收口）：压成单行
+        // 且剥掉尖括号，长度封顶。
         let sessions = AgentScheduler.shared.liveSessions()
         if sessions.count > 1, let own = input.ownSessionID {
             let lines = sessions.map { entry -> String in
                 let ownMark = entry.id == own ? " ← your window" : ""
-                let title = entry.windowTitle ?? entry.displayLabel
+                let raw = entry.windowTitle ?? entry.displayLabel
+                let title = AgentTextSanitizer.pageText(raw, max: 120)
                 return "\(entry.id.uuidString.prefix(8)): \(title)\(ownMark)"
             }
             environment.append("Browser windows (pass \"window\" to navigate/switchTab/readTab to act on one):\n"

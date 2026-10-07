@@ -150,12 +150,15 @@ class DownloadStore: ObservableObject {
 
     /// 目标解析（按策略）：rename/ask 都先给"不撞"的名字（ask 若用户在
     /// 询问条里选了替换，DestinationResolver 再换回原名）；replace 直接原名。
+    /// filename 恒过 FilePathing.sanitizeFileName——远端可控的
+    /// Content-Disposition 名字不允许穿越出下载目录（0.7.4 安全轮）。
     func resolveDestination(for filename: String) -> URL {
+        let safe = FilePathing.sanitizeFileName(filename)
         switch conflictPolicy {
         case .replace:
-            return downloadFolder.appendingPathComponent(filename)
+            return downloadFolder.appendingPathComponent(safe)
         case .rename, .ask:
-            return FilePathing.uniqueURL(in: downloadFolder, for: filename)
+            return FilePathing.uniqueURL(in: downloadFolder, for: safe)
         }
     }
 

@@ -140,6 +140,45 @@ final class AutomationServer {
         return header.lowercased().contains("bearer \(requiredToken.lowercased())")
     }
 
+    /// 请求头取值（大小写不敏感；唯一命中）。
+    private static func header(_ request: String, _ name: String) -> String? {
+        request
+            .split(separator: "\r\n", omittingEmptySubsequences: false)
+            .first { $0.lowercased().hasPrefix("\(name.lowercased()):") }?
+            .split(separator: ":", maxSplits: 1).last?
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// DNS-rebinding / 浏览器跨站防御（0.7.4 安全轮）。两条硬闸：
+    /// ① **Host 必须是本机**（127.0.0.1 / localhost，端口可带）——攻击者把
+    ///    自家域名 A 记录改指 127.0.0.1 后，浏览器视其为同源，页面不仅能
+    ///    打到桥、还能**读到响应**（GET /page/text 之类变成任意内幕读取）。
+    /// ② **带 Origin 头的请求必须源自本机**——浏览器对跨站 fetch/表单 POST
+    ///    总会带 Origin（no-cors 也带，副作用照样发生：恶意页面能给
+    ///    /agent/send 发指令）；curl / CI / MCP 客户端不带 Origin，不受影响。
+    ///    `null`（file:// 源）同样拒绝——桥没有来自本地文件的合法调用方。
+    private static func passesOriginGuard(_ request: String) -> Bool {
+        // Host 头无 scheme；Origin 头是 scheme://host[:port]——先剥 scheme 再取 host。
+        func localHost(_ value: String, stripScheme: Bool) -> Bool {
+            var v = value
+            if stripScheme, let range = v.range(of: "://") { v = String(v[range.upperBound...]) }
+            let host = v.split(separator: ":").first.map(String.init)?.lowercased() ?? v.lowercased()
+            return host == "127.0.0.1" || host == "localhost"
+        }
+        // 请求行不带 Host 的客户端（极老式 HTTP/1.0 工具）按本机对待——
+        // HTTP/1.1 浏览器必带 Host，rebinding 防线不受影响。
+        if let host = header(request, "Host"), !localHost(host, stripScheme: false) {
+            Log.agent.fault("automation bridge rejected: non-local Host '\(host, privacy: .public)'")
+            return false
+        }
+        if let origin = header(request, "Origin"),
+           origin == "null" || !localHost(origin, stripScheme: true) {
+            Log.agent.fault("automation bridge rejected: non-local Origin '\(origin, privacy: .public)'")
+            return false
+        }
+        return true
+    }
+
     /// 请求是否已收完整：头齐全 + body 字节数 ≥ Content-Length。
     /// **必须按字节找头尾**——`String(data:)` 会在多字节字符被分段处直接失败，
     /// 反过来把"不完整"误判成"不该等"。
@@ -202,6 +241,14 @@ final class AutomationServer {
                 return
             }
             Task { @MainActor in
+                guard Self.passesOriginGuard(request) else {
+                    let body = Self.error("forbidden — bridge only accepts local Host/Origin (DNS-rebinding & cross-site guard)")
+                    let head = "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+                    connection.send(content: head.data(using: .utf8)! + body.data(using: .utf8)!, completion: .contentProcessed { _ in
+                        connection.cancel()
+                    })
+                    return
+                }
                 guard Self.isAuthorized(request) else {
                     let body = Self.error("unauthorized — missing or wrong bearer token")
                     let head = "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"

@@ -12,18 +12,27 @@ enum WhiteboardHTMLExport {
     }
 
     /// markdown 表格 → HTML 表格（与白板渲染器的轻量解析同口径：
-    /// `|` 分割、第二行分隔线跳过）。
+    /// `|` 分割、全分隔线行（`| --- | :---: |` 形态）跳过——0.7.1 走查
+    /// 实测分隔线曾被当数据行渲染（文档声称跳过但实现缺失）。
     static func markdownTableHTML(_ content: String) -> String {
         let rows = content.components(separatedBy: "\n").filter {
             !$0.trimmingCharacters(in: .whitespaces).isEmpty
         }
         guard !rows.isEmpty else { return "" }
+        func isSeparator(_ row: String) -> Bool {
+            // 去掉全部空白（含管道间空格）再判：`| --- | :---: |` → `------:`
+            let stripped = row.filter { !$0.isWhitespace && $0 != "|" }
+            return !stripped.isEmpty && stripped.allSatisfy { $0 == "-" || $0 == ":" }
+        }
         var out = "<table>"
-        for (i, row) in rows.enumerated() {
+        var headerDone = false
+        for row in rows {
+            if isSeparator(row) { continue }
             let cells = row.split(separator: "|", omittingEmptySubsequences: true)
                 .map { "<td>\(esc($0.trimmingCharacters(in: .whitespaces)))</td>" }
                 .joined()
-            let tag = i == 0 ? "th" : "td"
+            let tag = headerDone ? "td" : "th"
+            headerDone = true
             let wrapped = cells.replacingOccurrences(of: "<td>", with: "<\(tag)>")
                 .replacingOccurrences(of: "</td>", with: "</\(tag)>")
             out += "<tr>\(wrapped)</tr>"

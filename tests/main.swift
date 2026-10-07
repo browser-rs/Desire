@@ -1696,6 +1696,20 @@ testPageEventPolicy()
 
 // ---------- 汇总 ----------
 
+// ---------- 白板表格：分隔线行不渲染为数据 ----------
+
+func testBoardTableSeparator() {
+    let md = "| 维度 | A | B |\n| --- | --- | --- |\n| 速度 | 快 | 慢 |"
+    let html = WhiteboardHTMLExport.markdownTableHTML(md)
+    check("表头 th", html.contains("<th>维度</th>"))
+    check("分隔线行被跳过", !html.contains("---"))
+    check("数据行保留", html.contains("<td>速度</td>") && html.contains("<td>快</td>"))
+    // 分隔线带对齐冒号（GitHub 形态）
+    let md2 = "| 左 | 中 |\n| :--- | :---: |\n| 1 | 2 |"
+    check("带冒号分隔线也跳过", !WhiteboardHTMLExport.markdownTableHTML(md2).contains(":---"))
+}
+testBoardTableSeparator()
+
 // ---------- 0.7.1 社区分享：.board schema 版本 / 信任摘要 ----------
 
 func testBoardShare() {

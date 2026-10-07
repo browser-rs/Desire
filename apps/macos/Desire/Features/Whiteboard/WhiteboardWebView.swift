@@ -221,7 +221,7 @@ struct WhiteboardWebView: NSViewRepresentable {
         var html = '<table class="md-table">';
         rows.forEach(function (row, ri) {
           var cells = row.replace(/^\\||\\$/g, "").split("|").map(function (c) { return c.trim(); });
-          if (ri === 1 && cells.every(function (c) { return /^:?-+:?$/.test(c); })) return;
+          if (cells.length && cells.every(function (c) { return /^:?-+:?$/.test(c); })) return;
           html += "<tr>" + cells.map(function (c) {
             return "<" + (ri === 0 ? "th" : "td") + ">" + miniMarkdown(c) + "</" + (ri === 0 ? "th" : "td") + ">";
           }).join("") + "</tr>";

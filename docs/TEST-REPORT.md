@@ -461,3 +461,21 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - **密码 CRUD**：add/list/delete 全通；列表元数据不含密码字段（隐私口径 ✓）。
   响应键为 `entries`。
 - **档案增删**：named persona 创建/删除干净（默认档案不在 named 列表，符合语义）。
+
+### 批次 A/B/C/D 结果（续）
+- **分屏**：/split 挂载 ✓（右栏 partner 标签，可拖宽）；split 到自身 index 无效
+  （需不同 index）；/split/close ✓
+- **页内查找**：/find?q=domain → count 2 / matchFound ✓
+- **下载 E2E**：octet-stream 导航 → 下载行+文件落盘（32B completed）✓；
+  **executeJS blob <a download> 触发不再产生下载**（本构建 WebKit 需用户手势，
+  旧触发模式失效——测试触发改用 octet-stream 导航法）
+- **白板渲染**：mermaid/table/note 三类型面板渲染 ✓；表格分隔线行
+  （Swift markdownTableHTML 与 JS renderTable 双实现）已修为跳过 ✓
+  （注意 /panel/snapshot?name=whiteboard 是**块摘要视图**，表格块显示原始
+  Markdown 文本含分隔线——按设计如此，非渲染 bug）
+- 清理：测试下载行/文件已移除，白板测试板已覆盖
+
+### 环境事故记录（影响一轮测试数据）
+- ⌘ 组合键误注入触发 ⌘H 隐藏应用 → 窗口全部离屏（截图黑帧误判"渲染 bug"）；
+- `open -a Desire` 在双副本机器上会拉起 /Applications 安装版（同数据目录并发
+  写风险）——测试启动一律用显式路径。两起均已当场恢复（取消隐藏/移除副本）。

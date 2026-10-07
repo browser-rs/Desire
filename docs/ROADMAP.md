@@ -547,34 +547,13 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 - 里程碑：M0 连接与配对（扫码）→ M1 会话镜像与对话 → M2 审批/语音 → M3 白板帧。
 - 依赖：Android Studio 工程、一台安卓真机（推送与通知的走查）。
 
-## 0.7.1 — 记忆检索升级（两阶段，结论驱动）
-- **阶段一（零依赖）✗ 已验收不达标（2026-10-07）**：居中化 NLE 混合规则
-  （BM25 为主打分；零词法重叠的查询改用居中化 NLE 向量排序兜底）在扩大对照集
-  （30 事实 × 15 查询，`tools/vector-spike/hybrid-probe.swift`）上**无增益**——
-  混合 top-1 8/15 == 纯 BM25 8/15，零重叠子集 NLE 兜底 0/6（期望事实排至
-  第 5–30 名）。不进产品；数据与分析见 docs/VECTOR-MEMORY-SPIKE.md。
-- **阶段二（捆绑 embedding 模型）✓ 已实装（2026-10-07，Core ML 路线）**：
-  bge-small-zh-v1.5 int8 量化（`Models/BGEZh.mlpackage`，22MB，构建期编译
-  mlmodelc）+ Swift WordPiece 分词（`BGEEmbedder`，nonisolated，后台推理）
-  + `MemoryRetrieval.rankWithVectors`（向量主排，BM25 为模型缺失/失败时的
-  降级路径）。转换与评测脚本在 tools/vector-spike/（转换组合：python3.12 +
-  torch 2.6 + coremltools 8.3——torch 2.14 太新会被 ct 9 拒）。验证：离线与
-  **应用内**（桥 `/memory/retrieval-eval`）同跑 30×15 对照集均 top-1 13/15、
-  top-3 15/15（BM25 基线 8/15），词法陷阱查询修复；评估套件 41/41，真实回合
-  日志 `memory rank … via=vector`。
+### 记忆检索升级（B）
+- 阶段一 NLE 混合规则 ✗ 不达标、阶段二 bge CoreML ✓ 实装——交付摘要见上
+  「随 v0.7.0 交付」；完整数据/结论/重测条件：docs/VECTOR-MEMORY-SPIKE.md，
+  探针与转换脚本：tools/vector-spike/。
 
-## 0.7.C — DPP 深化收尾 ✓（2026-10-07，0.7.2 交付）
-- L1 扫描进 shadow DOM：已交付（dppAllRoots + `>>>` 路径）；演示场补活场景
-  `demo/feed/`（infinite + shadow DOM 卡片，前导 `>>>` 字段）。
-- 审批卡/DevTools 检查器的跨源标注：已交付——动作声明自跨源子框架时审批卡
-  亮出来源框架 host；DPP 检查器新增 Declaration frames 段 + 条目级 frame 标签
-  （切片二 sourceFrame 数据面点亮）。验证：embed 场景 `DPP frame parse:
-  …/widget/ views=1 actions=1`（桥日志）。
-- 文档站扩充：已交付——`website/dpp/spec.html`（规范全文，生成器
-  tools/gen-dpp-spec-page.py，改规范后重跑）、`website/dpp/sdk.html`
-  （expose/emit/validate 参考 + 宿主行为 + 上线检查单）；部署是发版手动活。
-- 演示场：新增 `demo/embed/`+`demo/widget/`（跨源 iframe 聚合演示，`?widget=`
-  指向第二 origin）；well-known 页面地图补 feed/embed/widget + loginUrl。
+### DPP 深化收尾（C）
+- 交付摘要见上；演示场走查依赖网站部署（用户手动）。
 
 ## 0.7.D — passkey 与 WebAuthn（外部依赖观察项）
 - 前置：Apple 签发 private-key-credential 相关 entitlement（申请流程在 docs/，
@@ -582,10 +561,12 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 - 获批后的范围：ASAuthorizationPlatformPublicKeyCredentialProvider 接入
   密码库（自动填充联动）+ Agent 场景的"登录态指引"联动。
 
-## 0.7.E — 社区分享（轻量先行）
-- .board 文件已是分享载体；0.7 只做**规范与信任面**：.board 的 schema 版本化 +
-  导入信任提示（宏/脚本类内容不进白板格式）+ 产品页模板 Gallery 页（静态列举，
-  零后端）。重社区功能（上传/评论）明确不做。
+## 0.7.1（下一版 · 规划中）
+> 范围待用户定稿后动工；候选如下（一版一发，不混装）：
+- **社区分享轻量（原 0.7.E）**：.board schema 版本化 + 导入信任提示
+  （宏/脚本类内容不进白板格式）+ 产品页模板 Gallery 页（静态零后端）。
+- **走查回归**：网站部署后的悬浮球手感、跨源 DPP 真站、演示场走查问题修复。
+- **DevTools 二轮**：面板能力扩展（开工前盘点再定具体项）。
 
 **节奏**：一版一发（用户立规 2026-10-07）。**后续路线重新规划中**——待定方向
 （候选，非承诺）：0.7.E 社区分享、DevTools 二轮、按走查结果立项的回归修复。

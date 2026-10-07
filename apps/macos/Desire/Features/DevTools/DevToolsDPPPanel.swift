@@ -36,6 +36,7 @@ struct DPPInspectorPanel: View {
     private func content(_ dpp: DesireProtocol) -> some View {
         List {
             declarationSection(dpp)
+            if !tab.browser.frameProtocols.isEmpty { framesSection }
             if !dpp.views.isEmpty { viewsSection(dpp.views) }
             if !dpp.actions.isEmpty { actionsSection(dpp.actions) }
             if !dpp.events.isEmpty { eventsSection(dpp.events) }
@@ -61,6 +62,42 @@ struct DPPInspectorPanel: View {
         }
     }
 
+    /// 跨源标注（0.7.2）：声明聚合自哪些框架（含跨源 iframe）——每框架
+    /// 一行，跨源框架用朱色标签亮出，视图/动作条目里的 frame 标签对应这里。
+    private var framesSection: some View {
+        Section("Declaration frames (\(tab.browser.frameProtocols.count))") {
+            ForEach(tab.browser.frameProtocols, id: \.url.absoluteString) { fp in
+                HStack {
+                    Text(fp.url.absoluteString)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Spacer()
+                    if isCrossOrigin(fp.url) {
+                        tag("cross-origin", .red)
+                    } else {
+                        tag("frame", .secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// sourceFrame 与页面主框架不同源时返回 true（检查器/审批卡标注口径）。
+    private func isCrossOrigin(_ frameURL: URL) -> Bool {
+        frameURL.host != tab.browser.webView.url?.host
+    }
+
+    /// sourceFrame URL 字符串 → 检查器标签用的 host（解析失败给截断原文）。
+    private func frameTag(_ sourceFrame: String?) -> String? {
+        guard let sourceFrame,
+              let host = URL(string: sourceFrame)?.host, !host.isEmpty else {
+            return sourceFrame.map { String($0.prefix(24)) }
+        }
+        return host
+    }
+
     // MARK: - Views
 
     private func viewsSection(_ views: [String: DesireProtocol.ProtocolView]) -> some View {
@@ -75,7 +112,12 @@ struct DPPInspectorPanel: View {
                         row2(fr.key, fr.value)
                     }
                 } label: {
-                    Text(row.name).font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 6) {
+                        Text(row.name).font(.system(size: 12, weight: .medium))
+                        if let host = frameTag(row.view.sourceFrame) {
+                            tag("frame: \(host)", .red)
+                        }
+                    }
                 }
             }
         }
@@ -116,6 +158,9 @@ struct DPPInspectorPanel: View {
                         }
                         if action.effects == "outbound" {
                             tag("outbound", .orange)
+                        }
+                        if let host = frameTag(action.sourceFrame) {
+                            tag("frame: \(host)", .red)
                         }
                     }
                     if let run = action.run, !run.isEmpty {

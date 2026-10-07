@@ -274,7 +274,8 @@ struct AgentPanel: View {
                         // store.resolveApproval(.alwaysAllow) 内部记录 site grant。
                         store.resolveApproval(.alwaysAllow, siteGrant: true)
                     },
-                    siteHost: store.pendingApprovalSiteHost
+                    siteHost: store.pendingApprovalSiteHost,
+                    sourceFrameHost: store.pendingApprovalSourceFrameHost
                 )
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)

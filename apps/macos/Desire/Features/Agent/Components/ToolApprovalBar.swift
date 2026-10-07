@@ -21,6 +21,8 @@ struct ToolApprovalBar: View {
     var onAlwaysAllowOnSite: ((String) -> Void)? = nil
     /// 审批时记录的页面 host（供按钮文案）。
     var siteHost: String? = nil
+    /// 跨源标注（0.7.2）：动作声明自跨源子框架时的框架 host——nil = 主框架声明。
+    var sourceFrameHost: String? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -41,6 +43,12 @@ struct ToolApprovalBar: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                }
+                if let sourceFrameHost {
+                    Label("声明来自嵌入框架 \(sourceFrameHost)（跨源）——步骤将在该框架内执行",
+                          systemImage: "square.stack.3d.forward.filled")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 HStack(spacing: 8) {
                     Button("Allow Once", action: onAllowOnce)

@@ -47,9 +47,23 @@
     "/demo/guide/": {
       "type": "docs",
       "profile": "docs"
+    },
+    "/demo/feed/": {
+      "type": "feed",
+      "profile": "feed"
+    },
+    "/demo/embed/": {
+      "type": "hub",
+      "profile": "embed"
+    },
+    "/demo/widget/": {
+      "type": "widget",
+      "profile": "member-widget"
     }
   },
   "auth": {
-    "登录": "演示场无需登录；访客身份由页面在本地生成的匿名 client id 标识。"
+    "登录": "演示场无需登录；访客身份由页面在本地生成的匿名 client id 标识。",
+    "loginUrl": "/demo/guide/",
+    "note": "guide 页演示登录态指引的声明与流程（无真实账号体系）。"
   }
 }

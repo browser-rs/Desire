@@ -517,7 +517,7 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 > | 版本 | 主题 | 内容 |
 > |---|---|---|
 > | 0.7.1 | 记忆检索升级（B） | ✓ 阶段一混合规则 ✗（8/15 持平）；阶段二 bge CoreML 已实装（13/15，int8 22MB） |
-> | 0.7.2 | DPP：demo 扩展 + C 收尾 | 演示场丰富、跨源标注、文档站扩规范 |
+> | 0.7.2 | DPP：demo 扩展 + C 收尾 | ✓ 演示场 12 场景（feed/embed 新增）、跨源标注、spec/SDK 文档页 |
 > | 0.7.3 | 悬浮球 v5 | 功能扩充 + 展开动画/视觉设计（原型评审） |
 > | 0.7.4+ | 安全迭代 ×N | 审计→修复循环（桥/提示注入/工具闸门/下载/插件面） |
 > | 0.7.5+ | DevTools 迭代 | 记录/更新/完善（面板能力扩展） |
@@ -547,12 +547,18 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
   top-3 15/15（BM25 基线 8/15），词法陷阱查询修复；评估套件 41/41，真实回合
   日志 `memory rank … via=vector`。
 
-## 0.7.C — DPP 深化收尾
-- L1 扫描进 shadow DOM：盘点确认**已交付**（dppAllRoots + `>>>` 路径在用）——
-  从 backlog 划掉。
-- 审批卡/DevTools 检查器的跨源标注（视图来自子框架时标注来源 URL，切片二的
-  sourceFrame 已有数据面）。
-- 文档站扩充：spec 全文页（§1-§7 逐节）、SDK API 参考；部署节奏并入发版手动活。
+## 0.7.C — DPP 深化收尾 ✓（2026-10-07，0.7.2 交付）
+- L1 扫描进 shadow DOM：已交付（dppAllRoots + `>>>` 路径）；演示场补活场景
+  `demo/feed/`（infinite + shadow DOM 卡片，前导 `>>>` 字段）。
+- 审批卡/DevTools 检查器的跨源标注：已交付——动作声明自跨源子框架时审批卡
+  亮出来源框架 host；DPP 检查器新增 Declaration frames 段 + 条目级 frame 标签
+  （切片二 sourceFrame 数据面点亮）。验证：embed 场景 `DPP frame parse:
+  …/widget/ views=1 actions=1`（桥日志）。
+- 文档站扩充：已交付——`website/dpp/spec.html`（规范全文，生成器
+  tools/gen-dpp-spec-page.py，改规范后重跑）、`website/dpp/sdk.html`
+  （expose/emit/validate 参考 + 宿主行为 + 上线检查单）；部署是发版手动活。
+- 演示场：新增 `demo/embed/`+`demo/widget/`（跨源 iframe 聚合演示，`?widget=`
+  指向第二 origin）；well-known 页面地图补 feed/embed/widget + loginUrl。
 
 ## 0.7.D — passkey 与 WebAuthn（外部依赖观察项）
 - 前置：Apple 签发 private-key-credential 相关 entitlement（申请流程在 docs/，

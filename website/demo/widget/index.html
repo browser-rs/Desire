@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 会员卡小组件（iframe 内嵌） — Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol 演示：设计为跨源 iframe 内嵌的会员卡小组件，自带 DPP 声明——宿主页面聚合其声明后可定向抽取与操作。">
+<script src="../desire-sdk.js"></script>
+<style>
+  html, body { margin: 0; padding: 0.8rem; background: #fff; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; color: #211b13; line-height: 1.6; border: 1px solid #d8cfba; border-radius: 8px; }
+  .w-brand { font-size: 0.72rem; color: #8a7f6f; letter-spacing: 1px; }
+  .w-card { border: 1px solid #d8cfba; border-radius: 8px; background: #f6f1e7; padding: 0.7rem 0.9rem; margin: 0.5rem 0; }
+  .w-holder { font-weight: 700; }
+  .w-tier { font-size: 0.72rem; color: #b98a2f; border: 1px solid #b98a2f66; border-radius: 999px; padding: 0 0.45rem; margin-left: 0.4rem; }
+  .w-points { color: #c03a1a; font-weight: 700; font-size: 1.2rem; }
+  .w-points-label { font-size: 0.72rem; color: #8a7f6f; }
+  button { cursor: pointer; padding: 0.3rem 0.7rem; border: 1px solid #d8cfba; border-radius: 4px; background: #211b13; color: #f6f1e7; font-size: 0.82rem; }
+  .w-note { font-size: 0.72rem; color: #8a7f6f; margin-top: 0.4rem; }
+</style>
+</head>
+<body>
+<div class="w-brand">会员卡小组件 · 设计为跨源 iframe 内嵌</div>
+<div class="w-card" id="widget-card">
+  <span class="w-holder">访客</span><span class="w-tier" id="widget-tier">普通</span>
+  <div><span class="w-points" id="widget-points">120</span> <span class="w-points-label">积分</span></div>
+</div>
+<button id="widget-refresh">刷新余额</button>
+<div class="w-note">本页自带 DPP 声明；宿主聚合后可 pageExtract("member-card") / pageAction("refresh-balance")。</div>
+
+<script>
+// ── 小组件内部状态（与宿主页面零共享——跨源隔离下只能经声明暴露） ──
+var POINTS = 120;
+function render() {
+  document.getElementById("widget-points").textContent = String(POINTS);
+  document.getElementById("widget-tier").textContent = POINTS >= 200 ? "黄金" : "普通";
+  document.getElementById("widget-card").querySelector(".w-holder").textContent =
+    "访客 #" + (1000 + (POINTS % 97));
+}
+document.getElementById("widget-refresh").onclick = function () {
+  // 模拟一次服务端往返的余额刷新（本地确定性微调）
+  POINTS += 10;
+  render();
+};
+
+// ── DPP 声明：widget 自己描述自己（宿主页面聚合它） ─────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "member-widget",
+  page: { type: "widget" },
+  content: { main: "body" },
+  signals: { ready: "#widget-card" },
+  views: {
+    "member-card": {
+      item: "#widget-card",
+      fields: {
+        holder: ".w-holder",
+        tier: ".w-tier",
+        points: { selector: ".w-points", type: "number" }
+      }
+    }
+  },
+  actions: [
+    { name: "refresh-balance", description: "刷新会员卡余额",
+      precondition: "#widget-refresh",
+      run: [ { click: "#widget-refresh" } ],
+      effects: "local" }
+  ],
+  context: {
+    persona: "会员卡小组件（iframe 内嵌）：只回答卡面数据与余额刷新",
+    rules: "本组件嵌入在宿主页面中运行；声明仅暴露卡面只读数据与一个本地刷新动作"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+render();
+</script>
+</body>
+</html>

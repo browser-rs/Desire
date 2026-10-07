@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DPP SDK 参考 — desire.expose / emit / validate</title>
+<meta name="description" content="Desire Page Protocol L3 SDK（desire-sdk.js）API 参考：expose 声明协议、emit 发射事件、validate 开发期校验，以及宿主侧的解析、聚合与审批行为。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --paper: #f6f1e7; --paper-2: #eee7d7; --ink: #211b13; --ink-soft: #6a6150;
+    --cinnabar: #c03a1a; --cinnabar-d: #93290e; --hairline: rgba(33,27,19,0.16);
+    --gold: #b98a2f;
+    --font-display: "Hoefler Text", "Songti SC", "Georgia", serif;
+    --font-body: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15.5px; line-height: 1.75; }
+  a { color: var(--cinnabar-d); text-underline-offset: 3px; }
+  header { padding: 26px 0 0; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 4vw; }
+  .crumbs { font-size: 14px; }
+  h1 { font-family: var(--font-display); font-size: 34px; margin: 26px 0 8px; }
+  h2 { font-family: var(--font-display); font-size: 24px; margin: 38px 0 10px; border-bottom: 1px solid var(--hairline); padding-bottom: 8px; }
+  h3 { font-size: 17px; margin: 24px 0 6px; color: var(--cinnabar-d); }
+  p { margin: 10px 0; }
+  .muted { color: var(--ink-soft); font-size: 13.5px; }
+  pre { background: var(--ink); color: #ece3cd; border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; margin: 14px 0; }
+  code { font-family: var(--font-mono); font-size: 0.9em; background: var(--paper-2); border-radius: 4px; padding: 1px 5px; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: 14px 0; font-size: 13.5px; max-width: 100%; }
+  th, td { border: 1px solid var(--hairline); padding: 6px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--paper-2); font-weight: 700; }
+  ul.plain { list-style: none; margin-top: 12px; }
+  ul.plain li { padding: 8px 0 8px 24px; position: relative; border-bottom: 1px dashed var(--hairline); }
+  ul.plain li:last-child { border-bottom: none; }
+  ul.plain li::before { content: "·"; position: absolute; left: 8px; color: var(--cinnabar); font-weight: 900; }
+  .sig { background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 14px;
+    font-family: var(--font-mono); font-size: 13px; margin: 12px 0 4px; }
+  .sig b { color: var(--cinnabar-d); }
+  footer { padding: 26px 0 46px; color: var(--ink-soft); font-size: 13px; border-top: 1px solid var(--hairline); margin-top: 40px; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="crumbs"><a href="./">← DPP 首页</a> · <a href="./spec.html">规范全文</a> · <a href="https://desire.mankong.icu/desire-sdk.js">SDK 源码</a></div>
+  <h1>DPP SDK 参考</h1>
+  <p class="muted">L3 接入（<code>desire/1</code>）· SDK 版本 1.0 · 与 Desire 浏览器（及任何读取 <code>window.__desireProtocolExposed</code> 的宿主）协同</p>
+</div></header>
+
+<main><div class="wrap">
+
+<h2 id="quickstart">接入</h2>
+<pre><code>&lt;script defer src="https://desire.mankong.icu/desire-sdk.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  desire.expose({
+    protocol: "desire/1",
+    page: { type: "catalog" },
+    content: { main: ".product-grid", ignore: [".ad-slot"] },
+    views: { products: { item: ".card", fields: { title: "h3", price: {selector: ".price", type: "price"} } } },
+    signals: { ready: "[data-app-ready]" },
+    actions: [ { name: "add-to-cart", run: [{ click: ".add-btn" }], effects: "persist" } ],
+    events: { "order-placed": { watch: ".toast.order" } }
+  });
+&lt;/script&gt;</code></pre>
+<p class="muted">SPA 路由变化时重新调用 <code>expose()</code> 即可——SDK 会通知 Desire 重新解析。
+非 Desire 浏览器里 SDK 完全无副作用（只是往 window 挂了一个对象）。</p>
+
+<h2 id="api">API</h2>
+
+<h3>desire.expose(protocol)</h3>
+<div class="sig"><b>desire</b>.expose(protocol: object): void</div>
+<p>声明本页协议。重复调用 = <b>更新</b>（覆盖前一次声明并触发宿主重解析）。
+声明对象即规范的页面级结构（<a href="./spec.html">§4</a>）：<code>page</code> / <code>content</code> /
+<code>signals</code> / <code>views</code> / <code>actions</code> / <code>events</code> / <code>context</code> / <code>profile</code>。
+动作对象形态（命名映射）与数组形态都接受；步骤里的对象 <code>run</code> 会自动序列化。</p>
+
+<h3>desire.emit(name, detail)</h3>
+<div class="sig"><b>desire</b>.emit(name: string, detail?: object): void</div>
+<p>直接向宿主发射协议事件——比 <code>events.watch</code> 的 DOM 监听更精确（无防抖/时序问题）。
+适合订单落定、消息到达等明确时点：</p>
+<pre><code>desire.emit("order-placed", { orderId: "A-1024", total: 128.5 });</code></pre>
+<p class="muted">事件会进入宿主的信任分级（§6）：页面自发事件是提示，不是指令。</p>
+
+<h3>desire.validate()</h3>
+<div class="sig"><b>desire</b>.validate(): { valid: boolean, warnings: string[], views: string[] }</div>
+<p>开发期自检：检查 <code>signals.ready</code> 缺失、无视图、动作缺 name/run，以及
+<b>Profile 契约</b>（规范 <a href="./spec.html">§5</a>）——声明了
+<code>profile: "checkout"</code> 就承诺提供 <code>cart</code>/<code>orderSummary</code> 视图与
+<code>place-order</code> 动作，缺了会逐条列出。结果同时打印到 console。</p>
+
+<h3>desire.debug(on)</h3>
+<div class="sig"><b>desire</b>.debug(on?: boolean): void</div>
+<p>开启/关闭 SDK 的 console 调试日志。</p>
+
+<h2 id="fallback">无 SDK 的等价形态</h2>
+<p>SDK 是可选的：L2 内联声明（设 <code>window.__desireProtocolExposed = {…}</code> 或插入
+<code>&lt;script type="application/x-desire+json"&gt;</code>）与 L0 well-known（站点级
+<code>/.well-known/desire.json</code>：页面地图 + 登录态指引）不引任何脚本。三层可叠加，
+<b>页面级覆盖站点级</b>。演示场每个页面底部都有「SDK 缺席降级」的静态声明块示范。</p>
+
+<h2 id="host">宿主侧行为（Desire 浏览器）</h2>
+<ul class="plain">
+  <li><b>解析时机</b>——导航完成（didFinish）解析页面声明；SDK 的 expose 会主动通知重解析（SPA 场景）。</li>
+  <li><b>跨源 iframe 聚合</b>——子框架的声明按框架聚合；<code>pageExtract</code>/<code>pageAction</code>
+    按声明来源路由进所属框架执行，页面之间互相不可见。DevTools「DPP」页签的
+    Declaration frames 段亮出每个来源框架（跨源标红）。</li>
+  <li><b>审批标注</b>——动作声明自跨源框架时，审批卡上标注来源框架 host；
+    <code>effects: "outbound"</code> / <code>danger</code> / 含 mcp 步骤的动作强制审批。</li>
+  <li><b>事件</b>——watch 命中或 emit 到达时，智能体被唤起处理（宿主做防抖/节流）。</li>
+  <li><b>信任分级</b>——站点声明 &lt; 页面声明 &lt; 用户显式指令；声明只描述能力，
+    执行永远经过访问等级与审批闸门。</li>
+</ul>
+
+<h2 id="checklist">上线检查单</h2>
+<ul class="plain">
+  <li>开发时在 console 跑 <code>desire.validate()</code>，清零 warnings。</li>
+  <li><code>signals.ready</code> 指向数据真正就绪的标记（而不是 DOMContentLoaded）。</li>
+  <li>噪音区（广告/推荐流）标 <code>data-dpp-ignore</code> 或写进 <code>content.ignore</code>。</li>
+  <li>对外不可逆的动作（下单/发帖/支付）声明 <code>effects: "outbound"</code>——会强制审批，这是特性不是负担。</li>
+  <li>有明确业务时点用 <code>desire.emit()</code>，不要让智能体猜 DOM 变化。</li>
+  <li>想让智能体在任意页面认出你的站点？在 <code>/.well-known/desire.json</code> 放页面地图与登录指引。</li>
+</ul>
+
+</div></main>
+<footer><div class="wrap">DPP 由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 · 演示场 <a href="https://desire.mankong.icu/demo/">desire.mankong.icu/demo</a> · 本页零外部依赖</div></footer>
+</body>
+</html>

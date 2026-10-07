@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 嵌入场景 — 跨源 iframe 声明聚合 — Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol 在线演示：宿主页面内嵌一个自带 DPP 声明的 iframe 小组件（可跨源）。展示声明聚合、定向抽取与动作的逐框架路由。">
+<script src="../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; }
+  .howto { border: 1px solid #d8cfba; border-radius: 6px; background: #fff; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: #6b6154; margin: 0.8rem 0; }
+  .howto b { color: #211b13; }
+  #widget-frame { width: 100%; height: 200px; border: 1px dashed #b98a2f; border-radius: 8px; background: #fff; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .host-summary { border: 1px solid #d8cfba; border-radius: 6px; background: #fff; padding: 0.6rem 0.9rem; margin: 0.5rem 0; }
+  .host-summary b { font-size: 0.95rem; }
+  .host-summary .muted { color: #8a7f6f; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<h1>嵌入（跨源 iframe 聚合）</h1>
+<p><span class="status-pill" id="embed-frame-origin">框架：加载中…</span></p>
+<div class="howto">
+  本页是<b>宿主页面</b>：下方 iframe 内是一个自带 DPP 声明的会员卡小组件（源码在
+  <code>demo/widget/</code>）。Desire 会聚合 iframe 的声明——智能体可以
+  <code>pageExtract("member-card")</code> 读卡面、<code>pageAction("refresh-balance")</code>
+  点刷新（执行被路由进所属框架）。<b>真正跨源</b>需要把 widget 部署到第二个 origin，
+  再以 <code>?widget=https://…</code> 指定地址；默认 <code>../widget/</code>
+  为同源回退（聚合与路由同样工作，只是同源）。DevTools「DPP」页签会亮出
+  <b>Declaration frames</b> 与逐条目的 frame 标签。
+</div>
+
+<h2>页面自身的数据（主框架声明）</h2>
+<div class="host-summary" id="embed-summary">
+  <b>会员权益一瞥</b>
+  <div class="muted">黄金会员享 2× 积分 · 生日双倍券 · 优先客服</div>
+</div>
+
+<h2>嵌入的小组件</h2>
+<iframe id="widget-frame" title="会员卡小组件" loading="lazy"></iframe>
+
+<p style="margin-top:2rem;font-size:0.85rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../guide/">指南</a> · <a href="../embed/">嵌入</a> · <a href="../feed/">信息流</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+// ── iframe 地址：?widget=<url> 优先（生产 = 第二 origin），默认同源回退 ──
+(function mountFrame() {
+  var target = new URLSearchParams(location.search).get("widget");
+  if (!target) target = new URL("../widget/", location.href).href;
+  document.getElementById("widget-frame").src = target;
+  var pill = document.getElementById("embed-frame-origin");
+  try {
+    var u = new URL(target);
+    pill.textContent = "框架：" + u.host + (u.origin === location.origin ? "（同源回退）" : "（跨源）");
+    pill.className = "status-pill" + (u.origin === location.origin ? "" : " on");
+  } catch (e) {
+    pill.textContent = "框架地址无效：" + target;
+  }
+})();
+
+// ── DPP 声明（主框架自己的数据；widget 的声明由宿主聚合，不在此声明） ──
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "embed",
+  page: { type: "hub" },
+  content: { main: "body" },
+  signals: { ready: "#widget-frame[src]" },
+  views: {
+    benefits: {
+      item: "#embed-summary",
+      fields: {
+        title: "b",
+        detail: ".muted"
+      }
+    }
+  },
+  context: {
+    persona: "DPP 嵌入演示页的助手：演示宿主聚合 iframe 声明后的定向抽取与逐框架动作路由",
+    rules: "主框架只有 benefits 一个视图；member-card 视图与 refresh-balance 动作来自内嵌框架"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+</script>
+</body>
+</html>

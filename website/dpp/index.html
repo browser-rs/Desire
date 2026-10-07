@@ -73,7 +73,7 @@
 </head>
 <body>
 <header class="wrap">
-  <div class="brand"><span class="seal">欲</span><a href="/">Desire 浏览器</a><span style="color:var(--ink-soft)">/</span><span>DPP</span></div>
+  <div class="brand"><span class="seal">欲</span><a href="/">Desire 浏览器</a><span style="color:var(--ink-soft)">/</span><span>DPP</span><span style="margin-left:auto;font-size:14px"><a href="spec.html">规范全文</a> · <a href="sdk.html">SDK 参考</a></span></div>
 </header>
 
 <div class="wrap">
@@ -141,32 +141,45 @@
   </section>
 
   <section id="demo">
-    <h2><span class="no">04</span>演示商店：真实请求的活样本</h2>
-    <p><a href="https://desire.mankong.icu/demo/">desire.mankong.icu/demo/</a> 是一个按 DPP
-      接入的迷你商店：购物车与下单是<b>真实请求</b>（写入演示服务的内存，非真实交易）。用 Desire 打开后对智能体说：</p>
+    <h2><span class="no">04</span>演示场：真实请求的活样本</h2>
+    <p><a href="https://desire.mankong.icu/demo/">desire.mankong.icu/demo/</a> 是一条
+      <b>十二场景演示街</b>，每个场景对应一类协议特性（数据是示例、下单写演示库，非真实交易）。入口示例：</p>
     <ul class="plain">
-      <li>「列出商品」→ <code>pageExtract("products")</code> 读结构化数据（价格已转数字、SKU 可加购）</li>
-      <li>「把 sku 是 kb-01 的商品加入购物车，再来一把」→ <code>pageAction("add-to-cart", …)</code></li>
-      <li>「去结算」→ <code>pageAction("checkout")</code>——该动作声明了 <code>effects: "outbound"</code>，会先向你请求批准</li>
-      <li>下单成功的那一刻 → 订单列表出现新行，<code>order-placed</code> 事件自动唤起智能体</li>
+      <li><a href="https://desire.mankong.icu/demo/">演示商店</a> ——「列出商品」→
+        <code>pageExtract("products")</code>；「去结算」→ outbound 动作先批准；
+        下单成功 → <code>order-placed</code> 事件自动唤起智能体</li>
+      <li><a href="https://desire.mankong.icu/demo/news/">资讯（paged）</a> ——
+        「把 4 页文章都收集齐」→ 声明式自动翻页</li>
+      <li><a href="https://desire.mankong.icu/demo/feed/">信息流（infinite + shadow DOM）</a> ——
+        滚动加载 + <code>&gt;&gt;&gt;</code> 跨 shadow 边界字段</li>
+      <li><a href="https://desire.mankong.icu/demo/embed/">嵌入（跨源 iframe）</a> ——
+        宿主聚合内嵌小组件的声明，动作路由进所属框架</li>
+      <li><a href="https://desire.mankong.icu/demo/im/">IM</a> / <a href="https://desire.mankong.icu/demo/forum/">论坛</a> /
+        <a href="https://desire.mankong.icu/demo/booking/">预约</a> / <a href="https://desire.mankong.icu/demo/wizard/">向导</a> /
+        <a href="https://desire.mankong.icu/demo/admin/">审核</a> / <a href="https://desire.mankong.icu/demo/dashboard/">看板</a> /
+        <a href="https://desire.mankong.icu/demo/product/">商品</a> / <a href="https://desire.mankong.icu/demo/guide/">登录指引</a></li>
     </ul>
-    <p class="muted">页面右下角的虚线框是 <code>data-dpp-ignore</code> 标注的噪音横幅——智能体会绕开它。</p>
+    <p class="muted">商店页右下角的虚线框是 <code>data-dpp-ignore</code> 标注的噪音横幅——智能体会绕开它。</p>
   </section>
 
   <section id="compat">
     <h2><span class="no">05</span>兼容性与边界</h2>
     <ul class="plain">
       <li>非 Desire 浏览器完全无感：声明只是页面里的静态数据，不执行任何行为。</li>
-      <li>同源 iframe 的声明与提取已支持；跨源 iframe 已完成可行性验证（宿主侧聚合与定向提取），后续版本交付。</li>
-      <li>单页应用：SPA 路由变化会触发重新解析，声明可随时更新。</li>
-      <li>well-known 支持登录态指引（loginUrl 等），帮助智能体在需要时引导用户登录。</li>
+      <li>同源与<b>跨源 iframe</b> 的声明聚合、定向抽取与逐框架动作路由均已支持；
+        宿主与审批卡会标注声明来源框架（见<a href="https://desire.mankong.icu/demo/embed/">嵌入场景</a>）。</li>
+      <li>单页应用：路由变化后重新 <code>expose()</code> 即可，声明可随时更新（SDK 会通知宿主重解析）。</li>
+      <li>well-known 支持登录态指引（loginUrl 等），帮助智能体在需要时引导用户登录；
+        站点在 <code>/.well-known/desire.json</code> 放页面地图即可零改造接入。</li>
+      <li>shadow DOM：open shadow root 内的数据用 <code>&gt;&gt;&gt;</code> 声明即可抽取。</li>
     </ul>
   </section>
 
   <footer>
     <div class="wrap">
       DPP 由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 ·
-      演示服务仅存内存、无持久化 · 本页零外部依赖
+      演示服务仅存内存、无持久化 · 本页零外部依赖 ·
+      <a href="spec.html">规范全文</a> · <a href="sdk.html">SDK 参考</a>
     </div>
   </footer>
 </div>

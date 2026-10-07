@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DPP 规范全文 — Desire Page Protocol v1.1</title>
+<meta name="description" content="Desire Page Protocol（DPP）v1.1 规范全文：设计原则、协议分层、接入形态、核心 Schema、Profile 契约、安全模型与运行时实现。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23c03a1a'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23f6f1e7' font-family='Kaiti SC, STKaiti, serif'%3E%E6%AC%B2%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --paper: #f6f1e7; --paper-2: #eee7d7; --ink: #211b13; --ink-soft: #6a6150;
+    --cinnabar: #c03a1a; --cinnabar-d: #93290e; --hairline: rgba(33,27,19,0.16);
+    --font-display: "Hoefler Text", "Songti SC", "Georgia", serif;
+    --font-body: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15.5px; line-height: 1.75; }
+  a { color: var(--cinnabar-d); text-underline-offset: 3px; }
+  header { padding: 26px 0 0; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 4vw; }
+  .crumbs { font-size: 14px; }
+  h1 { font-family: var(--font-display); font-size: 34px; margin: 26px 0 8px; }
+  .srcnote { color: var(--ink-soft); font-size: 13.5px; margin-bottom: 18px; }
+  nav.toc { background: var(--paper-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px 18px; margin: 18px 0 8px; font-size: 13.5px; line-height: 2; }
+  nav.toc a { margin-right: 14px; white-space: nowrap; }
+  main { padding: 12px 0 40px; }
+  h2 { font-family: var(--font-display); font-size: 25px; margin: 40px 0 10px; border-bottom: 1px solid var(--hairline); padding-bottom: 8px; }
+  h3 { font-size: 19px; margin: 28px 0 8px; }
+  h4 { font-size: 16px; margin: 22px 0 6px; color: var(--cinnabar-d); }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0 10px 24px; }
+  li { margin: 4px 0; }
+  blockquote { border-left: 3px solid var(--cinnabar); background: var(--paper-2); border-radius: 0 8px 8px 0; padding: 10px 16px; margin: 14px 0; }
+  blockquote p { margin: 6px 0; }
+  pre { background: var(--ink); color: #ece3cd; border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; margin: 14px 0; }
+  code { font-family: var(--font-mono); font-size: 0.9em; background: var(--paper-2); border-radius: 4px; padding: 1px 5px; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: 14px 0; font-size: 13.5px; max-width: 100%; }
+  th, td { border: 1px solid var(--hairline); padding: 6px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--paper-2); font-weight: 700; }
+  hr { border: none; border-top: 1px solid var(--hairline); margin: 26px 0; }
+  footer { padding: 26px 0 46px; color: var(--ink-soft); font-size: 13px; border-top: 1px solid var(--hairline); }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="crumbs"><a href="./">← DPP 首页</a> · <a href="./sdk.html">SDK 参考</a> · <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">规范源文件</a></div>
+  <h1>DPP 规范全文（v1.1）</h1>
+  <div class="srcnote">由 <code>docs/DPP-PROTOCOL.md</code> 生成（<code>tools/gen-dpp-spec-page.py</code>）；规范以仓库源文件为准。</div>
+  <nav class="toc"><a href="#1. 设计原则">1. 设计原则</a><a href="#2. 协议分层">2. 协议分层</a><a href="#3. 接入形态（梯度采用）">3. 接入形态（梯度采用）</a><a href="#4. 核心 schema">4. 核心 Schema</a><a href="#5. profile — 场景约定">5. Profile — 场景约定</a><a href="#6. 安全模型">6. 安全模型</a><a href="#7. desire 运行时实现">7. Desire 运行时实现</a><a href="#8. e2e 验证结果">8. E2E 验证结果</a><a href="#9. 已知限制与边界">9. 已知限制与边界</a><a href="#10. 实现状态与演进路线">10. 实现状态与演进路线</a><a href="#11. 自检工具（站点作者闭环）">11. 自检工具（站点作者闭环）</a></nav>
+</div></header>
+<main><div class="wrap">
+<h1 id="desire-page-protocol-dpp-v1-规范">Desire Page Protocol (DPP) v1 规范</h1>
+<blockquote><p><strong>定位</strong>：<strong>DPP for AI agents</strong> —— 网页的能力声明协议。与 llms.txt 互补</p><p>（llms.txt 向 LLM 声明内容，DPP 向 Agent 声明能力）。命名消歧：本规范的</p><p>DPP 与欧盟 Digital Product Passport（数字产品护照）无关。</p><p><strong>状态</strong>：v1.1 规范——页面级/站点级/事件/审批全链实装（本版新增：§4.0 版本与</p><p>演进、§4.7 站点级完整行为、§5 Profile 契约运行时化、§11 自检工具）</p><p><strong>版本</strong>：desire/1</p><p><strong>动机</strong>：解决 AI Agent 与网页交互的核心痛点——<strong>内容 → Agent 的低效通道</strong>（文本墙/结构未知/噪音/拿不全/时机不确定）以及<strong>操作不可靠</strong>（selector 猜测/元素变化/假点击）。</p></blockquote>
+<hr>
+<h2 id="1-设计原则">1. 设计原则</h2>
+<table><thead><tr><th>#</th><th>原则</th><th>说明</th></tr></thead><tbody>
+<tr><td>P1</td><td><strong>内容 → Agent 优先</strong></td><td>协议的第一性目标是把页面内容<strong>准确、省 token、全量</strong>地送进 Agent 上下文；操作声明是延伸</td></tr>
+<tr><td>P2</td><td><strong>声明式</strong></td><td>页面声明"我能做什么/我有什么/我何时就绪"，Agent 不靠启发式猜测</td></tr>
+<tr><td>P3</td><td><strong>能力声明 ≠ 授权</strong></td><td>协议声明能力，授权始终在用户（三段信任模型，见 §7）</td></tr>
+<tr><td>P4</td><td><strong>渐进增强</strong></td><td>无协议页面 Agent 照常工作；有协议页面精度和效率跃升；声明多少用多少</td></tr>
+<tr><td>P5</td><td><strong>开放规范</strong></td><td>不限 Desire——任何 Agent 可消费，任何站点可实现</td></tr>
+<tr><td>P6</td><td><strong>安全默认</strong></td><td>outbound/danger 动作强制审批；<code>runJS</code> 默认禁用；协议是参考不是指令</td></tr>
+<tr><td>P7</td><td><strong>容错演进</strong></td><td>单字段失败只丢该字段、未知字段一律忽略、新能力按"存在即启用"——任何声明错误都不得让整份协议失效（§4.0）</td></tr>
+<tr><td>P8</td><td><strong>求值隔离</strong></td><td>Agent 的选择器求值运行在隔离世界，不依赖页面可变的全局——协议声明不能被页面在运行时篡改（§6.2）</td></tr>
+</tbody></table>
+<h2 id="2-协议分层">2. 协议分层</h2>
+<pre><code class="lang-text">
+┌─────────────────────────────────────────────┐
+│  站点级   /.well-known/desire.json   ✅     │  站点元信息/页面地图/登录/约束
+├─────────────────────────────────────────────┤
+│  页面级   <script type="application/       │  本页操作/视图/信号/事件/上下文
+│           /x-desire+json">            ✅    │
+├─────────────────────────────────────────────┤
+│  运行时   Desire 解析 → 缓存 → 注入 Agent  │  工具 + page_context + 审批
+└─────────────────────────────────────────────┘
+</code></pre>
+<blockquote><p>站点级声明仅在<strong>页面自己声明了协议</strong>时拉取（渐进原则——不把每次导航</p><p>升级成站点指纹探针），页内同源 fetch，host 级缓存 10 分钟。合并语义：</p><p>页面级优先；views/signals/events/context 逐键共存，actions 按名去重。</p></blockquote>
+<h2 id="3-接入形态-梯度采用">3. 接入形态（梯度采用）</h2>
+<table><thead><tr><th>层级</th><th>改造成本</th><th>形态</th><th>适用</th></tr></thead><tbody>
+<tr><td><strong>L0</strong></td><td>零</td><td>既有 JSON-LD/microdata 自动消费</td><td>已有 schema.org 的站点</td></tr>
+<tr><td><strong>L1</strong></td><td>≈5 min</td><td>现有 HTML 加 <code>data-dpp-*</code> 属性</td><td>结构已好，缺语义</td></tr>
+<tr><td><strong>L2</strong></td><td>≈30 min</td><td><code>&lt;script&gt;</code> 块贴 JSON</td><td>SSR/可改模板站点</td></tr>
+<tr><td><strong>L3</strong></td><td>开发时</td><td>SDK <code>desire.expose({...})</code></td><td>新开发的站点</td></tr>
+</tbody></table>
+<p>优先级：<strong>L3 &gt; L2 &gt; L1 &gt; L0</strong>（高形态覆盖低形态的同名字段）。</p>
+<h3 id="3-1-l0-零改造">3.1 L0 — 零改造</h3>
+<p>解析页面已有的 <code>&lt;script type="application/ld+json"&gt;</code>，自动生成隐式 views：</p>
+<table><thead><tr><th>schema.org @type</th><th>生成的 view</th><th>字段</th></tr></thead><tbody>
+<tr><td><code>Product</code></td><td><code>product</code></td><td>name, price, currency, description</td></tr>
+<tr><td><code>Article</code> / <code>NewsArticle</code> / <code>BlogPosting</code></td><td><code>article</code></td><td>headline, articleBody, author, datePublished</td></tr>
+</tbody></table>
+<p><strong>schema.org potentialAction 消费（✅ 实装）</strong>：JSON-LD 里的 <code>potentialAction</code> （SearchAction / ViewAction / OrderAction…）自动映射为 DPP 动作——<code>@type</code> 去 Action 后缀即动作名（可被 <code>name</code> 覆盖）、URL target（含 <code>{占位符}</code>）映射为 <code>navigate</code> 步骤 + params。与 llms.txt 互补：llms.txt 管<strong>内容</strong>发现， DPP 管<strong>能力</strong>发现与执行。</p>
+<p><em>计划扩展</em>：Recipe, Event, LocalBusiness, JobPosting, FAQPage。</p>
+<h3 id="3-2-l1-属性微标注">3.2 L1 — 属性微标注</h3>
+<p>在现有 HTML 元素上加协议属性，Desire 扫描编译：</p>
+<table><thead><tr><th>属性</th><th>含义</th><th>示例</th></tr></thead><tbody>
+<tr><td><code>data-dpp-view="名称"</code></td><td>标记列表容器</td><td><code>&lt;div data-dpp-view="products"&gt;</code></td></tr>
+<tr><td><code>data-dpp-item</code></td><td>标记单条目元素</td><td><code>&lt;div class="card" data-dpp-item&gt;</code></td></tr>
+<tr><td><code>data-dpp-field="字段名"</code></td><td>标记字段（textContent 为值）</td><td><code>&lt;h3 data-dpp-field="title"&gt;</code></td></tr>
+<tr><td><code>data-dpp-field="名" data-dpp-field-attr="属性"</code></td><td>字段值取自属性</td><td><code>&lt;span data-dpp-field="price" data-dpp-field-attr="data-price"&gt;</code></td></tr>
+<tr><td><code>data-dpp-ignore</code></td><td>标记噪音（✅ pageExtract 跳过其子树内条目、快照不列其内交互元素；正文文本不扣减——正文噪音用 content.main）</td><td><code>&lt;nav data-dpp-ignore&gt;</code></td></tr>
+<tr><td><code>data-dpp-action="动作名"</code></td><td>标记动作触发器</td><td><code>&lt;button data-dpp-action="search"&gt;</code></td></tr>
+</tbody></table>
+<h3 id="3-3-l2-声明块">3.3 L2 — 声明块</h3>
+<blockquote><p><strong>CSP 兼容</strong>：声明块是<strong>数据块</strong>（非可执行 script），不受 CSP <code>script-src</code></p><p>限制——严格 CSP 的站点也可用 L2（L3 外链 SDK 则需要把本域加入白名单）。</p></blockquote>
+<pre><code class="lang-html">
+<script type="application/x-desire+json">
+{ /* 完整协议 JSON，见 §4 */ }
+</script>
+</code></pre>
+<h3 id="3-4-l3-原生-sdk-已实装">3.4 L3 — 原生 SDK（✅ 已实装）</h3>
+<pre><code class="lang-html">
+<script src="https://desire.mankong.icu/desire-sdk.js"></script>
+<script>
+  desire.expose({ protocol: "desire/1", views: {...}, signals: {...}, ... });
+  // SPA 路由变化时重新 expose（Desire 自动重新解析）
+  desire.emit("new-message", { conversationId: "…" });   // 精确事件发射
+</script>
+</code></pre>
+<blockquote><p>SDK 公开地址：<code>https://desire.mankong.icu/desire-sdk.js</code>（随产品页部署）。</p></blockquote>
+<h2 id="4-核心-schema">4. 核心 Schema</h2>
+<h3 id="4-0-版本与演进">4.0 版本与演进</h3>
+<table><thead><tr><th>规则</th><th>说明</th></tr></thead><tbody>
+<tr><td>版本标识</td><td>顶层 <code>protocol: "desire/1"</code>（major/minor 语义：<strong>major 变更 = 破坏既有语义</strong>；minor 变更 = 只增不改）</td></tr>
+<tr><td>消费者义务</td><td>未知 major → 降级到核心原语消费；未知字段 → <strong>忽略</strong>；未知枚举值 → 当作未声明</td></tr>
+<tr><td>生产者义务</td><td>新能力<strong>存在即启用</strong>（Agent 用能力探测代替版本判断）；不假设消费者认识新字段</td></tr>
+<tr><td>容错解码</td><td>单字段结构不符只丢该字段并记入 warnings（页面作者经 pageProtocol / <code>/protocol/inspect</code> 自查）；<strong>绝不因一处错误失败整份协议</strong></td></tr>
+<tr><td>字段移除</td><td>desire/1 内不移除已发布字段；废弃走"文档标注 deprecated"→ 下一个 major 才删</td></tr>
+<tr><td>正式 Schema</td><td><code>docs/dpp-schema.json</code>（JSON Schema 2020-12），自检见 §11</td></tr>
+</tbody></table>
+<blockquote><p>这条演进规则是 2026-10 审计的产物：此前 events 对象形态 / context 数组会让</p><p>整份协议静默丢弃——<strong>健壮性必须内建于协议，而不是指望站点永远写对</strong>。</p></blockquote>
+<h3 id="4-1-顶层结构">4.1 顶层结构</h3>
+<pre><code class="lang-json">
+{
+  "protocol":   "desire/1",
+  "page":       { "type": "catalog" },
+  "content":    { "main": "selector", "ignore": ["selector", …] },
+  "signals":    { "ready": "selector", "busy": "selector", "error": "selector" },
+  "views":      { "名称": { ProtocolView } },
+  "actions":    [ { ProtocolAction } ],
+  "events":     { "事件名": "watch-selector" },
+  "context":    { "persona": "…", "domain": […], "rules": "…" },
+  "pages":      { "/product/*": { "profile": "catalog" } }
+}
+</code></pre>
+<blockquote><p><code>pages</code> 仅站点级（well-known）使用——页面地图：路径模式（精确或 <code>前缀*</code>）→</p><p>页面提示（type/profile）。页面自身声明 <code>profile</code> 时优先。</p></blockquote>
+<p><strong>选择器穿透（shadow DOM）</strong>：所有协议选择器（views/signals/actions/events）支持 <strong><code>&gt;&gt;&gt;</code> 穿透语法</strong>——<code>"app-grid &gt;&gt;&gt; product-card &gt;&gt;&gt; .price"</code> 按段下钻 <code>shadowRoot</code> （WebKit 的 querySelector 不穿透 shadow boundary，Desire 在宿主侧逐段解析）。 字段相对 item 的 shadowRoot 用前导 <code>&gt;&gt;&gt;</code>：<code>{ "price": "&gt;&gt;&gt; .p" }</code>。</p>
+<table><thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>protocol</code></td><td>string</td><td>✅</td><td>版本标识，当前 <code>"desire/1"</code>（兼容读取 <code>protocolVersion</code>）</td></tr>
+<tr><td><code>profile</code></td><td>string</td><td>⬜</td><td>场景约定名（§5：chat/catalog/forms/checkout/monitor/workbench）——✅ 运行时解析并透传给 Agent；页面未声明时可由站点级页面地图（<code>pages</code>）按路径补全</td></tr>
+<tr><td><code>page.type</code></td><td>string</td><td>⬜</td><td>页面类型标注（<code>chat</code>/<code>catalog</code>/<code>forms</code>/<code>workbench</code>/<code>monitor</code>），仅供参考</td></tr>
+<tr><td><code>content.main</code></td><td>selector</td><td>⬜</td><td>正文选择器——文本抽取只取此处，排除噪音</td></tr>
+<tr><td><code>content.ignore</code></td><td>selector[]</td><td>✅</td><td>噪音区域：抽取跳条目、快照不列元素、<strong>正文文本扣减</strong>（clone 剔除 + 块级换行）</td></tr>
+<tr><td><code>signals</code></td><td>object</td><td>⬜</td><td>生命周期信号（见 §4.2）</td></tr>
+<tr><td><code>views</code></td><td>map</td><td>⬜</td><td>命名数据视图（见 §4.3）</td></tr>
+<tr><td><code>actions</code></td><td>array</td><td>⬜</td><td>声明式动作（见 §4.4）</td></tr>
+<tr><td><code>events</code></td><td>map</td><td>⬜</td><td>事件订阅（见 §4.5）</td></tr>
+<tr><td><code>context</code></td><td>map</td><td>⬜</td><td>语义上下文（见 §4.6）</td></tr>
+</tbody></table>
+<h3 id="4-2-signals-生命周期信号">4.2 signals — 生命周期信号</h3>
+<table><thead><tr><th>信号</th><th>说明</th><th>Agent 行为</th></tr></thead><tbody>
+<tr><td><code>ready</code></td><td>页面就绪（Agent 可开始操作）</td><td>navigate 后自动等待此信号再返回结果</td></tr>
+<tr><td><code>stable</code></td><td><strong>数据完整</strong>（懒加载/增量拉取结束）——与 ready 区分：ready 是首屏渲染，stable 是"再读不会变"</td><td>navigate 在 ready 之后继续等 stable（有声明时，6s 超时如实报告），避免读到骨架屏</td></tr>
+<tr><td><code>busy</code></td><td>正在处理（Agent 暂停操作）</td><td>click/fill 后检查 busy，等到消失再返回</td></tr>
+<tr><td><code>error</code></td><td>错误提示（action 执行后检测）</td><td>action 执行后检查 error 信号判断成败</td></tr>
+</tbody></table>
+<blockquote><p><strong>实现状态（2026-10-02 晚，已接线；stable 2026-10-04）</strong>：<code>navigate</code> 在页面声明</p><p><code>signals.ready</code> 时等就绪信号出现再返回（6s 超时如实报告）；声明 <code>signals.stable</code></p><p>时 ready 后<strong>继续等 stable</strong>（结果注明是否观察到）；<code>pageAction</code> 完成步骤后等</p><p><code>signals.busy</code> 消失再判成败（持续 5s 会在结果里注明）。signals 同时在</p><p><code>pageProtocol</code> / <code>/protocol/inspect</code> 中展示。</p></blockquote>
+<h3 id="4-3-views-命名数据视图">4.3 views — 命名数据视图</h3>
+<pre><code class="lang-json">
+"视图名": {
+  "item":       "selector",                  // 列表项选择器
+  "fields": {
+    "字段名":   "selector",                  // 子选择器 → textContent
+    "字段名":   "@attr",                     // item 自身的属性
+    "字段名":   "selector@attr",             // 子选择器的属性
+    "字段名":   "@text",                     // item 自身的 textContent
+    "字段名":   { "selector": ".price", "type": "price" }   // 对象形态（可带类型）
+  },
+  "pagination": { "type": "paged", "next": "selector" }
+}
+</code></pre>
+<p><strong>类型化字段（✅ 实装）</strong>——对象形态的字段可声明 <code>type</code>，抽取时强转， Agent 直接拿到类型化数据（失败回退原始字符串，宁可不转不可丢数据）：</p>
+<table><thead><tr><th>type</th><th>语义</th></tr></thead><tbody>
+<tr><td><code>string</code>（默认）</td><td>文本（连续空白折叠）</td></tr>
+<tr><td><code>number</code> / <code>price</code></td><td>数值；<code>price</code> 额外剔除货币符号与千分位（<code>¥1,299</code> → 1299）</td></tr>
+<tr><td><code>url</code></td><td>相对地址按页面解析为绝对 URL</td></tr>
+<tr><td><code>date</code></td><td>解析为 ISO 8601 字符串</td></tr>
+<tr><td><code>bool</code></td><td><code>"true"</code> / <code>"1"</code> → true</td></tr>
+</tbody></table>
+<pre><code class="lang-json">
+"fields": {
+  "title": ".name",
+  "price": { "selector": ".price", "type": "price" },
+  "link":  { "attr": "href", "type": "url" }
+}
+</code></pre>
+<p><code>pagination.type</code>：</p>
+<ul>
+<li><code>"paged"</code>：有下一页按钮 → <code>pageExtract(all=true)</code> 自动翻页收集 ✅</li>
+<li><code>"infinite"</code>：无限滚动 → <code>pageExtract(all=true)</code> 滚动到底收集（序列化去重、连续两轮无新增即到底） ✅</li>
+<li><code>"none"</code>：无分页</li>
+</ul>
+<h4 id="4-3-1-content-sections-命名分区读取-2026-10-04">4.3.1 content.sections — 命名分区读取（2026-10-04）</h4>
+<p>痛点：智能体读网页只能"整页文本"或"main 正文"——评论区、资费表、FAQ、 标签页面板等<strong>语义区块</strong>无法单独读，长文页面整页读浪费 token 且精度差。</p>
+<pre><code class="lang-json">
+"content": {
+  "main": "#doc",
+  "sections": {
+    "overview": "#g-overview",
+    "pricing": "#g-pricing",
+    "faq": "#g-faq",
+    "changelog": "#g-changelog"
+  }
+}
+</code></pre>
+<ul>
+<li>智能体侧：<code>getPageText(section: "faq")</code> 只返回该分区文本；未知分区<strong>明确失败</strong></li>
+<p>并列出可用分区名（引导模型改参，绝不静默猜）。</p>
+<li>声明侧：名字用语义名（智能体可读），值为 CSS 选择器；站点级 well-known 可</li>
+<p>整表提供，页面级逐键覆盖。</p>
+<li>实现状态：✅ 已实装（解码/合并/pageText/hints/inspect 全链）。</li>
+</ul>
+<h4 id="4-3-2-表格数据声明约定">4.3.2 表格数据声明约定</h4>
+<p>大表格（对账单/比价表/资费表）文本化后列对齐全丢——智能体读 HTML 表格是知名 痛点。DPP 不需要新机制：<strong>用 views 把行声明成条目</strong>，每列是一个字段：</p>
+<pre><code class="lang-json">
+"views": {
+  "plans": {
+    "item": "#pricing tbody tr",
+    "fields": {
+      "plan": "td:nth-child(1)",
+      "monthly": { "selector": "td:nth-child(2)", "type": "price" },
+      "devices": { "selector": "td:nth-child(3)", "type": "number" }
+    }
+  }
+}
+</code></pre>
+<p>约定：<code>item</code> 指向 <code>tbody tr</code>，字段用 <code>td:nth-child(n)</code> 按列取值并标注类型； 表头行用 <code>thead</code> 的字段名单独声明或省略。<code>pageExtract("plans")</code> 即得结构化 行数据，列对齐由选择器保证。</p>
+<h3 id="4-4-actions-声明式动作">4.4 actions — 声明式动作</h3>
+<pre><code class="lang-json">
+{
+  "name":        "search-videos",
+  "description": "按关键词搜索视频列表",
+  "params": {
+    "keyword": { "type": "string", "required": true, "description": "搜索关键词" },
+    "page":    { "type": "number", "required": false }
+  },
+  "precondition": ".list-loaded",             // 前置条件选择器
+  "run": [                                      // 步骤 DSL（见下方）
+    { "fill":  { "#search-input": "{keyword}" } },
+    { "click": "#search-btn" },
+    { "waitForText": "搜索结果" }
+  ],
+  "effects":     "persist",                    // local | persist | outbound
+  "danger":      false,
+  "success":     "搜索完成"                     // 成功信号文本
+}
+</code></pre>
+<p><strong>步骤 DSL 原子操作</strong>（✅ = 已实装；未列的写法会明确报错，不会静默假成功）：</p>
+<table><thead><tr><th>操作</th><th>参数</th><th>说明</th><th>状态</th></tr></thead><tbody>
+<tr><td><code>fill</code></td><td><code>{ "selector": "值" }</code></td><td>填充输入框（补发 input+change 事件）</td><td>✅</td></tr>
+<tr><td><code>click</code></td><td><code>"selector"</code></td><td>点击元素</td><td>✅</td></tr>
+<tr><td><code>select</code></td><td><code>{ "selector": "值" }</code></td><td>选择下拉选项</td><td>✅</td></tr>
+<tr><td><code>waitForText</code></td><td><code>"文本"</code></td><td>等待文本出现（最长 5s，超时=步骤失败）</td><td>✅</td></tr>
+<tr><td><code>waitFor</code></td><td><code>"selector"</code></td><td>等待元素出现（最长 5s）</td><td>✅</td></tr>
+<tr><td><code>hover</code></td><td><code>"selector"</code></td><td>悬停（派发 mouseover/mouseenter/mousemove）</td><td>✅</td></tr>
+<tr><td><code>pressKey</code></td><td><code>"key"</code></td><td>向 activeElement 派发 keydown/keyup</td><td>✅</td></tr>
+<tr><td><code>upload</code></td><td><code>{ "selector": "filePath" }</code></td><td>文件上传（复用 UploadIntent：arm + 点击选择器自动提交）</td><td>✅</td></tr>
+<tr><td><code>navigate</code></td><td><code>"url"</code></td><td>跳转（支持 <code>{占位符}</code> 模板；等待主框架完成 ≤8s；potentialAction URL target 的映射形态）</td><td>✅</td></tr>
+</tbody></table>
+<p><strong>模板变量</strong>：<code>{参数名}</code> → 由 Desire 用 <code>args</code> 填充（如 <code>{keyword}</code> → <code>"DPP"</code>；选择器与值都填充）。 <strong>required 参数</strong>缺失、<strong>precondition</strong> 选择器 3s 内未出现 → 工具失败（带 <code>Error:</code> 前缀；水合中的页面不会秒判失败）。 <strong>任一步骤失败</strong> → 动作中止并报告失败步骤与已完成步骤（绝不假报成功）。</p>
+<p><strong>模板变量</strong>：<code>{参数名}</code> → 由 Desire 用 <code>args</code> 填充（如 <code>{keyword}</code> → <code>"DPP"</code>）。</p>
+<p><strong>effects 分级</strong>：</p>
+<table><thead><tr><th>级别</th><th>含义</th><th>Agent 闸门</th></tr></thead><tbody>
+<tr><td><code>local</code></td><td>纯页面内操作，可逆</td><td>默认 sideEffect 档审批</td></tr>
+<tr><td><code>persist</code></td><td>写入站点数据（站点内可撤销）</td><td>默认 sideEffect 档审批</td></tr>
+<tr><td><code>outbound</code></td><td>对外不可逆（发消息/下单/发邮件）</td><td><strong>强制审批</strong>（升级 dangerous 档，白名单/自动编辑不放行）</td></tr>
+</tbody></table>
+<p><strong><code>danger: true</code></strong>：无论 effects 级别，强制审批。 <strong>闸门实现</strong>（2026-10-02 审计修复）：<code>AgentSessionStore.effectiveRisk</code> 在审批闸门处读取 当前页协议中该动作的 <code>danger/effects</code> 声明并升级风险档——协议声明能力 ≠ 授权， Desire 强制最终闸门；审批卡显示 <code>host · 动作名 · 描述 · [effects/danger]</code>。</p>
+<h3 id="4-5-events-声明式事件">4.5 events — 声明式事件</h3>
+<pre><code class="lang-json">
+"events": {
+  "new-message":      { "watch": ".msg.unread", "debounce": 2 },
+  "approval-arrived": { "watch": ".pending-approval", "debounce": 5 },
+  "price-change":     { "watch": "#price", "on": "text-change" }
+}
+</code></pre>
+<table><thead><tr><th>字段</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>watch</code></td><td>监听选择器（出现即触发）</td></tr>
+<tr><td><code>debounce</code></td><td>防抖秒数（宿主统一处理，见下）</td></tr>
+</tbody></table>
+<p><strong>两种形态都合法</strong>：值也可以直接写选择器字符串（简写形态）。对象形态由解析器 展平取 <code>watch</code>（<code>debounce</code>/<code>on</code> 由宿主事件层统一处理并在 warnings 里注明）。</p>
+<p><strong>触发语义（契约）</strong>：</p>
+<ul>
+<li>监听在<strong>匹配数由 0 变正</strong>的跳变时上报——不是"匹配存在期间的每次 DOM 变动"</li>
+<p>（那是聊天页的消息风暴，且会永久吞掉同窗跳变）。<code>on</code> 字段接受但当前忽略 （宿主统一按跳变监听；text-change 细粒度触发为后续版本）。</p>
+<li>风暴防护在<strong>宿主</strong>：同事件 3s 防抖 + 单 host 60s 滑动窗口限频（10 条）。</li>
+<p>页面侧不做节流——协议鼓励如实上报，聚合由消费者负责。</p>
+<li>命中后经事件管道触发<strong>事件驱动回合</strong>；per-site 档位 off/draft/auto 经桥</li>
+<p><code>POST /dpp/mode</code> 管理；<strong>outbound/danger 动作的强制审批不随档位放水</strong>。</p>
+<li><strong>事件同意（consent）</strong>：默认档 = <strong>off</strong>——事件自动唤起智能体会消耗</li>
+<p>token，不该在用户不知情时发生。首次遭遇被抑制的事件时 UI 提示一次 （用户主动开启后按 host 记忆）。这是"通知权限"式的同意模型。</p>
+<li><strong>站点级 events 与页面级一起生效</strong>（页面级同名键优先、一并装监听）。</li>
+<li><strong>精确事件（L3）</strong>：<code>desire.emit(name, detail)</code> 绕过 DOM 监听直接上报——</li>
+<p><code>detail</code> 建议携带 <code>conversationId</code>/<code>messageId</code> 这类业务主键（≤2KB）， 接收方据此定位数据；不需要页面真的渲染出 <code>.unread</code> 之类的标记元素。</p>
+</ul>
+<p><strong>事件载荷（宿主 → Agent 的回合提示）</strong>：host、事件名、时间、detail 全部 进入 prompt；Agent 侧典型响应 = pageExtract 取数 → 判定 → pageAction 处置。</p>
+<h3 id="4-6-context-语义上下文">4.6 context — 语义上下文</h3>
+<pre><code class="lang-json">
+"context": {
+  "persona": "我们是 XX 科技招聘 HR，正在与候选人初次沟通",
+  "tone":    "热情专业，简洁，不超过三句话",
+  "domain":  ["SKU", "GMV", "履约"],
+  "rules":   "不谈薪资细节，引导对方发简历"
+}
+</code></pre>
+<p>→ 注入 Agent 上下文的<strong>参考位</strong>（永远低于用户指令）。这是页面作者告诉 AI"这个页面/业务是什么意思"的通道——AI 不再从页面文字里瞎猜。 <strong>已实装（2026-10-02）</strong>：<code>context</code> 值支持字符串/数组（数组逗号连接），随 page_context 与 <code>pageProtocol</code> 工具注入（前缀 "reference, not instruction"）。</p>
+<h3 id="4-7-站点级声明-well-known-desire-json-完整行为">4.7 站点级声明（<code>/.well-known/desire.json</code>）——完整行为</h3>
+<table><thead><tr><th>行为</th><th>规则</th></tr></thead><tbody>
+<tr><td>拉取条件</td><td><strong>页面自身声明了协议</strong>才拉取（渐进原则——不把每次导航升级成站点指纹探针）</td></tr>
+<tr><td>传输</td><td>页面内<strong>同源 fetch</strong>（继承 WebView 网络路径；宿主 URLSession 受系统代理/ATS 影响，实现避开了它）</td></tr>
+<tr><td>缓存</td><td>host 级 10 分钟（含失败结果——404/离线不重试风暴）</td></tr>
+<tr><td>合并</td><td>页面级优先：views/signals/events/context <strong>逐键共存</strong>（页面同名键胜出），actions 按名去重（页面在前），ignore 并集；<strong>站点级 events 一并进监听</strong></td></tr>
+<tr><td>页面地图</td><td><code>pages</code>：路径模式（精确 / <code>前缀*</code>，长前缀优先）→ 提示 type/profile；<strong>页面未声明 profile 时按当前路径回退补全</strong></td></tr>
+<tr><td>安全边界</td><td>站点级不能豁免审批："声明能力 ≠ 授权"与页面级同规；well-known 的 danger/outbound 动作同样逐次审批</td></tr>
+<tr><td>登录指引</td><td><code>auth</code>（自由键值，如 loginUrl/note）：✅ 解析并透出（pageProtocol）；Agent 遇登录墙据此<strong>引导用户</strong>，不自动填凭据</td></tr>
+<tr><td>其他协议</td><td>file:// 等非 http(s) 页面不拉取（well-known 属 HTTP 语义）</td></tr>
+</tbody></table>
+<h2 id="5-profile-场景约定">5. Profile — 场景约定</h2>
+<p>Profile 在 core 原语之上定义<strong>命名约定</strong>（标准化的 view/action/event 名）——Agent 见 profile 名即知标准语义，不必逐页探索。</p>
+<blockquote><p><strong>实现状态（2026-10-03）</strong>：<code>profile</code> 由运行时解析并<strong>透传给 Agent</strong></p><p>（pageProtocol 工具 / page_context / <code>/protocol/inspect</code> 均可见），</p><p>页面未声明时经站点级页面地图（<code>pages</code>）按路径回退补全。约定本身靠</p><p><strong>必选原语表</strong>约束——站点照表声明，Agent 照表消费。</p></blockquote>
+<p><strong>Profile 契约</strong>（站点声明 profile = 承诺这些原语存在；Agent 可依赖它们）：</p>
+<table><thead><tr><th>Profile</th><th>必选原语</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>chat</code></td><td>views.conversations（id/name/unread/lastMessage）、views.activeThread（from/text/time）、actions.send-message（<strong>outbound</strong>）、events.new-message</td><td>IM/客服/招聘沟通</td></tr>
+<tr><td><code>catalog</code></td><td>views.items（+ pagination）、actions.search</td><td>商品/视频/文章列表</td></tr>
+<tr><td><code>forms</code></td><td>views.formFields、actions.submit（<strong>outbound</strong>）</td><td>表单/申请/注册</td></tr>
+<tr><td><code>checkout</code></td><td>steps（cart→shipping→payment→confirm）、views.cart/orderSummary、actions.place-order（<strong>danger</strong>）</td><td>多步结算</td></tr>
+<tr><td><code>monitor</code></td><td>events（变化监听为核心）、views.&lt;指标&gt;</td><td>价格/库存/状态监控</td></tr>
+<tr><td><code>workbench</code></td><td>views.records/dashboard、actions.&lt;管理操作&gt;（按 danger 标注）、events.approval-arrived</td><td>后台管理</td></tr>
+</tbody></table>
+<blockquote><p>校验：<code>desire.validate()</code>（SDK 内置轻量检查）+ <code>tools/dpp-validate.py</code></p><p>（完整校验，见 §11）都会提示 profile 缺失的原语。</p></blockquote>
+<h3 id="chat-profile-运行时透传-按-5-契约表消费">chat profile（✅ 运行时透传；按 §5 契约表消费）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "chat",
+  "views": {
+    "conversations": { "item": ".conversation-item", "fields": {
+      "id": "@data-conv-id", "name": ".who", "unread": "@data-unread",
+      "lastMessage": ".preview", "context": "@data-ai-context" } },
+    "activeThread": { "item": ".bubble", "fields": {
+      "from": "@data-from", "text": ".msg-text", "time": "@data-time" } }
+  },
+  "actions": [
+    { "name": "open-conversation", "params": {"id": {"type":"string","required":true}},
+      "run": [{ "click": ".conversation-item[data-conv-id='{id}']" }],
+      "run": [{ "click": ".conversation-item[data-conv-id='{id}']" },
+              { "waitFor": ".thread-loaded" }] },
+    { "name": "send-message", "effects": "outbound", "danger": true,
+      "params": {"text": {"type":"string","required":true}},
+      "run": [{ "fill": {"#input-box": "{text}" } }, { "click": "#btn-send" }] }
+  ],
+  "events": { "new-message": { "watch": ".msg.unread", "debounce": 2 } },
+  "context": { "persona": "…招聘 HR…", "guardrails": "不谈薪资细节" }
+}
+</code></pre>
+<h3 id="catalog-profile-契约已定义-原语全链可用">catalog profile（✅ 契约已定义；原语全链可用）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "catalog",
+  "views": { "items": { "item": ".product-card", "fields": { … }, "pagination": { "type": "paged", "next": ".next" } } },
+  "actions": [ { "name": "search", … }, { "name": "filter", … } ]
+}
+</code></pre>
+<h3 id="forms-profile-契约已定义-上传步骤已实装">forms profile（✅ 契约已定义；上传步骤已实装）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "forms",
+  "views": { "formFields": { "item": "form", "fields": {
+    "email": "input[type=email]", "phone": "input[type=tel]", … } } },
+  "actions": [ { "name": "submit", "effects": "outbound", … } ]
+}
+</code></pre>
+<h3 id="checkout-profile-契约已定义-place-order-走-danger-强制审批">checkout profile（✅ 契约已定义；place-order 走 danger 强制审批）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "checkout",
+  "views": { "cart": { … }, "orderSummary": { … } },
+  "actions": [
+    { "name": "place-order", "effects": "outbound", "danger": true, … },
+    { "name": "apply-coupon", … }
+  ],
+  "steps": ["cart", "shipping", "payment", "confirm"]
+}
+</code></pre>
+<h3 id="monitor-profile-事件基建已实装">monitor profile（✅ 事件基建已实装）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "monitor",
+  "views": { "metrics": { … } },
+  "events": { "price-change": { "watch": "#price", "on": "text-change" },
+               "stock-low": { "watch": ".stock[data-low]", "debounce": 10 } }
+}
+</code></pre>
+<h3 id="workbench-profile-契约已定义">workbench profile（✅ 契约已定义）</h3>
+<pre><code class="lang-json">
+{
+  "profile": "workbench",
+  "views": { "records": { … }, "dashboard": { … } },
+  "actions": [ … 多个管理操作，标注 danger/effects … ],
+  "events": { "approval-arrived": { … } }
+}
+</code></pre>
+<h3 id="5-1-可视化到白板-宿主能力约定-2026-10-04">5.1 可视化到白板（宿主能力约定，2026-10-04）</h3>
+<p>页面<strong>不需要</strong>为可视化声明新原语：声明好 views 即可被智能体提取并渲染到 宿主白板（思维导图/流程图/数据图表，Mermaid + ECharts 本地引擎）。可选引导：</p>
+<pre><code class="lang-json">
+"context": { "visualization": "metrics 视图适合柱状图；relations 适合思维导图" }
+</code></pre>
+<p>约束：白板是<strong>用户的</strong>画布——页面只能建议（context 提示），不能直接写入； 智能体是否采纳、用户是否放行（outbound 审批不适用——白板写入是本地纯 UI， 但仍是显式的用户可见动作）由宿主闸门决定。</p>
+<h2 id="6-安全模型">6. 安全模型</h2>
+<h3 id="6-1-三段信任">6.1 三段信任</h3>
+<pre><code class="lang-text">
+站点协议（声明能力） × 用户策略（per-site 放权范围） × Desire 闸门（outbound/danger 审批）
+</code></pre>
+<p>协议声明能力，<strong>不等于授权</strong>。用户策略控制每个站点允许什么，Desire 强制执行最终闸门。</p>
+<h3 id="6-2-求值隔离-2026-10-03-审计后确立">6.2 求值隔离（2026-10-03 审计后确立）</h3>
+<p><strong>工具求值不得依赖页面可变的全局。</strong> Agent 的全部页面 JS 求值（DPP 选择 器、<code>__desireSnapshot</code>/<code>__desireClick</code> 等 dom-tools 函数、<code>eval</code> 帮手） 运行在隔离 content world <code>desireAgentTools</code>——<strong>dom-tools.js 只注入该世 界</strong>（第三轮指导 4：页面世界不再注入，页面覆盖/猴补从根上不可达）。DOM 跨世界共享，click/fill/scroll 语义不变。 <strong>留页面世界的例外</strong>（各自有独立脚本/语义）：协议解析器（读页面的 <code>window.desire</code> / <code>__desireProtocolExposed</code>）、<strong>executeJS</strong>（语义就是 页面上下文执行）、<strong>dpp-route-watch.js</strong>（包装页面自己的 history.pushState/replaceState + popstate/hashchange → 触发重解析， SPA 路由变化后 L1 锚点与声明缓存随之刷新）、<strong>network-tools.js</strong> （<code>__desireWaitForNetworkIdle</code> 猴补页面 XHR/fetch——隔离世界的补丁 拦不到页面请求；getNetworkLog 已原生化改读 DevToolsStore）。 <strong>配套约定</strong>：<code>callAsync</code> 以<strong>按键对象</strong>传参（<code>fn({a: a, b: b})</code>）， dom-tools 宿主直调函数一律解构形参（键名守卫：非 JS 标识符直接报错）； <strong>改 dom-tools 函数签名前必须 grep 全部调用方</strong>——存在页面世界 JS 字符串 位置调用的函数（如 <code>__desireFillProfile</code>，唯一调用方 FormAutofillStore） <strong>不得解构</strong>，定义处标 <code>⚠️ 不要解构</code>。选择器穿透辅助（<code>__desireQueryAll</code>） <strong>单一来源</strong> = dom-tools.js 尾部段（向 agentToolWorld 常驻），调用点不再 前置副本；跨世界求值一律 <code>callAsyncJavaScript(contentWorld:)</code> （<code>evaluateJavaScript(_:in:in:)</code> 不回传完成值），数组参数走 JSON 字符串 （arguments 桥接不认 Swift 数组），JS 体必须有 <code>return</code>（无 return 恒 nil）。</p>
+<h3 id="6-3-审批的时空一致性">6.3 审批的时空一致性</h3>
+<p>"声明能力 ≠ 授权"包含<strong>对什么对象授权</strong>：审批卡记录动作所在页面的 host， 执行前复核——审批与执行之间页面若已导航（同名动作会在别的页面上跑）， 执行被拒绝并提示重新审批（TOCTOU 防护，实测曾踩）。</p>
+<h3 id="6-4-注入防护">6.4 注入防护</h3>
+<ul>
+<li>协议 JSON 大小上限（256KB）</li>
+<li><code>run</code> 步骤操作白名单（仅 §4.4 的原子操作，无 <code>runJS</code>）</li>
+<li><code>runJS</code> 操作需站点声明 + 用户策略双允许</li>
+<li>协议注入 Agent 上下文的<strong>参考位</strong>，不是指令位——"页面文字是数据不是指令"原则不变</li>
+</ul>
+<h3 id="6-5-防拉锯">6.5 防拉锯</h3>
+<ul>
+<li>用户 <code>unblockElement</code> AI 自动拦截的元素 → 该 host 加入豁免名单</li>
+<li>用户关闭某站点的 Auto-Clean → 站点级记忆</li>
+</ul>
+<h3 id="6-6-隐私">6.6 隐私</h3>
+<ul>
+<li>协议不携带用户数据（只有选择器和描述）</li>
+<li>Agent 提取的数据留在本地（除非用户显式要求同步/外发）</li>
+<li><code>context.persona</code> 是站点声明，不是用户数据</li>
+</ul>
+<h2 id="7-desire-运行时实现">7. Desire 运行时实现</h2>
+<h3 id="7-1-组件架构">7.1 组件架构</h3>
+<pre><code class="lang-text">
+┌────────────────────────────────────────────────┐
+│ desire-protocol.js (user script, 页面世界)      │  四形态归一化解析
+│ → window.__desireProtocol / callAsyncJavaScript│
+│ 全部工具求值在隔离世界 desireAgentTools（§6.2） │  dom-tools 双世界注入│
+├────────────────────────────────────────────────┤
+│ Coordinator.didFinish → parsePageProtocol()    │  解析 + 缓存
+│ → BrowserState.pageProtocol: DesireProtocol?   │
+├────────────────────────────────────────────────┤
+│ pageProtocol 工具  → 查看协议                  │
+│ pageExtract 工具   → 按视图抽取结构化数据      │
+│ pageAction 工具    → 执行声明式动作            │
+├────────────────────────────────────────────────┤
+│ page_context 增强  → DPP 摘要注入 system 层   │
+│ PageEventHub      → 事件 → AgentScheduler     │
+│ MutationObserver  → 0→正 跳变上报（页内）      │
+│ 审批闸门           → outbound/danger 强制审批   │
+└────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="7-2-agent-工具清单">7.2 Agent 工具清单</h3>
+<blockquote><p><strong><code>whiteboard</code>（宿主内置，2026-10-04）</strong>：把内容渲染成思维导图 / 流程图 / 数据图表</p><p>（Mermaid + ECharts 本地引擎）。与 DPP 的协同：页面只需声明好 <strong>views</strong>（本职），</p><p>智能体 <code>pageExtract</code> 取数后即可 <code>whiteboard</code> 可视化——页面<strong>不能</strong>直接写用户的</p><p>白板（声明能力 ≠ 授权，白板归属用户）；页面想引导时可在 <code>context</code> 里加自由提示</p><p>（如 <code>visualization: "pricing 视图适合柱状图"</code>），是否采纳由智能体与用户决定。</p></blockquote>
+<table><thead><tr><th>工具</th><th>参数</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>pageProtocol</code></td><td>（无）</td><td>查看当前页面的 DPP 协议（views/signals/actions/events/context/ignore；站点级来源会标注）</td></tr>
+<tr><td><code>pageExtract</code></td><td><code>view: string, all?: bool</code></td><td>按视图抽取结构化数据；<code>all=true</code> 跟随分页</td></tr>
+<tr><td><code>pageAction</code></td><td><code>name: string, args?: object</code></td><td>执行声明的动作（模板变量填充 + 步骤 DSL 执行）</td></tr>
+</tbody></table>
+<h3 id="7-3-page_context-增强">7.3 page_context 增强</h3>
+<p>当页面有 DPP 协议时，Agent 的 system 层自动附加：</p>
+<pre><code class="lang-text">
+[DPP] This page declares a Desire Page Protocol:
+Views (pageExtract): articles(fields: summary, title, url, views)
+Main content selector: .article-body
+Actions (pageAction): search
+</code></pre>
+<p>模型无需调工具就知道页面能提供什么结构化数据、有什么可执行操作。</p>
+<h2 id="8-e2e-验证结果">8. E2E 验证结果</h2>
+<blockquote><p>2026-10-02 审计修复后全量复验（离屏 WKWebView 探针 + 真实解析器/解码器/抽取器）。</p><p>修复前 L0/L1 两行是<strong>假绿</strong>：抽取返回了 JSON 但字段全空/条目是错元素。</p></blockquote>
+<table><thead><tr><th>场景</th><th>结果</th></tr></thead><tbody>
+<tr><td>L2 声明块页 → pageProtocol 查看视图/信号/动作</td><td>✅</td></tr>
+<tr><td>L2 声明块页 → pageExtract 返回<strong>正确字段值</strong> JSON</td><td>✅</td></tr>
+<tr><td>L2 声明块页 → pageAction fill+click 全链执行</td><td>✅</td></tr>
+<tr><td>L1 属性页 → data-dpp-* 扫描 → pageExtract（<strong>全部条目</strong>、字段值正确）</td><td>✅</td></tr>
+<tr><td>L1 容器自身即条目（view+item 同元素）→ 单条目抽取</td><td>✅</td></tr>
+<tr><td>L0 JSON-LD 页 → Product 字段经逗号回退选择器抽取</td><td>✅</td></tr>
+<tr><td>规范原文形态：events 对象 {watch,…} / context 数组</td><td>✅ 展平/连接 + warnings</td></tr>
+<tr><td>ignore-only L1 页面 / 多 class ignore 选择器</td><td>✅</td></tr>
+<tr><td>Auto-Clean：fixed 浮层广告自动拦截</td><td>✅</td></tr>
+<tr><td>内置规则已拦的元素不重复拦截</td><td>✅</td></tr>
+<tr><td>page_context [DPP] 摘要（含 context）注入 system 层</td><td>✅ 代码接线，真机回合待验</td></tr>
+<tr><td>事件驱动：0→正 跳变 → PageEventHub → Agent 回合</td><td>⬜ 基建已通，待真机验证</td></tr>
+<tr><td>审批闸门真机 E2E：danger 动作强制审批（挂起/未执行/deny/allow 全链 20 项）</td><td>✅</td></tr>
+<tr><td>signals 接线：navigate 等 ready、pageAction 等 busy 消失</td><td>✅ 真机 E2E</td></tr>
+<tr><td>shadow DOM 穿透：<code>&gt;&gt;&gt;</code> item/字段选择器抽取</td><td>✅ 探针实证</td></tr>
+<tr><td>事件驱动全链：跳变 → PageEventHub → auto 回合 → 模型收到</td><td>✅ 真机 E2E 8 项</td></tr>
+<tr><td>站点级 well-known 合并 + upload 步骤交付</td><td>✅ 真机 E2E 7 项</td></tr>
+<tr><td>线上 SDK（desire.mankong.icu）第三方站点全链</td><td>✅ 真机 E2E 5 项</td></tr>
+<tr><td>审批时空一致性 + upload 摘 arm + signals.error</td><td>✅ 第二轮审计后全量回归</td></tr>
+</tbody></table>
+<h2 id="9-已知限制与边界">9. 已知限制与边界</h2>
+<table><thead><tr><th>限制</th><th>原因</th><th>计划</th></tr></thead><tbody>
+<tr><td>跨源 iframe 不可穿透</td><td>同源已自动搜索；跨源需宿主 frame API</td><td>后续：<code>frame:</code> 前缀</td></tr>
+<tr><td>infinite 分页只滚 window</td><td>容器内滚动的站点无效（静默返回已收集部分）</td><td>按需</td></tr>
+<tr><td>L1 属性扫描不进 shadow DOM/iframe</td><td>解析器只扫 light DOM（L2/L3 声明可用 <code>&gt;&gt;&gt;</code>，选择器自动搜同源 iframe）</td><td>按需</td></tr>
+<tr><td>well-known 仅同源 http(s) 页面</td><td>经页面内 fetch；file:// 等协议跳过</td><td>设计内</td></tr>
+<tr><td>审批白名单粒度 = 工具名</td><td>outbound/danger 已强制逐次审批兜底</td><td>后续：per-(host, action) 放行</td></tr>
+<tr><td>SDK 部署依赖产品页</td><td>website/desire-sdk.js 随站点发布</td><td>用户部署时带上</td></tr>
+</tbody></table>
+<p>（listChanged / sampling / OAuth 属 MCP 客户端能力，不在 DPP 范围——见 MCP 章节。）</p>
+<h2 id="10-实现状态与演进路线">10. 实现状态与演进路线</h2>
+<h3 id="一期-已实装">一期（已实装 ✅）</h3>
+<ul>
+<li>✅ 协议 schema + 四形态归一化解析器（desire-protocol.js）</li>
+<li>✅ <code>pageProtocol</code> 工具——查看页面协议（views/signals/actions/ignore）</li>
+<li>✅ <code>pageExtract(view)</code> 工具——按声明视图抽取结构化数据（支持分页 all=true）</li>
+<li>✅ <code>pageAction(name, args)</code> 工具——执行声明式动作（fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）</li>
+<li>✅ page_context DPP 摘要自动注入（视图清单 + 动作 + 正文选择器）</li>
+<li>✅ navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）</li>
+<li>✅ fixture E2E（三形态解析 + pageProtocol + pageExtract + pageAction 全链）</li>
+</ul>
+<h3 id="二期-已实装-事件驱动-e2e-待真机验证">二期（已实装 ✅，事件驱动 E2E 待真机验证）</h3>
+<ul>
+<li>✅ 事件驱动基建（Timer 轮询 + PageEventHub + per-site off/draft/auto 三档模式）</li>
+<li>✅ 事件风暴防护（debounce + 频率上限 + 去重）</li>
+<li>✅ unblockElement 豁免语义收窄（仅 ai-auto 来源规则触发 host 豁免）</li>
+<li>✅ ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器）</li>
+<li>✅ AI Auto-Clean toast 反馈（NotificationCenter → ContentView 橙色胶囊）</li>
+<li>✅ 默认提示词 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）</li>
+<li>✅ signals 行为接线（navigate 等 ready / pageAction 等 busy）+ infinite 分页 + SPA 重解析</li>
+<li>✅ 审批闸门真机 E2E（20 项全过；抓到并修掉 autoEdit 放行 danger 动作、callAsyncJavaScript 布尔检查缺 return、挂起页冻结 DOM 三个真缺陷）</li>
+<li>⬜ chat profile 事件驱动回合 E2E 真机验证（基建已通，fixture 需带 IM 交互）</li>
+<li>✅ <strong>审计修复轮（2026-10-02）</strong>：审批闸门接线（outbound/danger → dangerous 强制审批）、</li>
+<p>容错解码 + warnings、L1/L0 选择器修复（探针实证）、pageAction 失败可见 + required/precondition、 事件滑窗限频 + 0→正 跳变、导航竞态清理、context 注入、contentMain 生效、模式持久化对齐</p>
+<li>⬜ forms profile 字段语义标注（data-dpp-field 支持 type=email/tel/date 等类型提示）</li>
+<li>⬜ monitor profile 变化阈值事件（价格 &lt; X / 库存 = 0 时触发）</li>
+</ul>
+<h3 id="三期-剩余规划">三期（剩余规划）</h3>
+<ul>
+<li>well-known 登录态指引 + 测试账号声明（站点级 schema 扩展）</li>
+<li>MCP 联动（DPP 声明可引用 MCP 工具：<code>run: {"mcp": "server.tool"}</code>）</li>
+<li>跨源 iframe 穿透（<code>frame:</code> 前缀，宿主经 frame API 跨源查询）</li>
+<li>L1 属性扫描进 shadow DOM / iframe</li>
+<li>规范与 Schema 公开托管于产品页（文档/Schema/校验器已就绪，待部署）</li>
+</ul>
+<h3 id="已提前落地-原三期项">已提前落地（原三期项）</h3>
+<ul>
+<li>✅ shadow DOM 穿透（<code>&gt;&gt;&gt;</code> 语法，全链：views/字段/actions/信号/事件命中）</li>
+<li>✅ SDK 公开分发（<code>website/desire-sdk.js</code> → https://desire.mankong.icu/desire-sdk.js）</li>
+<li>✅ well-known 站点级声明（页面声明才拉取 + 页内同源 fetch + host 缓存 + 合并进单测）</li>
+<li>✅ <code>upload</code> 步骤（UploadIntent 原语）+ 同源 iframe 穿透（自动搜索 + <code>&gt;&gt;&gt;</code> 中段）</li>
+<li>✅ SPA 路由变化全级重解析（dpp-route-watch 包装 history + popstate/hashchange）</li>
+<li>✅ precondition 轮询等待（3s）；<code>ignore</code> 正文文本扣减；<code>pageProtocol</code> 列出事件；</li>
+<p><code>getNetworkLog</code> 原生化（读 DevToolsStore，页面世界网络依赖只剩 WaitForNetworkIdle）</p>
+<li>✅ <strong>协议设计层升级（v1.1）</strong>：§4.0 版本与演进规则、§4.7 站点级完整行为、</li>
+<p>§5 Profile 契约运行时化（含站点级页面地图 pages 回退）、§11 自检工具 （JSON Schema + 零依赖校验器）</p>
+</ul>
+<h2 id="11-自检工具-站点作者闭环">11. 自检工具（站点作者闭环）</h2>
+<table><thead><tr><th>工具</th><th>用法</th><th>覆盖</th></tr></thead><tbody>
+<tr><td>正式 Schema</td><td><code>docs/dpp-schema.json</code>（JSON Schema 2020-12）</td><td>一切声明形态（页面块 / well-known / SDK）共用一份 schema</td></tr>
+<tr><td>命令行校验</td><td>`python3 tools/dpp-validate.py [文件\</td><td>URL]`（默认校验产品页自己）</td><td>schema 规则 + <strong>运行时陷阱提前预警</strong>（未知 run 操作会当场失败、空选择器、outbound 未标 danger、events <code>on</code> 被忽略等）；零依赖</td></tr>
+<tr><td>SDK 内校验</td><td><code>desire.validate()</code>（L3）</td><td>开发期 console 提示（缺 signals.ready、缺 views、action 缺 run）</td></tr>
+<tr><td>运行时自查</td><td><code>pageProtocol</code> 工具 / <code>GET /protocol/inspect</code></td><td>warnings 数组（被降级/丢弃的字段逐条可见）</td></tr>
+</tbody></table>
+<blockquote><p>推荐流程：写完声明 → <code>dpp-validate.py</code>（或 SDK validate）→ 浏览器里</p><p><code>pageProtocol</code> 看运行时解析结果 → <code>pageExtract</code> 抽查数据 → <code>pageAction</code> 走一遍动作。</p><p><strong>产品页自身即按此流程接入</strong>（L2 声明块，校验零警告）。</p></blockquote>
+</div></main>
+<footer><div class="wrap">DPP 由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 · 本页零外部依赖</div></footer>
+</body>
+</html>

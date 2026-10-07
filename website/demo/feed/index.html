@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 信息流 — infinite 滚动 + Shadow DOM — Desire Page Protocol</title>
+<meta name="description" content="Desire Page Protocol 在线演示：无限滚动信息流，卡片渲染进 open shadow root。展示 infinite 分页信号与 `>>>` 跨 shadow 边界字段声明。">
+<script src="../desire-sdk.js"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #211b13; background: #f6f1e7; line-height: 1.7; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+  .status-pill { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid #d8cfba; background: #fff; }
+  .status-pill.on { color: #1c7c3c; border-color: #1c7c3c66; }
+  .demo-ad { border: 2px dashed #c03a1a; padding: 0.5rem; text-align: center; color: #c03a1a; margin: 1rem 0; font-size: 0.85rem; }
+  .loading { color: #8a7f6f; font-size: 0.85rem; text-align: center; padding: 0.6rem 0; }
+  code { background: #eee7d7; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .howto { border: 1px solid #d8cfba; border-radius: 6px; background: #fff; padding: 0.7rem 0.9rem; font-size: 0.85rem; color: #6b6154; margin: 0.8rem 0; }
+</style>
+</head>
+<body>
+<h1>信息流（infinite + shadow DOM）</h1>
+<p>
+  <span class="status-pill" id="feed-status">API 无关 · 纯前端合成</span>
+  <span class="status-pill on" id="feed-count">已加载 0 条</span>
+</p>
+<div class="howto">
+  本页演示两个协议特性的<b>活场景</b>：① <code>pagination: {type: "infinite"}</code> ——
+  滚动到底自动追加（对智能体说「把信息流往下翻 30 条」即可驱动）；② <b>shadow DOM</b> ——
+  每张卡片的实际内容渲染在 <code>.post-host</code> 的 open shadow root 里，字段声明用
+  前导 <code>&gt;&gt;&gt;</code>（相对 item 自身 shadowRoot 求值）。
+</div>
+<div class="demo-ad" data-dpp-ignore>广告位 · data-dpp-ignore 标注的噪音区（智能体视而不见）</div>
+<div id="feed-app"><div id="feed-list"></div>
+  <div class="loading" id="feed-sentinel">下拉加载更多…</div>
+</div>
+<p style="margin-top:2rem;font-size:0.85rem"><a href="/">首页</a> · <a href="../">商店</a> · <a href="../im/">IM</a> · <a href="../forum/">论坛</a> · <a href="../booking/">预约</a> · <a href="../news/">资讯</a> · <a href="../dashboard/">看板</a> · <a href="../wizard/">向导</a> · <a href="../admin/">审核</a> · <a href="../product/">商品</a> · <a href="../guide/">指南</a> · <a href="../embed/">嵌入</a> · 规范见 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">docs/DPP-PROTOCOL.md</a></p>
+
+<script>
+// ── 数据：确定性合成（不依赖演示 API，离线可用） ──────────
+var CATS = ["产品", "社区", "技术", "活动"];
+var TITLES = ["新的桌面小组件上线", "周报：检索质量提升", "同步引擎减半往返", "社区分享会回顾",
+  "键盘快捷键重排", "下载队列看门狗", "悬浮球第五期预告", "阅读模式字体调优",
+  "广告过滤规则热更新", "跨设备剪贴板调研", "隐私面板改版", "批量导出书签"];
+function postAt(i) {
+  return {
+    title: TITLES[i % TITLES.length] + "（第 " + (Math.floor(i / TITLES.length) + 1) + " 轮）",
+    cat: CATS[i % CATS.length],
+    summary: "第 " + (i + 1) + " 条：内容渲染在 shadow root 内，演示 `>>>` 字段声明与 infinite 自动翻页。"
+  };
+}
+
+// ── 渲染：卡片进 open shadow root（DPP 用 >>> 下钻） ──────
+var list = document.getElementById("feed-list");
+var loaded = 0;
+function appendPost(i) {
+  var host = document.createElement("div");
+  host.className = "post-host";
+  var data = postAt(i);
+  var shadow = host.attachShadow({ mode: "open" });
+  shadow.innerHTML =
+    '<style>.card{border:1px solid #d8cfba;border-radius:6px;padding:0.6rem 0.9rem;margin:0.55rem 0;background:#fff;}' +
+    '.p-title{font-weight:600;}.p-cat{font-size:0.72rem;color:#8a7f6f;background:#eee7d7;border-radius:3px;padding:0 0.3rem;margin-left:0.4rem;}' +
+    '.p-summary{font-size:0.82rem;color:#6b6154;margin:0.3rem 0 0;}</style>' +
+    '<div class="card"><span class="p-title"></span><span class="p-cat"></span><p class="p-summary"></p></div>';
+  shadow.querySelector(".p-title").textContent = data.title;
+  shadow.querySelector(".p-cat").textContent = data.cat;
+  shadow.querySelector(".p-summary").textContent = data.summary;
+  list.appendChild(host);
+  loaded++;
+  document.getElementById("feed-count").textContent = "已加载 " + loaded + " 条";
+}
+
+// ── infinite：哨兵进入视口 → 追加下一批（无上限，infinite 语义） ──
+var BATCH = 5;
+function loadMore() {
+  var start = loaded;
+  for (var i = 0; i < BATCH; i++) appendPost(start + i);
+  markReady();
+}
+var sentinel = document.getElementById("feed-sentinel");
+if ("IntersectionObserver" in window) {
+  var io = new IntersectionObserver(function (entries) {
+    if (entries.some(function (e) { return e.isIntersecting; })) loadMore();
+  }, { rootMargin: "120px" });
+  io.observe(sentinel);
+} else {
+  sentinel.onclick = loadMore;
+}
+
+function markReady() {
+  if (!document.body.hasAttribute("data-demo-ready")) {
+    document.body.setAttribute("data-demo-ready", "");
+  }
+}
+
+// ── DPP 声明（L3 SDK；SDK 缺席时降级为静态声明块） ────────
+var DPP_DECL = {
+  protocol: "desire/1",
+  profile: "feed",
+  page: { type: "feed" },
+  content: { main: "#feed-app", ignore: [".demo-ad"] },
+  signals: { ready: "[data-demo-ready]", busy: "#feed-sentinel.loading:active" },
+  views: {
+    posts: {
+      item: ".post-host",
+      pagination: { type: "infinite" },
+      fields: {
+        title: ">>> .p-title",
+        category: ">>> .p-cat",
+        summary: ">>> .p-summary"
+      }
+    }
+  },
+  actions: [
+    { name: "load-more", description: "显式追加一批（等效于把页面滚到底）",
+      run: [ { click: "#feed-sentinel" } ],
+      effects: "local" }
+  ],
+  context: {
+    persona: "DPP 信息流演示页的助手：演示 infinite 分页与 shadow DOM 字段抽取",
+    rules: "内容由前端确定性合成，非真实资讯；infinite 滚动无末页，抽取按当前已加载集合计"
+  }
+};
+
+(function exposeDpp() {
+  if (window.desire && window.desire.expose) {
+    window.desire.expose(DPP_DECL);
+  } else {
+    var s = document.createElement("script");
+    s.type = "application/x-desire+json";
+    s.textContent = JSON.stringify(DPP_DECL);
+    document.head.appendChild(s);
+  }
+})();
+
+// ── 启动 ────────────────────────────────────────────────
+loadMore();
+</script>
+</body>
+</html>

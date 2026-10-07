@@ -111,6 +111,21 @@ class AgentSessionStore: ObservableObject {
         return dppActionHostByCall[approval.toolCall.id]
     }
 
+    /// 跨源标注（0.7.2）：pageAction 审批时，动作声明若来自**跨源子框架**
+    /// （sourceFrame 与页面 host 不同），返回框架 host——审批卡上亮出来源，
+    /// 用户批准的不只是"这个页面"，还有一个第三方框架里的声明。
+    var pendingApprovalSourceFrameHost: String? {
+        guard let approval = pendingApproval,
+              let name = dppActionName(for: approval.toolCall),
+              let tab = toolProvider.surface?.tabManager?.selectedTab,
+              let action = tab.browser.effectiveProtocol?.actions.first(where: { $0.name == name }),
+              let frameURLString = action.sourceFrame,
+              let frameURL = URL(string: frameURLString) else { return nil }
+        let pageHost = tab.browser.webView.url?.host ?? ""
+        guard let frameHost = frameURL.host, !frameHost.isEmpty, frameHost != pageHost else { return nil }
+        return frameHost
+    }
+
     /// FULL ACCESS mode: when on, EVERY tool — including dangerous-tier
     /// `executeJS` — runs without approval prompts. The user has explicitly
     /// delegated all tool decisions to the agent. Persisted; the panel

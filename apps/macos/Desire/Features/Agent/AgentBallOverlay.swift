@@ -124,11 +124,17 @@ struct AgentBallOverlay: View {
 
     // MARK: - 位置
 
+    /// 窗口圆角避让距（0.7.1 走查实测：6/10pt 的旧间距让球深陷窗口圆角
+    /// 半径区，左下被窗口遮罩裁成扁椭圆）。侧向 16 / 纵向 26 让球整体
+    /// 离开圆角区。
+    private var sideInset: CGFloat { 16 }
+    private var edgeInset: CGFloat { 26 }
+
     /// 静止球心：由持久化 (edge, offsetFraction) + 当前窗口尺寸推导。
     private func restingCenter(in size: CGSize) -> CGPoint {
-        let x = edge == "left" ? ballSize / 2 + 6 : size.width - ballSize / 2 - 6
-        let travel = max(0, size.height - ballSize - 20)
-        let y = ballSize / 2 + 10 + travel * min(max(offsetFraction, 0), 1)
+        let x = edge == "left" ? ballSize / 2 + sideInset : size.width - ballSize / 2 - sideInset
+        let travel = max(0, size.height - ballSize - edgeInset * 2)
+        let y = ballSize / 2 + edgeInset + travel * min(max(offsetFraction, 0), 1)
         return CGPoint(x: x, y: y)
     }
 
@@ -263,8 +269,8 @@ struct AgentBallOverlay: View {
                 }
                 if dragged, let start = dragStartCenter {
                     var c = CGPoint(x: start.x + t.width, y: start.y + t.height)
-                    c.x = min(max(c.x, ballSize / 2 + 4), max(ballSize / 2 + 4, size.width - ballSize / 2 - 4))
-                    c.y = min(max(c.y, ballSize / 2 + 4), max(ballSize / 2 + 4, size.height - ballSize / 2 - 4))
+                    c.x = min(max(c.x, ballSize / 2 + sideInset), max(ballSize / 2 + sideInset, size.width - ballSize / 2 - sideInset))
+                    c.y = min(max(c.y, ballSize / 2 + edgeInset), max(ballSize / 2 + edgeInset, size.height - ballSize / 2 - edgeInset))
                     dragPos = c
                     dragTilt = max(-10, min(10, value.velocity.width / 36))
                 }
@@ -314,10 +320,10 @@ struct AgentBallOverlay: View {
     private func snapToEdge(in size: CGSize) {
         let c = dragPos ?? restingCenter(in: size)
         let toLeft = c.x < size.width / 2
-        let travel = max(1, size.height - ballSize - 20)
+        let travel = max(1, size.height - ballSize - edgeInset * 2)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             edge = toLeft ? "left" : "right"
-            offsetFraction = min(max((c.y - ballSize / 2 - 10) / travel, 0), 1)
+            offsetFraction = min(max((c.y - ballSize / 2 - edgeInset) / travel, 0), 1)
         }
     }
 

@@ -79,6 +79,10 @@ struct DesireApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
+        // 0.7.0 发版 CI 实测：新 runner 镜像上 `open` 启动多 Scene 应用时
+        // 主窗可能不被创建（只剩引导窗，无标签页 → 桥的浏览器端点全废）。
+        // 显式声明主窗**必在启动时呈现**，不依赖镜像的隐式行为。
+        .defaultLaunchBehavior(.presented)
         .commands { AppCommands(
             shortcuts: appState.system.keyboardShortcutStore,
             settings: appState.settings,

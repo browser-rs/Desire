@@ -547,3 +547,12 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   调用时 DOM 已在但候选选择器不匹配 JS 站结构——长尾限制记录在案
 - **测试方法教训**：异步链路的断言必须轮询而非固定睡（本例 2.5s 读 0 实为
   未完成，与 E15 教训同族）
+
+### 批次 H：下载 pause/resume 竞态 + DevTools 存储管理 ✓
+- **下载 pause/resume 全流程**：限速服务器（8MB/270KB/s）制造操作窗口 →
+  /downloads/pause → **字节数冻结**（3612672 三秒不变）→ /downloads/resume →
+  完成落盘（30MB 整）✓
+- **DevTools 存储管理**：cookie 写（application/set）→ document.cookie 回读 ✓；
+  localStorage 写 → 页面回读 ✓；delete ✓
+- 发现（非 bug）：/devtools/application 的 cookies 只回计数 + 截断样例
+  （190 条池的 8 条样本）——按域全量列表需走 /execute document.cookie

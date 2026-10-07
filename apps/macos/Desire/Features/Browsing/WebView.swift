@@ -1284,6 +1284,7 @@ try {
                     store?.pendingSave = nil
                 }
             } else if message.name == "readerContent", let dict = message.body as? [String: String] {
+                Log.userScripts.info("readerContent msg arrived: title=\((dict["title"] ?? "?").prefix(30), privacy: .public) contentChars=\((dict["html"] ?? dict["content"] ?? "").count, privacy: .public)")
                 parent.state.readerTitle = dict["title"] ?? ""
                 parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
                 parent.state.isReaderLoading = false

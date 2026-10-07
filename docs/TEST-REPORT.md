@@ -539,3 +539,11 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   直接可见可自动化）
 - /sync/server 的参数名是 baseURL（GET 无路由——原值从 /sync/status.server 读）
 - chrome.storage.bg-eval 返回 null = promise 未 await（探针模式解），已记报告
+
+### 阅读模式 ✓（补充）
+- 开关切换 ✓；提取为**异步完成**（evaluateJavaScript → postMessage → 状态，
+  全链路 ~3s）——断言时序要留足；example.com 提取 1017 字符 ✓
+- SPA 页（docs 站）提取为空：documentEnd 时 SPA 未渲染，_desireReader 按需
+  调用时 DOM 已在但候选选择器不匹配 JS 站结构——长尾限制记录在案
+- **测试方法教训**：异步链路的断言必须轮询而非固定睡（本例 2.5s 读 0 实为
+  未完成，与 E15 教训同族）

@@ -2138,7 +2138,7 @@ try {
             // PDF 拦截的 decisionHandler(.cancel) 就是这个形态（0.7.1 走查
             // 实测：错误页"帧框加载已中断"盖住内建 PDF 查看器）。
             if (error as NSError).code == NSURLErrorCancelled
-                || ((error as NSError).domain == WebKitErrorDomain
+                || ((error as NSError).domain == WKErrorDomain
                     && (error as NSError).code == 102) {
                 parent.isLoading = false
                 return

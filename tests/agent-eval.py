@@ -1249,11 +1249,17 @@ def case_har_export():
     """E15：HAR 1.2 导出（0.7.5 DevTools 回归）。
     导航到桥自身的 /state（必然可达），断言条目与结构；再验 scope 过滤错误路径。"""
     bridge("POST", "/navigate", body={"url": BRIDGE + "/state"})
-    time.sleep(2)
-    har = bridge("GET", "/devtools/har?scope=all")
-    log = har.get("log", {})
-    check("E15 log.version == 1.2", log.get("version") == "1.2")
-    entries = log.get("entries", [])
+    # 导航→netEntry→store 有延迟（CI 虚机更慢）：轮询而不是固定睡——
+    # 固定 sleep(2) 在 CI 上 entries 还是 0（首次发版实测）。
+    entries = []
+    for _ in range(20):
+        time.sleep(0.5)
+        entries = bridge("GET", "/devtools/har?scope=all").get("log", {}).get("entries", [])
+        if entries:
+            break
+    log = {"version": "1.2", "entries": entries}
+    check("E15 log.version == 1.2",
+          bridge("GET", "/devtools/har?scope=all").get("log", {}).get("version") == "1.2")
     check("E15 entries >= 1", len(entries) >= 1)
     if entries:
         e = entries[-1]

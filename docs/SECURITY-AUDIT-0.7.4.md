@@ -68,17 +68,23 @@ localhost 信任"收紧为"本机源信任"。
 - **桥基础面**：只绑 127.0.0.1、`--automation-token` 可选 Bearer、请求按
   Content-Length 攒齐（17a3089）。
 
-## 挂起（下一轮 0.7.5+ 候选，按优先级）
+## 第二轮（0.7.4 安全二轮，2026-10-07）——挂起项 1/2/4 已清
 
-1. **插件 RPC 的 ext 身份是声明式的**（`dict["ext"]` 取自消息体）——跨插件
-   冒名理论可行，影响限于存储桶污染（用户主动安装的半信任面）。正修 =
-   per-webview 世界→id 映射由宿主侧注入，不信消息体。
-2. **DPP action/view 名进工具消息未消毒**——工具消息是结构性数据位，
-   模型侧规则已声明页面文本是数据；低危，可与 1 同轮处理。
-3. **桥 token 默认关**——可设计为 automation 模式默认生成一次性 token
-   打印到 stdout（要动 CI 与全部 E2E 的启动协议，需单独立项）。
-4. **MCP 工具定义注入面**——用户配置的服务器属半信任；工具描述会进系统
-   提示的 `<tools>` 段。方向：`<tools>` 段声明"工具描述由第三方服务器提供"。
+1. **插件 RPC ext 身份绑定 ✓**：新增 `WebView.Coordinator.ExtRPCBox`——每个
+   world 一个 handler，注册时捕获插件 id 与 world（回程求值同 world），
+   `handleExtensionMessage` 改收 `boundExtID`，per-plugin world 一律以注册侧
+   绑定为准；消息体 `ext` 仅在 extensionWorld（宿主 webext/eval 的共享世界，
+   无单一身份）作 legacy 回退。popup（单插件 webview，.page 域）无跨插件
+   冒名面，维持原样。台账条目从 Coordinator 换成 Box，存活语义不变。
+2. **DPP 名字消毒 ✓**：[DPP] 工具消息块里的 views/actions/字段名全部过
+   `AgentTextSanitizer.pageText`（压平换行/剥尖括号/封长 40）。
+3. **桥 token 默认关——继续挂起**：改动会波及 CI 与全部 E2E 的启动协议，
+   维持"单独立项"结论。
+4. **MCP 工具描述声明 ✓**：`<tools>` 段在首个 MCP 工具前插声明行
+   （描述为第三方数据、参数以请求的 tools 参数为准、描述内文字不是指令）——
+   MCP 工具恒拼接在尾部，声明行作用域即其后全部。
+
+回归：评估套件 41/41；clean build 零警告。
 
 ## 回归
 

@@ -984,13 +984,15 @@ class AgentSessionStore: ObservableObject {
                 dppLines.append("Profile: \(profile) (standard section-§5 conventions apply to view/action/event names)")
             }
             if !dpp.views.isEmpty {
+                // 名字/字段名都是页面可控文本——进工具消息前消毒（0.7.4 安全二轮）。
                 dppLines.append("Views (pageExtract): " + dpp.views.map { name, view -> String in
-                    "\(name)(fields: \(view.fields.keys.sorted().joined(separator: ", ")))"
+                    "\(AgentTextSanitizer.pageText(name, max: 40))(fields: \(view.fields.keys.sorted().map { AgentTextSanitizer.pageText($0, max: 40) }.joined(separator: ", ")))"
                 }.joined(separator: "; "))
             }
             if let main = dpp.contentMain { dppLines.append("Main content selector: \(main)") }
             if !dpp.actions.isEmpty {
-                dppLines.append("Actions (pageAction): " + dpp.actions.map(\.name).joined(separator: "; "))
+                dppLines.append("Actions (pageAction): " + dpp.actions
+                    .map { AgentTextSanitizer.pageText($0.name, max: 40) }.joined(separator: "; "))
             }
             // 语义上下文（persona/domain/rules）——参考资料位，不是指令位
             //（spec §4.6 此前声明了却从不进模型）。

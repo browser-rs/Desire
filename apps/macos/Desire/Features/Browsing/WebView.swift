@@ -699,6 +699,28 @@ struct WebView: NSViewRepresentable {
         final class ExtHandlerLedger {
             var entries: [String: WKScriptMessageHandler] = [:]
         }
+
+        /// 插件 RPC 身份盒（0.7.4 安全二轮）：每个 world 一个 handler，
+        /// 注册时捕获插件 id 与 world（回程求值要同 world，b2ad318）。
+        /// 强引用 coordinator——延续原先 userContentController 直接持有
+        /// coordinator 的存活语义（替换发生在下一次 remove-before-add）。
+        final class ExtRPCBox: NSObject, WKScriptMessageHandler {
+            let boundExtID: String?
+            let world: WKContentWorld
+            let coordinator: Coordinator
+
+            init(boundExtID: String?, world: WKContentWorld, coordinator: Coordinator) {
+                self.boundExtID = boundExtID
+                self.world = world
+                self.coordinator = coordinator
+            }
+
+            func userContentController(_ userContentController: WKUserContentController,
+                                       didReceive message: WKScriptMessage) {
+                coordinator.handleExtensionMessage(message.body, world: world,
+                                                   boundExtID: boundExtID)
+            }
+        }
         static let extHandlerLedgerKey = "desireExtHandlerLedger"
         /// dppFrame user script 注入台账（observe 每次重跑都 addUserScript
         /// 会层层叠加——postMessage N 倍；user script 无枚举/单删 API，
@@ -805,17 +827,23 @@ try {
             let ledger = objc_getAssociatedObject(webView, Self.extHandlerLedgerKey)
                 as? ExtHandlerLedger ?? ExtHandlerLedger()
             var newlyRegistered = 0
-            func ensure(_ world: WKContentWorld, worldKey: String) {
-                if ledger.entries[worldKey] === coordinator { return }
+            func ensure(_ world: WKContentWorld, worldKey: String, boundExtID: String?) {
+                if let box = ledger.entries[worldKey] as? ExtRPCBox,
+                   box.coordinator === coordinator, box.boundExtID == boundExtID { return }
                 contentController.removeScriptMessageHandler(
                     forName: "desireExt", contentWorld: world)
-                contentController.add(coordinator, contentWorld: world, name: "desireExt")
-                ledger.entries[worldKey] = coordinator
+                let box = ExtRPCBox(boundExtID: boundExtID, world: world, coordinator: coordinator)
+                contentController.add(box, contentWorld: world, name: "desireExt")
+                ledger.entries[worldKey] = box
                 newlyRegistered += 1
             }
-            ensure(WebView.extensionWorld, worldKey: "__extension__")
+            // extensionWorld：宿主侧 webext/eval 与旧式存储求值的共享世界，
+            // 无单一身份 → legacy 回退（读消息体 ext）。真实插件代码一律走
+            // per-plugin world（内容脚本/手动运行都在 pluginWorld）。
+            ensure(WebView.extensionWorld, worldKey: "__extension__", boundExtID: nil)
             for plugin in pluginStore.plugins where plugin.isEnabled && !plugin.jsCode.isEmpty {
-                ensure(WebView.pluginWorld(plugin.id), worldKey: plugin.id.uuidString)
+                ensure(WebView.pluginWorld(plugin.id), worldKey: plugin.id.uuidString,
+                       boundExtID: plugin.id.uuidString)
             }
             objc_setAssociatedObject(webView, Self.extHandlerLedgerKey, ledger,
                                      .OBJC_ASSOCIATION_RETAIN)
@@ -851,7 +879,8 @@ try {
         /// WebExtension RPC（0.2.13）：隔离世界里 `browser.*` 的宿主侧。
         /// 协议：{id, ns, fn, args[]} → `_resolve(id, ok, payloadJSON)`，
         /// payload 以 JSON 字面量内嵌（存储值已在 set 时校验可序列化）。
-        private func handleExtensionMessage(_ body: Any, world: WKContentWorld) {
+        private func handleExtensionMessage(_ body: Any, world: WKContentWorld,
+                         boundExtID: String? = nil) {
             let dictForLog = body as? [String: Any]
             let nsText = dictForLog?["ns"] as? String ?? "?"
             let fnText = dictForLog?["fn"] as? String ?? "?"
@@ -861,8 +890,10 @@ try {
                   let fn = dict["fn"] as? String else { return }
             let id = dict["id"] as? Int
             let args = dict["args"] as? [Any] ?? []
-            // 插件身份（0.3.3）：有 → 存储按插件命名空间；无 → legacy。
-            let extID = dict["ext"] as? String
+            // 插件身份：per-plugin world 由注册侧**绑定**（ExtRPCBox，
+            // 0.7.4 安全二轮——消息体里的 ext 只是 extensionWorld legacy
+            // 路径的回退），插件无法靠改消息体冒名其他插件的存储桶。
+            let extID = boundExtID ?? dict["ext"] as? String
 
             func reply(_ payload: Any?, error: String? = nil) {
                 guard let id else { return }
@@ -1174,35 +1205,6 @@ try {
                 handleDPPFrameMessage(body, message: message,
                                       webView: message.webView ?? parent.state.webView)
                 return
-            }
-            if message.name == "desireExt" {
-                // Isolated-world WebExtension RPC (see extensionWorld).
-                // per-plugin world 的消息同样进这条路径（world 由 ext 推导）。
-                let world: WKContentWorld
-                if let ext = (message.body as? [String: Any])?["ext"] as? String,
-                   let uuid = UUID(uuidString: ext) {
-                    world = WebView.pluginWorld(uuid)
-                } else {
-                    world = WebView.extensionWorld
-                }
-                handleExtensionMessage(message.body, world: world)
-            } else if message.name == "otpDetect", let dict = message.body as? [String: String] {
-                parent.state.pendingOTPHint = dict["field"] ?? "verification code"
-            } else if message.name == "audioState", let playing = message.body as? Bool {
-                parent.state.isPlayingAudio = playing
-            } else if message.name == "cookieGuardHandled", let dict = message.body as? [String: String] {
-                parent.onCookieGuardHandled?(dict["pref"] ?? "", dict["label"] ?? "")
-            } else if message.name == "pagePerf", let dict = message.body as? [String: Int] {
-                parent.state.lastDomNodeCount = dict["domNodes"] ?? 0
-                parent.state.lastLongTaskCount = dict["longTasks"] ?? 0
-                parent.state.lastLongTaskMs = dict["longTaskMs"] ?? 0
-            } else if message.name == "desireProtocolEvent", let dict = message.body as? [String: Any] {
-                let eventHost = parent.state.webView.url?.host ?? ""
-                let eventName = dict["eventName"] as? String ?? ""
-                let detail = (dict["detail"] as? [String: Any])?.compactMapValues { "\($0)" } ?? [:]
-                if !eventName.isEmpty {
-                    PageEventHub.shared.handleEvent(host: eventHost, eventName: eventName, detail: detail)
-                }
             } else if message.name == "desireProtocolControl",
                       let dict = message.body as? [String: Any],
                       dict["kind"] as? String == "reparse",

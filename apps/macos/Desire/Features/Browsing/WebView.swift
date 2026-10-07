@@ -369,10 +369,12 @@ class BrowserState: ObservableObject {
         pdfViewerURL = nil
         pdfViewerReturnURL = webView.url
         Task { [weak self] in
+            Log.pdf.info("PDF fetch task started: \(url.absoluteString, privacy: .public)")
             do {
                 var req = URLRequest(url: url)
                 req.timeoutInterval = 60
                 let (data, response) = try await URLSession.shared.data(for: req)
+                Log.pdf.info("PDF fetch done: \(data.count)B status=\((response as? HTTPURLResponse)?.statusCode ?? -1) url=\(response.url?.absoluteString ?? "-", privacy: .public)")
                 guard (response as? HTTPURLResponse)?.statusCode == 200 || response.url == url else {
                     throw URLError(.badServerResponse)
                 }
@@ -2131,7 +2133,15 @@ try {
             }
             // goBack/goForward/新导航打断引发的取消（-999）同样不是页面错误——
             // 部分构建下 URLError.code 不归一为 .cancelled，按原始 code 兜底。
-            if (error as NSError).code == NSURLErrorCancelled { parent.isLoading = false; return }
+            // **WebKitErrorFrameLoadInterruptedByPolicyChange (102) 同理**：
+            // PDF 拦截的 decisionHandler(.cancel) 就是这个形态（0.7.1 走查
+            // 实测：错误页"帧框加载已中断"盖住内建 PDF 查看器）。
+            if (error as NSError).code == NSURLErrorCancelled
+                || ((error as NSError).domain == WebKitErrorDomain
+                    && (error as NSError).code == 102) {
+                parent.isLoading = false
+                return
+            }
             suppressNextFailError = false
             parent.isLoading = false
             parent.state.lastError = error

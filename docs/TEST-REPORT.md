@@ -500,3 +500,25 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
 - 结案：BUG-A/B 遮挡伪影
 - 环境沉淀：AX 后台通道 + 桥内截图为标准测法；全局注入与 Secure Input 废弃；
   `open -a Desire` 禁用（会拉起 /Applications 副本，一律显式路径）
+
+### 批次 E 结果
+- **固定标签**：/tabs/pin 置位 ✓（/state 不序列化 pinned 字段，无法桥断言——
+  API 返回 isPinned:true 为准）
+- **PDF 内建查看器**：**真 bug 发现并修复**——PDF 拦截的 decisionHandler(.cancel)
+  让 WebKit 以 WebKitErrorFrameLoadInterruptedByPolicyChange (102, "帧框加载
+  已中断") 收尾导航；didFailProvisionalNavigation 的取消分支只认
+  NSURLErrorCancelled(-999)，102 漏网 → lastError 被设 → **错误页盖住已下载
+  的 PDF 查看器**（HTTPS PDF 正常、HTTP PDF 必现——与 ATS 无关，纯错误分类
+  问题）。修复 = 102 与 -999 同判非页面错误。验证：HTTP 本地 PDF → PDFKit
+  视图正常呈现 ✓。附带：presentPDFViewer 加 PDF fetch 埋点（Log.pdf 类目新增）
+- **分屏补充**：split 到自身 index 静默无效（需不同 index）；右栏 partner
+  渲染 ✓；/split/close ✓
+- **页内查找** ✓ / **下载 E2E** ✓（blob executeJS 触发已失效改 octet-stream
+  导航法——本构建 WebKit 需用户手势）
+- **白板表格分隔线**：Swift 导出与 JS 渲染双实现均缺分隔线行跳过（快照视图
+  显示原始 Markdown 属设计如此，非此 bug）——双修 + harness 4 项单测 ✓
+
+### 环境事故（续二）
+- `open -a Desire` 在双副本机器拉起 /Applications 安装版（同数据目录并发写）
+  ——**禁用**，测试启动一律显式路径
+- cmd 组合键误注入触发 ⌘H 隐藏应用（窗口全离屏、截图黑帧）——取消隐藏即恢复

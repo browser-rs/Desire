@@ -557,7 +557,7 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
-        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout|markdown)", example: "…/whiteboard")
+        ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout|markdown|png — png returns the share-card image as base64)", example: "…/whiteboard")
         ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
@@ -971,6 +971,27 @@ final class AutomationServer {
                     "showsAll": AgentBallPanel.shared.hubShowsAll,
                 ])
             case ("GET", "/whiteboard"):
+                if query["format"] == "png" {
+                    // 分享卡导出（自动化/远程）：BoardRenderService 离屏成图。
+                    let session = AgentScheduler.shared.deliveryTarget
+                    let board = session.map { WhiteboardStore.shared.board(for: $0.conversationId?.uuidString) }
+                        ?? WhiteboardStore.shared.mostRecentBoard()
+                        ?? WhiteboardSpec()
+                    guard !board.blocks.isEmpty else {
+                        return try Self.json(["error": "board is empty"])
+                    }
+                    let image = try await BoardRenderService.shareCardImage(board: board)
+                    guard let tiff = image.tiffRepresentation,
+                          let rep = NSBitmapImageRep(data: tiff),
+                          let png = rep.representation(using: .png, properties: [:]) else {
+                        return try Self.json(["error": "png encode failed"])
+                    }
+                    return try Self.json([
+                        "format": "png",
+                        "title": board.title,
+                        "base64": png.base64EncodedString(),
+                    ])
+                }
                 let store = WhiteboardStore.shared
                 let conversationID = query["conversationId"]
                     ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString

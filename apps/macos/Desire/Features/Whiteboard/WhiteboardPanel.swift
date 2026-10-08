@@ -403,25 +403,26 @@ struct WhiteboardPanelView: View {
     /// 优先 takeSnapshot：先量出全内容高，rect 取整个文档区域（可超出
     /// 可视视口，WebKit 会渲染该区域），失败再回退 cacheDisplay。
     private func exportPNG() {
-        guard let window = NSApp.windows.first(where: { $0.title == "白板" && $0.isVisible }),
-              let contentView = window.contentView else {
-            exportStatus = "找不到白板窗口"
-            return
-        }
         exportStatus = "正在导出…"
         Task { @MainActor in
-            guard let png = await Self.captureBoardPNG(from: contentView) else {
-                exportStatus = "快照失败"
-                return
-            }
-            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-            let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("白板-\(stamp).png")
             do {
+                // v8：BoardRenderService 离屏渲染 + 分享卡头部——不再依赖面板
+                // 窗口开着（此前 takeSnapshot 面板路径）。
+                let image = try await BoardRenderService.shareCardImage(
+                    board: store.board(for: session.conversationId?.uuidString))
+                guard let tiff = image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    exportStatus = "图片编码失败"
+                    return
+                }
+                let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+                let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("白板-\(stamp).png")
                 try png.write(to: url)
                 exportStatus = "已存到下载目录 ✓"
             } catch {
-                exportStatus = "写入失败：\(error.localizedDescription)"
+                exportStatus = "导出失败：\(error.localizedDescription)"
             }
         }
     }

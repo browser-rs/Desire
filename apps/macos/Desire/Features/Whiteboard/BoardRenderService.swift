@@ -123,6 +123,45 @@ final class BoardRenderService {
         return webview
     }
 
+    /// 分享卡（v8）：板渲染 + 标题头合成为一张可分享长图。
+    /// 头部：板名（大字）+ "Desire 白板 · 日期" 副行；内容居中贴下。
+    static func shareCardImage(board: WhiteboardSpec, width: CGFloat = 560) async throws -> NSImage {
+        let contentW = width - 48  // 画布左右各留 24
+        // 板内不重复画标题（分享卡头部已有板名）。
+        var forRender = board
+        forRender.title = ""
+        let rendered = try await shared.render(forRender, width: contentW)
+        let content = rendered.image
+        let headerH: CGFloat = 92
+        let canvas = NSRect(x: 0, y: 0, width: width, height: content.size.height + headerH + 24)
+        let image = NSImage(size: canvas.size)
+        image.lockFocus()
+        // 底：与 React 前端一致的浅中性
+        NSColor(red: 0.969, green: 0.973, blue: 0.980, alpha: 1).setFill()
+        canvas.fill()
+        // 头部：板名 + 副行
+        let title = board.title as NSString
+        title.draw(
+            at: NSPoint(x: 24, y: canvas.height - 46),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 18, weight: .bold),
+                .foregroundColor: NSColor(red: 0.12, green: 0.16, blue: 0.22, alpha: 1),
+            ])
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let sub = ("Desire 白板 · \(df.string(from: Date()))") as NSString
+        sub.draw(
+            at: NSPoint(x: 24, y: canvas.height - 26),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor(red: 0.42, green: 0.45, blue: 0.50, alpha: 1),
+            ])
+        // 内容（NSImage 坐标系 y 翻转：贴在头部之下）
+        content.draw(in: NSRect(x: 24, y: 24, width: contentW, height: content.size.height))
+        image.unlockFocus()
+        return image
+    }
+
     private func renderOn(_ webview: WKWebView, spec: WhiteboardSpec, width: CGFloat) async throws -> Result {
         // 等双引擎 + renderBoard 就绪（vendored mermaid 2.5MB 解析要一点时间）
         var ready = false

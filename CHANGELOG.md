@@ -2,6 +2,8 @@
 ### Added
 
 - **白板视觉自检闭环（agent 画→看→改）**：whiteboard 工具新增 `action=screenshot`——当前板经 BoardRenderService 离屏渲染成 PNG 以 vision 输入回传给模型（复用截图多模态通道），渲染报错的块会显式失败并提示先修；工具描述与参数说明同步（flow/mindmap/chart 编辑后建议自检布局拥挤/节点重叠/文字截断，用 edit 修正后再交付）。配合 v8 的 flow/mindmap 块，agent 具备"画→看→改"的完整自检能力
+- **白板分享卡导出**：`BoardRenderService.shareCardImage`——板渲染 + 标题头（板名大字 + "Desire 白板 · 日期"副行）合成可分享长图；面板「导出 PNG」改走此路径（不再依赖面板窗口开着）；桥 `GET /whiteboard?format=png` 返回 base64 分享卡（自动化/远程导出）；React 壳空标题不渲染行（分享卡头部已有板名，避免双标题）。实测：flow+mindmap 双块板导出目视通过
+
 
 
 ## [v0.7.4] - 2026-10-09

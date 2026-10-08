@@ -572,7 +572,7 @@ function App() {
 
   return (
     <div className="wb-root" ref={rootRef}>
-      <div className="wb-boardtitle">{spec.title}</div>
+      {spec.title ? <div className="wb-boardtitle">{spec.title}</div> : null}
       {spec.blocks.length === 0 ? (
         <div className="wb-empty">白板是空的——让智能体画点什么。</div>
       ) : (

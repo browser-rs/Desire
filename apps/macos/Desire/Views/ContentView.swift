@@ -337,6 +337,10 @@ struct ContentView: View {
                 return .init(title: title.isEmpty ? "新标签页" : title,
                              urlString: tab.urlString)
             }
+            // v7：特色快捷动作的操作对象（AI 去广告/视频下载以选中标签为目标）。
+            ball.pageTabProvider = { [tabManager] in
+                tabManager.selectedTab
+            }
             if !isAgentConfigured {
                 // Record this window as the session-persistence target, then
                 // bind the AI agent to a surface pinned to THIS window's

@@ -935,6 +935,7 @@ final class AutomationServer {
                     "expanded": AgentBallPanel.shared.isExpanded,
                     "agentBusy": AgentBallPanel.shared.agentBusy,
                     "hiddenForFullscreen": AgentBallPanel.shared.hiddenForFullscreen,
+                    "actionToast": AgentBallPanel.shared.actionToast ?? "",
                 ])
             case ("POST", "/agentball"):
                 // 开合/显隐驱动（darwin 27 上 CGEvent 已死、球又是手势判定
@@ -954,6 +955,12 @@ final class AutomationServer {
                 }
                 if body["cancelDrop"] as? Bool == true {
                     AgentBallPanel.shared.cancelDrop()
+                }
+                // v7 触发槽位能力（快捷动作 E2E 入口）：perform 后读
+                // GET /agentball 的 actionToast 断言结果反馈。
+                if let name = body["perform"] as? String,
+                   let capability = BallCapability(rawValue: name) {
+                    AgentBallPanel.shared.perform(capability)
                 }
                 return try Self.json([
                     "ok": true,

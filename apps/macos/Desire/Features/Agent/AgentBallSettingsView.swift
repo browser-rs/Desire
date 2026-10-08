@@ -117,7 +117,7 @@ struct AgentBallSettingsView: View {
     private var hubActionsSection: some View {
         SettingsSection(
             title: String(localized: "Hub Actions"),
-            subtitle: String(localized: "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals all eight."),
+            subtitle: String(localized: "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action."),
             icon: "square.grid.2x2"
         ) {
             VStack(spacing: 0) {

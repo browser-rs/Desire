@@ -34666,28 +34666,6 @@
         }
       }
     },
-    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals all eight." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals all eight."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择触盘 2×2 上放哪四个功能；选了别的槽位已有的功能会两槽互换。长按球（或点 ⌄）可展开全部 8 项。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇觸盤 2×2 上放哪四個功能；選了別的槽位已有的功能會兩槽互換。長按球（或點 ⌄）可展開全部 8 項。"
-          }
-        }
-      }
-    },
     "Slot order = layout order: 1·2 top row, 3·4 bottom row." : {
       "localizations" : {
         "en" : {
@@ -35036,6 +35014,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "雙擊球直接開始語音輸入；關閉後雙擊視為兩次普通點擊。"
+          }
+        }
+      }
+    },
+    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择触盘 2×2 上放哪四个功能；选了别的槽位已有的功能会两槽互换。长按球（或点 ⌄）可展开全部操作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇觸盤 2×2 上放哪四個功能；選了別的槽位已有的功能會兩槽互換。長按球（或點 ⌄）可展開全部操作。"
           }
         }
       }

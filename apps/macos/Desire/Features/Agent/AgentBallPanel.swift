@@ -30,6 +30,22 @@ final class AgentBallPanel: ObservableObject {
     @Published var hubShowsAll = false
     /// 拖拽投递的待决载荷（v5）：松手不直接发送，弹动作选择，点选才起回合。
     @Published var pendingDrop: String?
+    /// v7 快捷动作的结果反馈（球旁玻璃胶囊，同语音已发送通道的样式）。
+    @Published var actionToast: String?
+    /// 清除定时器句柄：新 toast 必须取消上一个的定时——否则前一条的
+    /// 3.2s 定时把刚发的新 toast 提前清掉（实测"下载全部"的反馈被
+    /// 前一条"单视频"的定时吃掉，toast 永远空）。
+    private var toastClearTask: Task<Void, Never>?
+
+    func flashToast(_ text: String) {
+        actionToast = text
+        toastClearTask?.cancel()
+        toastClearTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3.2))
+            guard !Task.isCancelled else { return }
+            self?.actionToast = nil
+        }
+    }
 
     /// 页面上下文（触盘菜单头）：宿主窗口注入（每窗一个覆盖层）。
     struct PageContext {
@@ -51,6 +67,9 @@ final class AgentBallPanel: ObservableObject {
     var onScreenshot: (() -> Void)?
     /// 当前标签是否处于元素全屏（视频等）——球自动让位。
     var onPageFullscreen: (() -> Bool)?
+    /// v7 特色快捷动作的操作对象：当前选中标签（去广告/视频下载都以它为
+    /// 目标页）。宿主（ContentView）注入。
+    var pageTabProvider: (() -> Tab?)?
 
     static let enabledChangedNotification = Notification.Name("agentBall.enabledChanged")
     static let edgeKey = "agentBall.edge"
@@ -224,6 +243,29 @@ extension AgentBallPanel {
             let prompt = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !prompt.isEmpty else { openAgentPanel(); return }
             onSendPrompt?(prompt)
+        case .adClean:
+            // AI 去广告：与 didFinish 自动清理/agent blockElements 同引擎。
+            guard let tab = pageTabProvider?() else { flashToast("请先打开一个网页"); return }
+            Task { @MainActor in
+                let blocked = await BallQuickActions.cleanAds(on: tab)
+                flashToast(blocked > 0
+                           ? "AI 去广告：已拦截 \(blocked) 处"
+                           : blocked == 0 ? "AI 去广告：没发现广告" : "AI 去广告：请先打开一个网页")
+            }
+        case .downloadPageVideo:
+            guard let tab = pageTabProvider?() else { flashToast("请先打开一个网页"); return }
+            flashToast(BallQuickActions.downloadPageVideo(on: tab))
+        case .downloadAllVideos:
+            guard let tab = pageTabProvider?() else { flashToast("请先打开一个网页"); return }
+            Task { @MainActor in
+                flashToast(await BallQuickActions.downloadAllVideos(on: tab))
+            }
+        case .readerMode:
+            CommandBus.shared.send(.toggleReader)
+        case .findInPage:
+            CommandBus.shared.send(.toggleFind)
+        case .bookmarkPage:
+            CommandBus.shared.send(.bookmarkPage)
         }
     }
 

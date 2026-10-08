@@ -106,6 +106,11 @@ struct AgentBallOverlay: View {
                     toastPill(toast, in: geo.size)
                         .transition(.scale(scale: 0.85).combined(with: .opacity))
                 }
+                // v7 快捷动作反馈（AI 去广告/视频下载的结果）——同款胶囊。
+                if let toast = state.actionToast, !state.hiddenForFullscreen {
+                    toastPill(toast, in: geo.size)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                }
             }
             // 固定坐标空间：手势挂在会移动的球上，默认 .local 会随球
             // 一起动——translation 被自我抵消，拖动只剩半速（实测 492pt
@@ -114,6 +119,7 @@ struct AgentBallOverlay: View {
             // 触盘弹出/收起与球图标 ✕ 切换由这一个动画驱动。
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: state.isExpanded)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sentToast)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.actionToast)
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: state.pendingDrop)
             .animation(.easeOut(duration: 0.2), value: ballHovering)
             .onChange(of: state.voiceTranscriptSent) { _, sent in
@@ -557,19 +563,17 @@ private struct AgentBallHub: View {
             VStack(spacing: 10) {
                 hubHead
                 if state.hubShowsAll {
-                    // 全 8 能力（v5：八选四限制取消；设置页只管前四槽排序）。
+                    // 全能力网格（v7：14 项 → 4 列动态行数，Row 内容 chunk）。
                     let all = BallCapability.allCases
-                    HStack(spacing: 8) {
-                        hubCell(0, all[0])
-                        hubCell(1, all[1])
-                        hubCell(2, all[2])
-                        hubCell(3, all[3])
+                    let rows = stride(from: 0, to: all.count, by: 4).map {
+                        Array(all[$0..<min($0 + 4, all.count)])
                     }
-                    HStack(spacing: 8) {
-                        hubCell(4, all[4])
-                        hubCell(5, all[5])
-                        hubCell(6, all[6])
-                        hubCell(7, all[7])
+                    ForEach(rows.indices, id: \.self) { row in
+                        HStack(spacing: 8) {
+                            ForEach(rows[row]) { capability in
+                                hubCell(all.firstIndex(of: capability) ?? 0, capability)
+                            }
+                        }
                     }
                     .transition(.opacity.combined(with: .scale(0.96)))
                 } else {
@@ -633,7 +637,7 @@ private struct AgentBallHub: View {
         Button {
             state.hubShowsAll = true
         } label: {
-            Text("⌄ 全部 8 项")
+            Text("⌄ 全部 \(BallCapability.allCases.count) 项")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(.tertiary)
         }

@@ -69,10 +69,11 @@ final class AutoAdClean {
 
     /// 扫描 → 高置信度候选自动 block（与 agent blockElements 同通道；
     /// ElementBlockStore 走 AppState.live，与 agent 工具同一份规则库）。
-    func scanAndClean(webView: BrowserWKWebView, host: String) async {
-        guard let elementBlockStore = AppState.live?.elementBlockStore else { return }
+    @discardableResult
+    func scanAndClean(webView: BrowserWKWebView, host: String) async -> Int {
+        guard let elementBlockStore = AppState.live?.elementBlockStore else { return 0 }
         let script = UserScriptLoader.load("ad-candidates")
-        guard !script.isEmpty else { return }
+        guard !script.isEmpty else { return 0 }
         do {
             let raw = try await webView.callAsyncJavaScript(
                 script,
@@ -84,7 +85,7 @@ final class AutoAdClean {
                   let data = raw.data(using: .utf8),
                   let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let candidates = payload["candidates"] as? [[String: Any]]
-            else { return }
+            else { return 0 }
 
             // 高置信度门槛：≥2 条独立理由（单理由误杀率高——class/id 撞名、
             // slot-size 撞布局）。与 agent 人工挑选互补：这里只收稳的。
@@ -94,7 +95,7 @@ final class AutoAdClean {
                 .filter { !$0.isEmpty }
             guard !confident.isEmpty else {
                 Self.log.info("auto ad clean: \(candidates.count, privacy: .public) candidate(s), none at high confidence")
-                return
+                return 0
             }
 
             // 与 agent 的 blockElements 同通道：ElementBlockStore + 即时 CSS。
@@ -106,7 +107,7 @@ final class AutoAdClean {
                 elementBlockStore.add(cssSelector: selector, urlPattern: host, source: "ai-auto")
                 applied += 1
             }
-            guard applied > 0 else { return }
+            guard applied > 0 else { return 0 }
             let css = confident.map { "\($0) { display: none !important; }" }.joined()
             let escaped = css
                 .replacingOccurrences(of: "\\", with: "\\\\")
@@ -127,8 +128,10 @@ final class AutoAdClean {
                 name: Notification.Name("autoAdCleanBlocked"),
                 object: nil,
                 userInfo: ["host": host, "count": applied])
+            return applied
         } catch {
             Self.log.debug("auto ad clean scan failed: \(error.localizedDescription, privacy: .public)")
         }
+        return 0
     }
 }

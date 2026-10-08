@@ -3,6 +3,8 @@ import SwiftUI
 /// 设置 →「悬浮球」独立子页（v6）：球体外观 / 触盘功能 / 触盘样式 / 交互
 /// 四组，全部即时生效（AppStorage/UserDefaults 直达，覆盖层观察即跟随）。
 struct AgentBallSettingsView: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var ball = AgentBallPanel.shared
     @AppStorage(AgentBallPanel.sizeKey) private var ballSize: Double = 52
     @AppStorage(AgentBallPanel.opacityKey) private var ballOpacity: Double = 1.0
@@ -117,27 +119,23 @@ struct AgentBallSettingsView: View {
     private var hubActionsSection: some View {
         SettingsSection(
             title: String(localized: "Hub Actions"),
-            subtitle: String(localized: "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action."),
+            subtitle: String(localized: "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order."),
             icon: "square.grid.2x2"
         ) {
             VStack(spacing: 0) {
                 SettingsRow(
-                    String(localized: "Hub Slots"),
-                    subtitle: String(localized: "Slot order = layout order: 1·2 top row, 3·4 bottom row.")
+                    String(localized: "Main Hub (2×2)"),
+                    subtitle: String(localized: "The first four in the list below.")
                 ) {
-                    HStack(spacing: 6) {
-                        ForEach(0..<4, id: \.self) { index in
-                            Picker("", selection: slotBinding(index)) {
-                                ForEach(BallCapability.allCases) { capability in
-                                    Text(capability.displayName).tag(capability)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            // 74pt 曾把「Agent 对话」截成 "Age…"——按最长项
-                            // （自定义提示词 5 字 + 箭头）给足宽度。
-                            .frame(width: 108)
-                        }
+                    mainHubPreview
+                }
+                SettingsRowDivider()
+                // 全能力排序表（v7 顺序表模型）：前 4 = 主盘 2×2，其余 =
+                // ⌄ 全览的展示顺序。↑↓ 整体 move，主盘成员随位置变化。
+                ForEach(ball.slots.indices, id: \.self) { index in
+                    capabilityRow(index)
+                    if index < ball.slots.count - 1 {
+                        SettingsRowDivider()
                     }
                 }
                 SettingsRowDivider()
@@ -151,8 +149,8 @@ struct AgentBallSettingsView: View {
                 }
                 SettingsRowDivider()
                 SettingsRow(
-                    String(localized: "Reset Slots"),
-                    subtitle: String(localized: "Restore the default four: Agent Chat, Voice, Summarize Page, Whiteboard.")
+                    String(localized: "Reset Order"),
+                    subtitle: String(localized: "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first.")
                 ) {
                     Button {
                         ball.resetSlots()
@@ -164,13 +162,95 @@ struct AgentBallSettingsView: View {
                     } label: {
                         Text(slotsResetFlash
                              ? String(localized: "Reset ✓")
-                             : String(localized: "Reset Slots"))
+                             : String(localized: "Reset Order"))
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             }
         }
+    }
+
+    /// 主盘 2×2 缩略预览（随排序实时变化）。
+    private var mainHubPreview: some View {
+        VStack(spacing: 5) {
+            ForEach(Array(0..<2), id: \.self) { row in
+                HStack(spacing: 5) {
+                    ForEach(Array(0..<2), id: \.self) { col in
+                        mainHubTile(index: row * 2 + col)
+                    }
+                }
+            }
+        }
+        .padding(4)
+    }
+
+    /// 预览单格（拆出：嵌套 ForEach + 三元整体表达式 type-check 超时）。
+    private func mainHubTile(index: Int) -> some View {
+        let capability = ball.slots.indices.contains(index) ? ball.slots[index] : BallCapability.conversation
+        return VStack(spacing: 2) {
+            Image(systemName: capability.icon)
+                .font(.system(size: 11, weight: .medium))
+            Text(capability.displayName)
+                .font(.system(size: 7.5))
+                .lineLimit(1)
+        }
+        .frame(width: 64, height: 34)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(appAccent.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(appAccent.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    /// 排序行：主盘徽标（1-4）+ 图标 + 名称 + ↑↓ 移动。
+    private func capabilityRow(_ index: Int) -> some View {
+        let capability = ball.slots[index]
+        let isMain = index < 4
+        return HStack(spacing: 10) {
+            Text(index < 4 ? "主盘 \(index + 1)" : "\(index + 1)")
+                .font(.system(size: 10, weight: isMain ? .semibold : .regular).monospacedDigit())
+                .foregroundStyle(isMain ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .frame(width: 52, alignment: .leading)
+            Image(systemName: capability.icon)
+                .font(.system(size: 12))
+                .foregroundStyle(isMain ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .frame(width: 18)
+            Text(capability.displayName)
+                .font(.system(size: 12.5))
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                Button {
+                    ball.moveCapability(from: index, to: index - 1)
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .disabled(index == 0)
+                .buttonStyle(.plain)
+                .foregroundStyle(index == 0 ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+
+                Button {
+                    ball.moveCapability(from: index, to: index + 2)
+                } label: {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .disabled(index >= ball.slots.count - 1)
+                .buttonStyle(.plain)
+                .foregroundStyle(index >= ball.slots.count - 1 ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .contentShape(Rectangle())
     }
 
     // MARK: - 触盘样式
@@ -227,12 +307,5 @@ struct AgentBallSettingsView: View {
                     .controlSize(.small)
             }
         }
-    }
-
-    private func slotBinding(_ index: Int) -> Binding<BallCapability> {
-        Binding(
-            get: { ball.slots.indices.contains(index) ? ball.slots[index] : .conversation },
-            set: { ball.setSlot(index, to: $0) }
-        )
     }
 }

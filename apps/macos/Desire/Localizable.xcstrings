@@ -14733,28 +14733,6 @@
         }
       }
     },
-    "Hub Slots" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hub Slots"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触盘槽位"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸盤槽位"
-          }
-        }
-      }
-    },
     "Human verification required" : {
       "localizations" : {
         "en" : {
@@ -34666,72 +34644,6 @@
         }
       }
     },
-    "Slot order = layout order: 1·2 top row, 3·4 bottom row." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Slot order = layout order: 1·2 top row, 3·4 bottom row."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "槽位序即布局序：1·2 上排，3·4 下排。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "槽位序即佈局序：1·2 上排，3·4 下排。"
-          }
-        }
-      }
-    },
-    "Reset Slots" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Slots"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置槽位"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置槽位"
-          }
-        }
-      }
-    },
-    "Restore the default four: Agent Chat, Voice, Summarize Page, Whiteboard." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore the default four: Agent Chat, Voice, Summarize Page, Whiteboard."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢复默认四枚：Agent 对话、语音输入、总结本页、白板。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢復預設四枚：Agent 對話、語音輸入、總結本頁、白板。"
-          }
-        }
-      }
-    },
     "Hub Style" : {
       "localizations" : {
         "en" : {
@@ -35018,24 +34930,112 @@
         }
       }
     },
-    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action." : {
+    "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals every action."
+            "value" : "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择触盘 2×2 上放哪四个功能；选了别的槽位已有的功能会两槽互换。长按球（或点 ⌄）可展开全部操作。"
+            "value" : "前四行组成球的 2×2 主盘，其余收在「⌄ 全部」里；顺序随意调，触盘网格跟随你的排序。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選擇觸盤 2×2 上放哪四個功能；選了別的槽位已有的功能會兩槽互換。長按球（或點 ⌄）可展開全部操作。"
+            "value" : "前四行組成球的 2×2 主盤，其餘收在「⌄ 全部」裡；順序隨意調，觸盤網格跟隨你的排序。"
+          }
+        }
+      }
+    },
+    "Main Hub (2×2)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main Hub (2×2)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主盘（2×2）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主盤（2×2）"
+          }
+        }
+      }
+    },
+    "The first four in the list below." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first four in the list below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即下方列表的前四项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即下方列表的前四項。"
+          }
+        }
+      }
+    },
+    "Reset Order" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Order"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置排序"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置排序"
+          }
+        }
+      }
+    },
+    "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认顺序：Agent 对话、语音输入、总结本页、白板在前。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復預設順序：Agent 對話、語音輸入、總結本頁、白板在前。"
           }
         }
       }

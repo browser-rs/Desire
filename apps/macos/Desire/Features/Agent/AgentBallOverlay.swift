@@ -563,19 +563,23 @@ private struct AgentBallHub: View {
             VStack(spacing: 10) {
                 hubHead
                 if state.hubShowsAll {
-                    // 全能力网格（v7：14 项 → 4 列动态行数，Row 内容 chunk）。
-                    let all = BallCapability.allCases
-                    let rows = stride(from: 0, to: all.count, by: 4).map {
-                        Array(all[$0..<min($0 + 4, all.count)])
+                    // 全能力网格（v7：14 项 → 4 列动态行数；**顺序 = 设置子页
+                    // 的个人排序表**，不是固定的 allCases）。stagger 序号 = 表
+                    // 内下标（别改 hashValue：每次启动随机，乘进 delay 是
+                    // 天文数字，格子会永远停在 opacity 0——实测）。
+                    let ordered = state.slots
+                    let rows = stride(from: 0, to: ordered.count, by: 4).map {
+                        Array(ordered[$0..<min($0 + 4, ordered.count)])
                     }
                     ForEach(rows.indices, id: \.self) { row in
                         HStack(spacing: 8) {
                             ForEach(rows[row]) { capability in
-                                hubCell(all.firstIndex(of: capability) ?? 0, capability)
+                                hubCell(ordered.firstIndex(of: capability) ?? 0, capability)
                             }
                         }
                     }
-                    .transition(.opacity.combined(with: .scale(0.96)))
+                    collapseChip
+                        .transition(.opacity)
                 } else {
                     // 主槽 2×2（V3 定稿布局；编号 = 槽位**位置** 0…3，同时是
                     // 弹入动画的 stagger 序号——别改成 hashValue：它每次启动
@@ -638,6 +642,21 @@ private struct AgentBallHub: View {
             state.hubShowsAll = true
         } label: {
             Text("⌄ 全部 \(BallCapability.allCases.count) 项")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
+        .buttonStyle(.plain)
+        .opacity(appear ? 1 : 0)
+        .animation(animate ? .easeOut(duration: 0.3).delay(0.3) : nil, value: appear)
+    }
+
+    /// 全览态的退回 chip（v7 修复："展开全部后不能退回"）——收起回 2×2
+    /// 主盘；收起触盘时 isExpanded didSet 也会自动复位 hubShowsAll。
+    private var collapseChip: some View {
+        Button {
+            state.hubShowsAll = false
+        } label: {
+            Text("⌃ 回到主盘")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(.tertiary)
         }

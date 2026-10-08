@@ -64,12 +64,18 @@ enum BallCapability: String, CaseIterable, Identifiable {
     /// V3 定稿布局（nonisolated：持久化解码在非隔离上下文也要能引用）。
     nonisolated static let defaultSlots: [BallCapability] = [.conversation, .voice, .summarize, .whiteboard]
 
-    /// 持久化解码：非法/缺位回退默认（数量 != 4 或含未知值即视为坏档）。
+    /// 默认全能力顺序：V3 四枚在前，其余按目录顺序随后。
+    nonisolated static var defaultOrder: [BallCapability] {
+        defaultSlots + allCases.filter { !defaultSlots.contains($0) }
+    }
+
+    /// 持久化解码：v4 档只存主盘 4 值——按 allCases 顺序**补齐全表**（v7
+    /// 顺序表模型，前 4 语义不变）；非法值丢弃、重复去重，缺失项补尾。
     nonisolated static func decodeSlots(_ raw: [String]) -> [BallCapability] {
         let decoded = raw.compactMap { BallCapability(rawValue: $0) }
         var seen = Set<BallCapability>()
         let unique = decoded.filter { seen.insert($0).inserted }
-        guard unique.count == 4 else { return defaultSlots }
-        return unique
+        let rest = allCases.filter { !seen.contains($0) }
+        return unique + rest
     }
 }

@@ -11,7 +11,9 @@ final class AgentBallPanel: ObservableObject {
     static let shared = AgentBallPanel()
 
     @Published private(set) var isEnabled: Bool
-    /// 触盘 2×2 槽位（v4 可定制：八选四，UserDefaults 持久化）。
+    /// 全能力顺序表（v7：14 项，**前 4 = 主盘 2×2**，全览网格顺序跟随此表
+    /// ——设置子页可整体排序，"我的常用排前面"）。旧档只存 4 值，解码按
+    /// allCases 顺序补齐其余项。
     @Published var slots: [BallCapability] = BallCapability.defaultSlots {
         didSet { persistSlots() }
     }
@@ -19,7 +21,13 @@ final class AgentBallPanel: ObservableObject {
     @Published var customPrompt: String {
         didSet { UserDefaults.standard.set(customPrompt, forKey: Self.customPromptKey) }
     }
-    @Published var isExpanded = false
+    @Published var isExpanded = false {
+        didSet {
+            // "全部"是临时全览视图，不跨展开周期：每次收起触盘都复位回
+            // 2×2 主盘——否则全览态收起后再次展开永远是全部（用户实测）。
+            if !isExpanded, hubShowsAll { hubShowsAll = false }
+        }
+    }
     /// 活跃会话的 Agent 正在处理（球上进度环）。
     @Published private(set) var agentBusy = false
     /// Agent 回复完成提醒（busy 下降沿触发，数秒后自动消失）。
@@ -199,18 +207,19 @@ extension AgentBallPanel {
 
     /// 设置页换槽：把槽位 i 换成新能力；若该能力已在其他槽位，两槽互换
     /// （四枚各不相同，拖乱顺序不丢能力）。
-    func setSlot(_ index: Int, to capability: BallCapability) {
-        guard slots.indices.contains(index) else { return }
-        if let existing = slots.firstIndex(of: capability), existing != index {
-            slots.swapAt(index, existing)
-        } else {
-            slots[index] = capability
-        }
+    /// 设置子页排序（v7 顺序表模型）：把 index 项移动到目标位。destination
+    /// 是"移除后"语义的插入位（与 SwiftUI onMove 一致：向下移动传 index+2）。
+    /// 自实现而非 Array.move——那个扩展定义在 SwiftUI，本文件不引 UI 框架。
+    func moveCapability(from index: Int, to destination: Int) {
+        guard slots.indices.contains(index),
+              destination >= 0, destination <= slots.count, destination != index else { return }
+        let item = slots.remove(at: index)
+        slots.insert(item, at: destination > index ? destination - 1 : destination)
     }
 
-    /// 设置页「重置槽位」：回到 V3 定稿四枚。
+    /// 设置页「重置槽位」：回默认全能力顺序（V3 四枚在前）。
     func resetSlots() {
-        slots = BallCapability.defaultSlots
+        slots = BallCapability.defaultOrder
     }
 
     /// 设置页「重置位置」：回默认左缘中点。Overlay 用 @AppStorage 读这两键，

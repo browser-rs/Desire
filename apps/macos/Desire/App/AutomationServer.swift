@@ -933,6 +933,8 @@ final class AutomationServer {
                     "visible": AgentBallPanel.shared.isVisible,
                     "enabled": AgentBallPanel.shared.isEnabled,
                     "expanded": AgentBallPanel.shared.isExpanded,
+                    "showsAll": AgentBallPanel.shared.hubShowsAll,
+                    "slots": AgentBallPanel.shared.encodedSlots,
                     "agentBusy": AgentBallPanel.shared.agentBusy,
                     "hiddenForFullscreen": AgentBallPanel.shared.hiddenForFullscreen,
                     "actionToast": AgentBallPanel.shared.actionToast ?? "",

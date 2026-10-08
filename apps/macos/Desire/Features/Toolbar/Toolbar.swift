@@ -863,6 +863,7 @@ private struct DownloadButton: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: store.hasActive ? "arrow.down.circle.fill" : "arrow.down.circle")
+                    .font(.system(size: 13))
                     .foregroundStyle(store.hasActive ? appAccent : .primary)
                 if store.activeCount > 0 {
                     Text("\(store.activeCount)")
@@ -874,7 +875,9 @@ private struct DownloadButton: View {
                         .offset(x: 7, y: -7)
                 }
             }
-            .frame(width: 28, height: 28)
+            // 24×24 = 工具栏尾部按钮统一规格（wand/ladybug/ellipsis 同）。
+            // 曾是 28×28：半宽多 2pt 把下载圆心挤出 + 号正上方（用户实测对不齐）。
+            .frame(width: 24, height: 24)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isHovering ? Color(nsColor: .controlBackgroundColor) : Color.clear)

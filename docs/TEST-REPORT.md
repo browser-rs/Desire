@@ -592,3 +592,20 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   （/passwords/resolve save:false 可程序化驳回）
 - **教训**：测试端口会被残留 fixture 服务器占口（eval 套件的 8899 fixture
   存活导致登录页请求拿到 fixture JSON）——起本地服务前先查端口占用
+
+### 批次 K：YouTube 反"广告拦截检测" ✓（新功能 yt-anti-detect.js）
+- 用户实测：YouTube 识别到广告拦截（检测弹窗 + 拒播）
+- **三层反制**（apps/macos/Desire/UserScripts/yt-anti-detect.js，主框架
+  atDocumentStart，youtube.com host 门 + __desireYTAntiDetect 防重入）：
+  ① `ytInitialPlayerResponse` defineProperty 陷阱——赋值时剥离
+     adPlacements/adSlots/adBreaks（播放器读到的响应无广告位声明）
+  ② enforcement 弹窗清除——MutationObserver 盯
+     ytd-enforcement-message-view-model / tp-yt-paper-dialog + 文案宽撒网
+     （ad.?block/广告拦截器），命中即移除 + 恢复 video 播放
+  ③ bait 元素持续清除——#player-ads / #masthead-ad 等由常驻观察器移除
+     （SPA 重建后也会再删；一轮观察曾见重建后 playerAds=true，单次
+     DOMContentLoaded 清理不够）
+- **真机验证**：真实 YouTube 视频连续播放 71s——无弹窗、无 bait 重建、
+  页面无检测文案；播放器响应剥离 ✓；一键静音自动播放验证流畅
+- 组装：VideoAdBlocker.documentStartYouTubeAntiDetectScript() 加入
+  WebView.swift webview init 组合（isEnabled 门控内）

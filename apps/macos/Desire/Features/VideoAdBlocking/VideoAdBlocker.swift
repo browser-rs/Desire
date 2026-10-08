@@ -114,6 +114,18 @@ class VideoAdBlocker: ObservableObject {
         )
     }
 
+    /// YouTube 反"广告拦截检测"（`UserScripts/yt-anti-detect.js`）：
+    /// ytInitialPlayerResponse 广告位剥离（documentStart 陷阱）+ enforcement
+    /// 弹窗清除 + bait 元素移除。**主框架、文档开始**——陷阱必须先于
+    /// YouTube 播放器脚本。脚本内部自带 youtube.com host 门。
+    func documentStartYouTubeAntiDetectScript() -> WKUserScript {
+        WKUserScript(
+            source: UserScriptLoader.load("yt-anti-detect"),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+    }
+
     /// JS injection script (added at document end when enabled). Wraps all
     /// per-site page scripts in a host-matching `if` so only the relevant
     /// site executes on each page. Non-video sites bail early (near-zero cost).

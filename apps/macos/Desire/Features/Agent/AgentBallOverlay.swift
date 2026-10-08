@@ -117,7 +117,15 @@ struct AgentBallOverlay: View {
             // 只走 246pt）。命名空间相对 overlay 静止，手势值才准。
             .coordinateSpace(.named(Self.overlaySpace))
             // 触盘弹出/收起与球图标 ✕ 切换由这一个动画驱动。
-            .animation(.spring(response: 0.4, dampingFraction: 0.78), value: state.isExpanded)
+            // 展开/收起分速（v7 精修）：展开要有"绽放"弹性，收起要干脆——
+            // 同一根弹簧两头都黏。
+            .animation(
+                hubAnimation
+                    ? (state.isExpanded
+                        ? .spring(response: 0.42, dampingFraction: 0.75)
+                        : .spring(response: 0.3, dampingFraction: 0.88))
+                    : nil,
+                value: state.isExpanded)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sentToast)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.actionToast)
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: state.pendingDrop)
@@ -207,7 +215,9 @@ struct AgentBallOverlay: View {
                 in: .circle
             )
         }
-        .scaleEffect(dropHover ? 1.16 : hoverScale * (pressing ? 0.9 : 1))
+        // 展开时球微缩退后（v7 精修）：视觉焦点让给触盘，球从"操作对象"
+        // 变"关闭按钮"。压感 0.9 与之复合。
+        .scaleEffect(dropHover ? 1.16 : hoverScale * (pressing ? 0.9 : 1) * (state.isExpanded ? 0.94 : 1))
         .rotationEffect(.degrees(dragTilt))
         .brightness(hoverScale > 1 ? 0.03 : 0)
         .contentShape(Circle())
@@ -285,11 +295,16 @@ struct AgentBallOverlay: View {
                     dragStartCenter = restingCenter(in: size)
                     pressStarted = Date()
                 }
-                pressing = dragged == false
+                // 按压回弹（v7 精修）：压下/释放都走弹簧，不再瞬时突变。
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.62)) {
+                    pressing = dragged == false
+                }
                 let t = value.translation
                 if abs(t.width) > 4 || abs(t.height) > 4 {
                     dragged = true
-                    pressing = false
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.62)) {
+                        pressing = false
+                    }
                 }
                 if dragged, let start = dragStartCenter {
                     var c = CGPoint(x: start.x + t.width, y: start.y + t.height)
@@ -304,7 +319,9 @@ struct AgentBallOverlay: View {
                     dragStartCenter = nil
                     dragPos = nil
                     dragged = false
-                    pressing = false
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.62)) {
+                        pressing = false
+                    }
                 }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { dragTilt = 0 }
                 if dragged {
@@ -384,7 +401,11 @@ struct AgentBallOverlay: View {
         let halfW = hubWidth / 2
         let hubX = min(max(c.x, halfW + 6), max(halfW + 6, size.width - halfW - 6))
         return AgentBallHub(state: state, cellSize: state.hubShowsAll ? hubCellSmall : hubCell,
-                            appear: hubAppeared, animate: hubAnimation)
+                            appear: hubAppeared, animate: hubAnimation,
+                            // 弹入方向 = 从球的一侧进入：盘在球上方时格子自下
+                            // 而上浮入（+14），盘在下方时自上而下（-14）——
+                            // 此前固定 +14，盘在球下方时方向是反的。
+                            enterOffset: above ? 14 : -14)
             .frame(width: hubWidth)
             .glassEffect(.regular, in: .rect(cornerRadius: 26))
             // v5 · 方向 A「绽放」：盘从球的位置弹性放大（锚点朝球一侧）。
@@ -422,11 +443,11 @@ struct AgentBallOverlay: View {
     private var hubShimmer: some View {
         if shimmer, hubAnimation {
             GeometryReader { geo in
-                LinearGradient(colors: [.clear, .white.opacity(0.42), .clear],
+                LinearGradient(colors: [.clear, .white.opacity(0.30), .clear],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
                     .frame(width: geo.size.width * 0.55)
                     .offset(x: shimmer ? geo.size.width : -geo.size.width)
-                    .animation(.easeOut(duration: 0.8), value: shimmer)
+                    .animation(.easeOut(duration: 0.9), value: shimmer)
             }
             .clipShape(.rect(cornerRadius: 26))
             .allowsHitTesting(false)
@@ -553,6 +574,9 @@ private struct AgentBallHub: View {
     /// 弹入动画总开关（v6 设置页可关）——false 时不加 stagger 延时，
     /// 格子直接落位（外层绽放/掠光同被关闭）。
     let animate: Bool
+    /// 弹入的纵向进入方向（v7 精修）：+14 = 自下而上（盘在球上方），
+    /// -14 = 自上而下（盘在球下方）。
+    let enterOffset: CGFloat
 
     @State private var hovered: Int?
     /// 拖拽投递悬停（v4）：拖链接/选区悬到球上时球放大 + 强调环。
@@ -714,13 +738,14 @@ private struct AgentBallHub: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.1)) {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.8)) {
                 hovered = hovering ? index : (hovered == index ? nil : hovered)
             }
         }
+        // 悬停微浮起（v7 精修）：1pt 上移让"选中感"有位移分量，不只填色。
+        .offset(y: hovered == index && appear ? -1 : (appear ? 0 : enterOffset))
         .scaleEffect(appear ? 1 : 0.4)
         .opacity(appear ? 1 : 0)
-        .offset(y: appear ? 0 : 14)
         .animation(animate
             ? .spring(response: 0.4, dampingFraction: 0.68).delay(Double(index) * 0.05)
             : nil,

@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- **白板视觉自检闭环（agent 画→看→改）**：whiteboard 工具新增 `action=screenshot`——当前板经 BoardRenderService 离屏渲染成 PNG 以 vision 输入回传给模型（复用截图多模态通道），渲染报错的块会显式失败并提示先修；工具描述与参数说明同步（flow/mindmap/chart 编辑后建议自检布局拥挤/节点重叠/文字截断，用 edit 修正后再交付）。配合 v8 的 flow/mindmap 块，agent 具备"画→看→改"的完整自检能力
+
+
 ## [v0.7.4] - 2026-10-09
 ### Changed
 

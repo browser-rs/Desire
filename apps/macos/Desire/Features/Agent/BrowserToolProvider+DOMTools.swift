@@ -519,6 +519,29 @@ extension BrowserToolProvider {
                 store.clear(conversationID: conversationID)
                 return "Whiteboard cleared — the chat card now shows an empty board"
             }
+            // 视觉自检（v8）：当前板离屏渲染成图回传（多模态）——"画→看→改"
+            // 闭环的眼睛。模型据此自查布局拥挤/节点重叠/文字截断并 edit 修正。
+            if action == "screenshot" {
+                let board = store.board(for: conversationID)
+                guard !board.blocks.isEmpty else {
+                    return Self.fail("Whiteboard is empty — nothing to screenshot")
+                }
+                let result: BoardRenderService.Result
+                do {
+                    result = try await BoardRenderService.shared.render(board, width: 520)
+                } catch {
+                    return Self.fail("Board render failed: " + error.localizedDescription)
+                }
+                guard let tiff = result.image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    return Self.fail("Board render failed (image encode)")
+                }
+                if !result.errors.isEmpty {
+                    return Self.fail("Board render has errors in: " + result.errors.joined(separator: ", ") + " — fix those blocks first (action=get shows content)")
+                }
+                return "data:image/png;base64," + png.base64EncodedString()
+            }
             // 精细编辑：按 get 回读的块编号（1-based）操作单块——避免为改
             // 一块重发整板（image 块的 data URI 会吃掉大量 token）。
             if action == "edit" || action == "delete" || action == "move" {

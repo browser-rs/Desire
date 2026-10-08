@@ -174,6 +174,22 @@ struct WhiteboardWebView: NSViewRepresentable {
       .note h1, .note h2, .note h3 { font-size: 14px; margin: 8px 0 4px; }
       .note strong { font-weight: 700; }
       .mermaid-box svg, .chart-box { max-width: 100%; }
+      /* Mermaid 图精修（v7）：居中 + 底部呼吸空间；节点文字/边已在
+         themeVariables 统一成米纸配色。 */
+      .mermaid-box { display: flex; justify-content: center; padding: 6px 2px 10px; }
+      .mermaid-box svg { max-width: 100%; height: auto; }
+      .mermaid-box svg .flowchart-link { stroke-width: 1.6px; }
+      .mermaid-box svg .node rect,
+      .mermaid-box svg .node polygon,
+      .mermaid-box svg .node circle { filter: drop-shadow(0 1px 1.5px rgba(90,74,48,0.14)); }
+      .mermaid-box svg .mindmap-node,
+      .mermaid-box svg .mindmap-edges path { font-family: -apple-system, "PingFang SC", sans-serif; }
+      /* note 内代码块（v7 扩充：``` 围栏渲染） */
+      .note pre { background: #f3ead6; border: 1px solid #e3d9c2; border-radius: 6px;
+                  padding: 8px 10px; overflow-x: auto; margin: 6px 0; }
+      .note pre code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #4a3f2e; }
+      .note code { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+                   background: #f3ead6; border-radius: 3px; padding: 1px 4px; }
       .err { color: #c03a1a; font-size: 12px; }
       .empty { color: #8a7f6f; font-size: 13px; }
       .block { position: relative; }
@@ -204,8 +220,15 @@ struct WhiteboardWebView: NSViewRepresentable {
       var queued = null;
 
       function miniMarkdown(text) {
-        var esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        return esc
+        // ``` 围栏代码块先摘出（v7）：其余行内规则不得进入 pre。
+        // 占位符用 form-feed 字符（Swift 字符串层写双反斜杠）——不会与正文冲突。
+        var blocks = [];
+        var src = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        src = src.replace(/```([a-zA-Z0-9_]*)\\n([\\s\\S]*?)```/g, function (m, lang, code) {
+          blocks.push('<pre><code>' + code + '</code></pre>');
+          return "\\fBLOCK" + (blocks.length - 1) + "\\f";
+        });
+        var out = src
           .replace(/^### (.*)$/gm, "<h3>$1</h3>")
           .replace(/^## (.*)$/gm, "<h2>$1</h2>")
           .replace(/^# (.*)$/gm, "<h1>$1</h1>")
@@ -213,6 +236,7 @@ struct WhiteboardWebView: NSViewRepresentable {
           .replace(/`([^`]+)`/g, "<code>$1</code>")
           .replace(/\\[([^\\]]+)\\]\\((https?:[^)\\s]+)\\)/g, '<a class="note-link" data-href="$2">$1</a>')
           .replace(/^- (.*)$/gm, "• $1");
+        return out.replace(/\\fBLOCK(\\d+)\\f/g, function (m, i) { return blocks[+i]; });
       }
 
       // markdown 表格 → HTML table（| 分隔；第二行分隔线跳过）
@@ -518,7 +542,41 @@ struct WhiteboardWebView: NSViewRepresentable {
       function boot() {
         if (ready) return;
         if (!(window.mermaid && window.echarts)) return;
-        mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
+        // v7 美化：theme base + 米纸主题变量（墨字 #211b13 / 朱金 #b48b3c /
+        // 灰褐线 #8a7f6f），连线平滑曲线（basis）替代原始直角折线，
+        // flowchart 节点圆角 + 内边距。此前 theme neutral = 生成的流程图
+        // 灰白直角线，观感"原始"。
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "base",
+          securityLevel: "loose",
+          themeVariables: {
+            fontFamily: '-apple-system, "PingFang SC", sans-serif',
+            // fontSize 必须是**数字**：mermaid 主题计算会拿它做乘法
+            //（fontSize*spacing），字符串 "14px" 让整条主题链变 NaN
+            // 静默回退默认灰主题（实测 themeVariables 全部失效的真因）。
+            fontSize: 14,
+            primaryColor: "#fbf3e2",
+            primaryTextColor: "#211b13",
+            primaryBorderColor: "#b48b3c",
+            secondaryColor: "#f3e7cd",
+            tertiaryColor: "#f6f1e7",
+            lineColor: "#8a7f6f",
+            textColor: "#211b13",
+            mainBkg: "#fbf3e2",
+            nodeBorder: "#b48b3c",
+            clusterBkg: "#f3ead6",
+            clusterBorder: "#d8cfba",
+            edgeLabelBackground: "#fffdf7",
+            noteBkgColor: "#fdf6e2",
+            noteBorderColor: "#d8cfba"
+          },
+          flowchart: { curve: "basis", padding: 10, nodeSpacing: 42, rankSpacing: 52 },
+          sequence: { actorFontFamily: '-apple-system', noteFontFamily: '-apple-system' },
+          // mindmap 节点的下划线默认深蓝（#0000cc 系），与米纸主题不搭——
+          // themeCSS 精确覆盖（类名以 v11 DOM 为准：.mindmap-node 内 path）。
+          themeCSS: ".mindmap-node path, .mindmap-node rect, .mindmap-node line { stroke: #a8865a !important; stroke-width: 1.6px !important; }"
+        });
         window.renderBoard = function (spec) { queued = spec; run(); };
         window.__editing = function () { return editing; };
         window.__startEdit = function (idx) { startEdit(idx); };

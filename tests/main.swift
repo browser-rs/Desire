@@ -315,17 +315,26 @@ do {
 // ---------- 悬浮球触盘槽位（0.6.9 v4：八选四持久化解码）----------
 
 do {
-    // 合法四枚 → 原样
+    // v7 顺序表语义：decodeSlots = 输入去重保序在前 + allCases 其余补齐在后
+    // （前 4 = 主盘，全表 = ⌄ 全览顺序）。
+    func expected(_ head: [BallCapability]) -> [String] {
+        (head + BallCapability.allCases.filter { !head.contains($0) }).map { $0.rawValue }
+    }
+    // 合法四枚 → 原样在前 + 其余十枚按目录序补齐
     let good = BallCapability.decodeSlots(["translate", "screenshot", "plan", "customPrompt"])
     eq("球槽位：合法档原样", good.map { $0.rawValue },
-       ["translate", "screenshot", "plan", "customPrompt"])
-    // 重复项 → 去重保序（恰好四枚即修复，不丢用户配置）
+       expected([.translate, .screenshot, .plan, .customPrompt]))
+    // 重复项 → 去重保序（不丢用户配置）
     let duped = BallCapability.decodeSlots(["voice", "voice", "plan", "whiteboard", "translate"])
     eq("球槽位：重复去重保序", duped.map { $0.rawValue },
-       ["voice", "plan", "whiteboard", "translate"])
-    // 未知值 + 数量不足 → 回退默认
+       expected([.voice, .plan, .whiteboard, .translate]))
+    // 未知值丢弃、合法值保留（部分坏档不丢用户配置）
     let broken = BallCapability.decodeSlots(["translate", "nope"])
-    eq("球槽位：坏档回退默认", broken, BallCapability.defaultSlots)
+    eq("球槽位：坏档回退默认", broken.map { $0.rawValue },
+       expected([.translate]))
+    // 坏档输入（全部未知）→ 全表回退
+    let garbage = BallCapability.decodeSlots(["nope", "nada"])
+    eq("球槽位：全未知回退默认", garbage.map { $0.rawValue }, expected([]))
     // 顺序保序（触盘 2×2 位置语义）
     let reordered = BallCapability.decodeSlots(["plan", "translate", "voice", "summarize"])
     check("球槽位：顺序保序", reordered[0] == .plan && reordered[2] == .voice)

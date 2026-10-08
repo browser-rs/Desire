@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **单视频下载质量回执（"确定下载的就是高质量"闭环）**：ffmpeg 选档从"不限速时靠 ffmpeg 默认挑"改为**永远显式钉最高码率 variant**（master 文件顺序不保证高档在前）；ffprobe 校验升级为 JSON 解析（csv 列序是 ffprobe 内部属性序，按位解析必错位——实测 codec_name 先于 codec_type），回执带**时长/分辨率/视频+音频编码**（音轨缺失显式标 NO audio，历史丢音轨事故的信号）+ **源变体清单**（"source: N variants, max WxH"）；下载档明显低于源上限（面积差 >1/3）且未设码率上限时回执打 ⚠️；桥 /media/download 改走 MediaExportStore（与 agent 工具同路径）——此前裸调下载器，任务不进任何列表、回执只进日志。E2E：本地三档 master（低档在前）→ 不限速下到 1280x720 h264+aac、限速 350k 精确落 640x360，两条回执均带源清单
+
 ### Fixed
 
 - **工具栏下载按钮与标签栏 + 号跨行对齐**：DownloadButton 曾用 28×28 frame（其余尾部按钮统一 24×24），半宽多 2pt 把下载圆心挤出 + 号正上方 2.25pt；统一回 24×24 + 图标 13pt，像素实测 + ↔ 下载偏差 0.25pt

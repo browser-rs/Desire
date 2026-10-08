@@ -68,18 +68,36 @@ enum FFmpegExporter {
 
     static var isAvailable: Bool { locate() != nil }
 
-    /// ffprobe 输出摘要（"4.0s, 1920x1080"）——下载完成的完整性校验。
-    /// 文件不可读/无流/时长为 0 返回 nil（调用方在摘要里注明未通过校验）。
+    /// 下载完成后的产物探测结果。
+    /// `summary` 是给人看的回执文本；`resolution` 供"下载档 vs 源上限"对比。
+    struct MediaProbe {
+        let summary: String?
+        let resolution: String?
+        let hasAudio: Bool
+    }
+
+    /// 兼容旧调用的薄包装：只要回执文本。
     nonisolated static func probeSummary(fileURL: URL) -> String? {
+        probe(fileURL: fileURL).summary
+    }
+
+    /// ffprobe 探测产物（时长/分辨率/视频与音频编码）——"确定下载的就是高质量"
+    /// 的凭证：回执里写清**实际拿到了什么**。音轨缺失要显式报（历史事故：
+    /// 只喂 variant 会丢音轨，h264+aac 变 h264 没人发现）。
+    /// 完全无流/时长为 0 → summary nil（调用方注明未通过校验）。
+    nonisolated static func probe(fileURL: URL) -> MediaProbe {
         let probe = locate().map { $0.deletingLastPathComponent().appendingPathComponent("ffprobe") }
-        guard let probe, FileManager.default.isExecutableFile(atPath: probe.path) else { return nil }
+        guard let probe, FileManager.default.isExecutableFile(atPath: probe.path) else {
+            return MediaProbe(summary: nil, resolution: nil, hasAudio: false)
+        }
         let process = Process()
         process.executableURL = probe
         process.arguments = [
             "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "format=duration:stream=width,height",
-            "-of", "csv=p=0",
+            "-show_entries", "format=duration:stream=codec_type,codec_name,width,height",
+            // JSON 而非 csv：csv 的列序是 ffprobe 内部属性序（实测 codec_name 在
+            // codec_type 之前），按位置解析必然错位——JSON 按 key 取，无此坑。
+            "-of", "json",
             fileURL.path,
         ]
         process.standardInput = FileHandle.nullDevice
@@ -88,28 +106,56 @@ enum FFmpegExporter {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-        } catch { return nil }
+        } catch { return MediaProbe(summary: nil, resolution: nil, hasAudio: false) }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        // ffprobe 的 csv 输出顺序不保证（本机实测"流在前、格式在后"）——
-        // 按行特征识别：纯数字行 = 时长，"宽,高"行 = 分辨率。
-        let lines = String(data: data, encoding: .utf8)?
-            .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
+        guard process.terminationStatus == 0 else {
+            return MediaProbe(summary: nil, resolution: nil, hasAudio: false)
+        }
         var duration: Double?
         var resolution: String?
-        for line in lines {
-            if duration == nil, let value = Double(line) { duration = value; continue }
-            if resolution == nil, line.contains(","),
-               let width = line.split(separator: ",").first.flatMap({ Double($0) }),
-               let height = line.split(separator: ",").last.flatMap({ Double($0) }),
-               width > 16, height > 16 {
-                resolution = "\(Int(width))x\(Int(height))"
+        var videoCodec: String?
+        var audioCodec: String?
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let format = obj["format"] as? [String: Any] {
+                duration = (format["duration"] as? String).flatMap(Double.init)
+            }
+            for stream in obj["streams"] as? [[String: Any]] ?? [] {
+                switch stream["codec_type"] as? String {
+                case "video":
+                    if videoCodec == nil { videoCodec = stream["codec_name"] as? String }
+                    if resolution == nil,
+                       let width = stream["width"] as? Int, let height = stream["height"] as? Int,
+                       width > 16, height > 16 {
+                        resolution = "\(width)x\(height)"
+                    }
+                case "audio":
+                    if audioCodec == nil { audioCodec = stream["codec_name"] as? String }
+                default:
+                    break
+                }
             }
         }
-        guard let duration, duration > 0.2, let resolution else { return nil }
-        return String(format: "%.1fs, %@", duration, resolution)
+        guard let duration, duration > 0.2 else {
+            return MediaProbe(summary: nil, resolution: nil, hasAudio: audioCodec != nil)
+        }
+        let seconds = String(format: "%.1fs", duration)
+        let summary: String?
+        if let resolution {
+            if let videoCodec, let audioCodec {
+                summary = "\(seconds), \(resolution) \(videoCodec)+\(audioCodec)"
+            } else if let videoCodec {
+                // 音轨缺失必须显式可见——这正是"给 ffmpeg 喂错播放列表"的信号。
+                summary = "\(seconds), \(resolution) \(videoCodec) (NO audio)"
+            } else {
+                summary = "\(seconds), \(resolution)"
+            }
+        } else if let audioCodec {
+            summary = "\(seconds), audio-only \(audioCodec)"
+        } else {
+            summary = nil
+        }
+        return MediaProbe(summary: summary, resolution: resolution, hasAudio: audioCodec != nil)
     }
 
     /// 把 `url`（master 或媒体播放列表）下载并转封装成 `destination`（.mp4）。

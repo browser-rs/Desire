@@ -4638,19 +4638,16 @@ final class AutomationServer {
             return ["error": "missing or invalid url"]
         }
         let refererURL = referer.flatMap { URL(string: $0) }
-        Task { @MainActor in
-            do {
-                let result = try await MediaExporter.download(
-                    url: sourceURL, referer: refererURL, userAgent: nil,
-                    fileNameHint: fileNameHint, maxBandwidth: maxBandwidth,
-                    progress: { _, _, _ in }
-                )
-                Log.agent.info("media download finished: \(url, privacy: .public) → \(String(describing: result), privacy: .public)")
-            } catch {
-                Log.agent.error("media download failed: \(url, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
+        // 走 MediaExportStore（与 agent 工具同路径）：面板可见、/media/exports
+        // 可查完成回执（verified 分辨率/音轨 + 源变体清单）。此前裸调
+        // MediaExporter.download，回执只进日志、任务在任何列表里都不存在。
+        let id = MainActor.assumeIsolated {
+            MediaExportStore.shared.start(
+                url: sourceURL, referer: refererURL, userAgent: nil,
+                fileNameHint: fileNameHint, maxBandwidth: maxBandwidth, notify: false)
         }
-        return ["ok": true, "started": url]
+        Log.agent.info("media download started: \(url, privacy: .public) job=\(id.uuidString, privacy: .public)")
+        return ["ok": true, "started": url, "id": id.uuidString]
     }
 
     private static func batchDownload(urls: [String]) throws -> [String: Any] {

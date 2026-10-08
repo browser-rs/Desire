@@ -64,12 +64,13 @@ final class MediaExportStore: ObservableObject {
         fileNameHint: String?,
         folderName: String? = nil,
         baseDirectory: String? = nil,
+        maxBandwidth: Int? = nil,
         notify: Bool = true,
         completion: ((JobOutcome) -> Void)? = nil,
         progressHandler: ((Int, Int, MediaExporter.ProgressUnit) -> Void)? = nil
     ) -> UUID {
         let id = UUID()
-        let hint = fileNameHint?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hint = fileNameHint?.trimmingCharacters(in: .whitespaces)
         let title = (hint?.isEmpty == false ? hint! : (url.lastPathComponent.isEmpty ? (url.host ?? url.absoluteString) : url.lastPathComponent))
         jobs.append(Job(id: id, url: url, title: title, state: .running, startedAt: Date(), isSilent: !notify))
         trimSettledJobs()
@@ -83,6 +84,7 @@ final class MediaExportStore: ObservableObject {
                     referer: referer,
                     userAgent: userAgent,
                     fileNameHint: hint,
+                    maxBandwidth: maxBandwidth,
                     folderName: folderName,
                     baseDirectory: baseDirectory
                 ) { [weak self] done, total, unit in
@@ -171,6 +173,14 @@ final class MediaExportStore: ObservableObject {
         var summary = "\(result.fileURL.lastPathComponent) — \(result.displayDetail), \(result.displayBytes)"
         if let verification = result.verification {
             summary += ", verified \(verification)"
+        }
+        // "确定下载的就是高质量"的另一半凭证：源里最高有什么。下载档明显
+        // 低于源上限（且没设码率上限）时显式报警——那是"选档翻车"的信号。
+        if let source = result.sourceSummary {
+            summary += " · \(source)"
+        }
+        if let note = result.qualityNote {
+            summary += "\n⚠️ \(note)"
         }
         if !result.warnings.isEmpty {
             summary += "\n⚠️ " + result.warnings.joined(separator: "\n⚠️ ")

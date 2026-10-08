@@ -36,8 +36,17 @@ enum MediaExporter {
         let segmentCount: Int?
         let bytes: Int64
         let warnings: [String]
-        /// 完整性校验摘要（"4.0s, 1920x1080"）；nil = 本机没 ffprobe 或校验未通过。
+        /// 完整性校验摘要（"4.0s, 1920x1080 h264+aac"）；nil = 本机没 ffprobe 或校验未通过。
         var verification: String?
+        /// 产物实测分辨率（verification 的结构化部分），供与源上限比对。
+        var downloadedResolution: String? = nil
+        /// 源播放列表的变体清单摘要（"source: 4 variants, max 1920x1080"）——
+        /// "确定下载的就是高质量"的另一半凭证：光知道下了什么不够，还得知道
+        /// 源里最高有什么。直连文件（非 HLS）没有变体概念，保持 nil。
+        var sourceSummary: String? = nil
+        var sourceMaxResolution: String? = nil
+        /// 调用方设了码率上限（挑低档是**有意**的，qualityNote 不对此报警）。
+        var bandwidthCapped: Bool = false
 
         var displayBytes: String {
             let mb = Double(bytes) / 1_048_576
@@ -48,6 +57,22 @@ enum MediaExporter {
         var displayDetail: String {
             if let segmentCount { return "\(segmentCount) segment(s)" }
             return "MP4 via ffmpeg"
+        }
+
+        /// 下载档明显低于源上限时的人读警告（面积差 >1/3 才算"明显"——
+        /// 同档不同标法 1280x720 vs 1280x714 这类不吭声）。设了码率上限不报。
+        var qualityNote: String? {
+            guard !bandwidthCapped,
+                  let src = sourceMaxResolution.flatMap(Self.pixelArea),
+                  let got = downloadedResolution.flatMap(Self.pixelArea),
+                  Double(got) < Double(src) * 0.67 else { return nil }
+            return "downloaded \(downloadedResolution ?? "?") but the source offered up to \(sourceMaxResolution ?? "?")"
+        }
+
+        static func pixelArea(_ wxh: String) -> Int? {
+            let parts = wxh.split(separator: "x")
+            guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
+            return w * h
         }
     }
 
@@ -145,8 +170,9 @@ enum MediaExporter {
                     finalURL: fileURL, mimeMP4: mimeHint?.contains("mp4") == true)
                 progress(1, 1, .segments)
                 streamedLargeFile = true
-                let verification = FFmpegExporter.probeSummary(fileURL: fileURL)
-                return Result(fileURL: fileURL, segmentCount: 1, bytes: result, warnings: [], verification: verification)
+                let probe = FFmpegExporter.probe(fileURL: fileURL)
+                return Result(fileURL: fileURL, segmentCount: 1, bytes: result, warnings: [],
+                              verification: probe.summary, downloadedResolution: probe.resolution)
             }
 
             let (data, response) = try await fetch(url: url, referer: referer, userAgent: userAgent)
@@ -168,8 +194,9 @@ enum MediaExporter {
                 try directFile.data.write(to: part)
             }
             progress(1, 1, .segments)
-            let verification = FFmpegExporter.probeSummary(fileURL: fileURL)
-            return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [], verification: verification)
+            let probe = FFmpegExporter.probe(fileURL: fileURL)
+            return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [],
+                          verification: probe.summary, downloadedResolution: probe.resolution)
         }
 
         var warnings: [String] = []
@@ -196,8 +223,11 @@ enum MediaExporter {
                         progress: { done, total in progress(done, total, .seconds) }
                     )
                 }
-                let verification = FFmpegExporter.probeSummary(fileURL: destination)
-                return Result(fileURL: destination, segmentCount: nil, bytes: outcome.bytes, warnings: warnings, verification: verification)
+                let probe = FFmpegExporter.probe(fileURL: destination)
+                return Result(fileURL: destination, segmentCount: nil, bytes: outcome.bytes, warnings: warnings,
+                              verification: probe.summary, downloadedResolution: probe.resolution,
+                              sourceSummary: plan.sourceSummary, sourceMaxResolution: plan.sourceMaxResolution,
+                              bandwidthCapped: (maxBandwidth ?? 0) > 0)
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as URLError where error.code == .cancelled {
@@ -256,9 +286,11 @@ enum MediaExporter {
             //（6GB ≈ 27 分钟——此前固定 15 分钟误杀大文件转封装）。
             let gb = max(1, Int(result.bytes / 1_073_741_824))
             let remuxDeadline = min(deadline, Date().addingTimeInterval(TimeInterval(15 * 60 + gb * 2 * 60)))
-            let final = try await remuxToMP4IfNeeded(
+            let final0 = try await remuxToMP4IfNeeded(
                 result, extraWarnings: warnings, deadline: remuxDeadline, progress: progress)
             progress(1, 1, .merging)
+            var final = final0
+            final.bandwidthCapped = (maxBandwidth ?? 0) > 0
             return final
         } catch is CancellationError {
             throw CancellationError()
@@ -299,7 +331,11 @@ enum MediaExporter {
         guard result.fileURL.pathExtension.lowercased() == "ts",
               let ffmpeg = FFmpegExporter.locate() else {
             return Result(fileURL: result.fileURL, segmentCount: result.segmentCount,
-                          bytes: result.bytes, warnings: warnings, verification: result.verification)
+                          bytes: result.bytes, warnings: warnings, verification: result.verification,
+                          downloadedResolution: result.downloadedResolution,
+                          sourceSummary: result.sourceSummary,
+                          sourceMaxResolution: result.sourceMaxResolution,
+                          bandwidthCapped: result.bandwidthCapped)
         }
         // **重试复用同名 .ts**：remux 失败（超时/中断）后重试整个任务时，此前
         // uniqueDestination 会绕开已存在的 .ts 重新下载整片（01 号 6.4GB 实测
@@ -324,15 +360,23 @@ enum MediaExporter {
                 )
             }
             try? FileManager.default.removeItem(at: result.fileURL)
-            let verification = FFmpegExporter.probeSummary(fileURL: destination)
+            let probe = FFmpegExporter.probe(fileURL: destination)
             return Result(fileURL: destination, segmentCount: result.segmentCount,
-                          bytes: outcome.bytes, warnings: warnings, verification: verification)
+                          bytes: outcome.bytes, warnings: warnings, verification: probe.summary,
+                          downloadedResolution: probe.resolution,
+                          sourceSummary: result.sourceSummary,
+                          sourceMaxResolution: result.sourceMaxResolution,
+                          bandwidthCapped: result.bandwidthCapped)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             warnings.append("MP4 conversion failed, kept the .ts file: \(error.localizedDescription)")
             return Result(fileURL: result.fileURL, segmentCount: result.segmentCount,
-                          bytes: result.bytes, warnings: warnings, verification: nil)
+                          bytes: result.bytes, warnings: warnings, verification: nil,
+                          downloadedResolution: nil,
+                          sourceSummary: result.sourceSummary,
+                          sourceMaxResolution: result.sourceMaxResolution,
+                          bandwidthCapped: result.bandwidthCapped)
         }
     }
 
@@ -343,8 +387,13 @@ enum MediaExporter {
         /// 否则用媒体播放列表自身。
         let url: URL
         /// 选中 variant 在 master 里的文件顺序下标（= ffmpeg 的 program 号）。
+        /// **永远显式指定**：不靠 ffmpeg 自己挑——它的默认选择按文件顺序/实现细节
+        /// 走，master 把低档排在前面时就翻车；我们要的最高档由自己算出来。
         let programIndex: Int?
         let totalSeconds: Double
+        /// 源变体清单摘要（master 才有）："source: 4 variants, max 1920x1080"。
+        let sourceSummary: String?
+        let sourceMaxResolution: String?
     }
 
     /// 返回 nil 表示"这条不该交给 ffmpeg"（不是播放列表 / 是 live）。
@@ -364,15 +413,28 @@ enum MediaExporter {
         guard var mediaText = text else { return nil }
 
         var programIndex: Int?
+        var sourceSummary: String?
+        var sourceMaxResolution: String?
         if mediaText.contains("#EXT-X-STREAM-INF") {
             let variants = parseVariants(mediaText, baseURL: url).sorted {
                 ($0["bandwidth"] as? Int ?? 0) > ($1["bandwidth"] as? Int ?? 0)
             }
             guard let chosen = selectVariantEntry(from: variants, maxBandwidth: maxBandwidth),
                   let chosenURL = URL(string: chosen["url"] as? String ?? "") else { return nil }
-            // 只有设了上限才显式指定 program；不限速时让 ffmpeg 自己挑最高码率。
-            if let ceiling = maxBandwidth, ceiling > 0 {
-                programIndex = chosen["index"] as? Int
+            // 显式钉住选中的 variant（文件顺序下标 = ffmpeg program 号），最高档
+            // 不再依赖 ffmpeg 的默认选择。
+            programIndex = chosen["index"] as? Int
+            // 源清单回执：多少档、最高多少（RESOLUTION 缺失就用码率）。
+            if !variants.isEmpty {
+                let best = variants[0]
+                let maxRes = best["resolution"] as? String
+                let maxBW = best["bandwidth"] as? Int ?? 0
+                if let maxRes, !maxRes.isEmpty {
+                    sourceMaxResolution = maxRes
+                    sourceSummary = "source: \(variants.count) variants, max \(maxRes)"
+                } else {
+                    sourceSummary = "source: \(variants.count) variants, max \(maxBW / 1000)kbps"
+                }
             }
             let (data, _) = try await fetch(url: chosenURL, referer: referer, userAgent: userAgent)
             guard let fetched = String(data: data, encoding: .utf8) else { return nil }
@@ -381,7 +443,8 @@ enum MediaExporter {
 
         // live（无 ENDLIST）绝不能交给 ffmpeg：它会一直等新分片，`-t` 也拦不住。
         guard mediaText.contains("#EXT-X-ENDLIST") else { return nil }
-        return FFmpegPlan(url: url, programIndex: programIndex, totalSeconds: extinfTotal(mediaText))
+        return FFmpegPlan(url: url, programIndex: programIndex, totalSeconds: extinfTotal(mediaText),
+                          sourceSummary: sourceSummary, sourceMaxResolution: sourceMaxResolution)
     }
 
     /// 播放列表里 `EXTINF` 之和——只用于把 ffmpeg 的 `out_time_us` 换算成进度。
@@ -424,7 +487,10 @@ enum MediaExporter {
             if trimmed.hasPrefix("#EXT-X-STREAM-INF") {
                 pendingBandwidth = Int(attribute("BANDWIDTH", in: trimmed) ?? "") ?? 0
                 pendingResolution = attribute("RESOLUTION", in: trimmed) ?? ""
-            } else if !trimmed.isEmpty, !trimmed.hasPrefix("#"), pendingBandwidth > 0 {
+            } else if !trimmed.isEmpty, !trimmed.hasPrefix("#"),
+                      pendingBandwidth > 0 || !pendingResolution.isEmpty {
+                // BANDWIDTH 缺失但写了 RESOLUTION 的 master 也收（旧手写循环接受
+                // 它们；条件比它严会让这类源在内置下载器回退时整单丢弃）。
                 if let variant = URL(string: trimmed, relativeTo: baseURL) {
                     variants.append([
                         "bandwidth": pendingBandwidth,
@@ -477,6 +543,8 @@ enum MediaExporter {
         var warnings: [String] = []
         var text = playlistText
         var playlistURL = url
+        var sourceSummary: String?
+        var sourceMaxResolution: String?
         if text == nil {
             let (data, _) = try await fetch(url: url, referer: referer, userAgent: userAgent)
             guard let fetched = String(data: data, encoding: .utf8), fetched.contains("#EXTM3U") else {
@@ -488,28 +556,28 @@ enum MediaExporter {
 
         // Master playlist → follow the highest-bandwidth variant once.
         if playlistText.contains("#EXT-X-STREAM-INF") {
-            let lines = playlistText.components(separatedBy: .newlines)
-            var best: (bandwidth: Int, url: URL)?
-            var pendingBandwidth = 0
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("#EXT-X-STREAM-INF") {
-                    pendingBandwidth = Int(attribute("BANDWIDTH", in: trimmed) ?? "") ?? 0
-                } else if !trimmed.isEmpty, !trimmed.hasPrefix("#") {
-                    if let variant = URL(string: trimmed, relativeTo: url),
-                       let abs = URL(string: variant.absoluteString),
-                       pendingBandwidth > (best?.bandwidth ?? -1) {
-                        best = (pendingBandwidth, abs)
-                    }
-                    pendingBandwidth = 0
+            let variants = parseVariants(playlistText, baseURL: url).sorted {
+                ($0["bandwidth"] as? Int ?? 0) > ($1["bandwidth"] as? Int ?? 0)
+            }
+            guard let chosen = variants.first,
+                  let variant = chosen["url"] as? String,
+                  let chosenURL = URL(string: variant) else { throw ExportError.notAPlaylist }
+            // 源清单回执（与 ffmpeg 直连路径同口径）：多少档、最高多少。
+            if !variants.isEmpty {
+                let maxRes = chosen["resolution"] as? String
+                let maxBW = chosen["bandwidth"] as? Int ?? 0
+                if let maxRes, !maxRes.isEmpty {
+                    sourceMaxResolution = maxRes
+                    sourceSummary = "source: \(variants.count) variants, max \(maxRes)"
+                } else {
+                    sourceSummary = "source: \(variants.count) variants, max \(maxBW / 1000)kbps"
                 }
             }
-            guard let variant = best?.url else { throw ExportError.notAPlaylist }
-            let (data, _) = try await fetch(url: variant, referer: referer, userAgent: userAgent)
+            let (data, _) = try await fetch(url: chosenURL, referer: referer, userAgent: userAgent)
             guard let fetched = String(data: data, encoding: .utf8) else { throw ExportError.notAPlaylist }
             text = fetched
-            playlistURL = variant
-            warnings.append("master playlist → selected variant \(variant.lastPathComponent)")
+            playlistURL = chosenURL
+            warnings.append("master playlist → selected variant \(chosenURL.lastPathComponent)")
         }
         guard let finalText = text else { throw ExportError.notAPlaylist }
 
@@ -637,7 +705,9 @@ enum MediaExporter {
             bytes: bytes,
             warnings: failures > 0
                 ? warnings + ["\(failures) segment(s) failed and were skipped"]
-                : warnings
+                : warnings,
+            sourceSummary: sourceSummary,
+            sourceMaxResolution: sourceMaxResolution
         )
     }
 

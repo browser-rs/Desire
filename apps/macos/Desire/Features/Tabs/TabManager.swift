@@ -31,6 +31,11 @@ class Tab: ObservableObject {
     var suspendedURL: URL?
     var suspendedTitle: String?
     var suspendedInteractionState: Data?
+    /// 挂起前的视觉快照（v0.7.4 切换感知优化）：恢复时 `interactionState`
+    /// 回灌后 WebKit 重建页面树要 250-350ms（实测探针），期间 webview 是
+    /// 白屏——垫这张图淡出，"白屏跳变"变"快照过渡"。恢复完成即置 nil
+    /// 释放（挂起为省内存，快照不能常驻）。
+    @Published var suspendedSnapshot: NSImage?
 
     /// Capture the current page state so it can survive suspension.
     /// Must be called *before* the page is blanked.
@@ -43,19 +48,37 @@ class Tab: ObservableObject {
                 requiringSecureCoding: true
             )
         }
+        // 视觉快照：挂起发生在后台 sweep（不在用户操作路径），异步回调
+        // 落到本 tab；窗口 <=1200 宽控制位图体积。回调晚于清空也没关系——
+        // takeSnapshot 拍的是发起时刻的合成结果。
+        browser.webView.takeSnapshot(with: nil) { [weak self] image, _ in
+            guard let self, let image else { return }
+            let maxW: CGFloat = 1200
+            if image.size.width > maxW {
+                let ratio = maxW / image.size.width
+                image.size = NSSize(width: maxW, height: image.size.height * ratio)
+            }
+            self.suspendedSnapshot = image
+        }
     }
 
     /// Restore the page after suspension. Prefers `interactionState` (keeps
     /// scroll position, form input, JS state, and back/forward history); falls
     /// back to a plain URL reload if no snapshot was captured.
     func restoreSuspendedState() {
+        let restoreStart = Date()
+        defer { Log.tabs.debug("tabswitch restoreSuspendedState total: \(Date().timeIntervalSince(restoreStart) * 1000, format: .fixed(precision: 1))ms") }
         if let data = suspendedInteractionState {
             do {
+                let unarchiveStart = Date()
                 let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
                 unarchiver.requiresSecureCoding = true
                 let state = unarchiver.decodeObject(of: [NSData.self], forKey: NSKeyedArchiveRootObjectKey)
+                Log.tabs.debug("tabswitch unarchive \(data.count)B: \(Date().timeIntervalSince(unarchiveStart) * 1000, format: .fixed(precision: 1))ms")
                 if let state {
+                    let applyStart = Date()
                     browser.webView.interactionState = state
+                    Log.tabs.debug("tabswitch apply interactionState: \(Date().timeIntervalSince(applyStart) * 1000, format: .fixed(precision: 1))ms")
                     suspendedURL = nil
                     suspendedTitle = nil
                     suspendedInteractionState = nil

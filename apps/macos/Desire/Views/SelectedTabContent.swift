@@ -378,6 +378,25 @@ struct SelectedTabContent: View {
                     let responsiveW: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.width, geo.size.width - 40) : nil
                     let responsiveH: CGFloat? = tab.responsiveConfig.isEnabled ? min(effectiveSize.height, geo.size.height - 40) : nil
                     content.makeWebView(for: tab)
+                        .overlay {
+                            // 挂起恢复垫图（v0.7.4）：interactionState 回灌后
+                            // WebKit 重建页面树需 ~300ms（实测），期间 webview
+                            // 白屏——垫挂起前的视觉快照，450ms 后淡出。切走
+                            // （视图卸载）时 .task 取消，defer 一样清掉快照。
+                            if let snap = tab.suspendedSnapshot {
+                                Image(nsImage: snap)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .clipped()
+                                    .contentShape(Rectangle())
+                                    .transition(.opacity)
+                                    .task {
+                                        defer { tab.suspendedSnapshot = nil }
+                                        try? await Task.sleep(for: .milliseconds(450))
+                                    }
+                            }
+                        }
                         .overlay(alignment: .topLeading) {
                             // AI bar next to the user's text selection.
                             // 构造拆方法（0.6.5）：闭包束加到 6 个后 body 内

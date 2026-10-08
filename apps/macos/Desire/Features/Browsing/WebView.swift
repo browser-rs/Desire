@@ -606,6 +606,8 @@ struct WebView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> WebViewContainer {
+        let mountStart = Date()
+        defer { Log.tabs.debug("tabswitch makeNSView: \(Date().timeIntervalSince(mountStart) * 1000, format: .fixed(precision: 1))ms") }
         let webView = state.webView
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
@@ -731,6 +733,8 @@ struct WebView: NSViewRepresentable {
         static let dppFrameScriptKey = "dppFrameScriptInstalled"
 
         func observe(_ webView: WKWebView) {
+            let observeStart = Date()
+            defer { Log.tabs.debug("tabswitch observe(+handlers): \(Date().timeIntervalSince(observeStart) * 1000, format: .fixed(precision: 1))ms") }
             let contentController = webView.configuration.userContentController
             for name in Self.scriptMessageHandlers {
                 // Remove-before-add makes re-hosting the same WKWebView
@@ -856,6 +860,8 @@ try {
         }
 
         func stopObserving() {
+            let teardownStart = Date()
+            defer { Log.tabs.debug("tabswitch stopObserving: \(Date().timeIntervalSince(teardownStart) * 1000, format: .fixed(precision: 1))ms") }
             observations.removeAll()
             let wv = parent.state.webView
             // P1-2：先 stopLoading（此时 delegate 还在，-999 取消错误会被

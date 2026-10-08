@@ -78,7 +78,7 @@ struct AgentSettingsSection: View {
             ScheduledTasksSection()
             MCPServersSection()
             DPPSettingsSection()
-            AgentBallSettingsSection()
+            // 悬浮球已升级为独立设置子页（Settings → Floating Ball）。
             SettingsSection(
                 title: String(localized: "Provider"),
                 subtitle: store.providerKind.detail,

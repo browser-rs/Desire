@@ -59,6 +59,12 @@ final class AgentBallPanel: ObservableObject {
     static let sizeKey = "agentBall.size"
     static let slotsKey = "agentBall.slots"
     static let customPromptKey = "agentBall.customPrompt"
+    // v6 个性化（设置页「悬浮球」子页）。
+    static let opacityKey = "agentBall.opacity"
+    static let idleStyleKey = "agentBall.idleStyle"
+    static let hubScaleKey = "agentBall.hubScale"
+    static let hubAnimationKey = "agentBall.hubAnimation"
+    static let doubleClickVoiceKey = "agentBall.doubleClickVoice"
 
     var conversationID: String? {
         AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
@@ -181,6 +187,18 @@ extension AgentBallPanel {
         } else {
             slots[index] = capability
         }
+    }
+
+    /// 设置页「重置槽位」：回到 V3 定稿四枚。
+    func resetSlots() {
+        slots = BallCapability.defaultSlots
+    }
+
+    /// 设置页「重置位置」：回默认左缘中点。Overlay 用 @AppStorage 读这两键，
+    /// 写入即触发吸附弹簧动画。
+    func resetPosition() {
+        UserDefaults.standard.set("left", forKey: Self.edgeKey)
+        UserDefaults.standard.set(0.5, forKey: Self.offsetKey)
     }
 
     /// 槽位触发入口（触盘按钮 + 拖拽投递共用）。动作收口一处。

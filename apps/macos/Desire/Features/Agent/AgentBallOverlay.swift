@@ -27,6 +27,12 @@ struct AgentBallOverlay: View {
     @AppStorage(AgentBallPanel.sizeKey) private var ballSize: Double = 52
     @AppStorage(AgentBallPanel.edgeKey) private var edge: String = "left"
     @AppStorage(AgentBallPanel.offsetKey) private var offsetFraction: Double = 0.5
+    // v6 个性化（悬浮球设置子页）。
+    @AppStorage(AgentBallPanel.opacityKey) private var ballOpacity: Double = 1.0
+    @AppStorage(AgentBallPanel.idleStyleKey) private var idleStyle: String = "ring"
+    @AppStorage(AgentBallPanel.hubScaleKey) private var hubScale: Double = 1.0
+    @AppStorage(AgentBallPanel.hubAnimationKey) private var hubAnimation: Bool = true
+    @AppStorage(AgentBallPanel.doubleClickVoiceKey) private var doubleClickVoice: Bool = true
 
     /// 球心**不存储绝对坐标**：静止位置永远由持久化 (edge, offsetFraction)
     /// + 当前窗口尺寸推导。存绝对坐标会在窗口冷启动布局链（实测 geo 走
@@ -49,10 +55,11 @@ struct AgentBallOverlay: View {
     /// 触盘弹入驱动（HubContent 拿它做按钮 stagger）。
     @State private var hubAppeared = false
 
-    // 触盘几何（照原型 V3 定稿：2×2 大圆按钮）
-    private let hubCell: CGFloat = 84
-    private let hubGap: CGFloat = 10
-    private let hubPad: CGFloat = 14
+    // 触盘几何（照原型 V3 定稿：2×2 大圆按钮）。v6：尺寸随设置页
+    // 「触盘尺寸」档位整体缩放（紧凑 0.86 / 标准 1.0 / 宽松 1.14）。
+    private var hubCell: CGFloat { 84 * hubScale }
+    private var hubGap: CGFloat { 10 * hubScale }
+    private var hubPad: CGFloat { 14 * hubScale }
     /// 开盘掠光（v5 方向 A）+ 球按下压感（微交互精修）。
     @State private var shimmer = false
     @State private var pressing = false
@@ -230,6 +237,8 @@ struct AgentBallOverlay: View {
             return true
         } isTargeted: { dropHover = $0 }
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: dropHover)
+        // v6 个性化：球体不透明度（设置子页 Slider；半透明仍可点，热区不变）。
+        .opacity(ballOpacity)
     }
 
     private enum BallIcon { case target, close, mic }
@@ -239,16 +248,25 @@ struct AgentBallOverlay: View {
         return state.isExpanded ? .close : .target
     }
 
-    /// 触盘待机图标：外环 + 心点（AssistiveTouch 语汇）。
+    /// 触盘待机图标（v6 可定制）：「触环」= 外环 + 心点（AssistiveTouch 语汇，
+    /// 默认）；「图标」= Agent 徽标（wand.and.stars，一眼识别这是 AI 入口）。
+    @ViewBuilder
     private var targetIcon: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(Color.primary.opacity(0.75), lineWidth: 1.8)
-            Circle()
-                .fill(Color.primary.opacity(0.75))
-                .frame(width: 7, height: 7)
+        if idleStyle == "icon" {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: ballSize * 0.34, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.75))
+                .frame(width: ballSize * 0.42, height: ballSize * 0.42)
+        } else {
+            ZStack {
+                Circle()
+                    .strokeBorder(Color.primary.opacity(0.75), lineWidth: 1.8)
+                Circle()
+                    .fill(Color.primary.opacity(0.75))
+                    .frame(width: 7, height: 7)
+            }
+            .frame(width: ballSize * 0.42, height: ballSize * 0.42)
         }
-        .frame(width: ballSize * 0.42, height: ballSize * 0.42)
     }
 
     // MARK: - 拖动 / 点击
@@ -303,8 +321,9 @@ struct AgentBallOverlay: View {
                     // 录音中点击球 = 开合触盘（停止入口在触盘的"停止并发送"）
                     lastTap = nil
                     state.isExpanded.toggle()
-                } else if let last = lastTap, Date().timeIntervalSince(last) < 0.35 {
-                    // 双击 = 直达语音（转写条随录音在触盘里展开）
+                } else if doubleClickVoice,
+                          let last = lastTap, Date().timeIntervalSince(last) < 0.35 {
+                    // 双击 = 直达语音（v6 可关：关掉后双击当两次普通点按）
                     state.isExpanded = false
                     state.voice.toggle()
                     lastTap = nil
@@ -337,7 +356,7 @@ struct AgentBallOverlay: View {
     // MARK: - 触盘（2×2 径向圆按钮，球上方或下方）
 
     /// 全 8 能力模式的格子尺寸（4×2，比主格小一号）。
-    private var hubCellSmall: CGFloat { 52 }
+    private var hubCellSmall: CGFloat { 52 * hubScale }
     private var hubWidth: CGFloat {
         state.hubShowsAll ? hubPad * 2 + hubCellSmall * 4 + hubGap * 3 : hubPad * 2 + hubCell * 2 + hubGap
     }
@@ -359,24 +378,31 @@ struct AgentBallOverlay: View {
         let halfW = hubWidth / 2
         let hubX = min(max(c.x, halfW + 6), max(halfW + 6, size.width - halfW - 6))
         return AgentBallHub(state: state, cellSize: state.hubShowsAll ? hubCellSmall : hubCell,
-                            appear: hubAppeared)
+                            appear: hubAppeared, animate: hubAnimation)
             .frame(width: hubWidth)
             .glassEffect(.regular, in: .rect(cornerRadius: 26))
             // v5 · 方向 A「绽放」：盘从球的位置弹性放大（锚点朝球一侧）。
-            .scaleEffect(hubAppeared ? 1 : 0.55, anchor: above ? .bottom : .top)
-            .animation(.spring(response: 0.42, dampingFraction: 0.78), value: hubAppeared)
+            // v6：弹入动画可在设置子页整体关闭（绽放/弹入/掠光全跳过，盘直接出现）。
+            .scaleEffect(hubAppeared || !hubAnimation ? 1 : 0.55, anchor: above ? .bottom : .top)
+            .animation(hubAnimation ? .spring(response: 0.42, dampingFraction: 0.78) : nil,
+                       value: hubAppeared)
             // 开盘一次性掠光（0.8s，延迟到格子弹出中段）。
             .overlay { hubShimmer }
             .onTapGesture {}  // 吞掉触盘背景点击：不落到"点外收起"层
             .position(x: hubX, y: hubY)
             .onAppear {
-                hubAppeared = true
-                shimmer = false
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(40))
-                    shimmer = true
-                    try? await Task.sleep(for: .milliseconds(1100))
+                // 动画关闭：不做 stagger/掠光节奏，直接落位。
+                if !hubAnimation {
+                    hubAppeared = true
+                } else {
+                    hubAppeared = true
                     shimmer = false
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(40))
+                        shimmer = true
+                        try? await Task.sleep(for: .milliseconds(1100))
+                        shimmer = false
+                    }
                 }
             }
             .onDisappear {
@@ -385,10 +411,10 @@ struct AgentBallOverlay: View {
             }
     }
 
-    /// 掠光：斜向白渐变从右扫到左（掩在盘形里，不挡交互）。
+    /// 掠光：斜向白渐变从右扫到左（掩在盘形里，不挡交互）。动画总开关关闭时不跑。
     @ViewBuilder
     private var hubShimmer: some View {
-        if shimmer {
+        if shimmer, hubAnimation {
             GeometryReader { geo in
                 LinearGradient(colors: [.clear, .white.opacity(0.42), .clear],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -518,6 +544,9 @@ private struct AgentBallHub: View {
     @Environment(\.appAccent) private var appAccent: Color
     let cellSize: CGFloat
     let appear: Bool
+    /// 弹入动画总开关（v6 设置页可关）——false 时不加 stagger 延时，
+    /// 格子直接落位（外层绽放/掠光同被关闭）。
+    let animate: Bool
 
     @State private var hovered: Int?
     /// 拖拽投递悬停（v4）：拖链接/选区悬到球上时球放大 + 强调环。
@@ -596,7 +625,7 @@ private struct AgentBallHub: View {
             .padding(.horizontal, 2)
             .padding(.bottom, 9)
             .opacity(appear ? 1 : 0)
-            .animation(.easeOut(duration: 0.32).delay(0.24), value: appear)
+            .animation(animate ? .easeOut(duration: 0.32).delay(0.24) : nil, value: appear)
         }
     }
 
@@ -610,7 +639,7 @@ private struct AgentBallHub: View {
         }
         .buttonStyle(.plain)
         .opacity(appear ? 1 : 0)
-        .animation(.easeOut(duration: 0.3).delay(0.3), value: appear)
+        .animation(animate ? .easeOut(duration: 0.3).delay(0.3) : nil, value: appear)
     }
 
     @ViewBuilder
@@ -669,8 +698,10 @@ private struct AgentBallHub: View {
         .scaleEffect(appear ? 1 : 0.4)
         .opacity(appear ? 1 : 0)
         .offset(y: appear ? 0 : 14)
-        .animation(.spring(response: 0.4, dampingFraction: 0.68).delay(Double(index) * 0.05),
-                   value: appear)
+        .animation(animate
+            ? .spring(response: 0.4, dampingFraction: 0.68).delay(Double(index) * 0.05)
+            : nil,
+            value: appear)
     }
 
     private var transcriptChip: some View {

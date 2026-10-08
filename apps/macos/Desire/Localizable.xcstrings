@@ -157,9 +157,7 @@
         }
       }
     },
-    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {
-
-    },
+    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {},
     "(%@)" : {
       "localizations" : {
         "en" : {
@@ -314,9 +312,7 @@
         }
       }
     },
-    "@%lldx" : {
-
-    },
+    "@%lldx" : {},
     "#%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -340,9 +336,7 @@
         }
       }
     },
-    "%@" : {
-
-    },
+    "%@" : {},
     "%@  %@" : {
       "localizations" : {
         "en" : {
@@ -1367,9 +1361,7 @@
         }
       }
     },
-    "←/→ 键步进，Esc 退出" : {
-
-    },
+    "←/→ 键步进，Esc 退出" : {},
     "+%lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1481,12 +1473,8 @@
         }
       }
     },
-    "⌄ 全部 8 项" : {
-
-    },
-    "⚡%lld" : {
-
-    },
+    "⌄ 全部 8 项" : {},
+    "⚡%lld" : {},
     "✓ Default" : {
       "localizations" : {
         "en" : {
@@ -1912,9 +1900,7 @@
         }
       }
     },
-    "Accept All" : {
-
-    },
+    "Accept All" : {},
     "Access Level" : {
       "localizations" : {
         "en" : {
@@ -1982,9 +1968,7 @@
         }
       }
     },
-    "Actions (%lld)" : {
-
-    },
+    "Actions (%lld)" : {},
     "Active model: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3542,9 +3526,7 @@
         }
       }
     },
-    "Always on %@" : {
-
-    },
+    "Always on %@" : {},
     "Always-Allowed Tools" : {
       "localizations" : {
         "en" : {
@@ -3747,16 +3729,22 @@
     },
     "Applies immediately; position snaps stay the same." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies immediately; position snaps stay the same."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "立即生效；吸附位置保持不变。"
+            "value" : "立即生效；贴边吸附位置不变。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "立即生效；吸附位置保持不變。"
+            "value" : "立即生效；貼邊吸附位置不變。"
           }
         }
       }
@@ -3982,9 +3970,7 @@
         }
       }
     },
-    "Ask Desire Agent" : {
-
-    },
+    "Ask Desire Agent" : {},
     "Ask every time" : {
       "localizations" : {
         "en" : {
@@ -4433,9 +4419,7 @@
         }
       }
     },
-    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {
-
-    },
+    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {},
     "Auto-fill email and phone number on checkout and sign-up forms." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4733,16 +4717,22 @@
     },
     "Ball Size" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ball Size"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "球体尺寸"
+            "value" : "球尺寸"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "球體尺寸"
+            "value" : "球尺寸"
           }
         }
       }
@@ -5284,9 +5274,7 @@
         }
       }
     },
-    "Block This URL (Session)" : {
-
-    },
+    "Block This URL (Session)" : {},
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5964,12 +5952,8 @@
         }
       }
     },
-    "Capture Page to Desire Whiteboard" : {
-
-    },
-    "Capture to Whiteboard" : {
-
-    },
+    "Capture Page to Desire Whiteboard" : {},
+    "Capture to Whiteboard" : {},
     "Change Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6763,9 +6747,7 @@
         }
       }
     },
-    "Clear Session Network Rules" : {
-
-    },
+    "Clear Session Network Rules" : {},
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -7147,9 +7129,7 @@
         }
       }
     },
-    "Close Tabs to the Right" : {
-
-    },
+    "Close Tabs to the Right" : {},
     "Close Window" : {
       "localizations" : {
         "en" : {
@@ -8098,9 +8078,7 @@
         }
       }
     },
-    "Conversation" : {
-
-    },
+    "Conversation" : {},
     "Conversation history" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8124,9 +8102,7 @@
         }
       }
     },
-    "Cookie Banner Auto-Handling" : {
-
-    },
+    "Cookie Banner Auto-Handling" : {},
     "Cookie Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8587,9 +8563,7 @@
         }
       }
     },
-    "Copy Performance Snapshot" : {
-
-    },
+    "Copy Performance Snapshot" : {},
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -8836,9 +8810,7 @@
         }
       }
     },
-    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {
-
-    },
+    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {},
     "Create Group" : {
       "localizations" : {
         "en" : {
@@ -9268,9 +9240,7 @@
         }
       }
     },
-    "Daily At (HH:MM)" : {
-
-    },
+    "Daily At (HH:MM)" : {},
     "daily at %02d:%02d" : {
       "localizations" : {
         "en" : {
@@ -9518,12 +9488,8 @@
         }
       }
     },
-    "Declaration" : {
-
-    },
-    "Declaration frames (%lld)" : {
-
-    },
+    "Declaration" : {},
+    "Declaration frames (%lld)" : {},
     "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
       "localizations" : {
         "en" : {
@@ -11177,13 +11143,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "例：总结本页并给出三点建议"
+            "value" : "例如：总结本页并给出三点建议"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "例：總結本頁並給出三點建議"
+            "value" : "例如：總結本頁並給出三點建議"
           }
         }
       }
@@ -11324,9 +11290,7 @@
         }
       }
     },
-    "EasyList 内容规则" : {
-
-    },
+    "EasyList 内容规则" : {},
     "Edit" : {
       "localizations" : {
         "en" : {
@@ -11923,9 +11887,7 @@
         }
       }
     },
-    "Events (%lld)" : {
-
-    },
+    "Events (%lld)" : {},
     "every %lld min" : {
       "localizations" : {
         "en" : {
@@ -11948,9 +11910,7 @@
         }
       }
     },
-    "Every N Minutes" : {
-
-    },
+    "Every N Minutes" : {},
     "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
       "localizations" : {
         "en" : {
@@ -13331,9 +13291,7 @@
         }
       }
     },
-    "Fired events (latest %lld)" : {
-
-    },
+    "Fired events (latest %lld)" : {},
     "First Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13382,6 +13340,12 @@
     },
     "Floating Ball" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Floating Ball"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15760,7 +15724,6 @@
       }
     },
     "Large" : {
-      "comment" : "Screenshot font size: large",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16812,7 +16775,6 @@
       }
     },
     "Medium" : {
-      "comment" : "Screenshot stroke/font size: medium",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17229,9 +17191,7 @@
         }
       }
     },
-    "Mute Tab" : {
-
-    },
+    "Mute Tab" : {},
     "name" : {
       "localizations" : {
         "en" : {
@@ -18290,9 +18250,7 @@
         }
       }
     },
-    "No DPP declaration on this page" : {
-
-    },
+    "No DPP declaration on this page" : {},
     "No element inspected" : {
       "localizations" : {
         "en" : {
@@ -18337,9 +18295,7 @@
         }
       }
     },
-    "No events yet." : {
-
-    },
+    "No events yet." : {},
     "No extension storage" : {
       "localizations" : {
         "en" : {
@@ -19328,12 +19284,8 @@
         }
       }
     },
-    "No tab selected" : {
-
-    },
-    "No text found in this image." : {
-
-    },
+    "No tab selected" : {},
+    "No text found in this image." : {},
     "No token usage recorded yet." : {
       "localizations" : {
         "en" : {
@@ -19627,16 +19579,22 @@
     },
     "Off hides the ball in all browser windows. On shows it on the active window's edge." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off hides the ball in all browser windows. On shows it on the active window's edge."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关：在所有浏览器窗口隐藏悬浮球。开：在当前活动窗口边缘显示。"
+            "value" : "关闭后所有浏览器窗口都隐藏悬浮球；开启时悬浮球贴在活动窗口边缘。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關：在所有瀏覽器視窗隱藏懸浮球。開：在目前作用中的視窗邊緣顯示。"
+            "value" : "關閉後所有瀏覽器視窗都隱藏懸浮球；開啟時懸浮球貼在活動視窗邊緣。"
           }
         }
       }
@@ -20045,9 +20003,7 @@
         }
       }
     },
-    "Open a URL in the Desire browser's active tab." : {
-
-    },
+    "Open a URL in the Desire browser's active tab." : {},
     "Open clipboard link" : {
       "localizations" : {
         "en" : {
@@ -20226,9 +20182,7 @@
         }
       }
     },
-    "Open in New Window" : {
-
-    },
+    "Open in New Window" : {},
     "Open in Preview" : {
       "localizations" : {
         "en" : {
@@ -20295,9 +20249,7 @@
         }
       }
     },
-    "Open Link in Desire" : {
-
-    },
+    "Open Link in Desire" : {},
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
       "localizations" : {
@@ -20837,9 +20789,7 @@
         }
       }
     },
-    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {
-
-    },
+    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {},
     "Paid promotions and creator self-promotion readouts." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20935,9 +20885,7 @@
         }
       }
     },
-    "Parse warnings" : {
-
-    },
+    "Parse warnings" : {},
     "Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21231,9 +21179,7 @@
         }
       }
     },
-    "Pause Reading" : {
-
-    },
+    "Pause Reading" : {},
     "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
       "localizations" : {
         "en" : {
@@ -21345,9 +21291,7 @@
         }
       }
     },
-    "Performance" : {
-
-    },
+    "Performance" : {},
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
       "localizations" : {
@@ -22070,9 +22014,7 @@
         }
       }
     },
-    "Prompt" : {
-
-    },
+    "Prompt" : {},
     "Prompt sent when tapped" : {
       "localizations" : {
         "en" : {
@@ -22385,9 +22327,7 @@
         }
       }
     },
-    "Read Aloud" : {
-
-    },
+    "Read Aloud" : {},
     "Reader Mode" : {
       "comment" : "Enter reader mode tooltip",
       "extractionState" : "stale",
@@ -22838,9 +22778,7 @@
         }
       }
     },
-    "Reject All" : {
-
-    },
+    "Reject All" : {},
     "Relaunching…" : {
       "localizations" : {
         "en" : {
@@ -24140,9 +24078,7 @@
         }
       }
     },
-    "Resume Reading" : {
-
-    },
+    "Resume Reading" : {},
     "Resume the unanswered prompt" : {
       "localizations" : {
         "en" : {
@@ -25025,12 +24961,8 @@
         }
       }
     },
-    "Schedule Desire Task" : {
-
-    },
-    "Schedule Task" : {
-
-    },
+    "Schedule Desire Task" : {},
+    "Schedule Task" : {},
     "Scheduled task failed" : {
       "localizations" : {
         "en" : {
@@ -25191,9 +25123,7 @@
         }
       }
     },
-    "Screenshot text" : {
-
-    },
+    "Screenshot text" : {},
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
       "extractionState" : "stale",
@@ -26028,9 +25958,7 @@
         }
       }
     },
-    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {
-
-    },
+    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {},
     "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
       "localizations" : {
         "en" : {
@@ -26042,13 +25970,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点触盘上的「自定义提示词」槽位时，作为一条新回合发送。"
+            "value" : "点击触盘「自定义提示词」槽位时，作为新的 Agent 回合发送。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "點觸盤上的「自訂提示詞」槽位時，作為一條新回合發送。"
+            "value" : "點擊觸盤「自訂提示詞」槽位時，作為新的 Agent 回合發送。"
           }
         }
       }
@@ -26363,9 +26291,7 @@
         }
       }
     },
-    "Session network rules — temp block/redirect, gone on app exit" : {
-
-    },
+    "Session network rules — temp block/redirect, gone on app exit" : {},
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -27361,7 +27287,6 @@
       }
     },
     "Small" : {
-      "comment" : "Screenshot font size: small",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -27805,9 +27730,7 @@
         }
       }
     },
-    "Stop Reading" : {
-
-    },
+    "Stop Reading" : {},
     "Stored in the macOS Keychain." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28756,9 +28679,7 @@
         }
       }
     },
-    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {
-
-    },
+    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {},
     "Temperature" : {
       "localizations" : {
         "en" : {
@@ -30495,9 +30416,7 @@
         }
       }
     },
-    "Turn finished." : {
-
-    },
+    "Turn finished." : {},
     "turns" : {
       "localizations" : {
         "en" : {
@@ -30677,9 +30596,7 @@
         }
       }
     },
-    "Unmute Tab" : {
-
-    },
+    "Unmute Tab" : {},
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -30725,9 +30642,7 @@
         }
       }
     },
-    "Unpin Tab" : {
-
-    },
+    "Unpin Tab" : {},
     "Unverified" : {
       "localizations" : {
         "en" : {
@@ -31403,9 +31318,7 @@
         }
       }
     },
-    "Video Speed" : {
-
-    },
+    "Video Speed" : {},
     "Video Tasks" : {
       "localizations" : {
         "en" : {
@@ -31519,9 +31432,7 @@
         }
       }
     },
-    "Views (%lld)" : {
-
-    },
+    "Views (%lld)" : {},
     "Voice input" : {
       "localizations" : {
         "en" : {
@@ -32469,9 +32380,7 @@
         }
       }
     },
-    "上一块（←）" : {
-
-    },
+    "上一块（←）" : {},
     "上一条提问还没有收到回答" : {
       "localizations" : {
         "en" : {
@@ -32516,18 +32425,10 @@
         }
       }
     },
-    "上一步" : {
-
-    },
-    "下一块（→）" : {
-
-    },
-    "下一步" : {
-
-    },
-    "个性化（可选）" : {
-
-    },
+    "上一步" : {},
+    "下一块（→）" : {},
+    "下一步" : {},
+    "个性化（可选）" : {},
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -32551,9 +32452,7 @@
         }
       }
     },
-    "从模板创建" : {
-
-    },
+    "从模板创建" : {},
     "任务计划" : {
       "localizations" : {
         "en" : {
@@ -32773,9 +32672,7 @@
         }
       }
     },
-    "刷新" : {
-
-    },
+    "刷新" : {},
     "取消" : {
       "localizations" : {
         "en" : {
@@ -32820,9 +32717,7 @@
         }
       }
     },
-    "固定" : {
-
-    },
+    "固定" : {},
     "图表（ECharts）" : {
       "localizations" : {
         "en" : {
@@ -32871,12 +32766,8 @@
         }
       }
     },
-    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {
-
-    },
-    "复制" : {
-
-    },
+    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {},
+    "复制" : {},
     "完成" : {
       "localizations" : {
         "en" : {
@@ -32899,9 +32790,7 @@
         }
       }
     },
-    "完成，开始使用" : {
-
-    },
+    "完成，开始使用" : {},
     "导入 .board（追加块）" : {
       "localizations" : {
         "en" : {
@@ -32935,12 +32824,8 @@
         }
       }
     },
-    "导出 .board（JSON）——模板也能这样分享" : {
-
-    },
-    "导出 Markdown" : {
-
-    },
+    "导出 .board（JSON）——模板也能这样分享" : {},
+    "导出 Markdown" : {},
     "导出 PNG 到下载目录" : {
       "localizations" : {
         "en" : {
@@ -32957,9 +32842,7 @@
         }
       }
     },
-    "导出单文件 HTML（离线可读的分享页）" : {
-
-    },
+    "导出单文件 HTML（离线可读的分享页）" : {},
     "展开或收起白板预览" : {
       "localizations" : {
         "en" : {
@@ -33014,12 +32897,8 @@
         }
       }
     },
-    "已回复 · 刚刚" : {
-
-    },
-    "已拒绝" : {
-
-    },
+    "已回复 · 刚刚" : {},
+    "已拒绝" : {},
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -33042,18 +32921,10 @@
         }
       }
     },
-    "已接受" : {
-
-    },
-    "已登录：%@" : {
-
-    },
-    "已知追踪与分析请求" : {
-
-    },
-    "已静音" : {
-
-    },
+    "已接受" : {},
+    "已登录：%@" : {},
+    "已知追踪与分析请求" : {},
+    "已静音" : {},
     "常驻能力" : {
       "localizations" : {
         "en" : {
@@ -33143,9 +33014,7 @@
         }
       }
     },
-    "当前指标" : {
-
-    },
+    "当前指标" : {},
     "总结本页" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -33252,12 +33121,8 @@
         }
       }
     },
-    "手动添加块（进入源码编辑）/ 从模板创建" : {
-
-    },
-    "打开对话 →" : {
-
-    },
+    "手动添加块（进入源码编辑）/ 从模板创建" : {},
+    "打开对话 →" : {},
     "打开白板" : {
       "localizations" : {
         "en" : {
@@ -33290,15 +33155,9 @@
         }
       }
     },
-    "拦截广告" : {
-
-    },
-    "拦截追踪器" : {
-
-    },
-    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {
-
-    },
+    "拦截广告" : {},
+    "拦截追踪器" : {},
+    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {},
     "搜索工具" : {
       "localizations" : {
         "en" : {
@@ -33343,12 +33202,8 @@
         }
       }
     },
-    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {
-
-    },
-    "播放中" : {
-
-    },
+    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {},
+    "播放中" : {},
     "放弃" : {
       "localizations" : {
         "en" : {
@@ -33502,9 +33357,7 @@
         }
       }
     },
-    "标签页" : {
-
-    },
+    "标签页" : {},
     "标题" : {
       "localizations" : {
         "en" : {
@@ -33752,15 +33605,9 @@
         }
       }
     },
-    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {
-
-    },
-    "演示中 — %@" : {
-
-    },
-    "演示模式（逐块放映）" : {
-
-    },
+    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {},
+    "演示中 — %@" : {},
+    "演示模式（逐块放映）" : {},
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -33951,9 +33798,7 @@
         }
       }
     },
-    "空板" : {
-
-    },
+    "空板" : {},
     "立即更新全部" : {
       "localizations" : {
         "en" : {
@@ -33986,9 +33831,7 @@
         }
       }
     },
-    "第 %lld/3 步" : {
-
-    },
+    "第 %lld/3 步" : {},
     "继续回合" : {
       "localizations" : {
         "en" : {
@@ -34283,18 +34126,10 @@
         }
       }
     },
-    "设置暂不可用——可在设置 → AI 里稍后配置。" : {
-
-    },
-    "设置暂不可用，稍后可在设置 → 隐私开启。" : {
-
-    },
-    "识别文字" : {
-
-    },
-    "识别文字 (OCR)" : {
-
-    },
+    "设置暂不可用——可在设置 → AI 里稍后配置。" : {},
+    "设置暂不可用，稍后可在设置 → 隐私开启。" : {},
+    "识别文字" : {},
+    "识别文字 (OCR)" : {},
     "跳过" : {
       "localizations" : {
         "en" : {
@@ -34361,9 +34196,7 @@
         }
       }
     },
-    "进白板" : {
-
-    },
+    "进白板" : {},
     "退出响应式模式" : {
       "localizations" : {
         "en" : {
@@ -34386,18 +34219,10 @@
         }
       }
     },
-    "退出放映（块仍保留）" : {
-
-    },
-    "选区已拖入" : {
-
-    },
-    "配置同步（设置页）" : {
-
-    },
-    "重做（⇧⌘Z）" : {
-
-    },
+    "退出放映（块仍保留）" : {},
+    "选区已拖入" : {},
+    "配置同步（设置页）" : {},
+    "重做（⇧⌘Z）" : {},
     "重新生成" : {
       "localizations" : {
         "en" : {
@@ -34442,9 +34267,7 @@
         }
       }
     },
-    "链接已拖入" : {
-
-    },
+    "链接已拖入" : {},
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {
       "localizations" : {
         "en" : {
@@ -34467,9 +34290,7 @@
         }
       }
     },
-    "问本页" : {
-
-    },
+    "问本页" : {},
     "隐藏悬浮球" : {
       "localizations" : {
         "en" : {
@@ -34533,6 +34354,688 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
+          }
+        }
+      }
+    },
+    "Ball" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ball"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球体"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球體"
+          }
+        }
+      }
+    },
+    "How the idle ball looks on the window edge." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the idle ball looks on the window edge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球贴在窗口边缘待机时的外观。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球貼在視窗邊緣待機時的外觀。"
+          }
+        }
+      }
+    },
+    "Show Floating Ball" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Floating Ball"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示懸浮球"
+          }
+        }
+      }
+    },
+    "Opacity" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opacity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        }
+      }
+    },
+    "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调低不透明度让球低调一些但仍可见，点击热区不变。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調低不透明度讓球低調一些但仍可見，點擊熱區不變。"
+          }
+        }
+      }
+    },
+    "Idle Style" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idle Style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待机样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機樣式"
+          }
+        }
+      }
+    },
+    "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「触环」是 AssistiveTouch 式的待机标记；「Agent 图标」让 AI 入口一眼可辨。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「觸環」是 AssistiveTouch 式的待機標記；「Agent 圖示」讓 AI 入口一眼可辨。"
+          }
+        }
+      }
+    },
+    "Target Ring" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target Ring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触环"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸環"
+          }
+        }
+      }
+    },
+    "Agent Icon" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Icon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 圖示"
+          }
+        }
+      }
+    },
+    "Position" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        }
+      }
+    },
+    "Drag the ball to move it. Reset snaps it back to the middle of the left edge." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag the ball to move it. Reset snaps it back to the middle of the left edge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动球可移动位置；重置后回到左缘中部。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖動球可移動位置；重置後回到左緣中部。"
+          }
+        }
+      }
+    },
+    "Reset Position" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        }
+      }
+    },
+    "Reset ✓" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset ✓"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重置 ✓"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重置 ✓"
+          }
+        }
+      }
+    },
+    "Hub Actions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘功能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤功能"
+          }
+        }
+      }
+    },
+    "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals all eight." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two. Long-press the ball (or tap ⌄) reveals all eight."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择触盘 2×2 上放哪四个功能；选了别的槽位已有的功能会两槽互换。长按球（或点 ⌄）可展开全部 8 项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇觸盤 2×2 上放哪四個功能；選了別的槽位已有的功能會兩槽互換。長按球（或點 ⌄）可展開全部 8 項。"
+          }
+        }
+      }
+    },
+    "Slot order = layout order: 1·2 top row, 3·4 bottom row." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slot order = layout order: 1·2 top row, 3·4 bottom row."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "槽位序即布局序：1·2 上排，3·4 下排。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "槽位序即佈局序：1·2 上排，3·4 下排。"
+          }
+        }
+      }
+    },
+    "Reset Slots" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Slots"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置槽位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置槽位"
+          }
+        }
+      }
+    },
+    "Restore the default four: Agent Chat, Voice, Summarize Page, Whiteboard." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore the default four: Agent Chat, Voice, Summarize Page, Whiteboard."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认四枚：Agent 对话、语音输入、总结本页、白板。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復預設四枚：Agent 對話、語音輸入、總結本頁、白板。"
+          }
+        }
+      }
+    },
+    "Hub Style" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤樣式"
+          }
+        }
+      }
+    },
+    "How the expanded hub looks and moves." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the expanded hub looks and moves."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开后的触盘外观与动效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開後的觸盤外觀與動效。"
+          }
+        }
+      }
+    },
+    "Hub Size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘尺寸"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤尺寸"
+          }
+        }
+      }
+    },
+    "Scales the expanded hub and its buttons. Standard matches the V3 prototype." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scales the expanded hub and its buttons. Standard matches the V3 prototype."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整体缩放展开后的触盘与按钮；「标准」即 V3 原型尺寸。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整體縮放展開後的觸盤與按鈕；「標準」即 V3 原型尺寸。"
+          }
+        }
+      }
+    },
+    "Compact" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紧凑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊湊"
+          }
+        }
+      }
+    },
+    "Standard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準"
+          }
+        }
+      }
+    },
+    "Roomy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roomy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宽松"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寬鬆"
+          }
+        }
+      }
+    },
+    "Expand Animation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand Animation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开动画"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開動畫"
+          }
+        }
+      }
+    },
+    "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绽放弹出、按钮依次弹入与开盘掠光；关闭后触盘直接出现。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "綻放彈出、按鈕依次彈入與開盤掠光；關閉後觸盤直接出現。"
+          }
+        }
+      }
+    },
+    "Interaction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interaction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交互"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "互動"
+          }
+        }
+      }
+    },
+    "Gestures on the ball itself." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestures on the ball itself."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球本体的手势行为。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球本體的手勢行為。"
+          }
+        }
+      }
+    },
+    "Double-Click Starts Voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-Click Starts Voice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击直达语音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙擊直達語音"
+          }
+        }
+      }
+    },
+    "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击球直接开始语音输入；关闭后双击视为两次普通点击。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙擊球直接開始語音輸入；關閉後雙擊視為兩次普通點擊。"
           }
         }
       }

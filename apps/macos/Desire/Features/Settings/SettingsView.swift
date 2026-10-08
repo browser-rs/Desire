@@ -26,6 +26,7 @@ struct SettingsView: View {
     enum Section: String, CaseIterable, Identifiable {
         case general
         case ai
+        case ball
         case sync
         case remote
         case privacy
@@ -39,6 +40,7 @@ struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .ai: "brain.head.profile"
+            case .ball: "circle.circle"
             case .sync: "arrow.triangle.2.circlepath"
             // 单对象图标：`iphone.radiowaves.left.and.right` 是双设备+波纹的复合
             // 图形，在固定宽度的侧栏图标列里会被挤变形、也压不住旁边的文字。
@@ -54,6 +56,7 @@ struct SettingsView: View {
             switch self {
             case .general: "General"
             case .ai: "Agent"
+            case .ball: "Floating Ball"
             case .sync: "Sync"
             case .remote: "Remote"
             case .privacy: "Privacy"
@@ -127,6 +130,8 @@ struct SettingsView: View {
             )
         case .ai:
             AgentSettingsSection(store: aiPreference)
+        case .ball:
+            AgentBallSettingsView()
         case .sync:
             SyncSettingsSection(store: syncStore)
         case .remote:

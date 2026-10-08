@@ -582,7 +582,15 @@ class TabManager: ObservableObject {
     /// promptly under tab churn. Without this the webview is only freed
     /// when the `Tab` itself deinits, which can lag behind close.
     private func tearDown(_ tab: Tab) {
+        // 停媒体 + 清页（0.7.2 走查实测：只 stopLoading 时 WebContent 进程
+        // 继续解码——关掉 YouTube 标签后视频/声音仍在播，非必现）。挂起
+        // 路径的 loadHTMLString 清页机制同源，已验证可靠。
+        tab.browser.webView.evaluateJavaScript(
+            "document.querySelectorAll('video,audio').forEach(function(m){try{m.pause();m.removeAttribute('src');m.load();}catch(e){}})",
+            completionHandler: nil
+        )
         tab.browser.webView.stopLoading()
+        tab.browser.webView.loadHTMLString("", baseURL: nil)
         tab.browser.webView.uiDelegate = nil
         tab.browser.webView.navigationDelegate = nil
     }

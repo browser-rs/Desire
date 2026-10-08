@@ -609,3 +609,12 @@ webview frame 变化加过渡动画分散层树重排；或等 macOS 更新。
   页面无检测文案；播放器响应剥离 ✓；一键静音自动播放验证流畅
 - 组装：VideoAdBlocker.documentStartYouTubeAntiDetectScript() 加入
   WebView.swift webview init 组合（isEnabled 门控内）
+
+### 批次 G 补充：下载弹出面板打开性能 ✓（31 行实测）
+- 串行种子 31 行下载记录后，弹出面板开关墙钟 **2–9ms**（三试）——无卡顿，
+  3e869a5 的存在性缓存修复在现构建有效
+- 残余卡顿候选（若用户侧仍有）：① 行路径指向睡眠/断连外置卷——后台扫描的
+  stat 会被卷拖秒级（UI 不卡但缺失标记更新慢）；② 若指批量下载面板
+  （BatchMediaPanel），其日志/逐项进度渲染需用户真实批量数据复现
+- 测试教训：并行 /navigate 触发下载会互相取消（下载挂在导航上）——种子
+  下载记录必须串行

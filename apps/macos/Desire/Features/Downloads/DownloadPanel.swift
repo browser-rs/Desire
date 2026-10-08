@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// 下载面板（工具栏下载按钮的 popover）。
@@ -51,7 +52,12 @@ struct DownloadPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             // 面板打开即后台扫描下载文件存在性（渲染只读缓存，防主线程 stat 卡顿）。
-            .task { store.scanFilePresence() }
+            .task {
+            let t0 = Date()
+            store.scanFilePresence()
+            let ms = Int(-t0.timeIntervalSinceNow * 1000)
+            Log.app.info("DL panel: onAppear scan done in \(ms)ms, rows=\(store.downloads.count)")
+        }
             // 视图切换即头部本身：Tab 组并入标题行（方案 B），不再单独占一行
             Divider()
             if showBatchTasks {

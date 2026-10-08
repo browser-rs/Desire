@@ -858,6 +858,7 @@ private struct DownloadButton: View {
 
     var body: some View {
         Button {
+            Log.app.info("DL panel: button click, show=\(showDownloads)")
             showDownloads.toggle()
         } label: {
             ZStack(alignment: .topTrailing) {

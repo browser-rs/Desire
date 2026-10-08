@@ -13,8 +13,10 @@ final class AgentBallPanel: ObservableObject {
     @Published private(set) var isEnabled: Bool
     /// 全能力顺序表（v7：14 项，**前 4 = 主盘 2×2**，全览网格顺序跟随此表
     /// ——设置子页可整体排序，"我的常用排前面"）。旧档只存 4 值，解码按
-    /// allCases 顺序补齐其余项。
-    @Published var slots: [BallCapability] = BallCapability.defaultSlots {
+    /// allCases 顺序补齐其余项。**初始值必须用全表 defaultOrder**：
+    /// 无持久化档（键被删/全新安装）时走这里，若给 defaultSlots（4 项）
+    /// 全览就只剩 4 个（用户实测"其他都不见了"）。
+    @Published var slots: [BallCapability] = BallCapability.defaultOrder {
         didSet { persistSlots() }
     }
     /// 「自定义提示词」槽位发送的文本（设置页可编辑）。

@@ -1754,7 +1754,8 @@ final class AutomationServer {
                     name: Self.string(body, "name") ?? "",
                     url: Self.string(body, "url") ?? "",
                     selector: Self.string(body, "selector"),
-                    minutes: body["minutes"] as? Int ?? 5
+                    minutes: body["minutes"] as? Int ?? 5,
+                    aiAnalysis: body["aiAnalysis"] as? Bool
                 ))
             case ("POST", "/watches/remove"):
                 return try Self.json(Self.removeWatch(name: Self.string(body, "name") ?? ""))
@@ -4757,12 +4758,14 @@ final class AutomationServer {
         return ["watches": store.watches.map { w -> [String: Any] in
             ["name": w.name, "url": w.url, "selector": w.selector ?? "",
              "minutes": w.intervalMinutes, "enabled": w.isEnabled,
-             "changeCount": w.changeCount, "lastError": w.lastError ?? ""]
+             "changeCount": w.changeCount, "lastError": w.lastError ?? "",
+             "aiAnalysis": w.wantsAIAnalysis, "lastAnalysis": w.lastAnalysis ?? ""]
         }]
     }
 
-    private static func addWatch(name: String, url: String, selector: String?, minutes: Int) throws -> [String: Any] {
-        guard PageWatchStore.shared.add(name: name, url: url, selector: selector, minutes: minutes) != nil else {
+    private static func addWatch(name: String, url: String, selector: String?, minutes: Int, aiAnalysis: Bool?) throws -> [String: Any] {
+        guard PageWatchStore.shared.add(name: name, url: url, selector: selector, minutes: minutes,
+                                        aiAnalysis: aiAnalysis ?? false) != nil else {
             return ["error": "invalid name/url"]
         }
         return ["ok": true, "name": name]

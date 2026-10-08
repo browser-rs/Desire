@@ -20,4 +20,11 @@ struct PageWatch: Codable, Identifiable {
     var previousText: String?
     var changeCount: Int
     var lastError: String?
+    /// v0.7.5 智能监视：变化时让 agent 自动分析（opt-in——每次分析是一个
+    /// agent 回合，有 token 成本）。
+    var aiAnalysis: Bool?
+    /// 最近一次 AI 分析文本（回合结束后写回；面板/桥/通知消费）。
+    var lastAnalysis: String?
+
+    var wantsAIAnalysis: Bool { aiAnalysis == true }
 }

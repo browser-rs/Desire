@@ -37,7 +37,8 @@ final class PageWatchStore: ObservableObject {
     // MARK: - Management
 
     @discardableResult
-    func add(name: String, url: String, selector: String?, minutes: Int) -> PageWatch? {
+    func add(name: String, url: String, selector: String?, minutes: Int,
+             aiAnalysis: Bool = false) -> PageWatch? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedURL.isEmpty, let parsed = URL(string: trimmedURL) else { return nil }
@@ -46,11 +47,18 @@ final class PageWatchStore: ObservableObject {
             selector: selector?.isEmpty == true ? nil : selector,
             intervalMinutes: max(5, minutes), isEnabled: true, createdAt: Date(),
             lastCheckedAt: nil, lastChangedAt: nil, previousText: nil,
-            changeCount: 0, lastError: nil
+            changeCount: 0, lastError: nil, aiAnalysis: aiAnalysis
         )
         watches.append(watch)
         save()
         return watch
+    }
+
+    /// 设置子页/桥：开关智能分析。
+    func setAIAnalysis(_ enabled: Bool, for name: String) {
+        guard let idx = watches.firstIndex(where: { $0.name.lowercased() == name.lowercased() }) else { return }
+        watches[idx].aiAnalysis = enabled
+        save()
     }
 
     func remove(named name: String) -> Bool {
@@ -137,6 +145,17 @@ final class PageWatchStore: ObservableObject {
                     "changeCount": watches[cur].changeCount,
                     "diff": diff,
                 ])
+                // v0.7.5 智能监视：opt-in 的 AI 分析（后台静默回合，结果写回
+                // lastAnalysis 并补发带分析的通知）。
+                if watches[cur].wantsAIAnalysis {
+                    let oldText = baseline ?? ""
+                    let name = watches[cur].name
+                    let url = watches[cur].url
+                    Task { @MainActor [weak self] in
+                        await self?.runAnalysis(watchID: watchID, name: name, url: url,
+                                                oldText: oldText, newText: normalized)
+                    }
+                }
             } else if baseline == nil {
                 watches[cur].previousText = String(normalized.prefix(Self.maxTextLength))
                 save()
@@ -211,6 +230,59 @@ final class PageWatchStore: ObservableObject {
             switch self {
             case .selectorNotFound(let selector): return "selector not found: \(selector)"
             }
+        }
+    }
+
+    // MARK: - AI 分析（v0.7.5 智能监视）
+
+    /// 变化发生 → 提取变化片段 → 静默 agent 回合分析 → 写回 lastAnalysis
+    /// 并补发带分析的通知。回合走 deliverScheduled（自动排队，不打断进行中
+    /// 的用户回合），完成 hook 里按 id 写回（期间可能被删）。
+    private func runAnalysis(watchID: UUID, name: String, url: String,
+                             oldText: String, newText: String) async {
+        guard let target = AgentScheduler.shared.deliveryTarget else { return }
+        guard let idx = watches.firstIndex(where: { $0.id == watchID }) else { return }
+        watches[idx].lastAnalysis = "分析中…"
+        save()
+
+        let region = PageWatchDiff.extractChangedRegion(old: oldText, new: newText, context: 240)
+        let clipped = region.count > 1500 ? "\(region.prefix(1500))…[truncated]" : region
+        let prompt = """
+        页面「\(name)」（\(url)）的内容监测器捕获到以下变化片段：
+
+        \(clipped)
+
+        请用不超过三句话说明这次变化的内容，并在最后单独一行给出结论：值得关注 或 仅例行更新。
+        """
+        target.deliverScheduled(prompt, from: "PageWatch · \(name)") { [weak self] outcome in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let idx = self.watches.firstIndex(where: { $0.id == watchID }) else { return }
+                guard outcome.success,
+                      let answer = target.messages.last(where: { $0.role == .assistant })?.content,
+                      !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    self.watches[idx].lastAnalysis = "分析失败：\(outcome.error ?? "empty answer")"
+                    self.save()
+                    return
+                }
+                let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.watches[idx].lastAnalysis = trimmed
+                self.save()
+                self.notifyAnalysis(watch: self.watches[idx], analysis: trimmed)
+            }
+        }
+    }
+
+    /// 带分析的系统通知（变化时刻的裸通知之外的增值信息）。
+    private func notifyAnalysis(watch: PageWatch, analysis: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = String(localized: "Page watch · AI analysis")
+            content.body = "\(watch.name)：\(analysis.prefix(180))"
+            center.add(UNNotificationRequest(
+                identifier: UUID().uuidString, content: content, trigger: nil))
         }
     }
 

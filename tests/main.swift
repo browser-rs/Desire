@@ -1770,3 +1770,24 @@ if !failures.isEmpty {
 }
 print("全部通过 ✓")
 
+
+// ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
+
+do {
+    // 中段变化：保留上下文
+    let r1 = PageWatchDiff.extractChangedRegion(
+        old: "AAAA 价格 100 元 BBBB",
+        new: "AAAA 价格 120 元 BBBB", context: 12)
+    check("监视：中段变化含上下文", r1.contains("120") && r1.contains("AAAA"))
+    // 长文本中段变化：两侧都带省略号
+    let r2 = PageWatchDiff.extractChangedRegion(
+        old: "前缀铺垫 AAAA 中段变化 BBBB 长尾收束内容较多",
+        new: "前缀铺垫 AAAA 中段更新 BBBB 长尾收束内容较多", context: 6)
+    check("监视：中段变化两侧省略号", r2.hasPrefix("…") && r2.hasSuffix("…") && r2.contains("中段更新"))
+    // 无变化 → 返回原文
+    let r3 = PageWatchDiff.extractChangedRegion(old: "same", new: "same", context: 5)
+    check("监视：无变化返回原文", r3 == "same")
+    // 完全替换
+    let r4 = PageWatchDiff.extractChangedRegion(old: "aaa", new: "zzz", context: 3)
+    check("监视：完全替换", r4 == "zzz")
+}

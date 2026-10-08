@@ -3,6 +3,8 @@
 
 - **悬浮球动效精修（v7 打磨）**：① 触盘格子弹入方向改为**从球的一侧进入**（盘在球上方自下而上浮入、在下方自上而下——此前固定向上，盘在球下方时方向反了）；② 按压/释放走弹簧回弹（0.26/0.62），不再瞬时突变；③ 展开时球微缩退后 6%（视觉焦点让给触盘，球变成"关闭按钮"）；④ 展开/收起分速——展开弹性绽放（0.42/0.75）、收起干脆利落（0.3/0.88）；⑤ 开盘掠光减淡减速（0.30/0.9s）细光不抢戏；⑥ 格子悬停 1pt 微浮起 + 弹性过渡（选中感有位移分量）
 - **白板图表美化 + 思维导图（走查"流程图好原始"）**：Mermaid 从 neutral 主题切 **base + 米纸主题变量**（墨字/朱金边/灰褐线，与白板底色一体）+ **连线平滑曲线**（flowchart curve basis）+ 节点投影/居中/呼吸边距——三条硬坑：themeVariables.fontSize 必须是**数字**（mermaid 主题计算拿它做乘法，字符串 "14px" 让整条主题链 NaN 静默回退灰主题，实测配色全灭的真因）；mindmap 节点默认深蓝下划线与主题不搭，themeCSS 精确覆盖（.mindmap-node 全子元素 stroke）；Swift 多行字符串里的 \s\S\f 均需双写转义。**思维导图可用**（vendored Mermaid 11.4.1 原生 mindmap，缩进层级语法已写进工具描述）；note 块新增 ``` 围栏代码块渲染（pre 圆角码块 + 行内 code 徽章）。实测快照：流程图/导图/代码块三形态目视通过
+- **白板前端 React 化（v8，"图 UI 太原始"的根治）**：渲染壳从手搓 HTML 字符串重写为 React + esbuild（webapp/ 源码进仓库，产物 Resources 根平铺，零 CDN 离线）。**新增块类型**：`flow`（节点图 JSON → dagre 自动布局 + 自绘静态 SVG：pastel 节点/曲线连线/箭头/边标签）与 `mindmap`（缩进文本 → 横向树 SVG：root 圆 + 分支彩色粗曲线，XMind 观感）；旧 `mermaid` 块保留兜底渲染。**方案教训（调研先行）**：图丑的根因是 Mermaid 渲染美学天花板，换 React 壳不解决——先试过 React Flow/markmap 库，它们的**容器运行时测量在离屏 webview 全不可靠**（ResizeObserver 不触发→节点永远 hidden；clientWidth 0→导图缩成一角；isHidden/窗口外偏移→3D transform 合成层 takeSnapshot 不渲染），最终落地 = dagre 布局 + 自绘静态 SVG（与 mermaid 同类的纯 SVG 可靠性）+ React 只做卡片壳，bundle 1.1MB→241KB；echarts 走宿主 script + 现代默认色板注入
+
 
 
 ### Fixed

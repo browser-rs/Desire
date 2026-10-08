@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import os
 
 /// 白板离屏成图服务：一个隐藏 WKWebView 跑与面板同一份
 /// `WhiteboardWebView.pageHTML` 双引擎（Mermaid/ECharts vendored），
@@ -65,6 +66,12 @@ final class BoardRenderService {
             let webview = try await ensureWebView()
             while !queue.isEmpty {
                 let item = queue.removeFirst()
+                // **先落 frame 再渲染**（v8）：ReactFlow/markmap 在初始化时
+                // 测量容器尺寸，加载后才改宽会让它们按 0 宽初始化（节点/导图
+                // 全部不可见——实测）。帧尺寸必须在引擎 boot 前就位。
+                if abs(webview.frame.width - item.width) > 0.5 {
+                    webview.frame = NSRect(x: 0, y: 0, width: item.width, height: 800)
+                }
                 do {
                     let result = try await renderOn(webview, spec: item.spec, width: item.width)
                     cache[key(item.spec, width: item.width)] = result
@@ -92,16 +99,25 @@ final class BoardRenderService {
     private func ensureWebView() async throws -> WKWebView {
         if let webview { return webview }
         let webview = WKWebView(frame: NSRect(x: 0, y: 0, width: 520, height: 800))
-        webview.isHidden = true
+        // **不能 isHidden / 屏幕外偏移**：ReactFlow 的 viewport 是 3D transform
+        // 合成层——隐藏或窗口外的视图，合成层 takeSnapshot 不渲染（实测节点
+        // DOM 在、截图全空；markmap 无 3D 层所以能出图，差异即铁证）。
+        // 正解：挂到可见窗口**最底层**（被页面内容盖住，用户看不见），
+        // 合成管线完整活跃。
+        webview.isHidden = false
         if let app = NSApp.windows.first(where: { $0.isVisible }), let cv = app.contentView {
-            // 挂到可见窗口才能保证布局/渲染管线活跃（同 MermaidRenderService）
-            cv.addSubview(webview)
-            webview.setFrameOrigin(NSPoint(x: -3000, y: 0))
+            cv.addSubview(webview, positioned: .below, relativeTo: nil)
         }
         if let base = Bundle.main.resourceURL {
-            webview.loadHTMLString(WhiteboardWebView.pageHTML, baseURL: base)
+            // v8：与 WhiteboardWebView 同源——React 前端产物优先，缺失回退兜底页。
+            let indexHTML = base.appendingPathComponent("index.html")
+            if FileManager.default.fileExists(atPath: indexHTML.path) {
+                webview.loadFileURL(indexHTML, allowingReadAccessTo: base)
+            } else {
+                webview.loadHTMLString(WhiteboardWebView.legacyFallbackHTML, baseURL: base)
+            }
         } else {
-            webview.loadHTMLString(WhiteboardWebView.pageHTML, baseURL: nil)
+            webview.loadHTMLString(WhiteboardWebView.legacyFallbackHTML, baseURL: nil)
         }
         self.webview = webview
         return webview
@@ -117,8 +133,13 @@ final class BoardRenderService {
             try? await Task.sleep(for: .milliseconds(100))
         }
         guard ready else {
+            // 失败时细分哪个环节没就绪（React bundle 加载失败 / vendored 脚本缺失）。
+            let detail = (try? await webview.evaluateJavaScript(
+                "JSON.stringify({mermaid: typeof mermaid, echarts: typeof echarts, renderBoard: typeof renderBoard, href: location.href})"
+            )) as? String ?? "?"
+            Log.agent.error("board engines boot detail: \(detail, privacy: .public)")
             throw NSError(domain: "BoardRender", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "board engines failed to boot"])
+                          userInfo: [NSLocalizedDescriptionKey: "board engines failed to boot: \(detail)"])
         }
         // 宽度变化先落 frame（页面 resize 事件驱动 charts.resize 与重排）
         if abs(webview.frame.width - width) > 0.5 {
@@ -145,6 +166,12 @@ final class BoardRenderService {
         guard let stats else {
             throw NSError(domain: "BoardRender", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "board render timed out"])
+        }
+        // v8 调试探针：ReactFlow/markmap 的 DOM 状态（节点数/容器尺寸）
+        if let probe = try? await webview.evaluateJavaScript(
+            "JSON.stringify({rfNodes: document.querySelectorAll('.react-flow__node').length, n1: (function(){var n=document.querySelector('.react-flow__node'); if(!n) return null; var r=n.getBoundingClientRect(); var cs=getComputedStyle(n); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height), cs.display, cs.visibility, cs.opacity, n.style.transform];})(), vp: (function(){var v=document.querySelector('.react-flow__viewport'); return v ? v.style.transform : null})()})"
+        ) as? String {
+            Log.agent.info("board DOM probe: \(probe, privacy: .public)")
         }
         // 全内容高快照（超出视口的部分 WebKit 照常渲染）
         let height = (try? await webview.evaluateJavaScript("document.body.scrollHeight")) as? Double ?? 0

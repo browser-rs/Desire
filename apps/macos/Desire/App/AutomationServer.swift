@@ -2931,8 +2931,17 @@ final class AutomationServer {
                 ?? WhiteboardStore.shared.mostRecentBoard()
                 ?? WhiteboardSpec()
             let snapshotWidth = max(360, width ?? 520)
+            // 渲染失败要可见（v8 React 迁移期）：错误进日志而非静默降级卡。
+            var renderResult: BoardRenderService.Result?
+            if !board.blocks.isEmpty {
+                do {
+                    renderResult = try await BoardRenderService.shared.render(board, width: snapshotWidth)
+                } catch {
+                    Log.agent.error("board snapshot render failed: \(String(describing: error), privacy: .public)")
+                }
+            }
             if !board.blocks.isEmpty,
-               let result = try? await BoardRenderService.shared.render(board, width: snapshotWidth),
+               let result = renderResult,
                let tiff = result.image.tiffRepresentation,
                let rep = NSBitmapImageRep(data: tiff),
                let png = rep.representation(using: .png, properties: [:]),

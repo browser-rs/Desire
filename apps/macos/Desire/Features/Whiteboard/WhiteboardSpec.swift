@@ -65,6 +65,10 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
         static let note = "note"
         static let table = "table"
         static let image = "image"
+        // v8 React 前端新增：flow = 节点图 JSON（React Flow + dagre 自动
+        // 布局）；mindmap = 缩进层级文本（markmap 渲染，XMind 观感）。
+        static let flow = "flow"
+        static let mindmap = "mindmap"
     }
 
     /// image 块的内容上限（data URI 字符数 ≈ 8MB 二进制）——防止一次截图
@@ -88,7 +92,8 @@ struct WhiteboardBlock: Codable, Equatable, Identifiable {
     var isValid: Bool {
         guard [WhiteboardBlock.Kind.mermaid, WhiteboardBlock.Kind.chart,
                WhiteboardBlock.Kind.note, WhiteboardBlock.Kind.table,
-               WhiteboardBlock.Kind.image].contains(type) else { return false }
+               WhiteboardBlock.Kind.image, WhiteboardBlock.Kind.flow,
+               WhiteboardBlock.Kind.mindmap].contains(type) else { return false }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         if type == WhiteboardBlock.Kind.image {
             return trimmed.hasPrefix("data:image/") && content.count <= Self.maxImageContentChars

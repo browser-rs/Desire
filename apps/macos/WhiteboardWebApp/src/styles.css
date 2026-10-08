@@ -1,0 +1,182 @@
+/* Desire 白板 — React 版样式（v8 现代卡片风） */
+
+.wb-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wb-boardtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a8f9c;
+  padding: 0 2px;
+}
+
+.wb-empty {
+  color: #8a8f9c;
+  font-size: 13px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* 卡片：纯白 + 大圆角 + 细边 + 轻阴影（Notion/Linear 观感） */
+.wb-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #e6e8ec;
+  border-radius: 14px;
+  padding: 10px 14px 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.wb-card:hover {
+  border-color: #d8dce4;
+  box-shadow: 0 3px 10px rgba(16, 24, 40, 0.08);
+}
+.wb-card.wb-dragging { opacity: 0.45; }
+.wb-card.wb-drop {
+  outline: 2px dashed #4f7cf0;
+  outline-offset: -2px;
+}
+
+.wb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  min-height: 22px;
+}
+.wb-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.02em;
+}
+
+/* 工具条：hover 浮现，按钮圆角浅底 */
+.wb-grip {
+  cursor: grab;
+  user-select: none;
+  color: #b6bcc8;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.wb-tools {
+  margin-left: auto;
+  display: none;
+  gap: 2px;
+}
+.wb-card:hover .wb-tools { display: inline-flex; }
+.wb-tools button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+.wb-tools button:hover:not(:disabled) {
+  background: #eef1f6;
+  color: #1f2937;
+}
+.wb-tools button:disabled { opacity: 0.35; cursor: default; }
+
+/* note 正文 */
+.wb-note {
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wb-note h1, .wb-note h2, .wb-note h3 { margin: 8px 0 4px; font-size: 14px; }
+.wb-note pre {
+  background: #f6f8fa;
+  border: 1px solid #e6e8ec;
+  border-radius: 8px;
+  padding: 9px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.wb-note pre code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11.5px;
+  color: #374151;
+  background: none;
+  padding: 0;
+}
+.wb-note code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  background: #f0f2f6;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.wb-note-link, .note-link {
+  color: #4f7cf0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 表格 */
+.wb-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.wb-table th, .wb-table td {
+  border: 1px solid #e6e8ec;
+  padding: 5px 10px;
+  text-align: left;
+}
+.wb-table th { background: #f6f8fa; font-weight: 600; }
+
+/* 图片 */
+.wb-image img {
+  max-width: 100%;
+  border-radius: 10px;
+  display: block;
+  -webkit-user-drag: none;
+}
+
+/* mermaid 兜底 */
+.wb-mermaid { display: flex; justify-content: center; padding: 6px 2px 8px; }
+.wb-mermaid svg { max-width: 100%; height: auto; }
+
+/* 错误与空态 */
+.wb-err { color: #c0392b; font-size: 12px; }
+
+/* 编辑器 */
+.wb-editor {
+  width: 100%;
+  min-height: 120px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  border: 1px solid #d5d9e0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.wb-editor:focus { outline: 2px solid #4f7cf0; outline-offset: -1px; }
+.wb-editor-actions { display: flex; gap: 6px; margin-top: 6px; }
+.wb-editor-actions button {
+  font-size: 12px;
+  padding: 4px 14px;
+  border-radius: 7px;
+  border: 1px solid #d5d9e0;
+  background: #ffffff;
+  cursor: pointer;
+}
+.wb-editor-actions button:first-child {
+  background: #4f7cf0;
+  border-color: #4f7cf0;
+  color: #ffffff;
+}
+
+/* markmap：foreignObject 内文字容器按内容宽（默认 0 宽导致 fit 缩成一团） */
+.markmap-foreign {
+  width: 190px;
+  display: block;
+}

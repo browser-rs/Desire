@@ -41,6 +41,26 @@ Persistent **memory** per profile (auto-extracted, editable, queryable),
 **skills** (`useSkill` / `listSkills`) for reusable playbooks, and an
 **evidence store** backing its claims.
 
+**Proactive, on your terms.** A heartbeat check-in runs on your standing
+checklist plus machine signals — page-watch changes (with AI analysis),
+failed scheduled tasks, interrupted turns, conversations left unanswered —
+and the model itself decides whether to speak (`HEARTBEAT_OK` keeps it
+silent). Findings arrive through a two-tier notification system (urgent
+failures push immediately; routine items pass quiet hours and a daily
+budget, then arrive as one digest), and can dispatch a real agent turn to
+verify and handle the matter. Named personas bind to windows — run several
+agents, each with its own voice.
+
+**Guardrails, programmable.** Beyond the approval policy, side-effect
+actions at the auto-edit level get a fast model review against your own
+standing rules — flagged actions turn into confirmation cards with the
+reason. Lifecycle hooks (small JavaScript files) can veto any tool call
+programmatically (`beforeToolCall`) or observe turns (`turnFinish`).
+Notifications, guard reviews and hooks compose with per-window access
+levels, allowlists and a fallback model service that takes over when the
+primary one keeps failing — and `saveSkill` lets the agent persist a
+finished workflow as a reusable skill.
+
 **A whiteboard it draws on.** `whiteboard` renders structured visuals —
 Mermaid diagrams (mind maps, flowcharts, sequence), ECharts charts,
 markdown tables and notes — straight into the conversation as live cards

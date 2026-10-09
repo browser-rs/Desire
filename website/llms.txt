@@ -14,11 +14,18 @@
 > 密码管理器（Keychain/生成器/CSV）、插件系统（Chrome 式装载 + Safari
 > 扩展包导入）、Desire Remote（iPhone 遥控 Mac 智能体）、多档案隔离、
 > 应用内 DevTools、MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources
-> 消费）、Skill 技能包（Markdown 多文件，zip/目录/单文件导入）、内置白板
+> 消费）、Skill 技能包（Markdown 多文件，zip/目录/单文件导入；saveSkill 供智能体
+> 把跑通的工作流自沉淀为技能）、内置白板
 > （Mermaid/ECharts 本地双引擎：智能体把流程图、图表直接画进聊天，
 > 白板面板逐块编辑与拖拽排序，.board/PNG 导出）、贴边悬浮球（语音输入、
 > 页面总结、进度环与完成徽章）、AI Auto-Clean
 > （页面广告自动识别拦截、可豁免可回滚）、60+ 端点的自动化桥。
+> 智能体主动性：心跳巡检（用户清单+机器信号，模型自决开口或沉默）、未完成事务
+> 收件箱、发现即处理；AI 动作复查（副作用对照用户规则，可疑转审批）；通知分级
+> （紧急直推、例行过免打扰与每日预算、合并摘要）；生命周期钩子（beforeToolCall
+> 可编程否决，唯一在完全访问档仍生效的闸）；Agent 人设名册（命名 persona 按窗口
+> 绑定）；定时任务可定向窗口；备用服务 failover（瞬态错误自动切换）；巨型消息
+> 请求侧封顶。
 > 页面协议 DPP for AI agents（Desire Page Protocol；与 llms.txt 互补——llms.txt
 > 声明内容，DPP 声明能力；注意与欧盟 Digital Product Passport 无关）：站点四级接入——JSON-LD 零改造 /
 > data-dpp-* 属性 / application/x-desire+json 声明块 / 官方 SDK 一行 expose——

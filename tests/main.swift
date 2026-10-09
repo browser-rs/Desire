@@ -1889,6 +1889,34 @@ func testHeartbeatDecision() {
 }
 testHeartbeatDecision()
 
+// ---------- 0.7.6 三批：巨型消息请求侧封顶 ----------
+
+func testHugeMessageCap() {
+    func userMsg(_ text: String) -> AgentMessage { AgentMessage(role: .user, content: text) }
+    // 未超限不动
+    let small = [userMsg("正常长度消息")]
+    let (keptSmall, savedSmall) = ContextCompaction.cappingHugeMessages(small)
+    check("封顶：未超限原样", keptSmall[0].content == "正常长度消息" && savedSmall == 0)
+    // 超限：头尾保留、中段标注
+    let huge = String(repeating: "甲", count: 19_000) + String(repeating: "乙", count: 3_000) + String(repeating: "丙", count: 19_500)
+    let (capped, saved) = ContextCompaction.cappingHugeMessages([userMsg(huge)])
+    let content = capped[0].content ?? ""
+    check("封顶：触发截断", saved > 0)
+    check("封顶：头保留", content.hasPrefix(String(repeating: "甲", count: 100)))
+    check("封顶：尾保留", content.hasSuffix(String(repeating: "丙", count: 100)))
+    check("封顶：带总量标注", content.contains("\(huge.count) chars total"))
+    let marker = "\n[…message truncated: \(huge.count) chars total, middle \(huge.count - 25_000) omitted…]\n"
+    check("封顶：长度 = 头+尾+标注", content.count == 25_000 + marker.count)
+    // 超长 assistant 消息同样封顶；tool 消息不归它管（8k 摘要管线负责）
+    let (capped2, _) = ContextCompaction.cappingHugeMessages([
+        AgentMessage(role: .assistant, content: String(repeating: "答", count: 50_000)),
+        AgentMessage(role: .tool, content: String(repeating: "具", count: 50_000), toolCallId: "t1"),
+    ])
+    check("封顶：assistant 也封", (capped2[0].content ?? "").count < 30_000)
+    check("封顶：tool 不动", (capped2[1].content ?? "").count == 50_000)
+}
+testHugeMessageCap()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

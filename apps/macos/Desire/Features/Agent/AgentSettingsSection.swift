@@ -38,6 +38,8 @@ struct AgentSettingsSection: View {
     @ObservedObject var store: AgentPreferenceStore
     /// 心跳巡检（模型自决的周期巡检，独立 store 持有自己的偏好）。
     @ObservedObject var heartbeat = HeartbeatStore.shared
+    /// 生命周期钩子（beforeToolCall / turnFinish 用户脚本）。
+    @ObservedObject var hooks = AgentHooksStore.shared
 
     @State private var apiKey: String = ""
     @State private var showKey = false
@@ -73,6 +75,26 @@ struct AgentSettingsSection: View {
     private func addBinary() {
         SystemCommandStore.shared.allow(newBinary)
         newBinary = ""
+    }
+
+    /// 钩子文件行（独立函数：行内三元 + Binding 内联会让类型检查器超时）。
+    private func hookFileRow(_ file: AgentHooksStore.HookFile) -> some View {
+        let subtitle: String
+        if let error = file.hasError {
+            subtitle = error
+        } else {
+            subtitle = String(localized: "beforeToolCall / turnFinish")
+        }
+        let icon = file.hasError == nil ? "doc.text" : "exclamationmark.triangle"
+        let binding = Binding<Bool>(
+            get: { file.isEnabled },
+            set: { hooks.setEnabled($0, for: file.id) }
+        )
+        return SettingsRow(file.id, subtitle: subtitle, systemImage: icon) {
+            Toggle("", isOn: binding)
+                .labelsHidden()
+                .tint(appAccent)
+        }
     }
 
     /// 心跳"上次巡检"行的状态文案：相对时间 + 结论前缀。
@@ -585,6 +607,13 @@ struct AgentSettingsSection: View {
                             options: HeartbeatStore.intervalChoices,
                             label: { $0 >= 60 ? "\($0 / 60) h" : "\($0) min" }
                         )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            "Act On Findings",
+                            subtitle: String(localized: "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you."),
+                            systemImage: "arrow.triangle.commit",
+                            isOn: $heartbeat.autoHandle
+                        )
                     }
                     SettingsRowDivider()
                     SettingsRow(
@@ -622,6 +651,49 @@ struct AgentSettingsSection: View {
                     .padding(.vertical, 10)
                 }
             }
+
+            // MARK: - Hooks（生命周期钩子）
+
+            SettingsSection(
+                title: String(localized: "Hooks"),
+                subtitle: String(localized: "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop."),
+                icon: "curlybraces.square"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Enable Hooks",
+                        subtitle: String(localized: "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications."),
+                        systemImage: "checkmark.seal.text.page",
+                        isOn: $hooks.isEnabled
+                    )
+                    SettingsRowDivider()
+                    SettingsActionRow(
+                        "Hooks Folder",
+                        subtitle: String(localized: "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log."),
+                        systemImage: "folder",
+                        buttonTitle: "Open Folder"
+                    ) {
+                        NSWorkspace.shared.open(AgentHooksStore.directory)
+                    }
+                    SettingsRowDivider()
+                    SettingsActionRow(
+                        "Reload Hooks",
+                        subtitle: hooks.files.isEmpty
+                            ? String(localized: "No hook files found.")
+                            : (hooks.files.map { ($0.isEnabled ? "• " : "○ ") + $0.id }).joined(separator: "　"),
+                        systemImage: "arrow.triangle.2.circlepath",
+                        buttonTitle: "Reload",
+                        isDisabled: false
+                    ) {
+                        hooks.load()
+                    }
+                    ForEach(hooks.files) { file in
+                        SettingsRowDivider()
+                        hookFileRow(file)
+                    }
+                }
+            }
+            .onAppear { hooks.load() }
 
             // MARK: - Allowed Tools
 

@@ -36,6 +36,11 @@ final class HeartbeatStore: ObservableObject {
             }
         }
     }
+    /// **发现即处理**：心跳说出某事后，自动派一个真实 agent 回合去核实/处理
+    /// （走 deliverScheduled，忙时排队）。关 = 只提醒不动手。
+    @Published var autoHandle: Bool {
+        didSet { UserDefaults.standard.set(autoHandle, forKey: "agentHeartbeatAutoHandle") }
+    }
     @Published private(set) var lastBeatAt: Date?
     /// 上一次心跳的结论：静默 / 说的话（截断展示用）。
     @Published private(set) var lastResult: String?
@@ -49,6 +54,7 @@ final class HeartbeatStore: ObservableObject {
         let stored = UserDefaults.standard.object(forKey: "agentHeartbeatMinutes") as? Int ?? 60
         intervalMinutes = Self.intervalChoices.contains(stored) ? stored : 60
         checklist = UserDefaults.standard.string(forKey: "agentHeartbeatChecklist") ?? ""
+        autoHandle = UserDefaults.standard.object(forKey: "agentHeartbeatAutoHandle") as? Bool ?? false
         lastBeatAt = UserDefaults.standard.object(forKey: Self.lastBeatKey) as? Date
         // 60s 粒度的 tick：到点才跑，忙时/免打扰自然推迟到下个 tick。
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
@@ -129,6 +135,21 @@ final class HeartbeatStore: ObservableObject {
             recordBeat(result: String(spoken.prefix(120)))
             // 会话备注：模型下一轮能知道心跳已经提醒过（防每个 beat 重复说同一件事）。
             AgentScheduler.shared.deliveryTarget?.appendExternalNote("心跳巡检提醒用户：\(spoken)")
+            // 发现即处理：派一个真实回合去核实/处理（deliverScheduled 忙时排队，
+            // 不打断进行中的回合）。prompt 给足上下文并要求一句话汇报。
+            if autoHandle,
+               let target = AgentScheduler.shared.deliveryTarget {
+                let prompt = """
+                心跳巡检发现以下情况，请核实并酌情处理：
+
+                \(spoken)
+
+                这是心跳巡检的自动委派（用户已开启"发现即处理"）。先核实情况是否属实，
+                属实就处理到力所能及的程度（不做危险/不可逆操作），最后用一两句话向用户
+                汇报结果。
+                """
+                target.deliverScheduled(prompt, from: "Heartbeat")
+            }
         }
         return (decision, message, notified)
     }

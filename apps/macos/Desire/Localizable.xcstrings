@@ -26001,6 +26001,28 @@
         }
       }
     },
+    "Hooks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子"
+          }
+        }
+      }
+    },
     "Send (⏎)" : {
       "localizations" : {
         "en" : {
@@ -35941,6 +35963,28 @@
         }
       }
     },
+    "Act On Findings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Act On Findings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现即处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發現即處理"
+          }
+        }
+      }
+    },
     "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call." : {
       "localizations" : {
         "en" : {
@@ -36069,6 +36113,204 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 心跳"
+          }
+        }
+      }
+    },
+    "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳标记某事后，还会自动派一个真实 Agent 回合去核实与处理（忙时排队）。关闭则只提醒不动手。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳標記某事後，還會自動派一個真實 Agent 回合去核實與處理（忙時排隊）。關閉則只提醒不動手。"
+          }
+        }
+      }
+    },
+    "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挂在 Agent 事件上的小型 JavaScript 脚本——访问规则之上的可编程层。保持简短：它们在 Agent 循环上同步执行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掛在 Agent 事件上的小型 JavaScript 指令碼——存取規則之上的可程式化層。保持簡短：它們在 Agent 迴圈上同步執行。"
+          }
+        }
+      }
+    },
+    "Enable Hooks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用鉤子"
+          }
+        }
+      }
+    },
+    "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子文件可定义 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何访问等级下否决工具）与 turnFinish(event)（回合收尾通知）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子檔案可定義 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何存取等級下否決工具）與 turnFinish(event)（回合收尾通知）。"
+          }
+        }
+      }
+    },
+    "Hooks Folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hooks Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子目录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子目錄"
+          }
+        }
+      }
+    },
+    "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 .js 文件放进来然后重新加载。每个文件运行在独立沙箱化的 JavaScriptCore 上下文里，无法访问宿主——只有事件载荷与 console.log。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 .js 檔案放進來然後重新載入。每個檔案執行在獨立沙箱化的 JavaScriptCore 上下文裡，無法存取宿主——只有事件載荷與 console.log。"
+          }
+        }
+      }
+    },
+    "Reload Hooks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加载钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新載入鉤子"
+          }
+        }
+      }
+    },
+    "No hook files found." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hook files found."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现钩子文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未發現鉤子檔案。"
+          }
+        }
+      }
+    },
+    "beforeToolCall / turnFinish" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
           }
         }
       }

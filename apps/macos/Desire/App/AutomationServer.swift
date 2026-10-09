@@ -540,6 +540,9 @@ final class AutomationServer {
         ep("GET", "/agent/heartbeat", "Heartbeat check-in state (enabled / interval / checklist / last beat)", example: "…/agent/heartbeat")
         ep("POST", "/agent/heartbeat", "Configure the heartbeat check-in (omit fields to keep)", params: ["enabled?:bool", "intervalMinutes?:int (15|30|60|120|240)", "checklist?:string"], example: #"-d '{"enabled":true,"intervalMinutes":60}'"#)
         ep("POST", "/agent/heartbeat/fire", "Run one heartbeat beat now (E2E; bypasses interval and quiet hours): model decides silent vs ping", example: "-d '{}'")
+        ep("GET", "/agent/hooks", "Lifecycle hooks state (enabled + per-file list)", example: "…/agent/hooks")
+        ep("POST", "/agent/hooks", "Enable/disable hooks globally", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
+        ep("POST", "/agent/hooks/reload", "Rescan the hooks folder and rebuild the JS contexts", example: "-d '{}'")
         ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
         ep("POST", "/update/install", "Self-update: download the latest release zip, verify SHA256, replace /Applications bundle, relaunch (only when installed in /Applications)", example: "-d '{}'")
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
@@ -1984,6 +1987,7 @@ final class AutomationServer {
                     "enabled": heartbeat.isEnabled,
                     "intervalMinutes": heartbeat.intervalMinutes,
                     "checklist": heartbeat.checklist,
+                    "autoHandle": heartbeat.autoHandle,
                     "isBeating": heartbeat.isBeating,
                 ]
                 if let last = heartbeat.lastBeatAt { payload["lastBeatAt"] = last.timeIntervalSince1970 }
@@ -1996,10 +2000,12 @@ final class AutomationServer {
                     heartbeat.intervalMinutes = v
                 }
                 if let v = Self.string(body, "checklist") { heartbeat.checklist = v }
+                if let v = body["autoHandle"] as? Bool { heartbeat.autoHandle = v }
                 return try Self.json([
                     "ok": true,
                     "enabled": heartbeat.isEnabled,
                     "intervalMinutes": heartbeat.intervalMinutes,
+                    "autoHandle": heartbeat.autoHandle,
                 ])
             case ("POST", "/agent/heartbeat/fire"):
                 // 立即跑一拍（E2E/调试）：绕过间隔与免打扰，决策与通知结果原样返回。
@@ -2010,6 +2016,24 @@ final class AutomationServer {
                     "message": result.message,
                     "notified": result.notified,
                 ])
+            case ("GET", "/agent/hooks"):
+                let hooks = AgentHooksStore.shared
+                return try Self.json([
+                    "ok": true,
+                    "enabled": hooks.isEnabled,
+                    "files": hooks.files.map { [
+                        "name": $0.id,
+                        "enabled": $0.isEnabled,
+                        "error": $0.hasError ?? "",
+                    ] },
+                ])
+            case ("POST", "/agent/hooks"):
+                let hooks = AgentHooksStore.shared
+                if let v = body["enabled"] as? Bool { hooks.isEnabled = v }
+                return try Self.json(["ok": true, "enabled": hooks.isEnabled])
+            case ("POST", "/agent/hooks/reload"):
+                AgentHooksStore.shared.load()
+                return try Self.json(["ok": true, "files": AgentHooksStore.shared.files.map(\.id)])
             case ("GET", "/agent/prompt"):
                 return try Self.json(Self.pendingPrompt())
             case ("POST", "/agent/prompt/answer"):

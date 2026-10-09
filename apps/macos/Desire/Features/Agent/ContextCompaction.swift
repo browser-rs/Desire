@@ -94,6 +94,41 @@ enum ContextCompaction {
         return (out, saved)
     }
 
+    /// **巨型 user/assistant 消息的请求侧封顶**（0.7.6 上下文卫生）：块压缩
+    /// "永不丢最后一块"，因此最后一条巨型的用户粘贴/超长回答会**原样进请求**
+    /// ——一条消息就能吃掉大半预算且无任何防线（工具消息已有 8k 摘要管线，
+    /// 不在此列）。只动请求副本：超限消息保留头 + 尾，中段换成省略标注——
+    /// 模型仍能从头尾把握意图，比整条挤爆上下文好。最后一条 user 消息同样
+    /// 封顶（截断是显式标注的，模型可提示用户内容过长）。
+    static func cappingHugeMessages(
+        _ messages: [AgentMessage],
+        limit: Int = 40_000,
+        headChars: Int = 20_000,
+        tailChars: Int = 5_000
+    ) -> (messages: [AgentMessage], savedChars: Int) {
+        var saved = 0
+        var out: [AgentMessage] = []
+        out.reserveCapacity(messages.count)
+        for message in messages {
+            guard message.role == .user || message.role == .assistant,
+                  let content = message.content, content.count > limit else {
+                out.append(message)
+                continue
+            }
+            let head = String(content.prefix(headChars))
+            let tail = String(content.suffix(tailChars))
+            let omitted = content.count - headChars - tailChars
+            let stub = head
+                + "\n[…message truncated: \(content.count) chars total, middle \(omitted) omitted…]\n"
+                + tail
+            saved += content.count - stub.count
+            var trimmed = message
+            trimmed.content = stub
+            out.append(trimmed)
+        }
+        return (out, saved)
+    }
+
     /// **全数组未配对 tool_calls 清洗**（P0-F）：工具循环中途被取消时，assistant
     /// 的部分 tool_calls 已落结果、其余没有——原样发给 OpenAI 兼容服务会被以
     /// "tool_calls must be followed by tool messages" 拒绝，**且之后每一轮都如此**

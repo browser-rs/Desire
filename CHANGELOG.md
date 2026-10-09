@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **旁路/评审轻量实例打穿全局档案库（P0，2026-10-09 实测踩中）**：`bypassPreferences()` 构造轻量实例后 `profiles = [单条]` 的赋值触发 didSet **整组落盘**——只要配置过旁路档案，每次回合收尾的标题生成都会用一条档案覆盖整个 `aiProfiles`；`criticPreferences`/旁路的 `activateProfile` 还会把全局 `aiActiveProfileID` 改写成旁路档案 id。现在三类轻量实例统一挂 `isDetachedView`：profiles 不落盘、active 指针不写全局（内存视图语义不变）。E2E 全程档案数核对通过
+
 ### Added
 
 - **AI 动作复查（guard pass）**：自动编辑访问等级下，副作用工具在快捷放行前先经旁路模型对照用户规则（身份提示词 + 常驻规则 + 会话指令）做一次轻量判定——标记为可疑的动作转为审批卡（卡片顶部带复查理由），超时（8s）/失败/无法解析一律放行不卡回合；设置页 Agent Context 区新增开关（默认开）、Agent 菜单新增启停项、桥新增 `GET/POST /agent/guard` 与 `POST /agent/guard/check`（离线跑一次复查，E2E 用）；旁路用量照常记到本回合尾助手消息（kind=guard）
@@ -6,6 +10,10 @@
 - **心跳巡检（Heartbeat，设计取自 OpenClaw）**：Desire 第一条"模型自决的主动性"——每 N 分钟（15/30/60/120/240 可选，默认关）一次轻量旁路调用，把用户巡检清单 + 机器自动信号（页面监视变化含 AI 分析结论、失败的定时任务）交给模型判断要不要打扰：回 `HEARTBEAT_OK`（首尾出现且余文 ≤300 字符，OpenClaw 同契约）即静默，有事则以例行通知说出（过免打扰/每日预算闸）并向会话追加备注防重复提醒；防噪音三闸照搬 OpenClaw——回合进行中推迟、免打扰时段跳过、清单与信号全空跳过；设置页 AI 区新增心跳分区（开关/间隔/上次巡检状态/清单编辑器），桥新增 `GET/POST /agent/heartbeat` 与 `POST /agent/heartbeat/fire`
 - **备用档案 failover（取自 OpenClaw 多模型容灾）**：主服务瞬态错误（限流/5xx/断连）的既有"重试一次"仍失败时，自动换用户配置的备用服务把流再试最后一次（仅限"什么都没流出来"，不会复制半截输出）；设置页 Agent Context 区新增"备用服务"选择行，桥新增 `GET/POST /ai/fallback-profile`
 - **子代理瞬态重试**：crew/子代理的模型流此前没有任何重试（一次抖动整次任务报废）——现在与主循环同款语义：一个事件都没收到且属瞬态错误时延迟 1.5s 重试一次
+- **生命周期钩子（hooks v1，取自 OpenClaw Hooks）**：`Application Support/Desire/hooks/` 下每个 .js 文件跑在独立 JavaScriptCore 上下文（无宿主对象注入，仅事件载荷 + console.log 落统一日志），支持 `beforeToolCall(event)` 可编程否决——返回 `{decision:"deny",reason:"…"}` 即拦下该工具，且这是**唯一在完全访问档仍生效的闸**（用户亲手写的显式规则 > 笼统等级授权；deny 规则原语义不动），理由透传进工具消息让模型知道为何被拒；`turnFinish(event)` 通知型钩子（回合收尾，返回值忽略）。设置页 AI 区新增"钩子"分区（全局开关/目录/重载/逐文件启停），桥新增 `GET/POST /agent/hooks` 与 `/agent/hooks/reload`
+- **心跳"发现即处理"**：心跳巡检标记某事后可自动派一个真实 agent 回合核实并处理（走 deliverScheduled 忙时排队），提示词里明确"不做危险/不可逆操作"——从"只提醒"补到"能动手"的闭环；设置行 + 桥 `autoHandle` 字段
+- **巨型消息请求侧封顶**（上下文卫生）：块压缩"永不丢最后一块"留下的防线缺口——一条巨型用户粘贴/超长回答原本会无防线原样进请求；现在 user/assistant 消息超 4 万字符在请求副本里保留头 2 万 + 尾 5 千、中段显式标注截断（工具消息仍走既有 8k 摘要管线）
+
 
 
 

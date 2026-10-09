@@ -8,13 +8,27 @@ import os
 class AgentPreferenceStore: ObservableObject {
     /// 模型服务档案：内置预设 + 用户自定义（见 `AIProviderProfile`）。
     @Published var profiles: [AIProviderProfile] {
-        didSet { DiskStore.save(profiles, key: "aiProfiles") }
+        didSet {
+            guard !isDetachedView else { return }
+            DiskStore.save(profiles, key: "aiProfiles")
+        }
     }
 
     /// 当前使用的服务档案。
     @Published var activeProfileID: UUID? {
-        didSet { UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID") }
+        didSet {
+            guard !isDetachedView else { return }
+            UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
+        }
     }
+
+    /// **游离视图实例**开关（2026-10-09 P0）：bypassPreferences / fallbackPreferences /
+    /// criticPreferences 返回的轻量实例，其 `profiles`（单条视图）与
+    /// `activeProfileID`（旁路/评审指向）只在本调用的请求构造里生效，**绝不写穿
+    /// 全局存储**——此前 `profiles = [单条]` 的赋值触发 didSet 整组落盘，一次
+    /// 旁路调用就能把用户的档案库覆盖成一条；activateProfile 也会把全局
+    /// aiActiveProfileID 改写成旁路档案 id。
+    var isDetachedView = false
 
     /// 当前档案（没显式选就取第一个）。
     var activeProfile: AIProviderProfile? {
@@ -370,6 +384,7 @@ class AgentPreferenceStore: ObservableObject {
         guard let id = criticProfileID,
               profiles.contains(where: { $0.id == id }) else { return nil }
         let store = AgentPreferenceStore(skipKeyStateRefresh: true)  // 同一份落盘档案；Key 下面显式读
+        store.isDetachedView = true  // activateProfile 只改本实例视图，不写全局 active 指针
         guard store.profiles.contains(where: { $0.id == id }) else { return nil }
         // 评审档案**得真的能用**（有 Key）才用它：否则自评会因为 "API Key not configured"
         // 静默失败，用户看到的只是"自评不工作了"。这种情况退回当前档案——降级评审
@@ -394,6 +409,7 @@ class AgentPreferenceStore: ObservableObject {
             return nil
         }
         let store = AgentPreferenceStore(skipKeyStateRefresh: true)
+        store.isDetachedView = true
         // **直接注入内存里的档案**，不指望 DiskStore：writer 在高负载（评估、
         // 大会话连续落盘）下积压可达分钟级，刚建的档案靠盘上读会撞空——
         // 0.6.7 E7 实测"档案在内存里、盘上还没有"的窗口远比 500ms 防抖长。
@@ -416,6 +432,7 @@ class AgentPreferenceStore: ObservableObject {
             return nil
         }
         let store = AgentPreferenceStore(skipKeyStateRefresh: true)
+        store.isDetachedView = true
         // 直接注入内存档案（不指望 DiskStore，理由同 bypassPreferences）。
         store.profiles = [profile]
         guard (store.loadAPIKey(profileID: id, interactive: false) ?? "").isEmpty == false else {

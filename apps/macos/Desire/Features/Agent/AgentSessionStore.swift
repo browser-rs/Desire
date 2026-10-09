@@ -271,6 +271,9 @@ class AgentSessionStore: ObservableObject {
     /// Set when a turn's model stream failed — gates queue flushing so a
     /// broken provider can't rapid-fire the whole queue into errors.
     private var turnFailed = false
+    /// 钩子否决理由（hooks v1）：gate() 命中钩子 deny 时置位，紧随其后的
+    /// denied 工具消息把它透传给模型（"为什么被拒"），消费后清空。
+    private var lastHookDenial: String?
     /// Error text of the most recent failed turn (scheduler run records).
     private var lastTurnErrorText: String?
     /// Result of a finished turn, delivered to registered handlers (the
@@ -1052,6 +1055,13 @@ class AgentSessionStore: ObservableObject {
         if toolCharsSaved > 0 {
             Log.agent.info("tool-result summary: \(toolCharsSaved) chars replaced by handles in this request")
         }
+        // 巨型 user/assistant 消息封顶（0.7.6 上下文卫生）：块压缩不丢最后一块，
+        // 一条巨型粘贴/超长回答原本会无防线地原样进请求。
+        let (capped, hugeSaved) = ContextCompaction.cappingHugeMessages(request)
+        request = capped
+        if hugeSaved > 0 {
+            Log.agent.info("huge-message cap: \(hugeSaved) chars trimmed from oversized user/assistant messages in this request")
+        }
 
         // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
         // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，
@@ -1132,6 +1142,15 @@ class AgentSessionStore: ObservableObject {
             let handlers = turnFinishHandlers
             turnFinishHandlers.removeAll()
             handlers.forEach { $0(outcome) }
+            // 生命周期钩子（hooks v1）：turnFinish 是通知型事件——fire-and-forget，
+            // 钩子返回值忽略。answer 取本回合最后一条助手正文。
+            let turnAnswer = messages.last(where: { $0.role == .assistant })?.content ?? ""
+            let turnToolCount = messages.filter { $0.role == .tool }.count
+            AgentHooksStore.shared.dispatchTurnFinish(
+                success: outcome.success,
+                error: outcome.error,
+                answer: turnAnswer,
+                toolCount: turnToolCount)
             // Flush the queue only after a clean turn: a broken provider
             // would otherwise burn the whole queue in rapid error bursts.
             guard !turnFailed, !isCancelled, let next = queuedMessages.first else { break }
@@ -1542,10 +1561,18 @@ class AgentSessionStore: ObservableObject {
                 let decision = await gate(toolCall: tc, risk: risk)
                 switch decision {
                 case .denied:
-                    // Tell the model the user declined, so it can adapt.
+                    // Tell the model the user declined, so it can adapt. 钩子
+                    // 否决时带理由（模型知道规则内容才不会再撞）。
+                    let deniedText: String
+                    if let hookReason = lastHookDenial {
+                        lastHookDenial = nil
+                        deniedText = "[Hook denied this action (\(tc.function.name)): \(hookReason)]"
+                    } else {
+                        deniedText = "[User denied this action (\(tc.function.name)).]"
+                    }
                     messages.append(AgentMessage(
                         role: .tool,
-                        content: "[User denied this action (\(tc.function.name)).]",
+                        content: deniedText,
                         toolCallId: tc.id,
                         toolName: tc.function.name
                     ))
@@ -1846,9 +1873,16 @@ class AgentSessionStore: ObservableObject {
                 let decision = await gate(toolCall: tc, risk: effectiveRisk(for: tc))
                 switch decision {
                 case .denied:
+                    let deniedText: String
+                    if let hookReason = lastHookDenial {
+                        lastHookDenial = nil
+                        deniedText = "[Hook denied this action: \(hookReason)]"
+                    } else {
+                        deniedText = "[User denied this action.]"
+                    }
                     subMessages.append(AgentMessage(
                         role: .tool,
-                        content: "[User denied this action.]",
+                        content: deniedText,
                         toolCallId: tc.id,
                         toolName: tc.function.name
                     ))
@@ -2235,9 +2269,16 @@ class AgentSessionStore: ObservableObject {
             if isCancelled || Task.isCancelled { return }
             switch decision {
             case .denied:
+                let deniedText: String
+                if let hookReason = lastHookDenial {
+                    lastHookDenial = nil
+                    deniedText = "[Hook denied this action (\(call.function.name)): \(hookReason)]"
+                } else {
+                    deniedText = "[User denied this action (\(call.function.name)).]"
+                }
                 denied.append(AgentMessage(
                     role: .tool,
-                    content: "[User denied this action (\(call.function.name)).]",
+                    content: deniedText,
                     toolCallId: call.id,
                     toolName: call.function.name
                 ))
@@ -2360,6 +2401,21 @@ class AgentSessionStore: ObservableObject {
         // One approval prompt at a time — parallel subagents queue here.
         await acquireApprovalSlot()
         defer { approvalSlotBusy = false }
+
+        // 用户钩子（hooks v1，取自 OpenClaw）：beforeToolCall 可编程否决。
+        // **唯一在完全访问档仍生效的闸**——钩子是用户亲手写的显式规则，
+        // 优先级高于任何笼统的等级授权（deny 规则维持原语义不动：完全访问
+        // 档依旧全静默）。否决理由透传给工具消息，模型知道为何被拒。
+        if let hookReason = AgentHooksStore.shared.denyReason(
+            tool: toolCall.function.name,
+            argumentsJSON: toolCall.function.arguments,
+            goal: messages.last(where: { $0.role == .user })?.content ?? "") {
+            lastHookDenial = hookReason
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name,
+                decision: "denied (hook: \(hookReason))", source: "hook")
+            return .denied
+        }
 
         // 完全访问：用户显式委托全部工具决策——包括 dangerous 级 executeJS
         // 与系统命令——全部静默。

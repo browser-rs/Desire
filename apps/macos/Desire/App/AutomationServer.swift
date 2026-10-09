@@ -2234,30 +2234,8 @@ final class AutomationServer {
             case ("GET", "/memory/export"):
                 // format=markdown：ReMe 式可读知识库（画像/分组事实/相关链接/摘要）。
                 if query["format"] == "markdown" {
-                    let memory = AgentMemoryStore.shared
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                    let facts = memory.archive.facts.map {
-                        MemoryKB.FactInput(content: $0.content, category: $0.category,
-                                           scope: $0.scope, source: $0.source,
-                                           pinned: $0.pinned,
-                                           updatedText: formatter.string(from: $0.updatedAt))
-                    }
-                    let summaries = memory.archive.summaries.map { summary -> MemoryKB.SummaryInput in
-                        let title = AppState.live?.conversationStore
-                            .conversation(for: summary.conversationId)?.title
-                            ?? "会话 \(summary.conversationId.uuidString.prefix(8))"
-                        return MemoryKB.SummaryInput(
-                            title: title, text: summary.summary,
-                            updatedText: formatter.string(from: summary.createdAt))
-                    }
-                    let profile = memory.archive.profile
-                    let md = MemoryKB.render(
-                        profile: ["名字": profile.name, "语言": profile.language,
-                                  "语气": profile.style, "自定义指令": profile.customInstructions],
-                        facts: facts, summaries: summaries,
-                        generatedText: formatter.string(from: Date()))
-                    return try Self.json(["ok": true, "format": "markdown", "markdown": md])
+                    return try Self.json(["ok": true, "format": "markdown",
+                                          "markdown": AgentMemoryStore.shared.markdownKB()])
                 }
                 return try Self.json(Self.exportMemory())
             case ("POST", "/memory/decay"):

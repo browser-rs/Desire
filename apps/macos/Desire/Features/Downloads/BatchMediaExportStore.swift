@@ -531,6 +531,9 @@ final class BatchMediaExportStore: ObservableObject {
                     items: items, state: .running, createdAt: persistedBatch.createdAt
                 )
                 batches.append(batch)
+                for item in items {
+                    Log.downloads.info("RESTORE-DEBUG item \(item.numberPrefix, privacy: .public) mediaURL=\(item.mediaURL?.absoluteString ?? "nil", privacy: .public) state=\(item.state.rawValue, privacy: .public)")
+                }
                 batchUserAgents[batch.id] = persistedBatch.userAgent
                 if persistedBatch.force { forceDownloadBatches.insert(batch.id) }
                 pausedBatches.insert(batch.id)

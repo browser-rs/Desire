@@ -112,6 +112,27 @@ enum MediaExporter {
         return URLSession(configuration: config)
     }()
 
+    /// 回环目标的专用会话：**显式无代理**。系统代理（xray 等）开着时，
+    /// 默认会话对 127.0.0.1 的请求可能被送进代理路由卡死（实测：服务器
+    /// 发完全量、app 收到 200 后 body 断流直至超时）。本机媒体服务器
+    /// （jellyfin/fixture/局域网 NAS）不该依赖代理状态。
+    private static let loopbackSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.connectionProxyDictionary = [:]
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 900
+        return URLSession(configuration: config)
+    }()
+
+    static func session(for url: URL) -> URLSession {
+        if let host = url.host?.lowercased(),
+           host == "127.0.0.1" || host == "localhost" || host == "::1" {
+            return loopbackSession
+        }
+        return session
+    }
+
     // MARK: - Entry point
 
     /// Exports `url` (direct media file or HLS playlist) into ~/Downloads.
@@ -158,7 +179,7 @@ enum MediaExporter {
             if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
             request.httpMethod = "HEAD"
             let mimeHint: String?
-            if let (_, response) = try? await session.data(for: request) {
+            if let (_, response) = try? await session(for: url).data(for: request) {
                 mimeHint = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")
             } else {
                 mimeHint = nil
@@ -853,7 +874,7 @@ enum MediaExporter {
 
         // 流式接收：数据随到随追加进 .part——硬杀/断网后磁盘上就是断点本身。
         // （download(for:) 整段落临时文件、完成后才搬——中断即全丢。）
-        let (bytes, response) = try await session.bytes(for: makeRequest(rangeFrom: existing > 0 ? existing : nil))
+        let (bytes, response) = try await session(for: url).bytes(for: makeRequest(rangeFrom: existing > 0 ? existing : nil))
         let status = (response as? HTTPURLResponse)?.statusCode ?? 200
         let appendMode = status == 206 && existing > 0
         if !appendMode {

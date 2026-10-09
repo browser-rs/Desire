@@ -187,6 +187,32 @@ final class AgentMemoryStore: ObservableObject {
             }
     }
 
+    /// 记忆知识库 Markdown（ReMe 式可读导出：画像/分组事实/相关互链/摘要）。
+    /// 桥 `GET /memory/export?format=markdown` 与记忆面板导出按钮同源。
+    func markdownKB() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        let facts = archive.facts.map {
+            MemoryKB.FactInput(content: $0.content, category: $0.category,
+                               scope: $0.scope, source: $0.source,
+                               pinned: $0.pinned,
+                               updatedText: formatter.string(from: $0.updatedAt))
+        }
+        let summaries = archive.summaries.map { summary -> MemoryKB.SummaryInput in
+            let title = AppState.live?.conversationStore
+                .conversation(for: summary.conversationId)?.title
+                ?? "会话 \(summary.conversationId.uuidString.prefix(8))"
+            return MemoryKB.SummaryInput(title: title, text: summary.summary,
+                                         updatedText: formatter.string(from: summary.createdAt))
+        }
+        let profile = archive.profile
+        return MemoryKB.render(
+            profile: ["名字": profile.name, "语言": profile.language,
+                      "语气": profile.style, "自定义指令": profile.customInstructions],
+            facts: facts, summaries: summaries,
+            generatedText: formatter.string(from: Date()))
+    }
+
     /// Serialises all facts + profile to JSON for export/backup.
     func exportJSON() -> String {
         let formatter = ISO8601DateFormatter()

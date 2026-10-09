@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 
 /// Memory manager: inspect and edit the agent's layered memory — the L0
@@ -13,6 +14,7 @@ struct AgentMemoryView: View {
     @State private var editingFactID: UUID?
     @State private var editingText = ""
     @State private var showClearConfirmation = false
+    @State private var exportedURL: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +30,44 @@ struct AgentMemoryView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(alignment: .top) {
+            if let exportedURL {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("已导出：\(exportedURL.lastPathComponent)")
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                    Button("在访达中显示") {
+                        NSWorkspace.shared.activateFileViewerSelecting([exportedURL])
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 11))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(.top, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: exportedURL)
+    }
+
+    // MARK: - 知识库导出（ReMe 式 Markdown）
+
+    private func exportKnowledgeBase() {
+        let markdown = memory.markdownKB()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmm"
+        let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Desire-记忆知识库-\(formatter.string(from: Date())).md")
+        do {
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            withAnimation { exportedURL = url }
+        } catch {
+            Log.agent.error("memory KB export failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Header
@@ -47,6 +87,16 @@ struct AgentMemoryView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            Button {
+                exportKnowledgeBase()
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("导出记忆知识库 Markdown（到“下载”文件夹）")
+            .disabled(memory.archive.facts.isEmpty && memory.archive.summaries.isEmpty)
             Button {
                 showClearConfirmation = true
             } label: {

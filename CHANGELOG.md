@@ -2,6 +2,12 @@
 ### Added
 
 - **技能安全扫描（Skill Scanner，QwenPaw Skill Guard 思想）**：技能是指令文本、会驱动 runCommand——导入与使用两个时点对内容做危险形态扫描（管道执行远程脚本、rm -rf 根目录、凭据读取=高危；sudo/全开放权限/系统偏好写入/数据回传=中危），只提示不拦截（拦截交给审批链）；useSkill 载入时向模型附风险提示、saveSkill 自沉淀时回带警告、桥 `GET /skills` 每条附 `risk` 字段
+- **Agent 体检（doctor，OpenClaw 自诊断思想）**：一键自检报告——活动模型档案与端点可达性（3 秒探测，任何 HTTP 响应都算通）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
+- **按需回忆（recallConversation 工具，QwenPaw Scroll Context 思想）**：压缩只裁请求副本、完整历史永在内存——但模型对"已被裁出上下文的轮次"此前没有任何取回手段；现在可按关键词召回当前会话的完整历史轮次（含压缩掉的），命中片段带定位说明。桥/工具索引自动跟进
+- **每窗口模型路由（per-agent model routing，QwenPaw v2.2.1 启发）**：每个窗口的 Agent 可绑定独立的模型服务档案（面板标题菜单选择；桥 `/agent/roster` action=bind-model）——主回合流走绑定档案（生成参数继承全局），解绑回落；`GET /agent/windows` 带每窗模型名。多窗口从"多分身"进一步变成"各自用各家模型的多个 Agent"
+- **Agent 体检（doctor，OpenClaw 自诊断思想）**：一键自检报告——活动模型档案与端点可达性（3 秒探测）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
+
+
 
 
 ## [v0.7.6] - 2026-10-09

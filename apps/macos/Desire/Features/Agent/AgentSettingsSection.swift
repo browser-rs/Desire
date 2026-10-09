@@ -109,6 +109,7 @@ struct AgentSettingsSection: View {
 
     var body: some View {
         SettingsContainer {
+            DoctorSection()
             ScheduledTasksSection()
             MCPServersSection()
             DPPSettingsSection()
@@ -265,6 +266,10 @@ struct AgentSettingsSection: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
             }
+
+            // MARK: - Agent Doctor（自诊断）
+
+            DoctorSection()
 
             // MARK: - Agent Roster（多 Agent 人设名册）
 
@@ -1663,6 +1668,65 @@ struct MCPServersSection: View {
 /// 命名人设列表：每个窗口的 Agent 面板可从标题菜单绑定其一（只覆盖
 /// <persona> 层的名字与语气；系统提示词身份层保持全局）。Dots 多 dot /
 /// Grok Bot 多 Agent 的对应物。
+// MARK: - Agent Doctor（自诊断）
+
+/// 一键自检：模型端点可达/Key、旁路与备用档案、MCP、ffmpeg、钩子语法、
+/// 技能风险、通知授权、心跳。逻辑在 AgentDoctor（桥 GET /agent/doctor 同源）。
+private struct DoctorSection: View {
+    @State private var running = false
+    @State private var report: AgentDoctor.Report?
+
+    var body: some View {
+        SettingsSection(
+            title: String(localized: "Agent Doctor"),
+            subtitle: String(localized: "One-click self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hook syntax, skill risks, notification authorization and heartbeat."),
+            icon: "stethoscope"
+        ) {
+            SettingsActionRow(
+                "Run Check",
+                subtitle: summary,
+                systemImage: "waveform.path.ecg.rectangle",
+                buttonTitle: String(localized: "Run"),
+                isDisabled: running
+            ) {
+                Task { await run() }
+            }
+            if let report {
+                ForEach(report.checks) { check in
+                    SettingsRowDivider()
+                    HStack(spacing: 8) {
+                        Image(systemName: check.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(check.ok ? AnyShapeStyle(.green) : AnyShapeStyle(.orange))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(check.name)
+                                .font(.system(size: 12, weight: .medium))
+                            Text(check.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
+        }
+    }
+
+    private var summary: String {
+        if running { return String(localized: "Running…") }
+        guard let report else { return String(localized: "Not run yet") }
+        return report.ok
+            ? String(localized: "All \(report.checks.count) checks passed")
+            : String(localized: "\(report.passed) of \(report.checks.count) checks passed")
+    }
+
+    private func run() async {
+        running = true
+        report = await AgentDoctor.run()
+        running = false
+    }
+}
+
 private struct RosterSection: View {
     @ObservedObject private var roster = AgentRosterStore.shared
     @State private var newName = ""

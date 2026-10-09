@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **技能安全扫描（Skill Scanner，QwenPaw Skill Guard 思想）**：技能是指令文本、会驱动 runCommand——导入与使用两个时点对内容做危险形态扫描（管道执行远程脚本、rm -rf 根目录、凭据读取=高危；sudo/全开放权限/系统偏好写入/数据回传=中危），只提示不拦截（拦截交给审批链）；useSkill 载入时向模型附风险提示、saveSkill 自沉淀时回带警告、桥 `GET /skills` 每条附 `risk` 字段
+
 
 ## [v0.7.6] - 2026-10-09
 ### Fixed

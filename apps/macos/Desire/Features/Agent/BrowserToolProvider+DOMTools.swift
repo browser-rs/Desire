@@ -1550,6 +1550,11 @@ extension BrowserToolProvider {
                 return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
             var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
+            // 技能安全扫描（Skill Scanner）：内容将驱动后续动作，提示模型
+            // 注意其中的高危形态（提示不拦截——拦截在审批链）。
+            if let risk = SkillScanner.summary(for: body) {
+                output += "\n\n⚠️ \(risk)：此技能包含危险命令形态，执行相关步骤时必须走审批流程，且逐条向用户复述将要运行的命令。"
+            }
             // 多文件 skill：附属文件清单（readFile 按需读取）。
             if let directory = skill.directory {
                 let companions = SkillStore.companionFiles(in: directory)
@@ -1606,8 +1611,10 @@ extension BrowserToolProvider {
                 return Self.fail("write failed: \(error.localizedDescription)")
             }
             SkillStore.shared.reload()
+            let riskNote = SkillScanner.summary(for: markdown)
+                .map { " ⚠️ " + $0 + "——技能内容含危险命令形态，未来使用时会提示审批。" } ?? ""
             return "Skill \(existed ? "updated" : "saved"): \(name) (\(markdown.count) chars) — " +
-                "it now appears in the skills index of every future conversation."
+                "it now appears in the skills index of every future conversation.\(riskNote)"
 
         case "downloadFile":
             // Store-owned download: lands in the downloads panel with

@@ -36,6 +36,8 @@ struct AgentSettingsSection: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AgentPreferenceStore
+    /// 心跳巡检（模型自决的周期巡检，独立 store 持有自己的偏好）。
+    @ObservedObject var heartbeat = HeartbeatStore.shared
 
     @State private var apiKey: String = ""
     @State private var showKey = false
@@ -71,6 +73,16 @@ struct AgentSettingsSection: View {
     private func addBinary() {
         SystemCommandStore.shared.allow(newBinary)
         newBinary = ""
+    }
+
+    /// 心跳"上次巡检"行的状态文案：相对时间 + 结论前缀。
+    private func heartbeatBeatStatus() -> String {
+        guard let last = heartbeat.lastBeatAt else {
+            return String(localized: "Not run yet")
+        }
+        let relative = RelativeDateTimeFormatter().localizedString(for: last, relativeTo: Date())
+        let result = heartbeat.lastResult ?? ""
+        return result.isEmpty ? relative : "\(relative) · \(result)"
     }
 
     var body: some View {
@@ -507,6 +519,20 @@ struct AgentSettingsSection: View {
                     }
                 )
                 SettingsRowDivider()
+                SettingsPickerRow(
+                    "Fallback Service",
+                    subtitle: String(localized: "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before."),
+                    systemImage: "arrow.triangle.branch",
+                    selection: $store.fallbackProfileID,
+                    options: [nil] + store.profiles.map { Optional($0.id) },
+                    label: { id in
+                        guard let id, let profile = store.profiles.first(where: { $0.id == id }) else {
+                            return String(localized: "Off")
+                        }
+                        return profile.name
+                    }
+                )
+                SettingsRowDivider()
                 SettingsToggleRow(
                     "Self-review After Tool Runs",
                     subtitle: String(localized: "After a turn that ran three or more tools (or a high-risk one), ask the model to review its own work — did it verify what it claims, did anything fail silently. The critique appears collapsed under the reply."),
@@ -527,6 +553,74 @@ struct AgentSettingsSection: View {
                     systemImage: "scalemass",
                     isOn: $store.costAwareRouting
                 )
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "AI Action Review",
+                    subtitle: String(localized: "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn."),
+                    systemImage: "shield.lefthalf.filled.badge.checkmark",
+                    isOn: $store.guardReview
+                )
+            }
+
+            // MARK: - Heartbeat（模型自决的周期巡检）
+
+            SettingsSection(
+                title: String(localized: "Heartbeat"),
+                subtitle: String(localized: "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours."),
+                icon: "heart.text.square"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Enable Heartbeat",
+                        subtitle: String(localized: "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call."),
+                        systemImage: "waveform.path.ecg",
+                        isOn: $heartbeat.isEnabled
+                    )
+                    if heartbeat.isEnabled {
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Interval",
+                            systemImage: "clock",
+                            selection: $heartbeat.intervalMinutes,
+                            options: HeartbeatStore.intervalChoices,
+                            label: { $0 >= 60 ? "\($0 / 60) h" : "\($0) min" }
+                        )
+                    }
+                    SettingsRowDivider()
+                    SettingsRow(
+                        "Last Beat",
+                        subtitle: heartbeatBeatStatus(),
+                        systemImage: "clock.arrow.circlepath"
+                    ) {
+                        if heartbeat.isBeating {
+                            StatusPill(text: "…", kind: .info)
+                        }
+                    }
+                    SettingsRowDivider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(String(localized: "Checklist"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: $heartbeat.checklist)
+                            .font(.system(.caption, design: .monospaced))
+                            .scrollContentBackground(.hidden)
+                            .padding(10)
+                            .frame(minHeight: 88)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                            )
+                        Text(String(localized: "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
             }
 
             // MARK: - Allowed Tools

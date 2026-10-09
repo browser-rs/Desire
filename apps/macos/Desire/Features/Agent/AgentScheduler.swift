@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import os
-@preconcurrency import UserNotifications
 
 /// Scheduled agent prompts (定时任务). A task re-sends a stored prompt to
 /// the agent on a recurrence ("every N minutes" or "daily at HH:MM") while
@@ -235,17 +234,12 @@ final class AgentScheduler: ObservableObject {
     }
 
     /// System notification on failed unattended runs (the user isn't
-    /// watching; the failure must surface).
+    /// watching; the failure must surface). urgent 档：免打扰时段也直推。
     private func notifyRunFailure(_ record: RunRecord) {
-        let center = UserNotifications.UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert]) { granted, _ in
-            guard granted else { return }
-            let content = UserNotifications.UNMutableNotificationContent()
-            content.title = String(localized: "Scheduled task failed")
-            content.body = "\(record.taskName): \(record.error ?? "unknown error")"
-            center.add(UserNotifications.UNNotificationRequest(
-                identifier: UUID().uuidString, content: content, trigger: nil))
-        }
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Scheduled task failed"),
+            body: "\(record.taskName): \(record.error ?? "unknown error")",
+            tier: .urgent)
         BridgeEventBus.shared.publish("scheduledTaskFailed", [
             "task": record.taskName,
             "error": record.error ?? "",

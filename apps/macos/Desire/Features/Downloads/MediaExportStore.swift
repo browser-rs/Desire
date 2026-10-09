@@ -1,6 +1,5 @@
 import Combine
 import Foundation
-@preconcurrency import UserNotifications
 
 /// 后台媒体导出：`downloadMedia` 工具的执行体。
 ///
@@ -206,7 +205,7 @@ final class MediaExportStore: ObservableObject {
         progressHandlers[id] = nil
         settle(id: id, outcome: .failed(error))
         if notifyEnabled(id) {
-            deliverNote(String(localized: "Download failed"), body: "\(jobs[index].title): \(text)")
+            deliverNote(String(localized: "Download failed"), body: "\(jobs[index].title): \(text)", tier: .urgent)
         }
     }
 
@@ -232,42 +231,12 @@ final class MediaExportStore: ObservableObject {
         return !jobs[index].isSilent
     }
 
-    /// 通知两条路：会话备注（模型可见）+ 系统通知（用户可见）。
+    /// 通知两条路：会话备注（模型可见）+ 系统通知（用户可见，走主动通知
+    /// 收口：routine 默认——免打扰时段/超预算合并进摘要；失败走 urgent 直推）。
     /// internal：批量引擎（BatchMediaExportStore）的批次级汇总复用同一条
-    /// 通道（含 TCC 懒请求授权），不另起一套通知代码。
-    func deliverNote(_ title: String, body: String) {
+    /// 通道，不另起一套通知代码。
+    func deliverNote(_ title: String, body: String, tier: NotificationTier = .routine) {
         AgentScheduler.shared.deliveryTarget?.appendExternalNote("\(title): \(body)")
-        postNotification(title: title, body: body)
-    }
-
-    // MARK: - 系统通知（懒请求授权）
-
-    private func postNotification(title: String, body: String) {
-        // 不把 `UNUserNotificationCenter`（非 Sendable）捕获进 @Sendable 回调里——
-        // 这几层闭包都在别的队列上跑，需要时各自取一次 `.current()`。
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .authorized, .provisional:
-                Self.post(title: title, body: body)
-            case .notDetermined:
-                // 只在第一次真正要通知时请求（TCC 懒请求约定）。
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                    guard granted else { return }
-                    Self.post(title: title, body: body)
-                }
-            default:
-                break
-            }
-        }
-    }
-
-    private nonisolated static func post(title: String, body: String) {
-        let center = UNUserNotificationCenter.current()
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        center.add(request)
+        ProactiveNotificationStore.shared.deliver(title: title, body: body, tier: tier)
     }
 }

@@ -173,7 +173,7 @@ do {
 
 do {
     func toolMsg(_ id: String, _ content: String) -> AgentMessage {
-        var m = AgentMessage(role: .tool, content: content, toolCallId: id, toolName: "readFile")
+        let m = AgentMessage(role: .tool, content: content, toolCallId: id, toolName: "readFile")
         return m
     }
     let big = String(repeating: "甲乙丙丁", count: 3_000)   // 12_000 chars
@@ -1761,6 +1761,133 @@ func testSanitizers() {
     check("长度封顶", AgentTextSanitizer.pageText(String(repeating: "长", count: 300), max: 120).count == 120)
 }
 testSanitizers()
+
+// ---------- 0.7.6 AI 动作复查（guard pass）：提示词组装与判定解析 ----------
+
+func testAgentGuard() {
+    let input = AgentGuard.Input(
+        toolName: "deleteFile",
+        argumentsJSON: "{\"path\":\"~/notes.txt\"}",
+        identity: "Always confirm before deleting anything.",
+        outputRules: ["Never touch ~/Documents"],
+        sessionDirective: "Working on the cleanup task")
+    let user = AgentGuard.userPrompt(for: input)
+    check("Guard：提示词含工具名", user.contains("deleteFile"))
+    check("Guard：提示词含参数", user.contains("notes.txt"))
+    check("Guard：提示词含身份规则", user.contains("confirm before deleting"))
+    check("Guard：提示词含常驻规则", user.contains("Never touch ~/Documents"))
+    check("Guard：提示词含会话指令", user.contains("cleanup task"))
+    check("Guard：提示词要求单行判定", user.contains("one VERDICT line"))
+
+    let long = AgentGuard.Input(toolName: "t", argumentsJSON: "{}",
+                                identity: String(repeating: "x", count: 3000),
+                                outputRules: [], sessionDirective: nil)
+    check("Guard：超长身份截断", AgentGuard.userPrompt(for: long).count < 2400)
+    let longArgs = AgentGuard.Input(toolName: "t", argumentsJSON: String(repeating: "y", count: 3000),
+                                    identity: "", outputRules: [], sessionDirective: nil)
+    check("Guard：超长参数截断", AgentGuard.userPrompt(for: longArgs).count < 1400)
+
+    check("Guard：解析 ALLOW", AgentGuard.parseVerdict("VERDICT: ALLOW") == .allow)
+    check("Guard：解析小写 allow", AgentGuard.parseVerdict("verdict: allow") == .allow)
+    check("Guard：解析 FLAG 破折号理由",
+          AgentGuard.parseVerdict("VERDICT: FLAG — user rule forbids deletion") == .flag("user rule forbids deletion"))
+    check("Guard：解析 FLAG 冒号理由",
+          AgentGuard.parseVerdict("VERDICT: FLAG: violates the no-delete rule") == .flag("violates the no-delete rule"))
+    check("Guard：多行取第一行 VERDICT", AgentGuard.parseVerdict("Let me think...\nVERDICT: ALLOW") == .allow)
+    check("Guard：空输出 → unsure", AgentGuard.parseVerdict("") == .unsure)
+    check("Guard：无关输出 → unsure", AgentGuard.parseVerdict("I don't understand") == .unsure)
+    check("Guard：裸 ALLOW 前缀", AgentGuard.parseVerdict("ALLOW") == .allow)
+    check("Guard：裸 FLAG 前缀带理由",
+          AgentGuard.parseVerdict("FLAG too risky") == .flag("too risky"))
+    switch AgentGuard.parseVerdict("VERDICT: FLAG") {
+    case .flag: check("Guard：FLAG 无理由给默认文案", true)
+    default: check("Guard：FLAG 无理由给默认文案", false)
+    }
+    switch AgentGuard.parseVerdict("VERDICT: 不确定") {
+    case .unsure: check("Guard：VERDICT 行无关键词 → unsure", true)
+    default: check("Guard：VERDICT 行无关键词 → unsure", false)
+    }
+}
+testAgentGuard()
+
+// ---------- 0.7.6 主动通知分级：免打扰时段 / 预算 / 摘要 ----------
+
+func testNotificationPolicy() {
+    var p = NotificationPolicy()
+    check("策略：默认关闭", !p.isQuietTime(minutesSinceMidnight: 23 * 60 + 30))
+    p.quietHoursEnabled = true
+    check("策略：深夜在免打扰内", p.isQuietTime(minutesSinceMidnight: 23 * 60 + 30))
+    check("策略：清晨在免打扰内", p.isQuietTime(minutesSinceMidnight: 7 * 60 + 59))
+    check("策略：结束分钟不在内", !p.isQuietTime(minutesSinceMidnight: 8 * 60))
+    check("策略：正午不在内", !p.isQuietTime(minutesSinceMidnight: 12 * 60))
+    p.quietStartMinute = 9 * 60
+    p.quietEndMinute = 18 * 60
+    check("策略：同时段起含", p.isQuietTime(minutesSinceMidnight: 9 * 60))
+    check("策略：同时段止不含", !p.isQuietTime(minutesSinceMidnight: 18 * 60))
+    p.quietEndMinute = p.quietStartMinute
+    check("策略：start==end 视为无免打扰", !p.isQuietTime(minutesSinceMidnight: 23 * 60))
+
+    var q = NotificationPolicy(quietHoursEnabled: false, quietStartMinute: 0,
+                               quietEndMinute: 0, dailyRoutineLimit: 12)
+    check("策略：预算内直推", !q.shouldHoldRoutine(sentToday: 11, minutesSinceMidnight: 12 * 60))
+    check("策略：超预算扣下", q.shouldHoldRoutine(sentToday: 12, minutesSinceMidnight: 12 * 60))
+    q.dailyRoutineLimit = 0
+    check("策略：0 = 不限", !q.shouldHoldRoutine(sentToday: 99, minutesSinceMidnight: 12 * 60))
+    q.quietHoursEnabled = true
+    q.quietStartMinute = 22 * 60
+    q.quietEndMinute = 8 * 60
+    check("策略：免打扰内无论预算都扣", q.shouldHoldRoutine(sentToday: 0, minutesSinceMidnight: 23 * 60))
+
+    let plan = NotificationPolicy.digestPlan(lines: ["a", "b", "c", "d", "e", "f", "g"], maxLines: 5)
+    check("策略：摘要保 5 行", plan.included.count == 5 && plan.included.last == "e")
+    check("策略：摘要溢出计数", plan.extraCount == 2)
+    let small = NotificationPolicy.digestPlan(lines: ["a"], maxLines: 5)
+    check("策略：不足不折", small.extraCount == 0 && small.included == ["a"])
+
+    check("策略：HH:mm 解析", NotificationPolicy.minutesFromHHMM("23:05") == 23 * 60 + 5)
+    check("策略：HH:mm 非法小时", NotificationPolicy.minutesFromHHMM("25:00") == nil)
+    check("策略：HH:mm 非法分钟", NotificationPolicy.minutesFromHHMM("10:60") == nil)
+    check("策略：分钟转文本", NotificationPolicy.hhmm(fromMinutes: 8 * 60) == "08:00")
+    check("策略：分钟转文本钳制", NotificationPolicy.hhmm(fromMinutes: 3000) == "23:59")
+}
+testNotificationPolicy()
+
+// ---------- 0.7.6 心跳巡检：HEARTBEAT_OK 抑制契约与提示词组装 ----------
+
+func testHeartbeatDecision() {
+    let prompt = HeartbeatDecision.userPrompt(
+        checklist: "每天提醒我站起来活动",
+        signals: [HeartbeatDecision.Signal(title: "页面监视「价格页」", detail: "值得关注")])
+    check("心跳：提示词含清单", prompt.contains("站起来活动"))
+    check("心跳：提示词含信号", prompt.contains("价格页") && prompt.contains("值得关注"))
+    let bare = HeartbeatDecision.userPrompt(checklist: "", signals: [])
+    check("心跳：空清单空信号有占位", bare.contains("no checklist, no signals"))
+
+    check("心跳：纯 OK 静默", HeartbeatDecision.parse("HEARTBEAT_OK") == .silent)
+    check("心跳：小写 ok 也静默", HeartbeatDecision.parse("heartbeat_ok") == .silent)
+    check("心跳：带空白静默", HeartbeatDecision.parse("  HEARTBEAT_OK \n") == .silent)
+    check("心跳：OK 开头+短尾注静默",
+          HeartbeatDecision.parse("HEARTBEAT_OK 一切正常") == .silent)
+    check("心跳：OK 结尾静默", HeartbeatDecision.parse("巡检完成 HEARTBEAT_OK") == .silent)
+    check("心跳：围栏包裹静默", HeartbeatDecision.parse("```\nHEARTBEAT_OK\n```") == .silent)
+    // OK 夹在两句实质文本中间 = 不在开头/结尾，不特殊处理（OpenClaw 同规）
+    switch HeartbeatDecision.parse("注意：磁盘快满了。 HEARTBEAT_OK 另外下载已完成。") {
+    case .speak: check("心跳：中间 OK 不抑制", true)
+    default: check("心跳：中间 OK 不抑制", false)
+    }
+    // 说话分支：取正文、封顶
+    switch HeartbeatDecision.parse("页面监视「价格页」出现值得关注的变化，建议查看。") {
+    case .speak(let msg): check("心跳：说话取正文", msg.contains("价格页"))
+    default: check("心跳：说话取正文", false)
+    }
+    switch HeartbeatDecision.parse(String(repeating: "长", count: 900)) {
+    case .speak(let msg): check("心跳：说话封顶 600", msg.count == 601 && msg.hasSuffix("…"))
+    default: check("心跳：说话封顶 600", false)
+    }
+    // 空输出 = 静默（fail-silent：心跳宁可漏说不可误扰）
+    check("心跳：空输出静默", HeartbeatDecision.parse("") == .silent)
+}
+testHeartbeatDecision()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

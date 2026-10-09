@@ -26,6 +26,10 @@ struct AppCommands: Commands {
     @ObservedObject var bookmarks: BookmarkStore
     /// File ▸ New Container Tab 子菜单。
     @ObservedObject var containers: ContainerStore
+    /// Agent ▸ AI 动作复查开关（标题随状态切换）。
+    @ObservedObject var aiPreference: AgentPreferenceStore
+    /// Tools ▸ 免打扰时段开关（标题随状态切换）。
+    @ObservedObject var notifications: ProactiveNotificationStore
 
     var body: some Commands {
         // Replace the default .appSettings command. MUST be a Button through
@@ -141,6 +145,13 @@ struct AppCommands: Commands {
             Button("Add Selection to Whiteboard") { postCommand(.addSelectionToWhiteboard) }
             Button("Ask Agent About This Page") { postCommand(.askAgentAboutPage) }
                 .keyboardShortcut(binding("askAgentAboutPage", "a", [.command, .shift]))
+            Divider()
+            // AI 动作复查（guard pass）：与设置页同一偏好。纯偏好开关不经
+            // CommandBus——它不需要窗口上下文，直接改 store 即可（Commands
+            // body 随 observed store 变化重算，标题保持同步）。
+            Button(aiPreference.guardReview ? "Disable AI Action Review" : "Enable AI Action Review") {
+                aiPreference.guardReview.toggle()
+            }
         }
 
         // MARK: - History
@@ -215,6 +226,11 @@ struct AppCommands: Commands {
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Button("Password Manager") { postCommand(.showPasswordManager) }
             Button("Ad Blocking Stats") { postCommand(.showAdBlockStats) }
+            Divider()
+            // 免打扰时段（主动通知分级）：routine 通知扣下合并成摘要。
+            Button(notifications.policy.quietHoursEnabled ? "Disable Quiet Hours" : "Enable Quiet Hours") {
+                notifications.policy.quietHoursEnabled.toggle()
+            }
             Divider()
             Button("Show Downloads") { postCommand(.showDownloads) }
                 .keyboardShortcut(binding("showDownloads", "j", .command))

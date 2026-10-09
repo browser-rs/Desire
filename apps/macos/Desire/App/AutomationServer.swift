@@ -496,6 +496,8 @@ final class AutomationServer {
         ep("POST", "/ai/profiles/activate", "Switch the active model service", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/ai/bypass-profile", "Which service runs the quiet bypass calls (title / memory); null = same as the chat", example: "…/ai/bypass-profile")
         ep("POST", "/ai/bypass-profile", "Route bypass calls (title / memory extraction / summaries) to a service — usually a cheaper model; omit id to clear", params: ["id?:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("GET", "/ai/fallback-profile", "Which service takes over when the current one keeps failing on transient errors; null = no failover", example: "…/ai/fallback-profile")
+        ep("POST", "/ai/fallback-profile", "Set the failover service (one extra stream attempt after a transient retry fails); omit id to clear", params: ["id?:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
@@ -515,6 +517,10 @@ final class AutomationServer {
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
+        ep("GET", "/notifications/policy", "Proactive notification policy (quiet hours / daily routine budget) + digest queue state", example: "…/notifications/policy")
+        ep("POST", "/notifications/policy", "Update the notification policy (omit fields to keep)", params: ["quietHoursEnabled?:bool", "quietStart?:HH:mm", "quietEnd?:HH:mm", "dailyRoutineLimit?:int (0 = unlimited)"], example: #"-d '{"quietHoursEnabled":true,"quietStart":"23:00","quietEnd":"08:00"}'"#)
+        ep("POST", "/notifications/test", "Push a test notification through the tiering gate (E2E): reports held vs delivered", params: ["tier:routine|urgent", "title?:string", "body?:string"], example: #"-d '{"tier":"routine","title":"T"}'"#)
+        ep("POST", "/notifications/flush", "Deliver the held digest now (ignores quiet hours)", example: "-d '{}'")
         ep("GET", "/ads/stats", "Ad-blocking statistics (video-rule events only; see the stats panel)", example: "…/ads/stats")
         ep("POST", "/ads/stats/clear", "Reset ad-blocking statistics", example: "-d '{}'")
         ep("GET", "/media/batch", "Batch download progress (per-item states; needsHuman = waiting for a manual check in the popup window)", params: ["id?:uuid"], example: "…/media/batch")
@@ -528,6 +534,12 @@ final class AutomationServer {
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
+        ep("GET", "/agent/guard", "AI action review (guard) toggle state", example: "…/agent/guard")
+        ep("POST", "/agent/guard", "Enable/disable the guard review that checks auto-edit actions against the user's rules before they run silently", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
+        ep("POST", "/agent/guard/check", "Run one guard review offline (E2E/debug; no gate, no turn): classify a planned action against given rules", params: ["tool:string", "arguments?:object|string", "identity?:string", "rules?:[string]", "directive?:string"], example: #"-d '{"tool":"deleteFile","arguments":{"path":"~/notes.txt"},"identity":"Always confirm before deleting anything."}'"#)
+        ep("GET", "/agent/heartbeat", "Heartbeat check-in state (enabled / interval / checklist / last beat)", example: "…/agent/heartbeat")
+        ep("POST", "/agent/heartbeat", "Configure the heartbeat check-in (omit fields to keep)", params: ["enabled?:bool", "intervalMinutes?:int (15|30|60|120|240)", "checklist?:string"], example: #"-d '{"enabled":true,"intervalMinutes":60}'"#)
+        ep("POST", "/agent/heartbeat/fire", "Run one heartbeat beat now (E2E; bypasses interval and quiet hours): model decides silent vs ping", example: "-d '{}'")
         ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
         ep("POST", "/update/install", "Self-update: download the latest release zip, verify SHA256, replace /Applications bundle, relaunch (only when installed in /Applications)", example: "-d '{}'")
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
@@ -1434,6 +1446,23 @@ final class AutomationServer {
                 }
                 pref.bypassProfileID = nil
                 return try Self.json(["ok": true, "profileId": NSNull()])
+            case ("GET", "/ai/fallback-profile"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                var payload: [String: Any] = ["profileId": NSNull()]
+                if let id = pref.fallbackProfileID { payload["profileId"] = id.uuidString }
+                return try Self.json(payload)
+            case ("POST", "/ai/fallback-profile"):
+                // 备用档案（瞬态错误重试仍失败时的 failover 服务）；不带 id = 清除。
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                if let raw = Self.string(body, "id") {
+                    guard let id = UUID(uuidString: raw), pref.profiles.contains(where: { $0.id == id }) else {
+                        return try Self.json(["error": "unknown profile id"])
+                    }
+                    pref.fallbackProfileID = id
+                    return try Self.json(["ok": true, "profileId": raw])
+                }
+                pref.fallbackProfileID = nil
+                return try Self.json(["ok": true, "profileId": NSNull()])
             case ("POST", "/ai/profiles/delete"):
                 return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
             case ("GET", "/ai/prices"):
@@ -1696,6 +1725,45 @@ final class AutomationServer {
                 SettingsView.SettingsSectionNavigator.shared.selected = section
                 _ = try? Self.sendCommand(name: "showSettings", index: nil)
                 return try Self.json(["ok": true, "section": section.rawValue])
+            case ("GET", "/notifications/policy"):
+                let store = ProactiveNotificationStore.shared
+                return try Self.json([
+                    "ok": true,
+                    "policy": Self.notificationPolicyJSON(store.policy),
+                    "heldDigest": store.heldLines.count,
+                    "routineDeliveredToday": store.routineDeliveredToday,
+                ])
+            case ("POST", "/notifications/policy"):
+                let store = ProactiveNotificationStore.shared
+                if let v = body["quietHoursEnabled"] as? Bool { store.policy.quietHoursEnabled = v }
+                if let s = Self.string(body, "quietStart"),
+                   let m = NotificationPolicy.minutesFromHHMM(s) { store.policy.quietStartMinute = m }
+                if let s = Self.string(body, "quietEnd"),
+                   let m = NotificationPolicy.minutesFromHHMM(s) { store.policy.quietEndMinute = m }
+                if let v = body["dailyRoutineLimit"] as? Int { store.policy.dailyRoutineLimit = max(0, v) }
+                return try Self.json([
+                    "ok": true,
+                    "policy": Self.notificationPolicyJSON(store.policy),
+                ])
+            case ("POST", "/notifications/test"):
+                // 把一条测试通知推进分级闸（E2E）：返回它被扣下还是直推。
+                guard let tier = NotificationTier(rawValue: Self.string(body, "tier") ?? "routine") else {
+                    return try Self.json(["error": "tier must be routine|urgent"])
+                }
+                let store = ProactiveNotificationStore.shared
+                let before = store.heldLines.count
+                store.deliver(title: Self.string(body, "title") ?? "Test",
+                              body: Self.string(body, "body") ?? "",
+                              tier: tier)
+                return try Self.json([
+                    "ok": true,
+                    "tier": tier.rawValue,
+                    "held": store.heldLines.count > before,
+                    "heldDigest": store.heldLines.count,
+                ])
+            case ("POST", "/notifications/flush"):
+                let delivered = ProactiveNotificationStore.shared.flushDigest(force: true)
+                return try Self.json(["ok": true, "delivered": delivered])
             case ("GET", "/ads/stats"):
                 return try Self.json(Self.adBlockStats())
             case ("POST", "/app/quit"):
@@ -1860,6 +1928,88 @@ final class AutomationServer {
                     text: Self.string(body, "text") ?? "",
                     window: Self.string(body, "window")
                 ))
+            case ("GET", "/agent/guard"):
+                guard let preference = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference unavailable"])
+                }
+                return try Self.json(["ok": true, "enabled": preference.guardReview])
+            case ("POST", "/agent/guard"):
+                guard let preference = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference unavailable"])
+                }
+                if let enabled = body["enabled"] as? Bool {
+                    preference.guardReview = enabled
+                }
+                return try Self.json(["ok": true, "enabled": preference.guardReview])
+            case ("POST", "/agent/guard/check"):
+                // 离线跑一次 AI 动作复查（E2E/调试）：不经过 gate、不动回合。
+                // 规则来源显式给（identity/rules/directive），模型走偏好档案。
+                guard let preference = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference unavailable"])
+                }
+                guard let tool = Self.string(body, "tool"), !tool.isEmpty else {
+                    return try Self.json(["error": "missing tool"])
+                }
+                let argsJSON: String
+                if let raw = Self.string(body, "arguments"), !raw.isEmpty {
+                    argsJSON = raw
+                } else if let obj = body["arguments"], !(obj is NSNull),
+                          let data = try? JSONSerialization.data(withJSONObject: obj) {
+                    argsJSON = String(data: data, encoding: .utf8) ?? "{}"
+                } else {
+                    argsJSON = "{}"
+                }
+                let input = AgentGuard.Input(
+                    toolName: tool,
+                    argumentsJSON: argsJSON,
+                    identity: Self.string(body, "identity") ?? "",
+                    outputRules: (body["rules"] as? [String]) ?? [],
+                    sessionDirective: Self.string(body, "directive"))
+                // 与真实 gate 路径同源：走旁路档案（无则跟随对话模型），
+                // E2E 才能只动 bypass-profile 不碰主配置。
+                let prefs = preference.bypassPreferences() ?? preference
+                let verdict = await GuardReviewer.review(preference: prefs, input: input)
+                switch verdict {
+                case .allow:
+                    return try Self.json(["ok": true, "verdict": "allow"])
+                case .flag(let reason):
+                    return try Self.json(["ok": true, "verdict": "flag", "reason": reason])
+                case .unsure:
+                    return try Self.json(["ok": true, "verdict": "unsure"])
+                }
+            case ("GET", "/agent/heartbeat"):
+                let heartbeat = HeartbeatStore.shared
+                var payload: [String: Any] = [
+                    "ok": true,
+                    "enabled": heartbeat.isEnabled,
+                    "intervalMinutes": heartbeat.intervalMinutes,
+                    "checklist": heartbeat.checklist,
+                    "isBeating": heartbeat.isBeating,
+                ]
+                if let last = heartbeat.lastBeatAt { payload["lastBeatAt"] = last.timeIntervalSince1970 }
+                if let result = heartbeat.lastResult { payload["lastResult"] = result }
+                return try Self.json(payload)
+            case ("POST", "/agent/heartbeat"):
+                let heartbeat = HeartbeatStore.shared
+                if let v = body["enabled"] as? Bool { heartbeat.isEnabled = v }
+                if let v = body["intervalMinutes"] as? Int {
+                    heartbeat.intervalMinutes = v
+                }
+                if let v = Self.string(body, "checklist") { heartbeat.checklist = v }
+                return try Self.json([
+                    "ok": true,
+                    "enabled": heartbeat.isEnabled,
+                    "intervalMinutes": heartbeat.intervalMinutes,
+                ])
+            case ("POST", "/agent/heartbeat/fire"):
+                // 立即跑一拍（E2E/调试）：绕过间隔与免打扰，决策与通知结果原样返回。
+                let result = await HeartbeatStore.shared.beatNow()
+                return try Self.json([
+                    "ok": true,
+                    "decision": result.decision,
+                    "message": result.message,
+                    "notified": result.notified,
+                ])
             case ("GET", "/agent/prompt"):
                 return try Self.json(Self.pendingPrompt())
             case ("POST", "/agent/prompt/answer"):
@@ -2025,6 +2175,16 @@ final class AutomationServer {
 
     private static func string(_ dict: [String: Any], _ key: String) -> String? {
         (dict[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 通知策略的桥 JSON 形态（GET/POST /notifications/policy 共用）。
+    private static func notificationPolicyJSON(_ policy: NotificationPolicy) -> [String: Any] {
+        [
+            "quietHoursEnabled": policy.quietHoursEnabled,
+            "quietStart": NotificationPolicy.hhmm(fromMinutes: policy.quietStartMinute),
+            "quietEnd": NotificationPolicy.hhmm(fromMinutes: policy.quietEndMinute),
+            "dailyRoutineLimit": policy.dailyRoutineLimit,
+        ]
     }
 
     // MARK: - Accessors

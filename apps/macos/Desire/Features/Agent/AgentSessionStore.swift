@@ -393,15 +393,19 @@ class AgentSessionStore: ObservableObject {
     /// (the old `activeProvider` computed property mutated `lastProviderUsed`
     /// on read, which broke the getter-purity contract and could trigger
     /// spurious SwiftUI invalidations).
-    private func makeActiveProvider() -> (provider: any ModelProvider, viaLabel: String?) {
-        if preference.providerKind == .routing {
-            let provider = RoutingProvider(prefs: preference) { [weak self] kind in
+    private func makeProvider(for prefs: AgentPreferenceStore) -> (provider: any ModelProvider, viaLabel: String?) {
+        if prefs.providerKind == .routing {
+            let provider = RoutingProvider(prefs: prefs) { [weak self] kind in
                 self?.lastProviderUsed = kind.viaLabel
             }
             return (provider, "Auto")
         } else {
-            return (preference.provider, nil)
+            return (prefs.provider, nil)
         }
+    }
+
+    private func makeActiveProvider() -> (provider: any ModelProvider, viaLabel: String?) {
+        makeProvider(for: preference)
     }
 
     func setWebView(_ wv: WKWebView?) {
@@ -1240,23 +1244,28 @@ class AgentSessionStore: ObservableObject {
             /// 上下文超限的减半重试只做一次（预算记在 `compactionBudgetOverride`，
             /// 后续回合沿用 —— 相当于按真实窗口校准过）。
             var contextRetried = false
+            /// 备用档案 failover 只做一次（瞬态重试仍失败时换服务，见下面
+            /// transient catch）。
+            var fallbackTried = false
             /// 请求时选的模型与服务端自报的模型（成本查价用，见 flushTail）。
             var requestedModel = ""
             var reportedModel: String?
             // Consumes one model stream into the conversation. Nested func so
             // the transient-error retry below can re-run it on a fresh stream
-            // without duplicating the event handling.
-            func runStream() async throws {
-                let active = makeActiveProvider()
+            // without duplicating the event handling. `prefsOverride`：failover
+            // 时传备用档案视图（只换 provider 与 model，事件处理完全同路）。
+            func runStream(prefsOverride: AgentPreferenceStore? = nil) async throws {
+                let prefs = prefsOverride ?? preference
+                let active = makeProvider(for: prefs)
                 lastProviderUsed = active.viaLabel
                 // 成本归属：优先服务端自报的模型（网关会改写/路由），没有才退回请求时选的。
-                requestedModel = preference.model
+                requestedModel = prefs.model
                 reportedModel = nil
                 let request = await buildRequestMessages()
                 let stream = active.provider.stream(
                     messages: request,
                     tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
-                    prefs: preference
+                    prefs: prefs
                 )
                 // UI flush state: per-token array writes + view
                 // invalidations dominate long streams, so the tail message
@@ -1443,6 +1452,23 @@ class AgentSessionStore: ObservableObject {
                 if isCancelled || Task.isCancelled { return }
                 do {
                     try await runStream()
+                } catch let retryError where assistantMsg == nil && !fallbackTried
+                                                && Self.isTransientStreamError(retryError) {
+                    // 备用档案 failover（OpenClaw 多模型容灾的对应物）：同服务
+                    // 重试仍瞬态失败 → 换用户配置的备用服务再试最后一次（依旧
+                    // 仅限"什么都没流出来"）。没配置备用就维持原样如实失败。
+                    fallbackTried = true
+                    guard let fallbackPrefs = preference.fallbackPreferences() else {
+                        fail(retryError)
+                        return
+                    }
+                    Log.agent.info("transient retry failed again — failing over to the fallback service")
+                    do {
+                        try await runStream(prefsOverride: fallbackPrefs)
+                    } catch {
+                        fail(retryError)
+                        return
+                    }
                 } catch {
                     fail(error)
                     return
@@ -1755,40 +1781,56 @@ class AgentSessionStore: ObservableObject {
             reportProgress(step: step, tool: nil)
 
             var assistant = AgentMessage(role: .assistant, content: "")
-            do {
-                let active = makeActiveProvider()
-                // No recursion: the subagent cannot spawn subagents.
-                let stream = active.provider.stream(
-                    messages: subMessages,
-                    tools: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs,
-                    prefs: preference
-                )
-                for try await event in stream {
-                    if isCancelled { return "[Cancelled]" }
-                    switch event {
-                    case .text(let delta):
-                        assistant.content = (assistant.content ?? "") + delta
-                    case .toolCall(let call):
-                        assistant.toolCalls = (assistant.toolCalls ?? []) + [call]
-                    case .reasoning(let delta):
-                        // 子代理也收思考过程：跟正文一起进它那条消息（面板里可折叠）。
-                        assistant.reasoning = (assistant.reasoning ?? "") + delta
-                    case .usage(let prompt, let completion):
-                        // 子代理跑在**自己的消息数组**里（不进会话），所以它的 token 不会
-                        // 自动出现在对话的用量里。先累到会话计数器 + 一个"待认领桶"，主循环
-                        // 随后把它记到 `spawnSubagent` 的工具消息上——否则对话成本会明显少报
-                        // （一次 crew 可能比主循环本身还贵）。
-                        usagePromptTokens += prompt
-                        usageCompletionTokens += completion
-                        subagentUsage.promptTokens += prompt
-                        subagentUsage.completionTokens += completion
-                        if prompt > 0 { lastPromptTokens = prompt }
-                    case .model(let name):
-                        assistant.model = name
+            // 瞬态错误重试（与主循环同款语义）：只在**一个事件都没到**时重试
+            // 一次——429/5xx/断连这类抖动不该让整次 crew 任务报废。重跑安全：
+            // 没收到事件 ⇒ assistant 未被改动 ⇒ 从头再消费一条新流即可。
+            var subRetryAttempts = 0
+            while true {
+                var receivedAny = false
+                do {
+                    let active = makeActiveProvider()
+                    // No recursion: the subagent cannot spawn subagents.
+                    let stream = active.provider.stream(
+                        messages: subMessages,
+                        tools: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs,
+                        prefs: preference
+                    )
+                    for try await event in stream {
+                        receivedAny = true
+                        if isCancelled { return "[Cancelled]" }
+                        switch event {
+                        case .text(let delta):
+                            assistant.content = (assistant.content ?? "") + delta
+                        case .toolCall(let call):
+                            assistant.toolCalls = (assistant.toolCalls ?? []) + [call]
+                        case .reasoning(let delta):
+                            // 子代理也收思考过程：跟正文一起进它那条消息（面板里可折叠）。
+                            assistant.reasoning = (assistant.reasoning ?? "") + delta
+                        case .usage(let prompt, let completion):
+                            // 子代理跑在**自己的消息数组**里（不进会话），所以它的 token 不会
+                            // 自动出现在对话的用量里。先累到会话计数器 + 一个"待认领桶"，主循环
+                            // 随后把它记到 `spawnSubagent` 的工具消息上——否则对话成本会明显少报
+                            // （一次 crew 可能比主循环本身还贵）。
+                            usagePromptTokens += prompt
+                            usageCompletionTokens += completion
+                            subagentUsage.promptTokens += prompt
+                            subagentUsage.completionTokens += completion
+                            if prompt > 0 { lastPromptTokens = prompt }
+                        case .model(let name):
+                            assistant.model = name
+                        }
                     }
+                    break
+                } catch {
+                    guard !receivedAny, subRetryAttempts < 1, !isCancelled,
+                          Self.isTransientStreamError(error) else {
+                        return "Error: Subagent stream failed: \(error.localizedDescription)"
+                    }
+                    subRetryAttempts += 1
+                    Log.agent.info("subagent transient stream error — retrying once: \(error.localizedDescription, privacy: .public)")
+                    try? await Task.sleep(for: .seconds(1.5))
+                    if isCancelled { return "[Cancelled]" }
                 }
-            } catch {
-                return "Error: Subagent stream failed: \(error.localizedDescription)"
             }
             subMessages.append(assistant)
 
@@ -2360,6 +2402,37 @@ class AgentSessionStore: ObservableObject {
            toolCall.function.name != "runCommand",
            toolCall.function.name != "fillLogin",
            effectiveRisk(for: toolCall) != .dangerous {
+            // AI 动作复查（guard pass）：快捷道不再无条件——旁路模型先对照
+            // 用户规则（身份提示词/常驻规则/会话指令）轻量判定一次；FLAG 转
+            // 审批卡（卡片带理由）。超时/失败/无法解析一律 fail-open——访问
+            // 等级本身已授权，复查是加一道对照，不能反过来卡死回合。用法记
+            // 到本回合尾助手消息（attributeBypassUsage，与其他旁路调用同规）。
+            if preference.guardReview {
+                let tailID = messages.last(where: { $0.role == .assistant })?.id
+                let verdict = await GuardReviewer.review(
+                    preference: bypassPrefs,
+                    input: AgentGuard.Input(
+                        toolName: toolCall.function.name,
+                        argumentsJSON: toolCall.function.arguments,
+                        identity: preference.systemPrompt,
+                        outputRules: preference.outputRules,
+                        sessionDirective: activeDirective),
+                    onUsage: { [weak self] p, c, m in
+                        self?.attributeBypassUsage("guard", p, c, model: m, to: tailID)
+                    })
+                switch verdict {
+                case .flag(let reason):
+                    ApprovalPolicyStore.shared.recordHistory(
+                        toolName: toolCall.function.name,
+                        decision: "held (guard review: \(reason))", source: "guard review")
+                    return await requestApproval(toolCall: toolCall, risk: risk, guardReason: reason)
+                case .allow, .unsure:
+                    ApprovalPolicyStore.shared.recordHistory(
+                        toolName: toolCall.function.name,
+                        decision: "allowed (auto-edit, guard ok)", source: "access level")
+                    return .allowedOnce
+                }
+            }
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: toolCall.function.name,
                 decision: "allowed (auto-edit)", source: "access level")
@@ -2407,12 +2480,19 @@ class AgentSessionStore: ObservableObject {
 
     /// Suspends the loop until the user resolves the pending approval.
     /// The continuation is resumed by `resolveApproval(_:)` or by the timeout.
-    private func requestApproval(toolCall: AgentToolCall, risk: ToolRisk) async -> ApprovalOutcome {
+    /// `guardReason`：AI 动作复查的 FLAG 理由——展示在审批卡参数摘要的顶部，
+    /// 用户能看到"为什么这次被拦下来"。
+    private func requestApproval(toolCall: AgentToolCall, risk: ToolRisk,
+                                 guardReason: String? = nil) async -> ApprovalOutcome {
         await withCheckedContinuation { (continuation: CheckedContinuation<ApprovalOutcome, Never>) in
+            var summary = summarizeArguments(toolCall)
+            if let guardReason {
+                summary = String(localized: "AI review flagged: \(guardReason)") + "\n" + summary
+            }
             let approval = PendingToolApproval(
                 toolCall: toolCall,
                 risk: risk,
-                argumentsSummary: summarizeArguments(toolCall),
+                argumentsSummary: summary,
                 continuation: continuation
             )
             pendingApproval = approval

@@ -5704,6 +5704,28 @@
         }
       }
     },
+    "Fallback Service" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fallback Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备用服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備用服務"
+          }
+        }
+      }
+    },
     "Bypass calls (title / memory / self-review)" : {
       "localizations" : {
         "en" : {
@@ -10769,6 +10791,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載完成通知"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
           }
         }
       }
@@ -25913,6 +25957,50 @@
         }
       }
     },
+    "AI Action Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 動作複查"
+          }
+        }
+      }
+    },
+    "Heartbeat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳巡檢"
+          }
+        }
+      }
+    },
     "Send (⏎)" : {
       "localizations" : {
         "en" : {
@@ -35453,6 +35541,534 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "變化 %lld 次"
+          }
+        }
+      }
+    },
+    "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动编辑访问等级下，副作用动作先经一个快速后台模型对照你的常驻规则检查；被标记的动作转为确认（附理由）。超时不会阻塞回合。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動編輯存取等級下，副作用動作先經一個快速背景模型對照你的常駐規則檢查；被標記的動作轉為確認（附理由）。逾時不會阻塞回合。"
+          }
+        }
+      }
+    },
+    "Disable AI Action Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用 AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用 AI 動作複查"
+          }
+        }
+      }
+    },
+    "Enable AI Action Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用 AI 動作複查"
+          }
+        }
+      }
+    },
+    "AI review flagged: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI review flagged: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 复查标记：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 複查標記：%@"
+          }
+        }
+      }
+    },
+    "How proactive notifications (page watch, downloads, scheduled tasks) are delivered." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How proactive notifications (page watch, downloads, scheduled tasks) are delivered."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视、下载、定时任务这类主动通知的送达方式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視、下載、定時任務這類主動通知的送達方式。"
+          }
+        }
+      }
+    },
+    "Quiet Hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet Hours"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰时段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾時段"
+          }
+        }
+      }
+    },
+    "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰时段内，例行通知（页面监视、完成汇总）会被扣下，时段结束时合并成一条摘要送达。紧急失败永远即时送达。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾時段內，例行通知（頁面監視、完成彙總）會被扣下，時段結束時合併成一條摘要送達。緊急失敗永遠即時送達。"
+          }
+        }
+      }
+    },
+    "Quiet From" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet From"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰开始"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾開始"
+          }
+        }
+      }
+    },
+    "Quiet To" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet To"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰结束"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾結束"
+          }
+        }
+      }
+    },
+    "Routine Limit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日例行上限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日例行上限"
+          }
+        }
+      }
+    },
+    "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例行通知的每日上限，超出部分扣进摘要。紧急失败不计入。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例行通知的每日上限，超出部分扣進摘要。緊急失敗不計入。"
+          }
+        }
+      }
+    },
+    "Unlimited" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限"
+          }
+        }
+      }
+    },
+    "%lld per day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld per day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 %lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 %lld 條"
+          }
+        }
+      }
+    },
+    "Notification Digest" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notification Digest"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知摘要"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知摘要"
+          }
+        }
+      }
+    },
+    "…and %lld more" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…and %lld more"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…以及另外 %lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…以及另外 %lld 條"
+          }
+        }
+      }
+    },
+    "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务在瞬态错误（限流、5xx、断连）上反复失败时，回合会换这个服务再试最后一次才放弃。留空则维持原样直接失败。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前服務在瞬態錯誤（限流、5xx、斷線）上反覆失敗時，回合會換這個服務再試最後一次才放棄。留空則維持原樣直接失敗。"
+          }
+        }
+      }
+    },
+    "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周期性巡检：由模型自己判断有没有值得提醒你的事——没事就保持沉默。回合进行中或免打扰时段内自动跳过。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週期性巡檢：由模型自己判斷有沒有值得提醒你的事——沒事就保持沉默。回合進行中或免打擾時段內自動跳過。"
+          }
+        }
+      }
+    },
+    "Enable Heartbeat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用心跳巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用心跳巡檢"
+          }
+        }
+      }
+    },
+    "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对下面的清单加上最新的机器信号（页面监视变化、定时任务失败）跑一次轻量后台模型调用。有事的提醒走例行通知（过免打扰与每日预算闸）；没事只花一次调用的钱。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對下面的清單加上最新的機器訊號（頁面監視變化、定時任務失敗）跑一次輕量背景模型調用。有事的提醒走例行通知（過免打擾與每日預算閘）；沒事只花一次調用的錢。"
+          }
+        }
+      }
+    },
+    "Last Beat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Beat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次巡檢"
+          }
+        }
+      }
+    },
+    "Not run yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not run yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未运行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未執行"
+          }
+        }
+      }
+    },
+    "Checklist" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checklist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巡检清单"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巡檢清單"
+          }
+        }
+      }
+    },
+    "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每行一条常驻检查项——值得周期性留意的事。留空则只依赖自动信号（页面监视、失败任务）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每行一條常駐檢查項——值得週期性留意的事。留空則只依賴自動訊號（頁面監視、失敗任務）。"
+          }
+        }
+      }
+    },
+    "Agent Heartbeat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 心跳"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 心跳"
           }
         }
       }

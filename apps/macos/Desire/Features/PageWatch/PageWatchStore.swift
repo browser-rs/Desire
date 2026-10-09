@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import os
-@preconcurrency import UserNotifications
 import WebKit
 
 /// Store + engine for page watches (0.1.10). A 20 s clock fires due
@@ -273,30 +272,21 @@ final class PageWatchStore: ObservableObject {
         }
     }
 
-    /// 带分析的系统通知（变化时刻的裸通知之外的增值信息）。
+    /// 带分析的系统通知（变化时刻的裸通知之外的增值信息）。走主动通知收口
+    /// （routine：免打扰时段/超预算时合并进摘要）。
     private func notifyAnalysis(watch: PageWatch, analysis: String) {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert]) { granted, _ in
-            guard granted else { return }
-            let content = UNMutableNotificationContent()
-            content.title = String(localized: "Page watch · AI analysis")
-            content.body = "\(watch.name)：\(analysis.prefix(180))"
-            center.add(UNNotificationRequest(
-                identifier: UUID().uuidString, content: content, trigger: nil))
-        }
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Page watch · AI analysis"),
+            body: "\(watch.name)：\(analysis.prefix(180))",
+            tier: .routine)
     }
 
     // MARK: - Notification
 
     private func notifyChange(watch: PageWatch, diff: String) {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert]) { granted, _ in
-            guard granted else { return }
-            let content = UNMutableNotificationContent()
-            content.title = String(localized: "Page changed")
-            content.body = "\(watch.name) (\(diff))"
-            center.add(UNNotificationRequest(
-                identifier: UUID().uuidString, content: content, trigger: nil))
-        }
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Page changed"),
+            body: "\(watch.name) (\(diff))",
+            tier: .routine)
     }
 }

@@ -87,7 +87,9 @@ struct DesireApp: App {
             shortcuts: appState.system.keyboardShortcutStore,
             settings: appState.settings,
             bookmarks: appState.bookmarkStore,
-            containers: ContainerStore.shared
+            containers: ContainerStore.shared,
+            aiPreference: appState.aiPreference,
+            notifications: ProactiveNotificationStore.shared
         ) }
     }
 

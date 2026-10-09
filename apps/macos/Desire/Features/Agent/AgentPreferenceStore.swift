@@ -69,6 +69,18 @@ class AgentPreferenceStore: ObservableObject {
             }
         }
     }
+    /// **备用档案**（failover，2026-10-09 取自 OpenClaw 多模型容灾）：主服务的
+    /// 瞬态错误重试仍失败时，自动换这个服务把流再试最后一次（仅限"什么都没
+    /// 流出来"）。nil = 不做 failover。
+    @Published var fallbackProfileID: UUID? {
+        didSet {
+            if let fallbackProfileID {
+                UserDefaults.standard.set(fallbackProfileID.uuidString, forKey: "aiFallbackProfile")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "aiFallbackProfile")
+            }
+        }
+    }
 
     /// 回合结束后是否自动自评（只在"≥3 次工具调用或含高风险动作"的回合跑）。
     @Published var selfReviewEnabled: Bool {
@@ -109,6 +121,12 @@ class AgentPreferenceStore: ObservableObject {
     }
     @Published var memoryLearning: Bool {
         didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
+    }
+    /// **AI 动作复查**（guard pass，2026-10-09）：自动编辑档下副作用工具放行前，
+    /// 先经旁路模型对照用户规则轻量判定一次；FLAG 转审批卡。超时/失败 fail-open，
+    /// 不会阻塞回合。对照 Dots/Muse 的"护栏产品级"形态（Sentinel / Auto-review）。
+    @Published var guardReview: Bool {
+        didSet { UserDefaults.standard.set(guardReview, forKey: "aiGuardReview") }
     }
     /// **成本感知路由**：开启后，路由器把"简单短文本"的纯文本回合（无工具、
     /// 上下文小）也交给免费的本地模型（Foundation Models / Ollama），云端留给
@@ -389,6 +407,26 @@ class AgentPreferenceStore: ObservableObject {
         return store
     }
 
+    /// 备用档案视图（failover 用）：语义同 bypassPreferences——没配置/档案
+    /// 不存在/没 Key → nil（宁可如实报错，不做半吊子切换）。
+    func fallbackPreferences() -> AgentPreferenceStore? {
+        guard let id = fallbackProfileID,
+              let profile = profiles.first(where: { $0.id == id }) else {
+            Log.agent.info("fallback routing: profile not set or missing from the live store")
+            return nil
+        }
+        let store = AgentPreferenceStore(skipKeyStateRefresh: true)
+        // 直接注入内存档案（不指望 DiskStore，理由同 bypassPreferences）。
+        store.profiles = [profile]
+        guard (store.loadAPIKey(profileID: id, interactive: false) ?? "").isEmpty == false else {
+            Log.agent.error("fallback profile has no API key — failover disabled")
+            return nil
+        }
+        store.activateProfile(id: id)
+        store.providerKind = .cloud
+        return store
+    }
+
     var provider: any ModelProvider {
         switch providerKind {
         case .cloud:
@@ -429,6 +467,7 @@ class AgentPreferenceStore: ObservableObject {
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
+        guardReview = UserDefaults.standard.object(forKey: "aiGuardReview") as? Bool ?? true
         outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
         agentName = UserDefaults.standard.string(forKey: "aiAgentName") ?? ""
         agentPersona = UserDefaults.standard.string(forKey: "aiAgentPersona") ?? ""
@@ -449,6 +488,9 @@ class AgentPreferenceStore: ObservableObject {
         }
         if let raw = UserDefaults.standard.string(forKey: "aiBypassProfile") {
             bypassProfileID = UUID(uuidString: raw)
+        }
+        if let raw = UserDefaults.standard.string(forKey: "aiFallbackProfile") {
+            fallbackProfileID = UUID(uuidString: raw)
         }
 
         if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),

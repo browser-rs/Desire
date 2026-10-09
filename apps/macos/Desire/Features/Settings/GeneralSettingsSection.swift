@@ -9,6 +9,8 @@ struct GeneralSettingsSection: View {
     @ObservedObject var videoAdBlocker: VideoAdBlocker
     /// 广告规则的热插拔层（本地覆盖 / 远程包 / 内置的解析状态）。
     @ObservedObject var videoAdRules = VideoAdRulesStore.shared
+    /// 主动通知分级（免打扰时段 / 每日例行预算）。
+    @ObservedObject var notifications = ProactiveNotificationStore.shared
 
     /// AppleLanguages 覆盖（"system" = 不覆盖，跟随系统语言）。写入
     /// app 域 defaults，下次启动生效——菜单与界面语言在进程启动时
@@ -109,6 +111,56 @@ struct GeneralSettingsSection: View {
                             width: 280
                         )
                     }
+                }
+            }
+
+            // MARK: - Notifications
+
+            SettingsSection(
+                title: "Notifications",
+                subtitle: "How proactive notifications (page watch, downloads, scheduled tasks) are delivered.",
+                icon: "bell"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Quiet Hours",
+                        subtitle: String(localized: "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through."),
+                        systemImage: "bell.slash",
+                        isOn: Binding(
+                            get: { notifications.policy.quietHoursEnabled },
+                            set: { notifications.policy.quietHoursEnabled = $0 }
+                        )
+                    )
+                    if notifications.policy.quietHoursEnabled {
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Quiet From",
+                            systemImage: "moonrise",
+                            selection: quietHourBinding(\.quietStartMinute),
+                            options: Array(0...23),
+                            label: { NotificationPolicy.hhmm(fromMinutes: $0 * 60) }
+                        )
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Quiet To",
+                            systemImage: "moonset.fill",
+                            selection: quietHourBinding(\.quietEndMinute),
+                            options: Array(0...23),
+                            label: { NotificationPolicy.hhmm(fromMinutes: $0 * 60) }
+                        )
+                    }
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Routine Limit",
+                        subtitle: String(localized: "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count."),
+                        systemImage: "gauge.with.needle",
+                        selection: Binding(
+                            get: { notifications.policy.dailyRoutineLimit },
+                            set: { notifications.policy.dailyRoutineLimit = $0 }
+                        ),
+                        options: [0, 6, 12, 24],
+                        label: { $0 == 0 ? String(localized: "Unlimited") : String(localized: "\($0) per day") }
+                    )
                 }
             }
 
@@ -370,6 +422,14 @@ struct GeneralSettingsSection: View {
     }
 
     // MARK: - Labels
+
+    /// 免打扰起止的小时选择：策略里存"当日分钟数"，UI 只给整点档。
+    private func quietHourBinding(_ keyPath: WritableKeyPath<NotificationPolicy, Int>) -> Binding<Int> {
+        Binding(
+            get: { notifications.policy[keyPath: keyPath] / 60 },
+            set: { notifications.policy[keyPath: keyPath] = $0 * 60 }
+        )
+    }
 
     private func appLanguageLabel(_ code: String) -> String {
         switch code {

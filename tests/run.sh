@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 OUT="$(mktemp -d)/puretests"
 SOURCES=(
   apps/macos/Desire/Features/Agent/AgentMessage.swift
+  apps/macos/Desire/Features/Agent/AgentGuard.swift
+  apps/macos/Desire/Features/Agent/HeartbeatDecision.swift
+  apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageEventPolicy.swift

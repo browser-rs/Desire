@@ -141,7 +141,8 @@ enum MemoryExtractor {
         return text
     }
 
-    private static func collectText(
+    /// 一次旁路纯文本补全（internal：GuardReviewer 的动作复查复用同一条管道）。
+    static func collectText(
         preference: AgentPreferenceStore, system: String, user: String,
         onUsage: ((Int, Int, String?) -> Void)? = nil
     ) async -> String {

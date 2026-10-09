@@ -195,6 +195,13 @@ struct AgentHeaderView: View {
                         .disabled(store.modelProfileID == profile.id)
                     }
                 }
+                Divider()
+                ForEach(AgentMode.allCases, id: \.self) { mode in
+                    Button(String(localized: "Mode: \(mode.displayName)")) {
+                        store.modeBinding = mode
+                    }
+                    .disabled(store.effectiveMode == mode)
+                }
             } label: {
                 Text(boundName ?? "Agent")
                     .font(.system(size: 13, weight: .semibold))

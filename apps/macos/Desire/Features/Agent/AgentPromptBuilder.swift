@@ -23,6 +23,8 @@ enum AgentPromptBuilder {
         ///（保持默认自称）。
         var agentName: String? = nil
         var agentPersona: String? = nil
+        /// Agent 模式说明（Loop 工程模式）：nil = 标准模式不注入。
+        var modeHint: String? = nil
         var outputRules: [String] = []
         /// 会话级临时指令（Conversation.directive）：仅本会话生效、明确不进记忆。
         var sessionDirective: String?
@@ -56,6 +58,10 @@ enum AgentPromptBuilder {
         ].compactMap { $0 }
         if !personaParts.isEmpty {
             sections.append("<persona>\n" + personaParts.joined(separator: " ") + "\n</persona>")
+        }
+
+        if let modeHint = input.modeHint {
+            sections.append("<mode>\n\(modeHint)\n</mode>")
         }
 
         let identity = input.identity.trimmingCharacters(in: .whitespacesAndNewlines)

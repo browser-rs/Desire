@@ -1106,6 +1106,7 @@ class AgentSessionStore: ObservableObject {
             identity: identity,
             agentName: effectiveAgentName,
             agentPersona: effectiveAgentPersona,
+            modeHint: effectiveMode.promptHint,
             outputRules: preference.outputRules,
             sessionDirective: activeDirective,
             memoryBlock: memoryBlock,
@@ -1184,6 +1185,26 @@ class AgentSessionStore: ObservableObject {
         store.reasoningEffort = preference.reasoningEffort
         return store
     }
+
+    /// 本窗口绑定的 Agent 模式（Loop 工程思想）：nil = 标准模式。
+    var modeBinding: AgentMode? {
+        get {
+            guard let registryID else { return nil }
+            let raw = UserDefaults.standard
+                .string(forKey: "agentModeBind.\(registryID.uuidString)")
+            return raw.flatMap(AgentMode.init(rawValue:))
+        }
+        set {
+            guard let registryID else { return }
+            if let newValue {
+                UserDefaults.standard.set(newValue.rawValue,
+                                          forKey: "agentModeBind.\(registryID.uuidString)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "agentModeBind.\(registryID.uuidString)")
+            }
+        }
+    }
+    var effectiveMode: AgentMode { modeBinding ?? .standard }
 
     private var boundPersona: AgentRosterStore.AgentPersona? {
         AgentRosterStore.shared.persona(id: personaID)
@@ -1359,9 +1380,14 @@ class AgentSessionStore: ObservableObject {
                 requestedModel = prefs.model
                 reportedModel = nil
                 let request = await buildRequestMessages()
+                // 模式工具子集（Loop 工程）：被排除的工具根本不进工具索引。
+                let mode = effectiveMode
+                let streamTools = BrowserToolProvider.toolDefs
+                    .filter { !mode.excludedTools.contains($0.function.name) }
+                    + MCPStore.shared.toolDefs
                 let stream = active.provider.stream(
                     messages: request,
-                    tools: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs,
+                    tools: streamTools,
                     prefs: prefs
                 )
                 // UI flush state: per-token array writes + view
@@ -1634,6 +1660,18 @@ class AgentSessionStore: ObservableObject {
 
                 let tc = tcs[ti]
                 ti += 1
+                // 模式工具闸：索引里没有的工具被模型幻觉调用时，执行前挡下。
+                if effectiveMode.excludedTools.contains(tc.function.name) {
+                    messages.append(AgentMessage(
+                        role: .tool,
+                        content: "Error: 当前模式（\(effectiveMode.displayName)）不提供工具 \(tc.function.name)。如确有需要，请建议用户在面板标题菜单切换模式。",
+                        toolCallId: tc.id,
+                        toolName: tc.function.name
+                    ))
+                    checkpointSave()
+                    continue
+                }
+
                 let risk = effectiveRisk(for: tc)
 
                 let decision = await gate(toolCall: tc, risk: risk)

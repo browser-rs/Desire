@@ -535,6 +535,7 @@ final class AutomationServer {
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("GET", "/agent/doctor", "Agent self-check report (model endpoint reachability, keys, MCP, ffmpeg, hooks, skills, notifications, heartbeat)", example: "…/agent/doctor")
+        ep("GET", "/agent/modes", "Agent modes (standard/research/writing) + per-window bindings", example: "…/agent/modes")
         ep("GET", "/agent/roster", "Agent persona roster (personas + per-window bindings)", example: "…/agent/roster")
         ep("POST", "/agent/roster", "Manage the persona roster: action=add (name, tone) | remove (id) | bind (window, persona? — omit to unbind) | bind-model (window, profile? — omit to follow global)", params: ["action:add|remove|bind|bind-model", "name?:string", "tone?:string", "id?:uuid", "window?:uuid", "persona?:uuid", "profile?:uuid"], example: #"-d '{"action":"bind","window":"…","persona":"…"}'"#)
         ep("GET", "/agent/guard", "AI action review (guard) toggle state", example: "…/agent/guard")
@@ -1995,6 +1996,21 @@ final class AutomationServer {
                         "name": $0.name, "ok": $0.ok, "detail": $0.detail,
                     ] },
                 ])
+            case ("GET", "/agent/modes"):
+                // Agent 模式清单 + 各活窗口的绑定。
+                let rosterModes = AgentScheduler.shared.liveSessions()
+                var modeBindings: [String: String] = [:]
+                for entry in rosterModes {
+                    if let m = entry.store?.effectiveMode { modeBindings[entry.id.uuidString] = m.rawValue }
+                }
+                return try Self.json([
+                    "ok": true,
+                    "modes": AgentMode.allCases.map { [
+                        "id": $0.rawValue, "name": $0.displayName,
+                        "excluded": Array($0.excludedTools).sorted(),
+                    ] },
+                    "bindings": modeBindings,
+                ])
             case ("GET", "/agent/roster"):
                 // 多 Agent 名册：人设清单 + 各活窗口的绑定。
                 let roster = AgentRosterStore.shared
@@ -2040,6 +2056,17 @@ final class AutomationServer {
                         "window": registryID.uuidString,
                         "persona": personaID?.uuidString ?? "",
                     ])
+                case "set-mode":
+                    // 每窗口模式绑定：mode 省略 = 标准模式。
+                    guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                        return try Self.json(["error": "no live agent session"])
+                    }
+                    let modeRaw = Self.string(body, "mode") ?? AgentMode.standard.rawValue
+                    guard let mode = AgentMode(rawValue: modeRaw) else {
+                        return try Self.json(["error": "unknown mode; valid: \(AgentMode.allCases.map(\.rawValue).joined(separator: "/"))"])
+                    }
+                    session.modeBinding = mode
+                    return try Self.json(["ok": true, "mode": mode.rawValue])
                 case "bind-model":
                     // 每窗口模型路由：profile 省略 = 跟随全局活动档案。
                     guard let session = Self.resolveSession(Self.string(body, "window")),
@@ -4305,6 +4332,7 @@ final class AutomationServer {
                 "conversationId": session.conversationId?.uuidString ?? "",
                 "conversationTitle": session.conversationTitle ?? "",
                 "model": session.modelProfileName ?? "",
+                "mode": session.effectiveMode.rawValue,
                 "hasInterruptedTurn": session.hasInterruptedTurn,
             ]
         }

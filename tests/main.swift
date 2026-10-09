@@ -2017,6 +2017,20 @@ func testMemoryKB() {
 }
 testMemoryKB()
 
+func testAgentMode() {
+    check("模式：标准不过滤", AgentMode.standard.excludedTools.isEmpty)
+    check("模式：研究排除执行代码与系统命令",
+          AgentMode.research.excludedTools.isSuperset(of: ["executeJS", "runCommand", "fillLogin"]))
+    check("模式：研究排除子代理防绕过", AgentMode.research.excludedTools.contains("spawnSubagent"))
+    check("模式：写作排除系统命令", AgentMode.writing.excludedTools.contains("runCommand"))
+    check("模式：写作保留白板与读取", !AgentMode.writing.excludedTools.contains("whiteboard"))
+    check("模式：rawValue 稳定", AgentMode(rawValue: "research") == .research)
+    check("模式：三个模式", AgentMode.allCases.count == 3)
+    check("模式：标准无提示词", AgentMode.standard.promptHint == nil)
+    check("模式：研究有提示词", AgentMode.research.promptHint?.contains("研究模式") == true)
+}
+testAgentMode()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

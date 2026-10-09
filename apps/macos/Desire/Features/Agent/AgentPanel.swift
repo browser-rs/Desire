@@ -315,6 +315,16 @@ struct AgentPanel: View {
                                 .truncationMode(.tail)
                             Spacer(minLength: 0)
                             Button {
+                                store.runQueuedNow(id: item.id)
+                            } label: {
+                                Image(systemName: "play.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tint)
+                            }
+                            .buttonStyle(.plain)
+                            .help("立即执行（取消当前回合并优先运行这条）")
+                            .disabled(!store.isProcessing)
+                            Button {
                                 store.removeQueued(id: item.id)
                             } label: {
                                 Image(systemName: "xmark.circle.fill")

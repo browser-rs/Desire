@@ -25,12 +25,17 @@ struct WhiteboardWebView: NSViewRepresentable {
         webview.onEdit = onEdit
         // 导航护栏（见 WhiteboardWKWebView.decidePolicyFor）。
         webview.navigationDelegate = webview
-        // v8：React 版前端（webapp/ 构建产物 Resources/WhiteboardApp/）。
-        // loadFileURL 让 index.html 的相对资源（../mermaid.min.js、bundle.js）
-        // 在读权限范围内正常加载。
+        // v8：React 版前端。资源随 fileSystemSynchronized group 打包时会被
+        // **平铺进 bundle 根**（Contents/Resources/index.html + bundle.js/…），
+        // 不存在 WhiteboardApp 子目录——优先按平铺根加载，子目录形态仅作兜底
+        //（两者都缺才退占位页；不静默白板）。
         if let resourceURL = Bundle.main.resourceURL {
-            let indexHTML = resourceURL.appendingPathComponent("WhiteboardApp/index.html")
-            if FileManager.default.fileExists(atPath: indexHTML.path) {
+            let root = resourceURL.appendingPathComponent("index.html")
+            let subdir = resourceURL.appendingPathComponent("WhiteboardApp/index.html")
+            let indexHTML = FileManager.default.fileExists(atPath: root.path)
+                ? root
+                : (FileManager.default.fileExists(atPath: subdir.path) ? subdir : nil)
+            if let indexHTML {
                 webview.loadFileURL(indexHTML, allowingReadAccessTo: resourceURL)
                 pollLoaded(webview)
                 return webview

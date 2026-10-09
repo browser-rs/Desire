@@ -196,7 +196,7 @@ enum MediaExporter {
                     resumeKey: resumeKey)
                 progress(1, 1, .segments)
                 streamedLargeFile = true
-                let probe = FFmpegExporter.probe(fileURL: fileURL)
+                let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: fileURL) }.value
                 return Result(fileURL: fileURL, segmentCount: 1, bytes: result, warnings: [],
                               verification: probe.summary, downloadedResolution: probe.resolution)
             }
@@ -220,7 +220,7 @@ enum MediaExporter {
                 try directFile.data.write(to: part)
             }
             progress(1, 1, .segments)
-            let probe = FFmpegExporter.probe(fileURL: fileURL)
+            let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: fileURL) }.value
             return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [],
                           verification: probe.summary, downloadedResolution: probe.resolution)
         }
@@ -249,7 +249,7 @@ enum MediaExporter {
                         progress: { done, total in progress(done, total, .seconds) }
                     )
                 }
-                let probe = FFmpegExporter.probe(fileURL: destination)
+                let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: destination) }.value
                 return Result(fileURL: destination, segmentCount: nil, bytes: outcome.bytes, warnings: warnings,
                               verification: probe.summary, downloadedResolution: probe.resolution,
                               sourceSummary: plan.sourceSummary, sourceMaxResolution: plan.sourceMaxResolution,
@@ -385,8 +385,12 @@ enum MediaExporter {
                     destination: part, deadline: deadline
                 )
             }
-            try? FileManager.default.removeItem(at: result.fileURL)
-            let probe = FFmpegExporter.probe(fileURL: destination)
+            // 删数 GB 的中间 .ts：unlink 虽轻，但磁盘被多路 ffmpeg 打满时
+            // 主线程一次 unlink 也可能可感——挪后台。
+            await Task.detached(priority: .utility) {
+                try? FileManager.default.removeItem(at: result.fileURL)
+            }.value
+            let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: destination) }.value
             return Result(fileURL: destination, segmentCount: result.segmentCount,
                           bytes: outcome.bytes, warnings: warnings, verification: probe.summary,
                           downloadedResolution: probe.resolution,

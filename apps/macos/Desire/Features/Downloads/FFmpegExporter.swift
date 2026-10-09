@@ -70,7 +70,7 @@ enum FFmpegExporter {
 
     /// 下载完成后的产物探测结果。
     /// `summary` 是给人看的回执文本；`resolution` 供"下载档 vs 源上限"对比。
-    struct MediaProbe {
+    struct MediaProbe: Sendable {
         let summary: String?
         let resolution: String?
         let hasAudio: Bool

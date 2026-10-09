@@ -756,6 +756,27 @@ class AgentSessionStore: ObservableObject {
     }
 
     /// 移除队列里的某一条（队列条每行右侧的 ✕）。此前只能整条清空。
+    /// 排队条"立即执行"：把该条提到队首；若正有回合在跑则取消之，
+    /// 等循环退出后立即以这条消息开新回合（插队语义，非顺序等待）。
+    func runQueuedNow(id: UUID) {
+        guard let idx = queuedMessages.firstIndex(where: { $0.id == id }) else { return }
+        let item = queuedMessages.remove(at: idx)
+        let wasProcessing = isProcessing
+        if wasProcessing { cancel() }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // 等当前回合的循环退出（cancel 后在 await 点解卷，isProcessing
+            // 由 processLoop 的 defer 复位）；设上限防意外长等。
+            var waited = 0
+            while isProcessing, waited < 100 {
+                await Task.yield()
+                try? await Task.sleep(for: .milliseconds(20))
+                waited += 1
+            }
+            sendMessage(item.text, images: item.images, recordHistory: false)
+        }
+    }
+
     func removeQueued(id: UUID) {
         queuedMessages.removeAll { $0.id == id }
     }

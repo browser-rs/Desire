@@ -43,6 +43,35 @@ struct AgentInputBar: View {
     var isSessionDirectiveActive: Bool = false
 
     @State private var isHoveringSend = false
+    /// slash 候选菜单：输入以 "/" 开头且尚无参数空格时弹出（过滤命令）。
+    @State private var slashHighlight = 0
+    @State private var slashDismissed = false
+
+    // MARK: - Slash 候选菜单
+
+    private var slashPrefix: String? {
+        guard text.hasPrefix("/"), !text.contains(" "), !slashDismissed else { return nil }
+        return String(text.dropFirst()).lowercased()
+    }
+    private var slashSuggestions: [(command: String, description: String)] {
+        guard let prefix = slashPrefix else { return [] }
+        return AgentSlashParsing.suggestions(prefix: prefix)
+    }
+    private var slashMenuVisible: Bool { !slashSuggestions.isEmpty }
+    private var slashEffectiveIndex: Int {
+        guard !slashSuggestions.isEmpty else { return 0 }
+        return min(max(slashHighlight, 0), slashSuggestions.count - 1)
+    }
+
+    /// Enter：已敲完整命令 → 直接执行；否则补全高亮候选（保留已输入的参数）。
+    private func completeSlash(at index: Int? = nil) {
+        let idx = index ?? slashEffectiveIndex
+        guard slashSuggestions.indices.contains(idx) else { return }
+        let selected = slashSuggestions[idx].command
+        text = "/" + selected + " "
+        slashHighlight = 0
+        slashDismissed = false
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -145,6 +174,11 @@ struct AgentInputBar: View {
 
     private var inputCapsule: some View {
         VStack(spacing: 0) {
+            if slashMenuVisible {
+                slashMenu
+                    .padding(.horizontal, 4)
+                    .padding(.top, 4)
+            }
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
@@ -167,6 +201,11 @@ struct AgentInputBar: View {
                     .padding(.bottom, 6)
                     .frame(minHeight: 32, maxHeight: 120)
                     .onKeyPress(.upArrow) {
+                        // slash 菜单可见时 ↑ 移动高亮（优先于历史翻阅）。
+                        if slashMenuVisible {
+                            slashHighlight = max(0, slashEffectiveIndex - 1)
+                            return .handled
+                        }
                         // 空输入框（或已在翻阅）时把 ↑ 交给历史；否则保留光标移动。
                         guard text.isEmpty || isBrowsingHistory else { return .ignored }
                         guard let recalled = onHistoryUp?() else { return .ignored }
@@ -174,6 +213,10 @@ struct AgentInputBar: View {
                         return .handled
                     }
                     .onKeyPress(.downArrow) {
+                        if slashMenuVisible {
+                            slashHighlight = min(slashSuggestions.count - 1, slashEffectiveIndex + 1)
+                            return .handled
+                        }
                         guard isBrowsingHistory else { return .ignored }
                         text = onHistoryDown?() ?? ""
                         return .handled
@@ -185,6 +228,16 @@ struct AgentInputBar: View {
                         if press.modifiers.contains(.shift)
                             || press.modifiers.contains(.command) {
                             return .ignored
+                        }
+                        // slash 菜单可见：已敲完整命令 → 直接执行；否则补全
+                        // 高亮候选（保留已输入的参数文本），菜单随之关闭。
+                        if slashMenuVisible {
+                            if AgentSlashParsing.parse(text) != nil {
+                                Task { @MainActor in onSubmit() }
+                            } else {
+                                completeSlash()
+                            }
+                            return .handled
                         }
                         // **不能直接同步提交**：SwiftUI 的 `.onKeyPress` 处理器在更新
                         // 事务里执行，而提交会写一堆 `@Published`，于是每条写入都报
@@ -226,6 +279,50 @@ struct AgentInputBar: View {
     }
 
     /// Shows listening indicator or voice input errors.
+    @ViewBuilder
+    // MARK: - Slash 候选菜单
+
+    private var slashMenu: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Array(slashSuggestions.enumerated()), id: \.element.command) { index, suggestion in
+                    Button {
+                        completeSlash(at: index)
+                        isFocused = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("/\(suggestion.command)")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 8)
+                            Text(suggestion.description)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                        .background(
+                            index == slashEffectiveIndex
+                                ? AnyShapeStyle(.tint.opacity(0.15))
+                                : AnyShapeStyle(.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .frame(maxHeight: 190)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    }
+
     @ViewBuilder
     private var voiceStatusLine: some View {
         if let vm = voiceManager {

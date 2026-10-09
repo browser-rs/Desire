@@ -16,6 +16,24 @@ nonisolated enum AgentSlashParsing {
         "skills", "memory", "model", "persona", "plan", "cancel", "windows",
     ]
 
+    /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
+    nonisolated static let descriptions: [String: String] = [
+        "help": String(localized: "show this list"),
+        "new": String(localized: "start a fresh conversation"),
+        "compact": String(localized: "shrink the context budget now (older turns stay recallable)"),
+        "stats": String(localized: "token usage and cost for this conversation"),
+        "doctor": String(localized: "run the agent self-check"),
+        "mode": String(localized: "switch agent mode: /mode standard|research|writing"),
+        "resume": String(localized: "continue the interrupted turn"),
+        "skills": String(localized: "list installed skills"),
+        "memory": String(localized: "memory summary (profile, facts, summaries)"),
+        "model": String(localized: "list model services, or switch: /model <名称>"),
+        "persona": String(localized: "list personas, or bind: /persona <名字>（off = unbind）"),
+        "plan": String(localized: "show the current plan checklist"),
+        "cancel": String(localized: "cancel the running turn"),
+        "windows": String(localized: "list windows and their agent state"),
+    ]
+
     static func parse(_ text: String) -> Parsed? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("/"), trimmed.count > 1 else { return nil }
@@ -27,24 +45,17 @@ nonisolated enum AgentSlashParsing {
         return Parsed(command: command, argument: argument)
     }
 
-    /// /help 的输出（命令清单与一句话说明，与 known 同源防漂移）。
-    static func helpText() -> String {
-        let descriptions: [String: String] = [
-            "help": String(localized: "show this list"),
-            "new": String(localized: "start a fresh conversation"),
-            "compact": String(localized: "shrink the context budget now (older turns stay recallable)"),
-            "stats": String(localized: "token usage and cost for this conversation"),
-            "doctor": String(localized: "run the agent self-check"),
-            "mode": String(localized: "switch agent mode: /mode standard|research|writing"),
-            "resume": String(localized: "continue the interrupted turn"),
-            "skills": String(localized: "list installed skills"),
-            "memory": String(localized: "memory summary (profile, facts, summaries)"),
-            "model": String(localized: "list model services, or switch: /model <名称>"),
-            "persona": String(localized: "list personas, or bind: /persona <名字>（off = unbind）"),
-            "plan": String(localized: "show the current plan checklist"),
-            "cancel": String(localized: "cancel the running turn"),
-            "windows": String(localized: "list windows and their agent state"),
-        ]
-        return known.map { "/\($0) — \(descriptions[$0] ?? "")" }.joined(separator: "\n")
+    /// /help 的输出（命令清单与一句话说明，与候选菜单同源防漂移）。
+    nonisolated static func helpText() -> String {
+        known.map { "/\($0) — \(descriptions[$0] ?? "")" }.joined(separator: "\n")
+    }
+
+    /// 输入候选：按 "/" 后的前缀过滤（命令 + 本地化说明）。
+    nonisolated static func suggestions(prefix: String) -> [(command: String, description: String)] {
+        let p = prefix.lowercased()
+        return known.compactMap { cmd in
+            guard cmd.hasPrefix(p) else { return nil }
+            return (cmd, descriptions[cmd] ?? "")
+        }
     }
 }

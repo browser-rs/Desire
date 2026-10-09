@@ -1940,6 +1940,31 @@ func testSkillAuthoring() {
 }
 testSkillAuthoring()
 
+func testConversationRecall() {
+    let msgs: [(Int, String, String)] = [
+        (0, "system", "系统提示"),
+        (1, "user", "帮我查一下 QwenPaw 的记忆架构"),
+        (2, "assistant", "QwenPaw 用三层记忆：工作上下文、逐字历史、自演化知识库。"),
+        (3, "user", "再看看 Desire 的压缩策略"),
+        (4, "assistant", "Desire 压缩只动请求副本，完整历史保留。"),
+    ]
+    let hits = ConversationRecall.pick(msgs, query: "qwenpaw")
+    check("回忆：大小写不敏感命中", hits.count == 2 && hits[0].index == 1)
+    check("回忆：跳过 system", hits.allSatisfy { $0.role != "system" })
+    let none = ConversationRecall.pick(msgs, query: "不存在的词")
+    check("回忆：无命中为空", none.isEmpty)
+    check("回忆：空查询为空", ConversationRecall.pick(msgs, query: "  ").isEmpty)
+    let render = ConversationRecall.render(hits: hits, query: "qwenpaw", totalMessages: 5)
+    check("回忆：渲染含命中与总数", render.contains("[1] user") && render.contains("5 messages"))
+    let noneRender = ConversationRecall.render(hits: [], query: "x", totalMessages: 9)
+    check("回忆：无命中文案", noneRender.contains("No matches") && noneRender.contains("9 messages"))
+    // 超长节选截断
+    let long = [(0, "user", String(repeating: "长", count: 2000))] as [(Int, String, String)]
+    let lh = ConversationRecall.pick(long, query: "长", excerptChars: 100)
+    check("回忆：节选封顶", lh[0].excerpt.count == 101 && lh[0].excerpt.hasSuffix("…"))
+}
+testConversationRecall()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

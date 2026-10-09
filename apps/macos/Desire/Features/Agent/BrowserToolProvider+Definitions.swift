@@ -159,6 +159,12 @@ extension BrowserToolProvider {
                 ], required: ["callId"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "recallConversation", description: "Search THIS conversation's FULL history (including turns compacted out of your context window) by keyword and recall the matching turns. Use when you remember a topic was discussed earlier but the details are no longer in your context. Read-only.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Keyword or phrase to search for (case-insensitive)"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

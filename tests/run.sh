@@ -10,6 +10,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentGuard.swift
   apps/macos/Desire/Features/Agent/HeartbeatDecision.swift
   apps/macos/Desire/Features/Agent/SkillAuthoring.swift
+  apps/macos/Desire/Features/Agent/ConversationRecall.swift
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift

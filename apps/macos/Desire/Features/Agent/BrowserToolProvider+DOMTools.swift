@@ -1560,6 +1560,22 @@ extension BrowserToolProvider {
             }
             return output
 
+        case "recallConversation":
+            // 按需回忆（Scroll Context 思想）：压缩只裁请求副本，完整历史永在
+            // 内存——这里把模型上下文里已经看不到的旧轮次按关键词召回。
+            guard let query = args["query"] as? String, !query.isEmpty else {
+                return Self.fail("Missing query")
+            }
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                return Self.fail("No live agent session")
+            }
+            let pairs = session.messages.enumerated().compactMap { index, message -> (Int, String, String)? in
+                guard let content = message.content, !content.isEmpty else { return nil }
+                return (index, message.role.rawValue, content)
+            }
+            let hits = ConversationRecall.pick(pairs, query: query)
+            return ConversationRecall.render(hits: hits, query: query, totalMessages: pairs.count)
+
         case "listSkills":
             let skills = SkillStore.shared.skills
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }

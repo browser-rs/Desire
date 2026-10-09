@@ -555,7 +555,7 @@ final class AutomationServer {
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
-        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt:string", "minutes?:int | hour+minute"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
+        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt:string", "minutes?:int | hour+minute", "window?:uuid (target a specific window; default = newest)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("GET", "/approvals", "Pending tool approval", example: "…/approvals")
@@ -1918,9 +1918,9 @@ final class AutomationServer {
             case ("POST", "/media/exports/cancel"):
                 return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
             case ("POST", "/agent/directive"):
-                // 会话级临时指令（活动会话）：设置/清除（text 空串=清除）。
-                // E2E：设置 → 发消息 → 抓 system 断言 <session_directive>。
-                guard let session = AgentScheduler.shared.deliveryTarget else {
+                // 会话级临时指令（可指定目标窗口，缺省 = 最新注册的活会话）：
+                // 设置/清除（text 空串=清除）。E2E：设置 → 发消息 → 抓 system 断言。
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
                     return try Self.json(["error": "no live agent session"])
                 }
                 session.setSessionDirective(Self.string(body, "text"))
@@ -2045,8 +2045,6 @@ final class AutomationServer {
                 return try Self.json(Self.setAgentFeedback(
                     messageId: Self.string(body, "messageId") ?? "",
                     vote: Self.string(body, "vote") ?? ""))
-            case ("POST", "/agent/resume"):
-                return try Self.json(Self.agentResume(window: Self.string(body, "window")))
             case ("POST", "/agent/cancel"):
                 return try Self.json(Self.agentCancel(window: Self.string(body, "window")))
             case ("POST", "/agent/send"):
@@ -2104,7 +2102,8 @@ final class AutomationServer {
                     prompt: Self.string(body, "prompt") ?? "",
                     minutes: body["minutes"] as? Int,
                     hour: body["hour"] as? Int,
-                    minute: body["minute"] as? Int
+                    minute: body["minute"] as? Int,
+                    window: Self.string(body, "window")
                 ))
             case ("POST", "/agent/tasks/remove"):
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
@@ -4167,6 +4166,7 @@ final class AutomationServer {
             "messages": Array(messages),
             "busy": session.isProcessing,
             "hasInterruptedTurn": session.hasInterruptedTurn,
+            "directive": session.activeDirective ?? "",
             // 输入历史（按对话保存，面板 ↑/↓ 翻阅的那份）
             "inputHistory": Array(session.inputHistory.suffix(20)),
         ]
@@ -4193,6 +4193,7 @@ final class AutomationServer {
                 "isNewest": AgentScheduler.shared.deliveryTarget === session,
                 // 双窗口互不串台的断言面：每窗会话当前装载的对话
                 "conversationId": session.conversationId?.uuidString ?? "",
+                "conversationTitle": session.conversationTitle ?? "",
                 "hasInterruptedTurn": session.hasInterruptedTurn,
             ]
         }
@@ -4809,7 +4810,7 @@ final class AutomationServer {
         return ["tasks": tasks]
     }
 
-    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?) throws -> [String: Any] {
+    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, window: String?) throws -> [String: Any] {
         let recurrence: AgentScheduler.ScheduledTask.Recurrence
         if let minutes {
             recurrence = .everyMinutes(minutes)
@@ -4818,10 +4819,17 @@ final class AutomationServer {
         } else {
             return ["error": "need minutes, or hour+minute"]
         }
-        guard AgentScheduler.shared.add(name: name, prompt: prompt, recurrence: recurrence) != nil else {
+        // 多窗口联动：window = 调度器注册 id（见 GET /agent/windows）；缺省 =
+        // 跟随最新注册的活会话。
+        let targetID = resolveSession(window)?.registryID
+        guard AgentScheduler.shared.add(
+            name: name, prompt: prompt, recurrence: recurrence,
+            targetSessionID: targetID) != nil else {
             return ["error": "invalid name or prompt"]
         }
-        return ["ok": true, "name": name]
+        var payload: [String: Any] = ["ok": true, "name": name]
+        if let targetID { payload["target"] = targetID.uuidString }
+        return payload
     }
 
     private static func removeAgentTask(name: String) throws -> [String: Any] {

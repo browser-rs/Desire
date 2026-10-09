@@ -33,6 +33,9 @@ final class AgentScheduler: ObservableObject {
         var lastFiredAt: Date?
         /// Human-readable outcome of the most recent firing.
         var lastResult: String?
+        /// 目标窗口（调度器注册 id，多窗口联动 v1）：nil = 跟随"最新注册的活
+        /// 会话"（历史行为）。目标窗口关闭后回落最新会话。
+        var targetSessionID: UUID?
 
         var recurrenceText: String {
             switch recurrence {
@@ -142,7 +145,8 @@ final class AgentScheduler: ObservableObject {
     // MARK: - Management
 
     @discardableResult
-    func add(name: String, prompt: String, recurrence: ScheduledTask.Recurrence) -> ScheduledTask? {
+    func add(name: String, prompt: String, recurrence: ScheduledTask.Recurrence,
+             targetSessionID: UUID? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedPrompt.isEmpty else { return nil }
@@ -154,7 +158,8 @@ final class AgentScheduler: ObservableObject {
             isEnabled: true,
             createdAt: Date(),
             lastFiredAt: Date(),
-            lastResult: nil
+            lastResult: nil,
+            targetSessionID: targetSessionID
         )
         tasks.append(task)
         save()
@@ -298,7 +303,13 @@ final class AgentScheduler: ObservableObject {
     /// passes the SAME runID so the record accumulates attempts.
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
-        guard let target = deliveryTarget else {
+        // 投递路由（多窗口联动 v1）：任务可点名目标窗口（调度器注册 id）；
+        // 目标已关或未点名 → 回落"最新注册的活会话"（与历史行为一致）。
+        let resolvedTarget = task.targetSessionID.flatMap { session(withID: $0) }
+        if task.targetSessionID != nil, resolvedTarget == nil {
+            Self.log.info("Scheduled task '\(task.name, privacy: .public)' target window is gone — falling back to the newest session")
+        }
+        guard let target = resolvedTarget ?? deliveryTarget else {
             if let i = taskIndex { tasks[i].lastResult = String(localized: "missed — no agent session was open") }
             if runs.firstIndex(where: { $0.id == runID }) != nil {
                 updateRun(id: runID) {

@@ -818,7 +818,13 @@ class AgentSessionStore: ObservableObject {
     /// empty panel. `conversations` is kept sorted by `updatedAt` desc.
     func resumeLatestConversation() {
         guard messages.isEmpty, !isProcessing, !isNewChatIntentional else { return }
-        guard let latest = conversationStore.conversations.first else { return }
+        // 多窗口防互踩（0.7.6）：两个窗口的面板此前都会装载全局最新的一条
+        // 对话，之后各自整文件写回 → last-write-wins 互相覆盖。这里跳过已被
+        // 其他活会话占用的对话，取最新的"空闲"条；全被占用就保持空白。
+        let taken = Set(AgentScheduler.shared.liveSessions()
+            .filter { $0.store !== self }
+            .compactMap { $0.store?.conversationId })
+        guard let latest = conversationStore.conversations.first(where: { !taken.contains($0.id) }) else { return }
         loadConversation(latest.id)
     }
 

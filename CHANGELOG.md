@@ -15,6 +15,8 @@
 - **巨型消息请求侧封顶**（上下文卫生）：块压缩"永不丢最后一块"留下的防线缺口——一条巨型用户粘贴/超长回答原本会无防线原样进请求；现在 user/assistant 消息超 4 万字符在请求副本里保留头 2 万 + 尾 5 千、中段显式标注截断（工具消息仍走既有 8k 摘要管线）
 - **技能自沉淀闭环（saveSkill 工具，Hermes 式启发）**：模型把刚跑通的多步工作流存成 SKILL.md（name/description/instructions，同名覆盖、正文自带 frontmatter 会被剥掉重生成），落盘即 reload——未来对话经 `<skills>` 索引 + useSkill 复用；学习闭环从"被动纠错（点踩沉淀）"扩到"主动沉淀（成功工作流入库）"
 - **心跳"未完成事务收件箱"信号（Dots 式启发）**：心跳自动信号新增两类——当前会话有被打断的回合（面板已有"继续/放弃"入口）、最近 48h 内最后一条消息是用户且没有回复的会话（上限 4 条防吵）；`POST /agent/heartbeat/fire` 响应带 `signals` 清单（E2E/调试可观测）
+- **多窗口 Agent 联动第一批（清掉账面"未实现"的最痛部分）**：定时任务可点名目标窗口（`ScheduledTask.targetSessionID` = 调度器注册 id；桥 `POST /agent/tasks/create` 新增 `window` 参数，设置页任务行显示目标窗口、窗口关闭自动回落最新会话）——修掉"新开一个窗口的面板就把所有定时投递抢走"的行为；双窗口防互踩：面板打开时不再装载已被其他活会话占用的对话（此前两个窗口都装全局最新一条、各自整文件写回互相覆盖）；`POST /agent/directive` 支持 `window`；`GET /agent/windows` 增加 conversationTitle；清理不可达的重复 `/agent/resume` 死分支（重跑末尾提问的面板入口不受影响）
+
 
 
 

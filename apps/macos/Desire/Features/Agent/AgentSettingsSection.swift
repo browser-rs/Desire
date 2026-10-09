@@ -1684,6 +1684,7 @@ struct ScheduledTasksSection: View {
                             Text(task.recurrenceText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            taskTargetLine(task)
                             if let result = task.lastResult {
                                 Text(result)
                                     .font(.caption2)
@@ -1704,6 +1705,19 @@ struct ScheduledTasksSection: View {
                     SettingsRowDivider()
                 }
             }
+        }
+    }
+
+    /// 定向任务的窗口标签（多窗口联动 v1）：显示目标窗口名；窗口已关则说明
+    /// 会回落到最新会话。nil = 跟随最新（历史行为），不显示。
+    @ViewBuilder
+    private func taskTargetLine(_ task: AgentScheduler.ScheduledTask) -> some View {
+        if let targetID = task.targetSessionID {
+            let label = AgentScheduler.shared.liveSessions()
+                .first(where: { $0.id == targetID })?.displayLabel
+            Text("目标：\(label ?? "窗口已关闭（回落最新会话）")")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 }

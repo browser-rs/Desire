@@ -23,6 +23,8 @@ struct AgentHeaderView: View {
     var onNewChat: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
+    /// 多 Agent roster：人设名册观察 + 本窗口绑定切换。
+    @ObservedObject var roster = AgentRosterStore.shared
 
     var body: some View {
         HStack(spacing: 8) {
@@ -40,9 +42,7 @@ struct AgentHeaderView: View {
                         .truncationMode(.tail)
                         .help("This panel is bound to this window")
                 }
-                Text("Agent")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+                personaTitle
                 statusLine
             }
 
@@ -159,6 +159,39 @@ struct AgentHeaderView: View {
     }
 
     // MARK: - Sub-views
+
+    /// 标题 = 本窗口绑定的人设名（绑定了人设时），点击弹人设切换菜单。
+    /// 没有人设名册条目时保持纯文本 "Agent"。
+    @ViewBuilder
+    private var personaTitle: some View {
+        let boundName = roster.displayName(for: store.registryID)
+        if roster.personas.isEmpty && boundName == nil {
+            Text("Agent")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+        } else {
+            Menu {
+                Button(String(localized: "Default persona")) {
+                    store.personaID = nil
+                }
+                .disabled(store.personaID == nil)
+                Divider()
+                ForEach(roster.personas) { persona in
+                    Button(persona.name) {
+                        store.personaID = persona.id
+                    }
+                    .disabled(store.personaID == persona.id)
+                }
+            } label: {
+                Text(boundName ?? "Agent")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(String(localized: "Switch persona for this window"))
+        }
+    }
 
     private var brandMark: some View {
         ZStack {

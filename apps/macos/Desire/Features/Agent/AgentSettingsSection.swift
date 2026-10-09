@@ -266,6 +266,10 @@ struct AgentSettingsSection: View {
                 .padding(.vertical, 10)
             }
 
+            // MARK: - Agent Roster（多 Agent 人设名册）
+
+            RosterSection()
+
             // MARK: - Output rules（个性化规则，逐条增删）
 
             SettingsSection(
@@ -1654,6 +1658,101 @@ struct MCPServersSection: View {
 
 /// Scheduled agent prompts (定时任务) — created by the agent itself via the
 /// scheduleTask tools; managed (enable/disable/delete) here.
+// MARK: - Agent Roster（多 Agent 人设名册）
+
+/// 命名人设列表：每个窗口的 Agent 面板可从标题菜单绑定其一（只覆盖
+/// <persona> 层的名字与语气；系统提示词身份层保持全局）。Dots 多 dot /
+/// Grok Bot 多 Agent 的对应物。
+private struct RosterSection: View {
+    @ObservedObject private var roster = AgentRosterStore.shared
+    @State private var newName = ""
+    @State private var newTone = ""
+
+    var body: some View {
+        SettingsSection(
+            title: String(localized: "Agent Personas"),
+            subtitle: String(localized: "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global."),
+            icon: "person.2.fill"
+        ) {
+            VStack(spacing: 0) {
+                if roster.personas.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text(String(localized: "No personas yet. Add one below, then bind it from the agent panel's title menu."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+                }
+                ForEach(roster.personas) { persona in
+                    personaRow(persona)
+                    SettingsRowDivider()
+                }
+                HStack(spacing: 8) {
+                    TextField(String(localized: "Persona name"), text: $newName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                    TextField(String(localized: "Tone (optional)"), text: $newTone, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .lineLimit(1...2)
+                    Button {
+                        if roster.add(name: newName, tone: newTone) != nil {
+                            newName = ""
+                            newTone = ""
+                        }
+                    } label: {
+                        Text(String(localized: "Add"))
+                            .font(.system(size: 12, weight: .medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(.tint.opacity(0.18)))
+                            .foregroundStyle(.tint)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private func personaRow(_ persona: AgentRosterStore.AgentPersona) -> some View {
+        let nameBinding = Binding(
+            get: { persona.name },
+            set: { roster.update(id: persona.id, name: $0, tone: persona.tone) }
+        )
+        let toneBinding = Binding(
+            get: { persona.tone },
+            set: { roster.update(id: persona.id, name: persona.name, tone: $0) }
+        )
+        return HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                TextField(String(localized: "Persona name"), text: nameBinding)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                TextField(String(localized: "Tone (optional)"), text: toneBinding, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .lineLimit(1...3)
+            }
+            Button {
+                roster.remove(id: persona.id)
+            } label: {
+                Image(systemName: "minus.circle")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Delete"))
+        }
+        .padding(.vertical, 6)
+    }
+}
+
 struct ScheduledTasksSection: View {
     @ObservedObject private var store = AgentScheduler.shared
 

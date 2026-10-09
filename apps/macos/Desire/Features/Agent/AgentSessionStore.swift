@@ -1104,8 +1104,8 @@ class AgentSessionStore: ObservableObject {
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
-            agentName: preference.agentName.isEmpty ? nil : preference.agentName,
-            agentPersona: preference.agentPersona.isEmpty ? nil : preference.agentPersona,
+            agentName: effectiveAgentName,
+            agentPersona: effectiveAgentPersona,
             outputRules: preference.outputRules,
             sessionDirective: activeDirective,
             memoryBlock: memoryBlock,
@@ -1124,6 +1124,38 @@ class AgentSessionStore: ObservableObject {
         let digestBlock = digest.map { "\n\n## Earlier conversation (compacted)\n\($0)" } ?? ""
         request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
+    }
+
+    // 多 Agent roster v1：本窗口绑定的人设（nil = 全局默认）。只覆盖 <persona>
+    // 层的名字与语气，身份层（系统提示词）保持全局。绑定按调度器注册 id 存。
+    var personaID: UUID? {
+        get {
+            guard let registryID else { return nil }
+            return UserDefaults.standard
+                .string(forKey: "agentPersonaBind.\(registryID.uuidString)")
+                .flatMap(UUID.init(uuidString:))
+        }
+        set {
+            guard let registryID else { return }
+            if let newValue {
+                UserDefaults.standard.set(newValue.uuidString,
+                                          forKey: "agentPersonaBind.\(registryID.uuidString)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "agentPersonaBind.\(registryID.uuidString)")
+            }
+        }
+    }
+    private var boundPersona: AgentRosterStore.AgentPersona? {
+        AgentRosterStore.shared.persona(id: personaID)
+    }
+    /// 人设生效视图：绑定人设时覆盖全局 agentName/agentPersona。
+    var effectiveAgentName: String? {
+        if let persona = boundPersona { return persona.name }
+        return preference.agentName.isEmpty ? nil : preference.agentName
+    }
+    var effectiveAgentPersona: String? {
+        if let persona = boundPersona, !persona.tone.isEmpty { return persona.tone }
+        return preference.agentPersona.isEmpty ? nil : preference.agentPersona
     }
 
     private func processLoop() async {

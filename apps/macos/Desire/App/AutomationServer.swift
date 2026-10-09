@@ -534,6 +534,8 @@ final class AutomationServer {
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
+        ep("GET", "/agent/roster", "Agent persona roster (personas + per-window bindings)", example: "…/agent/roster")
+        ep("POST", "/agent/roster", "Manage the persona roster: action=add (name, tone) | remove (id) | bind (window, persona? — omit to unbind)", params: ["action:add|remove|bind", "name?:string", "tone?:string", "id?:uuid", "window?:uuid", "persona?:uuid"], example: #"-d '{"action":"bind","window":"…","persona":"…"}'"#)
         ep("GET", "/agent/guard", "AI action review (guard) toggle state", example: "…/agent/guard")
         ep("POST", "/agent/guard", "Enable/disable the guard review that checks auto-edit actions against the user's rules before they run silently", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("POST", "/agent/guard/check", "Run one guard review offline (E2E/debug; no gate, no turn): classify a planned action against given rules", params: ["tool:string", "arguments?:object|string", "identity?:string", "rules?:[string]", "directive?:string"], example: #"-d '{"tool":"deleteFile","arguments":{"path":"~/notes.txt"},"identity":"Always confirm before deleting anything."}'"#)
@@ -1979,6 +1981,54 @@ final class AutomationServer {
                     return try Self.json(["ok": true, "verdict": "flag", "reason": reason])
                 case .unsure:
                     return try Self.json(["ok": true, "verdict": "unsure"])
+                }
+            case ("GET", "/agent/roster"):
+                // 多 Agent 名册：人设清单 + 各活窗口的绑定。
+                let roster = AgentRosterStore.shared
+                var bindings: [String: String] = [:]
+                for entry in AgentScheduler.shared.liveSessions() {
+                    guard let pid = roster.binding(for: entry.id) else { continue }
+                    bindings[entry.id.uuidString] = pid.uuidString
+                }
+                return try Self.json([
+                    "ok": true,
+                    "personas": roster.personas.map { [
+                        "id": $0.id.uuidString, "name": $0.name, "tone": $0.tone,
+                    ] },
+                    "bindings": bindings,
+                ])
+            case ("POST", "/agent/roster"):
+                // action=add {name, tone} | remove {id} | bind {window, persona?}
+                // （persona 省略 = 解绑，回落全局默认人设）。
+                let roster = AgentRosterStore.shared
+                switch Self.string(body, "action") ?? "" {
+                case "add":
+                    guard let persona = roster.add(
+                        name: Self.string(body, "name") ?? "",
+                        tone: Self.string(body, "tone") ?? "") else {
+                        return try Self.json(["error": "missing name"])
+                    }
+                    return try Self.json(["ok": true, "id": persona.id.uuidString])
+                case "remove":
+                    guard let id = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                        return try Self.json(["error": "missing id"])
+                    }
+                    roster.remove(id: id)
+                    return try Self.json(["ok": true])
+                case "bind":
+                    guard let session = Self.resolveSession(Self.string(body, "window")),
+                          let registryID = session.registryID else {
+                        return try Self.json(["error": "no live agent session"])
+                    }
+                    let personaID = Self.string(body, "persona").flatMap(UUID.init(uuidString:))
+                    roster.bind(personaID: personaID, to: registryID)
+                    return try Self.json([
+                        "ok": true,
+                        "window": registryID.uuidString,
+                        "persona": personaID?.uuidString ?? "",
+                    ])
+                default:
+                    return try Self.json(["error": "action must be add|remove|bind"])
                 }
             case ("GET", "/agent/heartbeat"):
                 let heartbeat = HeartbeatStore.shared

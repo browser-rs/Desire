@@ -2849,6 +2849,28 @@
         }
       }
     },
+    "Agent Personas" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Personas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 人设名册"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 人設名冊"
+          }
+        }
+      }
+    },
     "Agent Prompt" : {
       "localizations" : {
         "en" : {
@@ -36421,6 +36443,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個任務投遞給哪個視窗的 Agent"
+          }
+        }
+      }
+    },
+    "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供各窗口 Agent 认领的命名 人设——在面板标题菜单里选择。只改变该窗口 Agent 的自称与语气；系统提示词保持全局。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供各視窗 Agent 認領的命名人設——在面板標題選單裡選擇。只改變該視窗 Agent 的自稱與語氣；系統提示詞保持全域。"
+          }
+        }
+      }
+    },
+    "No personas yet. Add one below, then bind it from the agent panel's title menu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No personas yet. Add one below, then bind it from the agent panel's title menu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有人设。在下面新增一个，再到 Agent 面板标题菜单里绑定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有人設。在下面新增一個，再到 Agent 面板標題選單裡綁定。"
+          }
+        }
+      }
+    },
+    "Persona name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persona name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人设名字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人設名字"
+          }
+        }
+      }
+    },
+    "Tone (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语气（可选）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語氣（可選）"
+          }
+        }
+      }
+    },
+    "Default persona" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default persona"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认人设"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設人設"
+          }
+        }
+      }
+    },
+    "Switch persona for this window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch persona for this window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换本窗口的 Agent 人设"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換本視窗的 Agent 人設"
           }
         }
       }

@@ -62,7 +62,9 @@ struct SettingsContainer<Content: View>: View {
             .padding(.top, 28)
             .padding(.bottom, 40)
             .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
+            // 顶对齐（纵向 center 会把短内容子页垂直居中——设置页惯例是
+            // 内容从顶开始）。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 }

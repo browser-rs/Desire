@@ -27,6 +27,7 @@ struct SettingsView: View {
         case general
         case ai
         case ball
+        case pageWatch
         case sync
         case remote
         case privacy
@@ -41,6 +42,7 @@ struct SettingsView: View {
             case .general: "gearshape"
             case .ai: "brain.head.profile"
             case .ball: "circle.circle"
+            case .pageWatch: "eye"
             case .sync: "arrow.triangle.2.circlepath"
             // 单对象图标：`iphone.radiowaves.left.and.right` 是双设备+波纹的复合
             // 图形，在固定宽度的侧栏图标列里会被挤变形、也压不住旁边的文字。
@@ -57,6 +59,7 @@ struct SettingsView: View {
             case .general: "General"
             case .ai: "Agent"
             case .ball: "Floating Ball"
+            case .pageWatch: "Page Watch"
             case .sync: "Sync"
             case .remote: "Remote"
             case .privacy: "Privacy"
@@ -114,7 +117,11 @@ struct SettingsView: View {
             .navigationSplitViewStyle(.balanced)
             .listStyle(.sidebar)
         } detail: {
+            // .id(selected)：切换子页时强制重建 detail——各子页内部的
+            // ScrollView 结构相同（同身份会保留滚动位置），不重置的话新
+            // 子页会"顶在中部"（实测 pageWatch 切入时残留 ball 页滚动）。
             detailContent
+                .id(navigator.selected)
                 .settingsPageBackground()
         }
     }
@@ -132,6 +139,8 @@ struct SettingsView: View {
             AgentSettingsSection(store: aiPreference)
         case .ball:
             AgentBallSettingsView()
+        case .pageWatch:
+            PageWatchSettingsSection()
         case .sync:
             SyncSettingsSection(store: syncStore)
         case .remote:

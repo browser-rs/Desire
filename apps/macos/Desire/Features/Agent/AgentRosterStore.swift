@@ -2,8 +2,7 @@ import Combine
 import Foundation
 import os
 
-/// Agent 人设名册（多 Agent roster v1，2026-10-09，取自 Dots 多 dot / Grok Bot
-/// 多 Agent 群像）：一组命名的人设（名字 + 语气）。每个窗口的 Agent 面板可以
+/// Agent 人设名册（多 Agent roster v1）：一组命名的人设（名字 + 语气）。每个窗口的 Agent 面板可以
 /// 绑定其中一个人设——绑定的窗口在 `<persona>` 层用人设的名字与语气自称，
 /// 未绑定/人设被删则回落全局默认（AgentPreferenceStore.agentName/agentPersona）。
 /// 系统提示词身份层保持全局：人设只换"它是谁"，不换"它知道什么"。

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 技能安全扫描（Skill Scanner，取自 QwenPaw 的 Skill Guard 思想）：技能是
+/// 技能安全扫描：技能是
 /// 用户/模型写入的指令文本，会经 useSkill 进入模型上下文并驱动 runCommand——
 /// 在导入与使用两个时点对内容做模式扫描，给出风险清单（只提示不拦截，
 /// 拦截交给既有的审批链）。Foundation-only：进 tests/run.sh。

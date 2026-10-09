@@ -2,7 +2,7 @@ import Foundation
 import os
 @preconcurrency import UserNotifications
 
-/// Agent 体检（doctor，取自 OpenClaw 的自诊断思想）：一次性自检报告——
+/// Agent 体检（doctor）：一次性自检报告——
 /// 活动模型档案与端点可达性、旁路/备用档案有效性、MCP 连接、ffmpeg、
 /// 钩子语法、技能风险、通知授权、心跳状态。桥 `GET /agent/doctor` 与
 /// 设置页"Agent 体检"行共用同一份逻辑，禁止另算一套。

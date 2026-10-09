@@ -2,13 +2,13 @@ import Combine
 import Foundation
 import os
 
-/// 心跳巡检（2026-10-09，设计取自 OpenClaw Heartbeat）：每 N 分钟一次轻量
+/// 心跳巡检：每 N 分钟一次轻量
 /// 旁路调用，把「用户清单 + 机器自动信号」交给模型判断**要不要打扰用户**——
 /// 回 `HEARTBEAT_OK` 就静默，否则以 routine 档系统通知说事（过免打扰/预算
 /// 闸，与通知分级天然组合）。这是 Desire 第一条"模型自决的主动性"：定时
 /// 任务/页面监视都是固定触发，只有心跳由模型决定说不说话。
 ///
-/// 防噪音（对应 OpenClaw 的 busy deferral / active hours / empty skip）：
+/// 防噪音（busy deferral / active hours / empty skip）：
 /// 回合进行中推迟到下个 tick；免打扰时段内跳过（省调用，摘要由通知侧照常
 /// 补推）；清单与信号全空跳过。用量未记账（旁路调用发生在任何会话之外，
 /// 无消息可挂——成本极小，已知边界）。
@@ -98,7 +98,7 @@ final class HeartbeatStore: ObservableObject {
         let signals = gatherSignals()
         let signalTitles = signals.map(\.title)
         let list = checklist.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 空跳过（OpenClaw 的 empty-heartbeat-file 语义）：没有清单也没有信号
+        // 空跳过：没有清单也没有信号
         // 时这一拍无事可判，省一次 API 调用。
         guard force || !list.isEmpty || !signals.isEmpty else {
             recordBeat(result: "（无清单无信号，跳过）")
@@ -158,7 +158,7 @@ final class HeartbeatStore: ObservableObject {
 
 extension HeartbeatStore {
     /// 距上次心跳以来的自动信号：页面监视变化（带 AI 分析结论）、失败的定时
-    /// 任务、被打断的回合、最近没人回复的会话（Dots 式"未完成事务收件箱"）。
+    /// 任务、被打断的回合、最近没人回复的会话（未完成事务收件箱）。
     fileprivate func gatherSignals() -> [HeartbeatDecision.Signal] {
         var signals: [HeartbeatDecision.Signal] = []
         let since = lastBeatAt ?? Date().addingTimeInterval(-TimeInterval(intervalMinutes * 60))

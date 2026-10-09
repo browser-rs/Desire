@@ -1145,7 +1145,7 @@ class AgentSessionStore: ObservableObject {
             }
         }
     }
-    /// 本窗口绑定的模型档案（per-agent model routing，QwenPaw v2.2.1 启发）：
+    /// 本窗口绑定的模型档案（per-agent model routing）：
     /// nil = 跟随全局活动档案。与 personaID 同款按注册 id 存。
     var modelProfileID: UUID? {
         get {
@@ -1551,7 +1551,7 @@ class AgentSessionStore: ObservableObject {
                     try await runStream()
                 } catch let retryError where assistantMsg == nil && !fallbackTried
                                                 && Self.isTransientStreamError(retryError) {
-                    // 备用档案 failover（OpenClaw 多模型容灾的对应物）：同服务
+                    // 备用档案 failover：同服务
                     // 重试仍瞬态失败 → 换用户配置的备用服务再试最后一次（依旧
                     // 仅限"什么都没流出来"）。没配置备用就维持原样如实失败。
                     fallbackTried = true
@@ -2480,7 +2480,7 @@ class AgentSessionStore: ObservableObject {
         await acquireApprovalSlot()
         defer { approvalSlotBusy = false }
 
-        // 用户钩子（hooks v1，取自 OpenClaw）：beforeToolCall 可编程否决。
+        // 用户钩子（hooks v1）：beforeToolCall 可编程否决。
         // **唯一在完全访问档仍生效的闸**——钩子是用户亲手写的显式规则，
         // 优先级高于任何笼统的等级授权（deny 规则维持原语义不动：完全访问
         // 档依旧全静默）。否决理由透传给工具消息，模型知道为何被拒。

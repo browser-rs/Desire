@@ -1,11 +1,11 @@
 ## [Unreleased]
 ### Added
 
-- **技能安全扫描（Skill Scanner，QwenPaw Skill Guard 思想）**：技能是指令文本、会驱动 runCommand——导入与使用两个时点对内容做危险形态扫描（管道执行远程脚本、rm -rf 根目录、凭据读取=高危；sudo/全开放权限/系统偏好写入/数据回传=中危），只提示不拦截（拦截交给审批链）；useSkill 载入时向模型附风险提示、saveSkill 自沉淀时回带警告、桥 `GET /skills` 每条附 `risk` 字段
-- **Agent 体检（doctor，OpenClaw 自诊断思想）**：一键自检报告——活动模型档案与端点可达性（3 秒探测，任何 HTTP 响应都算通）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
-- **按需回忆（recallConversation 工具，QwenPaw Scroll Context 思想）**：压缩只裁请求副本、完整历史永在内存——但模型对"已被裁出上下文的轮次"此前没有任何取回手段；现在可按关键词召回当前会话的完整历史轮次（含压缩掉的），命中片段带定位说明。桥/工具索引自动跟进
-- **每窗口模型路由（per-agent model routing，QwenPaw v2.2.1 启发）**：每个窗口的 Agent 可绑定独立的模型服务档案（面板标题菜单选择；桥 `/agent/roster` action=bind-model）——主回合流走绑定档案（生成参数继承全局），解绑回落；`GET /agent/windows` 带每窗模型名。多窗口从"多分身"进一步变成"各自用各家模型的多个 Agent"
-- **Agent 体检（doctor，OpenClaw 自诊断思想）**：一键自检报告——活动模型档案与端点可达性（3 秒探测）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
+- **技能安全扫描（Skill Scanner）**：技能是指令文本、会驱动 runCommand——导入与使用两个时点对内容做危险形态扫描（管道执行远程脚本、rm -rf 根目录、凭据读取=高危；sudo/全开放权限/系统偏好写入/数据回传=中危），只提示不拦截（拦截交给审批链）；useSkill 载入时向模型附风险提示、saveSkill 自沉淀时回带警告、桥 `GET /skills` 每条附 `risk` 字段
+- **Agent 体检（doctor）**：一键自检报告——活动模型档案与端点可达性（3 秒探测，任何 HTTP 响应都算通）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
+- **按需回忆（recallConversation 工具）**：压缩只裁请求副本、完整历史永在内存——但模型对"已被裁出上下文的轮次"此前没有任何取回手段；现在可按关键词召回当前会话的完整历史轮次（含压缩掉的），命中片段带定位说明。桥/工具索引自动跟进
+- **每窗口模型路由（per-agent model routing）**：每个窗口的 Agent 可绑定独立的模型服务档案（面板标题菜单选择；桥 `/agent/roster` action=bind-model）——主回合流走绑定档案（生成参数继承全局），解绑回落；`GET /agent/windows` 带每窗模型名。多窗口从"多分身"进一步变成"各自用各家模型的多个 Agent"
+- **Agent 体检（doctor）**：一键自检报告——活动模型档案与端点可达性（3 秒探测）、旁路/备用档案有效性、MCP 连接数、ffmpeg、钩子语法、技能风险计数、通知授权、心跳状态；设置页 AI 区置顶"Agent 体检"分区（运行后逐行显示结论），桥 `GET /agent/doctor` 同源
 
 
 
@@ -19,16 +19,16 @@
 
 - **AI 动作复查（guard pass）**：自动编辑访问等级下，副作用工具在快捷放行前先经旁路模型对照用户规则（身份提示词 + 常驻规则 + 会话指令）做一次轻量判定——标记为可疑的动作转为审批卡（卡片顶部带复查理由），超时（8s）/失败/无法解析一律放行不卡回合；设置页 Agent Context 区新增开关（默认开）、Agent 菜单新增启停项、桥新增 `GET/POST /agent/guard` 与 `POST /agent/guard/check`（离线跑一次复查，E2E 用）；旁路用量照常记到本回合尾助手消息（kind=guard）
 - **主动通知分级（防"通知轰炸"）**：新增 `ProactiveNotificationStore` 收口——urgent（定时任务失败、下载失败）任何时刻直推，routine（页面监视变化/AI 分析、媒体导出完成汇总）过"免打扰时段（支持跨午夜，默认 23:00–08:00 可关）+ 每日预算（默认 12，可关）"闸，扣下的合并成一条摘要、免打扰结束时自动补推；设置页通用区新增"通知"分区（免打扰开关/起止/每日上限）、Tools 菜单新增免打扰启停项；桥新增 `GET/POST /notifications/policy`、`POST /notifications/test|flush`
-- **心跳巡检（Heartbeat，设计取自 OpenClaw）**：Desire 第一条"模型自决的主动性"——每 N 分钟（15/30/60/120/240 可选，默认关）一次轻量旁路调用，把用户巡检清单 + 机器自动信号（页面监视变化含 AI 分析结论、失败的定时任务）交给模型判断要不要打扰：回 `HEARTBEAT_OK`（首尾出现且余文 ≤300 字符，OpenClaw 同契约）即静默，有事则以例行通知说出（过免打扰/每日预算闸）并向会话追加备注防重复提醒；防噪音三闸照搬 OpenClaw——回合进行中推迟、免打扰时段跳过、清单与信号全空跳过；设置页 AI 区新增心跳分区（开关/间隔/上次巡检状态/清单编辑器），桥新增 `GET/POST /agent/heartbeat` 与 `POST /agent/heartbeat/fire`
-- **备用档案 failover（取自 OpenClaw 多模型容灾）**：主服务瞬态错误（限流/5xx/断连）的既有"重试一次"仍失败时，自动换用户配置的备用服务把流再试最后一次（仅限"什么都没流出来"，不会复制半截输出）；设置页 Agent Context 区新增"备用服务"选择行，桥新增 `GET/POST /ai/fallback-profile`
+- **心跳巡检（Heartbeat）**：Desire 第一条"模型自决的主动性"——每 N 分钟（15/30/60/120/240 可选，默认关）一次轻量旁路调用，把用户巡检清单 + 机器自动信号（页面监视变化含 AI 分析结论、失败的定时任务）交给模型判断要不要打扰：回 `HEARTBEAT_OK`（首尾出现且余文 ≤300 字符）即静默，有事则以例行通知说出（过免打扰/每日预算闸）并向会话追加备注防重复提醒；防噪音三闸：回合进行中推迟、免打扰时段跳过、清单与信号全空跳过；设置页 AI 区新增心跳分区（开关/间隔/上次巡检状态/清单编辑器），桥新增 `GET/POST /agent/heartbeat` 与 `POST /agent/heartbeat/fire`
+- **备用档案 failover**：主服务瞬态错误（限流/5xx/断连）的既有"重试一次"仍失败时，自动换用户配置的备用服务把流再试最后一次（仅限"什么都没流出来"，不会复制半截输出）；设置页 Agent Context 区新增"备用服务"选择行，桥新增 `GET/POST /ai/fallback-profile`
 - **子代理瞬态重试**：crew/子代理的模型流此前没有任何重试（一次抖动整次任务报废）——现在与主循环同款语义：一个事件都没收到且属瞬态错误时延迟 1.5s 重试一次
-- **生命周期钩子（hooks v1，取自 OpenClaw Hooks）**：`Application Support/Desire/hooks/` 下每个 .js 文件跑在独立 JavaScriptCore 上下文（无宿主对象注入，仅事件载荷 + console.log 落统一日志），支持 `beforeToolCall(event)` 可编程否决——返回 `{decision:"deny",reason:"…"}` 即拦下该工具，且这是**唯一在完全访问档仍生效的闸**（用户亲手写的显式规则 > 笼统等级授权；deny 规则原语义不动），理由透传进工具消息让模型知道为何被拒；`turnFinish(event)` 通知型钩子（回合收尾，返回值忽略）。设置页 AI 区新增"钩子"分区（全局开关/目录/重载/逐文件启停），桥新增 `GET/POST /agent/hooks` 与 `/agent/hooks/reload`
+- **生命周期钩子（hooks v1）**：`Application Support/Desire/hooks/` 下每个 .js 文件跑在独立 JavaScriptCore 上下文（无宿主对象注入，仅事件载荷 + console.log 落统一日志），支持 `beforeToolCall(event)` 可编程否决——返回 `{decision:"deny",reason:"…"}` 即拦下该工具，且这是**唯一在完全访问档仍生效的闸**（用户亲手写的显式规则 > 笼统等级授权；deny 规则原语义不动），理由透传进工具消息让模型知道为何被拒；`turnFinish(event)` 通知型钩子（回合收尾，返回值忽略）。设置页 AI 区新增"钩子"分区（全局开关/目录/重载/逐文件启停），桥新增 `GET/POST /agent/hooks` 与 `/agent/hooks/reload`
 - **心跳"发现即处理"**：心跳巡检标记某事后可自动派一个真实 agent 回合核实并处理（走 deliverScheduled 忙时排队），提示词里明确"不做危险/不可逆操作"——从"只提醒"补到"能动手"的闭环；设置行 + 桥 `autoHandle` 字段
 - **巨型消息请求侧封顶**（上下文卫生）：块压缩"永不丢最后一块"留下的防线缺口——一条巨型用户粘贴/超长回答原本会无防线原样进请求；现在 user/assistant 消息超 4 万字符在请求副本里保留头 2 万 + 尾 5 千、中段显式标注截断（工具消息仍走既有 8k 摘要管线）
-- **技能自沉淀闭环（saveSkill 工具，Hermes 式启发）**：模型把刚跑通的多步工作流存成 SKILL.md（name/description/instructions，同名覆盖、正文自带 frontmatter 会被剥掉重生成），落盘即 reload——未来对话经 `<skills>` 索引 + useSkill 复用；学习闭环从"被动纠错（点踩沉淀）"扩到"主动沉淀（成功工作流入库）"
-- **心跳"未完成事务收件箱"信号（Dots 式启发）**：心跳自动信号新增两类——当前会话有被打断的回合（面板已有"继续/放弃"入口）、最近 48h 内最后一条消息是用户且没有回复的会话（上限 4 条防吵）；`POST /agent/heartbeat/fire` 响应带 `signals` 清单（E2E/调试可观测）
+- **技能自沉淀闭环（saveSkill 工具）**：模型把刚跑通的多步工作流存成 SKILL.md（name/description/instructions，同名覆盖、正文自带 frontmatter 会被剥掉重生成），落盘即 reload——未来对话经 `<skills>` 索引 + useSkill 复用；学习闭环从"被动纠错（点踩沉淀）"扩到"主动沉淀（成功工作流入库）"
+- **心跳"未完成事务收件箱"信号**：心跳自动信号新增两类——当前会话有被打断的回合（面板已有"继续/放弃"入口）、最近 48h 内最后一条消息是用户且没有回复的会话（上限 4 条防吵）；`POST /agent/heartbeat/fire` 响应带 `signals` 清单（E2E/调试可观测）
 - **多窗口 Agent 联动第一批（清掉账面"未实现"的最痛部分）**：定时任务可点名目标窗口（`ScheduledTask.targetSessionID` = 调度器注册 id；桥 `POST /agent/tasks/create` 新增 `window` 参数，设置页任务行显示目标窗口、窗口关闭自动回落最新会话）——修掉"新开一个窗口的面板就把所有定时投递抢走"的行为；双窗口防互踩：面板打开时不再装载已被其他活会话占用的对话（此前两个窗口都装全局最新一条、各自整文件写回互相覆盖）；`POST /agent/directive` 支持 `window`；`GET /agent/windows` 增加 conversationTitle；清理不可达的重复 `/agent/resume` 死分支（重跑末尾提问的面板入口不受影响）
-- **多 Agent 人设名册（roster，Dots 多 dot / Grok Bot 多 Agent 群像的对应物）**：命名人设（名字 + 语气）集中管理，每个窗口的 Agent 面板从标题菜单绑定其一——绑定的窗口在 `<persona>` 层用人设自称与语气说话，未绑定/人设被删回落全局默认；系统提示词身份层保持全局（人设只换"它是谁"，不换"它知道什么"）。设置页 AI 区新增"Agent 人设名册"分区（增删改），Agent 面板标题变成人设切换菜单，桥新增 `GET/POST /agent/roster`（add/remove/bind）——多窗口从"一个 Agent 的多个分身"升级为"多个 Agent"
+- **多 Agent 人设名册（roster）**：命名人设（名字 + 语气）集中管理，每个窗口的 Agent 面板从标题菜单绑定其一——绑定的窗口在 `<persona>` 层用人设自称与语气说话，未绑定/人设被删回落全局默认；系统提示词身份层保持全局（人设只换"它是谁"，不换"它知道什么"）。设置页 AI 区新增"Agent 人设名册"分区（增删改），Agent 面板标题变成人设切换菜单，桥新增 `GET/POST /agent/roster`（add/remove/bind）——多窗口从"一个 Agent 的多个分身"升级为"多个 Agent"
 
 
 

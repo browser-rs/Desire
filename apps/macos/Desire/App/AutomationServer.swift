@@ -1984,7 +1984,7 @@ final class AutomationServer {
                     return try Self.json(["ok": true, "verdict": "unsure"])
                 }
             case ("GET", "/agent/doctor"):
-                // 自诊断（OpenClaw doctor 思想）：逐项体检，桥与设置页同源。
+                // 自诊断：逐项体检，桥与设置页同源。
                 let report = await AgentDoctor.run()
                 return try Self.json([
                     "ok": true,

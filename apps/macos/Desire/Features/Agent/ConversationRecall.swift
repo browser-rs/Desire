@@ -1,6 +1,6 @@
 import Foundation
 
-/// 按需回忆（Scroll Context 思想，取自 QwenPaw）：当前会话的完整历史**永在
+/// 按需回忆：当前会话的完整历史**永在
 /// 内存与盘上**，只是被压缩裁出了请求上下文。这个纯函数把「查询 → 命中轮次
 /// 片段」的挑选逻辑独立出来供 recallConversation 工具调用，进 tests/run.sh。
 nonisolated enum ConversationRecall {

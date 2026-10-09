@@ -1,7 +1,6 @@
 import Foundation
 
-/// 主动通知的两档分级（2026-10-09，对齐 Dots/Muse 这类常驻代理"帮助与
-/// 骚扰一线之隔"的教训）：routine（页面监视、完成汇总——可批量合并）与
+/// 主动通知的两档分级（帮助与骚扰一线之隔，分级是这条线的第一道闸）：routine（页面监视、完成汇总——可批量合并）与
 /// urgent（无人值守失败等——任何时刻都立即推）。
 enum NotificationTier: String {
     case routine

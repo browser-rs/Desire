@@ -1566,7 +1566,7 @@ extension BrowserToolProvider {
             return output
 
         case "recallConversation":
-            // 按需回忆（Scroll Context 思想）：压缩只裁请求副本，完整历史永在
+            // 按需回忆：压缩只裁请求副本，完整历史永在
             // 内存——这里把模型上下文里已经看不到的旧轮次按关键词召回。
             guard let query = args["query"] as? String, !query.isEmpty else {
                 return Self.fail("Missing query")
@@ -1587,7 +1587,7 @@ extension BrowserToolProvider {
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
         case "saveSkill":
-            // 技能自沉淀闭环（Hermes 式启发）：模型把刚跑通的多步工作流存成
+            // 技能自沉淀闭环：模型把刚跑通的多步工作流存成
             // SKILL.md，未来对话经 <skills> 索引 + useSkill 复用。同名覆盖
             // （与 importArchive 语义一致）。
             guard let name = args["name"] as? String, !name.isEmpty else {

@@ -3,7 +3,7 @@ import Foundation
 import JavaScriptCore
 import os
 
-/// Agent 生命周期钩子（hooks v1，2026-10-09，设计取自 OpenClaw Hooks）：
+/// Agent 生命周期钩子（hooks v1）：
 /// `hooks/` 目录下每个 `.js` 文件在一个独立的 JavaScriptCore 上下文里加载，
 /// agent 事件发生时调用同名全局函数：
 /// - `beforeToolCall(event)` → 返回 `{decision:"deny", reason:"…"}` 即否决该

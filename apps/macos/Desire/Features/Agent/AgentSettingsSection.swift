@@ -1666,8 +1666,7 @@ struct MCPServersSection: View {
 // MARK: - Agent Roster（多 Agent 人设名册）
 
 /// 命名人设列表：每个窗口的 Agent 面板可从标题菜单绑定其一（只覆盖
-/// <persona> 层的名字与语气；系统提示词身份层保持全局）。Dots 多 dot /
-/// Grok Bot 多 Agent 的对应物。
+/// <persona> 层的名字与语气；系统提示词身份层保持全局）。
 // MARK: - Agent Doctor（自诊断）
 
 /// 一键自检：模型端点可达/Key、旁路与备用档案、MCP、ffmpeg、钩子语法、

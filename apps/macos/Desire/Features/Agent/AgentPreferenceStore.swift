@@ -83,7 +83,7 @@ class AgentPreferenceStore: ObservableObject {
             }
         }
     }
-    /// **备用档案**（failover，2026-10-09 取自 OpenClaw 多模型容灾）：主服务的
+    /// **备用档案**（failover）：主服务的
     /// 瞬态错误重试仍失败时，自动换这个服务把流再试最后一次（仅限"什么都没
     /// 流出来"）。nil = 不做 failover。
     @Published var fallbackProfileID: UUID? {
@@ -138,7 +138,7 @@ class AgentPreferenceStore: ObservableObject {
     }
     /// **AI 动作复查**（guard pass，2026-10-09）：自动编辑档下副作用工具放行前，
     /// 先经旁路模型对照用户规则轻量判定一次；FLAG 转审批卡。超时/失败 fail-open，
-    /// 不会阻塞回合。对照 Dots/Muse 的"护栏产品级"形态（Sentinel / Auto-review）。
+    /// 不会阻塞回合。
     @Published var guardReview: Bool {
         didSet { UserDefaults.standard.set(guardReview, forKey: "aiGuardReview") }
     }

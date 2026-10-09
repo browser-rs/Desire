@@ -801,6 +801,7 @@ extension BrowserToolProvider {
                         "url": AgentJSONSchemaValue(type: "string", description: "Start URL for this worker's tab"),
                         "instruction": AgentJSONSchemaValue(type: "string", description: "Focused, self-contained instruction (the worker sees only this)"),
                     ]))),
+                    "isolated": AgentJSONSchemaValue(type: "boolean", description: "Run all worker tabs in an ephemeral container — cookies/sessions wiped when the crew settles. Use for scraping that must not touch the user's login state"),
                 ], required: ["objective", "tasks"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

@@ -435,7 +435,9 @@ extension BrowserToolProvider {
             let tasks = rawTasks.map { t -> (url: String?, instruction: String) in
                 (t["url"] as? String, t["instruction"] as? String ?? "")
             }
-            return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks, surface: surface)
+            let isolated = args["isolated"] as? Bool ?? false
+            return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks,
+                                                  surface: surface, isolated: isolated)
 
         case "crewStatus":
             return AgentCrewStore.shared.statusReport()

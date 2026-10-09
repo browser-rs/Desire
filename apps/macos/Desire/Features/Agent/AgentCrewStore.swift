@@ -84,7 +84,7 @@ final class AgentCrewStore: ObservableObject {
 
     @discardableResult
     func dispatch(objective: String, tasks: [(url: String?, instruction: String)],
-                  surface: BrowserToolSurface) -> String {
+                  surface: BrowserToolSurface, isolated: Bool = false) -> String {
         guard crew == nil || crew?.isSettled == true else {
             return "A crew is already running. Use crewStatus to poll or crewCancel first."
         }
@@ -94,13 +94,20 @@ final class AgentCrewStore: ObservableObject {
 
         let jsEnabled = surface.settings.isJavaScriptEnabled
         usage = TokenUsage()   // 新 crew 从零累计
+        // 任务级隔离：全 crew 标签共享一个临时容器，落定后擦除。
+        if isolated {
+            let container = ContainerStore.shared.addContainer(
+                name: "Agent 隔离-" + UUID().uuidString.prefix(6))
+            ephemeralContainerID = container.id
+        }
         var workers: [WorkerTask] = []
         for (i, t) in tasks.enumerated() {
             // 每个子任务一个专属后台标签（不抢选中态）。
             manager.addTab(url: t.url, javaScriptEnabled: jsEnabled,
                            contentBlocker: surface.contentBlocker,
                            videoAdBlocker: surface.videoAdBlocker,
-                           autoPlayPolicy: .never, newTabPosition: .end)
+                           autoPlayPolicy: .never, newTabPosition: .end,
+                           containerID: ephemeralContainerID)
             let tab = manager.tabs.last
             workers.append(WorkerTask(index: i, instruction: t.instruction,
                                       url: t.url, tabID: tab?.id))
@@ -224,6 +231,9 @@ final class AgentCrewStore: ObservableObject {
         settleIfDone()
     }
 
+    /// 任务级隔离容器（isolated dispatch 时创建；落定即擦除）。
+    private var ephemeralContainerID: UUID?
+
     private func settleIfDone() {
         guard var c = crew, c.isSettled else { return }
         c.finishedAt = Date()
@@ -234,6 +244,14 @@ final class AgentCrewStore: ObservableObject {
             "failed": c.failedCount,
         ])
         onCrewSettled?(c)
+        if let id = ephemeralContainerID {
+            ephemeralContainerID = nil
+            Task { @MainActor in
+                await ContainerStore.shared.purgeData(for: id)
+                ContainerStore.shared.removeContainer(id)
+                Log.agent.info("isolated crew container wiped: \(id.uuidString.prefix(8), privacy: .public)")
+            }
+        }
     }
 
     // MARK: - Status / Cancel（crew 工具 + 桥共用）

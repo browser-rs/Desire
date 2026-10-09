@@ -559,7 +559,7 @@ final class AutomationServer {
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
-        ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
+        ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array", "isolated?:bool (ephemeral container, wiped on settle)"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
         ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt:string", "minutes?:int | hour+minute", "window?:uuid (target a specific window; default = newest)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
@@ -2203,8 +2203,9 @@ final class AutomationServer {
                     return try Self.json(["error": "app/tab manager not ready"])
                 }
                 let surface = WindowToolSurface(app: app, tabManager: tm)
+                let isolated = body["isolated"] as? Bool ?? false
                 return try Self.json(["result": AgentCrewStore.shared.dispatch(
-                    objective: objective, tasks: tasks, surface: surface)])
+                    objective: objective, tasks: tasks, surface: surface, isolated: isolated)])
             case ("POST", "/agent/crew/cancel"):
                 if let idx = body["index"] as? Int {
                     return try Self.json(["ok": true, "result": AgentCrewStore.shared.cancel(taskIndex: idx)])

@@ -20,7 +20,7 @@ import os
 /// private, api.github.com 404s and this check is a silent no-op — it
 /// starts working the moment the repo goes public, no code change needed.
 @MainActor
-final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+final class UpdateChecker: NSObject, ObservableObject {
     static let shared = UpdateChecker()
 
     @Published private(set) var latestTag: String?
@@ -220,9 +220,8 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
     private var lastCheckAt: Date?
 
     func checkIfNeeded() {
-        // The notification delegate must be installed before any notification
-        // fires for its tap handling to work.
-        UNUserNotificationCenter.current().delegate = self
+        // 通知委托由 NotificationRouter 统一安装（app init 时），点击经它转发
+        // 回 handleTap。
         startCheck()
     }
 
@@ -287,19 +286,12 @@ final class UpdateChecker: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
 
-    /// Notification tap → open the release page.
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let url = response.notification.request.content.userInfo["url"] as? String,
-           response.notification.request.identifier.hasPrefix("desire.update.") {
+    /// 通知点击处理（由 NotificationRouter 转发：更新通知打开 release 页）。
+    nonisolated static func handleTap(userInfo: [AnyHashable: Any]) {
+        if let url = userInfo["url"] as? String {
             Task { @MainActor in
-                NSWorkspace.shared.open(URL(string: url) ?? Self.releasesURL)
+                NSWorkspace.shared.open(URL(string: url) ?? releasesURL)
             }
         }
-        completionHandler()
-    }
-
-    /// Show notifications as banners even while the app is frontmost.
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
     }
 }

@@ -264,6 +264,8 @@ struct ContentView: View {
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)
                         showAgentPanel = true
+        AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+                        AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
                     }
                 )
                 .overlay {
@@ -319,7 +321,10 @@ struct ContentView: View {
                 )
             }
             let ball = AgentBallPanel.shared
-            ball.onOpenAgentPanel = { showAgentPanel = true }
+            ball.onOpenAgentPanel = {
+                showAgentPanel = true
+                AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+            }
             ball.onAskAboutPage = { askAgentAboutPage() }
             // v4：翻译/自定义提示词/拖拽投递的通用发话口 + 截图槽位。
             ball.onSendPrompt = { text in
@@ -408,7 +413,10 @@ struct ContentView: View {
         // Agent 任务中途提问（askUser）时自动弹出面板 —— 提问卡片只存在于面板里，
         // 面板没开时用户根本看不见，回合会无限挂起（已开则不动，避免误关）。
         .onReceive(UserPromptCenter.shared.$pending) { pending in
-            if pending != nil, !showAgentPanel { showAgentPanel = true }
+            if pending != nil, !showAgentPanel {
+                showAgentPanel = true
+                AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
             // 多窗口联动：deliveryTarget 跟随 key window——此前只有

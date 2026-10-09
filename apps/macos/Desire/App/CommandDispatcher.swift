@@ -292,6 +292,10 @@ struct CommandDispatcher {
 
         case .toggleAgentPanel:
             bindings.showAgentPanel.wrappedValue.toggle()
+            // 显隐登记：通知深链据此判断"面板已开则只激活、不重复 toggle"。
+            AgentPanelVisibilityStore.shared.record(
+                key: TabSessionCoordinator.shared.activeTabManager?.sessionKey,
+                shown: bindings.showAgentPanel.wrappedValue)
 
         case .toggleDevTools:
             actions.toggleDevTools()

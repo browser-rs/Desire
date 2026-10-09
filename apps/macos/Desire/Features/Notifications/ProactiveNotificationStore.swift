@@ -125,7 +125,10 @@ final class ProactiveNotificationStore: ObservableObject {
         content.title = title
         content.body = body
         content.sound = .default
-        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+        // 深链标记：点击由 NotificationRouter 接住（激活应用并确保面板打开）。
+        content.userInfo = ["deepLink": "agent"]
+        center.add(UNNotificationRequest(
+            identifier: "desire.agent.\(UUID().uuidString)", content: content, trigger: nil))
     }
 
     private static func minutesNow() -> Int {

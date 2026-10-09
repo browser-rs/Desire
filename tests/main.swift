@@ -1917,6 +1917,29 @@ func testHugeMessageCap() {
 }
 testHugeMessageCap()
 
+// ---------- 0.7.6 四批：技能自沉淀（saveSkill 渲染） ----------
+
+func testSkillAuthoring() {
+    let md = SkillAuthoring.markdown(
+        name: "mux-audio-video",
+        description: "用 ffmpeg 合成双轨视频",
+        instructions: "## 步骤\n1. runCommand ffmpeg -y -i a.mkv -i b.mka out.mkv")
+    check("技能：frontmatter name", md.contains("name: mux-audio-video"))
+    check("技能：frontmatter description", md.contains("description: 用 ffmpeg 合成双轨视频"))
+    check("技能：正文保留", md.contains("runCommand ffmpeg"))
+    check("技能：frontmatter 成对", md.hasPrefix("---\n") && md.contains("\n---\n"))
+    // 多行 description 压成一行（frontmatter 解析按行认）
+    let md2 = SkillAuthoring.markdown(name: "t", description: "第一行\n第二行", instructions: "body")
+    check("技能：多行描述压平", md2.contains("description: 第一行 第二行") && !md2.contains("第二行\ndescription"))
+    // 正文自带 frontmatter 被剥掉（不嵌套）
+    let md3 = SkillAuthoring.markdown(
+        name: "t2", description: "d",
+        instructions: "---\nname: old\ndescription: old\n---\n真正文")
+    check("技能：剥正文自带 frontmatter", !md3.contains("name: old") && md3.contains("真正文"))
+    check("技能：剥后仍成对", md3.hasPrefix("---\n") && md3.components(separatedBy: "---").count >= 3)
+}
+testSkillAuthoring()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

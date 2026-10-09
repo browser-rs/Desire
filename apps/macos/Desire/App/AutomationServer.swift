@@ -2015,6 +2015,7 @@ final class AutomationServer {
                     "decision": result.decision,
                     "message": result.message,
                     "notified": result.notified,
+                    "signals": result.signals,
                 ])
             case ("GET", "/agent/hooks"):
                 let hooks = AgentHooksStore.shared

@@ -185,6 +185,14 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "saveSkill", description: "Persist a reusable workflow as a skill so future conversations can load it with useSkill. Use after completing a multi-step task worth repeating — capture the steps, exact commands and gotchas while they are fresh. Same name overwrites.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Short kebab-case skill name, e.g. mux-audio-video"),
+                    "description": AgentJSONSchemaValue(type: "string", description: "One line: what it does and when to use it (shown in every future conversation's skills index)"),
+                    "instructions": AgentJSONSchemaValue(type: "string", description: "Full markdown instructions: prerequisites, numbered steps, exact commands, gotchas"),
+                ], required: ["name", "description", "instructions"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                                 name: "downloadFile", description: "Download a file from a URL into the Downloads folder (store-owned transfer: pause/resume in the downloads panel). Use for reports, CSV exports, media files — anything with a direct URL. Returns immediately; check listDownloads for progress.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Direct download URL"),

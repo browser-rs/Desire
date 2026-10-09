@@ -84,29 +84,30 @@ final class HeartbeatStore: ObservableObject {
 
     /// 手动/E2E 立即心跳：绕过间隔与免打扰（绕不过清单+信号全空的省调用闸）。
     @discardableResult
-    func beatNow() async -> (decision: String, message: String, notified: Bool) {
+    func beatNow() async -> (decision: String, message: String, notified: Bool, signals: [String]) {
         await runBeat(force: true)
     }
 
     // MARK: - 执行
 
-    private func runBeat(force: Bool) async -> (decision: String, message: String, notified: Bool) {
-        guard !isBeating else { return ("skipped", "", false) }
+    private func runBeat(force: Bool) async -> (decision: String, message: String, notified: Bool, signals: [String]) {
+        guard !isBeating else { return ("skipped", "", false, []) }
         isBeating = true
         defer { isBeating = false }
 
         let signals = gatherSignals()
+        let signalTitles = signals.map(\.title)
         let list = checklist.trimmingCharacters(in: .whitespacesAndNewlines)
         // 空跳过（OpenClaw 的 empty-heartbeat-file 语义）：没有清单也没有信号
         // 时这一拍无事可判，省一次 API 调用。
         guard force || !list.isEmpty || !signals.isEmpty else {
             recordBeat(result: "（无清单无信号，跳过）")
-            return ("skipped", "", false)
+            return ("skipped", "", false, signalTitles)
         }
 
         guard let preference = AppState.live?.aiPreference else {
             recordBeat(result: "（偏好不可用）")
-            return ("skipped", "", false)
+            return ("skipped", "", false, signalTitles)
         }
         let prefs = preference.bypassPreferences() ?? preference
         let prompt = HeartbeatDecision.userPrompt(checklist: list, signals: signals)
@@ -151,12 +152,13 @@ final class HeartbeatStore: ObservableObject {
                 target.deliverScheduled(prompt, from: "Heartbeat")
             }
         }
-        return (decision, message, notified)
+        return (decision, message, notified, signalTitles)
     }
 }
 
 extension HeartbeatStore {
-    /// 距上次心跳以来的自动信号：页面监视变化（带 AI 分析结论）+ 失败的定时任务。
+    /// 距上次心跳以来的自动信号：页面监视变化（带 AI 分析结论）、失败的定时
+    /// 任务、被打断的回合、最近没人回复的会话（Dots 式"未完成事务收件箱"）。
     fileprivate func gatherSignals() -> [HeartbeatDecision.Signal] {
         var signals: [HeartbeatDecision.Signal] = []
         let since = lastBeatAt ?? Date().addingTimeInterval(-TimeInterval(intervalMinutes * 60))
@@ -174,6 +176,28 @@ extension HeartbeatStore {
             signals.append(HeartbeatDecision.Signal(
                 title: "定时任务「\(run.taskName)」失败",
                 detail: String((run.error ?? "unknown error").prefix(160))))
+        }
+        // 未完成事务收件箱：被打断的回合（面板有"继续/放弃"入口）。
+        if let session = AgentScheduler.shared.deliveryTarget, session.hasInterruptedTurn {
+            signals.append(HeartbeatDecision.Signal(
+                title: "当前会话有被打断的回合",
+                detail: "上一回合没有正常收尾，可在面板里继续或放弃"))
+        }
+        // 最近 48h 内、最后一条消息是用户且没有回复的会话（上限 4 条防吵）。
+        // 活会话的"回合进行中"不算——那不是遗留，是正在发生。
+        let store = AppState.live?.conversationStore ?? ConversationStore()
+        var pendingConversations = 0
+        for conv in store.conversations where pendingConversations < 4 {
+            guard let last = conv.messages.last, last.role == .user,
+                  !(conv.turnActive ?? false),
+                  Date().timeIntervalSince(conv.updatedAt) < 48 * 3600 else { continue }
+            let excerpt = (last.content ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+            signals.append(HeartbeatDecision.Signal(
+                title: "会话「\(conv.title)」有待回复的消息",
+                detail: String(excerpt.prefix(120))))
+            pendingConversations += 1
         }
         return signals
     }

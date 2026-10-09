@@ -13,6 +13,9 @@
 - **生命周期钩子（hooks v1，取自 OpenClaw Hooks）**：`Application Support/Desire/hooks/` 下每个 .js 文件跑在独立 JavaScriptCore 上下文（无宿主对象注入，仅事件载荷 + console.log 落统一日志），支持 `beforeToolCall(event)` 可编程否决——返回 `{decision:"deny",reason:"…"}` 即拦下该工具，且这是**唯一在完全访问档仍生效的闸**（用户亲手写的显式规则 > 笼统等级授权；deny 规则原语义不动），理由透传进工具消息让模型知道为何被拒；`turnFinish(event)` 通知型钩子（回合收尾，返回值忽略）。设置页 AI 区新增"钩子"分区（全局开关/目录/重载/逐文件启停），桥新增 `GET/POST /agent/hooks` 与 `/agent/hooks/reload`
 - **心跳"发现即处理"**：心跳巡检标记某事后可自动派一个真实 agent 回合核实并处理（走 deliverScheduled 忙时排队），提示词里明确"不做危险/不可逆操作"——从"只提醒"补到"能动手"的闭环；设置行 + 桥 `autoHandle` 字段
 - **巨型消息请求侧封顶**（上下文卫生）：块压缩"永不丢最后一块"留下的防线缺口——一条巨型用户粘贴/超长回答原本会无防线原样进请求；现在 user/assistant 消息超 4 万字符在请求副本里保留头 2 万 + 尾 5 千、中段显式标注截断（工具消息仍走既有 8k 摘要管线）
+- **技能自沉淀闭环（saveSkill 工具，Hermes 式启发）**：模型把刚跑通的多步工作流存成 SKILL.md（name/description/instructions，同名覆盖、正文自带 frontmatter 会被剥掉重生成），落盘即 reload——未来对话经 `<skills>` 索引 + useSkill 复用；学习闭环从"被动纠错（点踩沉淀）"扩到"主动沉淀（成功工作流入库）"
+- **心跳"未完成事务收件箱"信号（Dots 式启发）**：心跳自动信号新增两类——当前会话有被打断的回合（面板已有"继续/放弃"入口）、最近 48h 内最后一条消息是用户且没有回复的会话（上限 4 条防吵）；`POST /agent/heartbeat/fire` 响应带 `signals` 清单（E2E/调试可观测）
+
 
 
 

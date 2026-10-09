@@ -1565,6 +1565,34 @@ extension BrowserToolProvider {
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
+        case "saveSkill":
+            // 技能自沉淀闭环（Hermes 式启发）：模型把刚跑通的多步工作流存成
+            // SKILL.md，未来对话经 <skills> 索引 + useSkill 复用。同名覆盖
+            // （与 importArchive 语义一致）。
+            guard let name = args["name"] as? String, !name.isEmpty else {
+                return Self.fail("Missing name")
+            }
+            guard let description = args["description"] as? String, !description.isEmpty else {
+                return Self.fail("Missing description")
+            }
+            guard let instructions = args["instructions"] as? String,
+                  !instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing instructions")
+            }
+            let fileName = FilePathing.sanitizeFileName(name) + ".md"
+            let url = SkillStore.directory.appendingPathComponent(fileName)
+            let existed = FileManager.default.fileExists(atPath: url.path)
+            let markdown = SkillAuthoring.markdown(name: name, description: description,
+                                                   instructions: instructions)
+            do {
+                try markdown.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                return Self.fail("write failed: \(error.localizedDescription)")
+            }
+            SkillStore.shared.reload()
+            return "Skill \(existed ? "updated" : "saved"): \(name) (\(markdown.count) chars) — " +
+                "it now appears in the skills index of every future conversation."
+
         case "downloadFile":
             // Store-owned download: lands in the downloads panel with
             // pause/resume; fires downloadStarted/Completed bridge events.

@@ -190,6 +190,20 @@ final class AgentScheduler: ObservableObject {
         save()
     }
 
+    /// 设置任务的投递目标窗口（多窗口联动 v1 的设置页入口）。nil = 跟随最新。
+    func setTarget(_ sessionID: UUID?, for id: UUID) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].targetSessionID = sessionID
+        save()
+    }
+
+    /// 任务行的目标窗口显示名（设置页）。
+    func targetLabel(for taskID: UUID) -> String? {
+        guard let task = tasks.first(where: { $0.id == taskID }) else { return nil }
+        guard let targetID = task.targetSessionID else { return nil }
+        return liveSessions().first(where: { $0.id == targetID })?.displayLabel
+    }
+
     var activeCount: Int { tasks.filter(\.isEnabled).count }
 
     /// Delivers a task's prompt immediately, ignoring the recurrence clock.

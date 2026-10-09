@@ -36183,6 +36183,28 @@
         }
       }
     },
+    "Newest Window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Newest Window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新視窗"
+          }
+        }
+      }
+    },
     "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
       "localizations" : {
         "en" : {
@@ -36311,6 +36333,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "beforeToolCall / turnFinish"
+          }
+        }
+      }
+    },
+    "Closed Window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed Window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口已关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視窗已關閉"
+          }
+        }
+      }
+    },
+    "Window closed (falls back to the newest session)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window closed (falls back to the newest session)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口已关闭（回落最新会话）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視窗已關閉（回落最新會話）"
+          }
+        }
+      }
+    },
+    "Target: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標：%@"
+          }
+        }
+      }
+    },
+    "Which window's agent receives this task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which window's agent receives this task"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个任务投递给哪个窗口的 Agent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個任務投遞給哪個視窗的 Agent"
           }
         }
       }

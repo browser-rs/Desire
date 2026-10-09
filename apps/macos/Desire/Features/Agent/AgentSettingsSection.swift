@@ -1672,50 +1672,99 @@ struct ScheduledTasksSection: View {
                         .padding(.vertical, 4)
                 }
                 ForEach(store.tasks) { task in
-                    HStack(spacing: 10) {
-                        Toggle("", isOn: Binding(
-                            get: { task.isEnabled },
-                            set: { store.setEnabled($0, for: task.id) }
-                        ))
-                        .labelsHidden()
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(task.name)
-                                .font(.system(size: 12, weight: .medium))
-                            Text(task.recurrenceText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            taskTargetLine(task)
-                            if let result = task.lastResult {
-                                Text(result)
-                                    .font(.caption2)
-                                    .foregroundStyle(result == "delivered" ? .green : .orange)
-                            }
-                        }
-                        Spacer()
-                        Button {
-                            store.remove(task.id)
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete task")
-                    }
-                    .padding(.vertical, 4)
+                    ScheduledTaskRow(task: task)
                     SettingsRowDivider()
                 }
             }
         }
     }
+}
 
-    /// 定向任务的窗口标签（多窗口联动 v1）：显示目标窗口名；窗口已关则说明
-    /// 会回落到最新会话。nil = 跟随最新（历史行为），不显示。
+/// 单条定时任务行：开关 + 名称/周期/目标 + 目标窗口选择器 + 删除。
+/// 目标选择器是多窗口联动 v1 的设置页入口（桥 tasks/create 的 window 参数
+/// 与它写同一个字段）。
+private struct ScheduledTaskRow: View {
+    @ObservedObject private var store = AgentScheduler.shared
+    let task: AgentScheduler.ScheduledTask
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: Binding(
+                get: { task.isEnabled },
+                set: { store.setEnabled($0, for: task.id) }
+            ))
+            .labelsHidden()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(task.name)
+                    .font(.system(size: 12, weight: .medium))
+                Text(task.recurrenceText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                targetLine
+                if let result = task.lastResult {
+                    Text(result)
+                        .font(.caption2)
+                        .foregroundStyle(result == "delivered" ? .green : .orange)
+                }
+            }
+            Spacer()
+            targetMenu
+            Button {
+                store.remove(task.id)
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .help("Delete task")
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// 目标选择器：胶囊 chip 显示当前目标（无目标 = "最新窗口"），点开列
+    /// 全部活会话 + "跟随最新窗口"。
+    private var targetMenu: some View {
+        Menu {
+            Button(String(localized: "Newest Window")) {
+                store.setTarget(nil, for: task.id)
+            }
+            .disabled(task.targetSessionID == nil)
+            Divider()
+            ForEach(AgentScheduler.shared.liveSessions()) { entry in
+                Button(entry.displayLabel) {
+                    store.setTarget(entry.id, for: task.id)
+                }
+                .disabled(task.targetSessionID == entry.id)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "rectangle.landscape.rotate")
+                    .font(.system(size: 9, weight: .medium))
+                Text(targetChipLabel)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.secondary.opacity(0.10)))
+            .foregroundStyle(.primary)
+        }
+        .menuIndicator(.visible)
+        .fixedSize()
+        .help(String(localized: "Which window's agent receives this task"))
+    }
+
+    private var targetChipLabel: String {
+        if task.targetSessionID != nil {
+            return store.targetLabel(for: task.id) ?? String(localized: "Closed Window")
+        }
+        return String(localized: "Newest Window")
+    }
+
     @ViewBuilder
-    private func taskTargetLine(_ task: AgentScheduler.ScheduledTask) -> some View {
-        if let targetID = task.targetSessionID {
-            let label = AgentScheduler.shared.liveSessions()
-                .first(where: { $0.id == targetID })?.displayLabel
-            Text("目标：\(label ?? "窗口已关闭（回落最新会话）")")
+    private var targetLine: some View {
+        if task.targetSessionID != nil {
+            let label = store.targetLabel(for: task.id) ?? String(localized: "Window closed (falls back to the newest session)")
+            Text(String(localized: "Target: \(label)"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

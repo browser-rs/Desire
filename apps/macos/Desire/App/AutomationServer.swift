@@ -535,6 +535,7 @@ final class AutomationServer {
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("GET", "/agent/doctor", "Agent self-check report (model endpoint reachability, keys, MCP, ffmpeg, hooks, skills, notifications, heartbeat)", example: "…/agent/doctor")
+        ep("GET", "/containers", "Tab containers (includes ephemeral agent-isolation containers while in use)", example: "…/containers")
         ep("GET", "/agent/modes", "Agent modes (standard/research/writing) + per-window bindings", example: "…/agent/modes")
         ep("GET", "/agent/roster", "Agent persona roster (personas + per-window bindings)", example: "…/agent/roster")
         ep("POST", "/agent/roster", "Manage the persona roster: action=add (name, tone) | remove (id) | bind (window, persona? — omit to unbind) | bind-model (window, profile? — omit to follow global)", params: ["action:add|remove|bind|bind-model", "name?:string", "tone?:string", "id?:uuid", "window?:uuid", "persona?:uuid", "profile?:uuid"], example: #"-d '{"action":"bind","window":"…","persona":"…"}'"#)
@@ -1994,6 +1995,14 @@ final class AutomationServer {
                     "total": report.checks.count,
                     "checks": report.checks.map { [
                         "name": $0.name, "ok": $0.ok, "detail": $0.detail,
+                    ] },
+                ])
+            case ("GET", "/containers"):
+                // 容器列表（E2E/远程可观测；含子代理临时容器）。
+                return try Self.json([
+                    "ok": true,
+                    "containers": ContainerStore.shared.containers.map { [
+                        "id": $0.id.uuidString, "name": $0.name,
                     ] },
                 ])
             case ("GET", "/agent/modes"):

@@ -1804,6 +1804,10 @@ class AgentSessionStore: ObservableObject {
             return "Missing task"
         }
 
+        // 任务级隔离（一次性容器）：isolated = true 时子代理标签跑在临时容器里，
+        // 完成后擦除该容器的全部 Cookie/会话数据——脏活不污染用户登录态。
+        let isolated = args["isolated"] as? Bool ?? false
+
         // Fan-out: "tasks": [{task, maxSteps}, …] — one tab + one loop each.
         if let rawJobs = args["tasks"] as? [[String: Any]], rawJobs.count > 1 {
             let jobs = rawJobs.prefix(3).compactMap { item -> (task: String, maxSteps: Int)? in
@@ -1812,7 +1816,7 @@ class AgentSessionStore: ObservableObject {
                 return (t, max(3, min(item["maxSteps"] as? Int ?? 10, 12)))
             }
             guard !jobs.isEmpty else { return "No valid tasks in the tasks array" }
-            return await runParallelSubagents(jobs: Array(jobs))
+            return await runParallelSubagents(jobs: Array(jobs), isolated: isolated)
         }
 
         guard let task = (args["task"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1820,6 +1824,11 @@ class AgentSessionStore: ObservableObject {
             return "Missing task"
         }
         let maxSteps = max(3, min(args["maxSteps"] as? Int ?? 10, 15))
+        // 隔离的单任务也走专属标签路径（临时容器随完成擦除）；
+        // 非隔离保持原语义：在当前标签页的上下文里干活。
+        if isolated {
+            return await runParallelSubagents(jobs: [(task: task, maxSteps: maxSteps)], isolated: true)
+        }
         let progress = SubagentProgress(label: Self.progressLabel(task), maxSteps: maxSteps)
         runningSubagents.append(progress)
         defer { runningSubagents.removeAll { $0.id == progress.id } }
@@ -1831,9 +1840,28 @@ class AgentSessionStore: ObservableObject {
     /// Parallel dispatch: a dedicated tab per job, reports joined in
     /// dispatch order. Each child acts in its OWN tab's webview so they
     /// never click each other's pages; tabs stay open for inspection.
-    private func runParallelSubagents(jobs: [(task: String, maxSteps: Int)]) async -> String {
+    private func runParallelSubagents(jobs: [(task: String, maxSteps: Int)],
+                                      isolated: Bool = false) async -> String {
         guard let tabManager = toolProvider.surface?.tabManager else {
             return "Tab manager unavailable — cannot open per-subagent tabs"
+        }
+        // 一次性容器（任务级隔离）：本批标签共享一个临时容器；子代理全部结束后
+        // 擦除其 Cookie/会话数据并从容器列表移除。标签页保留（已渲染内容可查看），
+        // 其后的导航回落默认会话。
+        var ephemeralContainerID: UUID?
+        if isolated {
+            let container = ContainerStore.shared.addContainer(
+                name: "Agent 隔离-" + UUID().uuidString.prefix(6))
+            ephemeralContainerID = container.id
+        }
+        defer {
+            if let id = ephemeralContainerID {
+                Task { @MainActor in
+                    await ContainerStore.shared.purgeData(for: id)
+                    ContainerStore.shared.removeContainer(id)
+                    Log.agent.info("isolated subagent container wiped: \(id.uuidString.prefix(8), privacy: .public)")
+                }
+            }
         }
         var webviews: [WKWebView?] = []
         var progressIDs: [UUID] = []
@@ -1842,7 +1870,8 @@ class AgentSessionStore: ObservableObject {
                 url: nil,
                 javaScriptEnabled: toolProvider.surface?.settings.isJavaScriptEnabled ?? true,
                 contentBlocker: toolProvider.surface?.contentBlocker,
-                videoAdBlocker: toolProvider.surface?.videoAdBlocker
+                videoAdBlocker: toolProvider.surface?.videoAdBlocker,
+                containerID: ephemeralContainerID
             )
             if let tab = tabManager.tabs.last {
                 // Background tab: keep its webview live and navigable.

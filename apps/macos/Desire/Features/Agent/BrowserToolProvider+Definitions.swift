@@ -225,7 +225,7 @@ extension BrowserToolProvider {
                 ], required: ["name"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "spawnSubagent", description: "Delegate SELF-CONTAINED sub-task(s) to fresh sub-agents with their own context windows (same tools, same approvals). Only the final report(s) return to you — use for deep research, multi-page extraction, or long verification work that would flood this conversation with tool output. Single task: pass task. PARALLEL fan-out: pass tasks (array of {task, maxSteps}, up to 3) — each runs in its own browser tab simultaneously (e.g. compare 3 sites at once). Each prompt must be complete (goal, pages, what to report). Subagents cannot ask the user questions or spawn subagents.",
+                name: "spawnSubagent", description: "Delegate SELF-CONTAINED sub-task(s) to fresh sub-agents with their own context windows (same tools, same approvals). Only the final report(s) return to you — use for deep research, multi-page extraction, or long verification work that would flood this conversation with tool output. Single task: pass task. PARALLEL fan-out: pass tasks (array of {task, maxSteps}, up to 3) — each runs in its own browser tab simultaneously (e.g. compare 3 sites at once). Each prompt must be complete (goal, pages, what to report). Subagents cannot ask the user questions or spawn subagents. Set isolated=true to run in an ephemeral container — cookies and sessions are wiped when the task finishes; use for dirty scraping or work that must not touch the user's logged-in sessions.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "task": AgentJSONSchemaValue(type: "string", description: "Single-task mode: complete sub-task instructions"),
                     "tasks": AgentJSONSchemaValue(type: "array", description: "Parallel mode: [{\"task\": ..., \"maxSteps\": 10}] — up to 3 run concurrently, each in its own tab", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
@@ -233,6 +233,7 @@ extension BrowserToolProvider {
                         "maxSteps": AgentJSONSchemaValue(type: "number", description: "Max steps for this subagent (default 10, cap 12)"),
                     ]))),
                     "maxSteps": AgentJSONSchemaValue(type: "number", description: "Single-task mode: max tool-loop steps (default 10, cap 15)"),
+                    "isolated": AgentJSONSchemaValue(type: "boolean", description: "Run in an ephemeral container: cookies/sessions wiped when the task finishes. Use for scraping that would pollute login state or parallel-account work"),
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

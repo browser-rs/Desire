@@ -65,6 +65,7 @@ final class MediaExportStore: ObservableObject {
         baseDirectory: String? = nil,
         maxBandwidth: Int? = nil,
         notify: Bool = true,
+        resumeKey: String? = nil,
         completion: ((JobOutcome) -> Void)? = nil,
         progressHandler: ((Int, Int, MediaExporter.ProgressUnit) -> Void)? = nil
     ) -> UUID {
@@ -85,7 +86,8 @@ final class MediaExportStore: ObservableObject {
                     fileNameHint: hint,
                     maxBandwidth: maxBandwidth,
                     folderName: folderName,
-                    baseDirectory: baseDirectory
+                    baseDirectory: baseDirectory,
+                    resumeKey: resumeKey
                 ) { [weak self] done, total, unit in
                     self?.progressHandlers[id]?(done, total, unit)
                 }

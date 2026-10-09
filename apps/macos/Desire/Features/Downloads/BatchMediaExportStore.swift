@@ -956,6 +956,7 @@ final class BatchMediaExportStore: ObservableObject {
                 folderName: folderName,
                 baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory,
                 notify: false,
+                resumeKey: itemID.uuidString,
                 completion: { [weak self] outcome in
                     self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
                 },

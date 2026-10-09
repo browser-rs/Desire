@@ -130,8 +130,12 @@ enum MediaExporter {
         maxBandwidth: Int? = nil,
         folderName: String? = nil,
         baseDirectory: String? = nil,
+        resumeKey: String? = nil,
         progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
+        // 断点续传键（批量任务传条目 id）：非 nil 时 .part 用确定性命名
+        // `<key>-<final>.part`，重试/重启后按同路径续传（HTTP Range/206），
+        // 不再随机 UUID 每次新建文件孤儿化半截数据。
         let started = Date()
         // 总时长上限可配置（默认 30 分钟，0 = 不限）——长视频/慢网络不再被
         // 写死的 30 分钟切掉（用户实测两个任务跑满 30 分钟失败）。
@@ -167,7 +171,8 @@ enum MediaExporter {
                 let fileURL = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
                 let result = try await streamDownloadToPart(
                     url: url, referer: referer, userAgent: userAgent,
-                    finalURL: fileURL, mimeMP4: mimeHint?.contains("mp4") == true)
+                    finalURL: fileURL, mimeMP4: mimeHint?.contains("mp4") == true,
+                    resumeKey: resumeKey)
                 progress(1, 1, .segments)
                 streamedLargeFile = true
                 let probe = FFmpegExporter.probe(fileURL: fileURL)
@@ -209,7 +214,7 @@ enum MediaExporter {
            ) {
             do {
                 let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
-                let outcome = try await Self.writePartAndFinalizeAsync(destination) { part in
+                let outcome = try await Self.writePartAndFinalizeAsync(destination, resumeKey: resumeKey) { part in
                     try await FFmpegExporter.export(
                         executable: ffmpeg,
                         playlist: plan.url,
@@ -732,9 +737,12 @@ enum MediaExporter {
         }
     }
 
-    private static func writePartAndFinalizeAsync(_ finalURL: URL, _ body: (URL) async throws -> FFmpegExporter.Outcome) async throws -> FFmpegExporter.Outcome {
-        let part = finalURL.deletingLastPathComponent()
-            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
+    private static func writePartAndFinalizeAsync(_ finalURL: URL, resumeKey: String? = nil, _ body: (URL) async throws -> FFmpegExporter.Outcome) async throws -> FFmpegExporter.Outcome {
+        // ffmpeg 对既有输出会截断重截（无字节级续传）；稳定命名的价值在于
+        // 硬杀残骸下次原地覆盖——不再每次随机名产生新文件孤儿。
+        let part = partURL(for: finalURL, key: resumeKey)
+        try? FileManager.default.createDirectory(
+            at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         do {
             let outcome = try await body(part)
             try finalizePart(part, final: finalURL)
@@ -743,6 +751,18 @@ enum MediaExporter {
             try? FileManager.default.removeItem(at: part)
             throw error
         }
+    }
+
+    /// 断点续传的确定性 .part 路径：`<key>-<final>.part`（key = 批量条目 id）。
+    /// 同 key 重试/重启后同路径——半截文件原地续传，不再孤儿化。
+    static func partURL(for finalURL: URL, key: String?) -> URL {
+        let name = finalURL.lastPathComponent + ".part"
+        guard let key, !key.isEmpty else {
+            return finalURL.deletingLastPathComponent()
+                .appendingPathComponent(UUID().uuidString + "-" + name)
+        }
+        return finalURL.deletingLastPathComponent()
+            .appendingPathComponent("\(key)-\(name)")
     }
 
     private static func finalizePart(_ part: URL, final: URL) throws {
@@ -809,21 +829,62 @@ enum MediaExporter {
     /// 成功后 finalize 改名。返回落盘字节数。
     private static func streamDownloadToPart(
         url: URL, referer: URL?, userAgent: String?,
-        finalURL: URL, mimeMP4: Bool
+        finalURL: URL, mimeMP4: Bool, resumeKey: String? = nil
     ) async throws -> Int64 {
-        var request = URLRequest(url: url)
-        if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
-        if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
-        let (location, _) = try await session.download(for: request)
-        // URLSession 已内部流式落盘（临时文件）；move 到 UUID .part 再走统一
-        // finalize（同盘 rename 通常零拷贝）。
-        let part = finalURL.deletingLastPathComponent()
-            .appendingPathComponent(UUID().uuidString + "-" + finalURL.lastPathComponent + ".part")
-        try? FileManager.default.removeItem(at: part)
-        try FileManager.default.moveItem(at: location, to: part)
+        let part = partURL(for: finalURL, key: resumeKey)
+        let fm = FileManager.default
+        // 恢复批次的目录从不曾创建（新批次建目录的时机在批次启动，恢复流程
+        // 跳过）——不建目录，.part 落盘的 move 直接失败，条目 failed 整批报废。
+        try? fm.createDirectory(at: finalURL.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        let existing = ((try? fm.attributesOfItem(atPath: part.path))?[.size] as? NSNumber)?.int64Value ?? 0
+
+        func makeRequest(rangeFrom: Int64?) -> URLRequest {
+            var request = URLRequest(url: url)
+            if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
+            if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+            if let rangeFrom {
+                // 字节续传必须走 bytes 流式 API——download(for:) 会把 Range
+                // 改写成 1 字节探测再全量重拉，断点续传永远不生效（实测）。
+                request.setValue("bytes=\(rangeFrom)-", forHTTPHeaderField: "Range")
+            }
+            return request
+        }
+
+        // 流式接收：数据随到随追加进 .part——硬杀/断网后磁盘上就是断点本身。
+        // （download(for:) 整段落临时文件、完成后才搬——中断即全丢。）
+        let (bytes, response) = try await session.bytes(for: makeRequest(rangeFrom: existing > 0 ? existing : nil))
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+        let appendMode = status == 206 && existing > 0
+        if !appendMode {
+            try? fm.removeItem(at: part)   // 200/416：Range 未兑现，原地重下
+        }
+        if !fm.fileExists(atPath: part.path) {
+            fm.createFile(atPath: part.path, contents: nil)
+        }
+        let handle = try FileHandle(forWritingTo: part)
+        if appendMode { try handle.seekToEnd() }
+        defer { try? handle.close() }
+
+        var received: Int64 = appendMode ? existing : 0
+        var buffer = Data()
+        buffer.reserveCapacity(1 << 20)
+        for try await byte in bytes {
+            buffer.append(byte)
+            if buffer.count >= 1 << 20 {
+                try handle.write(contentsOf: buffer)
+                received += Int64(buffer.count)
+                buffer.removeAll(keepingCapacity: true)
+            }
+        }
+        if !buffer.isEmpty {
+            try handle.write(contentsOf: buffer)
+            received += Int64(buffer.count)
+        }
+        try? handle.close()
         try finalizePart(part, final: finalURL)
-        let attrs = try? FileManager.default.attributesOfItem(atPath: finalURL.path)
-        return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+        Log.downloads.info("direct download finalized (resumed=\(appendMode, privacy: .public), bytes=\(received, privacy: .public))")
+        return received
     }
 
     // MARK: - Cookie 透传

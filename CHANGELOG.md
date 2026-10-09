@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.6] - 2026-10-09
 ### Fixed
 
 - **旁路/评审轻量实例打穿全局档案库（P0，2026-10-09 实测踩中）**：`bypassPreferences()` 构造轻量实例后 `profiles = [单条]` 的赋值触发 didSet **整组落盘**——只要配置过旁路档案，每次回合收尾的标题生成都会用一条档案覆盖整个 `aiProfiles`；`criticPreferences`/旁路的 `activateProfile` 还会把全局 `aiActiveProfileID` 改写成旁路档案 id。现在三类轻量实例统一挂 `isDetachedView`：profiles 不落盘、active 指针不写全局（内存视图语义不变）。E2E 全程档案数核对通过

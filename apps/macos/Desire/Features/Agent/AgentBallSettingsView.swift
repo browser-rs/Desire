@@ -17,14 +17,13 @@ struct AgentBallSettingsView: View {
     @State private var positionResetFlash = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                appearanceSection
-                hubActionsSection
-                hubStyleSection
-                interactionSection
-            }
-            .padding(20)
+        // SettingsContainer：720pt 限宽居中 + 统一边距/顶对齐（与其他设置
+        // 子页一致——此前自拟 ScrollView+padding，间距风格与全页脱节）。
+        SettingsContainer {
+            appearanceSection
+            hubActionsSection
+            hubStyleSection
+            interactionSection
         }
     }
 

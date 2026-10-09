@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// 设置 →「页面监视」：PageWatch 管理 UI（v0.7.5）。
-/// 列表（开关/立即检查/删除/最近分析）+ 添加表单 + AI 分析开关。
-/// PageWatchStore 自带 20s 时钟与通知，这里只做配置与展示。
+/// 每个 watch 一组规范行（主行 / AI 分析 / 最近分析），添加走 SettingsFieldRow
+/// 表单——与全设置页风格一致（此前自绘行被批"与其他设置页面风格不搭"）。
 struct PageWatchSettingsSection: View {
     @ObservedObject private var store = PageWatchStore.shared
     @Environment(\.appAccent) private var appAccent: Color
@@ -13,9 +13,16 @@ struct PageWatchSettingsSection: View {
     @State private var newAI = false
     @State private var addError: String?
     @State private var checkingName: String?
-    @State private var expandedName: String?
 
     var body: some View {
+        // SettingsContainer：720pt 限宽居中 + 内边距（其他设置子页同款——
+        // 此前缺失导致卡片全宽贴边，与全页风格不符）。
+        SettingsContainer {
+            section
+        }
+    }
+
+    private var section: some View {
         SettingsSection(
             title: String(localized: "Page Watch"),
             subtitle: String(localized: "Watch a page (or a CSS selector on it) for changes on a schedule. With AI analysis, each change is summarized by the agent — the result arrives as a notification and is kept under the watch."),
@@ -23,18 +30,15 @@ struct PageWatchSettingsSection: View {
         ) {
             VStack(spacing: 0) {
                 if store.watches.isEmpty {
-                    HStack {
-                        Text(String(localized: "No watches yet — add one below."))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    Text(String(localized: "No watches yet — add one below."))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                 } else {
                     ForEach(store.watches, id: \.id) { watch in
-                        watchRow(watch)
-                        SettingsRowDivider()
+                        watchRows(watch)
                     }
                 }
                 addForm
@@ -42,40 +46,25 @@ struct PageWatchSettingsSection: View {
         }
     }
 
-    // MARK: - 行
+    // MARK: - 单个 watch（规范行组）
 
     @ViewBuilder
-    private func watchRow(_ watch: PageWatch) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(watch.name)
-                        .font(.system(size: 13, weight: .medium))
-                    Text(watch.url)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer(minLength: 8)
-                if watch.wantsAIAnalysis {
-                    Text(String(localized: "AI"))
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(appAccent)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Capsule().fill(appAccent.opacity(0.14)))
-                }
-                Button(String(localized: "Check Now")) {
-                    checkingName = watch.name
-                    Task {
-                        _ = await store.check(named: watch.name)
-                        checkingName = nil
+    private func watchRows(_ watch: PageWatch) -> some View {
+        SettingsRow(watch.name, subtitle: watch.url) {
+            HStack(spacing: 8) {
+                if checkingName == watch.name {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button(String(localized: "Check Now")) {
+                        checkingName = watch.name
+                        Task {
+                            _ = await store.check(named: watch.name)
+                            checkingName = nil
+                        }
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(checkingName == watch.name)
                 Toggle("", isOn: Binding(
                     get: { watch.isEnabled },
                     set: { store.setEnabled($0, for: watch.name) }
@@ -93,72 +82,70 @@ struct PageWatchSettingsSection: View {
                 .buttonStyle(.plain)
                 .help(String(localized: "Delete watch"))
             }
-            HStack(spacing: 10) {
-                Text(String(localized: "Every \(watch.intervalMinutes) min"))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-                if watch.changeCount > 0 {
-                    Text(String(localized: "\(watch.changeCount) changes"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                }
-                if let err = watch.lastError, !err.isEmpty {
-                    Text(err)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Toggle(String(localized: "AI Analysis"), isOn: Binding(
-                    get: { watch.wantsAIAnalysis },
-                    set: { store.setAIAnalysis($0, for: watch.name) }
-                ))
-                .toggleStyle(.checkbox)
-                .font(.system(size: 11))
-            }
-            if let analysis = watch.lastAnalysis, !analysis.isEmpty {
+        }
+        SettingsRowDivider(leading: 14)
+        SettingsRow(
+            String(localized: "AI Analysis"),
+            subtitle: watchMetaText(watch)
+        ) {
+            Toggle("", isOn: Binding(
+                get: { watch.wantsAIAnalysis },
+                set: { store.setAIAnalysis($0, for: watch.name) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        if let analysis = watch.lastAnalysis, !analysis.isEmpty {
+            SettingsRowDivider(leading: 14)
+            SettingsFieldRow(String(localized: "Latest Analysis")) {
                 Text(analysis)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.primary.opacity(0.85))
-                    .lineLimit(expandedName == watch.name ? nil : 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 7).fill(Color.secondary.opacity(0.07)))
-                    .onTapGesture {
-                        expandedName = expandedName == watch.name ? nil : watch.name
-                    }
-            }
-            if checkingName == watch.name {
-                ProgressView()
-                    .controlSize(.small)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
+        SettingsRowDivider()
     }
 
-    // MARK: - 添加表单
+    /// 行副标题：间隔 · 变化次数 · 错误（有则显示）。
+    private func watchMetaText(_ watch: PageWatch) -> String {
+        var parts: [String] = []
+        parts.append(String(localized: "Every \(watch.intervalMinutes) min"))
+        if watch.changeCount > 0 {
+            parts.append(String(localized: "\(watch.changeCount) changes"))
+        }
+        if let err = watch.lastError, !err.isEmpty {
+            parts.append(err)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - 添加表单（SettingsFieldRow 规范）
 
     private var addForm: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: 0) {
             SettingsRowDivider()
-            Text(String(localized: "Add Watch"))
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    TextField(String(localized: "Name"), text: $newName)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 140)
-                    TextField("https://example.com", text: $newURL)
-                        .textFieldStyle(.roundedBorder)
-                    TextField(String(localized: "CSS selector (optional)"), text: $newSelector)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 150)
-                }
-                HStack(spacing: 8) {
+            SettingsFieldRow(String(localized: "Name")) {
+                TextField(String(localized: "Name"), text: $newName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 160)
+            }
+            SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
+            SettingsFieldRow(String(localized: "URL")) {
+                TextField("https://example.com", text: $newURL)
+                    .textFieldStyle(.roundedBorder)
+            }
+            SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
+            SettingsFieldRow(String(localized: "CSS selector (optional)")) {
+                TextField(String(localized: "CSS selector (optional)"), text: $newSelector)
+                    .textFieldStyle(.roundedBorder)
+            }
+            SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
+            SettingsFieldRow(String(localized: "Interval")) {
+                HStack(spacing: 12) {
                     Picker(String(localized: "Interval"), selection: $newMinutes) {
                         Text(String(localized: "Every 5 min")).tag(5)
                         Text(String(localized: "Every 15 min")).tag(15)
@@ -171,22 +158,25 @@ struct PageWatchSettingsSection: View {
                     .pickerStyle(.menu)
                     Toggle(String(localized: "AI Analysis"), isOn: $newAI)
                         .toggleStyle(.checkbox)
-                        .font(.system(size: 11))
-                    Spacer()
-                    Button(String(localized: "Add")) { add() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
-                                  || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .font(.system(size: 11.5))
                 }
+            }
+            SettingsRowDivider()
+            HStack {
+                Spacer()
                 if let addError {
                     Text(addError)
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
                 }
+                Button(String(localized: "Add")) { add() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty
+                              || newURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 14)
-            .padding(.bottom, 12)
+            .padding(.vertical, 10)
         }
     }
 

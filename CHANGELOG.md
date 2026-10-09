@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **悬浮球设置页容器统一**：自拟 ScrollView+padding 改为 SettingsContainer（720pt 限宽居中 + 统一边距/顶对齐）——此前间距风格与全设置页脱节；顺带修正设置窗通用问题：短内容子页垂直居中改顶对齐、切换子页滚动位置残留（detail 加 .id 强制重建）
+
 ### Added
 
 - **白板视觉自检闭环（agent 画→看→改）**：whiteboard 工具新增 `action=screenshot`——当前板经 BoardRenderService 离屏渲染成 PNG 以 vision 输入回传给模型（复用截图多模态通道），渲染报错的块会显式失败并提示先修；工具描述与参数说明同步（flow/mindmap/chart 编辑后建议自检布局拥挤/节点重叠/文字截断，用 edit 修正后再交付）。配合 v8 的 flow/mindmap 块，agent 具备"画→看→改"的完整自检能力

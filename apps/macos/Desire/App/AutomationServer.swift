@@ -535,7 +535,7 @@ final class AutomationServer {
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
         ep("GET", "/agent/roster", "Agent persona roster (personas + per-window bindings)", example: "…/agent/roster")
-        ep("POST", "/agent/roster", "Manage the persona roster: action=add (name, tone) | remove (id) | bind (window, persona? — omit to unbind)", params: ["action:add|remove|bind", "name?:string", "tone?:string", "id?:uuid", "window?:uuid", "persona?:uuid"], example: #"-d '{"action":"bind","window":"…","persona":"…"}'"#)
+        ep("POST", "/agent/roster", "Manage the persona roster: action=add (name, tone) | remove (id) | bind (window, persona? — omit to unbind) | bind-model (window, profile? — omit to follow global)", params: ["action:add|remove|bind|bind-model", "name?:string", "tone?:string", "id?:uuid", "window?:uuid", "persona?:uuid", "profile?:uuid"], example: #"-d '{"action":"bind","window":"…","persona":"…"}'"#)
         ep("GET", "/agent/guard", "AI action review (guard) toggle state", example: "…/agent/guard")
         ep("POST", "/agent/guard", "Enable/disable the guard review that checks auto-edit actions against the user's rules before they run silently", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("POST", "/agent/guard/check", "Run one guard review offline (E2E/debug; no gate, no turn): classify a planned action against given rules", params: ["tool:string", "arguments?:object|string", "identity?:string", "rules?:[string]", "directive?:string"], example: #"-d '{"tool":"deleteFile","arguments":{"path":"~/notes.txt"},"identity":"Always confirm before deleting anything."}'"#)
@@ -2027,6 +2027,24 @@ final class AutomationServer {
                         "window": registryID.uuidString,
                         "persona": personaID?.uuidString ?? "",
                     ])
+                case "bind-model":
+                    // 每窗口模型路由：profile 省略 = 跟随全局活动档案。
+                    guard let session = Self.resolveSession(Self.string(body, "window")),
+                          let registryID = session.registryID else {
+                        return try Self.json(["error": "no live agent session"])
+                    }
+                    let pref = AppState.live?.aiPreference
+                    if let raw = Self.string(body, "profile") {
+                        guard let pid = UUID(uuidString: raw),
+                              pref?.profiles.contains(where: { $0.id == pid }) == true else {
+                            return try Self.json(["error": "unknown profile id"])
+                        }
+                        session.modelProfileID = pid
+                        return try Self.json(["ok": true, "window": registryID.uuidString,
+                                              "model": session.modelProfileName ?? ""])
+                    }
+                    session.modelProfileID = nil
+                    return try Self.json(["ok": true, "window": registryID.uuidString, "model": ""])
                 default:
                     return try Self.json(["error": "action must be add|remove|bind"])
                 }
@@ -4244,6 +4262,7 @@ final class AutomationServer {
                 // 双窗口互不串台的断言面：每窗会话当前装载的对话
                 "conversationId": session.conversationId?.uuidString ?? "",
                 "conversationTitle": session.conversationTitle ?? "",
+                "model": session.modelProfileName ?? "",
                 "hasInterruptedTurn": session.hasInterruptedTurn,
             ]
         }

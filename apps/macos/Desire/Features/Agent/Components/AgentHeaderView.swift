@@ -182,6 +182,19 @@ struct AgentHeaderView: View {
                     }
                     .disabled(store.personaID == persona.id)
                 }
+                if !preference.profiles.isEmpty {
+                    Divider()
+                    Button(String(localized: "Model: follow global")) {
+                        store.modelProfileID = nil
+                    }
+                    .disabled(store.modelProfileID == nil)
+                    ForEach(preference.profiles) { profile in
+                        Button(String(localized: "Model: \(profile.name)")) {
+                            store.modelProfileID = profile.id
+                        }
+                        .disabled(store.modelProfileID == profile.id)
+                    }
+                }
             } label: {
                 Text(boundName ?? "Agent")
                     .font(.system(size: 13, weight: .semibold))

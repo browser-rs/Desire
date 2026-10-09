@@ -1145,6 +1145,46 @@ class AgentSessionStore: ObservableObject {
             }
         }
     }
+    /// 本窗口绑定的模型档案（per-agent model routing，QwenPaw v2.2.1 启发）：
+    /// nil = 跟随全局活动档案。与 personaID 同款按注册 id 存。
+    var modelProfileID: UUID? {
+        get {
+            guard let registryID else { return nil }
+            return UserDefaults.standard
+                .string(forKey: "agentModelBind.\(registryID.uuidString)")
+                .flatMap(UUID.init(uuidString:))
+        }
+        set {
+            guard let registryID else { return }
+            if let newValue {
+                UserDefaults.standard.set(newValue.uuidString,
+                                          forKey: "agentModelBind.\(registryID.uuidString)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "agentModelBind.\(registryID.uuidString)")
+            }
+        }
+    }
+    var modelProfileName: String? {
+        guard let pid = modelProfileID else { return nil }
+        return preference.profiles.first(where: { $0.id == pid })?.name
+    }
+    /// 主回合流用的偏好视图：无绑定 = 全局偏好；有绑定 = 目标档案的游离视图
+    /// （复制全局生成参数；强制 cloud——显式选择压过路由/成本感知）。
+    var streamPreference: AgentPreferenceStore {
+        guard let pid = modelProfileID,
+              let profile = preference.profiles.first(where: { $0.id == pid }),
+              pid != preference.activeProfileID else { return preference }
+        let store = AgentPreferenceStore(skipKeyStateRefresh: true)
+        store.isDetachedView = true
+        store.profiles = [profile]
+        store.activateProfile(id: pid)
+        store.providerKind = .cloud
+        store.maxTokens = preference.maxTokens
+        store.temperature = preference.temperature
+        store.reasoningEffort = preference.reasoningEffort
+        return store
+    }
+
     private var boundPersona: AgentRosterStore.AgentPersona? {
         AgentRosterStore.shared.persona(id: personaID)
     }
@@ -1312,7 +1352,7 @@ class AgentSessionStore: ObservableObject {
             // without duplicating the event handling. `prefsOverride`：failover
             // 时传备用档案视图（只换 provider 与 model，事件处理完全同路）。
             func runStream(prefsOverride: AgentPreferenceStore? = nil) async throws {
-                let prefs = prefsOverride ?? preference
+                let prefs = prefsOverride ?? streamPreference
                 let active = makeProvider(for: prefs)
                 lastProviderUsed = active.viaLabel
                 // 成本归属：优先服务端自报的模型（网关会改写/路由），没有才退回请求时选的。

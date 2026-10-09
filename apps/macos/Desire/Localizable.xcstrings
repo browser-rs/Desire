@@ -36578,6 +36578,28 @@
           }
         }
       }
+    },
+    "Model: follow global" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model: follow global"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型：跟随全局"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型：跟隨全域"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

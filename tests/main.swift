@@ -1987,6 +1987,36 @@ func testSkillScanner() {
 }
 testSkillScanner()
 
+func testMemoryKB() {
+    let facts = [
+        MemoryKB.FactInput(content: "用户装了 ffmpeg，偏好直接下载 MP4", category: "preference",
+                           scope: "global", source: nil, pinned: true, updatedText: "2026-10-01"),
+        MemoryKB.FactInput(content: "下载大视频前先检查 ffmpeg 是否可用", category: "habit",
+                           scope: "global", source: "视频下载", pinned: false, updatedText: "2026-10-02"),
+        MemoryKB.FactInput(content: "在 github.com 上提交信息用英文", category: "correction",
+                           scope: "github.com", source: nil, pinned: false, updatedText: "2026-10-03"),
+    ]
+    // 链接：前两条共享词元（ffmpeg/下载…），第三条独立
+    let links = MemoryKB.links(for: facts)
+    check("知识库：前两条互链", links[0]?.contains(1) == true && links[1]?.contains(0) == true)
+    check("知识库：独立事实无链", links[2] == nil)
+    let md = MemoryKB.render(
+        profile: ["名字": "阿欲", "语气": ""],
+        facts: facts,
+        summaries: [MemoryKB.SummaryInput(title: "测试会话", text: "讨论了记忆导出。", updatedText: "2026-10-09")],
+        generatedText: "2026-10-09")
+    check("知识库：画像渲染", md.contains("**名字**：阿欲"))
+    check("知识库：空语气跳过", !md.contains("**语气**"))
+    check("知识库：置顶星标", md.contains("★ "))
+    check("知识库：分组标题", md.contains("### 偏好") && md.contains("### 习惯") && md.contains("### 纠正"))
+    check("知识库：scope 标注", md.contains("范围 github.com"))
+    check("知识库：相关链接行", md.contains("相关："))
+    check("知识库：摘要节", md.contains("## 会话摘要") && md.contains("讨论了记忆导出。"))
+    let empty = MemoryKB.render(profile: [:], facts: [], summaries: [], generatedText: "t")
+    check("知识库：空态有占位", empty.contains("（暂无事实）") && empty.contains("（暂无摘要）"))
+}
+testMemoryKB()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

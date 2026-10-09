@@ -17,7 +17,7 @@ enum MemoryRetrieval {
     }
 
     /// 查询文本分词：英文词元 + 中文 bigram。
-    static func tokenize(_ text: String) -> [String] {
+    nonisolated static func tokenize(_ text: String) -> [String] {
         var tokens: [String] = []
         var latin = ""
         var cjkRun: [Character] = []

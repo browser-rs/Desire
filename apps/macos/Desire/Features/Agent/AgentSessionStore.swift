@@ -521,9 +521,85 @@ class AgentSessionStore: ObservableObject {
     /// `recordHistory`：把这条输入记进该对话的输入历史（面板输入框 ↑/↓ 翻阅的那份）。
     /// 默认记录——**用户输入**才会走这里；桥/调度等自动化调用显式传 false，
     /// 免得把机器人的提示词混进用户的历史。
+    // MARK: - Slash 命令（/help /new /compact /stats /doctor /mode /resume）
+
+    /// 本地可见的命令结果：作为 assistant 消息进会话（面板可见、随文件落盘；
+    /// 模型下轮能看到，内容本身是准确记录）。
+    private func appendLocalAssistant(_ text: String) {
+        messages.append(AgentMessage(role: .assistant, content: text))
+        saveCurrentConversation()
+    }
+
+    /// /compact：手动收紧上下文预算（每次减半、下限 20k，可叠加）。压缩发生在
+    /// 请求组装时——旧轮次转为摘要，完整内容仍可用 recallConversation 取回。
+    @discardableResult
+    func applyManualCompaction() -> Int {
+        let tightened = max(20_000, effectiveContextBudget / 2)
+        compactionBudgetOverride = tightened
+        return tightened
+    }
+
+    private func performSlash(_ text: String) {
+        guard let parsed = AgentSlashParsing.parse(text) else { return }
+        switch parsed.command {
+        case "help":
+            appendLocalAssistant(AgentSlashParsing.helpText())
+        case "new":
+            clear()
+        case "compact":
+            let budget = applyManualCompaction()
+            appendLocalAssistant(String(localized: "Context budget tightened to \(budget) characters — older turns are kept as a digest and stay recallable via recallConversation."))
+        case "stats":
+            let usage = conversationUsage
+            let turns = messages.filter { $0.role == .user }.count
+            let toolCalls = messages.reduce(0) { $0 + ($1.toolCalls?.count ?? 0) }
+            var text = String(localized: "This conversation: \(turns) user turns, \(toolCalls) tool calls, \(usage.promptTokens) prompt + \(usage.completionTokens) completion tokens")
+            if usage.bypassTokens > 0 {
+                text += String(localized: " (incl. \(usage.bypassTokens) bypass tokens)")
+            }
+            if let usd = usage.usd {
+                text += String(localized: " · \(usd) USD")
+            }
+            appendLocalAssistant(text)
+        case "doctor":
+            appendLocalAssistant(String(localized: "Running the agent self-check…"))
+            Task { [weak self] in
+                let report = await AgentDoctor.run()
+                let lines = report.checks.map { "\($0.ok ? "✓" : "⚠️") \($0.name)：\($0.detail)" }
+                self?.appendLocalAssistant(
+                    String(localized: "Agent self-check: \(report.passed) of \(report.checks.count) passed") +
+                    "\n" + lines.joined(separator: "\n"))
+            }
+        case "mode":
+            if parsed.argument.isEmpty {
+                appendLocalAssistant(String(localized: "Current mode: \(effectiveMode.displayName). Available: \(AgentMode.allCases.map(\.rawValue).joined(separator: "/")) — e.g. /mode research"))
+            } else if let mode = AgentMode(rawValue: parsed.argument) {
+                modeBinding = mode
+                appendLocalAssistant(String(localized: "Mode switched to \(mode.displayName)."))
+            } else {
+                appendLocalAssistant(String(localized: "Unknown mode \(parsed.argument) — available: \(AgentMode.allCases.map(\.rawValue).joined(separator: "/"))"))
+            }
+        case "resume":
+            if hasInterruptedTurn {
+                let ok = resumeInterruptedTurn()
+                appendLocalAssistant(ok ? String(localized: "Resumed the interrupted turn.") : String(localized: "Could not resume — the turn is gone."))
+            } else {
+                appendLocalAssistant(String(localized: "No interrupted turn in this conversation."))
+            }
+        default:
+            break
+        }
+    }
+
     func sendMessage(_ text: String, images: [String]? = nil, recordHistory: Bool = true) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
+        // slash 命令：本地动作不发给模型。首词非已知命令 → 原样放行
+        //（以 / 开头的路径、问题不受影响）。面板/桥/远程/定时任务同一条路。
+        if AgentSlashParsing.parse(trimmed) != nil {
+            performSlash(trimmed)
+            return
+        }
         if recordHistory { rememberInput(trimmed) }
         // A second concurrent loop would interleave appends into `messages`
         // and corrupt tool-call/result pairing — queue instead.

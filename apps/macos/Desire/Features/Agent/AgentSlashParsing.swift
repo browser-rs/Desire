@@ -1,0 +1,42 @@
+import Foundation
+
+/// Agent 面板 slash 命令（2026-10-10）：输入框里 `/命令 [参数]` 触发本地
+/// 动作，不发给模型。解析与执行分离——本文件是**纯解析半边**（Foundation-only，
+/// 进 tests/run.sh）；执行在 `AgentSessionStore.sendMessage` 顶部拦截。
+/// 首词不是已知命令 → 原样发给模型（路径、以 / 开头的问题不受影响）。
+nonisolated enum AgentSlashParsing {
+    struct Parsed: Equatable {
+        let command: String        // 小写、不带斜杠
+        let argument: String       // 其余文本（已 trim；可为空）
+    }
+
+    /// 已知命令清单（/help 的输出与拦截判据同源）。
+    static let known: [String] = [
+        "help", "new", "compact", "stats", "doctor", "mode", "resume",
+    ]
+
+    static func parse(_ text: String) -> Parsed? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("/"), trimmed.count > 1 else { return nil }
+        let parts = trimmed.dropFirst().split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard let first = parts.first else { return nil }
+        let command = first.lowercased()
+        guard known.contains(command) else { return nil }
+        let argument = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+        return Parsed(command: command, argument: argument)
+    }
+
+    /// /help 的输出（命令清单与一句话说明，与 known 同源防漂移）。
+    static func helpText() -> String {
+        let descriptions: [String: String] = [
+            "help": String(localized: "show this list"),
+            "new": String(localized: "start a fresh conversation"),
+            "compact": String(localized: "shrink the context budget now (older turns stay recallable)"),
+            "stats": String(localized: "token usage and cost for this conversation"),
+            "doctor": String(localized: "run the agent self-check"),
+            "mode": String(localized: "switch agent mode: /mode standard|research|writing"),
+            "resume": String(localized: "continue the interrupted turn"),
+        ]
+        return known.map { "/\($0) — \(descriptions[$0] ?? "")" }.joined(separator: "\n")
+    }
+}

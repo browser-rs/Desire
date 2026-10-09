@@ -2031,6 +2031,22 @@ func testAgentMode() {
 }
 testAgentMode()
 
+func testSlashParsing() {
+    let help = AgentSlashParsing.parse("/help")
+    check("slash：/help 解析", help?.command == "help" && help?.argument.isEmpty == true)
+    let mode = AgentSlashParsing.parse("/mode research")
+    check("slash：/mode 带参数", mode?.command == "mode" && mode?.argument == "research")
+    check("slash：大小写归一", AgentSlashParsing.parse("/HELP")?.command == "help")
+    check("slash：多余空白容忍", AgentSlashParsing.parse("  /compact   ")?.command == "compact")
+    check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
+    check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
+    check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
+    check("slash：known 含全部 7 命令", AgentSlashParsing.known.count == 7)
+    let helpText = AgentSlashParsing.helpText()
+    check("slash：help 覆盖全部命令", AgentSlashParsing.known.allSatisfy { helpText.contains("/\($0)") })
+}
+testSlashParsing()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

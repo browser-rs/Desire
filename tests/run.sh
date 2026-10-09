@@ -12,6 +12,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/SkillAuthoring.swift
   apps/macos/Desire/Features/Agent/ConversationRecall.swift
   apps/macos/Desire/Features/Agent/AgentMode.swift
+  apps/macos/Desire/Features/Agent/AgentSlashParsing.swift
   apps/macos/Desire/Features/Agent/SkillScanner.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryKB.swift
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift

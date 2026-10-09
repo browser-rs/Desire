@@ -2041,7 +2041,10 @@ func testSlashParsing() {
     check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
     check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
     check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
-    check("slash：known 含全部 7 命令", AgentSlashParsing.known.count == 7)
+    check("slash：known 含全部 14 命令", AgentSlashParsing.known.count == 14)
+    check("slash：/model 解析", AgentSlashParsing.parse("/model amd")?.argument == "amd")
+    check("slash：/persona off 解析", AgentSlashParsing.parse("/persona off")?.argument == "off")
+    check("slash：/skills 解析", AgentSlashParsing.parse("/skills")?.command == "skills")
     let helpText = AgentSlashParsing.helpText()
     check("slash：help 覆盖全部命令", AgentSlashParsing.known.allSatisfy { helpText.contains("/\($0)") })
 }

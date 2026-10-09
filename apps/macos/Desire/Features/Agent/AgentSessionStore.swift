@@ -586,6 +586,81 @@ class AgentSessionStore: ObservableObject {
             } else {
                 appendLocalAssistant(String(localized: "No interrupted turn in this conversation."))
             }
+        case "skills":
+            let skills = SkillStore.shared.skills
+            appendLocalAssistant(skills.isEmpty
+                ? String(localized: "No skills installed.")
+                : "\(skills.count) 个技能：\n" + skills.map { "/useSkill \($0.name) — \($0.description)" }.joined(separator: "\n"))
+        case "memory":
+            let memory = AgentMemoryStore.shared
+            let facts = memory.factsSnapshot
+            var text = String(localized: "Memory: \(facts.count) facts, \(memory.summariesCount) conversation summaries")
+            let pinned = facts.filter(\.pinned)
+            if !pinned.isEmpty {
+                text += "\n置顶：" + pinned.map { "\($0.content)" }.joined(separator: "；")
+            }
+            let recent = facts.sorted { $0.updatedAt > $1.updatedAt }.prefix(3)
+            if !recent.isEmpty {
+                text += "\n最近更新：\n" + recent.map { "• \($0.content)" }.joined(separator: "\n")
+            }
+            appendLocalAssistant(text)
+        case "model":
+            if parsed.argument.isEmpty {
+                let current = preference.activeProfile
+                appendLocalAssistant(String(localized: "Current: \(current?.name ?? "?") · \(current?.model ?? "?")\nAvailable: \(preference.profiles.map { "\($0.name)（\($0.model)）" }.joined(separator: "、"))\nSwitch with /model <名称>"))
+            } else {
+                let query = parsed.argument.lowercased()
+                if let match = preference.profiles.first(where: {
+                    $0.name.lowercased().contains(query) || $0.model.lowercased().contains(query)
+                }) {
+                    preference.activeProfileID = match.id
+                    appendLocalAssistant(String(localized: "Switched to \(match.name) · \(match.model)."))
+                } else {
+                    appendLocalAssistant(String(localized: "No profile matches \(parsed.argument)."))
+                }
+            }
+        case "persona":
+            let roster = AgentRosterStore.shared
+            guard let registryID else {
+                appendLocalAssistant(String(localized: "No window context."))
+                return
+            }
+            if parsed.argument.isEmpty || parsed.argument == "off" {
+                if parsed.argument == "off" { roster.bind(personaID: nil, to: registryID) }
+                let bound = roster.displayName(for: registryID)
+                appendLocalAssistant(roster.personas.isEmpty
+                    ? String(localized: "No personas defined — add them in Settings › Agent Personas.")
+                    : String(localized: "Bound: \(bound ?? "default"). Available: \(roster.personas.map { $0.name }.joined(separator: "、"))"))
+            } else if let match = roster.personas.first(where: { $0.name.lowercased().contains(parsed.argument.lowercased()) }) {
+                roster.bind(personaID: match.id, to: registryID)
+                appendLocalAssistant(String(localized: "Persona bound: \(match.name)."))
+            } else {
+                appendLocalAssistant(String(localized: "No persona matches \(parsed.argument)."))
+            }
+        case "plan":
+            let steps = AgentPlanStore.shared.steps(for: conversationId?.uuidString)
+            guard !steps.isEmpty else {
+                appendLocalAssistant(String(localized: "No plan for this conversation."))
+                return
+            }
+            let icon = ["pending": "○", "in_progress": "◐", "done": "●"]
+            appendLocalAssistant("当前计划：\n" + steps.enumerated().map { idx, step in
+                "\(idx + 1). \(icon[step.status] ?? "○") \(step.content)"
+            }.joined(separator: "\n"))
+        case "cancel":
+            guard isProcessing else {
+                appendLocalAssistant(String(localized: "No turn is running."))
+                return
+            }
+            cancel()
+            appendLocalAssistant(String(localized: "Cancelled."))
+        case "windows":
+            let sessions = AgentScheduler.shared.liveSessions()
+            let lines = sessions.map { entry in
+                let busy = entry.store?.isProcessing == true ? "（运行中）" : ""
+                return "• \(entry.displayLabel)\(busy)"
+            }
+            appendLocalAssistant(lines.isEmpty ? String(localized: "No windows.") : lines.joined(separator: "\n"))
         default:
             break
         }

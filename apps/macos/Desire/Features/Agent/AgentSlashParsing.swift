@@ -13,6 +13,7 @@ nonisolated enum AgentSlashParsing {
     /// 已知命令清单（/help 的输出与拦截判据同源）。
     static let known: [String] = [
         "help", "new", "compact", "stats", "doctor", "mode", "resume",
+        "skills", "memory", "model", "persona", "plan", "cancel", "windows",
     ]
 
     static func parse(_ text: String) -> Parsed? {
@@ -36,6 +37,13 @@ nonisolated enum AgentSlashParsing {
             "doctor": String(localized: "run the agent self-check"),
             "mode": String(localized: "switch agent mode: /mode standard|research|writing"),
             "resume": String(localized: "continue the interrupted turn"),
+            "skills": String(localized: "list installed skills"),
+            "memory": String(localized: "memory summary (profile, facts, summaries)"),
+            "model": String(localized: "list model services, or switch: /model <名称>"),
+            "persona": String(localized: "list personas, or bind: /persona <名字>（off = unbind）"),
+            "plan": String(localized: "show the current plan checklist"),
+            "cancel": String(localized: "cancel the running turn"),
+            "windows": String(localized: "list windows and their agent state"),
         ]
         return known.map { "/\($0) — \(descriptions[$0] ?? "")" }.joined(separator: "\n")
     }

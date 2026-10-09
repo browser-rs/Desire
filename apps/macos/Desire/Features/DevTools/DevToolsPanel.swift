@@ -856,6 +856,13 @@ private struct ConsolePanel: View {
                 }
             }
             Button("Copy") { copy(message) }
+            // AI 解释（v8 二轮）：错误/警告一键送 agent 分析——"错→看→修"
+            // 闭环的眼睛。prompt 带错误文本 + 源（url:line:col）+ 页面 URL。
+            if message.level == .error || message.level == .warn {
+                Button(String(localized: "Explain with AI")) {
+                    explainWithAI(message)
+                }
+            }
         }
         .background(
             copiedMessageId == message.id
@@ -863,6 +870,23 @@ private struct ConsolePanel: View {
                 : message.level.rowWash
         )
         .help("Copy")
+    }
+
+    /// 把一条控制台错误送 agent 分析（用户可见回合——面板即会话）。
+    private func explainWithAI(_ message: ConsoleMessage) {
+        var source: String?
+        if let url = message.url {
+            source = "来源：\(url)\(message.line.map { " 行 \($0)\(message.column.map { ":\($0)" } ?? "")" } ?? "")"
+        }
+        let pageURL = tab?.browser.webView.url?.absoluteString
+        let prompt = """
+        浏览器控制台捕获到一条\(message.level == .error ? "错误" : "警告")：
+        \(message.message)
+        \(source.map { "\n\($0)" } ?? "")
+        \(pageURL.map { "\n所在页面：\($0)" } ?? "")
+        请解释：① 这条错误的常见原因；② 对页面功能的影响；③ 如有可能给出修复建议。用中文，简洁作答。
+        """
+        AgentScheduler.shared.deliveryTarget?.sendMessage(prompt, recordHistory: false)
     }
 
     private func copy(_ message: ConsoleMessage) {

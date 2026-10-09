@@ -165,7 +165,59 @@
     console.error = function() { sendToDevTools('error', arguments); originalConsole.error.apply(console, arguments); };
     console.info = function() { sendToDevTools('info', arguments); originalConsole.info.apply(console, arguments); };
     console.debug = function() { sendToDevTools('debug', arguments); originalConsole.debug.apply(console, arguments); };
-    window.addEventListener('error', function(e) {
-        sendToDevTools('error', [e.message]);
+    // 未捕获的 Promise 拒绝（v8 二轮）：现代页面的错误大量走这里，此前
+    // 完全不可见。拒因是 Error 时从 reason.stack 提取源（第一帧即抛点，
+    // 比拦截器自己的调用栈准确）。
+    window.addEventListener('unhandledrejection', function(e) {
+        try {
+            var reason = e.reason;
+            var payload;
+            if (reason instanceof Error) {
+                payload = sourcePayload('Unhandled rejection: ' + (reason.message || String(reason)), reason.stack);
+            } else {
+                var text = 'Unhandled rejection: ' + previewOf(reason);
+                payload = { level: 'error', message: text, parts: [{ type: 'text', text: text }],
+                            url: null, line: null, column: null };
+            }
+            window.webkit.messageHandlers.devConsole.postMessage(payload);
+        } catch (err) {}
     });
+
+    // window error 事件：带事件自带的 filename/lineno/colno（比 stack 解析
+    // 准确）；资源加载错误（无 message）跳过——网络面板已记录。
+    window.addEventListener('error', function(e) {
+        if (e.message && e.filename) {
+            window.webkit.messageHandlers.devConsole.postMessage({
+                level: 'error',
+                message: e.message,
+                parts: [{ type: 'text', text: e.message }],
+                url: e.filename,
+                line: e.lineno,
+                column: e.colno
+            });
+        } else if (e.message) {
+            sendToDevTools('error', [e.message]);
+        }
+    });
+
+    /// 从 Error.stack 提取 {url,line,column} 的首帧（未捕获异常路径专用）。
+    function sourcePayload(message, stack) {
+        var url = null, line = null, col = null;
+        if (stack) {
+            var frame = stack.match(/https?:\/\/[^\s)]+:\d+:\d+/) || stack.match(/https?:\/\/[^\s)]+/);
+            if (frame) {
+                var text = frame[0];
+                var tail = text.match(/:(\d+):(\d+)$/);
+                if (tail) {
+                    line = parseInt(tail[1], 10);
+                    col = parseInt(tail[2], 10);
+                    text = text.slice(0, text.length - tail[0].length);
+                }
+                url = /^https?:/.test(text) ? text : null;
+            }
+        }
+        return { level: 'error', message: message,
+                 parts: [{ type: 'text', text: message }],
+                 url: url, line: line, column: col };
+    }
 })();

@@ -9,6 +9,8 @@
 - **白板分享卡导出**：`BoardRenderService.shareCardImage`——板渲染 + 标题头（板名大字 + "Desire 白板 · 日期"副行）合成可分享长图；面板「导出 PNG」改走此路径（不再依赖面板窗口开着）；桥 `GET /whiteboard?format=png` 返回 base64 分享卡（自动化/远程导出）；React 壳空标题不渲染行（分享卡头部已有板名，避免双标题）。实测：flow+mindmap 双块板导出目视通过
 - **PageWatch 智能监视（页面监视 × Agent）**：页面变化监视器从"机械 diff + 裸通知"升级为可选的 **AI 自动分析**——watch 开 `aiAnalysis` 后，变化触发静默 agent 回合（deliverScheduled 自动排队不打断用户回合）：提取变化片段（公共前后缀剥除 + 上下文，`PageWatchDiff.extractChangedRegion` 纯函数进 tests/run.sh）→ 喂模型分析（"变化内容 + 是否值得关注"结论）→ 写回 `lastAnalysis` 并补发带分析的系统通知；回合失败/被删路径均有兜底。桥 /watches 全套带 aiAnalysis/lastAnalysis。E2E：本地 fixture 价格页变化 → 分析回合真实触发 → 模型端点不可达时错误正确写回（机制全通；分析质量依赖模型 API 可达）
 - **PageWatch 管理 UI（设置 → 页面监视）**：此前纯桥驱动无任何界面——新 section 提供列表（名称/URL/间隔/AI 徽章/开关/立即检查/删除/最近分析文本可展开）与添加表单（名称/URL/可选 CSS 选择器/间隔档位/AI 分析开关）。顺带两处设置窗通用修复：① 短内容子页不再垂直居中（SettingsContainer 纵向 center → 顶对齐，设置页惯例内容从顶开始）；② 切换子页后滚动位置重置（各子页 ScrollView 结构相同同身份会保留滚动——detail 加 .id(selected) 强制重建）
+- **DevTools 二轮 · Console 错误捕获增强 + AI 解释**：① 拦截器新增 **unhandledrejection**（未捕获的 Promise 拒绝——现代页面错误的主要去向，此前完全不可见），拒因是 Error 时从 reason.stack 提取抛点源信息；② window error 事件改用事件自带的 filename/lineno/colno（此前 stack 解析且资源加载错误混入）。**Console 面板错误/警告行右键新增「Explain with AI」**——错误文本 + 源（url:line:col）+ 所在页面组 prompt 送 agent 分析（常见原因/影响/修复建议，用户可见回合进会话）。E2E：fixture 三类错误（console.error/未捕获异常/rejected promise）全部入记录且带源
+
 
 
 

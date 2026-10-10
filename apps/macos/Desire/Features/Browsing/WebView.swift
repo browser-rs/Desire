@@ -793,6 +793,20 @@ try {
                         self?.parent.state.estimatedProgress = wv.estimatedProgress
                     }
                 },
+                // canGoBack/canGoForward 实时同步：此前只在 didFinish 更新，
+                // SPA 站的 pushState 导航（掘金/知乎等 pjax 路由）不触发
+                // didFinish——首页点进文章后后退按钮一直灰着（长按菜单的
+                // 栈却是实时的，两处自相矛盾）。KVO 在列表变化瞬间 fire。
+                webView.observe(\.canGoBack, options: [.initial, .new]) { [weak self] wv, _ in
+                    DispatchQueue.main.async { [weak self] in
+                        self?.parent.canGoBack = wv.canGoBack
+                    }
+                },
+                webView.observe(\.canGoForward, options: [.initial, .new]) { [weak self] wv, _ in
+                    DispatchQueue.main.async { [weak self] in
+                        self?.parent.canGoForward = wv.canGoForward
+                    }
+                },
                 webView.observe(\.title, options: [.initial, .new]) { [weak self] wv, _ in
                     if let title = wv.title, !title.isEmpty {
                         DispatchQueue.main.async { [weak self] in

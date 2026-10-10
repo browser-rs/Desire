@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **导航排查：后退/前进按钮状态在 SPA 站点失效**——canGoBack/canGoForward 只在 didFinish 更新，而 pjax 站点（掘金等）的路由切换是 pushState（不触发 didFinish）：首页点进文章后后退按钮一直灰着，与长按菜单里的实时历史栈自相矛盾。改为 KVO 实时同步（ WKBackForwardList 变化瞬间更新按钮态）。桥实测：普通导航往返 ✓、纯 pushState 往返 ✓；掘金文章页栈只有一条是其自身反爬 replaceState（决策序列干净，Safari 同现象），非浏览器缺陷。
+
 ### Added
 
 - **DevTools DPP 面板适配来源徽标**：Declaration 段显示"Adapter: <包名>"强调色徽标（来自协议 warnings 的来源戳），"这份协议不是页面自己写的"一眼可见；Parse warnings 段同步过滤掉该来源戳（它是元信息不是警告）。

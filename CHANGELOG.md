@@ -4,6 +4,8 @@
 - **白板"前端资源缺失"修复**：React 前端资源随 fileSystemSynchronized group 打包时被平铺进 bundle 根，而加载器找的是 `WhiteboardApp/index.html` 子目录——永远找不到、每次都退占位页；改为根级优先、子目录兜底
 - **批量下载"合并中"卡顿修复**：ffprobe 校验（数 GB 文件、磁盘被多路 ffmpeg 打满）此前同步跑在主线程，每个合并完成的项都卡主线程数百 ms 到秒级（滚动/面板同帧卡顿）——probe 与 6GB 中间 .ts 的删除挪到后台 utility 队列
 - **YouTube 自动播放时好时坏**：根因是全局自动播放默认档"需要用户手势"拦住**新文档**的自动播放——页面内点缩略图带激活所以能播（SPA 换视频同文档），直开链接/外链新标签/会话恢复没有激活就静默被拦（设为"允许"档的正常路径不受影响）。新增**按站点自动播放许可**（Safari/Chrome 同款语义）：`SiteSettings.autoPlay` 三态（跟随全局/允许/阻止），在 Tab 构造咽喉点按初始 URL host 计算**有效策略**——Web 公开 API 的播放策略只能在 webview 创建期烙入（WKWebpagePreferences 无此属性、私有选择器不可探测），外链/中键/target=_blank/Agent 开页/恢复一处挂钩全生效；工具栏更多菜单新增"允许此站点自动播放"，授予时自动把当前标签按原 URL 重开（新 webview 带新策略）即点即生效。已知边界：空白新标签里同标签导航到已授权站点不吃覆写（重新开一个该站链接即可）。
+- **0.7.4 安全重构误删五条 webview 消息分支（9babbed），全部恢复**：audioState（tab 声音播放图标与后台挂起豁免——用户报"tab 上的声音指示没了"的根因）、pagePerf（DevTools 性能面板 DOM/长任务指标 + 大页面挂起判定 + 桥 domNodes 字段）、otpDetect（验证码自动提示）、cookieGuardHandled（cookie 横幅处理提示条）、desireProtocolEvent（DPP 事件 hub 的 page world 通道）。消费端一直在、生产端断供三天，按消息链"前置早退"惯例恢复并加防再删注释。
+
 
 
 ### Added

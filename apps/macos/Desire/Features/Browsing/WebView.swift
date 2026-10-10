@@ -1207,6 +1207,36 @@ try {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            // 0.7.4 安全重构曾把下面五个分支连着旧 else-if 链一起删掉
+            //（9babbed，与 ext 身份重构无关的误伤）——消费端全都活着：tab
+            // 声音图标与挂起豁免（audioState）、验证码提示（otpDetect）、
+            // DevTools 性能面板 + 大页面挂起判定 + 桥 domNodes（pagePerf）、
+            // cookie guard 提示条（cookieGuardHandled）、DPP 事件 hub
+            // （desireProtocolEvent）。按本文件"新消息前置早退"惯例恢复。
+            if message.name == "audioState", let playing = message.body as? Bool {
+                parent.state.isPlayingAudio = playing
+                return
+            } else if message.name == "otpDetect", let dict = message.body as? [String: String] {
+                parent.state.pendingOTPHint = dict["field"] ?? "verification code"
+                return
+            } else if message.name == "cookieGuardHandled", let dict = message.body as? [String: String] {
+                parent.onCookieGuardHandled?(dict["pref"] ?? "", dict["label"] ?? "")
+                return
+            } else if message.name == "pagePerf", let dict = message.body as? [String: Int] {
+                parent.state.lastDomNodeCount = dict["domNodes"] ?? 0
+                parent.state.lastLongTaskCount = dict["longTasks"] ?? 0
+                parent.state.lastLongTaskMs = dict["longTaskMs"] ?? 0
+                return
+            } else if message.name == "desireProtocolEvent", let dict = message.body as? [String: Any] {
+                let eventHost = parent.state.webView.url?.host ?? ""
+                let eventName = dict["eventName"] as? String ?? ""
+                let detail = (dict["detail"] as? [String: Any])?.compactMapValues { "\($0)" } ?? [:]
+                if !eventName.isEmpty {
+                    PageEventHub.shared.handleEvent(host: eventHost, eventName: eventName, detail: detail)
+                }
+                return
+            }
+
             // DPP 全框架采集器（0.7 切片一）：早退处理，不进下方长链——
             // 该 else-if 链已对类型检查器过重（加一个分支就 "failed to produce
             // diagnostic"），新消息名一律走这种前置早退模式。

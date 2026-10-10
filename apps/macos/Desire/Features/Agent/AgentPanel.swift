@@ -35,6 +35,10 @@ struct AgentPanel: View {
     /// 窄栏宿主不传（nil = 单栏，头部不出现开关）。
     var onToggleSidebar: (() -> Void)? = nil
     var isSidebarExpanded: Bool = false
+    /// 独立窗口两栏模式：历史/能力/轨迹/统计/记忆的导航入口已上移到侧栏
+    /// 的"智能体"区，头部不再重复这排按钮（白板/悬浮球/新对话/清空保留——
+    /// 它们是动作不是导航）。浏览器内嵌面板不受影响（默认 false）。
+    var hidesHeaderNavigation: Bool = false
     @ObservedObject private var memory = AgentMemoryStore.shared
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
@@ -127,11 +131,11 @@ struct AgentPanel: View {
                 store: store,
                 preference: store.preference,
                 hasHistory: !conversationStore.conversations.isEmpty,
-                onShowHistory: { showHistory = true },
-                onShowCapabilities: { showCapabilities = true },
-                onShowTrace: { showTrace = true },
-                onShowStats: { showStats = true },
-                onShowMemory: { showMemory = true },
+                onShowHistory: hidesHeaderNavigation ? nil : { showHistory = true },
+                onShowCapabilities: hidesHeaderNavigation ? nil : { showCapabilities = true },
+                onShowTrace: hidesHeaderNavigation ? nil : { showTrace = true },
+                onShowStats: hidesHeaderNavigation ? nil : { showStats = true },
+                onShowMemory: hidesHeaderNavigation ? nil : { showMemory = true },
                 onShowWhiteboard: onToggleWhiteboard,
                 onToggleBall: onToggleBall,
                 onToggleSidebar: onToggleSidebar,

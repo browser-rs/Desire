@@ -13,7 +13,8 @@ struct AgentHeaderView: View {
     /// 改价（或在设置里填价）后头部不会重绘，chip 会一直不出现（实测踩到）。
     @ObservedObject var preference: AgentPreferenceStore
     let hasHistory: Bool
-    var onShowHistory: () -> Void
+    /// 历史入口（独立窗口里上移到侧栏会话区 → 传 nil 隐藏头部按钮）。
+    var onShowHistory: (() -> Void)?
     var onShowCapabilities: (() -> Void)?
     var onShowTrace: (() -> Void)?
     var onShowStats: (() -> Void)?
@@ -138,13 +139,15 @@ struct AgentHeaderView: View {
                 )
             }
 
-            HoverIcon(
-                systemName: "clock.arrow.circlepath",
-                action: onShowHistory,
-                help: "Conversation history"
-            )
-            .opacity(hasHistory ? 1 : 0.35)
-            .disabled(!hasHistory)
+            if let onShowHistory {
+                HoverIcon(
+                    systemName: "clock.arrow.circlepath",
+                    action: onShowHistory,
+                    help: "Conversation history"
+                )
+                .opacity(hasHistory ? 1 : 0.35)
+                .disabled(!hasHistory)
+            }
 
             if let onNewChat {
                 HoverIcon(

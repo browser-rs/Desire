@@ -1,21 +1,31 @@
 import SwiftUI
 
-/// 独立 Agent 窗口两栏布局的**左侧会话列表**（2026-10-10）。
-/// 定位是轻量切换器：标题搜索 + 按时间分组的原生 `List`（选中态跟手、
-/// 右键删除、Delete 键删除）；多选/重命名/正文级搜索仍走面板头部的历史
-/// 页（clock 入口），两边不重复造。
+/// 独立 Agent 窗口两栏布局的**左侧智能体侧栏**（2026-10-10）。
+/// 上半区是目的地导航（任务/技能/记忆/统计/轨迹/能力，带计数徽标），
+/// 下半区是会话列表（标题搜索 + 按时间分组的原生 `List`：点行即切换、
+/// 右键/Delete 键删除）。多选/重命名/正文级搜索仍走聊天列的历史页
+/// （clock 入口），两边不重复造。
 struct AgentWindowSidebar: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
+    @Binding var destination: AgentWindowDestination
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var sessionStore: AgentSessionStore
+    /// 目的地徽标的数据源（任务/技能计数）。
+    @ObservedObject private var scheduler = AgentScheduler.shared
+    @ObservedObject private var skillStore = SkillStore.shared
     var onNewChat: () -> Void
+    /// 从侧栏点会话时把右栏带回聊天列。
+    var onActivateChat: () -> Void
 
     @State private var searchText = ""
 
     var body: some View {
         VStack(spacing: 0) {
             sidebarHeader
+            destinationsSection
+            Divider().opacity(0.6)
+            conversationsHeader
             searchField
             if conversationStore.conversations.isEmpty {
                 emptyState
@@ -32,7 +42,7 @@ struct AgentWindowSidebar: View {
 
     private var sidebarHeader: some View {
         HStack(spacing: 6) {
-            Text("Conversations")
+            Text("Agent")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.primary)
             Spacer(minLength: 4)
@@ -41,9 +51,86 @@ struct AgentWindowSidebar: View {
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .padding(.vertical, 6)
-        .overlay(alignment: .bottom) {
-            Divider().opacity(0.6)
+    }
+
+    // MARK: - Destinations（智能体区）
+
+    private var destinationsSection: some View {
+        VStack(spacing: 2) {
+            destinationRow(.tasks, icon: "clock.badge.checkmark",
+                           label: String(localized: "Tasks"),
+                           badge: scheduler.tasks.isEmpty ? nil : "\(scheduler.tasks.count)")
+            destinationRow(.skills, icon: "puzzlepiece.extension",
+                           label: String(localized: "Skills"),
+                           badge: skillStore.skills.isEmpty ? nil : "\(skillStore.skills.count)")
+            destinationRow(.memory, icon: "brain.head.profile",
+                           label: String(localized: "Memory"))
+            destinationRow(.stats, icon: "chart.bar.xaxis",
+                           label: String(localized: "Usage"))
+            destinationRow(.trace, icon: "point.topleft.down.to.point.bottomright.curvepath",
+                           label: String(localized: "Trace"))
+            destinationRow(.capabilities, icon: "sparkles.rectangle.stack",
+                           label: String(localized: "Capabilities"))
         }
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
+    }
+
+    private func destinationRow(
+        _ target: AgentWindowDestination,
+        icon: String,
+        label: String,
+        badge: String? = nil
+    ) -> some View {
+        let isActive = destination == target
+        return Button {
+            withAnimation(.transitionNormal) {
+                destination = target
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isActive ? appAccent : Color.secondary)
+                    .frame(width: 16)
+                Text(label)
+                    .font(.system(size: 12.5, weight: isActive ? .semibold : .medium))
+                    .foregroundStyle(isActive ? appAccent : .primary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? appAccent.opacity(0.14) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Conversations（会话区）
+
+    private var conversationsHeader: some View {
+        HStack(spacing: 6) {
+            Text("Conversations")
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Text("\(conversationStore.conversations.count)")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 
     private var searchField: some View {
@@ -76,10 +163,8 @@ struct AgentWindowSidebar: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
         )
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
-
-    // MARK: - List
 
     /// 侧栏搜索只按标题过滤（轻量切换器口径）；正文级搜索在历史页。
     private var filtered: [Conversation] {
@@ -101,9 +186,12 @@ struct AgentWindowSidebar: View {
             selection: Binding<UUID?>(
                 get: { sessionStore.conversationId },
                 set: { id in
-                    if let id, id != sessionStore.conversationId {
+                    // nil = List 侧的取消选择（内容刷新时会来），别当"点行了"。
+                    guard let id else { return }
+                    if id != sessionStore.conversationId {
                         sessionStore.loadConversation(id)
                     }
+                    onActivateChat()
                 }
             )
         ) {
@@ -116,7 +204,10 @@ struct AgentWindowSidebar: View {
                         )
                         .tag(conv.id)
                         .contextMenu {
-                            Button("Open") { sessionStore.loadConversation(conv.id) }
+                            Button("Open") {
+                                sessionStore.loadConversation(conv.id)
+                                onActivateChat()
+                            }
                             Divider()
                             Button("Delete", role: .destructive) { confirmDelete(conv) }
                         }

@@ -23,6 +23,12 @@
         }
       }
     },
+    " · %lf USD" : {
+
+    },
+    " (incl. %lld bypass tokens)" : {
+
+    },
     ":" : {
       "localizations" : {
         "en" : {
@@ -135,6 +141,28 @@
         }
       }
     },
+    "…and %lld more" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…and %lld more"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…以及另外 %lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…以及另外 %lld 條"
+          }
+        }
+      }
+    },
     "·" : {
       "localizations" : {
         "en" : {
@@ -157,7 +185,9 @@
         }
       }
     },
-    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {},
+    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {
+
+    },
     "(%@)" : {
       "localizations" : {
         "en" : {
@@ -312,7 +342,35 @@
         }
       }
     },
-    "@%lldx" : {},
+    "@%lldx" : {
+
+    },
+    "/%@" : {
+
+    },
+    "\\(watch.changeCount) changes" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变化 %lld 次"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變化 %lld 次"
+          }
+        }
+      }
+    },
     "#%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -336,7 +394,9 @@
         }
       }
     },
-    "%@" : {},
+    "%@" : {
+
+    },
     "%@  %@" : {
       "localizations" : {
         "en" : {
@@ -694,6 +754,28 @@
         }
       }
     },
+    "%lld changes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变化 %lld 次"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變化 %lld 次"
+          }
+        }
+      }
+    },
     "%lld cross-origin stylesheets not readable." : {
       "localizations" : {
         "en" : {
@@ -806,6 +888,28 @@
         }
       }
     },
+    "%lld of %lld checks passed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld checks passed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld 项通过"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld 項通過"
+          }
+        }
+      }
+    },
     "%lld of %lld shown." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -870,6 +974,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個等待中"
+          }
+        }
+      }
+    },
+    "%lld per day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld per day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 %lld 条"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 %lld 條"
           }
         }
       }
@@ -1361,7 +1487,9 @@
         }
       }
     },
-    "←/→ 键步进，Esc 退出" : {},
+    "←/→ 键步进，Esc 退出" : {
+
+    },
     "+%lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1473,8 +1601,15 @@
         }
       }
     },
-    "⌄ 全部 8 项" : {},
-    "⚡%lld" : {},
+    "⌃ 回到主盘" : {
+
+    },
+    "⌄ 全部 %lld 项" : {
+
+    },
+    "⚡%lld" : {
+
+    },
     "✓ Default" : {
       "localizations" : {
         "en" : {
@@ -1839,6 +1974,32 @@
         }
       }
     },
+    "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
+
+    },
+    "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子文件可定义 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何访问等级下否决工具）与 turnFinish(event)（回合收尾通知）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子檔案可定義 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何存取等級下否決工具）與 turnFinish(event)（回合收尾通知）。"
+          }
+        }
+      }
+    },
     "A model pulled on the server (llama3.2, qwen2.5, …)." : {
       "localizations" : {
         "en" : {
@@ -1861,7 +2022,30 @@
         }
       }
     },
+    "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周期性巡检：由模型自己判断有没有值得提醒你的事——没事就保持沉默。回合进行中或免打扰时段内自动跳过。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週期性巡檢：由模型自己判斷有沒有值得提醒你的事——沒事就保持沉默。回合進行中或免打擾時段內自動跳過。"
+          }
+        }
+      }
+    },
     "A small ball hugging the window edge: drag it anywhere, click to expand agent actions (chat, voice, page summary, whiteboard)." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1900,7 +2084,9 @@
         }
       }
     },
-    "Accept All" : {},
+    "Accept All" : {
+
+    },
     "Access Level" : {
       "localizations" : {
         "en" : {
@@ -1968,7 +2154,32 @@
         }
       }
     },
-    "Actions (%lld)" : {},
+    "Act On Findings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Act On Findings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现即处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發現即處理"
+          }
+        }
+      }
+    },
+    "Actions (%lld)" : {
+
+    },
     "Active model: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2499,6 +2710,29 @@
         }
       }
     },
+    "Add Watch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Watch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加监视"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增監視"
+          }
+        }
+      }
+    },
     "Added to Reading List" : {
       "localizations" : {
         "en" : {
@@ -2745,7 +2979,30 @@
         }
       }
     },
+    "Agent Doctor" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Doctor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 体检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 體檢"
+          }
+        }
+      }
+    },
     "Agent Floating Ball" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2757,6 +3014,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 懸浮球"
+          }
+        }
+      }
+    },
+    "Agent Heartbeat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 心跳"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 心跳"
+          }
+        }
+      }
+    },
+    "Agent Icon" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Icon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 图标"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 圖示"
           }
         }
       }
@@ -2893,6 +3194,16 @@
         }
       }
     },
+    "Agent self-check: %lld of %lld passed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Agent self-check: %1$lld of %2$lld passed"
+          }
+        }
+      }
+    },
     "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines." : {
       "localizations" : {
         "en" : {
@@ -3006,6 +3317,29 @@
         }
       }
     },
+    "AI Action Review" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 動作複查"
+          }
+        }
+      }
+    },
     "AI Ad Blocking" : {
       "localizations" : {
         "en" : {
@@ -3047,6 +3381,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI Agent 面板"
+          }
+        }
+      }
+    },
+    "AI Analysis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Analysis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 分析"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 分析"
           }
         }
       }
@@ -3164,6 +3520,28 @@
         }
       }
     },
+    "AI review flagged: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI review flagged: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 复查标记：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 複查標記：%@"
+          }
+        }
+      }
+    },
     "All" : {
       "localizations" : {
         "en" : {
@@ -3182,6 +3560,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部"
+          }
+        }
+      }
+    },
+    "All %lld checks passed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All %lld checks passed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 项检查全部通过"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項檢查全部通過"
           }
         }
       }
@@ -3548,7 +3948,9 @@
         }
       }
     },
-    "Always on %@" : {},
+    "Always on %@" : {
+
+    },
     "Always-Allowed Tools" : {
       "localizations" : {
         "en" : {
@@ -3992,7 +4394,12 @@
         }
       }
     },
-    "Ask Desire Agent" : {},
+    "Ask Desire ${prompt}" : {
+
+    },
+    "Ask Desire Agent" : {
+
+    },
     "Ask every time" : {
       "localizations" : {
         "en" : {
@@ -4169,6 +4576,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "至少 8 位，需包含字母和數字。"
+          }
+        }
+      }
+    },
+    "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动编辑访问等级下，副作用动作先经一个快速后台模型对照你的常驻规则检查；被标记的动作转为确认（附理由）。超时不会阻塞回合。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動編輯存取等級下，副作用動作先經一個快速背景模型對照你的常駐規則檢查；被標記的動作轉為確認（附理由）。逾時不會阻塞回合。"
           }
         }
       }
@@ -4441,7 +4870,9 @@
         }
       }
     },
-    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {},
+    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {
+
+    },
     "Auto-fill email and phone number on checkout and sign-up forms." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4733,6 +5164,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回答不行"
+          }
+        }
+      }
+    },
+    "Ball" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ball"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球体"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球體"
           }
         }
       }
@@ -5046,6 +5499,28 @@
         }
       }
     },
+    "beforeToolCall / turnFinish" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeToolCall / turnFinish"
+          }
+        }
+      }
+    },
     "Bilibili" : {
       "localizations" : {
         "en" : {
@@ -5296,7 +5771,9 @@
         }
       }
     },
-    "Block This URL (Session)" : {},
+    "Block This URL (Session)" : {
+
+    },
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5316,6 +5793,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "攔截影片廣告"
+          }
+        }
+      }
+    },
+    "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绽放弹出、按钮依次弹入与开盘掠光；关闭后触盘直接出现。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "綻放彈出、按鈕依次彈入與開盤掠光；關閉後觸盤直接出現。"
           }
         }
       }
@@ -5524,6 +6023,16 @@
         }
       }
     },
+    "Bound: %@. Available: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Bound: %1$@. Available: %2$@"
+          }
+        }
+      }
+    },
     "Bounding Box" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5722,28 +6231,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "旁路呼叫"
-          }
-        }
-      }
-    },
-    "Fallback Service" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fallback Service"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "备用服务"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "備用服務"
           }
         }
       }
@@ -5951,6 +6438,28 @@
         }
       }
     },
+    "cancel the running turn" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cancel the running turn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消正在运行的回合"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消正在執行的回合"
+          }
+        }
+      }
+    },
     "Cancelled" : {
       "localizations" : {
         "en" : {
@@ -5972,6 +6481,9 @@
           }
         }
       }
+    },
+    "Cancelled." : {
+
     },
     "Cannot Load Page" : {
       "comment" : "Error page title",
@@ -5996,8 +6508,12 @@
         }
       }
     },
-    "Capture Page to Desire Whiteboard" : {},
-    "Capture to Whiteboard" : {},
+    "Capture Page to Desire Whiteboard" : {
+
+    },
+    "Capture to Whiteboard" : {
+
+    },
     "Change Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6206,7 +6722,6 @@
       }
     },
     "Check Now" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6246,6 +6761,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查中…"
+          }
+        }
+      }
+    },
+    "Checklist" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checklist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巡检清单"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巡檢清單"
           }
         }
       }
@@ -6791,7 +7328,9 @@
         }
       }
     },
-    "Clear Session Network Rules" : {},
+    "Clear Session Network Rules" : {
+
+    },
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -7173,7 +7712,9 @@
         }
       }
     },
-    "Close Tabs to the Right" : {},
+    "Close Tabs to the Right" : {
+
+    },
     "Close Window" : {
       "localizations" : {
         "en" : {
@@ -7192,6 +7733,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉視窗"
+          }
+        }
+      }
+    },
+    "Closed Window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed Window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口已关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視窗已關閉"
           }
         }
       }
@@ -7394,6 +7957,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "社群維護的廣告過濾列表,每週自動更新。"
+          }
+        }
+      }
+    },
+    "Compact" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紧凑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊湊"
           }
         }
       }
@@ -7985,6 +8570,9 @@
         }
       }
     },
+    "Context budget tightened to %lld characters — older turns are kept as a digest and stay recallable via recallConversation." : {
+
+    },
     "Context is getting long — /new starts a fresh conversation" : {
       "localizations" : {
         "en" : {
@@ -8048,6 +8636,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續"
+          }
+        }
+      }
+    },
+    "continue the interrupted turn" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "continue the interrupted turn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续被打断的回合"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續被打斷的回合"
           }
         }
       }
@@ -8122,7 +8732,9 @@
         }
       }
     },
-    "Conversation" : {},
+    "Conversation" : {
+
+    },
     "Conversation history" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8146,7 +8758,9 @@
         }
       }
     },
-    "Cookie Banner Auto-Handling" : {},
+    "Cookie Banner Auto-Handling" : {
+
+    },
     "Cookie Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8607,7 +9221,9 @@
         }
       }
     },
-    "Copy Performance Snapshot" : {},
+    "Copy Performance Snapshot" : {
+
+    },
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -8742,6 +9358,9 @@
         }
       }
     },
+    "Could not resume — the turn is gone." : {
+
+    },
     "Couldn't load this image (cross-origin or too large)." : {
       "localizations" : {
         "en" : {
@@ -8854,7 +9473,9 @@
         }
       }
     },
-    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {},
+    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {
+
+    },
     "Create Group" : {
       "localizations" : {
         "en" : {
@@ -9013,6 +9634,28 @@
         }
       }
     },
+    "CSS selector (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS selector (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 选择器（可选）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSS 選擇器（可選）"
+          }
+        }
+      }
+    },
     "CSS: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9032,6 +9675,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CSS：%@"
+          }
+        }
+      }
+    },
+    "Current mode: %@. Available: %@ — e.g. /mode research" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Current mode: %1$@. Available: %2$@ — e.g. /mode research"
           }
         }
       }
@@ -9121,6 +9774,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前：%@"
+          }
+        }
+      }
+    },
+    "Current: %@ · %@\nAvailable: %@\nSwitch with /model <名称>" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Current: %1$@ · %2$@\nAvailable: %3$@\nSwitch with /model <名称>"
           }
         }
       }
@@ -9284,7 +9947,9 @@
         }
       }
     },
-    "Daily At (HH:MM)" : {},
+    "Daily At (HH:MM)" : {
+
+    },
     "daily at %02d:%02d" : {
       "localizations" : {
         "en" : {
@@ -9303,6 +9968,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每天 %02d:%02d"
+          }
+        }
+      }
+    },
+    "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例行通知的每日上限，超出部分扣进摘要。紧急失败不计入。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例行通知的每日上限，超出部分扣進摘要。緊急失敗不計入。"
           }
         }
       }
@@ -9532,8 +10219,12 @@
         }
       }
     },
-    "Declaration" : {},
-    "Declaration frames (%lld)" : {},
+    "Declaration" : {
+
+    },
+    "Declaration frames (%lld)" : {
+
+    },
     "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
       "localizations" : {
         "en" : {
@@ -9664,6 +10355,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設瀏覽器"
+          }
+        }
+      }
+    },
+    "Default persona" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default persona"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认人设"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設人設"
           }
         }
       }
@@ -10024,6 +10737,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除任務"
+          }
+        }
+      }
+    },
+    "Delete watch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete watch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除监视项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除監視項"
           }
         }
       }
@@ -10457,6 +11192,31 @@
         }
       }
     },
+    "Disable AI Action Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用 AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用 AI 動作複查"
+          }
+        }
+      }
+    },
+    "Disable Quiet Hours" : {
+
+    },
     "disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10705,6 +11465,50 @@
         }
       }
     },
+    "Double-Click Starts Voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-Click Starts Voice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击直达语音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙擊直達語音"
+          }
+        }
+      }
+    },
+    "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击球直接开始语音输入；关闭后双击视为两次普通点击。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙擊球直接開始語音輸入；關閉後雙擊視為兩次普通點擊。"
+          }
+        }
+      }
+    },
     "Download" : {
       "comment" : "Default download filename",
       "localizations" : {
@@ -10813,28 +11617,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載完成通知"
-          }
-        }
-      }
-    },
-    "Notifications" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知"
           }
         }
       }
@@ -11086,6 +11868,50 @@
         }
       }
     },
+    "Drag the ball to move it. Reset snaps it back to the middle of the left edge." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag the ball to move it. Reset snaps it back to the middle of the left edge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动球可移动位置；重置后回到左缘中部。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖動球可移動位置；重置後回到左緣中部。"
+          }
+        }
+      }
+    },
+    "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 .js 文件放进来然后重新加载。每个文件运行在独立沙箱化的 JavaScriptCore 上下文里，无法访问宿主——只有事件载荷与 console.log。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 .js 檔案放進來然後重新載入。每個檔案執行在獨立沙箱化的 JavaScriptCore 上下文裡，無法存取宿主——只有事件載荷與 console.log。"
+          }
+        }
+      }
+    },
     "Drop <site>.css / <site>.js here to override the built-in rules, or remote/source.txt to point at a remote bundle (no rebuild needed)." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11150,6 +11976,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複製標籤頁"
+          }
+        }
+      }
+    },
+    "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰时段内，例行通知（页面监视、完成汇总）会被扣下，时段结束时合并成一条摘要送达。紧急失败永远即时送达。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾時段內，例行通知（頁面監視、完成彙總）會被扣下，時段結束時合併成一條摘要送達。緊急失敗永遠即時送達。"
           }
         }
       }
@@ -11356,7 +12204,9 @@
         }
       }
     },
-    "EasyList 内容规则" : {},
+    "EasyList 内容规则" : {
+
+    },
     "Edit" : {
       "localizations" : {
         "en" : {
@@ -11654,6 +12504,74 @@
         }
       }
     },
+    "Enable AI Action Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable AI Action Review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 AI 动作复查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用 AI 動作複查"
+          }
+        }
+      }
+    },
+    "Enable Heartbeat" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用心跳巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用心跳巡檢"
+          }
+        }
+      }
+    },
+    "Enable Hooks" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用鉤子"
+          }
+        }
+      }
+    },
     "Enable JavaScript" : {
       "comment" : "Settings toggle",
       "extractionState" : "stale",
@@ -11677,6 +12595,9 @@
           }
         }
       }
+    },
+    "Enable Quiet Hours" : {
+
     },
     "Enabled" : {
       "comment" : "Toggle label",
@@ -11953,7 +12874,32 @@
         }
       }
     },
-    "Events (%lld)" : {},
+    "Events (%lld)" : {
+
+    },
+    "Every \\(watch.intervalMinutes) min" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every %lld min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 分鐘"
+          }
+        }
+      }
+    },
     "every %lld min" : {
       "localizations" : {
         "en" : {
@@ -11975,6 +12921,141 @@
           }
         }
       }
+    },
+    "Every %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every %lld min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 分鐘"
+          }
+        }
+      }
+    },
+    "Every 5 min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every 5 min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 5 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 5 分鐘"
+          }
+        }
+      }
+    },
+    "Every 15 min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every 15 min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 15 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 15 分鐘"
+          }
+        }
+      }
+    },
+    "Every 30 min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every 30 min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 30 分鐘"
+          }
+        }
+      }
+    },
+    "Every 60 min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every 60 min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 60 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 60 分鐘"
+          }
+        }
+      }
+    },
+    "Every 360 min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every 360 min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 6 小时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 6 小時"
+          }
+        }
+      }
+    },
+    "Every N Minutes" : {
+
     },
     "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
       "localizations" : {
@@ -12137,6 +13218,28 @@
         }
       }
     },
+    "Expand Animation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand Animation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开动画"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開動畫"
+          }
+        }
+      }
+    },
     "Expand Group" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -12205,6 +13308,9 @@
           }
         }
       }
+    },
+    "Explain with AI" : {
+
     },
     "Export" : {
       "comment" : "Bookmark export help",
@@ -12743,6 +13849,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一般"
+          }
+        }
+      }
+    },
+    "Fallback Service" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fallback Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备用服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備用服務"
           }
         }
       }
@@ -13356,7 +14485,9 @@
         }
       }
     },
-    "Fired events (latest %lld)" : {},
+    "Fired events (latest %lld)" : {
+
+    },
     "First Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13875,6 +15006,28 @@
         }
       }
     },
+    "Gestures on the ball itself." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestures on the ball itself."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球本体的手势行为。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球本體的手勢行為。"
+          }
+        }
+      }
+    },
     "Get a new one" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14278,6 +15431,28 @@
         }
       }
     },
+    "Heartbeat" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heartbeat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳巡檢"
+          }
+        }
+      }
+    },
     "Hide" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14573,6 +15748,51 @@
         }
       }
     },
+    "Hooks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子"
+          }
+        }
+      }
+    },
+    "Hooks Folder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hooks Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钩子目录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鉤子目錄"
+          }
+        }
+      }
+    },
     "Host Permissions:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14659,6 +15879,73 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新標籤頁的開啟方式與背景標籤的處理方式。"
+          }
+        }
+      }
+    },
+    "How proactive notifications (page watch, downloads, scheduled tasks) are delivered." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How proactive notifications (page watch, downloads, scheduled tasks) are delivered."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视、下载、定时任务这类主动通知的送达方式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視、下載、定時任務這類主動通知的送達方式。"
+          }
+        }
+      }
+    },
+    "How the expanded hub looks and moves." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the expanded hub looks and moves."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开后的触盘外观与动效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開後的觸盤外觀與動效。"
+          }
+        }
+      }
+    },
+    "How the idle ball looks on the window edge." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the idle ball looks on the window edge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球贴在窗口边缘待机时的外观。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "球貼在視窗邊緣待機時的外觀。"
           }
         }
       }
@@ -14798,6 +16085,75 @@
         }
       }
     },
+    "https://example.com" : {
+
+    },
+    "Hub Actions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘功能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤功能"
+          }
+        }
+      }
+    },
+    "Hub Size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘尺寸"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤尺寸"
+          }
+        }
+      }
+    },
+    "Hub Style" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub Style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触盘样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸盤樣式"
+          }
+        }
+      }
+    },
     "Human verification required" : {
       "localizations" : {
         "en" : {
@@ -14838,6 +16194,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我正在看這個頁面，想問："
+          }
+        }
+      }
+    },
+    "Idle Style" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idle Style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待机样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機樣式"
           }
         }
       }
@@ -15428,6 +16806,28 @@
         }
       }
     },
+    "Interaction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interaction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交互"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "互動"
+          }
+        }
+      }
+    },
     "Interception rules are global and apply from the next load." : {
       "localizations" : {
         "en" : {
@@ -15446,6 +16846,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "攔截規則是全域的，下次載入生效。"
+          }
+        }
+      }
+    },
+    "Interval" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interval"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "间隔"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間隔"
           }
         }
       }
@@ -15492,6 +16914,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "憑證無效"
+          }
+        }
+      }
+    },
+    "Invalid name or URL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid name or URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称或网址无效"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱或網址無效"
           }
         }
       }
@@ -15832,6 +17276,29 @@
         }
       }
     },
+    "Last Beat" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Beat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次巡检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次巡檢"
+          }
+        }
+      }
+    },
     "Last Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15877,6 +17344,9 @@
           }
         }
       }
+    },
+    "Latest Analysis" : {
+
     },
     "Learned from: %@" : {
       "localizations" : {
@@ -16053,6 +17523,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "來自其他應用程式的連結將在 Desire 中開啟。"
+          }
+        }
+      }
+    },
+    "list installed skills" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list installed skills"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出已装技能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出已裝技能"
+          }
+        }
+      }
+    },
+    "list model services, or switch: /model <名称>" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list model services, or switch: /model <名称>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出模型服务，或切换：/model <名称>"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出模型服務，或切換：/model <名稱>"
+          }
+        }
+      }
+    },
+    "list personas, or bind: /persona <名字>（off = unbind）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list personas, or bind: /persona <名字>（off = unbind）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出入设，或绑定：/persona <名字>（off = 解绑）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出入設，或綁定：/persona <名字>（off = 解綁）"
+          }
+        }
+      }
+    },
+    "list windows and their agent state" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list windows and their agent state"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出窗口与各自的 Agent 状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出視窗與各自的 Agent 狀態"
           }
         }
       }
@@ -16346,6 +17904,28 @@
         }
       }
     },
+    "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调低不透明度让球低调一些但仍可见，点击热区不变。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調低不透明度讓球低調一些但仍可見，點擊熱區不變。"
+          }
+        }
+      }
+    },
     "macOS could not complete the TLS handshake. Common causes: incorrect system date/time, outdated root certificates (run Software Update), or a firewall/VPN rewriting TLS. Try reloading in a few seconds." : {
       "localizations" : {
         "en" : {
@@ -16364,6 +17944,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS 無法完成 TLS 交握。常見原因：系統日期/時間不正確、根憑證過期（請執行軟體更新），或防火牆/VPN 竄改 TLS。請稍後重新載入。"
+          }
+        }
+      }
+    },
+    "Main Hub (2×2)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main Hub (2×2)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主盘（2×2）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主盤（2×2）"
           }
         }
       }
@@ -16884,6 +18486,38 @@
         }
       }
     },
+    "memory summary (profile, facts, summaries)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "memory summary (profile, facts, summaries)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆概要（画像、事实、摘要）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶概要（畫像、事實、摘要）"
+          }
+        }
+      }
+    },
+    "Memory: %lld facts, %lld conversation summaries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Memory: %1$lld facts, %2$lld conversation summaries"
+          }
+        }
+      }
+    },
     "Merging…" : {
       "localizations" : {
         "en" : {
@@ -17078,6 +18712,31 @@
         }
       }
     },
+    "Mode switched to %@." : {
+
+    },
+    "Mode: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式：%@"
+          }
+        }
+      }
+    },
     "Model" : {
       "localizations" : {
         "en" : {
@@ -17141,6 +18800,31 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模型服務"
+          }
+        }
+      }
+    },
+    "Model: %@" : {
+
+    },
+    "Model: follow global" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model: follow global"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型：跟随全局"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型：跟隨全域"
           }
         }
       }
@@ -17234,7 +18918,9 @@
         }
       }
     },
-    "Mute Tab" : {},
+    "Mute Tab" : {
+
+    },
     "name" : {
       "localizations" : {
         "en" : {
@@ -17344,6 +19030,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "助手的名字與語氣。留空使用預設。"
+          }
+        }
+      }
+    },
+    "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供各窗口 Agent 认领的命名 人设——在面板标题菜单里选择。只改变该窗口 Agent 的自称与语气；系统提示词保持全局。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供各視窗 Agent 認領的命名人設——在面板標題選單裡選擇。只改變該視窗 Agent 的自稱與語氣；系統提示詞保持全域。"
           }
         }
       }
@@ -17844,6 +19552,28 @@
         }
       }
     },
+    "Newest Window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Newest Window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新視窗"
+          }
+        }
+      }
+    },
     "Next" : {
       "comment" : "Next match button",
       "localizations" : {
@@ -18293,7 +20023,9 @@
         }
       }
     },
-    "No DPP declaration on this page" : {},
+    "No DPP declaration on this page" : {
+
+    },
     "No element inspected" : {
       "localizations" : {
         "en" : {
@@ -18338,7 +20070,9 @@
         }
       }
     },
-    "No events yet." : {},
+    "No events yet." : {
+
+    },
     "No extension storage" : {
       "localizations" : {
         "en" : {
@@ -18403,6 +20137,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有歷史記錄"
+          }
+        }
+      }
+    },
+    "No hook files found." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hook files found."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现钩子文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未發現鉤子檔案。"
           }
         }
       }
@@ -18472,6 +20228,9 @@
           }
         }
       }
+    },
+    "No interrupted turn in this conversation." : {
+
     },
     "No key" : {
       "localizations" : {
@@ -18990,6 +20749,37 @@
         }
       }
     },
+    "No persona matches %@." : {
+
+    },
+    "No personas defined — add them in Settings › Agent Personas." : {
+
+    },
+    "No personas yet. Add one below, then bind it from the agent panel's title menu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No personas yet. Add one below, then bind it from the agent panel's title menu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有人设。在下面新增一个，再到 Agent 面板标题菜单里绑定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有人設。在下面新增一個，再到 Agent 面板標題選單裡綁定。"
+          }
+        }
+      }
+    },
+    "No plan for this conversation." : {
+
+    },
     "No Plugins" : {
       "comment" : "Empty plugins state",
       "localizations" : {
@@ -19034,6 +20824,9 @@
           }
         }
       }
+    },
+    "No profile matches %@." : {
+
     },
     "No profiles yet. Add one to get an isolated cookie/session store." : {
       "localizations" : {
@@ -19282,6 +21075,9 @@
         }
       }
     },
+    "No skills installed." : {
+
+    },
     "No storage entries" : {
       "localizations" : {
         "en" : {
@@ -19327,8 +21123,12 @@
         }
       }
     },
-    "No tab selected" : {},
-    "No text found in this image." : {},
+    "No tab selected" : {
+
+    },
+    "No text found in this image." : {
+
+    },
     "No token usage recorded yet." : {
       "localizations" : {
         "en" : {
@@ -19372,6 +21172,37 @@
           }
         }
       }
+    },
+    "No turn is running." : {
+
+    },
+    "No watches yet — add one below." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No watches yet — add one below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有监视项——在下方添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有監視項——在下方新增。"
+          }
+        }
+      }
+    },
+    "No window context." : {
+
+    },
+    "No windows." : {
+
     },
     "None of this turn's tool calls returned anything that looks like success — treat the reply above as unverified." : {
       "localizations" : {
@@ -19484,6 +21315,28 @@
         }
       }
     },
+    "Not run yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not run yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未运行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未執行"
+          }
+        }
+      }
+    },
     "Not set" : {
       "comment" : "Sync key fingerprint placeholder",
       "extractionState" : "stale",
@@ -19504,6 +21357,51 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未設定"
+          }
+        }
+      }
+    },
+    "Notification Digest" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notification Digest"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知摘要"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知摘要"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
           }
         }
       }
@@ -19913,6 +21811,50 @@
         }
       }
     },
+    "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每行一条常驻检查项——值得周期性留意的事。留空则只依赖自动信号（页面监视、失败任务）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每行一條常駐檢查項——值得週期性留意的事。留空則只依賴自動訊號（頁面監視、失敗任務）。"
+          }
+        }
+      }
+    },
+    "One-click self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hook syntax, skill risks, notification authorization and heartbeat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One-click self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hook syntax, skill risks, notification authorization and heartbeat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一键自检：模型端点可达性、Key、MCP 连接、ffmpeg、钩子语法、技能风险、通知授权与心跳状态。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一鍵自檢：模型端點可達性、Key、MCP 連線、ffmpeg、鉤子語法、技能風險、通知授權與心跳狀態。"
+          }
+        }
+      }
+    },
     "Only calls whose service reports token usage are counted, so conversations from before this was recorded stay at 0." : {
       "localizations" : {
         "en" : {
@@ -19979,6 +21921,28 @@
         }
       }
     },
+    "Opacity" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opacity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        }
+      }
+    },
     "Open" : {
       "comment" : "Open file/destination",
       "localizations" : {
@@ -20024,6 +21988,9 @@
         }
       }
     },
+    "Open ${url} in Desire" : {
+
+    },
     "Open a page first" : {
       "localizations" : {
         "en" : {
@@ -20046,7 +22013,9 @@
         }
       }
     },
-    "Open a URL in the Desire browser's active tab." : {},
+    "Open a URL in the Desire browser's active tab." : {
+
+    },
     "Open clipboard link" : {
       "localizations" : {
         "en" : {
@@ -20225,7 +22194,9 @@
         }
       }
     },
-    "Open in New Window" : {},
+    "Open in New Window" : {
+
+    },
     "Open in Preview" : {
       "localizations" : {
         "en" : {
@@ -20292,7 +22263,9 @@
         }
       }
     },
-    "Open Link in Desire" : {},
+    "Open Link in Desire" : {
+
+    },
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
       "localizations" : {
@@ -20786,6 +22759,50 @@
         }
       }
     },
+    "Page Watch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page Watch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視"
+          }
+        }
+      }
+    },
+    "Page watch · AI analysis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page watch · AI analysis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视 · AI 分析"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視 · AI 分析"
+          }
+        }
+      }
+    },
     "Page Zoom" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20832,7 +22849,9 @@
         }
       }
     },
-    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {},
+    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {
+
+    },
     "Paid promotions and creator self-promotion readouts." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20928,7 +22947,9 @@
         }
       }
     },
-    "Parse warnings" : {},
+    "Parse warnings" : {
+
+    },
     "Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21222,7 +23243,9 @@
         }
       }
     },
-    "Pause Reading" : {},
+    "Pause Reading" : {
+
+    },
     "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
       "localizations" : {
         "en" : {
@@ -21334,7 +23357,9 @@
         }
       }
     },
-    "Performance" : {},
+    "Performance" : {
+
+    },
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
       "localizations" : {
@@ -21377,6 +23402,31 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "權限"
+          }
+        }
+      }
+    },
+    "Persona bound: %@." : {
+
+    },
+    "Persona name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persona name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人设名字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人設名字"
           }
         }
       }
@@ -21495,6 +23545,7 @@
       }
     },
     "Pick the four actions on the ball's radial hub. Choosing a capability that already occupies another slot swaps the two." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21714,6 +23765,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 chrome.storage.local 的擴充功能會在這裡顯示其鍵值。"
+          }
+        }
+      }
+    },
+    "Position" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
           }
         }
       }
@@ -22057,7 +24130,9 @@
         }
       }
     },
-    "Prompt" : {},
+    "Prompt" : {
+
+    },
     "Prompt sent when tapped" : {
       "localizations" : {
         "en" : {
@@ -22303,6 +24378,75 @@
         }
       }
     },
+    "Quiet From" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet From"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰开始"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾開始"
+          }
+        }
+      }
+    },
+    "Quiet Hours" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet Hours"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰时段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾時段"
+          }
+        }
+      }
+    },
+    "Quiet To" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiet To"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打扰结束"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免打擾結束"
+          }
+        }
+      }
+    },
     "Re-run the last message" : {
       "localizations" : {
         "en" : {
@@ -22370,7 +24514,9 @@
         }
       }
     },
-    "Read Aloud" : {},
+    "Read Aloud" : {
+
+    },
     "Reader Mode" : {
       "comment" : "Enter reader mode tooltip",
       "extractionState" : "stale",
@@ -22821,7 +24967,9 @@
         }
       }
     },
-    "Reject All" : {},
+    "Reject All" : {
+
+    },
     "Relaunching…" : {
       "localizations" : {
         "en" : {
@@ -22884,6 +25032,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新載入"
+          }
+        }
+      }
+    },
+    "Reload Hooks" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload Hooks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加载钩子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新載入鉤子"
           }
         }
       }
@@ -23540,6 +25711,28 @@
         }
       }
     },
+    "Research" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Research"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "研究"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "研究"
+          }
+        }
+      }
+    },
     "Reserve Space (GB)" : {
       "localizations" : {
         "en" : {
@@ -23581,6 +25774,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置"
+          }
+        }
+      }
+    },
+    "Reset ✓" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset ✓"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重置 ✓"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重置 ✓"
           }
         }
       }
@@ -23649,6 +25864,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重設所有快速鍵"
+          }
+        }
+      }
+    },
+    "Reset Order" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Order"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置排序"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置排序"
+          }
+        }
+      }
+    },
+    "Reset Position" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
           }
         }
       }
@@ -23944,6 +26203,28 @@
         }
       }
     },
+    "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认顺序：Agent 对话、语音输入、总结本页、白板在前。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復預設順序：Agent 對話、語音輸入、總結本頁、白板在前。"
+          }
+        }
+      }
+    },
     "Restore the last session or start fresh on the new tab page." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24121,7 +26402,9 @@
         }
       }
     },
-    "Resume Reading" : {},
+    "Resume Reading" : {
+
+    },
     "Resume the unanswered prompt" : {
       "localizations" : {
         "en" : {
@@ -24143,6 +26426,9 @@
           }
         }
       }
+    },
+    "Resumed the interrupted turn." : {
+
     },
     "Retry" : {
       "localizations" : {
@@ -24257,6 +26543,51 @@
         }
       }
     },
+    "Roomy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roomy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宽松"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寬鬆"
+          }
+        }
+      }
+    },
+    "Routine Limit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日例行上限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日例行上限"
+          }
+        }
+      }
+    },
     "Rule Files" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24325,6 +26656,28 @@
         }
       }
     },
+    "Run" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行"
+          }
+        }
+      }
+    },
     "Run \"%@\" on this page" : {
       "localizations" : {
         "en" : {
@@ -24370,6 +26723,29 @@
         }
       }
     },
+    "Run Check" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run Check"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行体检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行體檢"
+          }
+        }
+      }
+    },
     "Run JavaScript in the page…" : {
       "localizations" : {
         "en" : {
@@ -24388,6 +26764,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在頁面裡執行 JavaScript…"
+          }
+        }
+      }
+    },
+    "run the agent self-check" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "run the agent self-check"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行 Agent 自检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行 Agent 自檢"
           }
         }
       }
@@ -24456,6 +26854,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行於 127.0.0.1:8799（以 --automation 啟動）。"
+          }
+        }
+      }
+    },
+    "Running the agent self-check…" : {
+
+    },
+    "Running…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "体检中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "體檢中…"
+          }
+        }
+      }
+    },
+    "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对下面的清单加上最新的机器信号（页面监视变化、定时任务失败）跑一次轻量后台模型调用。有事的提醒走例行通知（过免打扰与每日预算闸）；没事只花一次调用的钱。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對下面的清單加上最新的機器訊號（頁面監視變化、定時任務失敗）跑一次輕量背景模型調用。有事的提醒走例行通知（過免打擾與每日預算閘）；沒事只花一次調用的錢。"
           }
         }
       }
@@ -24956,6 +27401,28 @@
         }
       }
     },
+    "Scales the expanded hub and its buttons. Standard matches the V3 prototype." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scales the expanded hub and its buttons. Standard matches the V3 prototype."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整体缩放展开后的触盘与按钮；「标准」即 V3 原型尺寸。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整體縮放展開後的觸盤與按鈕；「標準」即 V3 原型尺寸。"
+          }
+        }
+      }
+    },
     "Scan Me" : {
       "comment" : "Remote control",
       "extractionState" : "stale",
@@ -25004,8 +27471,15 @@
         }
       }
     },
-    "Schedule Desire Task" : {},
-    "Schedule Task" : {},
+    "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {
+
+    },
+    "Schedule Desire Task" : {
+
+    },
+    "Schedule Task" : {
+
+    },
     "Scheduled task failed" : {
       "localizations" : {
         "en" : {
@@ -25046,28 +27520,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "定時任務"
-          }
-        }
-      }
-    },
-    "Agent Doctor" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent Doctor"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 体检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 體檢"
           }
         }
       }
@@ -25188,7 +27640,9 @@
         }
       }
     },
-    "Screenshot text" : {},
+    "Screenshot text" : {
+
+    },
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
       "extractionState" : "stale",
@@ -26001,72 +28455,6 @@
         }
       }
     },
-    "AI Action Review" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Action Review"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 动作复查"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 動作複查"
-          }
-        }
-      }
-    },
-    "Heartbeat" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Heartbeat"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "心跳巡检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "心跳巡檢"
-          }
-        }
-      }
-    },
-    "Hooks" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hooks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "钩子"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鉤子"
-          }
-        }
-      }
-    },
     "Send (⏎)" : {
       "localizations" : {
         "en" : {
@@ -26089,7 +28477,9 @@
         }
       }
     },
-    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {},
+    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {
+
+    },
     "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
       "localizations" : {
         "en" : {
@@ -26422,7 +28812,9 @@
         }
       }
     },
-    "Session network rules — temp block/redirect, gone on app exit" : {},
+    "Session network rules — temp block/redirect, gone on app exit" : {
+
+    },
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -26829,6 +29221,28 @@
         }
       }
     },
+    "Show Floating Ball" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Floating Ball"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示悬浮球"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示懸浮球"
+          }
+        }
+      }
+    },
     "Show History" : {
       "comment" : "History menu",
       "localizations" : {
@@ -26991,6 +29405,28 @@
         }
       }
     },
+    "show the current plan checklist" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show the current plan checklist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示当前计划清单"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示當前計劃清單"
+          }
+        }
+      }
+    },
     "Show the model's thinking" : {
       "localizations" : {
         "en" : {
@@ -27059,6 +29495,28 @@
         }
       }
     },
+    "show this list" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show this list"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示本清单"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示本清單"
+          }
+        }
+      }
+    },
     "Show Whiteboard" : {
       "localizations" : {
         "zh-Hans" : {
@@ -27071,6 +29529,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示白板"
+          }
+        }
+      }
+    },
+    "shrink the context budget now (older turns stay recallable)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "shrink the context budget now (older turns stay recallable)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即收紧上下文预算（旧轮次仍可召回）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即收緊上下文預算（舊輪次仍可召回）"
           }
         }
       }
@@ -27439,6 +29919,28 @@
         }
       }
     },
+    "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挂在 Agent 事件上的小型 JavaScript 脚本——访问规则之上的可编程层。保持简短：它们在 Agent 循环上同步执行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掛在 Agent 事件上的小型 JavaScript 指令碼——存取規則之上的可程式化層。保持簡短：它們在 Agent 迴圈上同步執行。"
+          }
+        }
+      }
+    },
     "Some calls have no price set — the amount would be incomplete" : {
       "localizations" : {
         "en" : {
@@ -27551,6 +30053,28 @@
         }
       }
     },
+    "Standard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準"
+          }
+        }
+      }
+    },
     "Standing personal preferences applied to every reply. Add or remove freely — no need to edit the whole system prompt." : {
       "localizations" : {
         "en" : {
@@ -27591,6 +30115,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每 N 個檔案後開一個新的 archivedNNN 子資料夾。"
+          }
+        }
+      }
+    },
+    "start a fresh conversation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "start a fresh conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启全新会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟全新會話"
           }
         }
       }
@@ -27861,7 +30407,9 @@
         }
       }
     },
-    "Stop Reading" : {},
+    "Stop Reading" : {
+
+    },
     "Stored in the macOS Keychain." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28177,6 +30725,28 @@
         }
       }
     },
+    "switch agent mode: /mode standard|research|writing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "switch agent mode: /mode standard|research|writing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换 Agent 模式：/mode standard|research|writing"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換 Agent 模式：/mode standard|research|writing"
+          }
+        }
+      }
+    },
     "Switch model / provider" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28196,6 +30766,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "切換模型 / 提供商"
+          }
+        }
+      }
+    },
+    "Switch persona for this window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch persona for this window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换本窗口的 Agent 人设"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換本視窗的 Agent 人設"
           }
         }
       }
@@ -28243,6 +30835,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "切換到標籤頁 1-9"
+          }
+        }
+      }
+    },
+    "Switched to %@ · %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Switched to %1$@ · %2$@."
           }
         }
       }
@@ -28810,7 +31412,75 @@
         }
       }
     },
-    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {},
+    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {
+
+    },
+    "Target Ring" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target Ring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触环"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸環"
+          }
+        }
+      }
+    },
+    "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「触环」是 AssistiveTouch 式的待机标记；「Agent 图标」让 AI 入口一眼可辨。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「觸環」是 AssistiveTouch 式的待機標記；「Agent 圖示」讓 AI 入口一眼可辨。"
+          }
+        }
+      }
+    },
+    "Target: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標：%@"
+          }
+        }
+      }
+    },
     "Temperature" : {
       "localizations" : {
         "en" : {
@@ -29056,6 +31726,28 @@
         }
       }
     },
+    "The first four in the list below." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first four in the list below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即下方列表的前四项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即下方列表的前四項。"
+          }
+        }
+      }
+    },
     "The local file doesn't exist (or can't be read). It may have been moved, renamed, or deleted since it was opened." : {
       "localizations" : {
         "en" : {
@@ -29206,6 +31898,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "該網站的憑證不受 macOS 信任。這通常表示系統時間不正確，或企業/資安軟體正在攔截連線。請在系統設定中檢查日期與時間，然後重新載入。"
+          }
+        }
+      }
+    },
+    "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前四行组成球的 2×2 主盘，其余收在「⌄ 全部」里；顺序随意调，触盘网格跟随你的排序。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前四行組成球的 2×2 主盤，其餘收在「⌄ 全部」裡；順序隨意調，觸盤網格跟隨你的排序。"
           }
         }
       }
@@ -29476,6 +32190,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本對話"
+          }
+        }
+      }
+    },
+    "This conversation: %lld user turns, %lld tool calls, %lld prompt + %lld completion tokens" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This conversation: %1$lld user turns, %2$lld tool calls, %3$lld prompt + %4$lld completion tokens"
           }
         }
       }
@@ -30074,6 +32798,28 @@
         }
       }
     },
+    "token usage and cost for this conversation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "token usage and cost for this conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本会话的 token 用量与成本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本會話的 token 用量與成本"
+          }
+        }
+      }
+    },
     "Token usage for this conversation (provider-reported)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -30159,6 +32905,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語氣（例如：簡潔、友好、不用表情）"
+          }
+        }
+      }
+    },
+    "Tone (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语气（可选）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語氣（可選）"
           }
         }
       }
@@ -30547,7 +33315,9 @@
         }
       }
     },
-    "Turn finished." : {},
+    "Turn finished." : {
+
+    },
     "turns" : {
       "localizations" : {
         "en" : {
@@ -30705,6 +33475,38 @@
         }
       }
     },
+    "Unknown mode %@ — available: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown mode %1$@ — available: %2$@"
+          }
+        }
+      }
+    },
+    "Unlimited" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限"
+          }
+        }
+      }
+    },
     "Unmute tab" : {
       "localizations" : {
         "en" : {
@@ -30727,7 +33529,9 @@
         }
       }
     },
-    "Unmute Tab" : {},
+    "Unmute Tab" : {
+
+    },
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -30773,7 +33577,9 @@
         }
       }
     },
-    "Unpin Tab" : {},
+    "Unpin Tab" : {
+
+    },
     "Unverified" : {
       "localizations" : {
         "en" : {
@@ -31449,7 +34255,9 @@
         }
       }
     },
-    "Video Speed" : {},
+    "Video Speed" : {
+
+    },
     "Video Tasks" : {
       "localizations" : {
         "en" : {
@@ -31563,7 +34371,9 @@
         }
       }
     },
-    "Views (%lld)" : {},
+    "Views (%lld)" : {
+
+    },
     "Voice input" : {
       "localizations" : {
         "en" : {
@@ -31672,6 +34482,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "警告"
+          }
+        }
+      }
+    },
+    "Watch a page (or a CSS selector on it) for changes on a schedule. With AI analysis, each change is summarized by the agent — the result arrives as a notification and is kept under the watch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch a page (or a CSS selector on it) for changes on a schedule. With AI analysis, each change is summarized by the agent — the result arrives as a notification and is kept under the watch."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定时监视某个页面（或其上的 CSS 选择器）。开启 AI 分析后，每次变化由智能体总结要点——结果以通知送达，并保留在对应监视项下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定時監視某個頁面（或其上的 CSS 選擇器）。開啟 AI 分析後，每次變化由智慧代理總結要點——結果以通知送達，並保留在對應監視項下。"
           }
         }
       }
@@ -31904,6 +34736,50 @@
         }
       }
     },
+    "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务在瞬态错误（限流、5xx、断连）上反复失败时，回合会换这个服务再试最后一次才放弃。留空则维持原样直接失败。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前服務在瞬態錯誤（限流、5xx、斷線）上反覆失敗時，回合會換這個服務再試最後一次才放棄。留空則維持原樣直接失敗。"
+          }
+        }
+      }
+    },
+    "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳标记某事后，还会自动派一个真实 Agent 回合去核实与处理（忙时排队）。关闭则只提醒不动手。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心跳標記某事後，還會自動派一個真實 Agent 回合去核實與處理（忙時排隊）。關閉則只提醒不動手。"
+          }
+        }
+      }
+    },
     "Where captured screenshots are written." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -32130,6 +35006,28 @@
         }
       }
     },
+    "Which window's agent receives this task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which window's agent receives this task"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个任务投递给哪个窗口的 Agent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個任務投遞給哪個視窗的 Agent"
+          }
+        }
+      }
+    },
     "White" : {
       "localizations" : {
         "en" : {
@@ -32170,6 +35068,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "白板"
+          }
+        }
+      }
+    },
+    "Window closed (falls back to the newest session)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window closed (falls back to the newest session)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口已关闭（回落最新会话）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視窗已關閉（回落最新會話）"
           }
         }
       }
@@ -32258,6 +35178,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作目錄"
+          }
+        }
+      }
+    },
+    "Writing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写作"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫作"
           }
         }
       }
@@ -32511,7 +35453,9 @@
         }
       }
     },
-    "上一块（←）" : {},
+    "上一块（←）" : {
+
+    },
     "上一条提问还没有收到回答" : {
       "localizations" : {
         "en" : {
@@ -32556,10 +35500,21 @@
         }
       }
     },
-    "上一步" : {},
-    "下一块（→）" : {},
-    "下一步" : {},
-    "个性化（可选）" : {},
+    "上一步" : {
+
+    },
+    "下一块（→）" : {
+
+    },
+    "下一步" : {
+
+    },
+    "个性化（可选）" : {
+
+    },
+    "主盘 %lld" : {
+
+    },
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -32583,7 +35538,9 @@
         }
       }
     },
-    "从模板创建" : {},
+    "从模板创建" : {
+
+    },
     "任务计划" : {
       "localizations" : {
         "en" : {
@@ -32803,7 +35760,9 @@
         }
       }
     },
-    "刷新" : {},
+    "刷新" : {
+
+    },
     "取消" : {
       "localizations" : {
         "en" : {
@@ -32848,7 +35807,9 @@
         }
       }
     },
-    "固定" : {},
+    "固定" : {
+
+    },
     "图表（ECharts）" : {
       "localizations" : {
         "en" : {
@@ -32897,8 +35858,15 @@
         }
       }
     },
-    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {},
-    "复制" : {},
+    "在访达中显示" : {
+
+    },
+    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {
+
+    },
+    "复制" : {
+
+    },
     "完成" : {
       "localizations" : {
         "en" : {
@@ -32921,7 +35889,9 @@
         }
       }
     },
-    "完成，开始使用" : {},
+    "完成，开始使用" : {
+
+    },
     "导入 .board（追加块）" : {
       "localizations" : {
         "en" : {
@@ -32955,8 +35925,12 @@
         }
       }
     },
-    "导出 .board（JSON）——模板也能这样分享" : {},
-    "导出 Markdown" : {},
+    "导出 .board（JSON）——模板也能这样分享" : {
+
+    },
+    "导出 Markdown" : {
+
+    },
     "导出 PNG 到下载目录" : {
       "localizations" : {
         "en" : {
@@ -32973,7 +35947,12 @@
         }
       }
     },
-    "导出单文件 HTML（离线可读的分享页）" : {},
+    "导出单文件 HTML（离线可读的分享页）" : {
+
+    },
+    "导出记忆知识库 Markdown（到“下载”文件夹）" : {
+
+    },
     "展开或收起白板预览" : {
       "localizations" : {
         "en" : {
@@ -33028,8 +36007,15 @@
         }
       }
     },
-    "已回复 · 刚刚" : {},
-    "已拒绝" : {},
+    "已回复 · 刚刚" : {
+
+    },
+    "已导出：%@" : {
+
+    },
+    "已拒绝" : {
+
+    },
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -33052,10 +36038,18 @@
         }
       }
     },
-    "已接受" : {},
-    "已登录：%@" : {},
-    "已知追踪与分析请求" : {},
-    "已静音" : {},
+    "已接受" : {
+
+    },
+    "已登录：%@" : {
+
+    },
+    "已知追踪与分析请求" : {
+
+    },
+    "已静音" : {
+
+    },
     "常驻能力" : {
       "localizations" : {
         "en" : {
@@ -33145,7 +36139,9 @@
         }
       }
     },
-    "当前指标" : {},
+    "当前指标" : {
+
+    },
     "总结本页" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -33252,8 +36248,12 @@
         }
       }
     },
-    "手动添加块（进入源码编辑）/ 从模板创建" : {},
-    "打开对话 →" : {},
+    "手动添加块（进入源码编辑）/ 从模板创建" : {
+
+    },
+    "打开对话 →" : {
+
+    },
     "打开白板" : {
       "localizations" : {
         "en" : {
@@ -33286,9 +36286,15 @@
         }
       }
     },
-    "拦截广告" : {},
-    "拦截追踪器" : {},
-    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {},
+    "拦截广告" : {
+
+    },
+    "拦截追踪器" : {
+
+    },
+    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {
+
+    },
     "搜索工具" : {
       "localizations" : {
         "en" : {
@@ -33333,8 +36339,12 @@
         }
       }
     },
-    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {},
-    "播放中" : {},
+    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {
+
+    },
+    "播放中" : {
+
+    },
     "放弃" : {
       "localizations" : {
         "en" : {
@@ -33488,7 +36498,9 @@
         }
       }
     },
-    "标签页" : {},
+    "标签页" : {
+
+    },
     "标题" : {
       "localizations" : {
         "en" : {
@@ -33736,9 +36748,15 @@
         }
       }
     },
-    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {},
-    "演示中 — %@" : {},
-    "演示模式（逐块放映）" : {},
+    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {
+
+    },
+    "演示中 — %@" : {
+
+    },
+    "演示模式（逐块放映）" : {
+
+    },
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -33929,7 +36947,12 @@
         }
       }
     },
-    "空板" : {},
+    "空板" : {
+
+    },
+    "立即执行（取消当前回合并优先运行这条）" : {
+
+    },
     "立即更新全部" : {
       "localizations" : {
         "en" : {
@@ -33962,7 +36985,9 @@
         }
       }
     },
-    "第 %lld/3 步" : {},
+    "第 %lld/3 步" : {
+
+    },
     "继续回合" : {
       "localizations" : {
         "en" : {
@@ -34257,10 +37282,18 @@
         }
       }
     },
-    "设置暂不可用——可在设置 → AI 里稍后配置。" : {},
-    "设置暂不可用，稍后可在设置 → 隐私开启。" : {},
-    "识别文字" : {},
-    "识别文字 (OCR)" : {},
+    "设置暂不可用——可在设置 → AI 里稍后配置。" : {
+
+    },
+    "设置暂不可用，稍后可在设置 → 隐私开启。" : {
+
+    },
+    "识别文字" : {
+
+    },
+    "识别文字 (OCR)" : {
+
+    },
     "跳过" : {
       "localizations" : {
         "en" : {
@@ -34327,7 +37360,9 @@
         }
       }
     },
-    "进白板" : {},
+    "进白板" : {
+
+    },
     "退出响应式模式" : {
       "localizations" : {
         "en" : {
@@ -34350,10 +37385,18 @@
         }
       }
     },
-    "退出放映（块仍保留）" : {},
-    "选区已拖入" : {},
-    "配置同步（设置页）" : {},
-    "重做（⇧⌘Z）" : {},
+    "退出放映（块仍保留）" : {
+
+    },
+    "选区已拖入" : {
+
+    },
+    "配置同步（设置页）" : {
+
+    },
+    "重做（⇧⌘Z）" : {
+
+    },
     "重新生成" : {
       "localizations" : {
         "en" : {
@@ -34398,7 +37441,9 @@
         }
       }
     },
-    "链接已拖入" : {},
+    "链接已拖入" : {
+
+    },
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {
       "localizations" : {
         "en" : {
@@ -34421,7 +37466,9 @@
         }
       }
     },
-    "问本页" : {},
+    "问本页" : {
+
+    },
     "隐藏悬浮球" : {
       "localizations" : {
         "en" : {
@@ -34485,2646 +37532,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
-          }
-        }
-      }
-    },
-    "Ball" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ball"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球体"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球體"
-          }
-        }
-      }
-    },
-    "How the idle ball looks on the window edge." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How the idle ball looks on the window edge."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球贴在窗口边缘待机时的外观。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球貼在視窗邊緣待機時的外觀。"
-          }
-        }
-      }
-    },
-    "Show Floating Ball" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Floating Ball"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示悬浮球"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示懸浮球"
-          }
-        }
-      }
-    },
-    "Opacity" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opacity"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不透明度"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不透明度"
-          }
-        }
-      }
-    },
-    "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "调低不透明度让球低调一些但仍可见，点击热区不变。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "調低不透明度讓球低調一些但仍可見，點擊熱區不變。"
-          }
-        }
-      }
-    },
-    "Idle Style" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Idle Style"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待机样式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待機樣式"
-          }
-        }
-      }
-    },
-    "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target ring is the AssistiveTouch-style idle mark; Agent icon makes the AI entry obvious at a glance."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「触环」是 AssistiveTouch 式的待机标记；「Agent 图标」让 AI 入口一眼可辨。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「觸環」是 AssistiveTouch 式的待機標記；「Agent 圖示」讓 AI 入口一眼可辨。"
-          }
-        }
-      }
-    },
-    "Target Ring" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target Ring"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触环"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸環"
-          }
-        }
-      }
-    },
-    "Agent Icon" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent Icon"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 图标"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 圖示"
-          }
-        }
-      }
-    },
-    "Position" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Position"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置"
-          }
-        }
-      }
-    },
-    "Drag the ball to move it. Reset snaps it back to the middle of the left edge." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drag the ball to move it. Reset snaps it back to the middle of the left edge."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拖动球可移动位置；重置后回到左缘中部。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拖動球可移動位置；重置後回到左緣中部。"
-          }
-        }
-      }
-    },
-    "Reset Position" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Position"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置位置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置位置"
-          }
-        }
-      }
-    },
-    "Reset ✓" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset ✓"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已重置 ✓"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已重置 ✓"
-          }
-        }
-      }
-    },
-    "Hub Actions" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hub Actions"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触盘功能"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸盤功能"
-          }
-        }
-      }
-    },
-    "Hub Style" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hub Style"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触盘样式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸盤樣式"
-          }
-        }
-      }
-    },
-    "How the expanded hub looks and moves." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How the expanded hub looks and moves."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展开后的触盘外观与动效。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開後的觸盤外觀與動效。"
-          }
-        }
-      }
-    },
-    "Hub Size" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hub Size"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "触盘尺寸"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "觸盤尺寸"
-          }
-        }
-      }
-    },
-    "Scales the expanded hub and its buttons. Standard matches the V3 prototype." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scales the expanded hub and its buttons. Standard matches the V3 prototype."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "整体缩放展开后的触盘与按钮；「标准」即 V3 原型尺寸。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "整體縮放展開後的觸盤與按鈕；「標準」即 V3 原型尺寸。"
-          }
-        }
-      }
-    },
-    "Compact" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compact"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "紧凑"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "緊湊"
-          }
-        }
-      }
-    },
-    "Standard" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标准"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "標準"
-          }
-        }
-      }
-    },
-    "Roomy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roomy"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "宽松"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "寬鬆"
-          }
-        }
-      }
-    },
-    "Expand Animation" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expand Animation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展开动画"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開動畫"
-          }
-        }
-      }
-    },
-    "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bloom-in, staggered buttons and the opening sheen. Off = the hub appears instantly."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "绽放弹出、按钮依次弹入与开盘掠光；关闭后触盘直接出现。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "綻放彈出、按鈕依次彈入與開盤掠光；關閉後觸盤直接出現。"
-          }
-        }
-      }
-    },
-    "Interaction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Interaction"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "交互"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "互動"
-          }
-        }
-      }
-    },
-    "Gestures on the ball itself." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gestures on the ball itself."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球本体的手势行为。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "球本體的手勢行為。"
-          }
-        }
-      }
-    },
-    "Double-Click Starts Voice" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-Click Starts Voice"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "双击直达语音"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "雙擊直達語音"
-          }
-        }
-      }
-    },
-    "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-clicking the ball jumps straight into voice input. Off = double-click counts as two regular clicks."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "双击球直接开始语音输入；关闭后双击视为两次普通点击。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "雙擊球直接開始語音輸入；關閉後雙擊視為兩次普通點擊。"
-          }
-        }
-      }
-    },
-    "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The top four rows form the ball's 2×2 main hub; the rest live behind \"⌄ All\". Reorder freely — the hub grid follows your order."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前四行组成球的 2×2 主盘，其余收在「⌄ 全部」里；顺序随意调，触盘网格跟随你的排序。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前四行組成球的 2×2 主盤，其餘收在「⌄ 全部」裡；順序隨意調，觸盤網格跟隨你的排序。"
-          }
-        }
-      }
-    },
-    "Main Hub (2×2)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Main Hub (2×2)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主盘（2×2）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主盤（2×2）"
-          }
-        }
-      }
-    },
-    "The first four in the list below." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The first four in the list below."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "即下方列表的前四项。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "即下方列表的前四項。"
-          }
-        }
-      }
-    },
-    "Reset Order" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Order"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置排序"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重置排序"
-          }
-        }
-      }
-    },
-    "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore the default order: Agent Chat, Voice, Summarize Page, Whiteboard first."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢复默认顺序：Agent 对话、语音输入、总结本页、白板在前。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢復預設順序：Agent 對話、語音輸入、總結本頁、白板在前。"
-          }
-        }
-      }
-    },
-    "Page Watch" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page Watch"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "页面监视"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "頁面監視"
-          }
-        }
-      }
-    },
-    "Watch a page (or a CSS selector on it) for changes on a schedule. With AI analysis, each change is summarized by the agent — the result arrives as a notification and is kept under the watch." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watch a page (or a CSS selector on it) for changes on a schedule. With AI analysis, each change is summarized by the agent — the result arrives as a notification and is kept under the watch."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "定时监视某个页面（或其上的 CSS 选择器）。开启 AI 分析后，每次变化由智能体总结要点——结果以通知送达，并保留在对应监视项下。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "定時監視某個頁面（或其上的 CSS 選擇器）。開啟 AI 分析後，每次變化由智慧代理總結要點——結果以通知送達，並保留在對應監視項下。"
-          }
-        }
-      }
-    },
-    "No watches yet — add one below." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No watches yet — add one below."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有监视项——在下方添加。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有監視項——在下方新增。"
-          }
-        }
-      }
-    },
-    "Delete watch" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete watch"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除监视项"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除監視項"
-          }
-        }
-      }
-    },
-    "Every \\(watch.intervalMinutes) min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every %lld min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 %lld 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 %lld 分鐘"
-          }
-        }
-      }
-    },
-    "\\(watch.changeCount) changes" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld changes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "变化 %lld 次"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "變化 %lld 次"
-          }
-        }
-      }
-    },
-    "AI Analysis" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Analysis"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 分析"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 分析"
-          }
-        }
-      }
-    },
-    "Add Watch" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Watch"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加监视"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增監視"
-          }
-        }
-      }
-    },
-    "CSS selector (optional)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS selector (optional)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 选择器（可选）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSS 選擇器（可選）"
-          }
-        }
-      }
-    },
-    "Interval" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Interval"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "间隔"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "間隔"
-          }
-        }
-      }
-    },
-    "Every 5 min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every 5 min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 5 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 5 分鐘"
-          }
-        }
-      }
-    },
-    "Every 15 min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every 15 min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 15 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 15 分鐘"
-          }
-        }
-      }
-    },
-    "Every 30 min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every 30 min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 30 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 30 分鐘"
-          }
-        }
-      }
-    },
-    "Every 60 min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every 60 min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 60 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 60 分鐘"
-          }
-        }
-      }
-    },
-    "Every 360 min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every 360 min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 6 小时"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 6 小時"
-          }
-        }
-      }
-    },
-    "Invalid name or URL" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid name or URL"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名称或网址无效"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名稱或網址無效"
-          }
-        }
-      }
-    },
-    "Page watch · AI analysis" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page watch · AI analysis"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "页面监视 · AI 分析"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "頁面監視 · AI 分析"
-          }
-        }
-      }
-    },
-    "Every %lld min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every %lld min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 %lld 分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每 %lld 分鐘"
-          }
-        }
-      }
-    },
-    "%lld changes" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld changes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "变化 %lld 次"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "變化 %lld 次"
-          }
-        }
-      }
-    },
-    "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "At the Auto-edit access level, side-effect actions are first checked by a fast background model against your standing rules; flagged actions ask for confirmation with the reason. Timeouts never block the turn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动编辑访问等级下，副作用动作先经一个快速后台模型对照你的常驻规则检查；被标记的动作转为确认（附理由）。超时不会阻塞回合。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動編輯存取等級下，副作用動作先經一個快速背景模型對照你的常駐規則檢查；被標記的動作轉為確認（附理由）。逾時不會阻塞回合。"
-          }
-        }
-      }
-    },
-    "Disable AI Action Review" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Disable AI Action Review"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停用 AI 动作复查"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停用 AI 動作複查"
-          }
-        }
-      }
-    },
-    "Enable AI Action Review" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable AI Action Review"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启用 AI 动作复查"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "啟用 AI 動作複查"
-          }
-        }
-      }
-    },
-    "AI review flagged: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI review flagged: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 复查标记：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 複查標記：%@"
-          }
-        }
-      }
-    },
-    "How proactive notifications (page watch, downloads, scheduled tasks) are delivered." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How proactive notifications (page watch, downloads, scheduled tasks) are delivered."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "页面监视、下载、定时任务这类主动通知的送达方式。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "頁面監視、下載、定時任務這類主動通知的送達方式。"
-          }
-        }
-      }
-    },
-    "Quiet Hours" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quiet Hours"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打扰时段"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打擾時段"
-          }
-        }
-      }
-    },
-    "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "During quiet hours, routine notifications (page watch, completion summaries) are held and delivered as one digest when quiet hours end. Urgent failures always come through."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打扰时段内，例行通知（页面监视、完成汇总）会被扣下，时段结束时合并成一条摘要送达。紧急失败永远即时送达。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打擾時段內，例行通知（頁面監視、完成彙總）會被扣下，時段結束時合併成一條摘要送達。緊急失敗永遠即時送達。"
-          }
-        }
-      }
-    },
-    "Quiet From" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quiet From"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打扰开始"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打擾開始"
-          }
-        }
-      }
-    },
-    "Quiet To" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quiet To"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打扰结束"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免打擾結束"
-          }
-        }
-      }
-    },
-    "Routine Limit" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Routine Limit"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每日例行上限"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每日例行上限"
-          }
-        }
-      }
-    },
-    "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daily cap on routine notifications; anything over it is held for the digest. Urgent failures don't count."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例行通知的每日上限，超出部分扣进摘要。紧急失败不计入。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "例行通知的每日上限，超出部分扣進摘要。緊急失敗不計入。"
-          }
-        }
-      }
-    },
-    "Unlimited" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlimited"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不限"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不限"
-          }
-        }
-      }
-    },
-    "%lld per day" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld per day"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每天 %lld 条"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每天 %lld 條"
-          }
-        }
-      }
-    },
-    "Notification Digest" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notification Digest"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知摘要"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知摘要"
-          }
-        }
-      }
-    },
-    "…and %lld more" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "…and %lld more"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "…以及另外 %lld 条"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "…以及另外 %lld 條"
-          }
-        }
-      }
-    },
-    "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前服务在瞬态错误（限流、5xx、断连）上反复失败时，回合会换这个服务再试最后一次才放弃。留空则维持原样直接失败。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "當前服務在瞬態錯誤（限流、5xx、斷線）上反覆失敗時，回合會換這個服務再試最後一次才放棄。留空則維持原樣直接失敗。"
-          }
-        }
-      }
-    },
-    "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A periodic check-in where the model itself decides whether anything needs your attention — it stays silent unless something is worth a ping. Skipped while a turn runs or during quiet hours."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "周期性巡检：由模型自己判断有没有值得提醒你的事——没事就保持沉默。回合进行中或免打扰时段内自动跳过。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "週期性巡檢：由模型自己判斷有沒有值得提醒你的事——沒事就保持沉默。回合進行中或免打擾時段內自動跳過。"
-          }
-        }
-      }
-    },
-    "Enable Heartbeat" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable Heartbeat"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启用心跳巡检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "啟用心跳巡檢"
-          }
-        }
-      }
-    },
-    "Act On Findings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Act On Findings"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发现即处理"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "發現即處理"
-          }
-        }
-      }
-    },
-    "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runs a lightweight background model call over the checklist below plus fresh machine signals (page-watch changes, failed scheduled tasks). A ping arrives as a routine notification; silence costs nothing but the call."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "对下面的清单加上最新的机器信号（页面监视变化、定时任务失败）跑一次轻量后台模型调用。有事的提醒走例行通知（过免打扰与每日预算闸）；没事只花一次调用的钱。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對下面的清單加上最新的機器訊號（頁面監視變化、定時任務失敗）跑一次輕量背景模型調用。有事的提醒走例行通知（過免打擾與每日預算閘）；沒事只花一次調用的錢。"
-          }
-        }
-      }
-    },
-    "Last Beat" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Last Beat"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上次巡检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上次巡檢"
-          }
-        }
-      }
-    },
-    "Not run yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not run yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚未运行"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚未執行"
-          }
-        }
-      }
-    },
-    "Checklist" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checklist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "巡检清单"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "巡檢清單"
-          }
-        }
-      }
-    },
-    "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "One standing instruction per line — things worth checking periodically. Leave empty to rely on automatic signals only (page watches, failed tasks)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每行一条常驻检查项——值得周期性留意的事。留空则只依赖自动信号（页面监视、失败任务）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每行一條常駐檢查項——值得週期性留意的事。留空則只依賴自動訊號（頁面監視、失敗任務）。"
-          }
-        }
-      }
-    },
-    "Agent Heartbeat" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent Heartbeat"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 心跳"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 心跳"
-          }
-        }
-      }
-    },
-    "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When the heartbeat flags something, it also dispatches a real agent turn to verify and handle it (queued while busy). Off means it only tells you."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "心跳标记某事后，还会自动派一个真实 Agent 回合去核实与处理（忙时排队）。关闭则只提醒不动手。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "心跳標記某事後，還會自動派一個真實 Agent 回合去核實與處理（忙時排隊）。關閉則只提醒不動手。"
-          }
-        }
-      }
-    },
-    "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Small JavaScript files that run on agent events — a programmable layer on top of the access rules. Keep them short; they run synchronously on the agent loop."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "挂在 Agent 事件上的小型 JavaScript 脚本——访问规则之上的可编程层。保持简短：它们在 Agent 循环上同步执行。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "掛在 Agent 事件上的小型 JavaScript 指令碼——存取規則之上的可程式化層。保持簡短：它們在 Agent 迴圈上同步執行。"
-          }
-        }
-      }
-    },
-    "Enable Hooks" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable Hooks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启用钩子"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "啟用鉤子"
-          }
-        }
-      }
-    },
-    "Newest Window" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Newest Window"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最新窗口"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最新視窗"
-          }
-        }
-      }
-    },
-    "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "钩子文件可定义 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何访问等级下否决工具）与 turnFinish(event)（回合收尾通知）。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鉤子檔案可定義 beforeToolCall(event)（返回 {decision:\"deny\", reason:\"…\"} 即可在任何存取等級下否決工具）與 turnFinish(event)（回合收尾通知）。"
-          }
-        }
-      }
-    },
-    "Hooks Folder" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hooks Folder"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "钩子目录"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鉤子目錄"
-          }
-        }
-      }
-    },
-    "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drop .js files here, then reload. Each file runs in its own sandboxed JavaScriptCore context with no host access — only your event payload and console.log."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把 .js 文件放进来然后重新加载。每个文件运行在独立沙箱化的 JavaScriptCore 上下文里，无法访问宿主——只有事件载荷与 console.log。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把 .js 檔案放進來然後重新載入。每個檔案執行在獨立沙箱化的 JavaScriptCore 上下文裡，無法存取宿主——只有事件載荷與 console.log。"
-          }
-        }
-      }
-    },
-    "Reload Hooks" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reload Hooks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新加载钩子"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新載入鉤子"
-          }
-        }
-      }
-    },
-    "No hook files found." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No hook files found."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未发现钩子文件。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未發現鉤子檔案。"
-          }
-        }
-      }
-    },
-    "beforeToolCall / turnFinish" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "beforeToolCall / turnFinish"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "beforeToolCall / turnFinish"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "beforeToolCall / turnFinish"
-          }
-        }
-      }
-    },
-    "Closed Window" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Closed Window"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "窗口已关闭"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "視窗已關閉"
-          }
-        }
-      }
-    },
-    "Window closed (falls back to the newest session)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Window closed (falls back to the newest session)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "窗口已关闭（回落最新会话）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "視窗已關閉（回落最新會話）"
-          }
-        }
-      }
-    },
-    "Target: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目标：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目標：%@"
-          }
-        }
-      }
-    },
-    "Which window's agent receives this task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Which window's agent receives this task"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这个任务投递给哪个窗口的 Agent"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這個任務投遞給哪個視窗的 Agent"
-          }
-        }
-      }
-    },
-    "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Named personas the window agents can take — pick one from the panel's title menu. It only changes how that window's agent introduces itself; the system prompt stays global."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "供各窗口 Agent 认领的命名 人设——在面板标题菜单里选择。只改变该窗口 Agent 的自称与语气；系统提示词保持全局。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "供各視窗 Agent 認領的命名人設——在面板標題選單裡選擇。只改變該視窗 Agent 的自稱與語氣；系統提示詞保持全域。"
-          }
-        }
-      }
-    },
-    "No personas yet. Add one below, then bind it from the agent panel's title menu." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No personas yet. Add one below, then bind it from the agent panel's title menu."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有人设。在下面新增一个，再到 Agent 面板标题菜单里绑定。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有人設。在下面新增一個，再到 Agent 面板標題選單裡綁定。"
-          }
-        }
-      }
-    },
-    "Persona name" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Persona name"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "人设名字"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "人設名字"
-          }
-        }
-      }
-    },
-    "Tone (optional)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tone (optional)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "语气（可选）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "語氣（可選）"
-          }
-        }
-      }
-    },
-    "Default persona" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default persona"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "默认人设"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預設人設"
-          }
-        }
-      }
-    },
-    "Switch persona for this window" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Switch persona for this window"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换本窗口的 Agent 人设"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換本視窗的 Agent 人設"
-          }
-        }
-      }
-    },
-    "show this list" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "show this list"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示本清单"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示本清單"
-          }
-        }
-      }
-    },
-    "Model: follow global" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Model: follow global"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型：跟随全局"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模型：跟隨全域"
-          }
-        }
-      }
-    },
-    "One-click self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hook syntax, skill risks, notification authorization and heartbeat." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "One-click self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hook syntax, skill risks, notification authorization and heartbeat."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一键自检：模型端点可达性、Key、MCP 连接、ffmpeg、钩子语法、技能风险、通知授权与心跳状态。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一鍵自檢：模型端點可達性、Key、MCP 連線、ffmpeg、鉤子語法、技能風險、通知授權與心跳狀態。"
-          }
-        }
-      }
-    },
-    "Run Check" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run Check"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行体检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行體檢"
-          }
-        }
-      }
-    },
-    "Run" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行"
-          }
-        }
-      }
-    },
-    "Running…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Running…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "体检中…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "體檢中…"
-          }
-        }
-      }
-    },
-    "All %lld checks passed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All %lld checks passed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 项检查全部通过"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 項檢查全部通過"
-          }
-        }
-      }
-    },
-    "%lld of %lld checks passed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld of %lld checks passed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld/%lld 项通过"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld/%lld 項通過"
-          }
-        }
-      }
-    },
-    "Research" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Research"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "研究"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "研究"
-          }
-        }
-      }
-    },
-    "Writing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "写作"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "寫作"
-          }
-        }
-      }
-    },
-    "Mode: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模式：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模式：%@"
-          }
-        }
-      }
-    },
-    "start a fresh conversation" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "start a fresh conversation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开启全新会话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟全新會話"
-          }
-        }
-      }
-    },
-    "shrink the context budget now (older turns stay recallable)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "shrink the context budget now (older turns stay recallable)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即收紧上下文预算（旧轮次仍可召回）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即收緊上下文預算（舊輪次仍可召回）"
-          }
-        }
-      }
-    },
-    "token usage and cost for this conversation" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "token usage and cost for this conversation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本会话的 token 用量与成本"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本會話的 token 用量與成本"
-          }
-        }
-      }
-    },
-    "run the agent self-check" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "run the agent self-check"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行 Agent 自检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行 Agent 自檢"
-          }
-        }
-      }
-    },
-    "switch agent mode: /mode standard|research|writing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "switch agent mode: /mode standard|research|writing"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换 Agent 模式：/mode standard|research|writing"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換 Agent 模式：/mode standard|research|writing"
-          }
-        }
-      }
-    },
-    "continue the interrupted turn" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "continue the interrupted turn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "继续被打断的回合"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "繼續被打斷的回合"
-          }
-        }
-      }
-    },
-    "list installed skills" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list installed skills"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出已装技能"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出已裝技能"
-          }
-        }
-      }
-    },
-    "memory summary (profile, facts, summaries)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "memory summary (profile, facts, summaries)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "记忆概要（画像、事实、摘要）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記憶概要（畫像、事實、摘要）"
-          }
-        }
-      }
-    },
-    "list model services, or switch: /model <名称>" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list model services, or switch: /model <名称>"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出模型服务，或切换：/model <名称>"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出模型服務，或切換：/model <名稱>"
-          }
-        }
-      }
-    },
-    "list personas, or bind: /persona <名字>（off = unbind）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list personas, or bind: /persona <名字>（off = unbind）"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出入设，或绑定：/persona <名字>（off = 解绑）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出入設，或綁定：/persona <名字>（off = 解綁）"
-          }
-        }
-      }
-    },
-    "show the current plan checklist" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "show the current plan checklist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示当前计划清单"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示當前計劃清單"
-          }
-        }
-      }
-    },
-    "cancel the running turn" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cancel the running turn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消正在运行的回合"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消正在執行的回合"
-          }
-        }
-      }
-    },
-    "list windows and their agent state" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list windows and their agent state"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出窗口与各自的 Agent 状态"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出視窗與各自的 Agent 狀態"
           }
         }
       }

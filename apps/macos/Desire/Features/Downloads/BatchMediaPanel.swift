@@ -13,6 +13,12 @@ struct BatchMediaPanel: View {
     @ObservedObject var mediaStore: MediaExportStore
     /// 展开日志的批次集合（doc.text 图标 toggle）。
     @State private var expandedLogIDs: Set<UUID> = []
+    /// 静态缓存：每次渲染新建 DateFormatter（耗时分配器）在滚动期间反复发生。
+    private static let logFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,7 +26,9 @@ struct BatchMediaPanel: View {
                 EmptyState(message: String(localized: "No batch tasks"))
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    // LazyVStack：批次多时只物化可见卡——全量 VStack 在每次
+                    // @Published 触发时重建全部卡片 × 40 行，滚动掉帧。
+                    LazyVStack(alignment: .leading, spacing: 18) {
                         if !mediaStore.jobs.isEmpty {
                             singleExportsSection
                         }
@@ -223,8 +231,6 @@ struct BatchMediaPanel: View {
     /// 重开一次即刷新。mono 小字、自动滚到最新。
     private func logView(_ batch: BatchMediaBatch) -> some View {
         let entries = BatchMediaLogStore.entries(batch.id)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
         return Group {
             if entries.isEmpty {
                 Text(String(localized: "No log entries yet"))
@@ -236,7 +242,7 @@ struct BatchMediaPanel: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
                             ForEach(entries) { entry in
-                                Text(verbatim: "\(formatter.string(from: entry.at))  \(entry.line)")
+                                Text(verbatim: "\(Self.logFormatter.string(from: entry.at))  \(entry.line)")
                                     .font(.system(size: 9.5, design: .monospaced))
                                     .foregroundStyle(.secondary)
                                     .textSelection(.enabled)

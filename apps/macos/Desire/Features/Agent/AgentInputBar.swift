@@ -82,6 +82,16 @@ struct AgentInputBar: View {
                 attachmentStrip
             }
             inputCapsule
+                .overlay(alignment: .top) {
+                    // 悬浮在输入框上侧：菜单底边钉在胶囊顶边（alignmentGuide
+                    // 翻转生长方向），向上浮出、不占输入栏自身空间。
+                    if slashMenuVisible {
+                        slashMenu
+                            .fixedSize(horizontal: false, vertical: true)
+                            .alignmentGuide(.top) { d in d[.bottom] }
+                            .offset(y: -6)
+                    }
+                }
             voiceStatusLine
         }
         .padding(.horizontal, 12)
@@ -174,11 +184,6 @@ struct AgentInputBar: View {
 
     private var inputCapsule: some View {
         VStack(spacing: 0) {
-            if slashMenuVisible {
-                slashMenu
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
-            }
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)

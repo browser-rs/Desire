@@ -996,9 +996,26 @@ final class BatchMediaExportStore: ObservableObject {
         return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads", isDirectory: true)
     }
 
+    /// 磁盘剩余缓存（按卷根路径）：主线程不再同步 statfs——外部盘被 ffmpeg
+    /// 写满时单次 statfs 可达数百 ms（合并中卡顿源之一）。后台刷新，主线程
+    /// 读缓存；首查未定返回 nil（调用方按"无门禁信息"放行）。
+    private var spaceCacheByRoot: [String: (free: Int64, at: Date)] = [:]
+
     private func volumeFreeBytes(at url: URL) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        return values?.volumeAvailableCapacityForImportantUsage
+        let key = url.path
+        if let cached = spaceCacheByRoot[key],
+           Date().timeIntervalSince(cached.at) < 4 {
+            return cached.free
+        }
+        spaceCacheByRoot[key] = nil
+        Task.detached(priority: .utility) { [weak self] in
+            let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            let free = values?.volumeAvailableCapacityForImportantUsage
+            Task { @MainActor [weak self] in
+                self?.spaceCacheByRoot[key] = (free ?? -1, Date())
+            }
+        }
+        return spaceCacheByRoot[key]?.free
     }
 
     private static func gb(_ bytes: Int64) -> String {

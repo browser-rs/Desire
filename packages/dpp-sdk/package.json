@@ -1,0 +1,39 @@
+{
+  "name": "desire-dpp-sdk",
+  "version": "1.0.0",
+  "description": "Desire Page Protocol (DPP) L3 SDK — declare your web page's capabilities (views/signals/actions/events) for AI agents, like llms.txt for pages",
+  "keywords": [
+    "desire",
+    "dpp",
+    "page-protocol",
+    "ai-agents",
+    "llms-txt",
+    "structured-data",
+    "browser"
+  ],
+  "homepage": "https://desire.mankong.icu/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browser-rs/Desire.git",
+    "directory": "packages/dpp-sdk"
+  },
+  "license": "MIT",
+  "main": "dist/desire-sdk.js",
+  "module": "dist/desire-sdk.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/desire-sdk.esm.js",
+      "default": "./dist/desire-sdk.js"
+    },
+    "./dist/desire-sdk.js": "./dist/desire-sdk.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/smoke.mjs"
+  }
+}

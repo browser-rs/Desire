@@ -14,14 +14,6 @@
  *   - postEvent(payload): 事件发射通道（desireProtocolEvent）
  *   - global: 顶层对象（UMD = window；ESM 冒烟 = 假 window）
  */
-
-/**
- * desire-dpp-sdk（UMD 构建，来自 packages/dpp-sdk — 勿直接编辑本文件）
- * 网页接入：<script src="…/desire-sdk.js"></script> + desire.expose({…})
- * 规范：docs/DPP-PROTOCOL.md
- */
-(function() {
-    "use strict";
 function createDesireSDK(env) {
     var global = env.global;
     var VERSION = "1.0.0";
@@ -143,7 +135,3 @@ function browserEnv(global) {
         }
     };
 }
-
-    // 挂载到 window（宿主解析器读取 window.__desireProtocolExposed）
-    window.desire = createDesireSDK(browserEnv(window));
-})();

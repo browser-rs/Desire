@@ -1,0 +1,40 @@
+{
+  "format": "desire/adapter-1",
+  "name": "juejin",
+  "hosts": ["juejin.cn", ".juejin.cn"],
+  "pathPrefixes": ["/entry/", "/post/"],
+  "notes": "社区适配：掘金文章页（selectors 需随站点改版校准）",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "article",
+    "contentMain": "article",
+    "sections": {
+      "article": "article",
+      "comments": ".comment-list, [class*='comment-list']"
+    },
+    "ignore": [
+      "nav", "footer", "aside", "[class*='sidebar']", "[class*='recommend']",
+      "[class*='banner']", "[class*='sidenav']"
+    ],
+    "views": {
+      "article": {
+        "item": "article",
+        "fields": {
+          "title": "h1",
+          "author": "[class*='author'] .username, [class*='author-name'], a[class*='username']",
+          "publishTime": "time, [class*='meta'] time, [class*='date']",
+          "content": ".markdown-body, [class*='article-content']",
+          "tags": ".tag-list li, [class*='tag'] a"
+        }
+      }
+    },
+    "signals": {
+      "ready": "article .markdown-body",
+      "busy": "[class*='loading']"
+    },
+    "context": {
+      "domain": "tech-articles",
+      "rules": "文章页；长文按 sections.article 读取可省 token；评论区在 sections.comments"
+    }
+  }
+}

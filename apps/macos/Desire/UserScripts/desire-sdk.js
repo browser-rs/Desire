@@ -1,39 +1,35 @@
 /**
- * desire-sdk.js — Desire Page Protocol L3 SDK (v1)
- * DPP for AI agents — 网页的能力声明协议（与 llms.txt 互补）
- * SDK: https://desire.mankong.icu/desire-sdk.js · 规范: docs/DPP-PROTOCOL.md
+ * desire-dpp-sdk — core（宿主环境可注入）
  *
- * 新开发的网站用这个 SDK 声明 DPP 协议——比手写 JSON 声明块更友好：
- * - 类型安全的 API（视图/信号/动作/事件）
- * - SPA 路由变化时自动重新声明
- * - 事件发射 API（比 MutationObserver 更精确）
- * - dev 模式 schema 校验（console.warn 提示）
+ * Desire Page Protocol (DPP) L3 SDK 的单一逻辑源：不直接触碰 window，
+ * 宿主桥经 `env` 注入——build 脚本由它拼出两个产物：
+ *   - dist/desire-sdk.js   UMD/IIFE（浏览器 <script> 直接引，挂 window.desire）
+ *   - dist/desire-sdk.esm.js  ESM（bundler / `import { createDesireSDK }`）
  *
- * 用法：
- * <script src="desire-sdk.js"></script>
- * <script>
- *   desire.expose({
- *     page: { type: "catalog" },
- *     content: { main: ".product-grid" },
- *     views: { products: { item: ".card", fields: { title: "h3", price: ".price" } } },
- *     signals: { ready: "[data-app-ready]" },
- *     actions: [ { name: "add-to-cart", run: [{ click: ".add-btn" }], effects: "persist" } ]
- *   });
- * </script>
+ * 协议规范：仓库 docs/DPP-PROTOCOL.md
  *
- * 事件发射（比 DOM 监听更精确，DPP events 的替代方案）：
- *   desire.emit("new-message", { conversationId: "…", text: "…" });
- *
- * 校验（开发时检查协议声明是否完整）：
- *   desire.validate();  // console.log 结果
+ * env（由包装器提供）：
+ *   - postControl(payload): 把 {kind:"reparse"} 送进宿主（Desire 浏览器
+ *     经 window.webkit.messageHandlers.desireProtocolControl）
+ *   - postEvent(payload): 事件发射通道（desireProtocolEvent）
+ *   - global: 顶层对象（UMD = window；ESM 冒烟 = 假 window）
+ */
+
+/**
+ * desire-dpp-sdk（UMD 构建，来自 packages/dpp-sdk — 勿直接编辑本文件）
+ * 网页接入：<script src="…/desire-sdk.js"></script> + desire.expose({…})
+ * 规范：docs/DPP-PROTOCOL.md
  */
 (function() {
     "use strict";
+function createDesireSDK(env) {
+    var global = env.global;
+    var VERSION = "1.0.0";
 
     var DesireSDK = {
-        version: "1.0",
+        version: VERSION,
         _protocol: null,
-        _eventListener: null,
+        _debug: false,
 
         /**
          * 声明 DPP 协议。重复调用 = 更新（如 SPA 路由变化）。
@@ -46,11 +42,11 @@
             }
             this._protocol = protocol;
             // 序列化并挂到 window，宿主解析器读取 window.__desireProtocolExposed
-            window.__desireProtocolExposed = JSON.parse(JSON.stringify(protocol));
+            global.__desireProtocolExposed = JSON.parse(JSON.stringify(protocol));
             // SPA 路由变化的重新 expose 需要宿主重新解析——宿主只在 didFinish
             // 解析一次，不通知的话新声明永远不会进 pageProtocol 缓存。
             try {
-                window.webkit.messageHandlers.desireProtocolControl.postMessage({ kind: "reparse" });
+                env.postControl({ kind: "reparse" });
             } catch (e) {}
             if (this._debug) {
                 console.log("[desire-sdk] protocol exposed:", Object.keys(protocol));
@@ -64,8 +60,8 @@
          */
         emit: function(eventName, detail) {
             try {
-                window.webkit.messageHandlers.desireProtocolEvent.postMessage({
-                    host: location.host,
+                env.postEvent({
+                    host: global.location ? global.location.host : "",
                     eventName: eventName,
                     detail: detail || {}
                 });
@@ -129,10 +125,25 @@
         /** 开启 dev 调试日志。 */
         debug: function(on) {
             this._debug = on !== false;
-        },
-        _debug: false
+        }
     };
 
+    return DesireSDK;
+}
+
+/** 宿主桥（真实浏览器环境）：WebKit script message handlers。 */
+function browserEnv(global) {
+    return {
+        global: global,
+        postControl: function(payload) {
+            global.webkit.messageHandlers.desireProtocolControl.postMessage(payload);
+        },
+        postEvent: function(payload) {
+            global.webkit.messageHandlers.desireProtocolEvent.postMessage(payload);
+        }
+    };
+}
+
     // 挂载到 window（宿主解析器读取 window.__desireProtocolExposed）
-    window.desire = DesireSDK;
+    window.desire = createDesireSDK(browserEnv(window));
 })();

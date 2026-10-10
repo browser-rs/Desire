@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- **DPP SDK 独立成 npm 包（packages/dpp-sdk）**：单一逻辑源 src/core.js（宿主桥可注入 env），build 拼出 UMD（浏览器 script 直引，挂 window.desire）与 ESM（bundler/`createDesireSDK`）两个产物并自动同步 website 部署源与 app bundle 副本（此前两份手写副本漂移）；node 冒烟 10 项（expose/emit/validate/profile 契约/UMD 沙箱求值）；package.json+README+发布脚本就绪，npm 账号到位后 `bash packages/dpp-sdk/publish.sh` 即发。
+- **DPP 第三方适配包（外挂协议）**：站点不主动接入时由社区按 host 声明——声明式 JSON（与 SDK expose 同一协议格式，纯 JSON 零代码），动作照走既有审批链不引入新执行面；优先级=页面原生声明>适配器（站点接入后适配包自然失效，实测断言）；`DPPAdapterStore`（Application Support/Desire/DPPAdapters/*.json，逐包启停持久化、坏包报错不影响他包、protocol/protocolBody 双键名容错）；设置页 DPP 区新增列表（导入/启停/删除/坏包原因）；桥 `GET /dpp/adapters`、`POST /dpp/adapters/import|toggle|remove`；示例适配包 juejin.json（docs/dpp-adapters/ 附编写守则）。fixture E2E：适配器协议生效（views/signals/ignore/来源戳）+原生优先 PASS。
+- **顺手修**：桥 `/protocol/inspect` 加 `index?` 参数（多窗口下 deliveryTarget 的窗口未必是 active 窗口，E2E 实测错位）；inspect 的 views.fields 序列化非 plist 类型曾静默产出空响应；navigate 端点对挂起标签先 unsuspend（挂起路径置空 navigationDelegate，直接 load 后 didFinish/didCommit 全不来——桥的加载完成信号、DPP 解析、isLoading 清零全断）。
+
+
 ## [v0.7.9] - 2026-10-10
 ### Fixed
 

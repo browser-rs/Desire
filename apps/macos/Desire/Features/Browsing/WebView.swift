@@ -1703,6 +1703,20 @@ try {
             // 无协议页面解析器返回字面 "null"——这是常态不是错误，安静置空
             //（此前每个普通页面都刷一行 decode error）。
             if raw == "null" {
+                // **第三方适配包**（2026-10-10）：页面没有任何原生声明时，
+                // 按 host 查外挂适配——站点没接入 DPP 的主流页面由第三方
+                // 声明（views/signals/actions 同一套协议格式）。页面原生
+                // 声明优先：上面已 return，这里只补空白；适配器协议体原样
+                // 成为 pageProtocol（动作照走既有审批链，不引入新执行面）。
+                if let pageURL = webView.url,
+                   let adapter = DPPAdapterStore.shared.adapter(for: pageURL) {
+                    var adapted = adapter.protocolBody
+                    adapted.revisedAt = Date()
+                    parent.state.pageProtocol = adapted.isEmpty ? nil : adapted
+                    parent.state.pageProtocolChecked = true
+                    Log.agent.info("DPP adapter applied: \(adapter.name, privacy: .public) views=\(adapted.views.count, privacy: .public) actions=\(adapted.actions.count, privacy: .public)")
+                    return
+                }
                 parent.state.pageProtocol = nil
                 parent.state.pageProtocolChecked = true
                 return

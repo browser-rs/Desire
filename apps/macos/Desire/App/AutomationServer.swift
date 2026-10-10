@@ -581,6 +581,10 @@ final class AutomationServer {
         ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
+        ep("GET", "/dpp/adapters", "Third-party DPP adapter packages (list + enabled + loadErrors)", example: "…/dpp/adapters")
+        ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
+        ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
+        ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int", "pixelRatio?:number"], example: "-d '{\"enabled\":true,\"pixelRatio\":3}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -920,16 +924,22 @@ final class AutomationServer {
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
             case ("GET", "/protocol/inspect"):
-                guard let session = AgentScheduler.shared.deliveryTarget,
-                      let dpp = session.boundTabManager?.selectedTab?.browser.effectiveProtocol else {
+                // index? 指定标签（多窗口下 deliveryTarget 的窗口未必是
+                // active 窗口——E2E 实测错位）；缺省 = deliveryTarget 的 selected。
+                let inspectedTab = Self.shared.resolveIndex(Self.index(query))
+                    ?? AgentScheduler.shared.deliveryTarget?.boundTabManager?.selectedTab
+                guard let dpp = inspectedTab?.browser.effectiveProtocol else {
                     return try Self.json(["declared": false])
                 }
                 var views: [String: Any] = [:]
                 for (name, view) in dpp.views {
-                    views[name] = ["item": view.item, "fields": view.fields,
+                    // fields 显式摊平成 String→String——自定义 struct 直接进
+                    // JSONSerialization 会静默产出空响应（非 plist 类型）。
+                    views[name] = ["item": view.item,
+                                   "fields": view.fields.mapValues { $0.expression },
                                    "pagination": view.pagination?.type ?? "none"]
                 }
-                let dppHost = session.boundTabManager?.selectedTab?.browser.webView.url?.host ?? ""
+                let dppHost = inspectedTab?.browser.webView.url?.host ?? ""
                 return try Self.json([
                     "declared": true, "version": dpp.protocolVersion,
                     "profile": dpp.profile ?? "",
@@ -944,7 +954,7 @@ final class AutomationServer {
                     "context": dpp.context,
                     "warnings": dpp.warnings,
                     "eventMode": PageEventHub.shared.mode(for: dppHost),
-                    "siteLevel": session.boundTabManager?.selectedTab?.browser.siteProtocol != nil,
+                    "siteLevel": inspectedTab?.browser.siteProtocol != nil,
                 ])
             case ("GET", "/dpp/modes"):
                 return try Self.json(["modes": PageEventHub.shared.siteModes])
@@ -1191,6 +1201,40 @@ final class AutomationServer {
                 }
                 PageEventHub.shared.setMode(mode, for: host)
                 return try Self.json(["ok": true, "host": host, "mode": PageEventHub.shared.mode(for: host)])
+            case ("GET", "/dpp/adapters"):
+                // 第三方适配包（2026-10-10）：列表 + 启停 + 坏包错误。
+                let store = DPPAdapterStore.shared
+                return try Self.json([
+                    "adapters": store.adapters.map { a in
+                        ["name": a.name, "hosts": a.hosts, "pathPrefixes": a.pathPrefixes,
+                         "enabled": store.isEnabled(a), "notes": a.notes,
+                         "views": Array(a.protocolBody.views.keys),
+                         "actions": a.protocolBody.actions.map(\.name)]
+                    },
+                    "loadErrors": store.loadErrors,
+                ])
+            case ("POST", "/dpp/adapters/import"):
+                guard let path = Self.string(body, "path") else {
+                    return try Self.json(["error": "missing path"])
+                }
+                do {
+                    let a = try DPPAdapterStore.shared.importFile(at: URL(fileURLWithPath: path))
+                    return try Self.json(["ok": true, "name": a.name, "hosts": a.hosts])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/dpp/adapters/toggle"):
+                guard let name = Self.string(body, "name"), let enabled = body["enabled"] as? Bool else {
+                    return try Self.json(["error": "name and enabled required"])
+                }
+                DPPAdapterStore.shared.setEnabled(enabled, for: name)
+                return try Self.json(["ok": true, "name": name, "enabled": enabled])
+            case ("POST", "/dpp/adapters/remove"):
+                guard let name = Self.string(body, "name") else {
+                    return try Self.json(["error": "missing name"])
+                }
+                DPPAdapterStore.shared.remove(name)
+                return try Self.json(["ok": true, "name": name])
             case ("GET", "/dpp/action-approvals"):
                 // DPP 逐动作放行清单（0.6.7）：host × action 的用户授权。
                 return try Self.json([
@@ -2421,6 +2465,13 @@ final class AutomationServer {
         }
         tab.isOnNewTabPage = false
         tab.urlString = finalURL
+        // 挂起标签先唤醒：挂起路径把 navigationDelegate 置了 nil（省资源的
+        // 既有设计），直接 load 的话 didFinish/didCommit 全不来——桥拿不到
+        // 任何加载完成信号（DPP 解析、isLoading 清零、pageReady 全断）。
+        // unsuspend 走视图恢复链路把 delegate 重新挂上。
+        if tab.isSuspended {
+            (try? shared.tabManager)?.unsuspend(tab)
+        }
         tab.browser.webView.load(URLRequest(url: url))
         return ["ok": true, "navigatedTo": finalURL]
     }

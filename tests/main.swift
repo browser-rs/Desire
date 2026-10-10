@@ -1532,6 +1532,61 @@ func testDPPMerge() {
 }
 testDPPMerge()
 
+func testDPPAdapter() {
+    func adapterJSON(_ body: String) -> Data { Data(body.utf8) }
+
+    // 标准格式解码（protocolBody 键）
+    let (a1, e1) = DPPAdapter.decode(adapterJSON("""
+    {"format":"desire/adapter-1","name":"juejin","hosts":["juejin.cn",".juejin.cn"],
+     "pathPrefixes":["/entry/","/post/"],
+     "protocolBody":{"views":{"article":{"item":"article","fields":{"title":{"expression":"h1"}}}},"signals":{"ready":".content"}}}
+    """))
+    check("adapter：标准格式解码", a1 != nil && e1 == nil)
+    check("adapter：协议体复用 views", a1?.protocolBody.views["article"] != nil)
+    check("adapter：warnings 带来源戳", a1?.protocolBody.warnings.contains("adapter: juejin") == true)
+
+    // "protocol" 键名回退
+    let (a2, e2) = DPPAdapter.decode(adapterJSON("""
+    {"name":"demo","hosts":["demo.com"],"protocol":{"views":{"t":{"item":".i","fields":{"f":{"expression":".f"}}}}}}
+    """))
+    check("adapter：protocol 键名回退", a2 != nil && e2 == nil && a2?.protocolBody.views["t"] != nil)
+
+    // 坏包：缺 name / 缺 hosts / 坏 JSON
+    check("adapter：缺 name 拒收", DPPAdapter.decode(adapterJSON(#"{"hosts":["a.com"]}"#)).1 != nil)
+    check("adapter：缺 hosts 拒收", DPPAdapter.decode(adapterJSON(#"{"name":"x"}"#)).1 != nil)
+    check("adapter：坏 JSON 拒收", DPPAdapter.decode(Data("not json".utf8)).1 != nil)
+
+    // host 匹配：精确 / 子域通配 / 大小写
+    let a = a1!
+    check("adapter：精确 host 命中", a.matchesHost("juejin.cn"))
+    check("adapter：www 子域命中", a.matchesHost("www.juejin.cn"))
+    check("adapter：深层子域命中", a.matchesHost("x.y.juejin.cn"))
+    check("adapter：他站不命中", !a.matchesHost("example.com"))
+    check("adapter：相似前缀不命中", !a.matchesHost("notjuejin.cn"))
+    check("adapter：大小写不敏感", a.matchesHost("JUEJIN.CN"))
+
+    // 路径过滤：前缀命中 / 前缀外不命中 / 空前缀全站
+    check("adapter：路径前缀命中", a.matchesPath("/entry/123"))
+    check("adapter：路径前缀外不命中", !a.matchesPath("/user/1"))
+    let noPath = DPPAdapter(name: "n", hosts: ["a.com"], pathPrefixes: [],
+                            protocolBody: DesireProtocol(), notes: "")
+    check("adapter：空前缀全站命中", noPath.matchesPath("/anything"))
+
+    // URL 级综合匹配
+    let u1 = URL(string: "https://juejin.cn/entry/123")!
+    let u2 = URL(string: "https://juejin.cn/user/1")!
+    check("adapter：URL 综合命中", a.matches(url: u1))
+    check("adapter：URL 综合不命中", !a.matches(url: u2))
+
+    // 多适配器择一：名字典序（store 语义的纯函数侧——min by name）
+    let candidates = [
+        DPPAdapter(name: "zeta", hosts: ["x.com"], pathPrefixes: [], protocolBody: DesireProtocol(), notes: ""),
+        DPPAdapter(name: "alpha", hosts: ["x.com"], pathPrefixes: [], protocolBody: DesireProtocol(), notes: ""),
+    ]
+    check("adapter：同 host 择名字典序最小", candidates.min { $0.name < $1.name }?.name == "alpha")
+}
+testDPPAdapter()
+
 func testDPPSections() {
     // 嵌套 content.sections（页面声明标准形态）
     let nested = dppDecode("""

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// AI 设置页里的「DPP 协议」区块：Agent 智能接管的统一开关面。
 /// 此前事件三档只有桥端点（`/dpp/mode`）可改、协议解析与提示注入
@@ -6,7 +7,10 @@ import SwiftUI
 struct DPPSettingsSection: View {
     @ObservedObject private var config = DPPConfigStore.shared
     @ObservedObject private var hub = PageEventHub.shared
+    /// 第三方适配包（2026-10-10）。
+    @ObservedObject private var adapters = DPPAdapterStore.shared
     @Environment(\.appAccent) private var appAccent: Color
+    @State private var importError: String?
 
     var body: some View {
         SettingsSection(
@@ -68,6 +72,110 @@ struct DPPSettingsSection: View {
                         }
                     }
                 }
+            }
+            adaptersBlock
+        }
+        .alert(
+            String(localized: "Import failed"),
+            isPresented: Binding(
+                get: { importError != nil },
+                set: { if !$0 { importError = nil } }
+            )
+        ) {
+            Button(String(localized: "OK")) { importError = nil }
+        } message: {
+            Text(importError ?? "")
+        }
+    }
+
+    /// 第三方适配包：站点没接入 DPP 时由社区声明（页面声明优先，适配器
+    /// 只补空白）。导入 JSON / 逐包启停 / 删除。
+    @ViewBuilder
+    private var adaptersBlock: some View {
+        SettingsRowDivider()
+        SettingsRow(
+            String(localized: "Third-Party Adapters"),
+            subtitle: String(localized: "Community-written DPP declarations for popular sites (applied only when the page has no native declaration). Drop JSON files or import below.")
+        ) {
+            Button {
+                pickAndImport()
+            } label: {
+                Text(String(localized: "Import"))
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        if !adapters.adapters.isEmpty || !adapters.loadErrors.isEmpty {
+            SettingsRowDivider()
+            VStack(spacing: 0) {
+                ForEach(adapters.adapters) { adapter in
+                    adapterRow(adapter)
+                    SettingsRowDivider()
+                }
+                ForEach(adapters.loadErrors.keys.sorted(), id: \.self) { file in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                        Text(file)
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Text(adapters.loadErrors[file] ?? "")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.vertical, 6)
+                    if file != adapters.loadErrors.keys.sorted().last {
+                        SettingsRowDivider()
+                    }
+                }
+            }
+        }
+    }
+
+    private func adapterRow(_ adapter: DPPAdapter) -> some View {
+        SettingsRow(
+            adapter.name,
+            subtitle: "\(adapter.hosts.joined(separator: ", "))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
+            systemImage: "puzzlepiece.extension"
+        ) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: Binding(
+                    get: { adapters.isEnabled(adapter) },
+                    set: { adapters.setEnabled($0, for: adapter.name) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                Button {
+                    adapters.remove(adapter.name)
+                } label: {
+                    Image(systemName: "minus.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Delete"))
+            }
+        }
+    }
+
+    private func pickAndImport() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Import")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                _ = try adapters.importFile(at: url)
+            } catch {
+                importError = error.localizedDescription
             }
         }
     }

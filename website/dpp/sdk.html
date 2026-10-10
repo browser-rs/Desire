@@ -45,7 +45,7 @@
 </head>
 <body>
 <header><div class="wrap">
-  <div class="crumbs"><a href="./">← DPP 首页</a> · <a href="./spec.html">规范全文</a> · <a href="https://desire.mankong.icu/desire-sdk.js">SDK 源码</a></div>
+  <div class="crumbs"><a href="./">← DPP 首页</a> · <a href="./spec.html">规范全文</a> · <a href="https://www.npmjs.com/package/@browser-rs/dpp-sdk">npm 包</a> · <a href="https://desire.mankong.icu/desire-sdk.js">CDN 源码</a></div>
   <h1>DPP SDK 参考</h1>
   <p class="muted">L3 接入（<code>desire/1</code>）· SDK 版本 1.0 · 与 Desire 浏览器（及任何读取 <code>window.__desireProtocolExposed</code> 的宿主）协同</p>
 </div></header>
@@ -67,6 +67,17 @@
 &lt;/script&gt;</code></pre>
 <p class="muted">SPA 路由变化时重新调用 <code>expose()</code> 即可——SDK 会通知 Desire 重新解析。
 非 Desire 浏览器里 SDK 完全无副作用（只是往 window 挂了一个对象）。</p>
+<h3>npm / 打包器接入</h3>
+<pre><code>npm install @browser-rs/dpp-sdk</code></pre>
+<pre><code>import { createDesireSDK } from "@browser-rs/dpp-sdk";
+
+const desire = createDesireSDK({
+  global: window,
+  postControl: (p) =&gt; window.webkit?.messageHandlers.desireProtocolControl?.postMessage(p),
+  postEvent:   (p) =&gt; window.webkit?.messageHandlers.desireProtocolEvent?.postMessage(p),
+});
+desire.expose({ /* 同上 */ });</code></pre>
+<p class="muted">core 不依赖具体宿主（env 注入桥通道）；CDN 的 UMD 构建即上面 script 标签用的那份。</p>
 
 <h2 id="api">API</h2>
 

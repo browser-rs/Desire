@@ -83,7 +83,8 @@
       智能体据此精确读取与操作页面——不再靠脆弱的猜测去猜选择器。</p>
     <div class="cta">
       <a class="btn primary" href="https://desire.mankong.icu/demo/">进入演示商店</a>
-      <a class="btn ghost" href="https://desire.mankong.icu/desire-sdk.js">查看 SDK（desire-sdk.js）</a>
+      <a class="btn ghost" href="https://www.npmjs.com/package/@browser-rs/dpp-sdk">npm 安装（@browser-rs/dpp-sdk）</a>
+      <a class="btn ghost" href="https://desire.mankong.icu/desire-sdk.js">CDN（desire-sdk.js）</a>
     </div>
   </div>
 
@@ -99,7 +100,7 @@
         无需引外部 SDK）；噪音区在元素上标 <code>data-dpp-ignore</code>。</div>
       <div class="level"><b>L3</b><div class="t">SDK 一行接入</div>
         <code>&lt;script src="https://desire.mankong.icu/desire-sdk.js"&gt;&lt;/script&gt;</code>
-        自动发现数据视图与动作，支持事件（order-placed 等）主动唤起智能体。</div>
+        或 <code>npm i @browser-rs/dpp-sdk</code>（UMD/ESM 双产物）；自动发现数据视图与动作，支持事件（order-placed 等）主动唤起智能体。</div>
     </div>
   </section>
 
@@ -133,6 +134,13 @@
     <h2><span class="no">03</span>L3 SDK：一行脚本，全量能力</h2>
     <p>在任意页面引入：</p>
     <pre><code>&lt;script defer src="https://desire.mankong.icu/desire-sdk.js"&gt;&lt;/script&gt;</code></pre>
+    <p>工程化项目也可走 npm（UMD 与 ESM 双产物）：</p>
+    <pre><code>npm install @browser-rs/dpp-sdk</code></pre>
+    <pre><code>import { createDesireSDK } from "@browser-rs/dpp-sdk";
+const desire = createDesireSDK({ global: window,
+  postControl: (p) =&gt; window.webkit?.messageHandlers.desireProtocolControl?.postMessage(p),
+  postEvent:   (p) =&gt; window.webkit?.messageHandlers.desireProtocolEvent?.postMessage(p) });
+desire.expose({ /* 同 script 用法 */ });</code></pre>
     <p>SDK 提供类型化字段抽取、动作执行器、事件观察与自动化翻页；与 Desire 的信任分级
       （站点声明 &lt; 页面声明 &lt; 用户显式指令）天然协同——声明只描述能力，执行永远经过用户的
       访问等级与审批闸门。</p>
@@ -162,8 +170,33 @@
     <p class="muted">商店页右下角的虚线框是 <code>data-dpp-ignore</code> 标注的噪音横幅——智能体会绕开它。</p>
   </section>
 
+  <section id="adapters">
+    <h2><span class="no">05</span>第三方适配包：站点不接入也能用</h2>
+    <p>很多站点不会主动接入。Desire 支持<b>外挂 DPP 适配包</b>：按 host 匹配的声明式 JSON
+      （与 <code>expose()</code> 同一套协议格式），由第三方为热门站点编写——浏览器加载后
+      自动与页面合并（同名键站点声明优先、适配器补齐；动作照走审批链，纯 JSON 零代码）。</p>
+    <pre><code>{
+  "format": "desire/adapter-1",
+  "name": "juejin",
+  "hosts": ["juejin.cn", ".juejin.cn"],
+  "pathPrefixes": ["/entry/", "/post/"],
+  "protocolBody": { "views": { … }, "actions": [ … ] }   // 与 expose() 同格式
+}</code></pre>
+    <ul class="plain">
+      <li><b>现成包</b>：掘金文章页（读文章/评论 + 点赞/评论动作）、掘金创作页（发沸点/写文章）、
+        V2EX 主题页（读主题/总结回复）——全部经真实页面核对，源在仓库
+        <a href="https://github.com/browser-rs/Desire/tree/main/docs/dpp-adapters" target="_blank" rel="noopener">docs/dpp-adapters/</a></li>
+      <li><b>安装</b>：Desire 设置 › AI › DPP 协议 › 第三方适配 —— 粘 <b>raw 链接</b>即装
+        （<code>https://raw.githubusercontent.com/browser-rs/Desire/main/docs/dpp-adapters/&lt;包名&gt;.json</code>），
+        或下载后文件导入；逐包启停，删了即失效</li>
+      <li><b>写一份</b>：选择器保守多候选、只声明核对过的动作、<code>ignore</code> 排噪音——
+        守则见<a href="https://github.com/browser-rs/Desire/blob/main/docs/dpp-adapters/README.md" target="_blank" rel="noopener">目录 README</a>；
+        提 PR 进该目录即完成"上架"（raw 链接即刻可用）</li>
+    </ul>
+  </section>
+
   <section id="compat">
-    <h2><span class="no">05</span>兼容性与边界</h2>
+    <h2><span class="no">06</span>兼容性与边界</h2>
     <ul class="plain">
       <li>非 Desire 浏览器完全无感：声明只是页面里的静态数据，不执行任何行为。</li>
       <li>同源与<b>跨源 iframe</b> 的声明聚合、定向抽取与逐框架动作路由均已支持；

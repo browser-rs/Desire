@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗，贴边悬浮球一键唤起语音与总结）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；内置白板（Mermaid/ECharts 本地双引擎：智能体把流程图与图表直接画进聊天，白板面板逐块编辑、拖拽排序，.board/PNG 导出）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK）；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。智能体主动性：心跳巡检（用户清单+机器信号，模型自决开口或沉默）、未完成事务收件箱、发现即处理；AI 动作复查（副作用对照用户规则，可疑转审批）；通知分级（紧急直推、例行过免打扰与每日预算、合并摘要）；生命周期钩子（beforeToolCall 可编程否决）；Agent 人设名册（按窗口绑定人设）；定时任务定向窗口；saveSkill 技能自沉淀；备用服务容灾。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗，贴边悬浮球一键唤起语音与总结）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；内置白板（Mermaid/ECharts 本地双引擎：智能体把流程图与图表直接画进聊天，白板面板逐块编辑、拖拽排序，.board/PNG 导出）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK——npm 包 @browser-rs/dpp-sdk 与第三方站点适配包（掘金/V2EX 现成包，链接即装））；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。智能体主动性：心跳巡检（用户清单+机器信号，模型自决开口或沉默）、未完成事务收件箱、发现即处理；AI 动作复查（副作用对照用户规则，可疑转审批）；通知分级（紧急直推、例行过免打扰与每日预算、合并摘要）；生命周期钩子（beforeToolCall 可编程否决）；Agent 人设名册（按窗口绑定人设）；定时任务定向窗口；saveSkill 技能自沉淀；备用服务容灾。"
     },
     {
       "@type": "FAQPage",
@@ -134,6 +134,14 @@
                     "acceptedAnswer": {
                                 "@type": "Answer",
                                 "text": "DPP for AI agents（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。"
+                    }
+        },
+        {
+                    "@type": "Question",
+                    "name": "站点不接入 DPP，智能体就没办法了吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）和 V2EX 的现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。"
                     }
         },
         {
@@ -995,7 +1003,7 @@
         <div class="proto reveal">
           <span class="tag">L3 · 官方 SDK</span>
           <h3>一行 expose</h3>
-          <p>引入 desire-sdk.js，desire.expose({...}) 即完成声明；SPA 路由变化自动重声明，事件精确发射。</p>
+          <p><code>npm i @browser-rs/dpp-sdk</code> 或一行 CDN 引入，desire.expose({...}) 即完成声明；SPA 路由变化自动重声明，事件精确发射。</p>
         </div>
       </div>
       <div class="trace-grid" style="margin-top:2.8rem; align-items:start;">
@@ -1024,12 +1032,18 @@
             <p>站点把动作标为对外不可逆（outbound / danger），Desire <b>强制逐次审批</b>——
                协议说能力，授权始终在你。</p>
           </div>
+          <div class="mini reveal">
+            <h3>站点不接入？第三方适配包</h3>
+            <p>为热门站点写一份声明式 JSON（与 expose 同格式），Desire 加载后自动合并——
+               掘金/V2EX 已有现成包，粘 raw 链接即装；动作照走审批链。</p>
+          </div>
         </div>
       </div>
       <p class="proto-note reveal">
         在线演示：<a href="demo/" >desire.mankong.icu/demo</a>（用 Desire 打开，对智能体说「列出商品」或「搜索 显示器」）
         · 开放规范：<a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md" target="_blank" rel="noopener">docs/DPP-PROTOCOL.md</a>
-        · SDK：<a href="https://desire.mankong.icu/desire-sdk.js" target="_blank" rel="noopener">desire.mankong.icu/desire-sdk.js</a>
+        · SDK：<a href="https://www.npmjs.com/package/@browser-rs/dpp-sdk" target="_blank" rel="noopener">npm i @browser-rs/dpp-sdk</a>（<a href="https://desire.mankong.icu/desire-sdk.js" target="_blank" rel="noopener">CDN</a>）
+        · 适配包：<a href="https://github.com/browser-rs/Desire/tree/main/docs/dpp-adapters" target="_blank" rel="noopener">掘金 / V2EX 现成包</a>
       </p>
     </div>
   </section>
@@ -1207,6 +1221,10 @@
         <details class="faq-item reveal">
           <summary>什么是 DPP？我的网站怎么接入？</summary>
           <p>DPP for AI agents（Desire Page Protocol）是 Desire 的开放页面协议：网站声明自己有什么数据、能做什么、何时就绪，智能体按声明精准读写，不再靠猜。接入分四级——已有 JSON-LD 零改造自动消费、HTML 加 data-dpp-* 属性、script 声明块，或一行引入官方 SDK（desire.mankong.icu/desire-sdk.js）；规范见仓库 docs/DPP-PROTOCOL.md。声明能力不等于授权，对外动作仍逐次审批。</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>站点不接入 DPP，智能体就没办法了吗？</summary>
+          <p>有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）和 V2EX 的现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。</p>
         </details>
         <details class="faq-item reveal">
           <summary>智能体的记忆和个性化是怎样的？</summary>

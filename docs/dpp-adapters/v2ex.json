@@ -1,0 +1,47 @@
+{
+  "format": "desire/adapter-1",
+  "name": "v2ex",
+  "hosts": ["v2ex.com", ".v2ex.com", "www.v2ex.com"],
+  "pathPrefixes": ["/t/"],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：V2EX 主题详情页——读主题/总结回复（服务端渲染，结构极稳）",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "forum-thread",
+    "contentMain": ".topic_content, .problem .markdown_body",
+    "sections": {
+      "topic": ".topic_content",
+      "replies": "#Main .cell[id^='r_']",
+      "sidebar": "#Sidebar"
+    },
+    "ignore": [
+      "#Top", "#Bottom", ".sidebar", "#Rightbar", "[class*='advert']",
+      ".box .inner > a[href*='advert']"
+    ],
+    "views": {
+      "topic": {
+        "item": "#Main .box",
+        "fields": {
+          "title": "h1",
+          "author": ".header small a:first-of-type, .header strong a",
+          "meta": ".header small",
+          "content": ".topic_content .markdown_body, .topic_content"
+        }
+      },
+      "replies": {
+        "item": "#Main .cell[id^='r_']",
+        "fields": {
+          "author": ".reply_content strong a, [id^='r_'] strong a",
+          "content": ".reply_content .reply_content",
+          "time": ".ago"
+        }
+      }
+    },
+    "signals": {
+      "ready": ".topic_content .markdown_body, .topic_content"
+    },
+    "context": {
+      "domain": "forum-thread",
+      "rules": "V2EX 主题页。总结讨论用 views.replies（按楼层序）；meta 行含作者/发帖时间/点击数。回复需登录（未登录时页尾回复框区显示登录提示，如实告知用户）。"
+    }
+  }
+}

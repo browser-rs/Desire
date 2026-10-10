@@ -10,6 +10,8 @@
 - **桥审批端点**：`GET /agent/approvals`（面板里等着的审批卡）+ `POST /agent/approvals/resolve`（allowOnce|alwaysAllow|deny）——agent 全链路 E2E 不再需要人手点卡片。
 - **桥 /protocol/inspect 加 index? 参数**（多窗口下 deliveryTarget 窗口与 active 窗口错位）+ views.fields 序列化非 plist 类型静默空响应修复；navigate 端点对挂起标签先 unsuspend（挂起路径置空 navigationDelegate，直接 load 后 didFinish/didCommit 全不来）。
 - **适配包从 URL 安装（社区分发闭环）**：设置页第三方适配区新增"URL"按钮（弹窗粘 http(s) 直链——仓库 docs/dpp-adapters/ 的 GitHub raw 链接即包源），拉取校验（JSON/2MB 上限）落盘同名覆盖；桥 `POST /dpp/adapters/install {url}` 同一链路，实测从 raw.githubusercontent.com 装回掘金两包并生效；掘金适配补 auth 登录态指引（loginUrl+note，未登录时 Agent 知道引导登录而非空跑动作）；DPP-PROTOCOL.md 新增 §7.4 第三方适配包章节（合并语义/安装/编写守则与目录 README 互链）。
+- **V2EX 适配包**（docs/dpp-adapters/v2ex.json）：主题详情页（/t/）读主题+回复双视图（标题/作者/meta + 逐楼 author/content/time），服务端渲染结构极稳，真实页面抽取验证 29 楼全命中；适配目录 README 新增"现有适配包"清单（含 raw 链接即包源的安装说明）。
+
 
 
 

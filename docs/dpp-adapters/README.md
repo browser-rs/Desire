@@ -58,3 +58,16 @@
 4. `signals.ready` 指向**内容确实出现**的标记（不是 spinners）
 5. 命名用小写站点名（`juejin.json`），与 `name` 一致
 6. 不确定就参考 `juejin.json` 的形状；欢迎提 PR（提交前跑一遍目标站点的真实读取）
+
+## 现有适配包
+
+| 包 | 站点 | 覆盖 | 说明 |
+|---|---|---|---|
+| `juejin.json` | juejin.cn 文章页（/entry/ /post/） | 读文章/评论视图 + 点赞/评论动作 | 2026-10-11 真实 DOM 核对 |
+| `juejin-compose.json` | juejin.cn 创作页（/pins/ /editor/） | 发沸点/填文章标题动作 | CodeMirror 正文需 executeJS |
+| `v2ex.json` | v2ex.com 主题页（/t/） | 读主题/回复视图（总结讨论） | 服务端渲染，结构极稳 |
+
+安装：设置 › AI › DPP 协议 › 第三方适配（URL 按钮粘 raw 链接，或文件导入）；
+本目录的 GitHub raw 链接就是现成包源：
+`https://raw.githubusercontent.com/browser-rs/Desire/main/docs/dpp-adapters/<包名>.json`
+（推送合入后即生效）。

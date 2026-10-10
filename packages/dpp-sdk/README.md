@@ -9,7 +9,7 @@ views/signals/actions/events 语义、profile 契约、well-known 站点级声�
 ## 安装
 
 ```bash
-npm install desire-dpp-sdk
+npm install @browser-rs/dpp-sdk
 ```
 
 或直接用 CDN（UMD，无需构建）：

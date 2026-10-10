@@ -1,5 +1,5 @@
 {
-  "name": "desire-dpp-sdk",
+  "name": "@browser-rs/dpp-sdk",
   "version": "1.0.0",
   "description": "Desire Page Protocol (DPP) L3 SDK — declare your web page's capabilities (views/signals/actions/events) for AI agents, like llms.txt for pages",
   "keywords": [
@@ -35,5 +35,9 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node test/smoke.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

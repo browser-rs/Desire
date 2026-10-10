@@ -24,7 +24,28 @@
       }
     },
     " · %lf USD" : {},
-    " (incl. %lld bypass tokens)" : {},
+    " (incl. %lld bypass tokens)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (incl. %lld bypass tokens)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（含 %lld 旁路 token）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（含 %lld 旁路 token）"
+          }
+        }
+      }
+    },
     ":" : {
       "localizations" : {
         "en" : {
@@ -3172,8 +3193,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Agent self-check: %1$lld of %2$lld passed"
+            "state" : "translated",
+            "value" : "Agent self-check: %lld of %lld passed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 自检：%lld/%lld 项通过"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 自我檢查：%lld/%lld 項通過"
           }
         }
       }
@@ -3511,7 +3544,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI 複查標記：%@"
+            "value" : "AI 復查標記：%@"
           }
         }
       }
@@ -5991,8 +6024,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Bound: %1$@. Available: %2$@"
+            "state" : "translated",
+            "value" : "Bound: %@. Available: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已绑定：%1$@。可选：%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已綁定：%1$@。可選：%2$@"
           }
         }
       }
@@ -6446,7 +6491,28 @@
         }
       }
     },
-    "Cancelled." : {},
+    "Cancelled." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消。"
+          }
+        }
+      }
+    },
     "Cannot Load Page" : {
       "comment" : "Error page title",
       "localizations" : {
@@ -8524,7 +8590,28 @@
         }
       }
     },
-    "Context budget tightened to %lld characters — older turns are kept as a digest and stay recallable via recallConversation." : {},
+    "Context budget tightened to %lld characters — older turns are kept as a digest and stay recallable via recallConversation." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context budget tightened to %lld characters — older turns are kept as a digest and stay recallable via recallConversation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文预算已收紧到 %lld 字符——被裁的轮次保留为摘要，可用 recallConversation 找回。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文預算已收緊到 %lld 字元——被裁的輪次保留為摘要，可用 recallConversation 找回。"
+          }
+        }
+      }
+    },
     "Context is getting long — /new starts a fresh conversation" : {
       "localizations" : {
         "en" : {
@@ -9304,7 +9391,28 @@
         }
       }
     },
-    "Could not resume — the turn is gone." : {},
+    "Could not resume — the turn is gone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not resume — the turn is gone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法恢复——回合已丢失。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法恢復——回合已遺失。"
+          }
+        }
+      }
+    },
     "Couldn't load this image (cross-origin or too large)." : {
       "localizations" : {
         "en" : {
@@ -9625,8 +9733,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Current mode: %1$@. Available: %2$@ — e.g. /mode research"
+            "state" : "translated",
+            "value" : "Current mode: %@. Available: %@ — e.g. /mode research"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前模式：%1$@。可选：%2$@——例如 /mode research"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前模式：%1$@。可選：%2$@——例如 /mode research"
           }
         }
       }
@@ -9724,8 +9844,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Current: %1$@ · %2$@\nAvailable: %3$@\nSwitch with /model <名称>"
+            "state" : "translated",
+            "value" : "Current: %@ · %@\nAvailable: %@\nSwitch with /model <名称>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前：%1$@ · %2$@\n可选：%3$@\n用 /model <名称> 切换"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前：%1$@ · %2$@\n可選：%3$@\n用 /model <名稱> 切換"
           }
         }
       }
@@ -13456,7 +13588,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已匯出至 %@"
+            "value" : "已匯出到 %@"
           }
         }
       }
@@ -18430,8 +18562,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Memory: %1$lld facts, %2$lld conversation summaries"
+            "state" : "translated",
+            "value" : "Memory: %lld facts, %lld conversation summaries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆：%lld 条事实、%lld 份会话摘要"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶：%lld 條事實、%lld 份會話摘要"
           }
         }
       }
@@ -18630,7 +18774,28 @@
         }
       }
     },
-    "Mode switched to %@." : {},
+    "Mode switched to %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode switched to %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式已切换为 %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式已切換為 %@。"
+          }
+        }
+      }
+    },
     "Mode: %@" : {
       "localizations" : {
         "en" : {
@@ -20137,7 +20302,28 @@
         }
       }
     },
-    "No interrupted turn in this conversation." : {},
+    "No interrupted turn in this conversation." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No interrupted turn in this conversation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本会话没有被打断的回合。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本會話沒有被中斷的回合。"
+          }
+        }
+      }
+    },
     "No key" : {
       "localizations" : {
         "en" : {
@@ -20655,8 +20841,50 @@
         }
       }
     },
-    "No persona matches %@." : {},
-    "No personas defined — add them in Settings › Agent Personas." : {},
+    "No persona matches %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No persona matches %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配 %@ 的人设。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合 %@ 的人設。"
+          }
+        }
+      }
+    },
+    "No personas defined — add them in Settings › Agent Personas." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No personas defined — add them in Settings › Agent Personas."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有人设——在设置 › Agent 人设里添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有人設——在設定 › Agent 人設裡新增。"
+          }
+        }
+      }
+    },
     "No personas yet. Add one below, then bind it from the agent panel's title menu." : {
       "localizations" : {
         "en" : {
@@ -20679,7 +20907,28 @@
         }
       }
     },
-    "No plan for this conversation." : {},
+    "No plan for this conversation." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No plan for this conversation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本会话没有计划。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本會話沒有計劃。"
+          }
+        }
+      }
+    },
     "No Plugins" : {
       "comment" : "Empty plugins state",
       "localizations" : {
@@ -20725,7 +20974,28 @@
         }
       }
     },
-    "No profile matches %@." : {},
+    "No profile matches %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No profile matches %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配 %@ 的服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合 %@ 的服務。"
+          }
+        }
+      }
+    },
     "No profiles yet. Add one to get an isolated cookie/session store." : {
       "localizations" : {
         "en" : {
@@ -20973,7 +21243,28 @@
         }
       }
     },
-    "No skills installed." : {},
+    "No skills installed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No skills installed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有已安装的技能。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有已安裝的技能。"
+          }
+        }
+      }
+    },
     "No storage entries" : {
       "localizations" : {
         "en" : {
@@ -21065,7 +21356,28 @@
         }
       }
     },
-    "No turn is running." : {},
+    "No turn is running." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No turn is running."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前没有运行中的回合。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前沒有執行中的回合。"
+          }
+        }
+      }
+    },
     "No watches yet — add one below." : {
       "localizations" : {
         "en" : {
@@ -21088,8 +21400,50 @@
         }
       }
     },
-    "No window context." : {},
-    "No windows." : {},
+    "No window context." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No window context."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有窗口上下文。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有視窗上下文。"
+          }
+        }
+      }
+    },
+    "No windows." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No windows."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有窗口。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有視窗。"
+          }
+        }
+      }
+    },
     "None of this turn's tool calls returned anything that looks like success — treat the reply above as unverified." : {
       "localizations" : {
         "en" : {
@@ -23276,7 +23630,28 @@
         }
       }
     },
-    "Persona bound: %@." : {},
+    "Persona bound: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persona bound: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已绑定人设：%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已綁定人設：%@。"
+          }
+        }
+      }
+    },
     "Persona name" : {
       "localizations" : {
         "en" : {
@@ -26308,7 +26683,28 @@
         }
       }
     },
-    "Resumed the interrupted turn." : {},
+    "Resumed the interrupted turn." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumed the interrupted turn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已继续被打断的回合。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已繼續被中斷的回合。"
+          }
+        }
+      }
+    },
     "Retry" : {
       "localizations" : {
         "en" : {
@@ -26737,7 +27133,28 @@
         }
       }
     },
-    "Running the agent self-check…" : {},
+    "Running the agent self-check…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running the agent self-check…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在运行 Agent 自检…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在執行 Agent 自我檢查…"
+          }
+        }
+      }
+    },
     "Running…" : {
       "localizations" : {
         "en" : {
@@ -30706,8 +31123,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Switched to %1$@ · %2$@."
+            "state" : "translated",
+            "value" : "Switched to %@ · %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已切换到 %1$@ · %2$@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已切換到 %1$@ · %2$@。"
           }
         }
       }
@@ -32059,8 +32488,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "This conversation: %1$lld user turns, %2$lld tool calls, %3$lld prompt + %4$lld completion tokens"
+            "state" : "translated",
+            "value" : "This conversation: %lld user turns, %lld tool calls, %lld prompt + %lld completion tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本会话：用户 %lld 轮、工具调用 %lld 次、输入 %lld + 输出 %lld token"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本會話：使用者 %lld 輪、工具呼叫 %lld 次、輸入 %lld + 輸出 %lld token"
           }
         }
       }
@@ -33338,8 +33779,20 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Unknown mode %1$@ — available: %2$@"
+            "state" : "translated",
+            "value" : "Unknown mode %@ — available: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知模式 %1$@——可选：%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知模式 %1$@——可選：%2$@"
           }
         }
       }
@@ -37766,6 +38219,719 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名稱不能包含 /"
+          }
+        }
+      }
+    },
+    "Export Conversation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出對話"
+          }
+        }
+      }
+    },
+    "No MCP servers configured." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No MCP servers configured."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置 MCP 服务器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置 MCP 伺服器。"
+          }
+        }
+      }
+    },
+    "No conversation yet — send a message first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No conversation yet — send a message first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有会话——先发一条消息。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有會話——先發一條訊息。"
+          }
+        }
+      }
+    },
+    "No scheduled tasks." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No scheduled tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有定时任务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有定時任務。"
+          }
+        }
+      }
+    },
+    "No session instruction. Set one with /directive <text> — it applies to this conversation only." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No session instruction. Set one with /directive <text> — it applies to this conversation only."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无会话级指令。用 /directive <文本> 设置——只对本会话生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無會話級指令。用 /directive <文字> 設定——只對本會話生效。"
+          }
+        }
+      }
+    },
+    "Nothing to export yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to export yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有可导出的内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有可匯出的內容。"
+          }
+        }
+      }
+    },
+    "Nothing to retry — the last message isn't a finished answer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to retry — the last message isn't a finished answer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可重试的内容——最后一条不是已完成的回答。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可重試的內容——最後一條不是已完成的回答。"
+          }
+        }
+      }
+    },
+    "Session instruction cleared." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction cleared."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令已清除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令已清除。"
+          }
+        }
+      }
+    },
+    "Filter with /tools <keyword>." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter with /tools <keyword>."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 /tools <关键词> 过滤。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 /tools <關鍵詞> 過濾。"
+          }
+        }
+      }
+    },
+    "show or set access level: /access confirm|auto|full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show or set access level: /access confirm|auto|full"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示或设置访问等级：/access confirm|auto|full"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示或設定存取等級：/access confirm|auto|full"
+          }
+        }
+      }
+    },
+    "show, set, or clear the session instruction: /directive <text>（off = clear）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show, set, or clear the session instruction: /directive <text>（off = clear）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看、设置或清除会话级指令：/directive <文本>（off = 清除）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看、設定或清除會話級指令：/directive <文字>（off = 清除）"
+          }
+        }
+      }
+    },
+    "list scheduled tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list scheduled tasks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出定时任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出定時任務"
+          }
+        }
+      }
+    },
+    "count tools by risk tier, or filter: /tools <关键词>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "count tools by risk tier, or filter: /tools <关键词>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按风险档统计工具，或过滤：/tools <关键词>"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按風險檔統計工具，或過濾：/tools <關鍵詞>"
+          }
+        }
+      }
+    },
+    "list MCP servers and connection status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list MCP servers and connection status"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出 MCP 服务器与连接状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出 MCP 伺服器與連線狀態"
+          }
+        }
+      }
+    },
+    "rename this conversation: /title <新标题>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rename this conversation: /title <新标题>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名当前会话：/title <新标题>"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名目前會話：/title <新標題>"
+          }
+        }
+      }
+    },
+    "re-run the last answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "re-run the last answer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成上一条回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新產生上一條回答"
+          }
+        }
+      }
+    },
+    "save this conversation as a Markdown file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "save this conversation as a Markdown file"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把当前会话导出为 Markdown 文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把目前會話匯出為 Markdown 檔案"
+          }
+        }
+      }
+    },
+    "Untitled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        }
+      }
+    },
+    " · %@ USD" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ USD"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 美元"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 美元"
+          }
+        }
+      }
+    },
+    "Access level set to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access level set to %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问等级已设为 %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存取等級已設為 %@。"
+          }
+        }
+      }
+    },
+    "Access level: %@ — %@\nSet with /access confirm|auto|full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access level: %@ — %@\nSet with /access confirm|auto|full"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问等级：%1$@ — %2$@\n用 /access confirm|auto|full 设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存取等級：%1$@ — %2$@\n用 /access confirm|auto|full 設定"
+          }
+        }
+      }
+    },
+    "Current title: %@. Set with /title <new title>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current title: %@. Set with /title <new title>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前标题：%1$@。用 /title <新标题> 修改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前標題：%1$@。用 /title <新標題> 修改"
+          }
+        }
+      }
+    },
+    "No tools match %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tools match %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配 %@ 的工具。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合 %@ 的工具。"
+          }
+        }
+      }
+    },
+    "Read-only %lld · state-changing %lld · code execution %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only %lld · state-changing %lld · code execution %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读 %lld · 改状态 %lld · 代码执行 %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀 %lld · 改狀態 %lld · 程式碼執行 %lld"
+          }
+        }
+      }
+    },
+    "Renamed to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renamed to %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重命名为 %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重新命名為 %@。"
+          }
+        }
+      }
+    },
+    "Session instruction set: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction set: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令已设置：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令已設定：%@"
+          }
+        }
+      }
+    },
+    "Session instruction: %@\nClear with /directive off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction: %@\nClear with /directive off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令：%1$@\n用 /directive off 清除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令：%1$@\n用 /directive off 清除"
+          }
+        }
+      }
+    },
+    "Unknown access level %@ — use confirm|auto|full." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown access level %@ — use confirm|auto|full."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知访问等级 %1$@——用 confirm|auto|full。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知存取等級 %1$@——用 confirm|auto|full。"
+          }
+        }
+      }
+    },
+    "%lld tools available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tools available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 个工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 個工具"
+          }
+        }
+      }
+    },
+    "%lld matching tool(s):" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld matching tool(s):"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配到 %lld 个工具："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配到 %lld 個工具："
+          }
+        }
+      }
+    },
+    "%lld scheduled task(s):" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld scheduled task(s):"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 个定时任务："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 個定時任務："
           }
         }
       }

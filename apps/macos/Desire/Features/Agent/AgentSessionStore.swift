@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import os
+import UniformTypeIdentifiers
 import WebKit
 
 enum AgentQuickAction: CaseIterable {
@@ -661,6 +662,115 @@ class AgentSessionStore: ObservableObject {
                 return "• \(entry.displayLabel)\(busy)"
             }
             appendLocalAssistant(lines.isEmpty ? String(localized: "No windows.") : lines.joined(separator: "\n"))
+        case "access":
+            // 访问等级：/access 看，/access confirm|auto|full 设（中文别名也认）。
+            if parsed.argument.isEmpty {
+                appendLocalAssistant(String(localized: "Access level: \(accessLevel.displayName) — \(accessLevel.subtitle)\nSet with /access confirm|auto|full"))
+            } else {
+                let match: AccessLevel? = switch parsed.argument.lowercased() {
+                case "confirm", "confirmchanges", "确认": .confirmChanges
+                case "auto", "autoedit", "编辑": .autoEdit
+                case "full", "fullaccess", "完全": .fullAccess
+                default: nil
+                }
+                if let match {
+                    accessLevel = match
+                    appendLocalAssistant(String(localized: "Access level set to \(match.displayName)."))
+                } else {
+                    appendLocalAssistant(String(localized: "Unknown access level \(parsed.argument) — use confirm|auto|full."))
+                }
+            }
+        case "directive":
+            // 会话级指令：/directive 看，/directive <text> 设，/directive off 清。
+            if parsed.argument.isEmpty {
+                if let directive = activeDirective {
+                    appendLocalAssistant(String(localized: "Session instruction: \(directive)\nClear with /directive off"))
+                } else {
+                    appendLocalAssistant(String(localized: "No session instruction. Set one with /directive <text> — it applies to this conversation only."))
+                }
+            } else if parsed.argument == "off" {
+                setSessionDirective(nil)
+                appendLocalAssistant(String(localized: "Session instruction cleared."))
+            } else {
+                setSessionDirective(parsed.argument)
+                appendLocalAssistant(String(localized: "Session instruction set: \(parsed.argument)"))
+            }
+        case "tasks":
+            let tasks = AgentScheduler.shared.tasks
+            guard !tasks.isEmpty else {
+                appendLocalAssistant(String(localized: "No scheduled tasks."))
+                return
+            }
+            let lines = tasks.map { task -> String in
+                var line = "\(task.isEnabled ? "✓" : "⏸") \(task.name) — \(task.recurrenceText)"
+                if let result = task.lastResult { line += " · \(result)" }
+                return line
+            }
+            appendLocalAssistant(String(localized: "\(tasks.count) scheduled task(s):") + "\n" + lines.joined(separator: "\n"))
+        case "tools":
+            let defs = BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs
+            if parsed.argument.isEmpty {
+                let byRisk = Dictionary(grouping: defs, by: { ToolRisk.classify($0.function.name) })
+                appendLocalAssistant(
+                    String(localized: "\(defs.count) tools available.") + "\n" +
+                    String(localized: "Read-only \(byRisk[.readonly]?.count ?? 0) · state-changing \(byRisk[.sideEffect]?.count ?? 0) · code execution \(byRisk[.dangerous]?.count ?? 0)") + "\n" +
+                    String(localized: "Filter with /tools <keyword>."))
+            } else {
+                let query = parsed.argument.lowercased()
+                let matches = defs.filter { $0.function.name.lowercased().contains(query) }
+                appendLocalAssistant(matches.isEmpty
+                    ? String(localized: "No tools match \(parsed.argument).")
+                    : String(localized: "\(matches.count) matching tool(s):") + "\n" + matches.map { $0.function.name }.joined(separator: ", "))
+            }
+        case "mcp":
+            let servers = MCPStore.shared.servers
+            guard !servers.isEmpty else {
+                appendLocalAssistant(String(localized: "No MCP servers configured."))
+                return
+            }
+            let statuses = MCPStore.shared.statuses
+            let lines = servers.map { server in
+                let status = server.isEnabled ? (statuses[server.id] ?? "…") : "disabled"
+                return "• \(server.name): \(status)"
+            }
+            appendLocalAssistant(lines.joined(separator: "\n"))
+        case "title":
+            if parsed.argument.isEmpty {
+                appendLocalAssistant(String(localized: "Current title: \(conversationTitle ?? String(localized: "Untitled")). Set with /title <new title>"))
+            } else if let id = conversationId {
+                conversationStore.rename(id, to: parsed.argument)
+                conversationTitle = parsed.argument
+                appendLocalAssistant(String(localized: "Renamed to \(parsed.argument)."))
+            } else {
+                appendLocalAssistant(String(localized: "No conversation yet — send a message first."))
+            }
+        case "retry":
+            // 与面板"重新生成"同一入口（regenerate 自己会清掉上一条回答）。
+            guard !isProcessing, !awaitingQuestion, messages.last?.role == .assistant else {
+                appendLocalAssistant(String(localized: "Nothing to retry — the last message isn't a finished answer."))
+                return
+            }
+            regenerate()
+        case "export":
+            guard !messages.isEmpty else {
+                appendLocalAssistant(String(localized: "Nothing to export yet."))
+                return
+            }
+            let markdown = AgentConversationExport.markdown(messages)
+            let panel = NSSavePanel()
+            panel.title = String(localized: "Export Conversation")
+            panel.nameFieldStringValue = "\(conversationTitle ?? "conversation").md"
+            panel.allowedContentTypes = [.plainText]
+            // 非阻塞（PERF-6，与面板导出同款）：begin 回调里落盘并回执。
+            panel.begin { [weak self] response in
+                guard response == .OK, let url = panel.url else { return }
+                do {
+                    try markdown.write(to: url, atomically: true, encoding: .utf8)
+                    self?.appendLocalAssistant(String(localized: "Exported to \(url.path)"))
+                } catch {
+                    self?.appendLocalAssistant(String(localized: "Export failed: \(error.localizedDescription)"))
+                }
+            }
         default:
             break
         }

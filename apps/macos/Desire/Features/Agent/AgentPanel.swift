@@ -848,23 +848,8 @@ struct AgentPanel: View {
     }
 
     private func exportMarkdown() {
-        let lines = store.messages.map { message -> String in
-            switch message.role {
-            case .user: return "## 🧑 User\n\n\(message.content ?? "")"
-            case .assistant:
-                let calls = (message.toolCalls ?? []).map { "`\($0.function.name)`" }.joined(separator: ", ")
-                var body = "## 🤖 Agent\n\n"
-                if !calls.isEmpty { body += "_tools: \(calls)_\n\n" }
-                if let content = message.content, !content.isEmpty { body += content }
-                return body
-            case .tool:
-                return "> tool result: \((message.content ?? "").prefix(600))"
-            case .system:
-                return ""
-            }
-        }
-        .filter { !$0.isEmpty }
-        .joined(separator: "\n\n---\n\n")
+        // 渲染收口在 AgentConversationExport（slash /export 与这里共用一份）。
+        let lines = AgentConversationExport.markdown(store.messages)
 
         let panel = NSSavePanel()
         panel.title = "Export Conversation"

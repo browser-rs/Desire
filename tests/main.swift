@@ -2041,14 +2041,39 @@ func testSlashParsing() {
     check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
     check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
     check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
-    check("slash：known 含全部 14 命令", AgentSlashParsing.known.count == 14)
+    check("slash：known 含全部 22 命令", AgentSlashParsing.known.count == 22)
     check("slash：/model 解析", AgentSlashParsing.parse("/model amd")?.argument == "amd")
     check("slash：/persona off 解析", AgentSlashParsing.parse("/persona off")?.argument == "off")
     check("slash：/skills 解析", AgentSlashParsing.parse("/skills")?.command == "skills")
+    check("slash：/access 带档位", AgentSlashParsing.parse("/access full")?.command == "access" && AgentSlashParsing.parse("/access full")?.argument == "full")
+    check("slash：/directive 带文本", AgentSlashParsing.parse("/directive 用英文回答")?.argument == "用英文回答")
+    check("slash：/tools 带过滤词", AgentSlashParsing.parse("/tools video")?.argument == "video")
+    check("slash：/title 带新标题", AgentSlashParsing.parse("/title 新标题")?.command == "title")
+    check("slash：/retry 无参数", AgentSlashParsing.parse("/retry")?.command == "retry" && AgentSlashParsing.parse("/retry")?.argument.isEmpty == true)
+    check("slash：/export 无参数", AgentSlashParsing.parse("/export")?.command == "export")
+    check("slash：/mcp 无参数", AgentSlashParsing.parse("/mcp")?.command == "mcp")
+    check("slash：/tasks 无参数", AgentSlashParsing.parse("/tasks")?.command == "tasks")
     let helpText = AgentSlashParsing.helpText()
     check("slash：help 覆盖全部命令", AgentSlashParsing.known.allSatisfy { helpText.contains("/\($0)") })
+    check("slash：候选含新命令", AgentSlashParsing.suggestions(prefix: "ex").contains { $0.command == "export" })
+}
+
+func testConversationExport() {
+    let messages: [AgentMessage] = [
+        AgentMessage(role: .user, content: "帮我总结这一页"),
+        AgentMessage(role: .assistant, content: "这一页讲的是…", toolCalls: [
+            // 工具调用只进 "_tools:" 行，不吞正文
+        ]),
+        AgentMessage(role: .tool, content: String(repeating: "x", count: 800), toolCallId: "t1"),
+    ]
+    let md = AgentConversationExport.markdown(messages)
+    check("export：用户段", md.contains("## 🧑 User") && md.contains("帮我总结这一页"))
+    check("export：助手段", md.contains("## 🤖 Agent") && md.contains("这一页讲的是…"))
+    check("export：工具结果截断", md.contains("tool result:") && !md.contains(String(repeating: "x", count: 700)))
+    check("export：分隔线", md.contains("---"))
 }
 testSlashParsing()
+testConversationExport()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

@@ -14,6 +14,9 @@ nonisolated enum AgentSlashParsing {
     static let known: [String] = [
         "help", "new", "compact", "stats", "doctor", "mode", "resume",
         "skills", "memory", "model", "persona", "plan", "cancel", "windows",
+        // 2026-10-10 二批：访问等级 / 会话指令 / 定时任务 / 工具清单 / MCP /
+        // 重命名 / 重试 / 导出。
+        "access", "directive", "tasks", "tools", "mcp", "title", "retry", "export",
     ]
 
     /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
@@ -32,6 +35,14 @@ nonisolated enum AgentSlashParsing {
         "plan": String(localized: "show the current plan checklist"),
         "cancel": String(localized: "cancel the running turn"),
         "windows": String(localized: "list windows and their agent state"),
+        "access": String(localized: "show or set access level: /access confirm|auto|full"),
+        "directive": String(localized: "show, set, or clear the session instruction: /directive <text>（off = clear）"),
+        "tasks": String(localized: "list scheduled tasks"),
+        "tools": String(localized: "count tools by risk tier, or filter: /tools <关键词>"),
+        "mcp": String(localized: "list MCP servers and connection status"),
+        "title": String(localized: "rename this conversation: /title <新标题>"),
+        "retry": String(localized: "re-run the last answer"),
+        "export": String(localized: "save this conversation as a Markdown file"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

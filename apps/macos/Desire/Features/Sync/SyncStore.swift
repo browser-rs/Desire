@@ -115,6 +115,10 @@ final class SyncStore: ObservableObject {
     private let accessAccount = "sync-access-token"
     private let refreshAccount = "sync-refresh-token"
     private let masterKeyAccount = "sync-master-key"
+    nonisolated static let keychainServiceName = "me.siwi.Desire"
+    nonisolated static let accessAccountName = "sync-access-token"
+    nonisolated static let refreshAccountName = "sync-refresh-token"
+    nonisolated static let masterKeyAccountName = "sync-master-key"
 
     struct CaptchaInfo {
         let id: String
@@ -150,14 +154,28 @@ final class SyncStore: ObservableObject {
             let fallback = domain == .history || domain == .whiteboard ? false : true
             enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
-        if let data = keychainReadData(masterKeyAccount) {
-            hasSyncKey = true
-            syncKeyFingerprint = try? SyncCrypto.fingerprint(masterKeyBase64: data.base64EncodedString())
+        // Keychain 三读移出主线程（同 AgentPreferenceStore：启动主线程的
+        // SecItemCopyMatching 突发是首窗超预算的元凶之一）。authState 首帧
+        // 保持 .signedOut，后台读完回主线程发布——真实消费（runSyncCycle）
+        // 在启动后 3s 的 Task 里，晚于回填。
+        let savedUsername = defaults.string(forKey: usernameKey)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let masterData = KeychainService.read(account: Self.masterKeyAccountName, service: Self.keychainServiceName, interactive: false)
+            let hasAccess = KeychainService.read(account: Self.accessAccountName, service: Self.keychainServiceName, interactive: false) != nil
+            let hasRefresh = KeychainService.read(account: Self.refreshAccountName, service: Self.keychainServiceName, interactive: false) != nil
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if let data = masterData {
+                    hasSyncKey = true
+                    syncKeyFingerprint = try? SyncCrypto.fingerprint(masterKeyBase64: data.base64EncodedString())
+                }
+                if let savedUsername, hasAccess || hasRefresh {
+                    authState = .signedIn(username: savedUsername)
+                    startSyncInfrastructure()
+                }
+            }
         }
-        if let username = defaults.string(forKey: usernameKey),
-           keychainReadData(accessAccount) != nil || keychainReadData(refreshAccount) != nil {
-            authState = .signedIn(username: username)
-        startSyncInfrastructure()
+        if ProcessInfo.processInfo.environment["DESIRE_SYNC_EARLY_START"] != nil {
             startSyncInfrastructure()
         }
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date

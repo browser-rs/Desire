@@ -2,6 +2,8 @@
 ### Fixed
 
 - **导航排查：后退/前进按钮状态在 SPA 站点失效**——canGoBack/canGoForward 只在 didFinish 更新，而 pjax 站点（掘金等）的路由切换是 pushState（不触发 didFinish）：首页点进文章后后退按钮一直灰着，与长按菜单里的实时历史栈自相矛盾。改为 KVO 实时同步（ WKBackForwardList 变化瞬间更新按钮态）。桥实测：普通导航往返 ✓、纯 pushState 往返 ✓；掘金文章页栈只有一条是其自身反爬 replaceState（决策序列干净，Safari 同现象），非浏览器缺陷。
+- **性能：启动路径的 Keychain 读全部移出主线程**——取证（com.apple.runtime-issues 一小时 99 条）显示 Performance Diagnostics 反复报 "This method should not be called on the main thread"（SecItemCopyMatching 阻塞调用），突发紧贴每次启动（启动后 1-3 秒内 6-11 条）。两处根因：AgentPreferenceStore.init 对每个档案同步读（n 档案 = n 次阻塞调用）、SyncStore.init 的 master key/token 三读。改为 Task.detached 后台读、结果回主线程发布（hasAPIKey/hasKeyByProfile/hasSyncKey/authState 全是 @Published，首帧几十 ms 的未配置窗口由 UI 自刷新补上；真实消费点 runSyncCycle 在启动 3s 后，晚于回填）。实测档案 Key 状态与主密钥指纹回填均正常（auth 显示登出 = 真实无令牌态，非回归）。
+
 
 ### Added
 

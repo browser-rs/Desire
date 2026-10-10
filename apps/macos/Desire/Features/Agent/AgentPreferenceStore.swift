@@ -465,6 +465,7 @@ class AgentPreferenceStore: ObservableObject {
     var routingLockedToCloud = false
 
     private let keychainService = "me.siwi.Desire"
+    nonisolated static let keychainServiceName = "me.siwi.Desire"
     /// Legacy single-key account — checked once during migration.
     private let legacyKeychainAccount = "ai-api-key"
 
@@ -562,8 +563,29 @@ class AgentPreferenceStore: ObservableObject {
         // 全部初始化完成——可以调用 self 方法了。**非交互**：init 跑在
         // applicationWillFinishLaunching 的主线程上，这里若同步等一个显示不出来的
         // 授权窗，整个应用就死在启动里（2026-09-24）。
+        // Keychain 读**移出主线程**：refreshKeyState 对每个档案做一次阻塞的
+        // SecItemCopyMatching，启动主线程的这一串突发就是 Performance
+        // Diagnostics 反复报的 "This method should not be called on the main
+        // thread"，也是首窗超 400ms 预算的元凶之一。后台读完回主线程发布
+        // （hasAPIKey/hasKeyByProfile 都是 @Published，首帧几十 ms 的
+        // "未配置 Key" 窗口由 UI 自刷新补上）。
         if !skipKeyStateRefresh {
-            refreshKeyState(interactive: false)
+            let snapshot = profiles.map { (id: $0.id, account: $0.keychainAccount) }
+            let activeAccount = account(for: nil)
+            Task.detached(priority: .userInitiated) { [weak self] in
+                let activeHas = activeAccount.flatMap {
+                    KeychainService.readString(account: $0, service: Self.keychainServiceName, interactive: false)
+                } != nil
+                let byProfilePairs = snapshot.map { (id: $0.id, has: KeychainService.readString(
+                        account: $0.account, service: Self.keychainServiceName, interactive: false) != nil) }
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    hasAPIKey = activeHas
+                    for pair in byProfilePairs where hasKeyByProfile[pair.id] != pair.has {
+                        hasKeyByProfile[pair.id] = pair.has
+                    }
+                }
+            }
         }
     }
 

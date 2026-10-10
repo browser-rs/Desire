@@ -607,6 +607,27 @@ Actions (pageAction): search
 
 模型无需调工具就知道页面能提供什么结构化数据、有什么可执行操作。
 
+### 7.4 第三方适配包（站点不接入时的社区声明）
+
+站点不会都主动接入 DPP。适配包 = **按 host 匹配的声明式 JSON**（`protocolBody` 与
+SDK `expose()` 同一套协议格式），由第三方为热门站点编写。加载语义：
+
+- **合并而非替换**：页面原生声明（L0–L3 任意形态，哪怕只是最低限度的 JSON-LD
+  隐式视图）与适配器做 merged——同名键**页面胜**、适配器独有键补齐（站点接入后
+  适配包自然失效）；页面完全无声明时适配器整份生效
+- **纯 JSON 零代码**：动作的 run 步骤由既有 pageAction 执行器执行，审批链照常生效
+  （persist/outbound/danger 照旧强制审批）——适配包不引入任何新执行面
+- 每包独立启停；来源标记进 `warnings`（`adapter: <name>`，inspect/面板可见）
+
+**安装**：设置 › AI › DPP 协议 › 第三方适配（文件导入 / **URL 安装**），或目录直放
+`~/Library/Application Support/Desire/DPPAdapters/<name>.json`，桥端点
+`GET /dpp/adapters`、`POST /dpp/adapters/install {url}`（http(s) 直链即包源——本仓库
+`docs/dpp-adapters/*.json` 的 GitHub raw 链接就是一个可用的社区源）。
+
+**编写**：格式与守则见 [`docs/dpp-adapters/README.md`](dpp-adapters/README.md)
+（selectors 保守多候选、只声明核对过的动作、`ignore` 排噪音、`auth` 给登录态指引）；
+现成示例 `juejin.json`（文章页）与 `juejin-compose.json`（创作页），全部经真实页面核对。
+
 ## 8. E2E 验证结果
 
 > 2026-10-02 审计修复后全量复验（离屏 WKWebView 探针 + 真实解析器/解码器/抽取器）。

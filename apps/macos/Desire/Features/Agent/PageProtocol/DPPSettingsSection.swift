@@ -97,14 +97,25 @@ struct DPPSettingsSection: View {
             String(localized: "Third-Party Adapters"),
             subtitle: String(localized: "Community-written DPP declarations for popular sites (applied only when the page has no native declaration). Drop JSON files or import below.")
         ) {
-            Button {
-                pickAndImport()
-            } label: {
-                Text(String(localized: "Import"))
-                    .font(.system(size: 11, weight: .medium))
+            HStack(spacing: 8) {
+                Button {
+                    pickAndImport()
+                } label: {
+                    Text(String(localized: "Import"))
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button {
+                    installFromURLPrompt()
+                } label: {
+                    Text("URL")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(String(localized: "Install an adapter package from an http(s) URL"))
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         if !adapters.adapters.isEmpty || !adapters.loadErrors.isEmpty {
             SettingsRowDivider()
@@ -176,6 +187,31 @@ struct DPPSettingsSection: View {
                 _ = try adapters.importFile(at: url)
             } catch {
                 importError = error.localizedDescription
+            }
+        }
+    }
+
+    /// URL 安装：系统弹窗输入直链（仓库 docs/dpp-adapters/ 的 GitHub raw
+    /// 链接、任何静态托管），拉取校验后落盘。
+    private func installFromURLPrompt() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Install Adapter from URL")
+        alert.informativeText = String(localized: "Paste an http(s) URL to an adapter JSON (e.g. from docs/dpp-adapters).")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.placeholderString = "https://…/juejin.json"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.addButton(withTitle: String(localized: "Install"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            let trimmed = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            Task { @MainActor in
+                do {
+                    _ = try await adapters.installFromURL(trimmed)
+                } catch {
+                    importError = error.localizedDescription
+                }
             }
         }
     }

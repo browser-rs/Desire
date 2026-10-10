@@ -98,6 +98,32 @@ final class DPPAdapterStore: ObservableObject {
         return adapter
     }
 
+    /// 从 URL 安装社区适配包（http(s) 直链 JSON；同名 = 覆盖更新）。
+    /// 社区分发的最小闭环：仓库 docs/dpp-adapters/ 的 GitHub raw 链接、
+    /// 任何静态托管都能当包源。http 不落地（协议降级拒收）。
+    @discardableResult
+    func installFromURL(_ urlString: String) async throws -> DPPAdapter {
+        guard let url = URL(string: urlString),
+              url.scheme == "https" || url.scheme == "http" else {
+            throw ImportError.invalid("URL must be http(s)")
+        }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ImportError.invalid("server returned \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        }
+        guard data.count < 2_000_000 else {
+            throw ImportError.invalid("package over 2MB — not a declaration")
+        }
+        let (adapter, error) = DPPAdapter.decode(data)
+        guard let adapter else {
+            throw ImportError.invalid(error ?? "invalid")
+        }
+        let target = Self.directory.appendingPathComponent("\(adapter.name).json")
+        try data.write(to: target, options: .atomic)
+        reload()
+        return adapter
+    }
+
     func remove(_ name: String) {
         if let file = fileNames[name] {
             try? FileManager.default.removeItem(at: Self.directory.appendingPathComponent(file))

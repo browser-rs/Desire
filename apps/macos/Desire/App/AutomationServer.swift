@@ -583,6 +583,7 @@ final class AutomationServer {
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("GET", "/dpp/adapters", "Third-party DPP adapter packages (list + enabled + loadErrors)", example: "…/dpp/adapters")
         ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
+        ep("POST", "/dpp/adapters/install", "Install an adapter JSON from an http(s) URL (community distribution)", params: ["url:string"], example: #"-d '{"url":"https://…/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
         ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
         ep("GET", "/agent/approvals", "Pending tool approval (the card waiting in the panel)", example: "…/agent/approvals")
@@ -1221,6 +1222,17 @@ final class AutomationServer {
                 }
                 do {
                     let a = try DPPAdapterStore.shared.importFile(at: URL(fileURLWithPath: path))
+                    return try Self.json(["ok": true, "name": a.name, "hosts": a.hosts])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/dpp/adapters/install"):
+                // URL 安装（社区分发闭环）：拉取校验落盘。
+                guard let source = Self.string(body, "url") else {
+                    return try Self.json(["error": "missing url"])
+                }
+                do {
+                    let a = try await DPPAdapterStore.shared.installFromURL(source)
                     return try Self.json(["ok": true, "name": a.name, "hosts": a.hosts])
                 } catch {
                     return try Self.json(["error": error.localizedDescription])

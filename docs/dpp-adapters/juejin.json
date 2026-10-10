@@ -80,6 +80,10 @@
     "context": {
       "domain": "tech-articles",
       "rules": "掘金文章页。长文按 sections.article 读可省 token；评论区总结用 views.comments（timeAndMeta 含点赞/回复按钮文案属正常噪音）。like-article 是 toggle：再执行一次即取消点赞。comment 的发送按钮在输入为空时原生禁用（提交即真实发布，务必先向用户复述内容）。"
+    },
+    "auth": {
+      "loginUrl": "https://juejin.cn/",
+      "note": "点赞/评论/发布需登录：未登录时先引导用户登录（本页输入框区会有登录卡片）。"
     }
   }
 }

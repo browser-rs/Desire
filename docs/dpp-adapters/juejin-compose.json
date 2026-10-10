@@ -65,6 +65,10 @@
     "context": {
       "domain": "content-composer",
       "rules": "掘金创作页。① 沸点编辑器 = .rich-editor（contenteditable，fill 直接支持）；发布按钮在 .pin-editor-bottom，空内容 disabled、可发时 class 含 active。② 文章编辑器 = 标题 input.title-input（fill 支持）+ 正文 CodeMirror（**fill 不适用**——用 executeJS 调 document.querySelector('.CodeMirror').CodeMirror.setValue('正文')）；输入数秒后自动存草稿（/editor/drafts 可管理）。③ 发表类动作 effects=persist/danger=true 会走审批，发布前必须向用户复述全文。"
+    },
+    "auth": {
+      "loginUrl": "https://juejin.cn/",
+      "note": "发沸点/写文章需登录：未登录时发布区会显示登录引导。"
     }
   }
 }

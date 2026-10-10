@@ -282,36 +282,47 @@ struct AgentInputBar: View {
     // MARK: - Slash 候选菜单
 
     private var slashMenu: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(Array(slashSuggestions.enumerated()), id: \.element.command) { index, suggestion in
-                    Button {
-                        completeSlash(at: index)
-                        isFocused = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text("/\(suggestion.command)")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.primary)
-                            Spacer(minLength: 8)
-                            Text(suggestion.description)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(Array(slashSuggestions.enumerated()), id: \.element.command) { index, suggestion in
+                        Button {
+                            completeSlash(at: index)
+                            isFocused = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text("/\(suggestion.command)")
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                Spacer(minLength: 8)
+                                Text(suggestion.description)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                            .background(
+                                index == slashEffectiveIndex
+                                    ? AnyShapeStyle(.tint.opacity(0.15))
+                                    : AnyShapeStyle(.clear)
+                            )
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .contentShape(Rectangle())
-                        .background(
-                            index == slashEffectiveIndex
-                                ? AnyShapeStyle(.tint.opacity(0.15))
-                                : AnyShapeStyle(.clear)
-                        )
+                        .buttonStyle(.plain)
+                        .id(suggestion.command)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
+            }
+            .onChange(of: slashHighlight) { _, newIndex in
+                // 键盘高亮越过可视区时自动跟随滚动（居中）。
+                guard slashSuggestions.indices.contains(newIndex),
+                      let cmd = slashSuggestions[newIndex].command as String? else { return }
+                withAnimation(.easeOut(duration: 0.1)) {
+                    proxy.scrollTo(cmd, anchor: .center)
                 }
             }
-            .padding(.vertical, 4)
         }
         .frame(maxHeight: 190)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))

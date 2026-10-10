@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.10] - 2026-10-11
 ### Added
 
 - **DPP SDK 独立成 npm 包（packages/dpp-sdk）**：单一逻辑源 src/core.js（宿主桥可注入 env），build 拼出 UMD（浏览器 script 直引，挂 window.desire）与 ESM（bundler/`createDesireSDK`）两个产物并自动同步 website 部署源与 app bundle 副本（此前两份手写副本漂移）；node 冒烟 10 项（expose/emit/validate/profile 契约/UMD 沙箱求值）；package.json+README+发布脚本就绪，npm 账号到位后 `bash packages/dpp-sdk/publish.sh` 即发。

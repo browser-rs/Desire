@@ -135,7 +135,22 @@ class Tab: ObservableObject {
         // Profile data store takes precedence over container (profile is a
         // broader isolation boundary than per-tab containers).
         let resolvedDataStore = profileDataStore ?? containerID.flatMap { ContainerStore.shared.dataStore(for: $0) }
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerDataStore: resolvedDataStore)
+        // **按站点自动播放**（2026-10-10）：站点覆写优先于全局策略。Web 公开
+        // API 里 mediaTypesRequiringUserActionForPlayback 只能在 webview 创建
+        // 时烙进去（逐导航覆写没有公开通道，WKWebpagePreferences 无此属性），
+        // 所以算在 Tab 构造这个咽喉点——外链/中键新标签/target=_blank/Agent
+        // 开页/会话恢复全走 addTab → 这里，一处挂钩全路径生效。已知边界：
+        // 空白新标签里同标签导航到已授权站点不吃覆写（策略已随 webview 定格）。
+        // 全局默认档"需要用户手势"会拦新文档直达的自动播放——页面内点缩略图
+        // 有激活所以能播，这就是"YouTube 时好时坏"的来源。
+        let effectiveAutoPlay: AutoPlayPolicy = {
+            guard let host = url.flatMap({ URL(string: $0)?.host }),
+                  let override = AppState.live?.siteSettingsStore.autoPlayOverride(for: host) else {
+                return autoPlayPolicy
+            }
+            return override == .allow ? .allowAll : .never
+        }()
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore)
         // DevTools 记录器（0.7.5）：console/network 接收端随 webview 创建
         // 挂上（归属 = 本 tab id），后台标签页也持续记录——此前接收端随
         // SwiftUI 视图挂/卸，转后台即断流。

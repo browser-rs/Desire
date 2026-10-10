@@ -14,6 +14,7 @@ extension ContentView {
     func toolbarSection(for tab: Tab) -> some View {
         let host = tab.browser.webView.url?.host
         let isDark = host.map { siteSettingsStore.darkModeEnabled(for: $0) } ?? false
+        let isSiteAutoPlayAllowed = host.map { siteSettingsStore.autoPlayOverride(for: $0) == .allow } ?? false
         let isBookmarked: Bool = {
             guard let url = tab.browser.webView.url?.absoluteString, !tab.isOnNewTabPage else { return false }
             return bookmarkStore.contains(url: url)
@@ -23,6 +24,7 @@ extension ContentView {
             browserState: tab.browser,
             isReadingMode: tab.browser.isReadingMode,
             isDarkMode: isDark,
+            isSiteAutoPlayAllowed: isSiteAutoPlayAllowed,
             searchEngineState: .init(
                 currentEngine: settings.searchEngine,
                 effectiveEngineName: settings.effectiveEngineName,
@@ -102,6 +104,7 @@ extension ContentView {
                     }
                 },
                 toggleDarkMode: { b.toggleDarkMode(for: tab) },
+                toggleSiteAutoPlay: { b.toggleSiteAutoPlay(for: tab) },
                 toggleAgentPanel: { showAgentPanel.toggle() },
                 toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() }

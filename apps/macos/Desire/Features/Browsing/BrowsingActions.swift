@@ -320,6 +320,40 @@ extension BrowsingActions {
         """
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
+
+    /// 当前站点是否已"允许自动播放"（工具栏菜单勾选态）。
+    func isSiteAutoPlayAllowed(for tab: Tab) -> Bool {
+        guard let host = tab.browser.webView.url?.host else { return false }
+        return siteSettingsStore.autoPlayOverride(for: host) == .allow
+    }
+
+    /// 站点自动播放切换：允许 ↔ 移除（回到跟随全局）。生效点在 Tab 构造
+    /// （公开 API 只在 webview 创建期可配播放策略），所以**授予**时把当前
+    /// 标签原 URL 重开一遍（新 webview 带新策略、旧标签随即关闭）——用户
+    /// 视角是"点了立即生效"，不用自己摸索"要重开标签"。移除不需要重开
+    /// （当前页继续播，新标签恢复跟随全局）。
+    func toggleSiteAutoPlay(for tab: Tab) {
+        guard let host = tab.browser.webView.url?.host, !host.isEmpty else { return }
+        if isSiteAutoPlayAllowed(for: tab) {
+            siteSettingsStore.setAutoPlay(nil, for: host)
+            return
+        }
+        siteSettingsStore.setAutoPlay(.allow, for: host)
+        guard let urlString = tab.browser.webView.url?.absoluteString else { return }
+        let stale = tab
+        tabManager.addTab(
+            url: urlString,
+            incognito: stale.isIncognito,
+            javaScriptEnabled: settings.isJavaScriptEnabled,
+            contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker,
+            containerID: stale.containerID
+        )
+        // 关旧标签：按 id 实时查 index（增删后下标会漂，勿捕获快照）。
+        if let index = tabManager.tabs.firstIndex(where: { $0.id == stale.id }) {
+            tabManager.closeTab(at: index)
+        }
+    }
 }
 
 // MARK: - Find in page

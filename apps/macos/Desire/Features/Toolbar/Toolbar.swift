@@ -28,6 +28,7 @@ struct Toolbar: View {
         let toggleResponsiveMode: () -> Void
         let toggleTranslate: () -> Void
         let toggleDarkMode: () -> Void
+        let toggleSiteAutoPlay: () -> Void
         let toggleAgentPanel: () -> Void
         let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
@@ -43,6 +44,8 @@ struct Toolbar: View {
     /// observes `SiteSettingsStore` directly — it gets the derived value
     /// when the parent rebuilds it (on URL change or dark-mode toggle).
     let isDarkMode: Bool
+    /// 站点自动播放许可（父视图按 host 派生，同 isDarkMode 的传递方式）。
+    let isSiteAutoPlayAllowed: Bool
     /// Search-engine picker state, derived from `Settings`.
     let searchEngineState: SearchEngineState
     /// Not observed on purpose: the toolbar only CALLS into the model
@@ -752,6 +755,9 @@ struct Toolbar: View {
             }
             .disabled(tab.isOnNewTabPage)
             moreMenuItem("Dark Mode", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
+                .disabled(tab.isOnNewTabPage)
+            moreMenuItem(isSiteAutoPlayAllowed ? "Site Auto-Play On" : "Site Auto-Play Off",
+                         isSiteAutoPlayAllowed ? "play.circle.fill" : "play.circle") { actions.toggleSiteAutoPlay() }
                 .disabled(tab.isOnNewTabPage)
             moreMenuItem("Picture in Picture", "pip") { actions.togglePictureInPicture() }
                 .disabled(tab.isOnNewTabPage)

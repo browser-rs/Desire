@@ -55,6 +55,7 @@ struct ContentView: View {
         // 普通计算属性不转发 objectWillChange——改主题/强调色的刷新此前靠
         // "恰好有别的重绘"（ARCH-4）。
         _settings = ObservedObject(wrappedValue: appState.settings)
+        _siteSettingsStore = ObservedObject(wrappedValue: appState.siteSettingsStore)
         _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
         _bookmarkStore = ObservedObject(wrappedValue: appState.bookmarkStore)
         _passwordStore = ObservedObject(wrappedValue: appState.passwordStore)
@@ -108,7 +109,9 @@ struct ContentView: View {
     var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
     var downloadStore: DownloadStore { appState.downloadStore }
     var permissionStore: PermissionStore { appState.permissionStore }
-    var siteSettingsStore: SiteSettingsStore { appState.siteSettingsStore }
+    /// OBSERVED（工具栏菜单的"站点自动播放/暗色"勾选态从它派生，切换要
+    /// 立即重绘——惰性计算属性不建立依赖，图标会停在旧态直到下次重绘）。
+    @ObservedObject var siteSettingsStore: SiteSettingsStore
     var quickDialStore: QuickDialStore { appState.quickDialStore }
     var readingListStore: ReadingListStore { appState.readingListStore }
     var pluginStore: PluginStore { appState.pluginStore }

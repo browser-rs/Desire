@@ -64,6 +64,21 @@ class SiteSettingsStore: ObservableObject {
         settings[domain]?.blockedSelectors ?? []
     }
 
+    /// 该站点的自动播放覆写（nil = 跟随全局 autoPlayPolicy）。
+    func autoPlayOverride(for domain: String) -> SiteSettings.AutoPlay? {
+        settings[domain]?.autoPlay
+    }
+
+    func setAutoPlay(_ mode: SiteSettings.AutoPlay?, for domain: String) {
+        // mode == nil 且站点本来就没记录 → 无事可做（别凭空造一条空记录）。
+        guard var s = settings[domain] ?? (mode == nil ? nil : SiteSettings(zoom: 1.0)) else { return }
+        s.autoPlay = mode
+        settings[domain] = s
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
     func addBlockedSelector(_ selector: String, for domain: String) {
         var s = settings[domain] ?? SiteSettings(zoom: 1.0)
         if !s.blockedSelectors.contains(selector) {
@@ -87,7 +102,7 @@ class SiteSettingsStore: ObservableObject {
     }
 
     private func cleanEmpty(_ domain: String) {
-        if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty {
+        if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty, s.autoPlay == nil {
             settings.removeValue(forKey: domain)
         }
     }

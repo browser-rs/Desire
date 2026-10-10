@@ -81,17 +81,11 @@ struct AgentInputBar: View {
             if !attachments.isEmpty {
                 attachmentStrip
             }
+            // slash 候选菜单：输入框**上方**的独立浮卡（不占胶囊内部空间）
+            if slashMenuVisible {
+                slashMenu
+            }
             inputCapsule
-                .overlay(alignment: .top) {
-                    // 悬浮在输入框上侧：菜单底边钉在胶囊顶边（alignmentGuide
-                    // 翻转生长方向），向上浮出、不占输入栏自身空间。
-                    if slashMenuVisible {
-                        slashMenu
-                            .fixedSize(horizontal: false, vertical: true)
-                            .alignmentGuide(.top) { d in d[.bottom] }
-                            .offset(y: -6)
-                    }
-                }
             voiceStatusLine
         }
         .padding(.horizontal, 12)

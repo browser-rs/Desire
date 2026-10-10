@@ -9,7 +9,9 @@
     "ai-agents",
     "llms-txt",
     "structured-data",
-    "browser"
+    "web-automation",
+    "browser",
+    "seo-for-agents"
   ],
   "homepage": "https://desire.mankong.icu/",
   "repository": {
@@ -39,5 +41,8 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "bugs": {
+    "url": "https://github.com/browser-rs/Desire/issues"
   }
 }

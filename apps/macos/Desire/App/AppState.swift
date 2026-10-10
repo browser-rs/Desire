@@ -1,4 +1,5 @@
 import Combine
+import os
 import SwiftUI
 
 /// Global app state container — now a composition root over four domain
@@ -42,10 +43,17 @@ class AppState: ObservableObject {
     var hasRestoredSession = false
 
     init() {
+        let t0 = Date()
+        func lap(_ what: String) {
+            Log.app.info("launch phase: AppState.\(what, privacy: .public) +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+        }
         browsing = BrowsingState()
+        lap("BrowsingState")
         ai = AgentState()
+        lap("AgentState")
         privacy = PrivacyState()
         system = SystemState()
+        lap("SystemState")
         syncStore = SyncStore(
             bookmarkStore: browsing.bookmarkStore,
             quickDialStore: browsing.quickDialStore,
@@ -55,8 +63,11 @@ class AppState: ObservableObject {
             settings: system.settings,
             agentPreferenceStore: ai.preference
         )
+        lap("SyncStore")
         remoteControlStore = RemoteControlStore(syncStore: syncStore)
+        lap("RemoteControlStore")
         Self.live = self
+        lap("live-set")
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
         // 创建标签时经 profileDataStore 各自恢复）。
         let saved = UserDefaults.standard.string(forKey: "desire.activeProfile")
@@ -67,8 +78,10 @@ class AppState: ObservableObject {
             browsing.historyStore.applyScope(profileID: saved)
             browsing.quickDialStore.applyScope(profileID: saved)
         }
+        lap("profile-restore")
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         syncStore.startAutoSync()
+        lap("startAutoSync")
         // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。
         BatchMediaExportStore.shared.restoreIfNeeded()
         // 插件 background 运行时：启用且带 backgroundCode 的插件起常驻宿主

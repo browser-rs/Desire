@@ -9,6 +9,8 @@
 
 - **DevTools DPP 面板适配来源徽标**：Declaration 段显示"Adapter: <包名>"强调色徽标（来自协议 warnings 的来源戳），"这份协议不是页面自己写的"一眼可见；Parse warnings 段同步过滤掉该来源戳（它是元信息不是警告）。
 - **博客园适配包**（docs/dpp-adapters/cnblogs.json）：博文页正文精读/排噪（导航/侧栏/广告）+ 阅读数与元数据视图——文章本体（标题/作者/发布时间）站点自带 JSON-LD（BlogPosting）直接消费，适配包只做增量；真实页面 merge 日志/inspect/抽取三重验证（views=2：原生 article + 适配器 post，正文 5892 字符/阅读数命中）。坑：博客园文章 URL 形如 /<用户>/p/<id>，pathPrefixes 前缀过滤不适用——已放开为全站（views 的 item 选择器在非文章页自然落空）。
+- **启动分段插桩细化**（性能轮）：AppState.init 装配链逐 store 拍点（BrowsingState/AgentState/SyncStore/RemoteControlStore/profile 恢复/startAutoSync）+ ContentView.init 计时——launch phase 日志从三拍黑盒变成全链细分，启动回归可直接从统一日志定位到段。本节数据结论：AppState 装配 18ms（Keychain 后台化后 SyncStore 不再是大头）、ContentView.init 3ms，首窗剩余构成 = SwiftUI Scene 装配 ~258ms + 首帧与首个 WKWebView 创建 ~152ms（WebKit XPC 平台固有）。
+
 
 
 ## [v0.7.10] - 2026-10-11

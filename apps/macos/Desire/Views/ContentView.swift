@@ -49,6 +49,10 @@ struct ContentView: View {
     @Environment(\.openWindow) var openWindow
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
+        let t0 = Date()
+        defer {
+            Log.app.info("launch phase: ContentView.init +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+        }
         self.appState = appState
         _sessionID = sessionID
         // OBSERVED：body 直接读 settings.appearanceTheme/accentColor 等发布字段，

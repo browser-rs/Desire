@@ -1761,6 +1761,15 @@ try {
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
                 webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)
             }
+            // 静音态跨导航重放：documentStart 劫持随新文档重来（force 状态
+            // 归零），didFinish 按本 webview 的 isMuted 补一次强制——否则
+            // 静音标签翻页/刷新后声音就回来了。
+            if parent.state.isMuted {
+                Task { @MainActor [weak webView] in
+                    guard let webView else { return }
+                    await TabAudioControl.apply(true, to: webView)
+                }
+            }
             // YouTube 赞助商片段跳过（SponsorBlock 数据，确定性脚本）。
             if parent.sponsorBlockEnabled,
                let host = webView.url?.host,

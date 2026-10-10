@@ -23,7 +23,32 @@
         }
       }
     },
-    " · %lf USD" : {},
+    " · %@ USD" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ USD"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 美元"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 美元"
+          }
+        }
+      }
+    },
+    " · %lf USD" : {
+
+    },
     " (incl. %lld bypass tokens)" : {
       "localizations" : {
         "en" : {
@@ -202,7 +227,9 @@
         }
       }
     },
-    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {},
+    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {
+
+    },
     "(%@)" : {
       "localizations" : {
         "en" : {
@@ -357,8 +384,12 @@
         }
       }
     },
-    "@%lldx" : {},
-    "/%@" : {},
+    "@%lldx" : {
+
+    },
+    "/%@" : {
+
+    },
     "\\(watch.changeCount) changes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -405,7 +436,9 @@
         }
       }
     },
-    "%@" : {},
+    "%@" : {
+
+    },
     "%@  %@" : {
       "localizations" : {
         "en" : {
@@ -874,6 +907,29 @@
         }
       }
     },
+    "%lld matching tool(s):" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld matching tool(s):"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配到 %lld 个工具："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配到 %lld 個工具："
+          }
+        }
+      }
+    },
     "%lld messages" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1076,6 +1132,29 @@
         }
       }
     },
+    "%lld scheduled task(s):" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld scheduled task(s):"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 个定时任务："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 個定時任務："
+          }
+        }
+      }
+    },
     "%lld selected" : {
       "localizations" : {
         "en" : {
@@ -1165,6 +1244,29 @@
         }
       }
     },
+    "%lld tools available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tools available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 个工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %lld 個工具"
+          }
+        }
+      }
+    },
     "%lld 个工具" : {
       "localizations" : {
         "en" : {
@@ -1186,6 +1288,9 @@
           }
         }
       }
+    },
+    "%lld 条" : {
+
     },
     "%lld 条 · %lld 份摘要" : {
       "localizations" : {
@@ -1496,7 +1601,9 @@
         }
       }
     },
-    "←/→ 键步进，Esc 退出" : {},
+    "←/→ 键步进，Esc 退出" : {
+
+    },
     "+%lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1608,9 +1715,15 @@
         }
       }
     },
-    "⌃ 回到主盘" : {},
-    "⌄ 全部 %lld 项" : {},
-    "⚡%lld" : {},
+    "⌃ 回到主盘" : {
+
+    },
+    "⌄ 全部 %lld 项" : {
+
+    },
+    "⚡%lld" : {
+
+    },
     "✓ Default" : {
       "localizations" : {
         "en" : {
@@ -1676,6 +1789,9 @@
           }
         }
       }
+    },
+    "0" : {
+
     },
     "1 hour" : {
       "extractionState" : "stale",
@@ -1838,6 +1954,9 @@
         }
       }
     },
+    "9" : {
+
+    },
     "10 minutes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1883,6 +2002,9 @@
           }
         }
       }
+    },
+    "30" : {
+
     },
     "30 minutes" : {
       "extractionState" : "stale",
@@ -1975,7 +2097,9 @@
         }
       }
     },
-    "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {},
+    "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
+
+    },
     "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2083,7 +2207,9 @@
         }
       }
     },
-    "Accept All" : {},
+    "Accept All" : {
+
+    },
     "Access Level" : {
       "localizations" : {
         "en" : {
@@ -2124,6 +2250,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存取等級——智慧體無需詢問即可執行的操作範圍"
+          }
+        }
+      }
+    },
+    "Access level set to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access level set to %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问等级已设为 %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存取等級已設為 %@。"
+          }
+        }
+      }
+    },
+    "Access level: %@ — %@\nSet with /access confirm|auto|full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access level: %@ — %@\nSet with /access confirm|auto|full"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问等级：%1$@ — %2$@\n用 /access confirm|auto|full 设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存取等級：%1$@ — %2$@\n用 /access confirm|auto|full 設定"
           }
         }
       }
@@ -2174,7 +2346,9 @@
         }
       }
     },
-    "Actions (%lld)" : {},
+    "Actions (%lld)" : {
+
+    },
     "Active model: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3955,7 +4129,9 @@
         }
       }
     },
-    "Always on %@" : {},
+    "Always on %@" : {
+
+    },
     "Always-Allowed Tools" : {
       "localizations" : {
         "en" : {
@@ -4399,8 +4575,12 @@
         }
       }
     },
-    "Ask Desire ${prompt}" : {},
-    "Ask Desire Agent" : {},
+    "Ask Desire ${prompt}" : {
+
+    },
+    "Ask Desire Agent" : {
+
+    },
     "Ask every time" : {
       "localizations" : {
         "en" : {
@@ -4871,7 +5051,9 @@
         }
       }
     },
-    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {},
+    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {
+
+    },
     "Auto-fill email and phone number on checkout and sign-up forms." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5770,7 +5952,9 @@
         }
       }
     },
-    "Block This URL (Session)" : {},
+    "Block This URL (Session)" : {
+
+    },
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6536,8 +6720,35 @@
         }
       }
     },
-    "Capture Page to Desire Whiteboard" : {},
-    "Capture to Whiteboard" : {},
+    "Capabilities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capabilities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力"
+          }
+        }
+      }
+    },
+    "Capture Page to Desire Whiteboard" : {
+
+    },
+    "Capture to Whiteboard" : {
+
+    },
     "Change Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7352,7 +7563,9 @@
         }
       }
     },
-    "Clear Session Network Rules" : {},
+    "Clear Session Network Rules" : {
+
+    },
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -7734,7 +7947,9 @@
         }
       }
     },
-    "Close Tabs to the Right" : {},
+    "Close Tabs to the Right" : {
+
+    },
     "Close Window" : {
       "localizations" : {
         "en" : {
@@ -8771,7 +8986,9 @@
         }
       }
     },
-    "Conversation" : {},
+    "Conversation" : {
+
+    },
     "Conversation history" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8795,7 +9012,55 @@
         }
       }
     },
-    "Cookie Banner Auto-Handling" : {},
+    "Conversation list" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversation list"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話列表"
+          }
+        }
+      }
+    },
+    "Conversations" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話列表"
+          }
+        }
+      }
+    },
+    "Cookie Banner Auto-Handling" : {
+
+    },
     "Cookie Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9256,7 +9521,9 @@
         }
       }
     },
-    "Copy Performance Snapshot" : {},
+    "Copy Performance Snapshot" : {
+
+    },
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -9479,6 +9746,29 @@
         }
       }
     },
+    "count tools by risk tier, or filter: /tools <关键词>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "count tools by risk tier, or filter: /tools <关键词>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按风险档统计工具，或过滤：/tools <关键词>"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按風險檔統計工具，或過濾：/tools <關鍵詞>"
+          }
+        }
+      }
+    },
     "Crash and performance reports collected via MetricKit." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9525,7 +9815,9 @@
         }
       }
     },
-    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {},
+    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {
+
+    },
     "Create Group" : {
       "localizations" : {
         "en" : {
@@ -9818,6 +10110,29 @@
         }
       }
     },
+    "Current title: %@. Set with /title <new title>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current title: %@. Set with /title <new title>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前标题：%1$@。用 /title <新标题> 修改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前標題：%1$@。用 /title <新標題> 修改"
+          }
+        }
+      }
+    },
     "Current: %@" : {
       "localizations" : {
         "en" : {
@@ -10021,7 +10336,32 @@
         }
       }
     },
-    "Daily At (HH:MM)" : {},
+    "Daily" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天"
+          }
+        }
+      }
+    },
+    "Daily At (HH:MM)" : {
+
+    },
     "daily at %02d:%02d" : {
       "localizations" : {
         "en" : {
@@ -10291,8 +10631,12 @@
         }
       }
     },
-    "Declaration" : {},
-    "Declaration frames (%lld)" : {},
+    "Declaration" : {
+
+    },
+    "Declaration frames (%lld)" : {
+
+    },
     "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
       "localizations" : {
         "en" : {
@@ -11260,6 +11604,9 @@
         }
       }
     },
+    "DIR" : {
+
+    },
     "Disable AI Action Review" : {
       "localizations" : {
         "en" : {
@@ -11282,7 +11629,9 @@
         }
       }
     },
-    "Disable Quiet Hours" : {},
+    "Disable Quiet Hours" : {
+
+    },
     "disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11415,6 +11764,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dock 標記"
+          }
+        }
+      }
+    },
+    "Doctor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doctor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "体检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "體檢"
           }
         }
       }
@@ -12270,7 +12642,9 @@
         }
       }
     },
-    "EasyList 内容规则" : {},
+    "EasyList 内容规则" : {
+
+    },
     "Edit" : {
       "localizations" : {
         "en" : {
@@ -12660,7 +13034,9 @@
         }
       }
     },
-    "Enable Quiet Hours" : {},
+    "Enable Quiet Hours" : {
+
+    },
     "Enabled" : {
       "comment" : "Toggle label",
       "localizations" : {
@@ -12936,7 +13312,9 @@
         }
       }
     },
-    "Events (%lld)" : {},
+    "Events (%lld)" : {
+
+    },
     "Every \\(watch.intervalMinutes) min" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13114,7 +13492,9 @@
         }
       }
     },
-    "Every N Minutes" : {},
+    "Every N Minutes" : {
+
+    },
     "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
       "localizations" : {
         "en" : {
@@ -13367,7 +13747,9 @@
         }
       }
     },
-    "Explain with AI" : {},
+    "Explain with AI" : {
+
+    },
     "Export" : {
       "comment" : "Bookmark export help",
       "localizations" : {
@@ -13455,6 +13837,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯出書籤"
+          }
+        }
+      }
+    },
+    "Export Conversation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出對話"
           }
         }
       }
@@ -14381,6 +14786,29 @@
         }
       }
     },
+    "Filter with /tools <keyword>." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter with /tools <keyword>."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 /tools <关键词> 过滤。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 /tools <關鍵詞> 過濾。"
+          }
+        }
+      }
+    },
     "Filter…" : {
       "localizations" : {
         "en" : {
@@ -14541,7 +14969,9 @@
         }
       }
     },
-    "Fired events (latest %lld)" : {},
+    "Fired events (latest %lld)" : {
+
+    },
     "First Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15870,6 +16300,29 @@
         }
       }
     },
+    "hour" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hour"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時"
+          }
+        }
+      }
+    },
     "How can I help?" : {
       "localizations" : {
         "en" : {
@@ -16139,7 +16592,9 @@
         }
       }
     },
-    "https://example.com" : {},
+    "https://example.com" : {
+
+    },
     "Hub Actions" : {
       "localizations" : {
         "en" : {
@@ -16427,6 +16882,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯入擴充功能"
+          }
+        }
+      }
+    },
+    "Import failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入失敗"
           }
         }
       }
@@ -16854,6 +17332,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安裝…"
+          }
+        }
+      }
+    },
+    "Instructions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instructions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用说明"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用說明"
           }
         }
       }
@@ -17397,7 +17898,9 @@
         }
       }
     },
-    "Latest Analysis" : {},
+    "Latest Analysis" : {
+
+    },
     "Learned from: %@" : {
       "localizations" : {
         "en" : {
@@ -17599,6 +18102,29 @@
         }
       }
     },
+    "list MCP servers and connection status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list MCP servers and connection status"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出 MCP 服务器与连接状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出 MCP 伺服器與連線狀態"
+          }
+        }
+      }
+    },
     "list model services, or switch: /model <名称>" : {
       "localizations" : {
         "en" : {
@@ -17639,6 +18165,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "列出入設，或綁定：/persona <名字>（off = 解綁）"
+          }
+        }
+      }
+    },
+    "list scheduled tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "list scheduled tasks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出定时任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出定時任務"
           }
         }
       }
@@ -18514,7 +19063,6 @@
       }
     },
     "Memory" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18691,6 +19239,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分鐘"
+          }
+        }
+      }
+    },
+    "minute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minute"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分"
+          }
+        }
+      }
+    },
+    "Minutes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minutes"
           }
         },
         "zh-Hans" : {
@@ -18885,7 +19479,9 @@
         }
       }
     },
-    "Model: %@" : {},
+    "Model: %@" : {
+
+    },
     "Model: follow global" : {
       "localizations" : {
         "en" : {
@@ -18997,7 +19593,9 @@
         }
       }
     },
-    "Mute Tab" : {},
+    "Mute Tab" : {
+
+    },
     "name" : {
       "localizations" : {
         "en" : {
@@ -19107,6 +19705,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "助手的名字與語氣。留空使用預設。"
+          }
+        }
+      }
+    },
+    "Name cannot contain /" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name cannot contain /"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称不能包含 /"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱不能包含 /"
           }
         }
       }
@@ -19516,6 +20137,29 @@
         }
       }
     },
+    "New Skill" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Skill"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建技能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增技能"
+          }
+        }
+      }
+    },
     "New Tab" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -19581,6 +20225,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新標籤頁開啟位置"
+          }
+        }
+      }
+    },
+    "New Task" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Task"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增任務"
           }
         }
       }
@@ -19943,6 +20610,29 @@
         }
       }
     },
+    "No conversation yet — send a message first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No conversation yet — send a message first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有会话——先发一条消息。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有會話——先發一條訊息。"
+          }
+        }
+      }
+    },
     "No conversations yet" : {
       "localizations" : {
         "en" : {
@@ -20100,7 +20790,9 @@
         }
       }
     },
-    "No DPP declaration on this page" : {},
+    "No DPP declaration on this page" : {
+
+    },
     "No element inspected" : {
       "localizations" : {
         "en" : {
@@ -20145,7 +20837,9 @@
         }
       }
     },
-    "No events yet." : {},
+    "No events yet." : {
+
+    },
     "No extension storage" : {
       "localizations" : {
         "en" : {
@@ -20522,6 +21216,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到匹配記錄"
+          }
+        }
+      }
+    },
+    "No MCP servers configured." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No MCP servers configured."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置 MCP 服务器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置 MCP 伺服器。"
           }
         }
       }
@@ -21199,6 +21916,29 @@
         }
       }
     },
+    "No scheduled tasks." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No scheduled tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有定时任务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有定時任務。"
+          }
+        }
+      }
+    },
     "No Search History" : {
       "localizations" : {
         "en" : {
@@ -21243,6 +21983,29 @@
         }
       }
     },
+    "No session instruction. Set one with /directive <text> — it applies to this conversation only." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No session instruction. Set one with /directive <text> — it applies to this conversation only."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无会话级指令。用 /directive <文本> 设置——只对本会话生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無會話級指令。用 /directive <文字> 設定——只對本會話生效。"
+          }
+        }
+      }
+    },
     "No skills installed." : {
       "localizations" : {
         "en" : {
@@ -21261,6 +22024,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有已安裝的技能。"
+          }
+        }
+      }
+    },
+    "No skills yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No skills yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有技能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有技能"
           }
         }
       }
@@ -21310,8 +22096,12 @@
         }
       }
     },
-    "No tab selected" : {},
-    "No text found in this image." : {},
+    "No tab selected" : {
+
+    },
+    "No text found in this image." : {
+
+    },
     "No token usage recorded yet." : {
       "localizations" : {
         "en" : {
@@ -21330,6 +22120,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有記錄到 Token 用量。"
+          }
+        }
+      }
+    },
+    "No tools match %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tools match %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配 %@ 的工具。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合 %@ 的工具。"
           }
         }
       }
@@ -21597,6 +22410,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未設定"
+          }
+        }
+      }
+    },
+    "Nothing to export yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to export yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有可导出的内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有可匯出的內容。"
+          }
+        }
+      }
+    },
+    "Nothing to retry — the last message isn't a finished answer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to retry — the last message isn't a finished answer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可重试的内容——最后一条不是已完成的回答。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可重試的內容——最後一條不是已完成的回答。"
           }
         }
       }
@@ -22228,7 +23087,9 @@
         }
       }
     },
-    "Open ${url} in Desire" : {},
+    "Open ${url} in Desire" : {
+
+    },
     "Open a page first" : {
       "localizations" : {
         "en" : {
@@ -22251,7 +23112,9 @@
         }
       }
     },
-    "Open a URL in the Desire browser's active tab." : {},
+    "Open a URL in the Desire browser's active tab." : {
+
+    },
     "Open clipboard link" : {
       "localizations" : {
         "en" : {
@@ -22430,7 +23293,9 @@
         }
       }
     },
-    "Open in New Window" : {},
+    "Open in New Window" : {
+
+    },
     "Open in Preview" : {
       "localizations" : {
         "en" : {
@@ -22497,7 +23362,9 @@
         }
       }
     },
-    "Open Link in Desire" : {},
+    "Open Link in Desire" : {
+
+    },
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
       "localizations" : {
@@ -23081,7 +23948,9 @@
         }
       }
     },
-    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {},
+    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {
+
+    },
     "Paid promotions and creator self-promotion readouts." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23177,7 +24046,9 @@
         }
       }
     },
-    "Parse warnings" : {},
+    "Parse warnings" : {
+
+    },
     "Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23471,7 +24342,9 @@
         }
       }
     },
-    "Pause Reading" : {},
+    "Pause Reading" : {
+
+    },
     "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
       "localizations" : {
         "en" : {
@@ -23583,7 +24456,9 @@
         }
       }
     },
-    "Performance" : {},
+    "Performance" : {
+
+    },
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
       "localizations" : {
@@ -24709,6 +25584,29 @@
         }
       }
     },
+    "re-run the last answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "re-run the last answer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成上一条回答"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新產生上一條回答"
+          }
+        }
+      }
+    },
     "Re-run the last message" : {
       "localizations" : {
         "en" : {
@@ -24776,7 +25674,32 @@
         }
       }
     },
-    "Read Aloud" : {},
+    "Read Aloud" : {
+
+    },
+    "Read-only %lld · state-changing %lld · code execution %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only %lld · state-changing %lld · code execution %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读 %lld · 改状态 %lld · 代码执行 %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀 %lld · 改狀態 %lld · 程式碼執行 %lld"
+          }
+        }
+      }
+    },
     "Reader Mode" : {
       "comment" : "Enter reader mode tooltip",
       "extractionState" : "stale",
@@ -24932,6 +25855,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近搜尋"
+          }
+        }
+      }
+    },
+    "Recheck" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recheck"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新体检"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新體檢"
           }
         }
       }
@@ -25227,7 +26173,9 @@
         }
       }
     },
-    "Reject All" : {},
+    "Reject All" : {
+
+    },
     "Relaunching…" : {
       "localizations" : {
         "en" : {
@@ -25744,6 +26692,52 @@
         }
       }
     },
+    "rename this conversation: /title <新标题>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rename this conversation: /title <新标题>"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名当前会话：/title <新标题>"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名目前會話：/title <新標題>"
+          }
+        }
+      }
+    },
+    "Renamed to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renamed to %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重命名为 %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重新命名為 %@。"
+          }
+        }
+      }
+    },
     "Reopen Closed Tab" : {
       "comment" : "Keyboard shortcut",
       "localizations" : {
@@ -25965,6 +26959,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要權限"
+          }
+        }
+      }
+    },
+    "Rescan" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新扫描"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新掃描"
           }
         }
       }
@@ -26660,7 +27677,9 @@
         }
       }
     },
-    "Resume Reading" : {},
+    "Resume Reading" : {
+
+    },
     "Resume the unanswered prompt" : {
       "localizations" : {
         "en" : {
@@ -27043,6 +28062,29 @@
         }
       }
     },
+    "Run now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即执行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即執行"
+          }
+        }
+      }
+    },
     "run the agent self-check" : {
       "localizations" : {
         "en" : {
@@ -27357,6 +28399,29 @@
         }
       }
     },
+    "Save failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗"
+          }
+        }
+      }
+    },
     "Save Full Page PDF" : {
       "comment" : "Save PDF panel title",
       "localizations" : {
@@ -27554,6 +28619,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存服務"
+          }
+        }
+      }
+    },
+    "save this conversation as a Markdown file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "save this conversation as a Markdown file"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把当前会话导出为 Markdown 文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把目前會話匯出為 Markdown 檔案"
           }
         }
       }
@@ -27765,9 +28853,15 @@
         }
       }
     },
-    "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {},
-    "Schedule Desire Task" : {},
-    "Schedule Task" : {},
+    "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {
+
+    },
+    "Schedule Desire Task" : {
+
+    },
+    "Schedule Task" : {
+
+    },
     "Scheduled task failed" : {
       "localizations" : {
         "en" : {
@@ -27928,7 +29022,9 @@
         }
       }
     },
-    "Screenshot text" : {},
+    "Screenshot text" : {
+
+    },
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
       "extractionState" : "stale",
@@ -28000,7 +29096,6 @@
       }
     },
     "Search" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -28763,7 +29858,9 @@
         }
       }
     },
-    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {},
+    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {
+
+    },
     "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
       "localizations" : {
         "en" : {
@@ -29096,7 +30193,78 @@
         }
       }
     },
-    "Session network rules — temp block/redirect, gone on app exit" : {},
+    "Session instruction cleared." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction cleared."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令已清除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令已清除。"
+          }
+        }
+      }
+    },
+    "Session instruction set: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction set: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令已设置：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令已設定：%@"
+          }
+        }
+      }
+    },
+    "Session instruction: %@\nClear with /directive off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session instruction: %@\nClear with /directive off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话级指令：%1$@\n用 /directive off 清除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話級指令：%1$@\n用 /directive off 清除"
+          }
+        }
+      }
+    },
+    "Session network rules — temp block/redirect, gone on app exit" : {
+
+    },
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -29594,6 +30762,29 @@
         }
       }
     },
+    "show or set access level: /access confirm|auto|full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show or set access level: /access confirm|auto|full"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示或设置访问等级：/access confirm|auto|full"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示或設定存取等級：/access confirm|auto|full"
+          }
+        }
+      }
+    },
     "Show Original" : {
       "localizations" : {
         "en" : {
@@ -29815,6 +31006,29 @@
         }
       }
     },
+    "show, set, or clear the session instruction: /directive <text>（off = clear）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "show, set, or clear the session instruction: /directive <text>（off = clear）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看、设置或清除会话级指令：/directive <文本>（off = 清除）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看、設定或清除會話級指令：/directive <文字>（off = 清除）"
+          }
+        }
+      }
+    },
     "shrink the context budget now (older turns stay recallable)" : {
       "localizations" : {
         "en" : {
@@ -30022,6 +31236,52 @@
         }
       }
     },
+    "Site Auto-Play Off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Auto-Play on This Site"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许此站点自动播放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許此網站自動播放"
+          }
+        }
+      }
+    },
+    "Site Auto-Play On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Site Auto-Play On"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此站点已允许自动播放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此網站已允許自動播放"
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "en" : {
@@ -30066,6 +31326,32 @@
           }
         }
       }
+    },
+    "Skills" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skills"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "技能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "技能"
+          }
+        }
+      }
+    },
+    "Skills are markdown files in Application Support/Desire/skills — the agent loads them on demand." : {
+
     },
     "Skills are SKILL.md files; drop your own in to extend the agent." : {
       "localizations" : {
@@ -30689,7 +31975,9 @@
         }
       }
     },
-    "Stop Reading" : {},
+    "Stop Reading" : {
+
+    },
     "Stored in the macOS Keychain." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -31704,7 +32992,9 @@
         }
       }
     },
-    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {},
+    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {
+
+    },
     "Target Ring" : {
       "localizations" : {
         "en" : {
@@ -31767,6 +33057,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目標：%@"
+          }
+        }
+      }
+    },
+    "Tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tasks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務"
           }
         }
       }
@@ -33617,7 +34930,9 @@
         }
       }
     },
-    "Turn finished." : {},
+    "Turn finished." : {
+
+    },
     "turns" : {
       "localizations" : {
         "en" : {
@@ -33752,6 +35067,29 @@
         }
       }
     },
+    "Unknown access level %@ — use confirm|auto|full." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown access level %@ — use confirm|auto|full."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知访问等级 %1$@——用 confirm|auto|full。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知存取等級 %1$@——用 confirm|auto|full。"
+          }
+        }
+      }
+    },
     "Unknown Error" : {
       "comment" : "Fallback error description",
       "localizations" : {
@@ -33841,7 +35179,9 @@
         }
       }
     },
-    "Unmute Tab" : {},
+    "Unmute Tab" : {
+
+    },
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -33887,7 +35227,32 @@
         }
       }
     },
-    "Unpin Tab" : {},
+    "Unpin Tab" : {
+
+    },
+    "Untitled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        }
+      }
+    },
     "Unverified" : {
       "localizations" : {
         "en" : {
@@ -34130,6 +35495,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用統計"
+          }
+        }
+      }
+    },
+    "Use the %@ skill" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the %@ skill"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用技能「%@」"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請使用技能「%@」"
           }
         }
       }
@@ -34563,7 +35951,9 @@
         }
       }
     },
-    "Video Speed" : {},
+    "Video Speed" : {
+
+    },
     "Video Tasks" : {
       "localizations" : {
         "en" : {
@@ -34677,7 +36067,9 @@
         }
       }
     },
-    "Views (%lld)" : {},
+    "Views (%lld)" : {
+
+    },
     "Voice input" : {
       "localizations" : {
         "en" : {
@@ -35757,7 +37149,9 @@
         }
       }
     },
-    "上一块（←）" : {},
+    "上一块（←）" : {
+
+    },
     "上一条提问还没有收到回答" : {
       "localizations" : {
         "en" : {
@@ -35802,11 +37196,21 @@
         }
       }
     },
-    "上一步" : {},
-    "下一块（→）" : {},
-    "下一步" : {},
-    "个性化（可选）" : {},
-    "主盘 %lld" : {},
+    "上一步" : {
+
+    },
+    "下一块（→）" : {
+
+    },
+    "下一步" : {
+
+    },
+    "个性化（可选）" : {
+
+    },
+    "主盘 %lld" : {
+
+    },
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -35830,7 +37234,9 @@
         }
       }
     },
-    "从模板创建" : {},
+    "从模板创建" : {
+
+    },
     "任务计划" : {
       "localizations" : {
         "en" : {
@@ -36050,7 +37456,9 @@
         }
       }
     },
-    "刷新" : {},
+    "刷新" : {
+
+    },
     "取消" : {
       "localizations" : {
         "en" : {
@@ -36095,7 +37503,9 @@
         }
       }
     },
-    "固定" : {},
+    "固定" : {
+
+    },
     "图表（ECharts）" : {
       "localizations" : {
         "en" : {
@@ -36144,9 +37554,15 @@
         }
       }
     },
-    "在访达中显示" : {},
-    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {},
-    "复制" : {},
+    "在访达中显示" : {
+
+    },
+    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {
+
+    },
+    "复制" : {
+
+    },
     "完成" : {
       "localizations" : {
         "en" : {
@@ -36169,7 +37585,9 @@
         }
       }
     },
-    "完成，开始使用" : {},
+    "完成，开始使用" : {
+
+    },
     "导入 .board（追加块）" : {
       "localizations" : {
         "en" : {
@@ -36203,8 +37621,12 @@
         }
       }
     },
-    "导出 .board（JSON）——模板也能这样分享" : {},
-    "导出 Markdown" : {},
+    "导出 .board（JSON）——模板也能这样分享" : {
+
+    },
+    "导出 Markdown" : {
+
+    },
     "导出 PNG 到下载目录" : {
       "localizations" : {
         "en" : {
@@ -36221,8 +37643,12 @@
         }
       }
     },
-    "导出单文件 HTML（离线可读的分享页）" : {},
-    "导出记忆知识库 Markdown（到“下载”文件夹）" : {},
+    "导出单文件 HTML（离线可读的分享页）" : {
+
+    },
+    "导出记忆知识库 Markdown（到“下载”文件夹）" : {
+
+    },
     "展开或收起白板预览" : {
       "localizations" : {
         "en" : {
@@ -36277,9 +37703,15 @@
         }
       }
     },
-    "已回复 · 刚刚" : {},
-    "已导出：%@" : {},
-    "已拒绝" : {},
+    "已回复 · 刚刚" : {
+
+    },
+    "已导出：%@" : {
+
+    },
+    "已拒绝" : {
+
+    },
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -36302,10 +37734,18 @@
         }
       }
     },
-    "已接受" : {},
-    "已登录：%@" : {},
-    "已知追踪与分析请求" : {},
-    "已静音" : {},
+    "已接受" : {
+
+    },
+    "已登录：%@" : {
+
+    },
+    "已知追踪与分析请求" : {
+
+    },
+    "已静音" : {
+
+    },
     "常驻能力" : {
       "localizations" : {
         "en" : {
@@ -36395,7 +37835,9 @@
         }
       }
     },
-    "当前指标" : {},
+    "当前指标" : {
+
+    },
     "总结本页" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -36502,8 +37944,12 @@
         }
       }
     },
-    "手动添加块（进入源码编辑）/ 从模板创建" : {},
-    "打开对话 →" : {},
+    "手动添加块（进入源码编辑）/ 从模板创建" : {
+
+    },
+    "打开对话 →" : {
+
+    },
     "打开白板" : {
       "localizations" : {
         "en" : {
@@ -36536,9 +37982,15 @@
         }
       }
     },
-    "拦截广告" : {},
-    "拦截追踪器" : {},
-    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {},
+    "拦截广告" : {
+
+    },
+    "拦截追踪器" : {
+
+    },
+    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {
+
+    },
     "搜索工具" : {
       "localizations" : {
         "en" : {
@@ -36583,8 +38035,12 @@
         }
       }
     },
-    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {},
-    "播放中" : {},
+    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {
+
+    },
+    "播放中" : {
+
+    },
     "放弃" : {
       "localizations" : {
         "en" : {
@@ -36738,7 +38194,9 @@
         }
       }
     },
-    "标签页" : {},
+    "标签页" : {
+
+    },
     "标题" : {
       "localizations" : {
         "en" : {
@@ -36986,9 +38444,15 @@
         }
       }
     },
-    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {},
-    "演示中 — %@" : {},
-    "演示模式（逐块放映）" : {},
+    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {
+
+    },
+    "演示中 — %@" : {
+
+    },
+    "演示模式（逐块放映）" : {
+
+    },
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -37179,8 +38643,12 @@
         }
       }
     },
-    "空板" : {},
-    "立即执行（取消当前回合并优先运行这条）" : {},
+    "空板" : {
+
+    },
+    "立即执行（取消当前回合并优先运行这条）" : {
+
+    },
     "立即更新全部" : {
       "localizations" : {
         "en" : {
@@ -37213,7 +38681,9 @@
         }
       }
     },
-    "第 %lld/3 步" : {},
+    "第 %lld/3 步" : {
+
+    },
     "继续回合" : {
       "localizations" : {
         "en" : {
@@ -37508,10 +38978,18 @@
         }
       }
     },
-    "设置暂不可用——可在设置 → AI 里稍后配置。" : {},
-    "设置暂不可用，稍后可在设置 → 隐私开启。" : {},
-    "识别文字" : {},
-    "识别文字 (OCR)" : {},
+    "设置暂不可用——可在设置 → AI 里稍后配置。" : {
+
+    },
+    "设置暂不可用，稍后可在设置 → 隐私开启。" : {
+
+    },
+    "识别文字" : {
+
+    },
+    "识别文字 (OCR)" : {
+
+    },
     "跳过" : {
       "localizations" : {
         "en" : {
@@ -37578,7 +39056,9 @@
         }
       }
     },
-    "进白板" : {},
+    "进白板" : {
+
+    },
     "退出响应式模式" : {
       "localizations" : {
         "en" : {
@@ -37601,10 +39081,18 @@
         }
       }
     },
-    "退出放映（块仍保留）" : {},
-    "选区已拖入" : {},
-    "配置同步（设置页）" : {},
-    "重做（⇧⌘Z）" : {},
+    "退出放映（块仍保留）" : {
+
+    },
+    "选区已拖入" : {
+
+    },
+    "配置同步（设置页）" : {
+
+    },
+    "重做（⇧⌘Z）" : {
+
+    },
     "重新生成" : {
       "localizations" : {
         "en" : {
@@ -37649,7 +39137,9 @@
         }
       }
     },
-    "链接已拖入" : {},
+    "链接已拖入" : {
+
+    },
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {
       "localizations" : {
         "en" : {
@@ -37672,7 +39162,9 @@
         }
       }
     },
-    "问本页" : {},
+    "问本页" : {
+
+    },
     "隐藏悬浮球" : {
       "localizations" : {
         "en" : {
@@ -37736,1248 +39228,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "頁面事件 %1$@（%2$@）想要喚起智慧體——目前已關閉，可在設定中開啟"
-          }
-        }
-      }
-    },
-    "Conversations" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conversations"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话列表"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話列表"
-          }
-        }
-      }
-    },
-    "Conversation list" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conversation list"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话列表"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話列表"
-          }
-        }
-      }
-    },
-    "Tasks" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tasks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任务"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任務"
-          }
-        }
-      }
-    },
-    "Skills" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skills"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "技能"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "技能"
-          }
-        }
-      }
-    },
-    "Run now" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run now"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即执行"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即執行"
-          }
-        }
-      }
-    },
-    "Rescan" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rescan"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新扫描"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新掃描"
-          }
-        }
-      }
-    },
-    "Capabilities" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capabilities"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "能力"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "能力"
-          }
-        }
-      }
-    },
-    "No skills yet" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No skills yet"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有技能"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有技能"
-          }
-        }
-      }
-    },
-    "Import failed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import failed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入失败"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯入失敗"
-          }
-        }
-      }
-    },
-    "Doctor" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Doctor"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "体检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "體檢"
-          }
-        }
-      }
-    },
-    "New Task" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Task"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新建任务"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增任務"
-          }
-        }
-      }
-    },
-    "Daily" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daily"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每天"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每天"
-          }
-        }
-      }
-    },
-    "Minutes" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minutes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分钟"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分鐘"
-          }
-        }
-      }
-    },
-    "Instructions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Instructions"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用说明"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用說明"
-          }
-        }
-      }
-    },
-    "Recheck" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recheck"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新体检"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新體檢"
-          }
-        }
-      }
-    },
-    "Use the %@ skill" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use the %@ skill"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请使用技能「%@」"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請使用技能「%@」"
-          }
-        }
-      }
-    },
-    "Save failed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save failed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存失败"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存失敗"
-          }
-        }
-      }
-    },
-    "New Skill" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Skill"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新建技能"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增技能"
-          }
-        }
-      }
-    },
-    "hour" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "hour"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "时"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時"
-          }
-        }
-      }
-    },
-    "minute" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "minute"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分"
-          }
-        }
-      }
-    },
-    "Name cannot contain /" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name cannot contain /"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名称不能包含 /"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名稱不能包含 /"
-          }
-        }
-      }
-    },
-    "Export Conversation" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export Conversation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯出對話"
-          }
-        }
-      }
-    },
-    "No MCP servers configured." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No MCP servers configured."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未配置 MCP 服务器。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未配置 MCP 伺服器。"
-          }
-        }
-      }
-    },
-    "No conversation yet — send a message first." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No conversation yet — send a message first."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有会话——先发一条消息。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有會話——先發一條訊息。"
-          }
-        }
-      }
-    },
-    "No scheduled tasks." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No scheduled tasks."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有定时任务。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有定時任務。"
-          }
-        }
-      }
-    },
-    "No session instruction. Set one with /directive <text> — it applies to this conversation only." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No session instruction. Set one with /directive <text> — it applies to this conversation only."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无会话级指令。用 /directive <文本> 设置——只对本会话生效。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無會話級指令。用 /directive <文字> 設定——只對本會話生效。"
-          }
-        }
-      }
-    },
-    "Nothing to export yet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing to export yet."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有可导出的内容。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有可匯出的內容。"
-          }
-        }
-      }
-    },
-    "Nothing to retry — the last message isn't a finished answer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing to retry — the last message isn't a finished answer."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可重试的内容——最后一条不是已完成的回答。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有可重試的內容——最後一條不是已完成的回答。"
-          }
-        }
-      }
-    },
-    "Session instruction cleared." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session instruction cleared."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话级指令已清除。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話級指令已清除。"
-          }
-        }
-      }
-    },
-    "Filter with /tools <keyword>." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filter with /tools <keyword>."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用 /tools <关键词> 过滤。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用 /tools <關鍵詞> 過濾。"
-          }
-        }
-      }
-    },
-    "show or set access level: /access confirm|auto|full" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "show or set access level: /access confirm|auto|full"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示或设置访问等级：/access confirm|auto|full"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示或設定存取等級：/access confirm|auto|full"
-          }
-        }
-      }
-    },
-    "show, set, or clear the session instruction: /directive <text>（off = clear）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "show, set, or clear the session instruction: /directive <text>（off = clear）"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看、设置或清除会话级指令：/directive <文本>（off = 清除）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看、設定或清除會話級指令：/directive <文字>（off = 清除）"
-          }
-        }
-      }
-    },
-    "list scheduled tasks" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list scheduled tasks"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出定时任务"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出定時任務"
-          }
-        }
-      }
-    },
-    "count tools by risk tier, or filter: /tools <关键词>" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "count tools by risk tier, or filter: /tools <关键词>"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按风险档统计工具，或过滤：/tools <关键词>"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按風險檔統計工具，或過濾：/tools <關鍵詞>"
-          }
-        }
-      }
-    },
-    "list MCP servers and connection status" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "list MCP servers and connection status"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出 MCP 服务器与连接状态"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出 MCP 伺服器與連線狀態"
-          }
-        }
-      }
-    },
-    "rename this conversation: /title <新标题>" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rename this conversation: /title <新标题>"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重命名当前会话：/title <新标题>"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新命名目前會話：/title <新標題>"
-          }
-        }
-      }
-    },
-    "re-run the last answer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "re-run the last answer"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新生成上一条回答"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新產生上一條回答"
-          }
-        }
-      }
-    },
-    "save this conversation as a Markdown file" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "save this conversation as a Markdown file"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把当前会话导出为 Markdown 文件"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把目前會話匯出為 Markdown 檔案"
-          }
-        }
-      }
-    },
-    "Untitled" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untitled"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未命名"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未命名"
-          }
-        }
-      }
-    },
-    " · %@ USD" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " · %@ USD"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " · %@ 美元"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " · %@ 美元"
-          }
-        }
-      }
-    },
-    "Access level set to %@." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Access level set to %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "访问等级已设为 %@。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存取等級已設為 %@。"
-          }
-        }
-      }
-    },
-    "Access level: %@ — %@\nSet with /access confirm|auto|full" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Access level: %@ — %@\nSet with /access confirm|auto|full"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "访问等级：%1$@ — %2$@\n用 /access confirm|auto|full 设置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存取等級：%1$@ — %2$@\n用 /access confirm|auto|full 設定"
-          }
-        }
-      }
-    },
-    "Current title: %@. Set with /title <new title>" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current title: %@. Set with /title <new title>"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前标题：%1$@。用 /title <新标题> 修改"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前標題：%1$@。用 /title <新標題> 修改"
-          }
-        }
-      }
-    },
-    "No tools match %@." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No tools match %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有匹配 %@ 的工具。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有符合 %@ 的工具。"
-          }
-        }
-      }
-    },
-    "Read-only %lld · state-changing %lld · code execution %lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read-only %lld · state-changing %lld · code execution %lld"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只读 %lld · 改状态 %lld · 代码执行 %lld"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "唯讀 %lld · 改狀態 %lld · 程式碼執行 %lld"
-          }
-        }
-      }
-    },
-    "Renamed to %@." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Renamed to %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已重命名为 %@。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已重新命名為 %@。"
-          }
-        }
-      }
-    },
-    "Session instruction set: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session instruction set: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话级指令已设置：%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話級指令已設定：%@"
-          }
-        }
-      }
-    },
-    "Session instruction: %@\nClear with /directive off" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session instruction: %@\nClear with /directive off"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话级指令：%1$@\n用 /directive off 清除"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會話級指令：%1$@\n用 /directive off 清除"
-          }
-        }
-      }
-    },
-    "Unknown access level %@ — use confirm|auto|full." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown access level %@ — use confirm|auto|full."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未知访问等级 %1$@——用 confirm|auto|full。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未知存取等級 %1$@——用 confirm|auto|full。"
-          }
-        }
-      }
-    },
-    "%lld tools available." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld tools available."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共 %lld 个工具"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共 %lld 個工具"
-          }
-        }
-      }
-    },
-    "%lld matching tool(s):" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld matching tool(s):"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匹配到 %lld 个工具："
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匹配到 %lld 個工具："
-          }
-        }
-      }
-    },
-    "%lld scheduled task(s):" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld scheduled task(s):"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共 %lld 个定时任务："
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共 %lld 個定時任務："
-          }
-        }
-      }
-    },
-    "Site Auto-Play On" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Site Auto-Play On"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此站点已允许自动播放"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此網站已允許自動播放"
-          }
-        }
-      }
-    },
-    "Site Auto-Play Off" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow Auto-Play on This Site"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "允许此站点自动播放"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "允許此網站自動播放"
           }
         }
       }

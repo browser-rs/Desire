@@ -71,6 +71,8 @@ struct AgentWindowSidebar: View {
                            label: String(localized: "Trace"))
             destinationRow(.capabilities, icon: "sparkles.rectangle.stack",
                            label: String(localized: "Capabilities"))
+            destinationRow(.doctor, icon: "stethoscope",
+                           label: String(localized: "Doctor"))
         }
         .padding(.horizontal, 8)
         .padding(.top, 2)
@@ -208,6 +210,7 @@ struct AgentWindowSidebar: View {
                                 sessionStore.loadConversation(conv.id)
                                 onActivateChat()
                             }
+                            Button("Rename") { renameConversation(conv) }
                             Divider()
                             Button("Delete", role: .destructive) { confirmDelete(conv) }
                         }
@@ -237,6 +240,25 @@ struct AgentWindowSidebar: View {
             conversationStore.delete([conv.id])
             // 删的是面板正在显示的会话 → 面板重置回空态（防止残留下回合写回复活）。
             sessionStore.handleConversationsDeleted([conv.id])
+        }
+    }
+
+    /// 侧栏重命名（右键）：带输入框的系统弹窗，与历史页行内编辑同一 API
+    /// （conversationStore.rename）。
+    private func renameConversation(_ conv: Conversation) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Rename")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.stringValue = conv.title
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.addButton(withTitle: String(localized: "Save"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            let trimmed = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                conversationStore.rename(conv.id, to: trimmed)
+            }
         }
     }
 

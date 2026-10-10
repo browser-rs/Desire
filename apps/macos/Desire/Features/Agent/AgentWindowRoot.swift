@@ -10,6 +10,7 @@ enum AgentWindowDestination: Hashable {
     case stats
     case trace
     case capabilities
+    case doctor
 }
 
 /// 独立 Agent 窗口的**两栏布局根视图**（2026-10-10）：左栏 = 智能体侧栏
@@ -72,7 +73,14 @@ struct AgentWindowRoot: View {
         case .tasks:
             AgentTasksView(onBack: { switchDestination(.chat) })
         case .skills:
-            AgentSkillsView(onBack: { switchDestination(.chat) })
+            AgentSkillsView(
+                onBack: { switchDestination(.chat) },
+                onUseSkill: { name in
+                    // 从技能页直接发起：切回聊天列并把使用指令发给 Agent。
+                    switchDestination(.chat)
+                    store.sendMessage(String(localized: "Use the \(name) skill"))
+                }
+            )
         case .memory:
             AgentMemoryView(onBack: { switchDestination(.chat) })
         case .stats:
@@ -83,6 +91,8 @@ struct AgentWindowRoot: View {
                            onBack: { switchDestination(.chat) })
         case .capabilities:
             AgentCapabilitiesView(onBack: { switchDestination(.chat) })
+        case .doctor:
+            AgentDoctorView(onBack: { switchDestination(.chat) })
         }
     }
 

@@ -10,6 +10,8 @@ struct AgentTasksView: View {
     @ObservedObject private var store = AgentScheduler.shared
     var onBack: () -> Void
 
+    @State private var isCreating = false
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -27,6 +29,9 @@ struct AgentTasksView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(isPresented: $isCreating) {
+            AgentTaskEditorSheet()
+        }
     }
 
     private var header: some View {
@@ -44,6 +49,7 @@ struct AgentTasksView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            HoverIcon(systemName: "plus.bubble", action: { isCreating = true }, help: "New Task")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -74,6 +80,154 @@ struct AgentTasksView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// 新建任务表单（任务页头部 + 号）：名称 + 提示词 + 周期两档
+/// （每 N 分钟 / 每天 HH:MM）。目标窗口创建后按卡片上的选择器改
+/// （默认跟随最新窗口）。与 AgentScheduler.add 同一条写入路径。
+private struct AgentTaskEditorSheet: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = AgentScheduler.shared
+
+    @State private var name = ""
+    @State private var prompt = ""
+    /// false = 每 N 分钟；true = 每天 HH:MM。
+    @State private var isDaily = false
+    @State private var minutesText = "30"
+    @State private var hourText = "9"
+    @State private var minuteText = "0"
+    @State private var failureText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.badge.checkmark")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("New Task")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Name")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField(String(localized: "Name"), text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+
+                Text("Prompt")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextEditor(text: $prompt)
+                    .font(.system(size: 12))
+                    .frame(height: 84)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+
+                Picker(String(localized: "Interval"), selection: $isDaily) {
+                    Text("Minutes").tag(false)
+                    Text("Daily").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if isDaily {
+                    HStack(spacing: 8) {
+                        TextField("9", text: $hourText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .frame(width: 56)
+                        Text("hour")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        TextField("0", text: $minuteText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .frame(width: 56)
+                        Text("minute")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        TextField("30", text: $minutesText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .frame(width: 72)
+                        Text("Minutes")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
+
+                if let failureText {
+                    Text(failureText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
+
+                HStack {
+                    Spacer()
+                    Button(String(localized: "Cancel")) { dismiss() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    Button(String(localized: "Save")) { save() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSave)
+                }
+                .font(.system(size: 12))
+            }
+            .padding(14)
+        }
+        .frame(width: 400)
+    }
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func save() {
+        let recurrence: AgentScheduler.ScheduledTask.Recurrence
+        if isDaily {
+            guard let hour = Int(hourText), (0...23).contains(hour),
+                  let minute = Int(minuteText), (0...59).contains(minute) else {
+                failureText = "0–23 / 0–59"
+                return
+            }
+            recurrence = .daily(hour: hour, minute: minute)
+        } else {
+            guard let minutes = Int(minutesText), minutes >= 1 else {
+                failureText = "≥ 1"
+                return
+            }
+            recurrence = .everyMinutes(minutes)
+        }
+        if store.add(name: name, prompt: prompt, recurrence: recurrence) != nil {
+            dismiss()
+        }
     }
 }
 

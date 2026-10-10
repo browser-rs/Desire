@@ -9,6 +9,8 @@ struct AgentSkillsView: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = SkillStore.shared
     var onBack: () -> Void
+    /// "在对话中使用"：切回聊天列并把使用指令发给 Agent（nil = 不显示该入口）。
+    var onUseSkill: ((String) -> Void)? = nil
 
     @State private var searchText = ""
     /// skill name → 危险模式摘要（nil = 未扫出）。onAppear 扫一次，
@@ -16,6 +18,9 @@ struct AgentSkillsView: View {
     @State private var riskSummaries: [String: String] = [:]
     @State private var previewSkill: SkillStore.Skill?
     @State private var importFailure: String?
+    /// nil = 新建；非 nil = 编辑该技能（写入它的 url，同名即覆盖）。
+    @State private var editingSkill: SkillStore.Skill?
+    @State private var isCreating = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +35,9 @@ struct AgentSkillsView: View {
                             AgentSkillCard(
                                 skill: skill,
                                 riskSummary: riskSummaries[skill.name],
-                                onPreview: { previewSkill = skill }
+                                onPreview: { previewSkill = skill },
+                                onEdit: { editingSkill = skill },
+                                onUse: onUseSkill
                             )
                         }
                     }
@@ -44,6 +51,18 @@ struct AgentSkillsView: View {
         }
         .sheet(item: $previewSkill) { skill in
             AgentSkillPreviewSheet(skill: skill)
+        }
+        .sheet(isPresented: $isCreating) {
+            AgentSkillEditorSheet(editing: nil) {
+                store.reload()
+                scanRisks()
+            }
+        }
+        .sheet(item: $editingSkill) { skill in
+            AgentSkillEditorSheet(editing: skill) {
+                store.reload()
+                scanRisks()
+            }
         }
         .alert(
             String(localized: "Import failed"),
@@ -134,6 +153,16 @@ struct AgentSkillsView: View {
             }
             .buttonStyle(.plain)
             .help("Rescan")
+
+            Button {
+                isCreating = true
+            } label: {
+                Image(systemName: "plus.square.on.square")
+                    .font(.system(size: 12))
+                    .frame(width: 26, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("New Skill")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -207,13 +236,16 @@ struct AgentSkillsView: View {
 
 // MARK: - Card
 
-/// 单条技能卡：名称 + 目录/单文件标 + 描述两行 + 风险徽标；点卡预览正文。
+/// 单条技能卡：名称 + 目录/单文件标 + 描述两行 + 风险徽标；点卡预览正文，
+/// 右键编辑/在对话中使用/在 Finder 中显示。
 private struct AgentSkillCard: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     let skill: SkillStore.Skill
     let riskSummary: String?
     let onPreview: () -> Void
+    let onEdit: () -> Void
+    let onUse: ((String) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -266,10 +298,161 @@ private struct AgentSkillCard: View {
             onPreview()
         }
         .contextMenu {
+            if let onUse {
+                Button(String(localized: "Use the \(skill.name) skill")) {
+                    onUse(skill.name)
+                }
+            }
+            Button("Edit") { onEdit() }
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([skill.url])
             }
         }
+    }
+}
+
+// MARK: - Editor sheet
+
+/// 技能编辑器（新建/编辑共用，2026-10-10）：名称/描述/使用说明三字段 →
+/// `SkillAuthoring.markdown` 渲染 SKILL.md。新建写到技能目录 `<名称>.md`；
+/// 编辑写回原文件（含目录 skill 的 SKILL.md）。同名 = 覆盖（与导入同语义）。
+private struct AgentSkillEditorSheet: View {
+    /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
+    @Environment(\.appAccent) private var appAccent: Color
+    @Environment(\.dismiss) private var dismiss
+    let editing: SkillStore.Skill?
+    /// 保存成功后回调（宿主 reload + 重扫风险）。
+    let onSaved: () -> Void
+
+    @State private var name = ""
+    @State private var description = ""
+    @State private var instructions = ""
+    @State private var failureText: String?
+    @State private var seeded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "puzzlepiece.extension")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text(editing == nil ? String(localized: "New Skill") : String(localized: "Edit"))
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            Divider()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Name")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField(String(localized: "Name"), text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .disabled(editing != nil)
+
+                Text("Description")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("", text: $description)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+
+                Text("Instructions")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextEditor(text: $instructions)
+                    .font(.system(size: 12))
+                    .frame(minHeight: 160)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+
+                if let failureText {
+                    Text(failureText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
+
+                HStack {
+                    Spacer()
+                    Button(String(localized: "Cancel")) { dismiss() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    Button(String(localized: "Save")) { save() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSave)
+                }
+                .font(.system(size: 12))
+            }
+            .padding(14)
+        }
+        .frame(width: 460)
+        .onAppear {
+            // sheet 内容只播种一次（sheet 复用同一视图值时防重置）。
+            guard !seeded else { return }
+            seeded = true
+            if let editing {
+                name = editing.name
+                description = editing.description
+                instructions = Self.stripFrontmatter(
+                    (try? String(contentsOf: editing.url, encoding: .utf8)) ?? "")
+            }
+        }
+    }
+
+    private var canSave: Bool {
+        !cleanName.isEmpty && !instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 名称去首尾空白与 .md 后缀；编辑态锁定原名（改名=新建，避免目录
+    /// skill 的附属文件失联）。
+    private var cleanName: String {
+        var n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.hasSuffix(".md") { n = String(n.dropLast(3)) }
+        return n
+    }
+
+    private func save() {
+        guard cleanName.contains("/") == false else {
+            failureText = String(localized: "Name cannot contain /")
+            return
+        }
+        let markdown = SkillAuthoring.markdown(
+            name: cleanName,
+            description: description,
+            instructions: instructions
+        )
+        let target: URL
+        if let editing {
+            target = editing.url
+        } else {
+            target = SkillStore.directory.appendingPathComponent("\(cleanName).md")
+        }
+        do {
+            try markdown.write(to: target, atomically: true, encoding: .utf8)
+            onSaved()
+            dismiss()
+        } catch {
+            failureText = String(localized: "Save failed")
+        }
+    }
+
+    /// 剥掉正文自带的 frontmatter（权威 frontmatter 由 SkillAuthoring 重新生成）。
+    private static func stripFrontmatter(_ text: String) -> String {
+        guard text.hasPrefix("---"), let end = text.range(of: "\n---") else { return text }
+        return String(text[end.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

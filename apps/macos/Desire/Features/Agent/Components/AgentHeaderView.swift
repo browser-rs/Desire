@@ -20,6 +20,9 @@ struct AgentHeaderView: View {
     var onShowMemory: (() -> Void)?
     var onShowWhiteboard: (() -> Void)?
     var onToggleBall: (() -> Void)?
+    /// 两栏布局的侧栏开关（独立 Agent 窗口宿主传入；nil = 单栏宿主，不显示开关）。
+    var onToggleSidebar: (() -> Void)?
+    var isSidebarExpanded: Bool = false
     var onNewChat: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
@@ -28,6 +31,16 @@ struct AgentHeaderView: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // 两栏布局（独立窗口）的侧栏开关：置顶最左，macOS 惯例位。
+            if let onToggleSidebar {
+                HoverIcon(
+                    systemName: "sidebar.left",
+                    action: onToggleSidebar,
+                    help: "Conversation list"
+                )
+                .opacity(isSidebarExpanded ? 1 : 0.55)
+            }
+
             brandMark
 
             VStack(alignment: .leading, spacing: 0) {

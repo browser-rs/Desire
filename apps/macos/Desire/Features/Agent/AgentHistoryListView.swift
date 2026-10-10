@@ -338,7 +338,7 @@ struct AgentHistoryListView: View {
     /// 显式多选模式下解绑系统选区（点击由行内手势接管=勾选/取消，
     /// 否则 List 会把 selection 整个替换成被点的那一行），选中态由行首
     /// 勾选圈表达（原生 `List` 的行不许自绘底色/高亮，圆圈是内容不是高亮）。
-    private func listBody(grouped: [HistoryGroup]) -> some View {
+    private func listBody(grouped: [AgentHistoryGroup]) -> some View {
         List(selection: isSelectionMode ? Binding<Set<UUID>>?.none : $selection) {
             ForEach(grouped) { group in
                 Section {
@@ -411,7 +411,7 @@ struct AgentHistoryListView: View {
 
     // MARK: - Grouping / filtering
 
-    private var filteredGrouped: [HistoryGroup] {
+    private var filteredGrouped: [AgentHistoryGroup] {
         // 搜索词变化 → 重置缓存;会话列表变化(count 或最新 updatedAt)→ 失效。
         let stamp = "\(conversationStore.conversations.count)-\(conversationStore.conversations.first?.updatedAt.timeIntervalSince1970 ?? 0)"
         let key = debouncedQuery
@@ -431,8 +431,20 @@ struct AgentHistoryListView: View {
             filterCache.key = key
             filterCache.stamp = stamp
         }
-        let filtered = filterCache.out
+        return AgentHistoryGroup.buckets(filterCache.out)
+    }
+}
 
+// MARK: - Models
+
+/// 按“今天/昨天/本周/更早”分桶（历史页与 Agent 窗口侧栏共用——两边必须
+/// 长同一副分组口径，改一处就够）。入参须已按 updatedAt 新→旧排序。
+struct AgentHistoryGroup: Identifiable {
+    let id = UUID()
+    let title: String
+    let items: [Conversation]
+
+    static func buckets(_ conversations: [Conversation]) -> [AgentHistoryGroup] {
         let cal = Calendar.current
         let now = Date()
         let startOfToday = cal.startOfDay(for: now)
@@ -444,7 +456,7 @@ struct AgentHistoryListView: View {
         var thisWeek: [Conversation] = []
         var older: [Conversation] = []
 
-        for conv in filtered {
+        for conv in conversations {
             if conv.updatedAt >= startOfToday {
                 today.append(conv)
             } else if conv.updatedAt >= startOfYesterday {
@@ -456,21 +468,13 @@ struct AgentHistoryListView: View {
             }
         }
 
-        var groups: [HistoryGroup] = []
+        var groups: [AgentHistoryGroup] = []
         if !today.isEmpty { groups.append(.init(title: String(localized: "Today"), items: today)) }
         if !yesterday.isEmpty { groups.append(.init(title: String(localized: "Yesterday"), items: yesterday)) }
         if !thisWeek.isEmpty { groups.append(.init(title: String(localized: "This Week"), items: thisWeek)) }
         if !older.isEmpty { groups.append(.init(title: String(localized: "Older"), items: older)) }
         return groups
     }
-}
-
-// MARK: - Models
-
-private struct HistoryGroup: Identifiable {
-    let id = UUID()
-    let title: String
-    let items: [Conversation]
 }
 
 // MARK: - Row

@@ -31,6 +31,10 @@ struct AgentPanel: View {
     var onToggleWhiteboard: (() -> Void)? = nil
     /// 悬浮球开关（同上）。
     var onToggleBall: (() -> Void)? = nil
+    /// 两栏布局（独立 Agent 窗口）：侧栏开关回调与显隐状态。浏览器内嵌的
+    /// 窄栏宿主不传（nil = 单栏，头部不出现开关）。
+    var onToggleSidebar: (() -> Void)? = nil
+    var isSidebarExpanded: Bool = false
     @ObservedObject private var memory = AgentMemoryStore.shared
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
@@ -130,6 +134,8 @@ struct AgentPanel: View {
                 onShowMemory: { showMemory = true },
                 onShowWhiteboard: onToggleWhiteboard,
                 onToggleBall: onToggleBall,
+                onToggleSidebar: onToggleSidebar,
+                isSidebarExpanded: isSidebarExpanded,
                 onNewChat: { store.clear() }
             )
 

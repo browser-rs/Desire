@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.9] - 2026-10-10
 ### Fixed
 
 - **白板"前端资源缺失"修复**：React 前端资源随 fileSystemSynchronized group 打包时被平铺进 bundle 根，而加载器找的是 `WhiteboardApp/index.html` 子目录——永远找不到、每次都退占位页；改为根级优先、子目录兜底

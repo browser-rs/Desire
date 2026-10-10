@@ -585,6 +585,8 @@ final class AutomationServer {
         ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
         ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
+        ep("GET", "/agent/approvals", "Pending tool approval (the card waiting in the panel)", example: "…/agent/approvals")
+        ep("POST", "/agent/approvals/resolve", "Resolve the pending approval from outside the panel (agent full-loop E2E without a human click)", params: ["decision:string(allowOnce|alwaysAllow|deny)"], example: #"-d '{"decision":"allowOnce"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int", "pixelRatio?:number"], example: "-d '{\"enabled\":true,\"pixelRatio\":3}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -1235,6 +1237,33 @@ final class AutomationServer {
                 }
                 DPPAdapterStore.shared.remove(name)
                 return try Self.json(["ok": true, "name": name])
+            case ("GET", "/agent/approvals"):
+                guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
+                    return try Self.json(["pending": false])
+                }
+                return try Self.json([
+                    "pending": true,
+                    "tool": pending.toolCall.function.name,
+                    "arguments": pending.argumentsSummary,
+                    "risk": pending.risk.displayName,
+                ])
+            case ("POST", "/agent/approvals/resolve"):
+                guard let decision = Self.string(body, "decision") else {
+                    return try Self.json(["error": "missing decision"])
+                }
+                let outcome: ApprovalDecision
+                switch decision {
+                case "allowOnce": outcome = .allowOnce
+                case "alwaysAllow": outcome = .alwaysAllow
+                case "deny": outcome = .deny
+                default:
+                    return try Self.json(["error": "decision must be allowOnce|alwaysAllow|deny"])
+                }
+                guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
+                    return try Self.json(["error": "no pending approval"])
+                }
+                AgentScheduler.shared.deliveryTarget?.resolveApproval(outcome)
+                return try Self.json(["ok": true, "tool": pending.toolCall.function.name, "decision": decision])
             case ("GET", "/dpp/action-approvals"):
                 // DPP 逐动作放行清单（0.6.7）：host × action 的用户授权。
                 return try Self.json([

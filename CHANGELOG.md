@@ -4,6 +4,12 @@
 - **DPP SDK 独立成 npm 包（packages/dpp-sdk）**：单一逻辑源 src/core.js（宿主桥可注入 env），build 拼出 UMD（浏览器 script 直引，挂 window.desire）与 ESM（bundler/`createDesireSDK`）两个产物并自动同步 website 部署源与 app bundle 副本（此前两份手写副本漂移）；node 冒烟 10 项（expose/emit/validate/profile 契约/UMD 沙箱求值）；package.json+README+发布脚本就绪，npm 账号到位后 `bash packages/dpp-sdk/publish.sh` 即发。
 - **DPP 第三方适配包（外挂协议）**：站点不主动接入时由社区按 host 声明——声明式 JSON（与 SDK expose 同一协议格式，纯 JSON 零代码），动作照走既有审批链不引入新执行面；优先级=页面原生声明>适配器（站点接入后适配包自然失效，实测断言）；`DPPAdapterStore`（Application Support/Desire/DPPAdapters/*.json，逐包启停持久化、坏包报错不影响他包、protocol/protocolBody 双键名容错）；设置页 DPP 区新增列表（导入/启停/删除/坏包原因）；桥 `GET /dpp/adapters`、`POST /dpp/adapters/import|toggle|remove`；示例适配包 juejin.json（docs/dpp-adapters/ 附编写守则）。fixture E2E：适配器协议生效（views/signals/ignore/来源戳）+原生优先 PASS。
 - **顺手修**：桥 `/protocol/inspect` 加 `index?` 参数（多窗口下 deliveryTarget 的窗口未必是 active 窗口，E2E 实测错位）；inspect 的 views.fields 序列化非 plist 类型曾静默产出空响应；navigate 端点对挂起标签先 unsuspend（挂起路径置空 navigationDelegate，直接 load 后 didFinish/didCommit 全不来——桥的加载完成信号、DPP 解析、isLoading 清零全断）。
+- **掘金 DPP 适配包（真实 DOM 核对）**：`docs/dpp-adapters/` 两包——`juejin.json`（文章页：标题/作者/时间/正文/标签 + 评论行三字段视图 + like-article/评论两个声明动作）、`juejin-compose.json`（创作页：发沸点/填文章标题，CodeMirror 正文经 executeJS 的诚实口径写进 context.rules）；全部选择器在登录态真实页面逐项验证（点赞按钮真实形态是左侧悬浮栏 `.panel-btn:has(.icon-zan)`——首轮误判成推荐流的 `.action-list`，已修正并人工 toggle 闭环；评论发送钮空输入原生禁用防误发）。
+- **适配器合并语义修正**：页面原生声明（哪怕只是最低限度的 JSON-LD 隐式视图）不再让适配器整包让位——改为 merged 补齐（页面同名键胜、适配器独有键进来）：掘金页面自身的 article 视图与适配器的评论视图/点赞评论动作共存，实测断言。
+- **pageAction fill 步骤支持 contenteditable**（掘金评论框/沸点编辑器、B 站简介等全部受益）：execCommand 输入链（focus→selectAll→insertText），Vue/React 都能感知；普通表单控件维持原生 value+input/change。
+- **桥审批端点**：`GET /agent/approvals`（面板里等着的审批卡）+ `POST /agent/approvals/resolve`（allowOnce|alwaysAllow|deny）——agent 全链路 E2E 不再需要人手点卡片。
+- **桥 /protocol/inspect 加 index? 参数**（多窗口下 deliveryTarget 窗口与 active 窗口错位）+ views.fields 序列化非 plist 类型静默空响应修复；navigate 端点对挂起标签先 unsuspend（挂起路径置空 navigationDelegate，直接 load 后 didFinish/didCommit 全不来）。
+
 
 
 ## [v0.7.9] - 2026-10-10

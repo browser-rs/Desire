@@ -1724,6 +1724,15 @@ try {
             do {
                 let parsed = try JSONDecoder().decode(DesireProtocol.self, from: data)
                 var stored = parsed
+                // **第三方适配包合并**（2026-10-11 语义修正）：页面原生声明
+                // 只是"最低限度的隐式 L0"（如掘金的 JSON-LD）时，硬性原生
+                // 优先会让精心校准的社区适配整包失效。改为 merged 语义——
+                // 页面键优先（同名 view/action 站点胜）、适配器独有键补齐
+                // （likes/comments/actions 进来）。适配器为空 = 原样。
+                if let pageURL = webView.url,
+                   let adapter = DPPAdapterStore.shared.adapter(for: pageURL) {
+                    stored = DesireProtocol.merged(site: adapter.protocolBody, page: parsed) ?? parsed
+                }
                 stored.revisedAt = Date()
                 parent.state.pageProtocol = stored.isEmpty ? nil : stored
                 if !stored.warnings.isEmpty {

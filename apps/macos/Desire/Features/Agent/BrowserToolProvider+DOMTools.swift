@@ -1038,12 +1038,21 @@ extension BrowserToolProvider {
                         case "fill":
                             let selLit = JSString.literal(selector)
                             let valLit = JSString.literal(value)
+                            // contenteditable（掘金评论框/沸点编辑器、B 站简介等）没有
+                            // .value——走 execCommand 输入链（Vue/React 都能感知）；
+                            // 普通表单控件维持原生 value + input/change 事件。
                             try await runStepJS(
                                                                 "\nvar el = __desireQueryAll(\(selLit))[0];" +
                                 "if (!el) throw new Error('element not found: ' + \(JSString.literal(selector)));" +
-                                "el.value = \(valLit);" +
-                                "el.dispatchEvent(new Event('input', {bubbles: true}));" +
-                                "el.dispatchEvent(new Event('change', {bubbles: true})); 'ok'")
+                                "if (el.isContentEditable) {" +
+                                "  el.focus();" +
+                                "  document.execCommand('selectAll', false, null);" +
+                                "  document.execCommand('insertText', false, \(valLit));" +
+                                "} else {" +
+                                "  el.value = \(valLit);" +
+                                "  el.dispatchEvent(new Event('input', {bubbles: true}));" +
+                                "  el.dispatchEvent(new Event('change', {bubbles: true}));" +
+                                "} 'ok'")
                             executed.append("filled \(selector)")
                         case "click":
                             let selLit = JSString.literal(value)

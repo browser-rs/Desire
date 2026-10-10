@@ -1,40 +1,85 @@
 {
   "format": "desire/adapter-1",
   "name": "juejin",
-  "hosts": ["juejin.cn", ".juejin.cn"],
-  "pathPrefixes": ["/entry/", "/post/"],
-  "notes": "社区适配：掘金文章页（selectors 需随站点改版校准）",
+  "hosts": [
+    "juejin.cn",
+    ".juejin.cn"
+  ],
+  "pathPrefixes": [
+    "/entry/",
+    "/post/"
+  ],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：掘金文章页——读取/点赞/评论",
   "protocolBody": {
     "protocolVersion": "desire/1",
     "pageType": "article",
     "contentMain": "article",
     "sections": {
       "article": "article",
-      "comments": ".comment-list, [class*='comment-list']"
+      "comments": "[class*='comment-list'], [class*='comment-list-box']"
     },
     "ignore": [
-      "nav", "footer", "aside", "[class*='sidebar']", "[class*='recommend']",
-      "[class*='banner']", "[class*='sidenav']"
+      "nav",
+      "footer",
+      "aside",
+      "[class*='sidebar']",
+      "[class*='recommend']",
+      "[class*='banner']",
+      "[class*='sidenav']",
+      "[class*='auth-card']",
+      "[class*='column-banner']",
+      "[class*='entry-banner']"
     ],
     "views": {
       "article": {
         "item": "article",
         "fields": {
-          "title": "h1",
-          "author": "[class*='author'] .username, [class*='author-name'], a[class*='username']",
-          "publishTime": "time, [class*='meta'] time, [class*='date']",
+          "title": "h1.article-title, article h1",
+          "author": "[class*='author'] .username, .author-name, a[class*='username'] .name",
+          "publishTime": "[class*='meta-box'] time, .meta-box time, article time",
           "content": ".markdown-body, [class*='article-content']",
-          "tags": ".tag-list li, [class*='tag'] a"
+          "tags": ".tag-list li a, .tag-list li, [class*='tag-list'] a"
+        }
+      },
+      "comments": {
+        "item": ".comment-card.comment-item, [class*='comment-list'] [class*='comment-item']",
+        "fields": {
+          "author": ".comment-header .username .name, .comment-header .name",
+          "content": ".comment-content .content, .comment-content",
+          "timeAndMeta": ".comment-action"
         }
       }
     },
     "signals": {
       "ready": "article .markdown-body",
-      "busy": "[class*='loading']"
+      "busy": "[class*='loading'], .comment-input [class*='loading']"
     },
+    "actions": [
+      {
+        "name": "like-article",
+        "description": "切换当前文章的点赞状态（左侧悬浮栏，已赞=active）——点击后按钮加 active",
+        "run": "[{\"click\": \".article-suspended-panel .panel-btn:has(.icon-zan)\"}]",
+        "effects": "persist",
+        "success": ".article-suspended-panel .panel-btn.active"
+      },
+      {
+        "name": "comment",
+        "description": "发表评论。参数：text（评论正文，最长 1000 字）。提交前按钮空输入禁用；effects=persist 走审批",
+        "params": {
+          "text": {
+            "type": "string",
+            "required": true,
+            "description": "评论内容"
+          }
+        },
+        "run": "[{\"fill\": {\".comment-input [contenteditable]\": \"{text}\"}}, {\"click\": \".action-box .submit-btn\"}]",
+        "effects": "persist",
+        "danger": false
+      }
+    ],
     "context": {
       "domain": "tech-articles",
-      "rules": "文章页；长文按 sections.article 读取可省 token；评论区在 sections.comments"
+      "rules": "掘金文章页。长文按 sections.article 读可省 token；评论区总结用 views.comments（timeAndMeta 含点赞/回复按钮文案属正常噪音）。like-article 是 toggle：再执行一次即取消点赞。comment 的发送按钮在输入为空时原生禁用（提交即真实发布，务必先向用户复述内容）。"
     }
   }
 }

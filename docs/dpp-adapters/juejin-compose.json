@@ -1,0 +1,70 @@
+{
+  "format": "desire/adapter-1",
+  "name": "juejin-compose",
+  "hosts": [
+    "juejin.cn",
+    ".juejin.cn"
+  ],
+  "pathPrefixes": [
+    "/pins/",
+    "/editor/"
+  ],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：掘金创作页——发沸点 / 写文章草稿",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "forms",
+    "contentMain": "[class*='pin-editor'], [class*='editor']",
+    "ignore": [
+      "nav",
+      "footer",
+      "[class*='sidebar']",
+      "[class*='banner']"
+    ],
+    "views": {
+      "composer": {
+        "item": "[class*='pin-editor'], [class*='editor'], .CodeMirror",
+        "fields": {
+          "pinEditor": ".rich-editor[contenteditable], .rich-editor",
+          "pinPublishBtn": ".pin-editor-bottom button.submit, .pin-editor-bottom button",
+          "articleTitle": "input.title-input",
+          "articleBody": ".CodeMirror"
+        }
+      }
+    },
+    "signals": {
+      "ready": ".rich-editor, input.title-input, .CodeMirror"
+    },
+    "actions": [
+      {
+        "name": "publish-pin",
+        "description": "发布一条沸点。参数：text（沸点正文）。填入后发布按钮 class 变 active 才可点；effects=persist 走审批——发布即公开可见",
+        "params": {
+          "text": {
+            "type": "string",
+            "required": true,
+            "description": "沸点内容"
+          }
+        },
+        "run": "[{\"fill\": {\".rich-editor[contenteditable]\": \"{text}\"}}, {\"click\": \".pin-editor-bottom button\"}]",
+        "effects": "persist",
+        "danger": true
+      },
+      {
+        "name": "fill-article-title",
+        "description": "填写文章编辑器的标题（不发布——掘金自动存草稿，发布走页面\"发布\"按钮经分类/封面确认，由用户完成）",
+        "params": {
+          "title": {
+            "type": "string",
+            "required": true
+          }
+        },
+        "run": "[{\"fill\": {\"input.title-input\": \"{title}\"}}]",
+        "effects": "local"
+      }
+    ],
+    "context": {
+      "domain": "content-composer",
+      "rules": "掘金创作页。① 沸点编辑器 = .rich-editor（contenteditable，fill 直接支持）；发布按钮在 .pin-editor-bottom，空内容 disabled、可发时 class 含 active。② 文章编辑器 = 标题 input.title-input（fill 支持）+ 正文 CodeMirror（**fill 不适用**——用 executeJS 调 document.querySelector('.CodeMirror').CodeMirror.setValue('正文')）；输入数秒后自动存草稿（/editor/drafts 可管理）。③ 发表类动作 effects=persist/danger=true 会走审批，发布前必须向用户复述全文。"
+    }
+  }
+}

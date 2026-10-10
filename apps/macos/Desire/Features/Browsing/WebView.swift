@@ -1731,6 +1731,7 @@ try {
                 // （likes/comments/actions 进来）。适配器为空 = 原样。
                 if let pageURL = webView.url,
                    let adapter = DPPAdapterStore.shared.adapter(for: pageURL) {
+                    Log.agent.info("DPP adapter merge: \(adapter.name, privacy: .public) views=\(adapter.protocolBody.views.keys.sorted().joined(separator: ","), privacy: .public)")
                     stored = DesireProtocol.merged(site: adapter.protocolBody, page: parsed) ?? parsed
                 }
                 stored.revisedAt = Date()

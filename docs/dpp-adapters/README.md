@@ -66,6 +66,7 @@
 | `juejin.json` | juejin.cn 文章页（/entry/ /post/） | 读文章/评论视图 + 点赞/评论动作 | 2026-10-11 真实 DOM 核对 |
 | `juejin-compose.json` | juejin.cn 创作页（/pins/ /editor/） | 发沸点/填文章标题动作 | CodeMirror 正文需 executeJS |
 | `v2ex.json` | v2ex.com 主题页（/t/） | 读主题/回复视图（总结讨论） | 服务端渲染，结构极稳 |
+| `cnblogs.json` | cnblogs.com 博文页 | 正文精读/排噪/阅读数视图（文章本体走站点自带 JSON-LD） | 注意文章 URL 是 /<用户>/p/<id>，前缀过滤不适用 |
 
 安装：设置 › AI › DPP 协议 › 第三方适配（URL 按钮粘 raw 链接，或文件导入）；
 本目录的 GitHub raw 链接就是现成包源：

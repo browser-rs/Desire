@@ -1,0 +1,50 @@
+{
+  "format": "desire/adapter-1",
+  "name": "cnblogs",
+  "hosts": [
+    "cnblogs.com",
+    ".cnblogs.com",
+    "www.cnblogs.com"
+  ],
+  "pathPrefixes": [],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：博客园博文详情页——精读正文/排噪/元数据（文章本体已有 JSON-LD，本包做增量）",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "article",
+    "contentMain": "#cnblogs_post_body",
+    "sections": {
+      "article": "#cnblogs_post_body",
+      "comments": "#blog-comments-placeholder, [id='!comments']"
+    },
+    "ignore": [
+      "#header",
+      "#leftmenu",
+      "#RightColumn",
+      "#blog_nav_menu",
+      "#navigator",
+      ".c_ad_block",
+      "#blog-comments-placeholder > div:first-child",
+      "[class*='ad']",
+      "#sideNav",
+      ".postDesc"
+    ],
+    "views": {
+      "post": {
+        "item": "#topics",
+        "fields": {
+          "title": "#cb_post_title_url, .postTitle h1",
+          "body": "#cnblogs_post_body",
+          "postMeta": ".postDesc",
+          "viewCount": "#post_view_count"
+        }
+      }
+    },
+    "signals": {
+      "ready": "#cnblogs_post_body"
+    },
+    "context": {
+      "domain": "tech-articles",
+      "rules": "博客园。文章 URL 形如 /<用户>/p/<id>；文章本体（标题/作者/发布时间）页面自带 JSON-LD（BlogPosting）可直接消费，views.post 补正文精读与阅读数（postMeta 行含'posted @ 时间 作者 阅读(n) 评论(n)'）；评论区登录/有评论时才渲染（sections.comments）。"
+    }
+  }
+}

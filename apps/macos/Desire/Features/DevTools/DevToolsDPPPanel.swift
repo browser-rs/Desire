@@ -51,6 +51,31 @@ struct DPPInspectorPanel: View {
 
     private func declarationSection(_ dpp: DesireProtocol) -> some View {
         Section("Declaration") {
+            // 适配包来源徽标（warnings 里的 "adapter: <name>" 戳——b32a84f 引入）。
+            // 有适配包参与时一眼看出"这份协议不是页面自己写的"。
+            let adapterNames = dpp.warnings.compactMap { w -> String? in
+                w.hasPrefix("adapter: ") ? String(w.dropFirst("adapter: ".count)) : nil
+            }
+            if !adapterNames.isEmpty {
+                HStack(spacing: 6) {
+                    Text("Adapter")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    ForEach(adapterNames, id: \.self) { name in
+                        HStack(spacing: 4) {
+                            Image(systemName: "puzzlepiece.extension.fill")
+                                .font(.system(size: 9, weight: .medium))
+                            Text(name)
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(appAccent)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(appAccent.opacity(0.12)))
+                        .help(String(localized: "Third-party adapter package contributes to this declaration"))
+                    }
+                }
+            }
             row("Profile", dpp.profile)
             row("Page type", dpp.pageType)
             row("Content main", dpp.contentMain)
@@ -220,8 +245,10 @@ struct DPPInspectorPanel: View {
     // MARK: - Warnings
 
     private func warningsSection(_ warnings: [String]) -> some View {
-        Section("Parse warnings") {
-            ForEach(warnings, id: \.self) { w in
+        // "adapter: <name>" 是来源戳不是警告（Declaration 段已有专属徽标）。
+        let parseWarnings = warnings.filter { !$0.hasPrefix("adapter: ") }
+        return Section("Parse warnings") {
+            ForEach(parseWarnings, id: \.self) { w in
                 Text(w).font(.caption2).foregroundStyle(.secondary)
             }
         }

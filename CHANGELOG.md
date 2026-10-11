@@ -2,6 +2,8 @@
 ### Fixed
 
 - **DPP 设计评审落地**（docs/DPP-DESIGN-REVIEW-2026-10-11.md 的 P0/P1 批）：① 静态步骏述算风险下限——run 步骤语义（navigate/submit 类 click/Enter/mcp/upload）无论页面声明什么都强制升档（autoEdit 静默执行未标注 outbound 动作的绕过面封死）；② DPP 动作授权键加 frame host 维度——跨源 iframe 声明的动作授权按声明来源 frame 隔离，同名页面动作互不影响（与审批卡展示一致）；③ 适配包 URL 安装 https-only（http 拒收，与注释对齐）+ sourceURL/installedAt 随包落盘（供应链审计）；④ events 对象形态的 warning 诚实化（debounce/on 未实现，固定 3s——别让站点以为声明生效）；⑤ 三处死代码/文档修复（merged 恒真条件拆成 mergingFrames 独立函数、isBridgeSafeLocal 的 effects=="danger" 死分支、规范 chat profile 示例的重复 run 键）。单测 602→614（floor 矩阵 + bridgeSafe 四态）。
+- **merged 合并不再丢适配包来源戳**：DesireProtocol.merged 返回值的 warnings 此前只取页面侧——适配包以 site 参数参与合并时，"adapter: <名>" 戳整条丢失（DevTools 徽标与 page_context 的 via community adapter 标注双双失效——本轮审查冒烟时实测发现）。修 = warnings 取并集。
+
 
 
 ## [v0.7.11] - 2026-10-12

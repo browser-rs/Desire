@@ -98,6 +98,11 @@ struct DesireProtocol: Codable, Equatable {
             for (key, value) in s.context where merged.context[key] == nil {
                 merged.context[key] = value
             }
+            // warnings 并集（两侧都保留——适配包来源戳在 site 侧时也可见，
+            // DevTools 徽标/page_context 的 via 标注依赖它）。
+            for w in s.warnings where !merged.warnings.contains(w) {
+                merged.warnings.append(w)
+            }
             return merged
         }
     }

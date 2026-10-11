@@ -1,0 +1,59 @@
+{
+  "format": "desire/adapter-1",
+  "name": "hackernews",
+  "hosts": [
+    "news.ycombinator.com"
+  ],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：Hacker News——读列表/读帖/总结评论（服务端渲染，结构二十年不变）",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "forum-list",
+    "contentMain": "#hnmain",
+    "sections": {
+      "list": "#hnmain",
+      "comments": "#hnmain .comment-tree"
+    },
+    "ignore": [
+      "#topnav",
+      ".yclinks",
+      "[href*='ycombinator.com/advertise']",
+      "#footer",
+      "td[valign='top'].center"
+    ],
+    "views": {
+      "stories": {
+        "item": "tr.athing.submission",
+        "fields": {
+          "rank": ".rank",
+          "title": ".titleline > a",
+          "link": ".titleline > a[href]",
+          "site": ".sitestr"
+        }
+      },
+      "story": {
+        "item": "tr.athing.submission",
+        "fields": {
+          "title": ".titleline > a",
+          "link": ".titleline > a[href]",
+          "opText": ".toptext"
+        }
+      },
+      "comments": {
+        "item": ".athing.comtr",
+        "fields": {
+          "user": ".hnuser",
+          "text": ".commtext",
+          "indent": ".ind img[width]",
+          "age": ".age a[href^='item']"
+        }
+      }
+    },
+    "signals": {
+      "ready": ".titleline"
+    },
+    "context": {
+      "domain": "tech-news",
+      "rules": "Hacker News。列表页用 views.stories（rank/title/link/site；分数与评论数在列表行的兄弟节点里，视图选择器够不到——看单帖热度进 item 页）。详情页 views.story + views.comments：indent 是左缩进像素，层级 = indent/40（0=顶层）；.commtext 开头的 [flagged]/[dead] 等前缀保留原样如实汇报。投票需登录，未声明动作。"
+    }
+  }
+}

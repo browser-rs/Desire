@@ -4578,9 +4578,6 @@
         }
       }
     },
-    "Ask Desire ${prompt}" : {
-
-    },
     "Ask Desire Agent" : {
 
     },
@@ -23178,9 +23175,6 @@
         }
       }
     },
-    "Open ${url} in Desire" : {
-
-    },
     "Open a page first" : {
       "localizations" : {
         "en" : {
@@ -28965,9 +28959,6 @@
           }
         }
       }
-    },
-    "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {
-
     },
     "Schedule Desire Task" : {
 

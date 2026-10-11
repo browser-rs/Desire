@@ -602,6 +602,36 @@ extension VideoSite {
     var n = 0;
     var poll = setInterval(function() { scheduleScan(); if (++n > 40) clearInterval(poll); }, 2000);
     setInterval(fastTick, 300);
+
+    // ── playbackRate 夹回对抗（2026 播放器会在广告段把倍速压回 1×）──
+    // 300ms 的 fastTick 设一次、播放器立刻夹回，广告大部分时间还是原速
+    // （用户症状："加速了但很久才播完"）。双保险：
+    //   ① ratechange 事件守卫——播放器夹回的瞬间立即拉回 16×；
+    //   ② ad-showing 期间的 rAF 紧循环持续压住。
+    // video 元素被 SPA 重建时经 MutationObserver 重新挂守卫。
+    var rateGuardVideo = null;
+    function installRateGuard(v) {
+        if (!v || v === rateGuardVideo) return;
+        rateGuardVideo = v;
+        v.addEventListener('ratechange', function() {
+            if (adShowing() && v.playbackRate < 16) {
+                try { v.playbackRate = 16; } catch(e) {}
+            }
+        });
+    }
+    (function rafLoop() {
+        try {
+            var v = document.querySelector('video.html5-main-video') ||
+                    document.querySelector('#movie_player video');
+            if (v) {
+                installRateGuard(v);
+                if (adShowing() && v.playbackRate < 16) {
+                    try { v.playbackRate = 16; } catch(e) {}
+                }
+            }
+        } catch(e) {}
+        requestAnimationFrame(rafLoop);
+    })();
     window.addEventListener('yt-navigate-finish', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
     window.addEventListener('yt-page-data-updated', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
 })();

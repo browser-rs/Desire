@@ -4,6 +4,8 @@
 - **导航排查：后退/前进按钮状态在 SPA 站点失效**——canGoBack/canGoForward 只在 didFinish 更新，而 pjax 站点（掘金等）的路由切换是 pushState（不触发 didFinish）：首页点进文章后后退按钮一直灰着，与长按菜单里的实时历史栈自相矛盾。改为 KVO 实时同步（ WKBackForwardList 变化瞬间更新按钮态）。桥实测：普通导航往返 ✓、纯 pushState 往返 ✓；掘金文章页栈只有一条是其自身反爬 replaceState（决策序列干净，Safari 同现象），非浏览器缺陷。
 - **性能：启动路径的 Keychain 读全部移出主线程**——取证（com.apple.runtime-issues 一小时 99 条）显示 Performance Diagnostics 反复报 "This method should not be called on the main thread"（SecItemCopyMatching 阻塞调用），突发紧贴每次启动（启动后 1-3 秒内 6-11 条）。两处根因：AgentPreferenceStore.init 对每个档案同步读（n 档案 = n 次阻塞调用）、SyncStore.init 的 master key/token 三读。改为 Task.detached 后台读、结果回主线程发布（hasAPIKey/hasKeyByProfile/hasSyncKey/authState 全是 @Published，首帧几十 ms 的未配置窗口由 UI 自刷新补上；真实消费点 runSyncCycle 在启动 3s 后，晚于回填）。实测档案 Key 状态与主密钥指纹回填均正常（auth 显示登出 = 真实无令牌态，非回归）。
 - **多窗口重构的两个回归修复**：① **初始页/整个 chrome 黑屏**——WindowBrowsingContext 重构把 tabManager 从 StateObject 改成 ObservedObject 绑"每次 init 新建的 context"：SwiftUI 会多次 init ContentView（sessionID 恢复等），每次新建一个空 TabManager，渲染读最新空的、而会话恢复写在 StateObject 保留的第一个上——渲染与数据分裂成黑屏。修 = tabManager 改为从保留的 windowContext 派生的计算属性 + context 转发 manager 的 objectWillChange（观察链不断）。② **悬浮球卡在展开态拖不动**——球被改成 per-window 实例，但设置页/桥/独立 Agent 窗口仍写 shared 单例：isExpanded/enabled 状态分裂，桥收起 shared 后面板实例仍卡展开（展开态禁用拖动手势）。修 = 球回归全局单例（overlay 每窗口挂载但状态只有一份）。临时实例截图+geometry 复现取证，修复后初始页全渲染、球回正常收起态。
+- **YouTube 中插广告"加速了但仍很久才播完"**：根因是播放器在广告段把 playbackRate 夹回 1×——原 300ms fastTick 设 16× 后立刻被压回，广告大部分时间仍是原速（16× 只有设下去的瞬间生效）。修 = 双保险对抗：video 元素 ratechange 事件守卫（播放器夹回的瞬间立即拉回 16×）+ ad-showing 期间的 rAF 紧循环持续压住；SPA 重建 video 元素时自动重挂守卫。静音/跳过按钮点击/seek 兜底逻辑不变。
+
 
 
 

@@ -415,7 +415,6 @@ Profile 在 core 原语之上定义**命名约定**（标准化的 view/action/e
   },
   "actions": [
     { "name": "open-conversation", "params": {"id": {"type":"string","required":true}},
-      "run": [{ "click": ".conversation-item[data-conv-id='{id}']" }],
       "run": [{ "click": ".conversation-item[data-conv-id='{id}']" },
               { "waitFor": ".thread-loaded" }] },
     { "name": "send-message", "effects": "outbound", "danger": true,

@@ -25,19 +25,26 @@ struct DPPAdapter: Codable, Equatable, Identifiable {
     var protocolBody: DesireProtocol
     /// 一句话说明（来源/校准状态），设置页展示。
     var notes: String = ""
+    /// 安装来源（URL 安装时记录；文件导入 = nil）。供应链审计用。
+    var sourceURL: String?
+    /// 最近一次安装/更新的时间（陈旧提示用）。
+    var installedAt: Date?
 
     var id: String { name }
 
     // 手写解码：format/notes/pathPrefixes 是**缺省键**（合成 Codable 会因
     // 默认值不兜底而要求键存在——适配包作者不该被逼着写 format）。
     init(name: String, hosts: [String], pathPrefixes: [String] = [],
-         protocolBody: DesireProtocol = DesireProtocol(), notes: String = "") {
+         protocolBody: DesireProtocol = DesireProtocol(), notes: String = "",
+         sourceURL: String? = nil, installedAt: Date? = nil) {
         self.format = "desire/adapter-1"
         self.name = name
         self.hosts = hosts
         self.pathPrefixes = pathPrefixes
         self.protocolBody = protocolBody
         self.notes = notes
+        self.sourceURL = sourceURL
+        self.installedAt = installedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -48,10 +55,24 @@ struct DPPAdapter: Codable, Equatable, Identifiable {
         pathPrefixes = (try? c.decode([String].self, forKey: .pathPrefixes)) ?? []
         protocolBody = (try? c.decodeIfPresent(DesireProtocol.self, forKey: .protocolBody)) ?? DesireProtocol()
         notes = (try? c.decodeIfPresent(String.self, forKey: .notes)) ?? ""
+        sourceURL = (try? c.decodeIfPresent(String.self, forKey: .sourceURL)) ?? nil
+        installedAt = (try? c.decodeIfPresent(Date.self, forKey: .installedAt)) ?? nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case format, name, hosts, pathPrefixes, protocolBody, notes
+        case format, name, hosts, pathPrefixes, protocolBody, notes, sourceURL, installedAt
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(format, forKey: .format)
+        try c.encode(name, forKey: .name)
+        try c.encode(hosts, forKey: .hosts)
+        try c.encode(pathPrefixes, forKey: .pathPrefixes)
+        try c.encode(protocolBody, forKey: .protocolBody)
+        try c.encode(notes, forKey: .notes)
+        try c.encodeIfPresent(sourceURL, forKey: .sourceURL)
+        try c.encodeIfPresent(installedAt, forKey: .installedAt)
     }
 
     // MARK: - Matching

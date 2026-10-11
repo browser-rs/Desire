@@ -2863,6 +2863,16 @@ class AgentSessionStore: ObservableObject {
         return action.run?.contains("\"mcp\"") == true
     }
 
+    /// 最近一次静态步骏述算的升档原因（审批卡可亮；nil = 未升档）。
+    private var lastStaticFloorReason: String?
+    /// 审批时的声明来源 frame host（工具 call id → frame host）。
+    private var dppActionFrameHostByCall: [String: String] = [:]
+
+    /// 该工具 call 的声明来源 frame host（nil = 页面级声明）。
+    func dppActionFrameHost(for callID: String) -> String? {
+        dppActionFrameHostByCall[callID]
+    }
+
     private func effectiveRisk(for toolCall: AgentToolCall) -> ToolRisk {
         let base = ToolRisk.classify(toolCall.function.name)
         guard toolCall.function.name == "pageAction",
@@ -2880,6 +2890,16 @@ class AgentSessionStore: ObservableObject {
                     dppActionHostByCall.removeValue(forKey: key)
                 }
             }
+            // 声明来源 frame host（跨源 iframe 的动作授权按 frame 维度隔离——
+            // 设计评审 P0#2）；上限同 host 表。
+            if let frameHost = action.sourceFrame.flatMap({ URL(string: $0)?.host }) {
+                dppActionFrameHostByCall[toolCall.id] = frameHost
+                if dppActionFrameHostByCall.count > 50 {
+                    for key in dppActionFrameHostByCall.keys.prefix(dppActionFrameHostByCall.count - 50) {
+                        dppActionFrameHostByCall.removeValue(forKey: key)
+                    }
+                }
+            }
         }
         // 含 mcp 步骤的动作同样升级：页面在请求**宿主侧能力**（经 DPP 声明），
         // 不得静默执行——与 outbound/danger 同规。
@@ -2887,6 +2907,19 @@ class AgentSessionStore: ObservableObject {
             || action.run?.contains("\"mcp\"") == true {
             return .dangerous
         }
+        // 静态步骏述算风险下限（设计评审 P0#1）：声明可以撒谎（不标 outbound）
+        // 就能在 autoEdit 下静默执行真实副作用——步骤语义撒不了。下限高于
+        // base 时升档，并在工具消息上留痕（审批卡/轨迹可追溯"为什么升档"）。
+        let floor = action.staticRiskFloor
+        if floor.level == .dangerous {
+            lastStaticFloorReason = floor.reason
+            return .dangerous
+        }
+        if floor.level == .sideEffect, base == .readonly {
+            lastStaticFloorReason = floor.reason
+            return .sideEffect
+        }
+        lastStaticFloorReason = nil
         return base
     }
 
@@ -2934,7 +2967,9 @@ class AgentSessionStore: ObservableObject {
         if toolCall.function.name == "pageAction",
            let host = peekDPPActionHost(for: toolCall.id),
            let actionName = dppActionName(for: toolCall),
-           DPPActionApprovals.shared.allows(host: host, actionName: actionName),
+           DPPActionApprovals.shared.allows(host: host,
+                                            frameHost: dppActionFrameHost(for: toolCall.id),
+                                            actionName: actionName),
            !dppActionHasMCP(for: toolCall) {
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: "pageAction",
@@ -3075,7 +3110,9 @@ class AgentSessionStore: ObservableObject {
         if siteGrant, decision == .alwaysAllow,
            let host = dppActionHostByCall[approval.toolCall.id],
            let actionName = dppActionName(for: approval.toolCall) {
-            DPPActionApprovals.shared.allow(host: host, actionName: actionName)
+            DPPActionApprovals.shared.allow(host: host,
+                                            frameHost: dppActionFrameHost(for: approval.toolCall.id),
+                                            actionName: actionName)
         }
         ApprovalPolicyStore.shared.recordHistory(
             toolName: approval.toolCall.function.name,
@@ -3091,7 +3128,9 @@ class AgentSessionStore: ObservableObject {
         if decision == .alwaysAllow, approval.toolCall.function.name == "pageAction",
            let host = dppActionHostByCall[approval.toolCall.id],
            let actionName = dppActionName(for: approval.toolCall) {
-            DPPActionApprovals.shared.allow(host: host, actionName: actionName)
+            DPPActionApprovals.shared.allow(host: host,
+                                            frameHost: dppActionFrameHost(for: approval.toolCall.id),
+                                            actionName: actionName)
         }
 
         if decision != .deny, approval.toolCall.function.name == "runCommand",

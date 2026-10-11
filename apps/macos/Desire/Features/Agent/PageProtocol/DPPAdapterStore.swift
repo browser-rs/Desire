@@ -86,14 +86,18 @@ final class DPPAdapterStore: ObservableObject {
     // MARK: - 导入 / 删除
 
     /// 导入一个适配包文件（拷进目录；同名 = 覆盖更新）。
+    /// 来源标记：URL 导入记 http(s) 链接，文件导入记 file 路径（供应链审计）。
     func importFile(at source: URL) throws -> DPPAdapter {
         let data = try Data(contentsOf: source)
         let (adapter, error) = DPPAdapter.decode(data)
-        guard let adapter else {
+        guard var adapter else {
             throw ImportError.invalid(error ?? "invalid")
         }
+        adapter.sourceURL = source.absoluteString
+        adapter.installedAt = Date()
+        let enriched = try JSONEncoder().encode(adapter)
         let target = Self.directory.appendingPathComponent("\(adapter.name).json")
-        try data.write(to: target, options: .atomic)
+        try enriched.write(to: target, options: .atomic)
         reload()
         return adapter
     }
@@ -103,9 +107,8 @@ final class DPPAdapterStore: ObservableObject {
     /// 任何静态托管都能当包源。http 不落地（协议降级拒收）。
     @discardableResult
     func installFromURL(_ urlString: String) async throws -> DPPAdapter {
-        guard let url = URL(string: urlString),
-              url.scheme == "https" || url.scheme == "http" else {
-            throw ImportError.invalid("URL must be http(s)")
+        guard let url = URL(string: urlString), url.scheme == "https" else {
+            throw ImportError.invalid("URL must be https (http is rejected — adapter packages control selectors and actions for a host)")
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -115,11 +118,15 @@ final class DPPAdapterStore: ObservableObject {
             throw ImportError.invalid("package over 2MB — not a declaration")
         }
         let (adapter, error) = DPPAdapter.decode(data)
-        guard let adapter else {
+        guard var adapter else {
             throw ImportError.invalid(error ?? "invalid")
         }
+        // 供应链记录：来源 URL + 安装时间随包落盘（设置页透出、换机不丢）。
+        adapter.sourceURL = urlString
+        adapter.installedAt = Date()
+        let enriched = try JSONEncoder().encode(adapter)
         let target = Self.directory.appendingPathComponent("\(adapter.name).json")
-        try data.write(to: target, options: .atomic)
+        try enriched.write(to: target, options: .atomic)
         reload()
         return adapter
     }

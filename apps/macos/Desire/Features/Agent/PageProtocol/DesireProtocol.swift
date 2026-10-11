@@ -64,31 +64,7 @@ struct DesireProtocol: Codable, Equatable {
                        frames: [(url: String, protocol: DesireProtocol)] = []) -> DesireProtocol? {
         var page = page
         if !frames.isEmpty {
-            // 跨源子框架声明（0.7 切片一）：只**补齐**页面/主框架没有的键并盖
-            // 来源框架戳——同名视图/动作主框架优先；提取与动作在切片二按戳路由。
-            if page != nil || true {
-                var combined = page ?? DesireProtocol()
-                for frame in frames {
-                    let fp = frame.protocol
-                    for (name, view) in fp.views where combined.views[name] == nil {
-                        var v = view
-                        v.sourceFrame = frame.url
-                        combined.views[name] = v
-                    }
-                    let known = Set(combined.actions.map(\.name))
-                    for var action in fp.actions where !known.contains(action.name) {
-                        action.sourceFrame = frame.url
-                        combined.actions.append(action)
-                    }
-                    for (name, event) in fp.events where combined.events[name] == nil {
-                        combined.events[name] = event
-                    }
-                    for selector in fp.ignore where !combined.ignore.contains(selector) {
-                        combined.ignore.append(selector)
-                    }
-                }
-                page = combined
-            }
+            page = Self.mergingFrames(frames, into: page)
         }
         switch (site, page) {
         case (nil, nil): return nil
@@ -124,6 +100,35 @@ struct DesireProtocol: Codable, Equatable {
             }
             return merged
         }
+    }
+
+    /// 把跨源 frame 声明合并进页面协议（只补齐、盖来源戳；设计评审 #7：
+    /// 从 merged 的恒真条件里拆出成独立函数）。
+    static func mergingFrames(
+        _ frames: [(url: String, protocol: DesireProtocol)],
+        into page: DesireProtocol?
+    ) -> DesireProtocol {
+        var combined = page ?? DesireProtocol()
+        for frame in frames {
+            let fp = frame.protocol
+            for (name, view) in fp.views where combined.views[name] == nil {
+                var v = view
+                v.sourceFrame = frame.url
+                combined.views[name] = v
+            }
+            let known = Set(combined.actions.map(\.name))
+            for var action in fp.actions where !known.contains(action.name) {
+                action.sourceFrame = frame.url
+                combined.actions.append(action)
+            }
+            for (name, event) in fp.events where combined.events[name] == nil {
+                combined.events[name] = event
+            }
+            for selector in fp.ignore where !combined.ignore.contains(selector) {
+                combined.ignore.append(selector)
+            }
+        }
+        return combined
     }
 
     struct ProtocolView: Codable, Equatable {
@@ -211,13 +216,51 @@ struct DesireProtocol: Codable, Equatable {
         var run: String?
         var success: String?
 
+        /// 静态步骏述算风险下限（设计评审 P0#1）：页面对自己动作的 effects/danger
+        /// 分级是不可信输入——可以撒谎；但 run 步骤的**语义**撒不了。命中的步骤
+        /// 无论声明什么，风险至少升到对应档：
+        /// - navigate / window.open 类步骤 = 离开本页（sideEffect 下限）；
+        /// - click 命中 submit、pressKey Enter = 表单提交（sideEffect 下限）；
+        /// - upload / mcp 步骤 = 外部副作用/宿主能力（dangerous 下限）。
+        /// 返回 (下限风险, 触发原因)——审批卡可亮出"为什么升档"。
+        var staticRiskFloor: (level: RiskFloor, reason: String?) {
+            guard let run, let data = run.data(using: .utf8),
+                  let steps = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return (.base, nil)
+            }
+            for step in steps {
+                for (op, operand) in step {
+                    let key = op.lowercased()
+                    if key == "mcp" || key == "upload" {
+                        return (.dangerous, "step '\(key)' performs an external/host-side effect")
+                    }
+                    if key == "navigate" || key == "open" {
+                        return (.sideEffect, "step '\(key)' leaves this page")
+                    }
+                    if key == "click", let sel = operand as? String,
+                       sel.lowercased().contains("submit") || sel.lowercased().contains("[type=submit]") {
+                        return (.sideEffect, "click targets a submit control")
+                    }
+                    if key == "presskey", let dict = operand as? [String: Any],
+                       let k = dict.keys.first, k.lowercased() == "enter" {
+                        return (.sideEffect, "pressKey Enter may submit a form")
+                    }
+                }
+            }
+            return (.base, nil)
+        }
+
+        enum RiskFloor: Comparable {
+            case base, sideEffect, dangerous
+        }
+
         /// Actions exposed through the unauthenticated/local bridge must be
         /// explicitly local and non-dangerous. Dynamic MCP steps are never
         /// safe to execute outside the Agent approval gate.
         var isBridgeSafeLocal: Bool {
+            // danger 是独立布尔字段（effects 枚举无 "danger" 值）——只查这两个真来源。
             guard danger != true,
-                  effects?.lowercased() != "outbound",
-                  effects?.lowercased() != "danger" else { return false }
+                  effects?.lowercased() != "outbound" else { return false }
             guard let run, let data = run.data(using: .utf8),
                   let steps = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return true
@@ -461,7 +504,9 @@ extension DesireProtocol {
                 case .object(let obj):
                     if let selector = obj["watch"]?.stringValue {
                         events[name] = selector
-                        warnings.append("events.\(name): object form flattened to watch selector")
+                        // 设计评审 P1#5：对象形态里的 debounce/on 目前**未实现**
+                        //（宿主固定 3s 防抖）——warning 里说明白，别让站点以为生效。
+                        warnings.append("events.\(name): object form flattened to watch selector (debounce/on are not implemented yet — a fixed 3s debounce applies)")
                     } else {
                         warnings.append("events.\(name) skipped: object without watch")
                     }

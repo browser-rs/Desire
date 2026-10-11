@@ -13,15 +13,21 @@ import Foundation
 final class DPPActionApprovals {
     static let shared = DPPActionApprovals()
 
+    /// key 带 frame host 维度（设计评审 P0#2）：跨源 iframe 声明的动作授权
+    /// 记在**声明来源 frame** 上——与审批卡亮出的来源一致，同名页面动作互不影响。
+    /// pageFrameHost 为 nil = 页面级声明（既有行为）。
     struct Rule: Codable, Identifiable, Equatable {
         let id: UUID
         var host: String
         var actionName: String
         var createdAt: Date
-        var key: String { Self.key(host: host, actionName: actionName) }
+        var frameHost: String?
 
-        static func key(host: String, actionName: String) -> String {
-            "\(host.lowercased())|\(actionName)"
+        var key: String { Self.key(host: host, frameHost: frameHost, actionName: actionName) }
+
+        static func key(host: String, frameHost: String?, actionName: String) -> String {
+            let frame = (frameHost ?? "").lowercased()
+            return "\(host.lowercased())|\(frame)|\(actionName)"
         }
     }
 
@@ -39,28 +45,29 @@ final class DPPActionApprovals {
 
     func all() -> [Rule] { ordered }
 
-    func allows(host: String, actionName: String) -> Bool {
-        rulesByKey[Rule.key(host: host, actionName: actionName)] != nil
+    func allows(host: String, frameHost: String?, actionName: String) -> Bool {
+        rulesByKey[Rule.key(host: host, frameHost: frameHost, actionName: actionName)] != nil
     }
 
-    func allow(host: String, actionName: String) {
-        let key = Rule.key(host: host, actionName: actionName)
+    func allow(host: String, frameHost: String?, actionName: String) {
+        let key = Rule.key(host: host, frameHost: frameHost, actionName: actionName)
         if rulesByKey[key] == nil {
             rulesByKey[key] = Rule(id: UUID(), host: host.lowercased(),
-                                   actionName: actionName, createdAt: Date())
+                                   actionName: actionName, createdAt: Date(),
+                                   frameHost: frameHost?.lowercased())
             save()
         }
     }
 
-    func revoke(host: String, actionName: String) {
-        if rulesByKey.removeValue(forKey: Rule.key(host: host, actionName: actionName)) != nil {
+    func revoke(host: String, frameHost: String?, actionName: String) {
+        if rulesByKey.removeValue(forKey: Rule.key(host: host, frameHost: frameHost, actionName: actionName)) != nil {
             save()
         }
     }
 
     func revoke(ruleID: UUID) {
         if let r = ordered.first(where: { $0.id == ruleID }) {
-            revoke(host: r.host, actionName: r.actionName)
+            revoke(host: r.host, frameHost: r.frameHost, actionName: r.actionName)
         }
     }
 

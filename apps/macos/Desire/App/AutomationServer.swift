@@ -1328,13 +1328,13 @@ final class AutomationServer {
                 guard let host = Self.string(body, "host"), let action = Self.string(body, "action") else {
                     return try Self.json(["error": "host and action required"])
                 }
-                DPPActionApprovals.shared.allow(host: host, actionName: action)
+                DPPActionApprovals.shared.allow(host: host, frameHost: nil, actionName: action)
                 return try Self.json(["ok": true, "host": host, "action": action])
             case ("POST", "/dpp/action-approvals/revoke"):
                 if let ruleID = Self.string(body, "id").flatMap(UUID.init) {
                     DPPActionApprovals.shared.revoke(ruleID: ruleID)
                 } else if let host = Self.string(body, "host"), let action = Self.string(body, "action") {
-                    DPPActionApprovals.shared.revoke(host: host, actionName: action)
+                    DPPActionApprovals.shared.revoke(host: host, frameHost: nil, actionName: action)
                 } else {
                     return try Self.json(["error": "id or host+action required"])
                 }

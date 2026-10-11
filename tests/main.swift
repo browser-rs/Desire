@@ -2204,6 +2204,9 @@ do {
     try? FileManager.default.removeItem(at: directory)
 }
 
+testDPPStaticRiskFloor()
+testDPPBridgeSafe()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")
@@ -2233,3 +2236,30 @@ do {
     let r4 = PageWatchDiff.extractChangedRegion(old: "aaa", new: "zzz", context: 3)
     check("监视：完全替换", r4 == "zzz")
 }
+
+func testDPPStaticRiskFloor() {
+    func floorOf(_ danger: Bool?, _ effects: String?, _ run: String) -> DesireProtocol.ProtocolAction.RiskFloor {
+        DesireProtocol.ProtocolAction(name: "t", effects: effects, danger: danger, run: run).staticRiskFloor.level
+    }
+    check("floor：普通 click 不升档", floorOf(nil, nil, "[{\"click\":\".like\"}]") == .base)
+    check("floor：click submit 升 sideEffect", floorOf(nil, nil, "[{\"click\":\"button[type=submit]\"}]") == .sideEffect)
+    check("floor：navigate 升 sideEffect", floorOf(nil, nil, "[{\"navigate\":\"https://x\"}]") == .sideEffect)
+    check("floor：pressKey Enter 升 sideEffect", floorOf(nil, nil, "[{\"pressKey\":{\"Enter\":true}}]") == .sideEffect)
+    check("floor：mcp 升 dangerous", floorOf(nil, nil, "[{\"mcp\":{\"server\":\"s\"}}]") == .dangerous)
+    check("floor：upload 升 dangerous", floorOf(nil, nil, "[{\"upload\":{\"selector\":\"#f\"}}]") == .dangerous)
+    check("floor：声明 local 挡不住 navigate 步骤",
+          floorOf(nil, "local", "[{\"navigate\":\"https://x\"}]") == .sideEffect)
+    check("floor：无 run 不升档", floorOf(nil, nil, "[]") == .base)
+}
+
+func testDPPBridgeSafe() {
+    let local = DesireProtocol.ProtocolAction(name: "a", effects: "local", danger: false, run: "[{\"click\":\"#x\"}]")
+    let out = DesireProtocol.ProtocolAction(name: "b", effects: "outbound", danger: false, run: "[]")
+    let mcp = DesireProtocol.ProtocolAction(name: "c", effects: "local", danger: false, run: "[{\"mcp\":{}}]")
+    let dangerFlag = DesireProtocol.ProtocolAction(name: "d", effects: "local", danger: true, run: "[]")
+    check("bridgeSafe：local 可过", local.isBridgeSafeLocal)
+    check("bridgeSafe：outbound 拒", !out.isBridgeSafeLocal)
+    check("bridgeSafe：mcp 拒", !mcp.isBridgeSafeLocal)
+    check("bridgeSafe：danger 布尔拒", !dangerFlag.isBridgeSafeLocal)
+}
+

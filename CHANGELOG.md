@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.11] - 2026-10-12
 ### Changed
 
 - **请求准备移出 MainActor**（GPT 多窗口批 Task 9 落地）：buildRequestMessages 的四步纯转换（块压缩/未配对 tool_calls 修复/超长工具结果摘要/巨型消息封顶——对大会话每轮各一次全量扫描）改为 MainActor 抓快照 + Task.detached 后台转换 + 回合所有权守卫（陈旧准备绝不覆盖当前状态），system 分层注入留在 MainActor 拼装。AgentMessage/ContextCompaction 提 nonisolated、Log.agent 提 nonisolated。流式与长会话行为不变（转换纯函数、单测 602 全过）。

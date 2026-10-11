@@ -1,0 +1,54 @@
+{
+  "format": "desire/adapter-1",
+  "name": "wikipedia",
+  "hosts": [
+    "wikipedia.org",
+    ".wikipedia.org",
+    "zh.wikipedia.org",
+    "en.wikipedia.org"
+  ],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对，zh/en 全语言同构）：维基百科条目页——精读正文/排噪（导航与编辑按钮）；条目元数据站点自带 JSON-LD（Article）可直接消费",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "article",
+    "contentMain": "#mw-content-text .mw-parser-output",
+    "sections": {
+      "article": "#mw-content-text .mw-parser-output",
+      "references": ".reflist",
+      "infobox": ".infobox"
+    },
+    "ignore": [
+      "#mw-navigation",
+      "#mw-head",
+      "#footer",
+      "#siteNotice",
+      "#sidebar",
+      ".mw-editsection",
+      "[class*='navbox']",
+      "[class*='metadata']",
+      ".mw-jump-link",
+      "#toc",
+      ".toc",
+      "#catlinks",
+      ".mw-references-wrap > h2"
+    ],
+    "views": {
+      "wiki": {
+        "item": "#content",
+        "fields": {
+          "title": "#firstHeading, h1.firstHeading",
+          "body": "#mw-content-text .mw-parser-output",
+          "infobox": ".infobox",
+          "langLinks": "#p-lang li a"
+        }
+      }
+    },
+    "signals": {
+      "ready": "#mw-content-text .mw-parser-output"
+    },
+    "context": {
+      "domain": "encyclopedia",
+      "rules": "维基百科条目。长条目用 sections 分段读；正文里的引用标记 [1][2] 属正常噪音；infobox 是结构化摘要表。跨语言版本经 langLinks 链接。站点自带 JSON-LD（Article：标题/日期/作者=编辑者）零改造可消费，本包只补正文精读与排噪。"
+    }
+  }
+}

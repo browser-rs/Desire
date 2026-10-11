@@ -77,6 +77,7 @@
 | `wikipedia.json` | *.wikipedia.org 条目页 | 正文精读/infobox/引用分区（条目元数据走站点自带 JSON-LD） | 全语言同构；视图名避开 L0 常用的 article |
 | `stackoverflow.json` | stackoverflow.com 问答页（/questions/ /q/） | 问题/答案列表（采纳高亮）/评论三视图 | votes 为字符串数字 |
 | `douban-movie.json` | movie.douban.com 条目页（/subject/） | 条目信息/评分/热门短评视图 | 短评首页 6 条，更多需登录翻页 |
+| `v2ex-home.json` | v2ex.com 首页/节点列表 | 话题列表视图（标题/节点/回复数） | 详情读评论配 `v2ex.json`；列表无翻页声明 |
 
 安装：设置 › AI › DPP 协议 › 第三方适配（URL 按钮粘 raw 链接，或文件导入）；
 本目录的 GitHub raw 链接就是现成包源：

@@ -25,6 +25,8 @@
 - **page_context 透出适配来源**：协议来自第三方适配包时，Agent 的页面上下文 [DPP] 行会带 "(via community adapter: <包名>)"——声明精度与站点原生不同档，行动前多一分核对意识（与 DevTools 徽标同一数据源）。
 - **Hacker News 适配包补声明式翻页**：stories 视图声明 pagination（More 链接 a.morelink）——pageExtract all=true 实测自动跟页（10 页全量），列表场景"把前 N 页都收集齐"一句话可达。
 - **豆瓣电影适配包**（docs/dpp-adapters/douban-movie.json）：条目页双视图——subject（标题/年份/评分/评分人数/#info 块）+ comments（热门短评：作者/推荐档/短文/有用数，按有用数排序）；真实页面《肖申克的救赎》抽取全命中（评分 9.7、首条短评 26509 有用）。更多短评需登录翻页（context 里已向 Agent 说明）。
+- **V2EX 首页适配包**（docs/dpp-adapters/v2ex-home.json）：话题列表视图（标题/节点/回复数/成员/元信息行，50 条全命中）——浏览热帖/总结当日讨论；详情读评论配 v2ex.json（两包按路径分工）。
+
 
 
 

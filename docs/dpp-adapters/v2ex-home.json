@@ -1,0 +1,38 @@
+{
+  "format": "desire/adapter-1",
+  "name": "v2ex-home",
+  "hosts": ["v2ex.com", ".v2ex.com", "www.v2ex.com"],
+  "notes": "社区适配（2026-10-12 真实 DOM 核对）：V2EX 首页/节点页话题列表——浏览热帖/总结当日讨论（详情页读评论用 v2ex.json 包，两包配合）",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "forum-list",
+    "contentMain": "#Main",
+    "sections": {
+      "list": "#Main .cell.item",
+      "sidebar": "#Sidebar"
+    },
+    "ignore": [
+      "#Top", "#Bottom", "#Rightbar", "[class*='advert']", ".sidebar"
+    ],
+    "views": {
+      "topics": {
+        "item": ".cell.item",
+        "fields": {
+          "title": ".topic-link",
+          "link": ".topic-link[href]",
+          "node": ".node",
+          "replies": ".count_livid",
+          "member": "strong a",
+          "meta": ".topic_info"
+        }
+      }
+    },
+    "signals": {
+      "ready": ".cell.item .topic-link"
+    },
+    "context": {
+      "domain": "forum-list",
+      "rules": "V2EX 首页/节点话题列表。meta 行含节点/作者/发帖时间/最后回复；replies 为空 = 零回复。读详情+评论请进话题页（v2ex.json 包的 /t/ 视图）。列表无翻页声明（V2EX 首页无 next 链接，节点页 /go/<节点>?p=N 手动翻）。"
+    }
+  }
+}

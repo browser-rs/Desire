@@ -13,6 +13,10 @@
 - **Hacker News 适配包**（docs/dpp-adapters/hackernews.json）：列表/单帖/评论树三视图（stories 用 tr.athing.submission 精确类名——详情页的评论行同为 tr.athing，裸类名会把首条评论误当"故事"；indent 像素 /40 即楼层，总结评论讨论串时按层级读），真实页面列表 30 行与 7 楼评论全命中；投票需登录未声明。适配目录现有五包。
 - **Wikipedia 适配包**（docs/dpp-adapters/wikipedia.json）：条目页正文精读/排噪（导航/编辑按钮/navbox）+ infobox 与引用分区，全语言同构；条目元数据站点自带 JSON-LD（Article）直接消费。坑：适配包视图命名撞上 L0 隐式视图的同名（article）会被"页面声明优先"压住——改名 wiki 后双视图共存，教训（适配包的 views 别用 article/items 这类 L0 常用名）写进适配目录守则。
 - **桥直驱 agent 工具链的两个端点**（适配包自测主通道）：`GET /page/extract?view=<名>` 与 `POST /page/dpp-action {"name","args"}`——与 agent 的 pageExtract/pageAction **同一实现**（BrowserToolProvider.execute，非模拟），多 tab 场景先 /switch-tab 对齐 deliveryTarget 的 selectedTab 再调；pageAction 经桥只建议 local 效果动作（persist/outbound 的授权语义仍由 agent 审批链承担）。用六个适配包完成矩阵自测：HN stories（顺带修 link 字段的 type:url——此前抽到的是标题文本）、wikipedia wiki、v2ex topic、cnblogs post、掘金 fill-article-title（DSL 执行+页面回读全通）。
+- **Stack Overflow 适配包**（docs/dpp-adapters/stackoverflow.json）：问答页三视图——问题（票数/正文/提问时间）、答案列表（采纳答案带 acceptedHint，读时先报采纳项）、楼层旁小字评论；真实页面 30 个答案抽取全命中。适配目录现有七包。
+- **page_context 透出适配来源**：协议来自第三方适配包时，Agent 的页面上下文 [DPP] 行会带 "(via community adapter: <包名>)"——声明精度与站点原生不同档，行动前多一分核对意识（与 DevTools 徽标同一数据源）。
+- **Hacker News 适配包补声明式翻页**：stories 视图声明 pagination（More 链接 a.morelink）——pageExtract all=true 实测自动跟页（10 页全量），列表场景"把前 N 页都收集齐"一句话可达。
+
 
 
 

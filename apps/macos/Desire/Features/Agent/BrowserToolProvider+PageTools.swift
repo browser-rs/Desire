@@ -36,7 +36,17 @@ extension BrowserToolProvider {
             if DPPConfigStore.shared.promptHints,
                ownTab?.browser.effectiveProtocol != nil
                 || surface.tabManager?.selectedTab?.browser.effectiveProtocol != nil {
-                return "[DPP] This page declares a Desire Page Protocol — use pageProtocol to see it, pageExtract for structured data, pageAction for declared actions.\n" + snapshot
+                // 适配包来源透出：协议来自第三方适配包时 Agent 知道（声明
+                // 精度与站点原生声明不同档，行动前可多一分核对意识）。
+                var via = ""
+                let warningTexts = surface.tabManager?.selectedTab?.browser.effectiveProtocol?.warnings ?? []
+                let adapterNames = warningTexts.compactMap { w -> String? in
+                    w.hasPrefix("adapter: ") ? String(w.dropFirst("adapter: ".count)) : nil
+                }
+                if !adapterNames.isEmpty {
+                    via = " (via community adapter: \(adapterNames.joined(separator: ", ")))"
+                }
+                return "[DPP] This page declares a Desire Page Protocol\(via) — use pageProtocol to see it, pageExtract for structured data, pageAction for declared actions.\n" + snapshot
             }
             return snapshot
         case "readTab":

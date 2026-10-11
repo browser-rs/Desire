@@ -1,0 +1,55 @@
+{
+  "format": "desire/adapter-1",
+  "name": "stackoverflow",
+  "hosts": ["stackoverflow.com", ".stackoverflow.com"],
+  "pathPrefixes": ["/questions/", "/q/"],
+  "notes": "社区适配（2026-10-11 真实 DOM 核对）：Stack Overflow 问答页——读问题/答案列表（采纳标高亮）/评论",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "forum-thread",
+    "contentMain": "#question .s-prose, .answer .s-prose",
+    "sections": {
+      "question": "#question .s-prose",
+      "answers": "#answers",
+      "comments": ".comment-text"
+    },
+    "ignore": [
+      "#sidebar", ".left-sidebar", "#footer", ".js-consent-banner",
+      "[class*='banner']", ".everyoneloves__", "[class*='newsletter']"
+    ],
+    "views": {
+      "question": {
+        "item": "#question",
+        "fields": {
+          "title": "#question-header a, h1 a",
+          "votes": ".js-vote-count",
+          "body": "#question .s-prose",
+          "asked": "#question .user-info time, #question time"
+        }
+      },
+      "answers": {
+        "item": ".answer",
+        "fields": {
+          "votes": ".js-vote-count",
+          "body": ".s-prose",
+          "author": ".user-details a",
+          "acceptedHint": ".accepted-answer-icon"
+        }
+      },
+      "comments": {
+        "item": ".comment-text",
+        "fields": {
+          "text": ".comment-copy",
+          "author": ".comment-user"
+        }
+      }
+    },
+    "signals": {
+      "ready": "#question .s-prose"
+    },
+    "context": {
+      "domain": "q-and-a",
+      "rules": "Stack Overflow 问答页。views.answers 按页面顺序（默认票序）：带 acceptedHint 的是采纳答案（读答案时先报采纳项）；comments 是楼层旁的小字讨论。回答质量与票数相关，votes 是字符串数字。"
+    }
+  }
+}

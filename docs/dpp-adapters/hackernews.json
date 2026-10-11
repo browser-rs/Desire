@@ -31,6 +31,10 @@
             "type": "url"
           },
           "site": ".sitestr"
+        },
+        "pagination": {
+          "type": "paged",
+          "next": "a.morelink"
         }
       },
       "story": {
@@ -59,7 +63,7 @@
     },
     "context": {
       "domain": "tech-news",
-      "rules": "Hacker News。列表页用 views.stories（rank/title/link/site；分数与评论数在列表行的兄弟节点里，视图选择器够不到——看单帖热度进 item 页）。详情页 views.story + views.comments：indent 是左缩进像素，层级 = indent/40（0=顶层）；.commtext 开头的 [flagged]/[dead] 等前缀保留原样如实汇报。投票需登录，未声明动作。"
+      "rules": "Hacker News。列表页用 views.stories（rank/title/link/site；分数与评论数在列表行的兄弟节点里，视图选择器够不到——看单帖热度进 item 页）。详情页 views.story + views.comments：indent 是左缩进像素，层级 = indent/40（0=顶层）；.commtext 开头的 [flagged]/[dead] 等前缀保留原样如实汇报。投票需登录，未声明动作。 列表翻页已声明（pageExtract all=true 自动跟页，More 链接 a.morelink）。"
     }
   }
 }

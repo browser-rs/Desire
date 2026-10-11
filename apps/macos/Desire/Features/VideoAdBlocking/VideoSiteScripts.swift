@@ -553,12 +553,14 @@ extension VideoSite {
             }
         } else {
             // Ad pod cleared — restore volume and playback rate.
+            // 双重确认（v3）：class 摘除后连续 2 个 fastTick（600ms）仍无广告才
+            // 还原——单帧 class 抖动（贴片切换广告位）不再把正片打上 16×。
             if (mutedByUs && v) { v.muted = false; mutedByUs = false; }
-            if (speededByUs && v && v.playbackRate > 2) {
+            restoreTicks = adShowing() ? 0 : restoreTicks + 1;
+            if (speededByUs && restoreTicks >= 2 && v && v.playbackRate > 2) {
                 try { v.playbackRate = origRate; } catch(e) {}
             }
-            speededByUs = false;
-            seekPostedThisAd = false;
+            if (restoreTicks >= 2) { speededByUs = false; seekPostedThisAd = false; }
             // Post-roll tail: kill the promo/companion overlays YouTube
             // stacks onto the end screen.
             document.querySelectorAll(
@@ -603,18 +605,24 @@ extension VideoSite {
     var poll = setInterval(function() { scheduleScan(); if (++n > 40) clearInterval(poll); }, 2000);
     setInterval(fastTick, 300);
 
-    // ── playbackRate 夹回对抗（2026 播放器会在广告段把倍速压回 1×）──
-    // 300ms 的 fastTick 设一次、播放器立刻夹回，广告大部分时间还是原速
-    // （用户症状："加速了但很久才播完"）。双保险：
-    //   ① ratechange 事件守卫——播放器夹回的瞬间立即拉回 16×；
-    //   ② ad-showing 期间的 rAF 紧循环持续压住。
-    // video 元素被 SPA 重建时经 MutationObserver 重新挂守卫。
+    // ── playbackRate 夹回对抗 v3（2026-10-12 修"正片被播完"）──
+    // v2 的守卫在 ratechange 事件里同步查 adShowing()：广告结束瞬间 YouTube
+    // 恢复正片的顺序是先 ratechange（1×）→ 后摘 .ad-showing class——守卫看到的
+    // adShowing 仍是 true，于是把刚切回的【正片】压回 16×（正片被高速播完）。
+    // v3 语义：
+    //   1. 压 16× 只发生在【我们已亲手设过 16×】的会话里（speededByUs 由
+    //      fastTick 在确认广告时置位）——事件守卫不再凭"此刻 class 像广告"动正片；
+    //   2. 还原走双重确认：class 摘除后连续 2 个 fastTick（600ms）仍无广告才把
+    //      倍速还给用户——单帧 class 抖动不再吞正片；
+    //   3. 保险丝：任何时刻正片真实播放（有 video_id）且速率 >4× → 立即降回
+    //      1×——宁可放跑一个广告也不能毁掉正片。
     var rateGuardVideo = null;
+    var restoreTicks = 0;
     function installRateGuard(v) {
         if (!v || v === rateGuardVideo) return;
         rateGuardVideo = v;
         v.addEventListener('ratechange', function() {
-            if (adShowing() && v.playbackRate < 16) {
+            if (speededByUs && adShowing() && v.playbackRate < 16) {
                 try { v.playbackRate = 16; } catch(e) {}
             }
         });
@@ -625,7 +633,13 @@ extension VideoSite {
                     document.querySelector('#movie_player video');
             if (v) {
                 installRateGuard(v);
-                if (adShowing() && v.playbackRate < 16) {
+                var vd = null;
+                var p = document.querySelector('#movie_player');
+                if (p && p.getVideoData) { try { vd = p.getVideoData(); } catch(e) {} }
+                if (v.playbackRate > 4 && vd && vd.video_id && !adShowing()) {
+                    try { v.playbackRate = 1; } catch(e) {}
+                    speededByUs = false;
+                } else if (speededByUs && adShowing() && v.playbackRate < 16) {
                     try { v.playbackRate = 16; } catch(e) {}
                 }
             }

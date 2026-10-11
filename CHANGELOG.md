@@ -3,6 +3,8 @@
 
 - **DPP 设计评审落地**（docs/DPP-DESIGN-REVIEW-2026-10-11.md 的 P0/P1 批）：① 静态步骏述算风险下限——run 步骤语义（navigate/submit 类 click/Enter/mcp/upload）无论页面声明什么都强制升档（autoEdit 静默执行未标注 outbound 动作的绕过面封死）；② DPP 动作授权键加 frame host 维度——跨源 iframe 声明的动作授权按声明来源 frame 隔离，同名页面动作互不影响（与审批卡展示一致）；③ 适配包 URL 安装 https-only（http 拒收，与注释对齐）+ sourceURL/installedAt 随包落盘（供应链审计）；④ events 对象形态的 warning 诚实化（debounce/on 未实现，固定 3s——别让站点以为声明生效）；⑤ 三处死代码/文档修复（merged 恒真条件拆成 mergingFrames 独立函数、isBridgeSafeLocal 的 effects=="danger" 死分支、规范 chat profile 示例的重复 run 键）。单测 602→614（floor 矩阵 + bridgeSafe 四态）。
 - **merged 合并不再丢适配包来源戳**：DesireProtocol.merged 返回值的 warnings 此前只取页面侧——适配包以 site 参数参与合并时，"adapter: <名>" 戳整条丢失（DevTools 徽标与 page_context 的 via community adapter 标注双双失效——本轮审查冒烟时实测发现）。修 = warnings 取并集。
+- **YouTube 广告对抗 v3：修"广告跳过了但正片被 16× 播完"**——v2 守卫的失效模式：广告结束瞬间 YouTube 恢复正片的顺序是先 ratechange（1×）→ 后摘 .ad-showing class，守卫在 ratechange/rAF 里同步查 adShowing() 仍是 true，把刚切回的正片压回 16× 高速播完。v3 三重防线：压 16× 只在"我们已亲手设过 16×"（speededByUs）的会话内生效；还原走双重确认（class 摘除后连续 2 tick 无广告才把倍速还给用户，单帧 class 抖动不再吞正片）；正片保险丝（有 video_id 的真实内容速率 >4× 立即降回 1×——宁可放跑一个广告也不能毁掉正片）。桥实测：正片 1× 正常播放、广告逻辑不变。
+
 
 
 

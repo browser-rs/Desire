@@ -256,6 +256,11 @@ class AgentSessionStore: ObservableObject {
         turnOwnership.begin()
     }
 
+    /// 当前回合所有权快照（请求准备的后台转换用它做陈旧守卫）。
+    private var currentTurnIDForPreparation: UUID? {
+        turnOwnership.activeTurnID
+    }
+
     private func isCurrentTurn(_ turnID: UUID) -> Bool {
         turnOwnership.isCurrent(turnID)
     }
@@ -1363,26 +1368,45 @@ class AgentSessionStore: ObservableObject {
     /// compacted to fit the context budget, plus the fresh page context.
     /// Neither transformation is persisted — `messages` stays intact.
     private func buildRequestMessages() async -> [AgentMessage] {
-        // 压缩并取回被裁轮次的机械摘要 —— 摘要并入开头 system 提示（"## Earlier
-        // conversation (compacted)" 一节），模型仍知道前文聊过什么。
-        let (kept, digest) = ContextCompaction.compactWithDigest(messages, budget: effectiveContextBudget)
-        // P0-F：先修未配对 tool_calls（工具循环中途取消的残留），再进压缩——
-        // 否则严格端点对之后每条请求都 400，会话报废。
-        var request = ContextCompaction.repairUnpairedToolCalls(kept)
-        // 工具结果摘要缓存（0.6.7）：超长工具结果在**请求里**换成「头部 + 重取句柄」，
-        // 全文仍在会话里（getToolResult 按句柄取回）——大结果不再每轮重复吃上下文。
-        let (summarized, toolCharsSaved) = ContextCompaction.summarizingOversizedToolResults(request)
-        request = summarized
-        if toolCharsSaved > 0 {
-            Log.agent.info("tool-result summary: \(toolCharsSaved) chars replaced by handles in this request")
-        }
-        // 巨型 user/assistant 消息封顶（0.7.6 上下文卫生）：块压缩不丢最后一块，
-        // 一条巨型粘贴/超长回答原本会无防线地原样进请求。
-        let (capped, hugeSaved) = ContextCompaction.cappingHugeMessages(request)
-        request = capped
-        if hugeSaved > 0 {
-            Log.agent.info("huge-message cap: \(hugeSaved) chars trimmed from oversized user/assistant messages in this request")
-        }
+        // GPT Task 9（2026-10-12）：四个压缩函数是纯静态转换，对大会话每轮
+        // 各做一次全量扫描——在 MainActor 上跑是流式期间主线程尖刺的来源之一。
+        // 快照在 MainActor 抓（messages 值拷贝），纯转换 Task.detached 跑，
+        // 结果只在本回合仍拥有会话时采用（turnID 守卫——陈旧准备绝不覆盖）。
+        let snapshot = messages
+        let budget = effectiveContextBudget
+        let turnID = currentTurnIDForPreparation ?? UUID()
+        let prepared = await Task.detached(priority: .userInitiated) { () -> [AgentMessage] in
+            let (kept, _) = ContextCompaction.compactWithDigest(snapshot, budget: budget)
+            var prepared = ContextCompaction.repairUnpairedToolCalls(kept)
+            let (summarized, toolCharsSaved) = ContextCompaction.summarizingOversizedToolResults(prepared)
+            prepared = summarized
+            if toolCharsSaved > 0 {
+                Log.agent.info("tool-result summary: \(toolCharsSaved) chars replaced by handles in this request")
+            }
+            let (capped, hugeSaved) = ContextCompaction.cappingHugeMessages(prepared)
+            prepared = capped
+            if hugeSaved > 0 {
+                Log.agent.info("huge-message cap: \(hugeSaved) chars trimmed from oversized user/assistant messages in this request")
+            }
+            // 机械摘要的注入需要宿主上下文（identity/memory/skills 分层），
+            // 留在 MainActor 侧拼装——后台只做纯转换。
+            return prepared
+        }.value
+        guard isCurrentTurn(turnID) else { return [] }
+        return await assembleRequestMessages(from: prepared, digestProvider: { () -> String? in
+            ContextCompaction.compactWithDigest(snapshot, budget: budget).digest
+        })
+    }
+
+    /// 从后台 prepared 消息拼装最终请求（system 分层注入——需要宿主依赖，
+    /// 留在 MainActor）。digestProvider 只在被需要时重算（压缩摘要惰性）。
+    private func assembleRequestMessages(
+        from request: [AgentMessage],
+        digestProvider: @escaping () -> String?
+    ) async -> [AgentMessage] {
+        let digest = digestProvider()
+        // 压缩/修复/摘要/封顶四步纯转换已在后台完成（见 buildRequestMessages）。
+        var request = request
 
         // 会话里可能存在"带外备注"（下载完成、导出结束…，role == .system，见
         // `appendExternalNote`）。**OpenAI 兼容服务要求 system 只能出现在开头**，

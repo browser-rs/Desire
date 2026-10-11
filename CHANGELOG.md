@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **请求准备移出 MainActor**（GPT 多窗口批 Task 9 落地）：buildRequestMessages 的四步纯转换（块压缩/未配对 tool_calls 修复/超长工具结果摘要/巨型消息封顶——对大会话每轮各一次全量扫描）改为 MainActor 抓快照 + Task.detached 后台转换 + 回合所有权守卫（陈旧准备绝不覆盖当前状态），system 分层注入留在 MainActor 拼装。AgentMessage/ContextCompaction 提 nonisolated、Log.agent 提 nonisolated。流式与长会话行为不变（转换纯函数、单测 602 全过）。
+
 ### Fixed
 
 - **导航排查：后退/前进按钮状态在 SPA 站点失效**——canGoBack/canGoForward 只在 didFinish 更新，而 pjax 站点（掘金等）的路由切换是 pushState（不触发 didFinish）：首页点进文章后后退按钮一直灰着，与长按菜单里的实时历史栈自相矛盾。改为 KVO 实时同步（ WKBackForwardList 变化瞬间更新按钮态）。桥实测：普通导航往返 ✓、纯 pushState 往返 ✓；掘金文章页栈只有一条是其自身反爬 replaceState（决策序列干净，Safari 同现象），非浏览器缺陷。

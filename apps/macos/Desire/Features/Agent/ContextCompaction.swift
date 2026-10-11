@@ -4,7 +4,7 @@ import Foundation
 ///
 /// **口径**：预算按**字符**（与输入框旁的"上下文占用%"同源，非 token —— token 需按
 /// 模型分词，端上没有可靠的估算器；已落盘的逐条 `promptTokens` 可以用来校准，见优化清单）。
-enum ContextCompaction {
+nonisolated enum ContextCompaction {
     /// 只裁不留痕。多数调用方用这个；需要"被裁轮次的要点"时用 `compactWithDigest`。
     static func compact(_ messages: [AgentMessage], budget: Int = 160_000) -> [AgentMessage] {
         compactWithDigest(messages, budget: budget).kept

@@ -18,7 +18,7 @@ struct AgentBypassUsage: Codable, Equatable, Sendable {
     var completionTokens: Int
 }
 
-struct AgentMessage: Identifiable, Codable, Sendable {
+nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     let id: UUID
     let role: AgentMessageRole
     var content: String?

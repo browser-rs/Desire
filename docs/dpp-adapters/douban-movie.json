@@ -1,0 +1,50 @@
+{
+  "format": "desire/adapter-1",
+  "name": "douban-movie",
+  "hosts": ["movie.douban.com", ".douban.com"],
+  "pathPrefixes": ["/subject/"],
+  "notes": "社区适配（2026-10-12 真实 DOM 核对）：豆瓣电影条目页——读条目信息/评分/热门短评",
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "pageType": "review",
+    "contentMain": "#content",
+    "sections": {
+      "info": "#info",
+      "comments": "#comments",
+      "reviews": "#reviews"
+    },
+    "ignore": [
+      "#top-nav", "#footer", "#db-nav-movie", ".nav-items",
+      "#dale_movie_subject_bottom_right", "[class*='ad']", ".app-link",
+      ".gray_ad", "#buyinfo", ".subject-screenshot"
+    ],
+    "views": {
+      "subject": {
+        "item": "#content",
+        "fields": {
+          "title": "h1 span[property='v:itemreviewed'], h1",
+          "year": ".year",
+          "rating": "strong.rating_num",
+          "ratingPeople": "span[property='v:votes']",
+          "info": "#info"
+        }
+      },
+      "comments": {
+        "item": ".comment-item",
+        "fields": {
+          "author": "a[href*='people']",
+          "rating": "[title^='推荐'], [class*='allstar']",
+          "text": ".short",
+          "votes": ".votes, .vote-count"
+        }
+      }
+    },
+    "signals": {
+      "ready": "#content strong.rating_num, #content .mod-hd"
+    },
+    "context": {
+      "domain": "reviews",
+      "rules": "豆瓣电影条目。views.comments 是热门短评（按有用数排序，首页一屏 6 条；更多短评需登录后翻页）。评论的 rating 是'力荐/推荐/还行/较差/很差'文字（在 title 属性）。条目信息（导演/主演/类型/片长）在 views.subject 的 info 字段（#info 块，换行分隔的键值文本）。"
+    }
+  }
+}

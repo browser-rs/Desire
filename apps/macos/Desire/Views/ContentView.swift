@@ -13,7 +13,12 @@ struct ContentView: View {
     @Binding var sessionID: UUID?
 
     @StateObject var windowContext: WindowBrowsingContext
-    @ObservedObject var tabManager: TabManager
+    /// 从保留的 windowContext（StateObject）派生——**不能**用 @ObservedObject 绑
+    /// init 临时值：SwiftUI 会多次 init 本视图（sessionID 恢复、binding 变化），
+    /// 每次 init 新建 context 会造出"渲染的 manager ≠ 恢复标签的 manager"的分裂
+    ///（黑屏/初始页空白，2026-10-12）。观察经 windowContext 的 objectWillChange
+    /// 转发（manager 变化 → context → 本视图）。
+    var tabManager: TabManager { windowContext.tabManager }
     @StateObject var suggestionModel = AddressSuggestionsModel()
     /// The new-tab page's search box gets its OWN suggestion model — sharing
     /// one instance with the toolbar meant typing in either field repopulated
@@ -22,7 +27,10 @@ struct ContentView: View {
     @StateObject var translationService = TranslationService()
     @StateObject var responsiveDesignStore = ResponsiveDesignStore()
     @StateObject var thumbnailStore = TabThumbnailStore()
-    @StateObject var ballPanel: AgentBallPanel
+    /// 球的交互状态**全局共享**（回到单例）：设置页/桥/独立 Agent 窗口都写
+    /// AgentBallPanel.shared——per-window 实例会状态分裂（isExpanded 卡展开
+    /// 态拖不动，2026-10-12）。overlay 每窗口一个挂载，但状态只有一份。
+    @ObservedObject var ballPanel = AgentBallPanel.shared
     /// Singleton observed so the TabBar's container menu stays current.
     @ObservedObject var containerStore = ContainerStore.shared
     /// Observed so the hidden shortcut buttons re-bind the moment a key is
@@ -59,8 +67,6 @@ struct ContentView: View {
         _sessionID = sessionID
         let context = WindowBrowsingContext(windowID: sessionID.wrappedValue)
         _windowContext = StateObject(wrappedValue: context)
-        _tabManager = ObservedObject(wrappedValue: context.tabManager)
-        _ballPanel = StateObject(wrappedValue: AgentBallPanel())
         // OBSERVED：body 直接读 settings.appearanceTheme/accentColor 等发布字段，
         // 普通计算属性不转发 objectWillChange——改主题/强调色的刷新此前靠
         // "恰好有别的重绘"（ARCH-4）。

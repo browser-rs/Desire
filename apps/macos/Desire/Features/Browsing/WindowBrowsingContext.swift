@@ -7,7 +7,9 @@ import WebKit
 @MainActor
 final class WindowBrowsingContext: ObservableObject {
     let windowID: UUID
+    /// manager 唯一实例（init 建一次，不替换）——观察经下面的转发上达。
     let tabManager: TabManager
+    private var managerObservation: AnyCancellable?
 
     @Published private(set) var profileID: UUID?
     var sessionKey: String? {
@@ -27,6 +29,9 @@ final class WindowBrowsingContext: ObservableObject {
         manager.profileID = resolvedProfileID
         manager.profileDataStore = ProfileStore.shared.dataStore(for: resolvedProfileID)
         self.tabManager = manager
+        managerObservation = manager.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     func setProfile(_ id: UUID?) {
@@ -34,4 +39,7 @@ final class WindowBrowsingContext: ObservableObject {
         tabManager.profileID = id
         tabManager.profileDataStore = profileDataStore
     }
+    
+    /// 仅供观察链：manager 的变化经本 context 转发给 @ObservedObject windowContext。
+    var objectWillChangeProxy: ObservableObjectPublisher { objectWillChange }
 }

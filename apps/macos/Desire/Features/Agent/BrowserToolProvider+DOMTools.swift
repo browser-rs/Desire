@@ -1228,7 +1228,22 @@ extension BrowserToolProvider {
                     arguments: [:], in: actionFrame, contentWorld: WebView.agentToolWorld) as? Bool) == true)
                 suffix = found ? " (success signal detected)" : " (success signal NOT detected)"
             }
-            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)\(navNote)"
+            // 成功回执带事后快照（设计评审 #11）：主视图（字母序第一个）前 3 条
+            // 随回执返回——Agent 一回合内自验证，不必再花一轮 pageExtract。
+            var postSnapshot = ""
+            if let firstView = protocolSnapshot.views.sorted(by: { $0.key < $1.key }).first {
+                let extractCall = AgentToolCall(
+                    id: UUID().uuidString, type: "function",
+                    function: .init(name: "pageExtract",
+                                    arguments: "{\"view\": \"\(firstView.key)\", \"all\": false}"))
+                let raw = await execute(extractCall, in: dppWebView)
+                // 抽取结果截前 3 条 JSON（成功回执保持轻量）。
+                if let jsonLine = raw.components(separatedBy: "\n").first(where: { $0.hasPrefix("[") }) {
+                    let preview = String(jsonLine.prefix(400))
+                    postSnapshot = "\nPost-action snapshot of view '\(firstView.key)' (first items): \(preview)…"
+                }
+            }
+            return "Action '\(actionName)' completed: \(executed.joined(separator: " → "))\(busyNote)\(suffix)\(navNote)\(postSnapshot)"
 
         case "pageProtocol":
             guard let protocolSnapshot = surface.tabManager?.selectedTab?.browser.effectiveProtocol else { return "This page does not declare a DPP protocol." }
@@ -1416,20 +1431,39 @@ extension BrowserToolProvider {
             }
 
             // 截断按**条目数**（不再把 JSON 字符串从中间切断产出非法 JSON）。
+            // 显式截断契约（设计评审 #10）：capped 时 JSON 内嵌 truncated:true +
+            // moreAvailable + totalBeforeCap——模型机读后可决定是否继续取。
             func render(_ items: [[String: Any]], pages: Int, scope: String, emptyNoteText: String = "") -> String {
-                let capped = items.count > hardCap ? Array(items.prefix(hardCap)) : items
-                let note = items.count > hardCap ? "\n(…\(items.count) items, capped at \(hardCap))" : ""
-                let data = (try? JSONSerialization.data(withJSONObject: capped)) ?? Data("[]".utf8)
-                let body = String(data: data, encoding: .utf8) ?? "[]"
+                let isCapped = items.count > hardCap
+                let capped = isCapped ? Array(items.prefix(hardCap)) : items
+                let payload: [String: Any] = isCapped
+                    ? ["items": capped, "truncated": true,
+                       "moreAvailable": items.count - hardCap,
+                       "totalBeforeCap": items.count]
+                    : ["items": capped]
+                let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data("{}".utf8)
+                let body = String(data: data, encoding: .utf8) ?? "{}"
+                let note = isCapped ? "\n(truncated at \(hardCap) — \(items.count - hardCap) more available; use pageExtract all=true or narrow the view)" : ""
                 return "Extracted \(viewName) (\(pages) page(s), \(scope)):\n\(body)\(note)\(emptyNoteText)"
             }
 
             let paginationType = view.pagination?.type
             let paged = paginationType == "paged" && (view.pagination?.next?.isEmpty == false)
             let infinite = paginationType == "infinite"
+            // 存活度上报（设计评审 #8）：成功/失败计数驱动"疑似失效/自动禁用"。
+            // 失败来源 = 下方各 fail 出口；成功 = render 后。适配包名从 warnings 戳取。
+            func reportAdapterOutcome(_ ok: Bool) {
+                let warnings = dppTab.browser.effectiveProtocol?.warnings ?? []
+                let names = warnings.compactMap { $0.hasPrefix("adapter: ") ? String($0.dropFirst("adapter: ".count)) : nil }
+                for n in names {
+                    if ok { DPPAdapterStore.shared.reportSuccess(adapterName: n) }
+                    else { DPPAdapterStore.shared.reportFailure(adapterName: n) }
+                }
+            }
             if !allPages || (!paged && !infinite) {
                 // 与分页路径共用 collectPage（此前内联分叉：失败无诊断且行为漂移）
                 let items = await collectPage()
+                reportAdapterOutcome(!items.isEmpty || view.empty != nil)
                 // 空态信号（§4.3 views.empty）：0 条目且空态选择器命中 =
                 // 站点明示"合法空列表"——模型不必盲目重试或换策略。
                 var emptyNote = ""

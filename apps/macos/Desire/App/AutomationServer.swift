@@ -1215,6 +1215,9 @@ final class AutomationServer {
                     "adapters": store.adapters.map { a in
                         ["name": a.name, "hosts": a.hosts, "pathPrefixes": a.pathPrefixes,
                          "enabled": store.isEnabled(a), "notes": a.notes,
+                         "health": store.health(of: a.name),
+                         "sourceURL": a.sourceURL ?? "",
+                         "installedAt": a.installedAt?.timeIntervalSince1970 ?? 0,
                          "views": Array(a.protocolBody.views.keys),
                          "actions": a.protocolBody.actions.map(\.name)]
                     },

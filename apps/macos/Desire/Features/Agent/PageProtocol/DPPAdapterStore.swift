@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 
 /// DPP 第三方适配包仓库（2026-10-10）：`Application Support/Desire/
 /// DPPAdapters/*.json`。每包一个文件，启停状态独立持久化（UserDefaults
@@ -28,6 +29,7 @@ final class DPPAdapterStore: ObservableObject {
 
     private init() {
         disabled = Set(UserDefaults.standard.stringArray(forKey: Self.disabledKey) ?? [])
+        autoDisabled = Set(UserDefaults.standard.stringArray(forKey: Self.autoDisabledKey) ?? [])
         reload()
     }
 
@@ -49,8 +51,45 @@ final class DPPAdapterStore: ObservableObject {
     /// 稳定、可预期；同名场景极少，先不做包内优先级配置）。
     func adapter(for url: URL) -> DPPAdapter? {
         adapters
-            .filter { isEnabled($0) && $0.matches(url: url) }
+            .filter { isEnabled($0) && !autoDisabled.contains($0.name) && $0.matches(url: url) }
             .min { $0.name < $1.name }
+    }
+
+    // MARK: - 存活度（设计评审 #8）：适配包会随站点改版静默失效——
+    // 记录每个包的抽取/动作失败次数，连续失败达到阈值在 inspect/设置页
+    // 亮"疑似失效"，达到硬阈值自动禁用（用户可重新启用）。
+
+    private var failureCounts: [String: Int] = [:]
+    private let softThreshold = 3
+    private let hardThreshold = 8
+    private static let autoDisabledKey = "dpp.adapter.autodisabled"
+
+    private(set) var autoDisabled: Set<String> = []
+
+    /// 适配包参与的抽取/动作失败时上报（名字来自 warnings 戳）。
+    func reportFailure(adapterName: String) {
+        failureCounts[adapterName, default: 0] += 1
+        if failureCounts[adapterName] == hardThreshold {
+            autoDisabled.insert(adapterName)
+            UserDefaults.standard.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
+            Log.agent.warning("adapter '\(adapterName, privacy: .public)' auto-disabled after \(self.hardThreshold) consecutive failures")
+        }
+    }
+
+    func reportSuccess(adapterName: String) {
+        failureCounts[adapterName] = 0
+        if autoDisabled.contains(adapterName) {
+            autoDisabled.remove(adapterName)
+            UserDefaults.standard.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
+        }
+    }
+
+    /// 存活度状态（设置页/inspect 透出）：ok / suspect / autoDisabled。
+    func health(of name: String) -> String {
+        if autoDisabled.contains(name) { return "autoDisabled" }
+        let n = failureCounts[name] ?? 0
+        if n >= softThreshold { return "suspect" }
+        return "ok"
     }
 
     // MARK: - 加载

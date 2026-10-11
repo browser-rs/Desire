@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- **DPP 设计评审 P2 生态三件**：① pageExtract **显式截断契约**——超 hardCap 时返回 JSON 内嵌 truncated:true / moreAvailable / totalBeforeCap（模型机读后可决定是否继续取，不再靠正文尾注猜）；② pageAction 成功回执带**事后快照**（主视图前 3 条随回执返回，Agent 一回合内自验证省一轮 pageExtract）；③ 适配包**存活度机制**——抽取/动作失败计数（成功清零），3 次连续失败亮"疑似失效"、8 次自动禁用（用户可重启用），桥 /dpp/adapters 列表透出 health/sourceURL/installedAt。
+
 ### Fixed
 
 - **DPP 设计评审落地**（docs/DPP-DESIGN-REVIEW-2026-10-11.md 的 P0/P1 批）：① 静态步骏述算风险下限——run 步骤语义（navigate/submit 类 click/Enter/mcp/upload）无论页面声明什么都强制升档（autoEdit 静默执行未标注 outbound 动作的绕过面封死）；② DPP 动作授权键加 frame host 维度——跨源 iframe 声明的动作授权按声明来源 frame 隔离，同名页面动作互不影响（与审批卡展示一致）；③ 适配包 URL 安装 https-only（http 拒收，与注释对齐）+ sourceURL/installedAt 随包落盘（供应链审计）；④ events 对象形态的 warning 诚实化（debounce/on 未实现，固定 3s——别让站点以为声明生效）；⑤ 三处死代码/文档修复（merged 恒真条件拆成 mergingFrames 独立函数、isBridgeSafeLocal 的 effects=="danger" 死分支、规范 chat profile 示例的重复 run 键）。单测 602→614（floor 矩阵 + bridgeSafe 四态）。

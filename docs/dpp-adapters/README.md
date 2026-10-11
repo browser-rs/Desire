@@ -56,7 +56,13 @@
 2. **只声明你核对过的东西**：没验证过的动作别写（动作会真实执行，虽然要过审批）
 3. `ignore` 把导航/推荐流/横幅排掉——Agent 的读取精度主要靠它
 4. `signals.ready` 指向**内容确实出现**的标记（不是 spinners）
-5. 命名用小写站点名（`juejin.json`），与 `name` 一致
+5. **views 不要用 `article`/`items` 这类 L0 常用名**——站点自带 JSON-LD 时，
+   隐式视图会占同名键且"页面声明优先"，你的字段会被压住；用 `wiki`/`post`
+   这类带站点语义的名字（wikipedia.json 的教训）
+6. **pathPrefixes 只适合"路径即语义"的站点**（如 /pins/ /editor/）——URL 中段
+   有用户名/ID 的站（cnblogs 的 /<用户>/p/<id>）前缀过滤永不命中，直接清空靠
+   views 选择器兜底
+7. 命名用小写站点名（`juejin.json`），与 `name` 一致
 6. 不确定就参考 `juejin.json` 的形状；欢迎提 PR（提交前跑一遍目标站点的真实读取）
 
 ## 现有适配包

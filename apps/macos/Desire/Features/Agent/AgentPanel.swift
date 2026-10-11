@@ -46,6 +46,9 @@ struct AgentPanel: View {
     @ObservedObject private var planStore = AgentPlanStore.shared
     @ObservedObject private var recorder = WindowRecorder.shared
     @ObservedObject var promptCenter: UserPromptCenter
+    /// 全局提问中心（askUser 已 per-session 化，但**系统命令协商、桥 /agent/prompt、
+    /// 远程提问卡**仍走 shared 单例——面板双通道渲染，任何一条提问都可可见）。
+    @ObservedObject var sharedPromptCenter = UserPromptCenter.shared
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
@@ -268,6 +271,13 @@ struct AgentPanel: View {
             if let question = promptCenter.pending {
                 AgentQuestionCard(question: question.question, quickOptions: question.quickOptions) { answer in
                     promptCenter.answer(answer)
+                }
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+            } else if let question = sharedPromptCenter.pending {
+                // 系统命令协商 / 桥 / 远程的全局提问（同一张卡片样式）。
+                AgentQuestionCard(question: question.question, quickOptions: question.quickOptions) { answer in
+                    sharedPromptCenter.answer(answer)
                 }
                 .frame(maxWidth: Self.contentMaxWidth)
                 .frame(maxWidth: .infinity)

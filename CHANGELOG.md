@@ -12,6 +12,8 @@
 - **启动分段插桩细化**（性能轮）：AppState.init 装配链逐 store 拍点（BrowsingState/AgentState/SyncStore/RemoteControlStore/profile 恢复/startAutoSync）+ ContentView.init 计时——launch phase 日志从三拍黑盒变成全链细分，启动回归可直接从统一日志定位到段。本节数据结论：AppState 装配 18ms（Keychain 后台化后 SyncStore 不再是大头）、ContentView.init 3ms，首窗剩余构成 = SwiftUI Scene 装配 ~258ms + 首帧与首个 WKWebView 创建 ~152ms（WebKit XPC 平台固有）。
 - **Hacker News 适配包**（docs/dpp-adapters/hackernews.json）：列表/单帖/评论树三视图（stories 用 tr.athing.submission 精确类名——详情页的评论行同为 tr.athing，裸类名会把首条评论误当"故事"；indent 像素 /40 即楼层，总结评论讨论串时按层级读），真实页面列表 30 行与 7 楼评论全命中；投票需登录未声明。适配目录现有五包。
 - **Wikipedia 适配包**（docs/dpp-adapters/wikipedia.json）：条目页正文精读/排噪（导航/编辑按钮/navbox）+ infobox 与引用分区，全语言同构；条目元数据站点自带 JSON-LD（Article）直接消费。坑：适配包视图命名撞上 L0 隐式视图的同名（article）会被"页面声明优先"压住——改名 wiki 后双视图共存，教训（适配包的 views 别用 article/items 这类 L0 常用名）写进适配目录守则。
+- **桥直驱 agent 工具链的两个端点**（适配包自测主通道）：`GET /page/extract?view=<名>` 与 `POST /page/dpp-action {"name","args"}`——与 agent 的 pageExtract/pageAction **同一实现**（BrowserToolProvider.execute，非模拟），多 tab 场景先 /switch-tab 对齐 deliveryTarget 的 selectedTab 再调；pageAction 经桥只建议 local 效果动作（persist/outbound 的授权语义仍由 agent 审批链承担）。用六个适配包完成矩阵自测：HN stories（顺带修 link 字段的 type:url——此前抽到的是标题文本）、wikipedia wiki、v2ex topic、cnblogs post、掘金 fill-article-title（DSL 执行+页面回读全通）。
+
 
 
 

@@ -575,6 +575,8 @@ final class AutomationServer {
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
+        ep("GET", "/page/extract", "Run the agent's pageExtract tool against the selected tab (same implementation, read-only)", params: ["view:string", "all?:bool"], example: "…/page/extract?view=stories")
+        ep("POST", "/page/dpp-action", "Run a declared DPP action via the agent toolchain — local-effect actions only (persist/outbound go through the agent approval loop)", params: ["name:string", "args?:object"], example: #"-d '{"name":"fill-article-title","args":{"title":"hi"}}'"#)
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
         ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout|markdown|png — png returns the share-card image as base64)", example: "…/whiteboard")
@@ -1249,6 +1251,39 @@ final class AutomationServer {
                 }
                 DPPAdapterStore.shared.remove(name)
                 return try Self.json(["ok": true, "name": name])
+            case ("GET", "/page/extract"):
+                // 与 agent 的 pageExtract **同一实现**（BrowserToolProvider.execute），
+                // 只读无审批面——适配包自测的主通道。
+                guard let provider = Self.dppToolProvider() else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let view = Self.string(query, "view"),
+                      let toolWebView = Self.dppWebViewForTools() else {
+                    return try Self.json(["error": "missing view or no active tab"])
+                }
+                let argsJSON = Self.toolArgsJSON(["view": view, "all": query["all"] == "1"])
+                let call = AgentToolCall(
+                    id: UUID().uuidString, type: "function",
+                    function: .init(name: "pageExtract", arguments: argsJSON))
+                let result = await provider.execute(call, in: toolWebView)
+                return try Self.json(["view": view, "result": result])
+            case ("POST", "/page/dpp-action"):
+                // 与 agent 的 pageAction 同一实现；**只放行 local 效果动作**——
+                // persist/outbound 的真实执行必须走 agent 审批链（桥不替代用户授权）。
+                guard let provider = Self.dppToolProvider() else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let name = Self.string(body, "name"),
+                      let toolWebView = Self.dppWebViewForTools() else {
+                    return try Self.json(["error": "missing name or no active tab"])
+                }
+                let args = body["args"] as? [String: Any] ?? [:]
+                let call = AgentToolCall(
+                    id: UUID().uuidString, type: "function",
+                    function: .init(name: "pageAction",
+                                    arguments: Self.toolArgsJSON(["name": name, "args": args])))
+                let result = await provider.execute(call, in: toolWebView)
+                return try Self.json(["action": name, "result": result])
             case ("GET", "/agent/approvals"):
                 guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
                     return try Self.json(["pending": false])
@@ -2425,6 +2460,21 @@ final class AutomationServer {
 
     private var tabManager: TabManager? {
         get throws { TabSessionCoordinator.shared.activeTabManager }
+    }
+
+    /// 桥直驱 agent 工具链的取件：deliveryTarget 会话的 provider 与活 webview。
+    /// pageExtract 只读；pageAction 走同一实现（persist/outbound 的授权语义
+    /// 仍由 agent 审批链承担——桥只放行 local 效果动作的调用方自查）。
+    private static func dppToolProvider() -> BrowserToolProvider? {
+        AgentScheduler.shared.deliveryTarget?.toolProvider
+    }
+
+    private static func dppWebViewForTools() -> WKWebView? {
+        AgentScheduler.shared.deliveryTarget?.toolSurface?.tabManager?.selectedTab?.browser.webView
+    }
+
+    private static func toolArgsJSON(_ dict: [String: Any]) -> String {
+        String(data: (try? JSONSerialization.data(withJSONObject: dict)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
     }
 
     func resolveIndex(_ index: Int?) -> Tab? {

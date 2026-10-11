@@ -209,12 +209,12 @@ class AgentSessionStore: ObservableObject {
     /// Conversation history store. Strongly held by `AgentState`; injected here
     /// at construction so save/load paths work without post-init wiring.
     let conversationStore: ConversationStore
-    private let toolProvider = BrowserToolProvider()
+    let toolProvider = BrowserToolProvider()
     /// Strong ref to the configured surface. `BrowserToolProvider.surface`
     /// is weak, and a per-window `WindowToolSurface` has no other owner —
     /// without this it deallocates as soon as `configure(with:)` returns
     /// and every tool call fails with "Tool surface not configured".
-    private var toolSurface: (any BrowserToolSurface)?
+    var toolSurface: (any BrowserToolSurface)?
     /// 本会话绑定的窗口标签集（多窗口 Agent 的目标解析用；nil = 未配置）。
     var boundTabManager: TabManager? { toolSurface?.tabManager }
     /// 所属窗口标题（configure 时快照；窗口标题随活动标签变——每次回合

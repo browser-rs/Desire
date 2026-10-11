@@ -26,7 +26,10 @@
         "fields": {
           "rank": ".rank",
           "title": ".titleline > a",
-          "link": ".titleline > a[href]",
+          "link": {
+            "selector": ".titleline > a",
+            "type": "url"
+          },
           "site": ".sitestr"
         }
       },
@@ -34,7 +37,10 @@
         "item": "tr.athing.submission",
         "fields": {
           "title": ".titleline > a",
-          "link": ".titleline > a[href]",
+          "link": {
+            "selector": ".titleline > a",
+            "type": "url"
+          },
           "opText": ".toptext"
         }
       },

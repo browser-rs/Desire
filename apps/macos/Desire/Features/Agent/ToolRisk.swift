@@ -43,6 +43,10 @@ enum ToolRisk: Int, Comparable {
     /// tools behind an un-whitelistable wall), and we don't default to
     /// `.readonly` (that would auto-run unknown side effects).
     static func classify(_ toolName: String) -> ToolRisk {
+        // MCP tools are third-party capabilities. Their descriptions are
+        // untrusted input and their side effects cannot be inferred from the
+        // dynamic schema, so every call requires explicit approval.
+        if toolName.hasPrefix("mcp_") { return .dangerous }
         if readonlyTools.contains(toolName) { return .readonly }
         if dangerousTools.contains(toolName) { return .dangerous }
         return .sideEffect

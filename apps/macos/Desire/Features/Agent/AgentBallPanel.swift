@@ -102,7 +102,7 @@ final class AgentBallPanel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var pollTimer: Timer?
 
-    private init() {
+    init() {
         isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
         if let raw = UserDefaults.standard.string(forKey: Self.customPromptKey),
            !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

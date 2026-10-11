@@ -83,6 +83,13 @@ class PluginStore: ObservableObject {
         }
     }
 
+    func canAccessCookies(pluginID: UUID?, at url: URL) -> Bool {
+        guard let pluginID,
+              let plugin = plugins.first(where: { $0.id == pluginID && $0.isEnabled }),
+              url.scheme == "http" || url.scheme == "https" else { return false }
+        return matchingPlugins(for: url).contains { $0.id == plugin.id }
+    }
+
     func injectionCode(for url: URL) -> (js: [(plugin: Plugin, code: String, runAt: RunAt)], css: [(plugin: Plugin, code: String)]) {
         let matched = matchingPlugins(for: url)
         let js = matched.filter { !$0.jsCode.isEmpty }.map { ($0, $0.jsCode, $0.runAt) }

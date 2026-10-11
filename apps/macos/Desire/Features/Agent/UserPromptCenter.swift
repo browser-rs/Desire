@@ -32,7 +32,11 @@ final class UserPromptCenter: ObservableObject {
                 question: question, continuation: continuation,
                 quickOptions: quickOptions)
             pending = entry
-            entry.scheduleTimeout(after: Self.answerTimeout)
+            entry.scheduleTimeout(after: Self.answerTimeout) { [weak self, weak entry] in
+                guard let self, let entry, self.pending?.id == entry.id else { return }
+                entry.resume(with: "[no answer — the user did not respond in time]")
+                self.pending = nil
+            }
         }
     }
 
@@ -67,11 +71,12 @@ final class PendingUserQuestion: Identifiable {
     }
 
     /// 兜底超时：长时间无人回答就以标记解除挂起（回合不至于无限等）。
-    fileprivate func scheduleTimeout(after seconds: TimeInterval) {
+    fileprivate func scheduleTimeout(after seconds: TimeInterval, onTimeout: @escaping () -> Void) {
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
-            self?.resume(with: "[no answer — the user did not respond in time]")
+            guard self != nil else { return }
+            onTimeout()
         }
     }
 

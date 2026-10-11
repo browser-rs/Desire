@@ -15,6 +15,11 @@ import Foundation
 @MainActor
 enum SessionRestore {
 
+    struct Result {
+        let sessionID: UUID
+        let sessionKey: String
+    }
+
     struct Context {
         let tabManager: TabManager
         let appState: AppState
@@ -31,7 +36,7 @@ enum SessionRestore {
 
     /// 执行恢复。返回窗口应绑定的会话 UUID（可能因采纳而改变）。
     @discardableResult
-    static func run(for manager: TabManager, context: Context) -> UUID? {
+    static func run(for manager: TabManager, context: Context) -> Result? {
         let sessionID = context.existingSessionID ?? UUID()
         let sessionKey = TabSessionCoordinator.shared.sessionKey(for: sessionID)
         manager.sessionKey = sessionKey
@@ -39,7 +44,7 @@ enum SessionRestore {
         // 拖出接纳：暂存区的标签直接吸收，不走会话恢复/新建流程。
         if let staged = TabTransfer.take(for: sessionID) {
             manager.absorb(staged)
-            return sessionID
+            return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
         if manager.restoreSession(
@@ -49,12 +54,12 @@ enum SessionRestore {
             videoAdBlocker: context.videoAdBlocker
         ) {
             // This window's own tabs are back.
-            return sessionID
+            return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
         guard !context.appState.hasRestoredSession else {
             context.openFreshTab()
-            return sessionID
+            return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
         // First window with no own session — adopt the most recent session
@@ -76,7 +81,7 @@ enum SessionRestore {
             } else {
                 context.openFreshTab()
             }
-            return sessionID
+            return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
         // 崩溃回收（0.3.8）：上次异常终止——提示用户已恢复到崩溃前最后
@@ -96,6 +101,6 @@ enum SessionRestore {
         // Deliberately NOT pruning here: consuming the index would leave the
         // next launch with nothing to adopt. This window now persists under
         // `lastKey`, and the next clean quit rewrites the index with it.
-        return sessionID
+        return Result(sessionID: sessionID, sessionKey: lastKey)
     }
 }

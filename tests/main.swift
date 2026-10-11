@@ -2130,6 +2130,80 @@ func testConversationExport() {
 testSlashParsing()
 testConversationExport()
 
+// ---------- 本地桥 Bearer 认证 ----------
+
+do {
+    check("认证：精确 Bearer token", BearerAuthentication.matches(header: "Bearer abc123", token: "abc123"))
+    check("认证：scheme 大小写不敏感", BearerAuthentication.matches(header: "bEaReR abc123", token: "abc123"))
+    check("认证：缺少 header 拒绝", !BearerAuthentication.matches(header: nil, token: "abc123"))
+    check("认证：错误 token 拒绝", !BearerAuthentication.matches(header: "Bearer wrong", token: "abc123"))
+    check("认证：token 前缀绕过拒绝", !BearerAuthentication.matches(header: "Bearer abc123-attacker", token: "abc123"))
+    check("认证：错误 scheme 拒绝", !BearerAuthentication.matches(header: "Basic abc123", token: "abc123"))
+    check("认证：重复值歧义拒绝", !BearerAuthentication.matches(header: "Bearer abc123, Bearer abc123", token: "abc123"))
+}
+
+do {
+    check("工具风险：MCP 默认 dangerous", ToolRisk.classify("mcp_demo_delete") == .dangerous)
+    check("工具风险：普通读取保持 readonly", ToolRisk.classify("getPageText") == .readonly)
+}
+
+do {
+    let local = DesireProtocol.ProtocolAction(name: "like", effects: "local", danger: false, run: "[{\"click\":\"#like\"}]")
+    let outbound = DesireProtocol.ProtocolAction(name: "buy", effects: "outbound", danger: false, run: "[]")
+    let mcp = DesireProtocol.ProtocolAction(name: "notify", effects: "local", danger: false, run: "[{\"mcp\":{}}]")
+    check("DPP bridge：local action 可公开执行", local.isBridgeSafeLocal)
+    check("DPP bridge：outbound action 必须拒绝", !outbound.isBridgeSafeLocal)
+    check("DPP bridge：MCP action 必须拒绝", !mcp.isBridgeSafeLocal)
+}
+
+// ---------- Agent 回合所有权 ----------
+
+do {
+    var ownership = AgentTurnOwnership()
+    let first = ownership.begin()
+    check("Agent 回合：首轮成为 owner", ownership.isCurrent(first))
+    let second = ownership.begin()
+    check("Agent 回合：新轮次接管 owner", ownership.isCurrent(second))
+    check("Agent 回合：旧轮次失效", !ownership.isCurrent(first))
+    ownership.invalidate()
+    check("Agent 回合：invalidate 后无 owner", !ownership.isCurrent(second))
+}
+
+// ---------- DiskStoreWriter：确定性 flush barrier ----------
+
+do {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("desire-diskstore-tests-\(UUID().uuidString)", isDirectory: true)
+    try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let semaphore = DispatchSemaphore(value: 0)
+    var latestData = Data()
+    var removed = false
+    var barrierKeptFutureWrite = false
+
+    Task {
+        let writer = DiskStoreWriter(directory: directory, debounceInterval: .seconds(60))
+        let firstGeneration = await writer.stage(data: Data("old".utf8), key: "record")
+        await writer.flushNow(upTo: firstGeneration)
+        let latestGeneration = await writer.stage(data: Data("new".utf8), key: "record")
+        await writer.flushNow(upTo: firstGeneration)
+        barrierKeptFutureWrite = String(
+            data: (try? Data(contentsOf: directory.appendingPathComponent("record.json"))) ?? Data(),
+            encoding: .utf8) == "old"
+        await writer.flushNow(upTo: latestGeneration)
+        latestData = (try? Data(contentsOf: directory.appendingPathComponent("record.json"))) ?? Data()
+
+        let removalGeneration = await writer.stageRemoval(key: "record")
+        await writer.flushNow(upTo: removalGeneration)
+        removed = !FileManager.default.fileExists(atPath: directory.appendingPathComponent("record.json").path)
+        semaphore.signal()
+    }
+    _ = semaphore.wait(timeout: .now() + 3)
+    check("磁盘写入：barrier 不提前写未来 generation", barrierKeptFutureWrite)
+    check("磁盘写入：同 key 最后写入获胜", String(data: latestData, encoding: .utf8) == "new")
+    check("磁盘写入：remove barrier 后文件已删除", removed)
+    try? FileManager.default.removeItem(at: directory)
+}
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

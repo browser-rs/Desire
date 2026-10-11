@@ -274,6 +274,7 @@ class TabManager: ObservableObject {
     /// Window-level profile data store — new tabs in this window use it.
     /// Set by ContentView when the user switches profiles.
     var profileDataStore: WKWebsiteDataStore?
+    var profileID: UUID?
     /// Per-window session storage key (set by ContentView once the window's
     /// value-based session UUID is known). Nil until then: persistence and
     /// restore are no-ops for unkeyed windows.
@@ -339,7 +340,7 @@ class TabManager: ObservableObject {
         // 被挂起 = 正在执行的页面动作被腰斩，工具结果报错）。
         let busyAgentTabIDs = Set(AgentScheduler.shared.liveSessions()
             .compactMap { $0.store?.boundTabManager?.selectedTab?.id })
-        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id) {
+        for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id) && !AgentScheduler.shared.isTabLeased(tab.id) {
             if -tab.lastAccessed.timeIntervalSinceNow > actualThreshold {
                 if !tab.isSuspended {
                     Log.tabs.info("tab suspended (idle \(Int(-tab.lastAccessed.timeIntervalSinceNow), privacy: .public)s): \(tab.displayTitle, privacy: .public)")
@@ -360,6 +361,7 @@ class TabManager: ObservableObject {
             tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito
                 && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id)
                 && !tab.isSuspended && tab.browser.lastDomNodeCount > 25_000
+                && !AgentScheduler.shared.isTabLeased(tab.id)
         }
         for tab in bloated {
             Log.tabs.info("tab suspended (large page: \(tab.browser.lastDomNodeCount, privacy: .public) DOM nodes): \(tab.displayTitle, privacy: .public)")
@@ -377,7 +379,8 @@ class TabManager: ObservableObject {
         if memoryPressureActive {
             let candidates = tabs
                 .filter { $0.id != selectedTab?.id && $0.id != splitPartnerID && !$0.isPinned && !$0.isOnNewTabPage
-                    && !$0.isIncognito && !$0.isSuspended && !$0.isPlayingAudio }
+                    && !$0.isIncognito && !$0.isSuspended && !$0.isPlayingAudio
+                    && !AgentScheduler.shared.isTabLeased($0.id) }
                 .sorted { $0.lastAccessed < $1.lastAccessed }
             for tab in candidates {
                 tab.captureSuspendedState()
@@ -507,7 +510,7 @@ class TabManager: ObservableObject {
         guard tabs.indices.contains(index) else { return }
         let source = tabs[index]
         let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
-        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: source.containerID)
+        let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: source.containerID, profileDataStore: profileDataStore)
         newTab.isPinned = source.isPinned
         tabs.insert(newTab, at: index + 1)
         selectedIndex = index + 1
@@ -780,6 +783,10 @@ class TabManager: ObservableObject {
     @discardableResult
     func restoreSession(forKey key: String, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) -> Bool {
         guard let session = DiskStore.load(SavedSession.self, key: key) else { return false }
+        if let profileID = session.profileID {
+            self.profileID = profileID
+            profileDataStore = ProfileStore.shared.dataStore(for: profileID)
+        }
         apply(session: session, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker)
         return true
     }
@@ -890,6 +897,7 @@ struct SavedTab: Codable {
 struct SavedSession: Codable {
     let tabs: [SavedTab]
     let selectedIndex: Int
+    let profileID: UUID?
 }
 
 /// Process-wide owner of tab-session persistence.
@@ -961,7 +969,7 @@ final class TabSessionCoordinator {
             DiskStore.remove(key: key)
             return
         }
-        let session = SavedSession(tabs: savedTabs, selectedIndex: manager.selectedIndex)
+        let session = SavedSession(tabs: savedTabs, selectedIndex: manager.selectedIndex, profileID: manager.profileID)
         DiskStore.save(session, key: key)
     }
 
@@ -1096,4 +1104,3 @@ final class TabSessionCoordinator {
         }
     }
 }
-

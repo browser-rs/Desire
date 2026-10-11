@@ -12,7 +12,8 @@ struct ContentView: View {
     /// brand-new ⌘N window until onAppear mints one.
     @Binding var sessionID: UUID?
 
-    @StateObject var tabManager = TabManager()
+    @StateObject var windowContext: WindowBrowsingContext
+    @ObservedObject var tabManager: TabManager
     @StateObject var suggestionModel = AddressSuggestionsModel()
     /// The new-tab page's search box gets its OWN suggestion model — sharing
     /// one instance with the toolbar meant typing in either field repopulated
@@ -21,6 +22,7 @@ struct ContentView: View {
     @StateObject var translationService = TranslationService()
     @StateObject var responsiveDesignStore = ResponsiveDesignStore()
     @StateObject var thumbnailStore = TabThumbnailStore()
+    @StateObject var ballPanel: AgentBallPanel
     /// Singleton observed so the TabBar's container menu stays current.
     @ObservedObject var containerStore = ContainerStore.shared
     /// Observed so the hidden shortcut buttons re-bind the moment a key is
@@ -55,6 +57,10 @@ struct ContentView: View {
         }
         self.appState = appState
         _sessionID = sessionID
+        let context = WindowBrowsingContext(windowID: sessionID.wrappedValue)
+        _windowContext = StateObject(wrappedValue: context)
+        _tabManager = ObservedObject(wrappedValue: context.tabManager)
+        _ballPanel = StateObject(wrappedValue: AgentBallPanel())
         // OBSERVED：body 直接读 settings.appearanceTheme/accentColor 等发布字段，
         // 普通计算属性不转发 objectWillChange——改主题/强调色的刷新此前靠
         // "恰好有别的重绘"（ARCH-4）。
@@ -63,8 +69,7 @@ struct ContentView: View {
         _shortcutStore = ObservedObject(wrappedValue: appState.system.keyboardShortcutStore)
         _bookmarkStore = ObservedObject(wrappedValue: appState.bookmarkStore)
         _passwordStore = ObservedObject(wrappedValue: appState.passwordStore)
-        let tm = TabManager()
-        _tabManager = StateObject(wrappedValue: tm)
+        let tm = context.tabManager
         tm.onRequestWindowClose = { NSApp.keyWindow?.close() }
         _suggestionModel = StateObject(wrappedValue: AddressSuggestionsModel())
         _newTabSuggestionModel = StateObject(wrappedValue: AddressSuggestionsModel())
@@ -104,11 +109,6 @@ struct ContentView: View {
     /// observing it, adding/removing a bookmark never re-rendered the
     /// toolbar and the star icon never moved.
     @ObservedObject var bookmarkStore: BookmarkStore
-    /// OBSERVED so the ball overlay mounts/unmounts the moment isEnabled
-    /// flips — reading the singleton in `body` without observing it left the
-    /// overlay stale (it only appeared when some other state happened to
-    /// re-render this view).
-    @ObservedObject var ballPanel = AgentBallPanel.shared
     var historyStore: HistoryStore { appState.historyStore }
     var formAutofillStore: FormAutofillStore { appState.formAutofillStore }
     var downloadStore: DownloadStore { appState.downloadStore }
@@ -140,7 +140,7 @@ struct ContentView: View {
             openSettings: { openWindow(id: "settings") },
             toggleWhiteboard: { WhiteboardPanel.shared.toggle() },
             toggleAgentBall: {
-                AgentBallPanel.shared.toggle()
+                ballPanel.toggle()
             },
             bindings: .init(
                 showHistory: $showHistory,
@@ -327,7 +327,7 @@ struct ContentView: View {
                     accentColor: settings.accentColor.color
                 )
             }
-            let ball = AgentBallPanel.shared
+            let ball = ballPanel
             ball.onOpenAgentPanel = {
                 showAgentPanel = true
                 AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
@@ -389,7 +389,8 @@ struct ContentView: View {
                         openFreshTab: { b.openFreshTab() }
                     )
                 ) {
-                    sessionID = restored
+                    sessionID = restored.sessionID
+                    windowContext.sessionKey = restored.sessionKey
                 }
             }
         }
@@ -419,7 +420,7 @@ struct ContentView: View {
         }
         // Agent 任务中途提问（askUser）时自动弹出面板 —— 提问卡片只存在于面板里，
         // 面板没开时用户根本看不见，回合会无限挂起（已开则不动，避免误关）。
-        .onReceive(UserPromptCenter.shared.$pending) { pending in
+        .onReceive(aiSession.promptCenter.$pending) { pending in
             if pending != nil, !showAgentPanel {
                 showAgentPanel = true
                 AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
@@ -661,7 +662,7 @@ struct ContentView: View {
     /// Switches this window's browsing persona. New tabs use the profile's
     /// isolated data store; existing tabs are NOT retroactively changed.
     func switchProfile(to profileID: UUID?) {
-        tabManager.profileDataStore = ProfileStore.shared.dataStore(for: profileID)
+        windowContext.setProfile(profileID)
         appState.applyProfile(profileID)
     }
 

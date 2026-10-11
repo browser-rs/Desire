@@ -12,9 +12,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    name: Rust quality gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust formatting
+        run: cargo fmt --check
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Rust build
+        run: cargo build --workspace
+
   release:
     name: Build and publish
     runs-on: macos-latest
+    needs: quality
 
     steps:
       - uses: actions/checkout@v4

@@ -886,6 +886,10 @@ try {
             for name in Self.scriptMessageHandlers {
                 wv.configuration.userContentController.removeScriptMessageHandler(forName: name)
             }
+            for name in ["desireProtocolEvent", "desireProtocolControl", "dppFrame"] {
+                wv.configuration.userContentController.removeScriptMessageHandler(
+                    forName: name, contentWorld: .page)
+            }
             wv.configuration.userContentController.removeScriptMessageHandler(
                 forName: "desireExt", contentWorld: WebView.extensionWorld)
             // 台账一并作废（下次 observe 重新登记，与新 coordinator 配对）。
@@ -1071,15 +1075,21 @@ try {
                     reply(value, error: error)
                 }
             case ("cookies", "getAll"):
-                let filterURL = (args.first as? [String: Any])?["url"]
-                    .flatMap { $0 as? String }.flatMap { URL(string: $0) }
+                guard let details = args.first as? [String: Any],
+                      let urlString = details["url"] as? String,
+                      let filterURL = URL(string: urlString),
+                      let pluginID = extID.flatMap(UUID.init(uuidString:)),
+                      AppState.live?.pluginStore.canAccessCookies(pluginID: pluginID, at: filterURL) == true else {
+                    reply(nil, error: "cookies.getAll requires a permitted http(s) url")
+                    return
+                }
                 parent.state.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
                     var list: [[String: Any]] = []
                     for c in cookies {
-                        if let fu = filterURL {
-                            guard c.domain.hasSuffix(fu.host ?? "#")
-                                  || fu.host?.hasSuffix(c.domain) == true else { continue }
-                        }
+                        let cookieDomain = c.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                        let host = filterURL.host?.lowercased() ?? ""
+                        guard !host.isEmpty,
+                              host == cookieDomain || host.hasSuffix("." + cookieDomain) else { continue }
                         list.append(["domain": c.domain, "name": c.name,
                                      "value": c.value, "path": c.path,
                                      "secure": c.isSecure] as [String: Any])
@@ -1088,12 +1098,20 @@ try {
                 }
             case ("cookies", "get"):
                 guard let details = args.first as? [String: Any],
-                      let name = details["name"] as? String else {
-                    reply(nil, error: "cookies.get requires name")
+                      let name = details["name"] as? String,
+                      let urlString = details["url"] as? String,
+                      let filterURL = URL(string: urlString),
+                      let pluginID = extID.flatMap(UUID.init(uuidString:)),
+                      AppState.live?.pluginStore.canAccessCookies(pluginID: pluginID, at: filterURL) == true else {
+                    reply(nil, error: "cookies.get requires name and a permitted http(s) url")
                     return
                 }
                 parent.state.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                    let hit = cookies.first { $0.name == name }
+                    let host = filterURL.host?.lowercased() ?? ""
+                    let hit = cookies.first {
+                        let domain = $0.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                        return $0.name == name && (host == domain || host.hasSuffix("." + domain))
+                    }
                     reply(hit.map { ["domain": $0.domain, "name": $0.name,
                                      "value": $0.value, "path": $0.path] }
                           ?? NSNull())
@@ -1114,6 +1132,12 @@ try {
                     domain = host
                 } else {
                     reply(nil, error: "cookies.set requires url or domain")
+                    return
+                }
+                guard let pluginID = extID.flatMap(UUID.init(uuidString:)),
+                      let targetURL = URL(string: "https://\(domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")))"),
+                      AppState.live?.pluginStore.canAccessCookies(pluginID: pluginID, at: targetURL) == true else {
+                    reply(nil, error: "cookies.set target is not permitted for this plugin")
                     return
                 }
                 let props = [HTTPCookiePropertyKey.domain: domain,

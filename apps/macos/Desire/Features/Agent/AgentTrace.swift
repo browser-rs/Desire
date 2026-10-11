@@ -45,7 +45,7 @@ enum AgentTrace {
                         pendingCallID = call.id
                         steps.append([
                             "action": call.function.name,
-                            "args": String(call.function.arguments.prefix(600)),
+                            "args": SecretRedactor.redact(String(call.function.arguments.prefix(600))),
                             "callId": call.id,
                         ])
                     }

@@ -45,7 +45,7 @@ struct AgentPanel: View {
     @State private var isDroppingImage = false
     @ObservedObject private var planStore = AgentPlanStore.shared
     @ObservedObject private var recorder = WindowRecorder.shared
-    @ObservedObject private var promptCenter = UserPromptCenter.shared
+    @ObservedObject var promptCenter: UserPromptCenter
     /// True while the message list viewport sits at the bottom — gates the
     /// streaming auto-follow so reading older messages isn't interrupted.
     @State private var isPinnedToBottom = true
@@ -917,7 +917,7 @@ struct AgentPanel: View {
     preference.model = "gpt-4o"
     let conversationStore = ConversationStore()
     let store = AgentSessionStore(preference: preference, conversationStore: conversationStore)
-    return AgentPanel(store: store, conversationStore: conversationStore)
+    return AgentPanel(store: store, conversationStore: conversationStore, promptCenter: store.promptCenter)
         .frame(width: 360, height: 560)
 }
 /// Tab Crew 进度条（0.3.1）：每子任务一枚瓦片（状态色），点击对应标签；

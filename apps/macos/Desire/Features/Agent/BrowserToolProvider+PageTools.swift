@@ -519,7 +519,7 @@ extension BrowserToolProvider {
 
         case "reflect":
             // 让**模型自己**回头审一遍这一轮：评语返回给它，它据此修正或补验证。
-            guard let session = AgentScheduler.shared.deliveryTarget else {
+            guard let session = ownerSession else {
                 return Self.fail("No live agent session to review.")
             }
             return await session.reflectForTool(question: (args["question"] as? String) ?? "")
@@ -532,7 +532,7 @@ extension BrowserToolProvider {
             }
             let limit = min(20, max(1, (args["limit"] as? Int) ?? 5))
             // 排除当前对话：它已经在模型的上下文里，搜它只是浪费 token。
-            let current = AgentScheduler.shared.deliveryTarget?.conversationId
+            let current = ownerSession?.conversationId
             let hits = surface.conversationStore.search(query, limit: limit, excluding: current)
             guard !hits.isEmpty else {
                 return "No past conversations matched \"\(query)\" (searched \(surface.conversationStore.conversations.count) saved chats)."

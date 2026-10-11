@@ -78,6 +78,21 @@ final class AgentScheduler: ObservableObject {
     }
 
     private var registered: [(id: UUID, box: WeakBox, at: Date, title: String?)] = []
+    private var tabLeases: [UUID: Int] = [:]
+
+    func acquireTabLease(_ tabID: UUID) {
+        tabLeases[tabID, default: 0] += 1
+    }
+
+    func releaseTabLease(_ tabID: UUID) {
+        guard let count = tabLeases[tabID] else { return }
+        if count <= 1 { tabLeases.removeValue(forKey: tabID) }
+        else { tabLeases[tabID] = count - 1 }
+    }
+
+    func isTabLeased(_ tabID: UUID) -> Bool {
+        (tabLeases[tabID] ?? 0) > 0
+    }
 
     @discardableResult
     func registerSession(_ store: AgentSessionStore, windowTitle: String? = nil) -> UUID {

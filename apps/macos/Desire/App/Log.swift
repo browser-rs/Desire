@@ -19,7 +19,7 @@ enum Log {
     static let contentBlocking = Logger(subsystem: subsystem, category: "content-blocking")
     static let privacy = Logger(subsystem: subsystem, category: "privacy")
     static let extensions = Logger(subsystem: subsystem, category: "extensions")
-    static let storage = Logger(subsystem: subsystem, category: "storage")
+    nonisolated static let storage = Logger(subsystem: subsystem, category: "storage")
     static let userScripts = Logger(subsystem: subsystem, category: "user-scripts")
     static let pdf = Logger(subsystem: subsystem, category: "pdf")
     // nonisolated：下载代理回调（nonisolated 上下文）也要用 Logger 是 Sendable 的。

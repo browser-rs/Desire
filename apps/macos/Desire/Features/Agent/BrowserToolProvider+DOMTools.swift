@@ -473,7 +473,7 @@ extension BrowserToolProvider {
             // 计划归属发起回合的会话（面板按各自会话读取，不互相污染）。
             AgentPlanStore.shared.set(
                 steps,
-                conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+                 conversationID: ownerSession?.conversationId?.uuidString)
             let done = steps.filter { $0.status == "done" }.count
             return "Plan updated: \(done)/\(steps.count) done"
 
@@ -484,7 +484,7 @@ extension BrowserToolProvider {
             guard let callID = args["callId"] as? String, !callID.isEmpty else {
                 return Self.fail("Missing callId (from the truncation marker)")
             }
-            guard let session = AgentScheduler.shared.deliveryTarget else {
+            guard let session = ownerSession else {
                 return Self.fail("No live agent session")
             }
             guard let toolMessage = session.messages.last(where: { $0.role == .tool && $0.toolCallId == callID }),
@@ -509,7 +509,7 @@ extension BrowserToolProvider {
             // 编辑/导出由用户点卡片上的「打开白板」。get 把板读回给模型
             // ——"读板→改图"的迭代闭环（不再盲写）。
             let action = args["action"] as? String ?? "render"
-            let conversationID = AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+            let conversationID = ownerSession?.conversationId?.uuidString
             let store = WhiteboardStore.shared
             if action == "get" {
                 // 查询成功但板为空不是失败（结果为空保持原样）。
@@ -606,7 +606,7 @@ extension BrowserToolProvider {
                 guard action == "render" || action == "append" || action == "insert" else {
                     return Self.fail("from:\"extract\" works with render, append or insert")
                 }
-                guard let messages = AgentScheduler.shared.deliveryTarget?.messages,
+                guard let messages = ownerSession?.messages,
                       let extractResult = messages.last(where: {
                           $0.role == .tool && $0.toolName == "pageExtract"
                       })?.content,
@@ -634,7 +634,7 @@ extension BrowserToolProvider {
             // evidence 引用先就地解析成 data URI（模型不必回传几 MB 的 base64）
             if let evidenceError = WhiteboardEvidence.resolve(
                 &rawBlocks,
-                messages: AgentScheduler.shared.deliveryTarget?.messages ?? []) {
+                messages: ownerSession?.messages ?? []) {
                 return Self.fail(evidenceError)
             }
             var blocks: [WhiteboardBlock] = []
@@ -790,7 +790,10 @@ extension BrowserToolProvider {
             guard let question = args["question"] as? String, !question.isEmpty else {
                 return Self.fail("Missing question")
             }
-            let answer = await UserPromptCenter.shared.ask(question)
+            guard let promptCenter = ownerSession?.promptCenter else {
+                return Self.fail("No owning Agent session for user prompt")
+            }
+            let answer = await promptCenter.ask(question)
             return answer
 
         case "writeFile":
@@ -913,7 +916,7 @@ extension BrowserToolProvider {
             let dppWebView = dppTab.browser.webView
             // 审批时空一致性：闸门记录的页面 host ≠ 当前 host = 审批之后页面
             // 已导航——同名动作会在别的页面上跑，拒绝并要求重新审批。
-            if let session = AgentScheduler.shared.deliveryTarget,
+            if let session = ownerSession,
                let approvedHost = session.dppActionHost(for: call.id) {
                 let currentHost = dppWebView.url?.host ?? ""
                 if approvedHost != currentHost {
@@ -1580,7 +1583,7 @@ extension BrowserToolProvider {
             guard let query = args["query"] as? String, !query.isEmpty else {
                 return Self.fail("Missing query")
             }
-            guard let session = AgentScheduler.shared.deliveryTarget else {
+            guard let session = ownerSession else {
                 return Self.fail("No live agent session")
             }
             let pairs = session.messages.enumerated().compactMap { index, message -> (Int, String, String)? in

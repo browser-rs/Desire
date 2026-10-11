@@ -108,18 +108,35 @@ assemble_body() {  # assemble_body <tag> —— 正文 = CHANGELOG 段 + 安装�
   cat /tmp/release-body.md
 }
 
+assert_release_worktree_clean() {
+  if [ -n "$(git status --porcelain)" ]; then
+    die "发布前工作区必须干净；请先提交或暂存当前变更，发布脚本不会替你提交未知文件"
+  fi
+}
+
+assert_no_secret_artifacts() {
+  local path
+  while IFS= read -r path; do
+    case "$path" in
+      .env|.env.*|*.key|*.pem|*.p12|*.mobileprovision|*.log|*.DS_Store|*/.DS_Store)
+        die "检测到不应进入发布提交的文件：$path" ;;
+    esac
+  done < <(git ls-files --others --exclude-standard)
+}
+
 # ── 阶段 ────────────────────────────────────────────────────
 
 stage_prep() {
   log "prep：冻结 CHANGELOG + 版本号，提交并推送"
+  assert_release_worktree_clean
+  assert_no_secret_artifacts
   [ -f CHANGELOG.md ] || die "没有 CHANGELOG.md"
   grep -qF "## [$TAG]" CHANGELOG.md || die "CHANGELOG.md 里没有 '## [$TAG]' 段——先写好发布说明再跑"
   if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "本地已有 tag $TAG"; fi
   if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已有 release $TAG"; fi
 
-  echo "将提交的变更："
-  git status --short
-  printf '确认提交以上全部变更并推送？[y/N] '
+  echo "发布脚本只允许提交 CHANGELOG、website/index.html 和 Xcode 版本文件。"
+  printf '确认更新版本并推送？[y/N] '
   read -r answer || answer=""
   [ "$answer" = "y" ] || die "放弃"
 
@@ -146,12 +163,8 @@ stage_prep() {
   sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $next_build;/g" "$pbx"
   grep -q "MARKETING_VERSION = $V;" "$pbx" || die "版本号替换失败"
 
-  git add -A
-  if ! git diff --cached --quiet; then
-    git commit -m "release(v$V): v$V — freeze changelog and bump version ($next_build)"
-  fi
-  # 改名后自动补一个空壳 `## [Unreleased]`——发版后的新条目永远有落点，
-  # 不再需要人工/脚本去动版本头（2026-09-29 三次吃头事故的根治）。
+  # 发版后的 Unreleased 空壳必须在同一个版本提交中落盘，不能在 commit 后
+  # 修改却不提交，否则下一次发版会从未跟踪的工作树状态开始。
   python3 - <<'PYCH'
 from pathlib import Path
 p = Path("CHANGELOG.md")
@@ -160,6 +173,20 @@ if "## [Unreleased]" not in s:
     p.write_text("## [Unreleased]\n\n" + s)
     print("已补空壳 [Unreleased] 段")
 PYCH
+
+  git add -- CHANGELOG.md website/index.html "$pbx"
+  local unexpected
+  unexpected=$(git diff --cached --name-only | while IFS= read -r path; do
+    if [[ "$path" != "CHANGELOG.md" \
+       && "$path" != "website/index.html" \
+       && "$path" != "apps/macos/Desire.xcodeproj/project.pbxproj" ]]; then
+      printf '%s\n' "$path"
+    fi
+  done)
+  [ -z "$unexpected" ] || die "发布 staging 出现未允许文件：$unexpected"
+  if ! git diff --cached --quiet; then
+    git commit -m "release(v$V): v$V — freeze changelog and bump version ($next_build)"
+  fi
   git push origin main
   echo "已推送 $(git rev-parse --short HEAD)，构建号 → $next_build"
 }

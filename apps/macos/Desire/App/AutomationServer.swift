@@ -137,7 +137,9 @@ final class AutomationServer {
             .first(where: { $0.lowercased().hasPrefix("authorization:") }) else {
             return false
         }
-        return header.lowercased().contains("bearer \(requiredToken.lowercased())")
+        let value = header.split(separator: ":", maxSplits: 1).last
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        return BearerAuthentication.matches(header: value, token: requiredToken)
     }
 
     /// 请求头取值（大小写不敏感；唯一命中）。
@@ -1276,6 +1278,10 @@ final class AutomationServer {
                 guard let name = Self.string(body, "name"),
                       let toolWebView = Self.dppWebViewForTools() else {
                     return try Self.json(["error": "missing name or no active tab"])
+                }
+                guard let action = TabSessionCoordinator.shared.activeTabManager?.selectedTab?.browser.effectiveProtocol?.actions.first(where: { $0.name == name }),
+                      action.isBridgeSafeLocal else {
+                    return try Self.json(["error": "DPP action requires Agent approval; run it from the Agent session"])
                 }
                 let args = body["args"] as? [String: Any] ?? [:]
                 let call = AgentToolCall(

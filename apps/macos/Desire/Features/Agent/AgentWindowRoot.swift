@@ -68,7 +68,8 @@ struct AgentWindowRoot: View {
                 onToggleBall: onToggleBall,
                 onToggleSidebar: { setSidebarExpanded(!isSidebarExpanded) },
                 isSidebarExpanded: isSidebarExpanded,
-                hidesHeaderNavigation: true
+                hidesHeaderNavigation: true,
+                promptCenter: store.promptCenter
             )
         case .tasks:
             AgentTasksView(onBack: { switchDestination(.chat) })

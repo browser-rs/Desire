@@ -179,10 +179,11 @@ pub async fn key_escrow_set(
   key_check: &str,
 ) -> Result<(), AppError> {
   validate_escrow(kdf_salt, wrapped_dek, key_check)?;
+  let mut tx = state.pool.begin().await?;
   let existing: Option<Option<String>> =
     sqlx::query_scalar("SELECT sync_key_check FROM users WHERE id = ?")
       .bind(user_id)
-      .fetch_optional(&state.pool)
+      .fetch_optional(&mut *tx)
       .await?;
   let Some(existing) = existing else {
     return Err(AppError::NotFound("user not found".into()));
@@ -196,13 +197,16 @@ pub async fn key_escrow_set(
       ));
     }
   }
-  sqlx::query("UPDATE users SET kdf_salt = ?, wrapped_dek = ?, sync_key_check = ? WHERE id = ?")
-    .bind(kdf_salt)
-    .bind(wrapped_dek)
-    .bind(key_check)
-    .bind(user_id)
-    .execute(&state.pool)
-    .await?;
+  if existing.as_deref().is_none_or(|c| c.is_empty()) {
+    sqlx::query("UPDATE users SET kdf_salt = ?, wrapped_dek = ?, sync_key_check = ? WHERE id = ?")
+      .bind(kdf_salt)
+      .bind(wrapped_dek)
+      .bind(key_check)
+      .bind(user_id)
+      .execute(&mut *tx)
+      .await?;
+  }
+  tx.commit().await?;
   Ok(())
 }
 

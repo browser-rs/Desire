@@ -304,32 +304,48 @@ pub async fn key_check_get(state: &AppState, user_id: i64) -> Result<Option<Stri
 
 pub async fn key_check_set(state: &AppState, user_id: i64, check: &str) -> Result<(), AppError> {
   validate_check_format(check)?;
-  let existing = key_check_get(state, user_id).await?;
-  match existing {
-    None => {
-      sqlx::query("UPDATE users SET sync_key_check = ? WHERE id = ?")
-        .bind(check)
-        .bind(user_id)
-        .execute(&state.pool)
-        .await?;
-      Ok(())
-    }
-    // 已有指纹:相同 → 幂等 ok;不同 → 拿错密钥,拒绝(防止新密钥覆盖旧密文)
-    Some(existing) if existing == check => Ok(()),
-    Some(_) => Err(AppError::Conflict(
+  let mut tx = state.pool.begin().await?;
+  let existing: Option<Option<String>> =
+    sqlx::query_scalar("SELECT sync_key_check FROM users WHERE id = ? FOR UPDATE")
+      .bind(user_id)
+      .fetch_optional(&mut *tx)
+      .await?;
+  let existing = existing.flatten().filter(|value| !value.is_empty());
+  if !first_writer_wins(existing.as_deref(), check) {
+    return Err(AppError::Conflict(
       "sync key does not match existing data".into(),
-    )),
+    ));
   }
+  if existing.is_none() {
+    sqlx::query("UPDATE users SET sync_key_check = ? WHERE id = ?")
+      .bind(check)
+      .bind(user_id)
+      .execute(&mut *tx)
+      .await?;
+  }
+  tx.commit().await?;
+  Ok(())
+}
+
+fn first_writer_wins(existing: Option<&str>, candidate: &str) -> bool {
+  existing.is_none_or(|value| value == candidate)
 }
 
 #[cfg(test)]
 mod tests {
-  use super::{clamp_client_stamp, parse_since, parse_since_id};
+  use super::{clamp_client_stamp, first_writer_wins, parse_since, parse_since_id};
   use crate::errors::AppError;
   use chrono::NaiveDateTime;
 
   fn ts(s: &str) -> NaiveDateTime {
     NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").unwrap()
+  }
+
+  #[test]
+  fn first_writer_wins_only_when_empty_or_same() {
+    assert!(first_writer_wins(None, "abc"));
+    assert!(first_writer_wins(Some("abc"), "abc"));
+    assert!(!first_writer_wins(Some("old"), "new"));
   }
 
   #[test]

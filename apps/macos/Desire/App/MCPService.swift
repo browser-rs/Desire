@@ -14,11 +14,10 @@ final class MCPService {
 
     private var listener: NWListener?
     private static let port: UInt16 = 8798
-    /// One session per server lifetime is enough for v1 — the id is handed
-    /// out at initialize and echoed back by compliant clients.
-    private var sessionID = UUID().uuidString
-    /// 本连接绑定的 Desire 窗口（initialize 时声明；nil = newest 语义）。
-    private var sessionWindowID: String?
+    private final class ConnectionContext {
+        let sessionID = UUID().uuidString
+        var windowID: String?
+    }
     /// Optional bearer auth: `--mcp-token <token>` gates every request
     /// (initialize included) exactly like the automation bridge's
     /// `--automation-token`. Default: open on localhost.
@@ -40,7 +39,36 @@ final class MCPService {
             .first(where: { $0.lowercased().hasPrefix("authorization:") }) else {
             return false
         }
-        return header.lowercased().contains("bearer \(requiredToken.lowercased())")
+        let value = header.split(separator: ":", maxSplits: 1).last
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        return BearerAuthentication.matches(header: value, token: requiredToken)
+    }
+
+    private static func passesOriginGuard(_ request: String) -> Bool {
+        func isLocal(_ value: String, scheme: Bool) -> Bool {
+            var raw = value
+            if scheme, let separator = raw.range(of: "://") {
+                raw = String(raw[separator.upperBound...])
+            }
+            let host = raw.split(separator: ":", maxSplits: 1).first?
+                .lowercased() ?? raw.lowercased()
+            return host == "127.0.0.1" || host == "localhost"
+        }
+        if let host = requestHeader(request, "Host"), !isLocal(host, scheme: false) {
+            return false
+        }
+        if let origin = requestHeader(request, "Origin"),
+           origin == "null" || !isLocal(origin, scheme: true) {
+            return false
+        }
+        return true
+    }
+
+    private static func requestHeader(_ request: String, _ name: String) -> String? {
+        request.split(separator: "\r\n", omittingEmptySubsequences: false)
+            .first { $0.lowercased().hasPrefix("\(name.lowercased()):") }?
+            .split(separator: ":", maxSplits: 1).last?
+            .trimmingCharacters(in: .whitespaces)
     }
 
     func startIfRequested() {
@@ -76,13 +104,13 @@ final class MCPService {
 
     private func handle(_ connection: NWConnection) {
         connection.start(queue: Self.bridgeQueue)
-        accumulate(connection, Data())
+        accumulate(connection, Data(), context: ConnectionContext())
     }
 
     /// Reads until a complete request is buffered. URLSession writes headers
     /// and body as SEPARATE TCP segments — a single receive returns headers
     /// only and produced "400 bad json" for every real MCP client.
-    private func accumulate(_ connection: NWConnection, _ buffer: Data) {
+    private func accumulate(_ connection: NWConnection, _ buffer: Data, context: ConnectionContext) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 1024) { chunk, _, isComplete, error in
             Task { @MainActor in
                 let accumulated = buffer + (chunk ?? Data())
@@ -98,10 +126,15 @@ final class MCPService {
                         .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 0
                     let bodyCount = accumulated.count - headerEnd.upperBound
                     if bodyCount >= declared {
-                        if Self.isAuthorized(String(data: accumulated, encoding: .utf8) ?? "") {
-                            self.handleComplete(connection, accumulated)
+                        let request = String(data: accumulated, encoding: .utf8) ?? ""
+                        if Self.passesOriginGuard(request), Self.isAuthorized(request) {
+                            self.handleComplete(connection, accumulated, context: context)
                         } else {
-                            self.respond(connection, status: "401 Unauthorized", body: #"{"error":"unauthorized — missing or wrong bearer token"}"#)
+                            let status = Self.passesOriginGuard(request) ? "401 Unauthorized" : "403 Forbidden"
+                            let message = Self.passesOriginGuard(request)
+                                ? "unauthorized — missing or wrong bearer token"
+                                : "forbidden — MCP only accepts local Host/Origin"
+                            self.respond(connection, status: status, body: "{\"error\":\"\(message)\"}")
                         }
                         return
                     }
@@ -113,12 +146,12 @@ final class MCPService {
                     connection.cancel()
                     return
                 }
-                self.accumulate(connection, accumulated)
+                self.accumulate(connection, accumulated, context: context)
             }
         }
     }
 
-    private func handleComplete(_ connection: NWConnection, _ buffer: Data) {
+    private func handleComplete(_ connection: NWConnection, _ buffer: Data, context: ConnectionContext) {
         guard let raw = String(data: buffer, encoding: .utf8) else {
             respond(connection, status: "400 Bad Request", body: #"{"error":"bad encoding"}"#)
             return
@@ -139,13 +172,10 @@ final class MCPService {
             return
         }
         Task { @MainActor in
-            let (status, body, _) = await self.dispatch(rpc)
-            self.respond(connection, status: status, body: body, extraHeaders: self.sessionHeaders)
+            let (status, body, _) = await self.dispatch(rpc, context: context)
+            self.respond(connection, status: status, body: body,
+                         extraHeaders: "Mcp-Session-Id: \(context.sessionID)\r\n")
         }
-    }
-
-    private var sessionHeaders: String {
-        "Mcp-Session-Id: \(sessionID)\r\n"
     }
 
     private func respond(_ connection: NWConnection, status: String, body: String, extraHeaders: String = "") {
@@ -216,7 +246,7 @@ final class MCPService {
 
     // MARK: - JSON-RPC dispatch
 
-    private func dispatch(_ rpc: [String: Any]) async -> (status: String, body: String, isNotification: Bool) {
+    private func dispatch(_ rpc: [String: Any], context: ConnectionContext) async -> (status: String, body: String, isNotification: Bool) {
         let method = rpc["method"] as? String ?? ""
         let id: Any? = rpc["id"]
         let isNotification = (id == nil)
@@ -228,7 +258,7 @@ final class MCPService {
         if method == "initialize",
            let meta = params["_meta"] as? [String: Any],
            let windowID = meta["desireWindow"] as? String {
-            sessionWindowID = windowID
+            context.windowID = windowID
         }
 
         // Notifications get 202 Accepted, no body.
@@ -262,8 +292,8 @@ final class MCPService {
             let name = params["name"] as? String ?? ""
             var args = params["arguments"] as? [String: Any] ?? [:]
             // 窗口绑定：per-call window 参数 > 会话绑定 windowID。
-            if sessionWindowID != nil, args["window"] == nil {
-                args["window"] = sessionWindowID
+            if context.windowID != nil, args["window"] == nil {
+                args["window"] = context.windowID
             }
             guard let tool = Self.toolCatalog.first(where: { $0["name"] as? String == name }),
                   let mapping = tool["_bridge"] as? [String: Any] else {
@@ -282,9 +312,10 @@ final class MCPService {
                     payload[bridgeField] = value
                 }
             }
+            let targetWindow = args["window"] as? String ?? context.windowID
             let bridgeResponse = await AutomationServer.shared.callEndpoint(
                 method: httpMethod, path: path, json: payload.isEmpty ? nil : payload,
-                window: sessionWindowID
+                window: targetWindow
             )
             // Bridge marks failures with a non-null string "error" field;
             // "error": null is normal payload (e.g. pageMeta).
@@ -297,10 +328,10 @@ final class MCPService {
             return ("200 OK", Self.rpcResult(id: id, result: result), false)
 
         case "resources/list":
-            return await resourcesList(id: id)
+            return await resourcesList(id: id, windowID: context.windowID)
 
         case "resources/read":
-            return await resourcesRead(id: id, uri: params["uri"] as? String ?? "")
+            return await resourcesRead(id: id, uri: params["uri"] as? String ?? "", windowID: context.windowID)
 
         case "prompts/list":
             return ("200 OK", Self.rpcResult(id: id, result: ["prompts": Self.promptCatalog.map { prompt in
@@ -319,9 +350,9 @@ final class MCPService {
     // MARK: - MCP resources (page://<tab>/<kind>)
 
     /// Every open tab as three resources: page://<index>/text|html|screenshot.
-    private func resourcesList(id: Any?) async -> (status: String, body: String, isNotification: Bool) {
+    private func resourcesList(id: Any?, windowID: String?) async -> (status: String, body: String, isNotification: Bool) {
         let stateResponse = await AutomationServer.shared.callEndpoint(
-            method: "GET", path: "/state", json: nil, window: sessionWindowID
+            method: "GET", path: "/state", json: nil, window: windowID
         )
         guard let parsed = try? JSONSerialization.jsonObject(with: Data(stateResponse.utf8)) as? [String: Any],
               let tabs = parsed["tabs"] as? [[String: Any]] else {
@@ -355,7 +386,7 @@ final class MCPService {
         return ("200 OK", Self.rpcResult(id: id, result: ["resources": resources]), false)
     }
 
-    private func resourcesRead(id: Any?, uri: String) async -> (status: String, body: String, isNotification: Bool) {
+    private func resourcesRead(id: Any?, uri: String, windowID: String?) async -> (status: String, body: String, isNotification: Bool) {
         guard let url = URL(string: uri), url.scheme == "page",
               let index = Int(url.host ?? ""),
               url.path.count > 1 else {
@@ -369,7 +400,7 @@ final class MCPService {
         switch kind {
         case "text":
             let response = await AutomationServer.shared.callEndpoint(
-                method: "GET", path: "/page/text?index=\(index)", json: nil, window: sessionWindowID
+                method: "GET", path: "/page/text?index=\(index)", json: nil, window: windowID
             )
             guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
                   let text = parsed["text"] as? String else {
@@ -381,7 +412,7 @@ final class MCPService {
             let response = await AutomationServer.shared.callEndpoint(
                 method: "POST", path: "/execute",
                 json: ["js": "document.documentElement.outerHTML", "index": index],
-                window: sessionWindowID
+                window: windowID
             )
             guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
                   let html = parsed["result"] as? String else {
@@ -391,7 +422,7 @@ final class MCPService {
 
         case "screenshot":
             let response = await AutomationServer.shared.callEndpoint(
-                method: "GET", path: "/screenshot?index=\(index)&inline=1", json: nil, window: sessionWindowID
+                method: "GET", path: "/screenshot?index=\(index)&inline=1", json: nil, window: windowID
             )
             guard let parsed = try? JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any],
                   let base64 = parsed["base64"] as? String else {

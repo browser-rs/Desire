@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Lightweight file-based persistence for larger or growing `Codable` data.
 ///
@@ -13,14 +14,10 @@ import Foundation
 /// read/write with no extra entitlement.
 ///
 /// Writes are **debounced and off-main**: the public `save` API is synchronous
-/// to call from `@MainActor` stores, but it only stages the encoded payload and
-/// hands it to a background `DiskStoreWriter` actor. Repeated writes to the same
-/// key within the debounce window coalesce into a single file write, and the
-/// actual `Data.write(.atomic)` runs on the actor (off the main thread). This
-/// keeps hot paths (tab open/close, history add, conversation save in the AI
-/// agent loop) from blocking the UI. Reads stay synchronous because they are
-/// rare (init-time) and the cost of an async read would ripple through store
-/// initializers.
+/// to call from `@MainActor` stores, but encoding and file writes happen in
+/// tracked background tasks. Repeated writes to the same key within the
+/// debounce window coalesce into a single file write, and termination can wait
+/// for every task that was scheduled before its flush barrier.
 enum DiskStore {
     /// Loads and decodes a value for `key`. Returns `nil` if the file is
     /// missing, unreadable, or fails to decode (callers already treat a
@@ -33,17 +30,9 @@ enum DiskStore {
     }
 
     /// Encodes `value` and schedules a debounced, off-main write for `key`.
-    /// Encoding happens on the caller (cheap, and avoids needing `Encodable`
-    /// constraints on the actor); the file write happens on the writer actor.
-    /// Failures are silent — matching the old UserDefaults behavior. Within
-    /// the debounce window, later writes to the same key win and earlier ones
-    /// are dropped.
+    /// Encoding and writing are tracked so termination can wait for work that
+    /// was accepted before its flush barrier.
     nonisolated static func save<T: Encodable>(_ value: T, key: String) {
-        // 编码发生在 writer actor 上，**不在调用方线程**（PERF-1）：TabManager 的
-        // 15s 会话持久化每拍要在主线程编码多 MB JSON（含各标签 interactionState），
-        // 是周期性掉帧的直接来源；ConversationStore/HistoryStore 等热路径同样受益。
-        // 失败静默的取舍不变。
-        //
         // 装箱过隔离边界：本项目的 Model 全是**值类型**（struct/数组/字典），按值
         // 传入后闭包持有独占副本，actor 上编码不存在共享可变状态——这是
         // @unchecked 的安全论证。不直接给泛型加 Sendable 约束的原因：模块默认
@@ -51,18 +40,26 @@ enum DiskStore {
         // `& Sendable` 会让 18 个类型全数编译失败（其中 ShortcutMapping 依赖
         // AppKit，无法 nonisolated 化）。
         let box = EncodableBox(value: value)
-        // 编码与入库分两段：encode 在 detached 任务（nonisolated 上下文）跑，
-        // 只有 Data（确定 Sendable）进 actor——避免把"可能隔离的 Encodable
-        // conformance"带进 actor 隔离上下文（#IsolatedConformances 警告）。
-        Task.detached {
-            guard let data = try? JSONEncoder().encode(box.value) else { return }
-            await writer.stage(data: data, key: key)
+        _ = coordination.schedule { generation in
+            // 编码与入库分两段：encode 在 detached 任务（nonisolated 上下文）跑，
+            // 只有 Data（确定 Sendable）进 actor。
+            Task.detached {
+                guard let data = try? JSONEncoder().encode(box.value) else {
+                    Log.storage.error("DiskStore encode failed for key \(key, privacy: .public) generation \(generation, privacy: .public)")
+                    return
+                }
+                await writer.stage(data: data, key: key, generation: generation)
+            }
         }
     }
 
     /// Schedules a debounced removal of the file for `key`. No-op if missing.
     nonisolated static func remove(key: String) {
-        Task { await writer.stageRemoval(key: key) }
+        _ = coordination.schedule { generation in
+            Task.detached {
+                await writer.stageRemoval(key: key, generation: generation)
+            }
+        }
     }
 
     /// Blocks briefly (capped at 3s) until every staged write/removal is on
@@ -70,8 +67,16 @@ enum DiskStore {
     /// window would otherwise lose the last save.
     nonisolated static func flushSync() {
         let semaphore = DispatchSemaphore(value: 0)
-        Task {
-            await writer.flushNow()
+        let targetGeneration = coordination.currentGeneration()
+        let tasks = coordination.tasks(upTo: targetGeneration)
+        let writer = writer
+        let coordination = coordination
+        Task.detached {
+            for task in tasks {
+                await task.value
+            }
+            await writer.flushNow(upTo: targetGeneration)
+            coordination.complete(upTo: targetGeneration)
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 3)
@@ -97,6 +102,7 @@ enum DiskStore {
     /// Shared background writer. Lazily initialized; the first `save`/`remove`
     /// pays the actor allocation, subsequent calls reuse it.
     nonisolated private static let writer = DiskStoreWriter()
+    nonisolated private static let coordination = DiskStoreWriteCoordinator()
 }
 
 /// 值装箱（安全论证见 DiskStore.save）。`@unchecked` 的依据是"值语义 + 闭包
@@ -114,28 +120,55 @@ fileprivate nonisolated struct EncodableBox<T>: @unchecked Sendable {
 /// of `save` calls (e.g. one per tab mutation, one per history entry) into a
 /// single file write.
 actor DiskStoreWriter {
-    /// Pending payloads waiting for their debounce window to elapse.
-    private var pending: [String: Data] = [:]
-    /// Pending removals (a key here cancels any staged write for it).
-    private var pendingRemovals: Set<String> = []
+    private enum PendingOperation {
+        case write(generation: UInt64, data: Data)
+        case remove(generation: UInt64)
+
+        var generation: UInt64 {
+            switch self {
+            case .write(let generation, _), .remove(let generation): return generation
+            }
+        }
+    }
+
+    /// Pending operations waiting for their debounce window to elapse.
+    private var pending: [String: PendingOperation] = [:]
     /// Active debounce tasks per key.
     private var tasks: [String: Task<Void, Never>] = [:]
+    /// Monotonic staging generation used by deterministic flush barriers.
+    private var nextGeneration: UInt64 = 0
 
+    private let directory: URL
     private let debounceInterval: Duration
 
-    init(debounceInterval: Duration = .milliseconds(500)) {
+    init(directory: URL = DiskStore.directory, debounceInterval: Duration = .milliseconds(500)) {
+        self.directory = directory
         self.debounceInterval = debounceInterval
     }
 
-    func stage(data: Data, key: String) {
-        pending[key] = data
-        pendingRemovals.remove(key)
+    @discardableResult
+    func stage(data: Data, key: String) -> UInt64 {
+        nextGeneration &+= 1
+        stage(data: data, key: key, generation: nextGeneration)
+        return nextGeneration
+    }
+
+    func stage(data: Data, key: String, generation: UInt64) {
+        nextGeneration = max(nextGeneration, generation)
+        pending[key] = .write(generation: generation, data: data)
         scheduleFlush(for: key)
     }
 
-    func stageRemoval(key: String) {
-        pending.removeValue(forKey: key)
-        pendingRemovals.insert(key)
+    @discardableResult
+    func stageRemoval(key: String) -> UInt64 {
+        nextGeneration &+= 1
+        stageRemoval(key: key, generation: nextGeneration)
+        return nextGeneration
+    }
+
+    func stageRemoval(key: String, generation: UInt64) {
+        nextGeneration = max(nextGeneration, generation)
+        pending[key] = .remove(generation: generation)
         scheduleFlush(for: key)
     }
 
@@ -150,31 +183,71 @@ actor DiskStoreWriter {
 
     private func flush(key: String) {
         tasks[key] = nil
-        let url = DiskStore.directory.appendingPathComponent("\(key).json")
-        if pendingRemovals.contains(key) {
-            pendingRemovals.remove(key)
+        guard let operation = pending.removeValue(forKey: key) else { return }
+        let url = directory.appendingPathComponent("\(key).json")
+        switch operation {
+        case .remove:
             try? FileManager.default.removeItem(at: url)
-            return
+        case .write(_, let data):
+            try? data.write(to: url, options: .atomic)
         }
-        guard let data = pending.removeValue(forKey: key) else { return }
-        try? data.write(to: url, options: .atomic)
     }
 
     /// Writes every pending payload immediately and cancels debounce timers.
     /// Terminate-time: a quit must not lose saves still inside their
     /// debounce window.
-    func flushNow() {
-        for key in tasks.keys { tasks[key]?.cancel() }
-        tasks.removeAll()
-        for key in pendingRemovals {
-            pendingRemovals.remove(key)
-            let url = DiskStore.directory.appendingPathComponent("\(key).json")
-            try? FileManager.default.removeItem(at: url)
+    func flushNow(upTo limit: UInt64? = nil) {
+        let target = limit ?? .max
+        for key in Array(pending.keys) {
+            guard let operation = pending[key], operation.generation <= target else { continue }
+            tasks[key]?.cancel()
+            tasks[key] = nil
+            pending.removeValue(forKey: key)
+            let url = directory.appendingPathComponent("\(key).json")
+            switch operation {
+            case .remove:
+                try? FileManager.default.removeItem(at: url)
+            case .write(_, let data):
+                try? data.write(to: url, options: .atomic)
+            }
         }
-        for (key, data) in pending {
-            let url = DiskStore.directory.appendingPathComponent("\(key).json")
-            try? data.write(to: url, options: .atomic)
-        }
-        pending.removeAll()
+    }
+}
+
+/// Coordinates detached encoders with the writer actor. The lock only guards
+/// task registration and snapshots; encoding and disk IO stay off the caller.
+private nonisolated final class DiskStoreWriteCoordinator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var nextGeneration: UInt64 = 0
+    private var tasks: [UInt64: Task<Void, Never>] = [:]
+
+    func schedule(_ makeTask: (UInt64) -> Task<Void, Never>) -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        nextGeneration &+= 1
+        let generation = nextGeneration
+        tasks[generation] = makeTask(generation)
+        return generation
+    }
+
+    func currentGeneration() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return nextGeneration
+    }
+
+    func tasks(upTo generation: UInt64) -> [Task<Void, Never>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return tasks
+            .filter { $0.key <= generation }
+            .sorted { $0.key < $1.key }
+            .map(\.value)
+    }
+
+    func complete(upTo generation: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        tasks = tasks.filter { $0.key > generation }
     }
 }

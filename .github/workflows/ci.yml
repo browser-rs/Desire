@@ -11,6 +11,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  rust:
+    name: Rust (fmt, test, build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust formatting
+        run: cargo fmt --check
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Rust build
+        run: cargo build --workspace
+
   build:
     name: Build (Release, arm64)
     runs-on: macos-latest

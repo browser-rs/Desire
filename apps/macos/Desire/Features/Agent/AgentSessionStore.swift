@@ -210,6 +210,7 @@ class AgentSessionStore: ObservableObject {
     /// at construction so save/load paths work without post-init wiring.
     let conversationStore: ConversationStore
     let toolProvider = BrowserToolProvider()
+    let promptCenter = UserPromptCenter()
     /// Strong ref to the configured surface. `BrowserToolProvider.surface`
     /// is weak, and a per-window `WindowToolSurface` has no other owner —
     /// without this it deallocates as soon as `configure(with:)` returns
@@ -225,6 +226,7 @@ class AgentSessionStore: ObservableObject {
     private weak var webView: WKWebView?
     private var isCancelled = false
     private var loopTask: Task<Void, Never>?
+    private var turnOwnership = AgentTurnOwnership()
     /// Shutdown-diagnostics peek: whether the loop task has been cancelled.
     var isLoopCancelled: Bool { loopTask?.isCancelled ?? true }
     /// True after `clear()` until a conversation is loaded or a message is
@@ -249,6 +251,14 @@ class AgentSessionStore: ObservableObject {
     /// 更新"上下文占用比例"。口径与 `compactForContext` 相同（字符数 / 预算）；
     /// 按 (条数, 末条长度) 记忆，流式期间每 80ms 只多一次 O(n) 轻扫。
     private var contextFractionLastComputeAt: Date = .distantPast
+
+    private func beginTurn() -> UUID {
+        turnOwnership.begin()
+    }
+
+    private func isCurrentTurn(_ turnID: UUID) -> Bool {
+        turnOwnership.isCurrent(turnID)
+    }
 
     private func updateContextFraction(force: Bool = false) {
         let key = "\(messages.count)-\(messages.last?.content?.count ?? 0)"
@@ -462,7 +472,7 @@ class AgentSessionStore: ObservableObject {
     /// surface (via `AppState.attach(tabManager:)`).
     func configure(with surface: BrowserToolSurface) {
         toolSurface = surface
-        toolProvider.attach(surface: surface)
+        toolProvider.attach(surface: surface, owner: self)
         if let tm = surface.tabManager {
             windowTitle = tm.windowTitle
             AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
@@ -803,7 +813,8 @@ class AgentSessionStore: ObservableObject {
         streamingTokenCount = 0
         streamingTokensPerSecond = 0
         processingStartedAt = Date()
-        loopTask = Task { await processLoop() }
+        let turnID = beginTurn()
+        loopTask = Task { await processLoop(turnID: turnID) }
     }
 
     /// 会话是否以**未获回答的用户提问**结尾 —— 工具执行中途被杀的典型残留
@@ -826,7 +837,8 @@ class AgentSessionStore: ObservableObject {
         streamingTokenCount = 0
         streamingTokensPerSecond = 0
         processingStartedAt = Date()
-        loopTask = Task { await processLoop() }
+        let turnID = beginTurn()
+        loopTask = Task { await processLoop(turnID: turnID) }
         return true
     }
 
@@ -847,7 +859,8 @@ class AgentSessionStore: ObservableObject {
         memoryProcessedCount = messages.count
         summarizedCount = messages.count
         saveCurrentConversation()   // 落盘 turnActive=true + 冲掉旧标志
-        loopTask = Task { await processLoop() }
+        let turnID = beginTurn()
+        loopTask = Task { await processLoop(turnID: turnID) }
         return true
     }
 
@@ -928,6 +941,7 @@ class AgentSessionStore: ObservableObject {
 
     func cancel() {
         Log.ai.info("turn cancelled by user (messages: \(self.messages.count))")
+        turnOwnership.invalidate()
         isCancelled = true
         isProcessing = false
         currentAction = nil
@@ -954,7 +968,7 @@ class AgentSessionStore: ObservableObject {
         // Same for an in-flight askUser: without this the cancelled loop
         // task stays suspended on its continuation forever (leak + the UI
         // question card never clears).
-        UserPromptCenter.shared.cancel()
+        promptCenter.cancel()
         // 第十一批：打断后**直接完结**尾部助手消息——只含 reasoning 的消息
         // 停在"思考中"形态，思考动画/展开框看起来还在进行。补一条可见的
         // 取消标记并 bump 重渲染。
@@ -997,7 +1011,8 @@ class AgentSessionStore: ObservableObject {
         refreshContextLabel()
         streamingTokenCount = 0
         streamingTokensPerSecond = 0
-        loopTask = Task { await processLoop() }
+        let turnID = beginTurn()
+        loopTask = Task { await processLoop(turnID: turnID) }
     }
 
     /// 本对话的输入历史（面板输入框 ↑/↓ 翻阅）。**按对话**记录并随会话落盘，
@@ -1032,6 +1047,7 @@ class AgentSessionStore: ObservableObject {
         // CONC-2：先停掉在跑的回合——此前只置 isProcessing = false，旧 loopTask
         // 会挂在审批/提问续体上永久泄漏，且新回合与旧循环交错写同一个 messages
         //（工具调用/结果配对被破坏）。舞步与 cancel() 一致。
+        turnOwnership.invalidate()
         isCancelled = true
         loopTask?.cancel()
         loopTask = nil
@@ -1063,7 +1079,7 @@ class AgentSessionStore: ObservableObject {
         // 新对话的计划自然为空（按会话分存），旧会话的计划保留——切回可见。
         hasInterruptedTurn = false
         turnCheckpointActive = false
-        UserPromptCenter.shared.cancel()
+        promptCenter.cancel()
         messages.removeAll()
         conversationId = nil
         conversationTitle = nil
@@ -1113,6 +1129,7 @@ class AgentSessionStore: ObservableObject {
     func loadConversation(_ id: UUID) {
         // CONC-2：与 clear() 同理——切换走正在显示的会话前先停掉在跑回合
         //（手机端切会话直达这里）。isCancelled 保持 true，等下一次发送重置。
+        turnOwnership.invalidate()
         isCancelled = true
         loopTask?.cancel()
         loopTask = nil
@@ -1190,6 +1207,18 @@ class AgentSessionStore: ObservableObject {
         let persistedMessages = messages.enumerated().map { index, msg -> AgentMessage in
             var copy = msg
             copy.imageDataURIs = nil
+            if let calls = copy.toolCalls {
+                copy.toolCalls = calls.map { call in
+                    AgentToolCall(
+                        id: call.id,
+                        type: call.type,
+                        function: AgentToolFunction(
+                            name: call.function.name,
+                            arguments: SecretRedactor.redact(
+                                call.function.arguments,
+                                knownKeys: preference.secretsForRedaction())))
+                }
+            }
             if let lastUserIdx, index > lastUserIdx, msg.role == .assistant,
                let text = copy.content, !text.isEmpty {
                 copy.content = SecretRedactor.redact(text, knownKeys: preference.secretsForRedaction())
@@ -1207,7 +1236,9 @@ class AgentSessionStore: ObservableObject {
         guard let wv = activeWebView else { return "" }
         return await withCheckedContinuation { continuation in
             wv.evaluateJavaScript("document.body.innerText.substring(0, 20000)") { result, _ in
-                continuation.resume(returning: (result as? String) ?? "")
+                let text = (result as? String) ?? ""
+                continuation.resume(returning: SecretRedactor.redact(
+                    text, knownKeys: self.preference.secretsForRedaction()))
             }
         }
     }
@@ -1268,7 +1299,9 @@ class AgentSessionStore: ObservableObject {
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: String],
               let text = obj["text"], !text.isEmpty else { return nil }
         let title = obj["title"] ?? ""
-        var result = "[Current page] \(title) — \(url.absoluteString)\n\(text)"
+        let safeURL = SecretRedactor.redact(
+            url.absoluteString, knownKeys: preference.secretsForRedaction())
+        var result = "[Current page] \(title) — \(safeURL)\n\(text)"
         // DPP 协议站点：注入结构化摘要 + **检测 events 命中**（事件信息附加
         // 到上下文，模型看到就知道页面有新审批/新消息等需要响应）。
         // DPP 配置关提示时不注入（解析仍在，pageProtocol 工具仍可用）。
@@ -1501,20 +1534,23 @@ class AgentSessionStore: ObservableObject {
         return preference.agentPersona.isEmpty ? nil : preference.agentPersona
     }
 
-    private func processLoop() async {
+    private func processLoop(turnID: UUID) async {
         defer {
-            isProcessing = false
-            currentAction = nil
-            processingStartedAt = nil
-            if !isCancelled, preference.completionSound { NSSound(named: "Glass")?.play() }
+            if isCurrentTurn(turnID) {
+                isProcessing = false
+                currentAction = nil
+                processingStartedAt = nil
+                if !isCancelled, preference.completionSound { NSSound(named: "Glass")?.play() }
+            }
         }
 
         // Drive turns back-to-back, flushing messages the user typed while
         // a turn was running (queued by `sendMessage`).
-        while !isCancelled {
+        while isCurrentTurn(turnID) && !isCancelled {
             turnFailed = false
             lastTurnErrorText = nil
-            await runTurn()
+            await runTurn(turnID: turnID)
+            guard isCurrentTurn(turnID) else { return }
             // Turn finished — hand the outcome to registered handlers
             // (scheduler run records for scheduled prompts). 用户中途取消
             // （turnFailed 未置）也不算 success（C-5）。
@@ -1534,7 +1570,8 @@ class AgentSessionStore: ObservableObject {
                 toolCount: turnToolCount)
             // Flush the queue only after a clean turn: a broken provider
             // would otherwise burn the whole queue in rapid error bursts.
-            guard !turnFailed, !isCancelled, let next = queuedMessages.first else { break }
+            guard isCurrentTurn(turnID), !turnFailed, !isCancelled,
+                  let next = queuedMessages.first else { break }
             queuedMessages.removeFirst()
             // A queued external delivery carries its own turn-finish hook —
             // attach it so the coming turn reports to the right run record.
@@ -1552,6 +1589,7 @@ class AgentSessionStore: ObservableObject {
         // 过了一遍，这里是兜底——模型仍可能从别处复述出凭据。**必须先脱敏再落盘**：后面
         // 的标题生成与记忆整理都是额外的模型调用（要跑好几秒），先保存的话，带原文的回答
         // 会在这段时间里躺在会话文件里。
+        guard isCurrentTurn(turnID) else { return }
         redactTurnSecrets()
 
         // **回合结束必须落盘**：`runTurn` 在"模型给出最终回答"（本轮没有工具调用）时是
@@ -1567,6 +1605,7 @@ class AgentSessionStore: ObservableObject {
         // 调用，此前它们跑在 `isProcessing == true` 期间，于是正文早就渲染完了、
         // 面板却一直显示"流式中"（实测反馈："消息都渲染完了还在流式输出"）。
         // 收尾仍在同一个 task 里串行跑（不与下一轮抢 memoryProcessedCount）。
+        guard isCurrentTurn(turnID) else { return }
         isProcessing = false
         currentAction = nil
         updateContextFraction(force: true)
@@ -1598,7 +1637,7 @@ class AgentSessionStore: ObservableObject {
 
     /// One model→tools→model turn. Returns when the model stops calling
     /// tools, errors out, or the iteration cap is hit.
-    private func runTurn() async {
+    private func runTurn(turnID: UUID) async {
         // AgentRuntime v2: budget-based loop replaces the old hardcoded
         // `0..<20` iteration cap. The soft limit (`maxIterations`) prevents
         // runaway execution while allowing genuinely long multi-step tasks.
@@ -1612,9 +1651,10 @@ class AgentSessionStore: ObservableObject {
         AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
         saveCurrentConversation()
 
-        while !isCancelled && iterations < maxIterations {
+        while isCurrentTurn(turnID) && !isCancelled && iterations < maxIterations {
             iterations += 1
             await waitWhilePaused()
+            guard isCurrentTurn(turnID), !isCancelled else { return }
 
             // Tool definitions must be sent on EVERY call in a tool-use
             // conversation: the second call sends back tool results, and
@@ -1677,6 +1717,7 @@ class AgentSessionStore: ObservableObject {
                 // is published at ~12 fps instead of per token.
                 var lastFlush = Date.distantPast
                 func flushTail() {
+                    guard isCurrentTurn(turnID) else { return }
                     updateContextFraction()
                     // **取消态兜底**：cancel() 把（已取消）写进 messages 数组，
                     // 但循环本地的 assistantMsg 看不到那次写入——缓冲里最后
@@ -1705,7 +1746,7 @@ class AgentSessionStore: ObservableObject {
                     }
                 }
                 for try await event in stream {
-                    if isCancelled {
+                    if !isCurrentTurn(turnID) || isCancelled {
                         // 第十一批：打断后**直接完结**——只有 reasoning 没有正文
                         // 时补可见的取消标记（否则 flushTail 会用空正文覆盖，用户
                         // 看到的是"消息不见了"+ 一条空响应错误）。
@@ -1920,7 +1961,7 @@ class AgentSessionStore: ObservableObject {
             // pause the loop (via a continuation) until the user decides.
             var ti = 0
             while ti < tcs.count {
-                if isCancelled || Task.isCancelled { return }
+                if !isCurrentTurn(turnID) || isCancelled || Task.isCancelled { return }
                 await waitWhilePaused()
 
                 // **只读段并行**：从当前位置起连续的 .readonly 工具互不改状态、也从不
@@ -1990,6 +2031,7 @@ class AgentSessionStore: ObservableObject {
                 } else {
                     result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
                 }
+                guard isCurrentTurn(turnID), !isCancelled, !Task.isCancelled else { return }
                 // 子代理刚跑完 → 认领它的用量（记在这条工具消息上，成本才算得全）。
                 // 并行 crew 时同期兄弟的用量会合并到先来的一条上：对话/回合总额是对的，
                 // 单条消息的归属可能合并（这点已知，见 CHANGELOG）。
@@ -2023,7 +2065,9 @@ class AgentSessionStore: ObservableObject {
             }
         }
 
-        if hitIterationCap && !isCancelled {
+        if isCurrentTurn(turnID), hitIterationCap && !isCancelled {
+            turnFailed = true
+            lastTurnErrorText = "Reached the maximum number of steps without completing the task."
             messages.append(AgentMessage(
                 role: .assistant,
                 content: "⚠️ Reached the maximum number of steps (\(maxIterations)). Stopping to avoid runaway execution."

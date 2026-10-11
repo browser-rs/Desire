@@ -9,10 +9,12 @@ class BrowserToolProvider {
     /// via `attach(surface:)`. Replaces the former 13 individual
     /// `weak var ...Store?` injections.
     weak var surface: BrowserToolSurface?
+    weak var ownerSession: AgentSessionStore?
 
     /// Attaches the tool surface. Called from `AgentSessionStore.configure`.
-    func attach(surface: BrowserToolSurface) {
+    func attach(surface: BrowserToolSurface, owner: AgentSessionStore? = nil) {
         self.surface = surface
+        self.ownerSession = owner
     }
 
 

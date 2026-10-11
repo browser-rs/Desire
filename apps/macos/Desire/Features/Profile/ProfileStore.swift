@@ -64,7 +64,12 @@ final class ProfileStore: ObservableObject {
     func removeProfile(id: UUID) {
         profiles.removeAll { $0.id == id }
         save()
-        dataStores.removeValue(forKey: id)
+        let dataStore = dataStores[id] ?? WKWebsiteDataStore(forIdentifier: id)
+        dataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { [weak self] in
+            Task { @MainActor in
+                self?.dataStores.removeValue(forKey: id)
+            }
+        }
         // 清该人物的各数据桶（0.3.5）：书签/历史/快拨 + webext 存储。
         // Chrome 语义：删人物即删其数据。
         if let active = activeProfileID, active == id {

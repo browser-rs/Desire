@@ -207,13 +207,14 @@ pub async fn pairing_claim(
 ) -> Result<(String, String), AppError> {
   let trimmed = code.trim().to_uppercase();
   let hash = hash_code(&trimmed);
+  let mut tx = state.pool.begin().await?;
   let row: Option<(i64, i64, String, String)> = sqlx::query_as(
     "SELECT id, user_id, desktop_device_id, desktop_name FROM remote_pairings \
      WHERE code_hash = ? AND claimed_at IS NULL AND revoked_at IS NULL AND expires_at > ?",
   )
   .bind(&hash)
   .bind(Utc::now().naive_utc())
-  .fetch_optional(&state.pool)
+  .fetch_optional(&mut *tx)
   .await?;
   let Some((id, owner, device_id, desktop_name)) = row else {
     return Err(AppError::Validation("配对码无效或已过期".into()));
@@ -222,12 +223,19 @@ pub async fn pairing_claim(
     // 码是真实存在的:别告诉非属主"无效",统一口径防枚举
     return Err(AppError::Validation("配对码无效或已过期".into()));
   }
-  sqlx::query("UPDATE remote_pairings SET claimed_at = ?, controller_name = ? WHERE id = ?")
-    .bind(Utc::now().naive_utc())
-    .bind(controller_name.trim())
-    .bind(id)
-    .execute(&state.pool)
-    .await?;
+  let claimed_at = Utc::now().naive_utc();
+  let claim = sqlx::query(
+    "UPDATE remote_pairings SET claimed_at = ?, controller_name = ? \
+     WHERE id = ? AND claimed_at IS NULL AND revoked_at IS NULL",
+  )
+  .bind(claimed_at)
+  .bind(controller_name.trim())
+  .bind(id)
+  .execute(&mut *tx)
+  .await?;
+  if !claim_update_won(claim.rows_affected()) {
+    return Err(AppError::Validation("配对码无效或已过期".into()));
+  }
   // 同一台手机重新配对：吊销同 (user, desktop_device_id, controller_name)
   // 的旧在效配对——重装 App / 重扫不会在桌面设备列表里堆积垃圾行。
   // 各手机的会话密钥互不相同，旧行吊销后旧手机自然失联。
@@ -241,8 +249,9 @@ pub async fn pairing_claim(
   .bind(&device_id)
   .bind(controller_name.trim())
   .bind(id)
-  .execute(&state.pool)
+  .execute(&mut *tx)
   .await?;
+  tx.commit().await?;
   publish_notify(state, user_id, &device_id, "pairing_claimed").await;
   Ok((device_id, desktop_name))
 }
@@ -373,7 +382,7 @@ pub async fn inbox_take(
     "SELECT id, payload FROM remote_inbox \
      WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL \
        AND (recipient = ? OR recipient = ?) \
-     ORDER BY id LIMIT 100",
+      ORDER BY id LIMIT 100 FOR UPDATE",
   )
   .bind(user_id)
   .bind(desktop_device_id)
@@ -393,6 +402,10 @@ pub async fn inbox_take(
     .await
     .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
   Ok(rows)
+}
+
+fn claim_update_won(rows_affected: u64) -> bool {
+  rows_affected == 1
 }
 
 /// express 信封 `{"id":..,"payload":".."}`(与 pull items 同形,客户端单一处理路径)。
@@ -426,7 +439,7 @@ pub async fn publish_notify(state: &AppState, user_id: i64, desktop_device_id: &
 
 #[cfg(test)]
 mod tests {
-  use super::{CODE_CHARS, Mailbox, generate_pairing_code, hash_code};
+  use super::{CODE_CHARS, Mailbox, claim_update_won, generate_pairing_code, hash_code};
 
   #[test]
   fn code_shape() {
@@ -472,5 +485,12 @@ mod tests {
       Some(vec![Mailbox::Controller, Mailbox::ControllerSnap])
     );
     assert_eq!(Mailbox::pull_lanes("desktop"), Some(vec![Mailbox::Desktop]));
+  }
+
+  #[test]
+  fn conditional_claim_requires_one_affected_row() {
+    assert!(claim_update_won(1));
+    assert!(!claim_update_won(0));
+    assert!(!claim_update_won(2));
   }
 }

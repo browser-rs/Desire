@@ -24,6 +24,7 @@ SOURCES=(
   apps/macos/Desire/App/Log.swift
   apps/macos/Desire/Features/Agent/AgentPlanStep.swift
   apps/macos/Desire/App/JSString.swift
+  apps/macos/Desire/App/BearerAuthentication.swift
   apps/macos/Desire/Features/History/HistoryEntry.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift
@@ -47,6 +48,8 @@ SOURCES=(
   apps/macos/Desire/Features/UserScripts/PluginI18N.swift
   apps/macos/Desire/Features/ReadingList/ReadingListItem.swift
   apps/macos/Desire/Features/Agent/AgentQuickTemplate.swift
+  apps/macos/Desire/Features/Agent/AgentTurnOwnership.swift
+  apps/macos/Desire/Features/Agent/ToolRisk.swift
   apps/macos/Desire/Features/Sync/SyncModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift
@@ -56,6 +59,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/BallCapability.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardExtract.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardTemplates.swift
+  apps/macos/Desire/Storage/DiskStore.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

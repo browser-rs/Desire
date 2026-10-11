@@ -153,6 +153,11 @@ extension BrowserToolProvider {
     }
 
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
+        let leasedTabID = ownerSession?.boundTabManager?.selectedTab?.id
+        if let leasedTabID { AgentScheduler.shared.acquireTabLease(leasedTabID) }
+        defer {
+            if let leasedTabID { AgentScheduler.shared.releaseTabLease(leasedTabID) }
+        }
         let result = await executeBody(call, in: webView)
         // 页面感知回证（0.3.2）：动作类工具执行后自动截视口快照，
         // 面板工具条目内联展示"点完之后"的画面。

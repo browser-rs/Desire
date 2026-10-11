@@ -210,6 +210,20 @@ struct DesireProtocol: Codable, Equatable {
         /// run 步骤 DSL 的原始 JSON 字符串（pageAction 执行时 parse）。
         var run: String?
         var success: String?
+
+        /// Actions exposed through the unauthenticated/local bridge must be
+        /// explicitly local and non-dangerous. Dynamic MCP steps are never
+        /// safe to execute outside the Agent approval gate.
+        var isBridgeSafeLocal: Bool {
+            guard danger != true,
+                  effects?.lowercased() != "outbound",
+                  effects?.lowercased() != "danger" else { return false }
+            guard let run, let data = run.data(using: .utf8),
+                  let steps = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return true
+            }
+            return !steps.contains { $0.keys.contains { $0.lowercased() == "mcp" } }
+        }
     }
 
     /// 站点级页面地图条目（well-known 的 pages 值）。

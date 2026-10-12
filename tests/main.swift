@@ -2207,6 +2207,26 @@ do {
 testDPPStaticRiskFloor()
 testDPPBridgeSafe()
 
+
+func testDPPAdapterAuthoring() {
+    let ok = DPPAdapterAuthoring.validate(name: "juejin", hosts: ["juejin.cn"], pathPrefixes: ["/post/"])
+    check("authoring：合法字段无错误", ok.isEmpty)
+    let bad = DPPAdapterAuthoring.validate(name: "", hosts: [], pathPrefixes: ["post"])
+    check("authoring：空 name/hosts 报错", bad.count >= 2)
+    check("authoring：pathPrefix 必须以 / 开头", bad.contains { $0.contains("must start with /") })
+
+    let data = DPPAdapterAuthoring.markdown(name: " test ", hosts: [" Juejin.CN "], pathPrefixes: [],
+                                            notes: "n", protocolBody: DesireProtocol())
+    let md = String(data: data!, encoding: .utf8) ?? ""
+    check("authoring：name 去空白", md.contains("\"test\""))
+    check("authoring：host 小写化", md.contains("juejin.cn"))
+    check("authoring：adapter 戳在协议体", md.contains("adapter: test"))
+
+    check("authoring：suggestedName 去 www", DPPAdapterAuthoring.suggestedName(for: URL(string: "https://www.juejin.cn/post/1")!) == "juejin")
+    check("authoring：suggestedName 去 m", DPPAdapterAuthoring.suggestedName(for: URL(string: "https://m.v2ex.com/t/2")!) == "v2ex")
+}
+testDPPAdapterAuthoring()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

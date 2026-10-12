@@ -199,6 +199,18 @@ extension BrowserToolProvider {
                 ], required: ["name", "description", "instructions"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "saveDPPAdapter", description: "Create a DPP adapter pack for the CURRENT site so the agent can read it structurally and run declared actions on every future visit. Workflow: (1) probe the page with executeJS (querySelector candidates for title/content/lists), (2) call this tool with verified selectors, (3) confirm with the user before persist-like actions. The pack is saved to the adapters directory and applies site-wide (natively-declared pages always win). Same name overwrites.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Short site name, e.g. juejin"),
+                    "hosts": AgentJSONSchemaValue(type: "array", description: "Host list: exact hosts or .domain for all subdomains, e.g. [\"juejin.cn\", \".juejin.cn\"]"),
+                    "pathPrefixes": AgentJSONSchemaValue(type: "array", description: "Optional path prefixes to scope the pack, e.g. [\"/post/\"]; empty = whole site"),
+                    "notes": AgentJSONSchemaValue(type: "string", description: "One line: what this pack covers and when it was verified"),
+                    "views": AgentJSONSchemaValue(type: "object", description: "Named views: { name: { item: selector, fields: { field: selector or {selector, type} } } }"),
+                    "signals": AgentJSONSchemaValue(type: "object", description: "Optional readiness signals: { ready: selector, busy: selector }"),
+                    "actions": AgentJSONSchemaValue(type: "array", description: "Optional declared actions: [{ name, description, params, run: [{click|fill|navigate...}], effects }] - effects must reflect REAL impact; persist/outbound force approval"),
+                ], required: ["name", "hosts", "views"]),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                                 name: "downloadFile", description: "Download a file from a URL into the Downloads folder (store-owned transfer: pause/resume in the downloads panel). Use for reports, CSV exports, media files — anything with a direct URL. Returns immediately; check listDownloads for progress.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Direct download URL"),

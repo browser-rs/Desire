@@ -1632,6 +1632,126 @@ extension BrowserToolProvider {
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
+        case "saveDPPAdapter":
+            // DPP 适配包自生成闭环（2026-10-12）：Agent 探查当前页 DOM 后把
+            // 声明写进适配包——用户说"帮我给这个站做个点赞适配"即可达成。
+            // 纯 JSON 落 DPPAdapters 目录（零代码、审批链照常）。
+            guard let name = args["name"] as? String, !name.isEmpty else {
+                return Self.fail("Missing name")
+            }
+            guard let hosts = args["hosts"] as? [String], !hosts.isEmpty else {
+                return Self.fail("Missing hosts (e.g. [\"juejin.cn\"])")
+            }
+            let pathPrefixes = args["pathPrefixes"] as? [String] ?? []
+            let notes = (args["notes"] as? String) ?? ""
+            // views 是模型给的 JSON 对象——转成 DesireProtocol 的 ProtocolView
+            guard let viewsRaw = args["views"] as? [String: Any], !viewsRaw.isEmpty else {
+                return Self.fail("Missing views (at least one view with item + fields)")
+            }
+            var views: [String: DesireProtocol.ProtocolView] = [:]
+            for (vName, vRaw) in viewsRaw {
+                guard let vDict = vRaw as? [String: Any],
+                      let item = vDict["item"] as? String, !item.isEmpty else {
+                    return Self.fail("view '\(vName)' missing item selector")
+                }
+                guard let fieldsRaw = vDict["fields"] as? [String: Any], !fieldsRaw.isEmpty else {
+                    return Self.fail("view '\(vName)' missing fields")
+                }
+                var fields: [String: DesireProtocol.FieldSpec] = [:]
+                for (fName, fRaw) in fieldsRaw {
+                    if let expr = fRaw as? String {
+                        fields[fName] = DesireProtocol.FieldSpec(expression: expr)
+                    } else if let fDict = fRaw as? [String: Any],
+                              let expr = fDict["selector"] as? String {
+                        fields[fName] = DesireProtocol.FieldSpec(expression: expr, type: fDict["type"] as? String)
+                    } else {
+                        return Self.fail("view '\(vName)' field '\(fName)' must be a selector string or {selector, type}")
+                    }
+                }
+                views[vName] = DesireProtocol.ProtocolView(item: item, fields: fields)
+            }
+            // signals（可选）
+            var signals: [String: String] = [:]
+            if let sigRaw = args["signals"] as? [String: Any] {
+                for (sName, sVal) in sigRaw {
+                    if let sel = sVal as? String { signals[sName] = sel }
+                }
+            }
+            // actions（可选，effects/danger 如实收——审批链兜底）
+            var actions: [DesireProtocol.ProtocolAction] = []
+            if let actionsRaw = args["actions"] as? [[String: Any]] {
+                for (idx, a) in actionsRaw.enumerated() {
+                    guard let aName = a["name"] as? String, !aName.isEmpty else {
+                        return Self.fail("actions[\(idx)] missing name")
+                    }
+                    var params: [String: DesireProtocol.ProtocolParam]?
+                    if let pRaw = a["params"] as? [String: Any] {
+                        var parsed: [String: DesireProtocol.ProtocolParam] = [:]
+                        for (pName, pVal) in pRaw {
+                            if let pDict = pVal as? [String: Any] {
+                                parsed[pName] = DesireProtocol.ProtocolParam(
+                                    type: pDict["type"] as? String ?? "string",
+                                    description: pDict["description"] as? String,
+                                    required: pDict["required"] as? Bool)
+                            } else if let t = pVal as? String {
+                                parsed[pName] = DesireProtocol.ProtocolParam(type: t)
+                            }
+                        }
+                        params = parsed
+                    }
+                    let runSteps = (a["run"] as? [[String: Any]]).flatMap {
+                        try? JSONSerialization.data(withJSONObject: $0)
+                    }.flatMap { String(data: $0, encoding: .utf8) }
+                    actions.append(DesireProtocol.ProtocolAction(
+                        name: aName,
+                        description: a["description"] as? String,
+                        params: params,
+                        precondition: a["precondition"] as? String,
+                        effects: a["effects"] as? String ?? "local",
+                        danger: a["danger"] as? Bool,
+                        run: runSteps,
+                        success: a["success"] as? String))
+                }
+            }
+            var body = DesireProtocol()
+            body.pageType = "custom"
+            body.views = views
+            body.signals = signals
+            body.actions = actions
+
+            // 校验（名字/hosts/前缀）+ 渲染带 adapter 戳的包 JSON
+            let errors = DPPAdapterAuthoring.validate(name: name, hosts: hosts, pathPrefixes: pathPrefixes)
+            guard errors.isEmpty else {
+                return Self.fail("Invalid adapter: " + errors.joined(separator: "; "))
+            }
+            guard let data = DPPAdapterAuthoring.markdown(
+                name: name, hosts: hosts, pathPrefixes: pathPrefixes,
+                notes: notes, protocolBody: body) else {
+                return Self.fail("Failed to render adapter JSON")
+            }
+            let fileName = FilePathing.sanitizeFileName(name) + ".json"
+            let url = DPPAdapterStore.directory.appendingPathComponent(fileName)
+            let existed = FileManager.default.fileExists(atPath: url.path)
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                return Self.fail("write failed: \(error.localizedDescription)")
+            }
+            DPPAdapterStore.shared.reload()
+            // 当前页就是该站点时立即生效提示（原生声明优先——若页面已自带声明，适配包只补空白）。
+            let currentHost = surface.tabManager?.selectedTab?.browser.webView.url?.host ?? ""
+            let applyNote = hosts.contains { h in
+                    let hl = h.lowercased()
+                    let ch = currentHost.lowercased()
+                    return ch == hl || ch.hasSuffix("." + hl)
+                }
+                ? " Applies to freshly loaded pages of this site (reload to see it in pageProtocol)."
+                : ""
+            let riskNote = actions.contains { $0.effects?.lowercased() == "persist" || $0.effects?.lowercased() == "outbound" || $0.danger == true }
+                ? " Actions with persist/outbound effects still go through the approval flow on every use."
+                : ""
+            return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(applyNote)\(riskNote)"
+
         case "saveSkill":
             // 技能自沉淀闭环：模型把刚跑通的多步工作流存成
             // SKILL.md，未来对话经 <skills> 索引 + useSkill 复用。同名覆盖

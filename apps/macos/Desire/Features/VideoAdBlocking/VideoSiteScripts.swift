@@ -479,14 +479,18 @@ extension VideoSite {
         if (count > 0) POST({ site: 'youtube', count: count });
     }
 
-    // ── In-stream ad killer: cheap fast loop, pod-aware ──
-    // Primary weapon is 16× SPEED-THROUGH, not seeking: YouTube now fights
-    // seekTo (error screens / re-injected ads), but a fast-playing ad is
-    // still "playing" — a 30s spot passes in ~2s with no player error.
+    // ── In-stream ad killer v4: KILL the ad media, don't race it ──
+    // 用户实测：16× 快进"加速了但仍很久才播完"（播放器把倍速夹回 1× 的对抗
+    // 在升级）。v4 主武器改为**摘除广告媒体源**：广告段把 video.src 摘下来存起
+    // （含 blob:），播放器瞬间失去媒体 → 广告静止黑屏无声音；class 摘除时还原
+    // src 并恢复播放。备武器保留 mute+16×（对抗升级时仍有效）、跳过按钮、seek。
+    // 正片保护三件套（v3）不变：ownership 门控、双重确认还原、正片保险丝。
     var mutedByUs = false;
     var speededByUs = false;
     var origRate = 1;
     var seekPostedThisAd = false;
+    var adSrcSaved = null;      // 摘下来的广告媒体 src（含 blob:）
+    var adKillActive = false;   // 终结态：class 抖动期间不重复摘/不提前还原
     var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
         '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
         '.ytp-ad-action-interstitial-skip-button,.ytp-ad-overlay-close-button';
@@ -511,12 +515,23 @@ extension VideoSite {
         if (ad) {
             // Mute while ANY ad in the pod plays; restored when it clears.
             if (v && !v.muted) { v.muted = true; mutedByUs = true; }
-            // Speed through: remember the user's rate only once, only if
-            // sane (≤2×), and restore it when the pod clears.
-            if (v && v.playbackRate < 16) {
-                origRate = (v.playbackRate > 0 && v.playbackRate <= 2) ? v.playbackRate : 1;
-                try { v.playbackRate = 16; speededByUs = true; } catch(e) {}
+
+            // ── 主武器：终结广告媒体源 ──
+            // 摘 src 前先保存（正片 src 在广告段通常还在同一个 video 元素上——
+            // YouTube 切正片时会重设 src，所以还原时不盲目写回，见下方 ad 分支的
+            // 还原逻辑与 rAF 保险丝）。
+            if (!adKillActive) {
+                adKillActive = true;
+                if (v) {
+                    adSrcSaved = v.getAttribute('src');
+                    try { v.removeAttribute('src'); v.load(); } catch(e) {}
+                }
+            } else if (v && !v.getAttribute('src') === false && !v.getAttribute('src')) {
+                // 播放器在广告 pod 内部重挂了 src（连续广告位）——再摘。
+                try { v.removeAttribute('src'); v.load(); } catch(e) {}
             }
+
+            // ── 备武器：跳过按钮（能点就点，点了 YouTube 自己切走）──
             var skip = document.querySelector(SKIP_SELECTORS);
             if (skip) {
                 skip.click();
@@ -534,11 +549,10 @@ extension VideoSite {
                     }
                 }
             }
-            // Seek is now only a FALLBACK (player-API path may still work
-            // on some layouts; if YouTube fights it, 16× already won).
+            // Seek 降级为最后兜底（媒体源被摘后 seek 无对象）。
             var p = document.querySelector('#movie_player');
             var posted = false;
-            if (p && p.getDuration && !speededByUs) {
+            if (p && p.getDuration && !adKillActive) {
                 try {
                     var d = p.getDuration();
                     if (d > 0 && p.getCurrentTime() < d - 0.4) {
@@ -552,9 +566,23 @@ extension VideoSite {
                 seekPostedThisAd = true;
             }
         } else {
-            // Ad pod cleared — restore volume and playback rate.
-            // 双重确认（v3）：class 摘除后连续 2 个 fastTick（600ms）仍无广告才
-            // 还原——单帧 class 抖动（贴片切换广告位）不再把正片打上 16×。
+            // Ad pod cleared — restore media + volume + playback rate.
+            // 媒体源**立即**还原（正片等待优先于单帧抖动防护；src 还原幂等，
+            // 播放器切正片时自己会重设 src，不冲突）。
+            if (adKillActive) {
+                adKillActive = false;
+                if (v) {
+                    try {
+                        if (!v.getAttribute('src') && adSrcSaved) {
+                            v.setAttribute('src', adSrcSaved);
+                            v.load();
+                            var p = document.querySelector('#movie_player');
+                            if (p && p.playVideo) { try { p.playVideo(); } catch(e) {} }
+                        }
+                    } catch(e) {}
+                    adSrcSaved = null;
+                }
+            }
             if (mutedByUs && v) { v.muted = false; mutedByUs = false; }
             restoreTicks = adShowing() ? 0 : restoreTicks + 1;
             if (speededByUs && restoreTicks >= 2 && v && v.playbackRate > 2) {
@@ -636,10 +664,13 @@ extension VideoSite {
                 var vd = null;
                 var p = document.querySelector('#movie_player');
                 if (p && p.getVideoData) { try { vd = p.getVideoData(); } catch(e) {} }
+                // 正片保险丝（不变）：真实内容被留在 >4× → 立即降 1×。
                 if (v.playbackRate > 4 && vd && vd.video_id && !adShowing()) {
                     try { v.playbackRate = 1; } catch(e) {}
                     speededByUs = false;
-                } else if (speededByUs && adShowing() && v.playbackRate < 16) {
+                } else if (speededByUs && adShowing() && !adKillActive && v.playbackRate < 16) {
+                    // 备武器仍有效（媒体源终结失败时才走这里——adKillActive 时
+                    // 媒体已摘，压速率无对象）。
                     try { v.playbackRate = 16; } catch(e) {}
                 }
             }

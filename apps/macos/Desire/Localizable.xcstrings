@@ -46,9 +46,7 @@
         }
       }
     },
-    " · %lf USD" : {
-
-    },
+    " · %lf USD" : {},
     " (incl. %lld bypass tokens)" : {
       "localizations" : {
         "en" : {
@@ -227,9 +225,7 @@
         }
       }
     },
-    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {
-
-    },
+    "“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。" : {},
     "(%@)" : {
       "localizations" : {
         "en" : {
@@ -384,12 +380,8 @@
         }
       }
     },
-    "@%lldx" : {
-
-    },
-    "/%@" : {
-
-    },
+    "@%lldx" : {},
+    "/%@" : {},
     "\\(watch.changeCount) changes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -436,9 +428,7 @@
         }
       }
     },
-    "%@" : {
-
-    },
+    "%@" : {},
     "%@  %@" : {
       "localizations" : {
         "en" : {
@@ -1289,9 +1279,7 @@
         }
       }
     },
-    "%lld 条" : {
-
-    },
+    "%lld 条" : {},
     "%lld 条 · %lld 份摘要" : {
       "localizations" : {
         "en" : {
@@ -1601,9 +1589,7 @@
         }
       }
     },
-    "←/→ 键步进，Esc 退出" : {
-
-    },
+    "←/→ 键步进，Esc 退出" : {},
     "+%lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1715,15 +1701,9 @@
         }
       }
     },
-    "⌃ 回到主盘" : {
-
-    },
-    "⌄ 全部 %lld 项" : {
-
-    },
-    "⚡%lld" : {
-
-    },
+    "⌃ 回到主盘" : {},
+    "⌄ 全部 %lld 项" : {},
+    "⚡%lld" : {},
     "✓ Default" : {
       "localizations" : {
         "en" : {
@@ -1790,9 +1770,7 @@
         }
       }
     },
-    "0" : {
-
-    },
+    "0" : {},
     "1 hour" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1954,9 +1932,7 @@
         }
       }
     },
-    "9" : {
-
-    },
+    "9" : {},
     "10 minutes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2003,9 +1979,7 @@
         }
       }
     },
-    "30" : {
-
-    },
+    "30" : {},
     "30 minutes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2097,9 +2071,7 @@
         }
       }
     },
-    "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
-
-    },
+    "A hook file can define beforeToolCall(event) — return {decision:\"deny\", reason:\"…\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {},
     "A hook file can define beforeToolCall(event) — return {decision:\\\"deny\\\", reason:\\\"…\\\"} to veto a tool at any access level — and turnFinish(event) for post-turn notifications." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2207,9 +2179,7 @@
         }
       }
     },
-    "Accept All" : {
-
-    },
+    "Accept All" : {},
     "Access Level" : {
       "localizations" : {
         "en" : {
@@ -2346,9 +2316,7 @@
         }
       }
     },
-    "Actions (%lld)" : {
-
-    },
+    "Actions (%lld)" : {},
     "Active model: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2508,9 +2476,7 @@
         }
       }
     },
-    "Adapter" : {
-
-    },
+    "Adapter" : {},
     "Add" : {
       "comment" : "Add button",
       "localizations" : {
@@ -4132,9 +4098,7 @@
         }
       }
     },
-    "Always on %@" : {
-
-    },
+    "Always on %@" : {},
     "Always-Allowed Tools" : {
       "localizations" : {
         "en" : {
@@ -4578,9 +4542,29 @@
         }
       }
     },
-    "Ask Desire Agent" : {
-
+    "Ask Desire ${prompt}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Desire %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向 Desire 智能体提问：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向Desire智慧體提問：%@"
+          }
+        }
+      }
     },
+    "Ask Desire Agent" : {},
     "Ask every time" : {
       "localizations" : {
         "en" : {
@@ -5051,9 +5035,7 @@
         }
       }
     },
-    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {
-
-    },
+    "Auto-click the reject/accept button on known consent banners (OneTrust, CookieBot and common banner patterns). Applied to new page loads." : {},
     "Auto-fill email and phone number on checkout and sign-up forms." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5952,9 +5934,7 @@
         }
       }
     },
-    "Block This URL (Session)" : {
-
-    },
+    "Block This URL (Session)" : {},
     "Block Video Ads" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6743,12 +6723,8 @@
         }
       }
     },
-    "Capture Page to Desire Whiteboard" : {
-
-    },
-    "Capture to Whiteboard" : {
-
-    },
+    "Capture Page to Desire Whiteboard" : {},
+    "Capture to Whiteboard" : {},
     "Change Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7563,9 +7539,7 @@
         }
       }
     },
-    "Clear Session Network Rules" : {
-
-    },
+    "Clear Session Network Rules" : {},
     "Clear Stats" : {
       "localizations" : {
         "en" : {
@@ -7947,9 +7921,7 @@
         }
       }
     },
-    "Close Tabs to the Right" : {
-
-    },
+    "Close Tabs to the Right" : {},
     "Close Window" : {
       "localizations" : {
         "en" : {
@@ -9008,9 +8980,7 @@
         }
       }
     },
-    "Conversation" : {
-
-    },
+    "Conversation" : {},
     "Conversation history" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9080,9 +9050,7 @@
         }
       }
     },
-    "Cookie Banner Auto-Handling" : {
-
-    },
+    "Cookie Banner Auto-Handling" : {},
     "Cookie Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9543,9 +9511,7 @@
         }
       }
     },
-    "Copy Performance Snapshot" : {
-
-    },
+    "Copy Performance Snapshot" : {},
     "Copy Query" : {
       "localizations" : {
         "en" : {
@@ -9837,9 +9803,7 @@
         }
       }
     },
-    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {
-
-    },
+    "Create a recurring agent task. It re-runs the prompt automatically while Desire is open (min every 5 minutes, or daily at HH:MM)." : {},
     "Create Group" : {
       "localizations" : {
         "en" : {
@@ -10381,9 +10345,7 @@
         }
       }
     },
-    "Daily At (HH:MM)" : {
-
-    },
+    "Daily At (HH:MM)" : {},
     "daily at %02d:%02d" : {
       "localizations" : {
         "en" : {
@@ -10653,12 +10615,8 @@
         }
       }
     },
-    "Declaration" : {
-
-    },
-    "Declaration frames (%lld)" : {
-
-    },
+    "Declaration" : {},
+    "Declaration frames (%lld)" : {},
     "Declared pages (Desire Page Protocol) let the agent read structured data, run declared actions, and wake on page events." : {
       "localizations" : {
         "en" : {
@@ -11626,9 +11584,7 @@
         }
       }
     },
-    "DIR" : {
-
-    },
+    "DIR" : {},
     "Disable AI Action Review" : {
       "localizations" : {
         "en" : {
@@ -11651,9 +11607,7 @@
         }
       }
     },
-    "Disable Quiet Hours" : {
-
-    },
+    "Disable Quiet Hours" : {},
     "disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -12664,9 +12618,7 @@
         }
       }
     },
-    "EasyList 内容规则" : {
-
-    },
+    "EasyList 内容规则" : {},
     "Edit" : {
       "localizations" : {
         "en" : {
@@ -13056,9 +13008,7 @@
         }
       }
     },
-    "Enable Quiet Hours" : {
-
-    },
+    "Enable Quiet Hours" : {},
     "Enabled" : {
       "comment" : "Toggle label",
       "localizations" : {
@@ -13334,9 +13284,7 @@
         }
       }
     },
-    "Events (%lld)" : {
-
-    },
+    "Events (%lld)" : {},
     "Every \\(watch.intervalMinutes) min" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13514,9 +13462,7 @@
         }
       }
     },
-    "Every N Minutes" : {
-
-    },
+    "Every N Minutes" : {},
     "Every tool call in this turn was denied or errored — the reply above rests on nothing that actually ran." : {
       "localizations" : {
         "en" : {
@@ -13769,9 +13715,7 @@
         }
       }
     },
-    "Explain with AI" : {
-
-    },
+    "Explain with AI" : {},
     "Export" : {
       "comment" : "Bookmark export help",
       "localizations" : {
@@ -14991,9 +14935,7 @@
         }
       }
     },
-    "Fired events (latest %lld)" : {
-
-    },
+    "Fired events (latest %lld)" : {},
     "First Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16614,9 +16556,7 @@
         }
       }
     },
-    "https://example.com" : {
-
-    },
+    "https://example.com" : {},
     "Hub Actions" : {
       "localizations" : {
         "en" : {
@@ -17986,9 +17926,7 @@
         }
       }
     },
-    "Latest Analysis" : {
-
-    },
+    "Latest Analysis" : {},
     "Learned from: %@" : {
       "localizations" : {
         "en" : {
@@ -19567,9 +19505,7 @@
         }
       }
     },
-    "Model: %@" : {
-
-    },
+    "Model: %@" : {},
     "Model: follow global" : {
       "localizations" : {
         "en" : {
@@ -19681,9 +19617,7 @@
         }
       }
     },
-    "Mute Tab" : {
-
-    },
+    "Mute Tab" : {},
     "name" : {
       "localizations" : {
         "en" : {
@@ -20878,9 +20812,7 @@
         }
       }
     },
-    "No DPP declaration on this page" : {
-
-    },
+    "No DPP declaration on this page" : {},
     "No element inspected" : {
       "localizations" : {
         "en" : {
@@ -20925,9 +20857,7 @@
         }
       }
     },
-    "No events yet." : {
-
-    },
+    "No events yet." : {},
     "No extension storage" : {
       "localizations" : {
         "en" : {
@@ -22184,12 +22114,8 @@
         }
       }
     },
-    "No tab selected" : {
-
-    },
-    "No text found in this image." : {
-
-    },
+    "No tab selected" : {},
+    "No text found in this image." : {},
     "No token usage recorded yet." : {
       "localizations" : {
         "en" : {
@@ -23175,6 +23101,28 @@
         }
       }
     },
+    "Open ${url} in Desire" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %@ in Desire"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Desire 中打开 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Desire 中打開 %@"
+          }
+        }
+      }
+    },
     "Open a page first" : {
       "localizations" : {
         "en" : {
@@ -23197,9 +23145,7 @@
         }
       }
     },
-    "Open a URL in the Desire browser's active tab." : {
-
-    },
+    "Open a URL in the Desire browser's active tab." : {},
     "Open clipboard link" : {
       "localizations" : {
         "en" : {
@@ -23378,9 +23324,7 @@
         }
       }
     },
-    "Open in New Window" : {
-
-    },
+    "Open in New Window" : {},
     "Open in Preview" : {
       "localizations" : {
         "en" : {
@@ -23447,9 +23391,7 @@
         }
       }
     },
-    "Open Link in Desire" : {
-
-    },
+    "Open Link in Desire" : {},
     "Open Link in New Tab" : {
       "comment" : "Context menu: open link",
       "localizations" : {
@@ -24033,9 +23975,7 @@
         }
       }
     },
-    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {
-
-    },
+    "Pages declare views/actions/events via DPP (L1-L3). See desire.mankong.icu — demo hall has live examples." : {},
     "Paid promotions and creator self-promotion readouts." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24131,9 +24071,7 @@
         }
       }
     },
-    "Parse warnings" : {
-
-    },
+    "Parse warnings" : {},
     "Password" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24449,9 +24387,7 @@
         }
       }
     },
-    "Pause Reading" : {
-
-    },
+    "Pause Reading" : {},
     "Pause the batch (and tell you) when free space drops below this; auto-resumes when space recovers." : {
       "localizations" : {
         "en" : {
@@ -24563,9 +24499,7 @@
         }
       }
     },
-    "Performance" : {
-
-    },
+    "Performance" : {},
     "Permission granted. Trigger the screenshot shortcut again to capture." : {
       "comment" : "Screenshot permission alert: granted but takes effect next launch",
       "localizations" : {
@@ -25781,9 +25715,7 @@
         }
       }
     },
-    "Read Aloud" : {
-
-    },
+    "Read Aloud" : {},
     "Read-only %lld · state-changing %lld · code execution %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26280,9 +26212,7 @@
         }
       }
     },
-    "Reject All" : {
-
-    },
+    "Reject All" : {},
     "Relaunching…" : {
       "localizations" : {
         "en" : {
@@ -27784,9 +27714,7 @@
         }
       }
     },
-    "Resume Reading" : {
-
-    },
+    "Resume Reading" : {},
     "Resume the unanswered prompt" : {
       "localizations" : {
         "en" : {
@@ -28960,12 +28888,30 @@
         }
       }
     },
-    "Schedule Desire Task" : {
-
+    "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schedule %@ — %@ every %lld min or daily at %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定时任务 %@ — %2$@，每 %3$lld 分钟或每天 %4$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定時任務 %1$@ — %2$@，每 %3$lld 分鐘或每天 %4$@"
+          }
+        }
+      }
     },
-    "Schedule Task" : {
-
-    },
+    "Schedule Desire Task" : {},
+    "Schedule Task" : {},
     "Scheduled task failed" : {
       "localizations" : {
         "en" : {
@@ -29126,9 +29072,7 @@
         }
       }
     },
-    "Screenshot text" : {
-
-    },
+    "Screenshot text" : {},
     "Screenshot…" : {
       "comment" : "Screenshot menu item",
       "extractionState" : "stale",
@@ -29962,9 +29906,7 @@
         }
       }
     },
-    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {
-
-    },
+    "Send a prompt to the Desire agent and get the final answer back. The turn can take minutes — Shortcuts will wait." : {},
     "Sent as a new agent turn when the Custom Prompt hub slot is tapped." : {
       "localizations" : {
         "en" : {
@@ -30366,9 +30308,7 @@
         }
       }
     },
-    "Session network rules — temp block/redirect, gone on app exit" : {
-
-    },
+    "Session network rules — temp block/redirect, gone on app exit" : {},
     "Session Storage" : {
       "comment" : "Site data type label",
       "localizations" : {
@@ -31454,9 +31394,7 @@
         }
       }
     },
-    "Skills are markdown files in Application Support/Desire/skills — the agent loads them on demand." : {
-
-    },
+    "Skills are markdown files in Application Support/Desire/skills — the agent loads them on demand." : {},
     "Skills are SKILL.md files; drop your own in to extend the agent." : {
       "localizations" : {
         "en" : {
@@ -32079,9 +32017,7 @@
         }
       }
     },
-    "Stop Reading" : {
-
-    },
+    "Stop Reading" : {},
     "Stored in the macOS Keychain." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -33096,9 +33032,7 @@
         }
       }
     },
-    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {
-
-    },
+    "Take a snapshot of the current page and append it to the active conversation's whiteboard as an image block." : {},
     "Target Ring" : {
       "localizations" : {
         "en" : {
@@ -33811,12 +33745,8 @@
         }
       }
     },
-    "Third-party adapter package contributes to this declaration" : {
-
-    },
-    "Third-Party Adapters" : {
-
-    },
+    "Third-party adapter package contributes to this declaration" : {},
+    "Third-Party Adapters" : {},
     "This cannot be undone." : {
       "localizations" : {
         "en" : {
@@ -35040,9 +34970,7 @@
         }
       }
     },
-    "Turn finished." : {
-
-    },
+    "Turn finished." : {},
     "turns" : {
       "localizations" : {
         "en" : {
@@ -35289,9 +35217,7 @@
         }
       }
     },
-    "Unmute Tab" : {
-
-    },
+    "Unmute Tab" : {},
     "Unpin" : {
       "comment" : "Context menu: unpin tab",
       "localizations" : {
@@ -35337,9 +35263,7 @@
         }
       }
     },
-    "Unpin Tab" : {
-
-    },
+    "Unpin Tab" : {},
     "Untitled" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -36061,9 +35985,7 @@
         }
       }
     },
-    "Video Speed" : {
-
-    },
+    "Video Speed" : {},
     "Video Tasks" : {
       "localizations" : {
         "en" : {
@@ -36177,9 +36099,7 @@
         }
       }
     },
-    "Views (%lld)" : {
-
-    },
+    "Views (%lld)" : {},
     "Voice input" : {
       "localizations" : {
         "en" : {
@@ -37259,9 +37179,7 @@
         }
       }
     },
-    "上一块（←）" : {
-
-    },
+    "上一块（←）" : {},
     "上一条提问还没有收到回答" : {
       "localizations" : {
         "en" : {
@@ -37306,21 +37224,11 @@
         }
       }
     },
-    "上一步" : {
-
-    },
-    "下一块（→）" : {
-
-    },
-    "下一步" : {
-
-    },
-    "个性化（可选）" : {
-
-    },
-    "主盘 %lld" : {
-
-    },
+    "上一步" : {},
+    "下一块（→）" : {},
+    "下一步" : {},
+    "个性化（可选）" : {},
+    "主盘 %lld" : {},
     "之后的使用中，Agent 会在后台慢慢学习你的习惯（可在「记忆」中查看和删除）。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -37344,9 +37252,7 @@
         }
       }
     },
-    "从模板创建" : {
-
-    },
+    "从模板创建" : {},
     "任务计划" : {
       "localizations" : {
         "en" : {
@@ -37566,9 +37472,7 @@
         }
       }
     },
-    "刷新" : {
-
-    },
+    "刷新" : {},
     "取消" : {
       "localizations" : {
         "en" : {
@@ -37613,9 +37517,7 @@
         }
       }
     },
-    "固定" : {
-
-    },
+    "固定" : {},
     "图表（ECharts）" : {
       "localizations" : {
         "en" : {
@@ -37664,15 +37566,9 @@
         }
       }
     },
-    "在访达中显示" : {
-
-    },
-    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {
-
-    },
-    "复制" : {
-
-    },
+    "在访达中显示" : {},
+    "声明来自嵌入框架 %@（跨源）——步骤将在该框架内执行" : {},
+    "复制" : {},
     "完成" : {
       "localizations" : {
         "en" : {
@@ -37695,9 +37591,7 @@
         }
       }
     },
-    "完成，开始使用" : {
-
-    },
+    "完成，开始使用" : {},
     "导入 .board（追加块）" : {
       "localizations" : {
         "en" : {
@@ -37731,12 +37625,8 @@
         }
       }
     },
-    "导出 .board（JSON）——模板也能这样分享" : {
-
-    },
-    "导出 Markdown" : {
-
-    },
+    "导出 .board（JSON）——模板也能这样分享" : {},
+    "导出 Markdown" : {},
     "导出 PNG 到下载目录" : {
       "localizations" : {
         "en" : {
@@ -37753,12 +37643,8 @@
         }
       }
     },
-    "导出单文件 HTML（离线可读的分享页）" : {
-
-    },
-    "导出记忆知识库 Markdown（到“下载”文件夹）" : {
-
-    },
+    "导出单文件 HTML（离线可读的分享页）" : {},
+    "导出记忆知识库 Markdown（到“下载”文件夹）" : {},
     "展开或收起白板预览" : {
       "localizations" : {
         "en" : {
@@ -37813,15 +37699,9 @@
         }
       }
     },
-    "已回复 · 刚刚" : {
-
-    },
-    "已导出：%@" : {
-
-    },
-    "已拒绝" : {
-
-    },
+    "已回复 · 刚刚" : {},
+    "已导出：%@" : {},
+    "已拒绝" : {},
     "已拦截 %d 个 %@ 广告%@" : {
       "localizations" : {
         "en" : {
@@ -37844,18 +37724,10 @@
         }
       }
     },
-    "已接受" : {
-
-    },
-    "已登录：%@" : {
-
-    },
-    "已知追踪与分析请求" : {
-
-    },
-    "已静音" : {
-
-    },
+    "已接受" : {},
+    "已登录：%@" : {},
+    "已知追踪与分析请求" : {},
+    "已静音" : {},
     "常驻能力" : {
       "localizations" : {
         "en" : {
@@ -37945,9 +37817,7 @@
         }
       }
     },
-    "当前指标" : {
-
-    },
+    "当前指标" : {},
     "总结本页" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -38054,12 +37924,8 @@
         }
       }
     },
-    "手动添加块（进入源码编辑）/ 从模板创建" : {
-
-    },
-    "打开对话 →" : {
-
-    },
+    "手动添加块（进入源码编辑）/ 从模板创建" : {},
+    "打开对话 →" : {},
     "打开白板" : {
       "localizations" : {
         "en" : {
@@ -38092,15 +37958,9 @@
         }
       }
     },
-    "拦截广告" : {
-
-    },
-    "拦截追踪器" : {
-
-    },
-    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {
-
-    },
+    "拦截广告" : {},
+    "拦截追踪器" : {},
+    "指标由 page-perf.js 每 5 秒上报（代理指标：WebKit 不提供 per-tab 内存）。刷新页面会清零 long task 计数。" : {},
     "搜索工具" : {
       "localizations" : {
         "en" : {
@@ -38145,12 +38005,8 @@
         }
       }
     },
-    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {
-
-    },
-    "播放中" : {
-
-    },
+    "撤销（⌘Z）——面板编辑与 Agent 写入都可撤" : {},
+    "播放中" : {},
     "放弃" : {
       "localizations" : {
         "en" : {
@@ -38304,9 +38160,7 @@
         }
       }
     },
-    "标签页" : {
-
-    },
+    "标签页" : {},
     "标题" : {
       "localizations" : {
         "en" : {
@@ -38554,15 +38408,9 @@
         }
       }
     },
-    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {
-
-    },
-    "演示中 — %@" : {
-
-    },
-    "演示模式（逐块放映）" : {
-
-    },
+    "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保" : {},
+    "演示中 — %@" : {},
+    "演示模式（逐块放映）" : {},
     "点击区段切换视口宽度" : {
       "localizations" : {
         "en" : {
@@ -38753,12 +38601,8 @@
         }
       }
     },
-    "空板" : {
-
-    },
-    "立即执行（取消当前回合并优先运行这条）" : {
-
-    },
+    "空板" : {},
+    "立即执行（取消当前回合并优先运行这条）" : {},
     "立即更新全部" : {
       "localizations" : {
         "en" : {
@@ -38791,9 +38635,7 @@
         }
       }
     },
-    "第 %lld/3 步" : {
-
-    },
+    "第 %lld/3 步" : {},
     "继续回合" : {
       "localizations" : {
         "en" : {
@@ -39088,18 +38930,10 @@
         }
       }
     },
-    "设置暂不可用——可在设置 → AI 里稍后配置。" : {
-
-    },
-    "设置暂不可用，稍后可在设置 → 隐私开启。" : {
-
-    },
-    "识别文字" : {
-
-    },
-    "识别文字 (OCR)" : {
-
-    },
+    "设置暂不可用——可在设置 → AI 里稍后配置。" : {},
+    "设置暂不可用，稍后可在设置 → 隐私开启。" : {},
+    "识别文字" : {},
+    "识别文字 (OCR)" : {},
     "跳过" : {
       "localizations" : {
         "en" : {
@@ -39166,9 +39000,7 @@
         }
       }
     },
-    "进白板" : {
-
-    },
+    "进白板" : {},
     "退出响应式模式" : {
       "localizations" : {
         "en" : {
@@ -39191,18 +39023,10 @@
         }
       }
     },
-    "退出放映（块仍保留）" : {
-
-    },
-    "选区已拖入" : {
-
-    },
-    "配置同步（设置页）" : {
-
-    },
-    "重做（⇧⌘Z）" : {
-
-    },
+    "退出放映（块仍保留）" : {},
+    "选区已拖入" : {},
+    "配置同步（设置页）" : {},
+    "重做（⇧⌘Z）" : {},
     "重新生成" : {
       "localizations" : {
         "en" : {
@@ -39247,9 +39071,7 @@
         }
       }
     },
-    "链接已拖入" : {
-
-    },
+    "链接已拖入" : {},
     "长对话结束后会自动生成摘要，用于跨会话回忆。" : {
       "localizations" : {
         "en" : {
@@ -39272,9 +39094,7 @@
         }
       }
     },
-    "问本页" : {
-
-    },
+    "问本页" : {},
     "隐藏悬浮球" : {
       "localizations" : {
         "en" : {

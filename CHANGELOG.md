@@ -7,6 +7,8 @@
 
 - **DPP 设计评审 P2 生态三件**：① pageExtract **显式截断契约**——超 hardCap 时返回 JSON 内嵌 truncated:true / moreAvailable / totalBeforeCap（模型机读后可决定是否继续取，不再靠正文尾注猜）；② pageAction 成功回执带**事后快照**（主视图前 3 条随回执返回，Agent 一回合内自验证省一轮 pageExtract）；③ 适配包**存活度机制**——抽取/动作失败计数（成功清零），3 次连续失败亮"疑似失效"、8 次自动禁用（用户可重启用），桥 /dpp/adapters 列表透出 health/sourceURL/installedAt。
 - **Agent 自助生成 DPP 适配包**（saveDPPAdapter 工具）：用户对不支持 DPP 的站点说"帮我做个适配"即可——Agent 用 executeJS 探查页面 DOM、验证选择器、调本工具生成 adapter-1 JSON 落盘（hosts/pathPrefixes/views/signals/actions 全字段；name/hosts 校验 + views 结构校验，选择器错误当场报错）。包立即可用（同站点名覆盖=更新），persist/outbound 动作照走审批链；DPPAdapterAuthoring 纯逻辑（校验/渲染/包名推导）进单测 harness（622 项全过）。真链路 E2E：Agent 在豆瓣页自主探查 DOM → 生成 douban-movie-test 包 → 落盘并在桥列表可见。
+- **YouTube 广告网络层拦截**（用户反馈"要无感拦截而不是快进"）：内置 Ads 规则新增 6 条请求级阻断——get_video_ads、youtubei log_event*adformat、googlevideo videogoodput、youtubei player*adformat、stats/qoe*adformat、error_204*adformat（中插广告的拉取/上报请求在到达播放器前被 WebKit 切断）。全部经 /filters/probe 编译验证通过；播放器内 DOM 对抗（v4 媒体终结）降级为最后防线——网络层拦掉大部分后 DOM 层很少触发。
+
 
 
 ### Fixed

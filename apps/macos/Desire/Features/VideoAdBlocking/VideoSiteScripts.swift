@@ -447,33 +447,36 @@ extension VideoSite {
         el.remove();
         return true;
     }
-    // Heavy cosmetic scan — debounced, never run per-mutation.
-    function removeAds() {
+    // Heavy cosmetic scan — debounced, never run per-mutation. When the
+    // observer gives us a small subtree, scan that subtree instead of walking
+    // the whole YouTube document on every feed update.
+    function removeAds(root) {
+        var scope = root && root.querySelectorAll ? root : document;
         var count = 0;
         STATIC_SLOTS.forEach(function(sel) {
-            document.querySelectorAll(sel).forEach(function(el) {
+            scope.querySelectorAll(sel).forEach(function(el) {
                 if (removeCard(listAdTarget(sel, el))) count++;
             });
         });
-        document.querySelectorAll('[is-ad]').forEach(function(el) {
+        scope.querySelectorAll('[is-ad]').forEach(function(el) {
             var c = el.closest(CARD);
             if (removeCard(c || el)) count++;
         });
-        document.querySelectorAll('.badge-style-type-ad').forEach(function(el) {
+        scope.querySelectorAll('.badge-style-type-ad').forEach(function(el) {
             if (removeCard(el.closest(CARD))) count++;
         });
-        document.querySelectorAll('a').forEach(function(a) {
+        scope.querySelectorAll('a').forEach(function(a) {
             if (isPaidBadgeAnchor(a)) {
                 var c = a.closest(CARD);
                 if (removeCard(c || a)) count++;
             }
         });
-        document.querySelectorAll(CARD).forEach(function(card) {
+        scope.querySelectorAll(CARD).forEach(function(card) {
             if (hasAdBadge(card)) {
                 if (removeCard(card)) count++;
             }
         });
-        document.querySelectorAll('.ytp-paid-content-overlay,[class*="paid-content-overlay"]').forEach(function(el) {
+        scope.querySelectorAll('.ytp-paid-content-overlay,[class*="paid-content-overlay"]').forEach(function(el) {
             el.remove(); count++;
         });
         if (count > 0) POST({ site: 'youtube', count: count });
@@ -489,11 +492,22 @@ extension VideoSite {
     var speededByUs = false;
     var origRate = 1;
     var seekPostedThisAd = false;
+    var skipPostedThisAd = false;
+    var lastSkipButton = null;
+    var lastSkipClick = 0;
     var adSrcSaved = null;      // 摘下来的广告媒体 src（含 blob:）
     var adKillActive = false;   // 终结态：class 抖动期间不重复摘/不提前还原
     var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
         '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
         '.ytp-ad-action-interstitial-skip-button,.ytp-ad-overlay-close-button';
+    function hasRealVideo() {
+        var p = document.querySelector('#movie_player');
+        if (!p || !p.getVideoData) return false;
+        try {
+            var data = p.getVideoData();
+            return !!(data && data.video_id);
+        } catch(e) { return false; }
+    }
     // Multi-signal ad detection — class names alone break whenever
     // YouTube renames them. The video_id trick is the reliable one: real
     // videos always carry an id, ad creatives report an EMPTY one.
@@ -508,35 +522,70 @@ extension VideoSite {
         }
         return false;
     }
+    var stableAd = false;
+    var adOnTicks = 0;
+    var adOffTicks = 0;
+    function stableAdShowing() {
+        if (adShowing()) {
+            adOnTicks++;
+            adOffTicks = 0;
+            // Enter immediately on the first strong signal; delaying entry by
+            // two ticks lets a pre-roll audibly start. Exit stays hysteretic.
+            if (!stableAd && adOnTicks >= 1) stableAd = true;
+        } else {
+            adOffTicks++;
+            adOnTicks = 0;
+            if (stableAd && adOffTicks >= 2) stableAd = false;
+        }
+        return stableAd;
+    }
     function fastTick() {
-        var ad = adShowing();
+        var ad = stableAdShowing();
         var v = document.querySelector('video.html5-main-video') ||
                 document.querySelector('#movie_player video');
         if (ad) {
             // Mute while ANY ad in the pod plays; restored when it clears.
             if (v && !v.muted) { v.muted = true; mutedByUs = true; }
 
+            // A native skip control is safer than touching the media element.
+            // Only use media-source kill when YouTube has not exposed a skip path.
+            var skip = document.querySelector(SKIP_SELECTORS);
+            // 新按钮元素出现 = 新一支广告 → 重新允许点击与上报。
+            if (skip && skip !== lastSkipButton) skipPostedThisAd = false;
+            lastSkipButton = skip;
+
             // ── 主武器：终结广告媒体源 ──
             // 摘 src 前先保存（正片 src 在广告段通常还在同一个 video 元素上——
             // YouTube 切正片时会重设 src，所以还原时不盲目写回，见下方 ad 分支的
             // 还原逻辑与 rAF 保险丝）。
-            if (!adKillActive) {
-                adKillActive = true;
-                if (v) {
-                    adSrcSaved = v.getAttribute('src');
+            if (!skip && !adKillActive && v && !hasRealVideo()) {
+                var currentSrc = v.getAttribute('src');
+                if (currentSrc) {
+                    adSrcSaved = currentSrc;
+                    adKillActive = true;
                     try { v.removeAttribute('src'); v.load(); } catch(e) {}
                 }
-            } else if (v && !v.getAttribute('src') === false && !v.getAttribute('src')) {
+            } else if (!skip && v && v.getAttribute('src') && !hasRealVideo()) {
                 // 播放器在广告 pod 内部重挂了 src（连续广告位）——再摘。
                 try { v.removeAttribute('src'); v.load(); } catch(e) {}
             }
 
             // ── 备武器：跳过按钮（能点就点，点了 YouTube 自己切走）──
-            var skip = document.querySelector(SKIP_SELECTORS);
+            // 连播广告 = 多支广告各自带按钮（元素可能复用也可能新建）：点击按
+            // "距上次点击 >1.5s"限速（防计数刷屏），**不做一次性去重**——一次性
+            // 去重会让第二支广告播满（实测退化：skip 点过一次后同选择器新按钮
+            // 不再点，用户听到整段广告）。
             if (skip) {
-                skip.click();
-                POST({ site: 'youtube', count: 1, action: 'skip' });
-            } else {
+                var nowTick = Date.now();
+                if (!lastSkipClick || nowTick - lastSkipClick > 1500) {
+                    skip.click();
+                    lastSkipClick = nowTick;
+                    if (!skipPostedThisAd) {
+                        POST({ site: 'youtube', count: 1, action: 'skip' });
+                        skipPostedThisAd = true;
+                    }
+                }
+            } else if (!skip && !skipPostedThisAd) {
                 var btns = document.querySelectorAll('#movie_player button, #movie_player .ytp-button');
                 for (var i = 0; i < btns.length; i++) {
                     var t = (btns[i].textContent || '').trim().toLowerCase();
@@ -544,6 +593,7 @@ extension VideoSite {
                     if (t === 'skip' || t.indexOf('skip ad') === 0 || t.indexOf('跳过广告') === 0 ||
                         a.indexOf('skip') === 0 || a.indexOf('跳过') === 0) {
                         btns[i].click();
+                        skipPostedThisAd = true;
                         POST({ site: 'youtube', count: 1, action: 'skip' });
                         break;
                     }
@@ -573,6 +623,9 @@ extension VideoSite {
                 adKillActive = false;
                 if (v) {
                     try {
+                        // 还原条件只看"src 空且有保存值"（幂等）：hasRealVideo 在
+                        // 媒体摘除态仍为 true（video_id 是播放器状态）——用它当
+                        // 还原门槛会让正片 src 永不写回（黑屏）。
                         if (!v.getAttribute('src') && adSrcSaved) {
                             v.setAttribute('src', adSrcSaved);
                             v.load();
@@ -584,11 +637,17 @@ extension VideoSite {
                 }
             }
             if (mutedByUs && v) { v.muted = false; mutedByUs = false; }
-            restoreTicks = adShowing() ? 0 : restoreTicks + 1;
+            restoreTicks = ad ? 0 : restoreTicks + 1;
             if (speededByUs && restoreTicks >= 2 && v && v.playbackRate > 2) {
                 try { v.playbackRate = origRate; } catch(e) {}
             }
-            if (restoreTicks >= 2) { speededByUs = false; seekPostedThisAd = false; }
+            if (restoreTicks >= 2) {
+                speededByUs = false;
+                seekPostedThisAd = false;
+                skipPostedThisAd = false;
+                lastSkipButton = null;
+                lastSkipClick = 0;
+            }
             // Post-roll tail: kill the promo/companion overlays YouTube
             // stacks onto the end screen.
             document.querySelectorAll(
@@ -610,11 +669,28 @@ extension VideoSite {
 
     // Debounced slow scan — the observer only schedules it.
     var scanTimer = null;
-    function scheduleScan() {
+    var scanRoots = [];
+    function scheduleScan(mutations) {
+        if (mutations && mutations.length) {
+            mutations.forEach(function(mutation) {
+                for (var i = 0; i < mutation.addedNodes.length; i++) {
+                    var node = mutation.addedNodes[i];
+                    if (node.nodeType === 1) scanRoots.push(node);
+                }
+            });
+            if (scanRoots.length > 16) scanRoots = [document];
+        }
+        if (!scanRoots.length) scanRoots.push(document);
         if (scanTimer) return;
         scanTimer = setTimeout(function() {
             scanTimer = null;
-            removeAds();
+            var roots = scanRoots;
+            scanRoots = [];
+            if (roots.indexOf(document) !== -1) {
+                removeAds(document);
+            } else {
+                roots.forEach(removeAds);
+            }
             dismissPromo();
         }, 600);
     }
@@ -622,7 +698,7 @@ extension VideoSite {
     var obs = new MutationObserver(scheduleScan);
     function attach() {
         if (document.body) {
-            obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['is-ad','class','href'] });
+            obs.observe(document.body, { childList: true, subtree: true });
         }
     }
     if (document.body) attach(); else document.addEventListener('DOMContentLoaded', attach);
@@ -631,8 +707,6 @@ extension VideoSite {
     });
     var n = 0;
     var poll = setInterval(function() { scheduleScan(); if (++n > 40) clearInterval(poll); }, 2000);
-    setInterval(fastTick, 300);
-
     // ── playbackRate 夹回对抗 v3（2026-10-12 修"正片被播完"）──
     // v2 的守卫在 ratechange 事件里同步查 adShowing()：广告结束瞬间 YouTube
     // 恢复正片的顺序是先 ratechange（1×）→ 后摘 .ad-showing class——守卫看到的
@@ -655,7 +729,7 @@ extension VideoSite {
             }
         });
     }
-    (function rafLoop() {
+    function rateGuardTick() {
         try {
             var v = document.querySelector('video.html5-main-video') ||
                     document.querySelector('#movie_player video');
@@ -675,8 +749,15 @@ extension VideoSite {
                 }
             }
         } catch(e) {}
-        requestAnimationFrame(rafLoop);
-    })();
+    }
+    // ratechange 事件负责即时反制播放器，低频 tick 只处理重建 video 元素和
+    // 正片保险丝；无需让 requestAnimationFrame 在无广告时永久占用主线程。
+    fastTick();
+    rateGuardTick();
+    setInterval(function() {
+        fastTick();
+        rateGuardTick();
+    }, 300);
     window.addEventListener('yt-navigate-finish', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
     window.addEventListener('yt-page-data-updated', function() { setTimeout(function() { removeAds(); dismissPromo(); }, 300); });
 })();

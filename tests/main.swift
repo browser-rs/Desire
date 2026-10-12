@@ -2227,6 +2227,56 @@ func testDPPAdapterAuthoring() {
 }
 testDPPAdapterAuthoring()
 
+// ---------- 视频广告拦截规则回归 ----------
+
+func repoFile(_ path: String) -> String {
+    let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        .appendingPathComponent(path)
+    return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+}
+
+do {
+    let rulesURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        .appendingPathComponent("apps/macos/Desire/Features/ContentBlocking/ContentBlockerAds.json")
+    let rulesData = (try? Data(contentsOf: rulesURL)) ?? Data()
+    let rules = (try? JSONSerialization.jsonObject(with: rulesData)) as? [[String: Any]] ?? []
+    let validTypes: Set<String> = [
+        "document", "image", "style-sheet", "script", "font", "media",
+        "svg-document", "raw", "popup"
+    ]
+    var invalidTypes: [String] = []
+    for rule in rules {
+        let trigger = rule["trigger"] as? [String: Any]
+        let types = trigger?["resource-type"] as? [String] ?? []
+        invalidTypes.append(contentsOf: types.filter { !validTypes.contains($0) })
+    }
+    check("视频广告规则只使用 WebKit 支持的 resource-type", invalidTypes.isEmpty)
+}
+
+do {
+    let antiAdblock = repoFile("apps/macos/Desire/UserScripts/anti-adblock.js")
+    let youtube = repoFile("apps/macos/Desire/Features/VideoAdBlocking/VideoSiteScripts.swift")
+    let contentBlocker = repoFile("apps/macos/Desire/Features/ContentBlocking/ContentBlockerStore.swift")
+    let videoBlocker = repoFile("apps/macos/Desire/Features/VideoAdBlocking/VideoAdBlocker.swift")
+    check("反广告检测脚本具备 host 门控", antiAdblock.contains("youtube.com") || antiAdblock.contains("VIDEO_AD_HOST"))
+    check("YouTube 不含永远为 false 的 src 重挂载条件",
+          !youtube.contains("!v.getAttribute('src') === false && !v.getAttribute('src')"))
+    check("媒体源未摘除时保留 seek 兜底",
+          youtube.contains("if (!skip && !adKillActive && v && !hasRealVideo())"))
+    check("连续广告重新挂载 src 时才再次摘除",
+          youtube.contains("else if (!skip && v && v.getAttribute('src') && !hasRealVideo())"))
+    check("Skip 点击按时间限速（连播广告每支都能点）",
+          youtube.contains("var lastSkipClick = 0") &&
+          youtube.contains("nowTick - lastSkipClick > 1500"))
+    check("还原不加 hasRealVideo 门槛（正片 src 必须写回）",
+          youtube.contains("if (!v.getAttribute('src') && adSrcSaved) {"))
+    check("视频开关独立启用网络广告规则",
+          contentBlocker.contains("VideoAdBlocker.resolvedEnabled") &&
+          contentBlocker.contains("videoAdRulesEnabled"))
+    check("视频开关变化会同步网络广告规则",
+          videoBlocker.contains("setVideoAdRulesEnabled"))
+}
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")
@@ -2282,4 +2332,3 @@ func testDPPBridgeSafe() {
     check("bridgeSafe：mcp 拒", !mcp.isBridgeSafeLocal)
     check("bridgeSafe：danger 布尔拒", !dangerFlag.isBridgeSafeLocal)
 }
-

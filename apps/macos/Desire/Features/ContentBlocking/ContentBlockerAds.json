@@ -645,9 +645,7 @@
       "resource-type": [
         "document",
         "script",
-        "raw",
-        "xhr",
-        "fetch"
+        "raw"
       ]
     },
     "action": {
@@ -658,9 +656,7 @@
     "trigger": {
       "url-filter": ".*youtube\\.com\\/youtubei\\/v1\\/log_event.*adformat.*",
       "resource-type": [
-        "raw",
-        "xhr",
-        "fetch"
+        "raw"
       ]
     },
     "action": {
@@ -671,9 +667,7 @@
     "trigger": {
       "url-filter": ".*googlevideo\\.com\\/videogoodput.*",
       "resource-type": [
-        "raw",
-        "xhr",
-        "fetch"
+        "raw"
       ]
     },
     "action": {
@@ -684,9 +678,7 @@
     "trigger": {
       "url-filter": ".*youtube\\.com\\/youtubei\\/v1\\/player.*adformat.*",
       "resource-type": [
-        "raw",
-        "xhr",
-        "fetch"
+        "raw"
       ]
     },
     "action": {
@@ -697,9 +689,7 @@
     "trigger": {
       "url-filter": ".*youtube\\.com\\/api\\/stats\\/qoe.*adformat.*",
       "resource-type": [
-        "raw",
-        "xhr",
-        "fetch"
+        "raw"
       ]
     },
     "action": {
@@ -711,8 +701,6 @@
       "url-filter": ".*youtube\\.com\\/error_204.*adformat.*",
       "resource-type": [
         "raw",
-        "xhr",
-        "fetch",
         "image"
       ]
     },

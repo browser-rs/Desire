@@ -229,29 +229,51 @@ final class VideoAdRulesStore: ObservableObject {
     """
 
     private func buildCSSInstallScript(replaceStale: Bool) -> String {
-        let css = Self.commonVideoAdCSS + "\n" +
-            VideoSite.allCases.map { self.css(for: $0) }.joined(separator: "\n")
-        let escaped = css
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            // P1-12：CRLF 一并转义——本地覆盖文件用 Windows 编辑器保存后
-            // 残留 \r，进单引号 JS 字符串字面量即 SyntaxError，8 站 CSS 全灭。
-            .replacingOccurrences(of: "\r\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\n")
-            .replacingOccurrences(of: "\n", with: "\\n")
+        func escape(_ css: String) -> String {
+            css
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+                // P1-12：CRLF 一并转义——本地覆盖文件用 Windows 编辑器保存后
+                // 残留 \r，进单引号 JS 字符串字面量即 SyntaxError，规则全灭。
+                .replacingOccurrences(of: "\r\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\n")
+                .replacingOccurrences(of: "\n", with: "\\n")
+        }
+
+        let common = escape(Self.commonVideoAdCSS)
+        let siteBlocks = VideoSite.allCases.map { site in
+            let markers = site.hostMarkers.map { "'\(escape($0))'" }.joined(separator: ",")
+            let siteCSS = escape(self.css(for: site))
+            return "if (__matches([" + markers + "])) css += __common + '" + siteCSS + "';"
+        }.joined(separator: "\n            ")
         let gen = generation
-        let guardLine = replaceStale
-            ? "var cur = document.getElementById('desire-video-ad-css');" +
-              "if (cur && cur.getAttribute('data-gen') === '\(gen)') return;" +
-              "if (cur) cur.remove();"
-            : "if (document.getElementById('desire-video-ad-css')) return;"
+        let staleHandling = replaceStale
+            ? """
+            var cur = document.getElementById('desire-video-ad-css');
+            if (!css) { if (cur) cur.remove(); return; }
+            if (cur && cur.getAttribute('data-gen') === '\(gen)') return;
+            if (cur) cur.remove();
+            """
+            : """
+            if (!css || document.getElementById('desire-video-ad-css')) return;
+            """
         return """
         (function() {
-            \(guardLine)
+            var __h = (location.hostname || '').toLowerCase();
+            function __matches(markers) {
+                for (var i = 0; i < markers.length; i++) {
+                    if (__h === markers[i] || __h.slice(-(markers[i].length + 1)) === '.' + markers[i]) return true;
+                }
+                return false;
+            }
+            var __common = '\(common)';
+            var css = '';
+            \(siteBlocks)
+            \(staleHandling)
             var s = document.createElement('style');
             s.id = 'desire-video-ad-css';
             s.setAttribute('data-gen', '\(gen)');
-            s.textContent = '\(escaped)';
+            s.textContent = css;
             (document.head || document.documentElement).appendChild(s);
         })();
         """

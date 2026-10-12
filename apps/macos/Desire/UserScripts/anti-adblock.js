@@ -12,6 +12,16 @@
 //
 // 只在检测到**确认特征**时动作，误伤面极小。
 (function() {
+    var VIDEO_AD_HOSTS = [
+        'youtube.com', 'youtube-nocookie.com', 'bilibili.com', 'bili2233.cn',
+        'v.qq.com', 'iqiyi.com', 'iq.com', 'youku.com', 'tudou.com',
+        'mgtv.com', 'imgo.tv', 'tiktok.com', 'douyin.com', 'twitter.com', 'x.com'
+    ];
+    var host = (location.hostname || '').toLowerCase();
+    var isVideoHost = VIDEO_AD_HOSTS.some(function(marker) {
+        return host === marker || host.slice(-(marker.length + 1)) === '.' + marker;
+    });
+    if (!isVideoHost) return;
     if (window.__desireAntiAdblock) return;
     window.__desireAntiAdblock = true;
 

@@ -4,6 +4,8 @@ import os
 
 @MainActor
 class ContentBlockerStore: ObservableObject {
+    static weak var live: ContentBlockerStore?
+
     @Published var isBlockingEnabled = false {
         didSet {
             guard oldValue != isBlockingEnabled else { return }
@@ -30,14 +32,27 @@ class ContentBlockerStore: ObservableObject {
 
     private var adRuleList: WKContentRuleList?
     private var trackingRuleList: WKContentRuleList?
+    private var videoAdRulesEnabled = false
     private var compiling: Set<Kind> = []
     private var registered: [WeakBox] = []
 
     init() {
+        Self.live = self
         isBlockingEnabled = UserDefaults.standard.bool(forKey: "contentBlockerEnabled")
         isTrackingEnabled = UserDefaults.standard.bool(forKey: "trackingProtectionEnabled")
-        if isBlockingEnabled { ensureCompiled(kind: .ads) }
+        videoAdRulesEnabled = VideoAdBlocker.resolvedEnabled
+        if isBlockingEnabled || videoAdRulesEnabled { ensureCompiled(kind: .ads) }
         if isTrackingEnabled { ensureCompiled(kind: .tracking) }
+    }
+
+    /// Video-ad blocking owns the video rule list independently from the
+    /// general web ad-blocking preference. This keeps the media toggle useful
+    /// without silently enabling every generic ad filter on the web.
+    func setVideoAdRulesEnabled(_ enabled: Bool) {
+        guard videoAdRulesEnabled != enabled else { return }
+        videoAdRulesEnabled = enabled
+        if enabled { ensureCompiled(kind: .ads) }
+        reapplyAll()
     }
 
     func register(_ controller: WKUserContentController) {
@@ -91,7 +106,7 @@ class ContentBlockerStore: ObservableObject {
     }
 
     private func apply(to controller: WKUserContentController) {
-        if isBlockingEnabled, let ad = adRuleList { controller.add(ad) }
+        if (isBlockingEnabled || videoAdRulesEnabled), let ad = adRuleList { controller.add(ad) }
         if isTrackingEnabled, let tr = trackingRuleList { controller.add(tr) }
     }
 
@@ -145,4 +160,3 @@ private extension ContentBlockerStore {
         }
     }
 }
-

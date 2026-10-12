@@ -61,6 +61,7 @@ class VideoAdBlocker: ObservableObject {
         isEnabled = enabled
         defaults.set(enabled, forKey: Self.enabledKey)
         defaults.set(true, forKey: Self.userChoiceKey)
+        ContentBlockerStore.live?.setVideoAdRulesEnabled(enabled)
     }
 
     /// Reports that `n` more ads were just removed. Exposed as a method

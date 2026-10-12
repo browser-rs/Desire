@@ -54,8 +54,11 @@ class FilterListStore: ObservableObject {
         // Annoyances（AdGuard 维护）：cookie 横幅/新闻通讯弹窗/社交浮层/全屏插播——
         // 社区共识的"第二张列表"（与主广告列表互补不重叠）。默认关（会隐藏部分
         // 网站的提示类元素，尊重用户选择）。
-        ListState(id: "adguard-annoyances", name: "Annoyances（弹窗/横幅）", subtitle: "Cookie 横幅、新闻通讯弹窗、社交浮层、全屏插播（AdGuard 维护）",
-                  sourceURL: URL(string: "https://filters.adtidy.org/extension_filters/annoyances.txt")!, isEnabled: false),
+        ListState(id: "ublock-quick-fixes", name: "uBlock Quick-Fixes（YouTube 等）",
+                  subtitle: "uBlock Origin 团队的快速修复清单：YouTube 广告对抗等最新失效的紧急规则（社区持续更新，建议常开）",
+                  sourceURL: URL(string: "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt")!,
+                  mirrorURLs: [URL(string: "https://cdn.jsdelivr.net/gh/uBlockOrigin/uAssets@master/filters/quick-fixes.txt")!],
+                  isEnabled: true),
     ]
 
     private var compiled: [String: WKContentRuleList] = [:]

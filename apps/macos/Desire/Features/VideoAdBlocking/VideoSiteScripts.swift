@@ -81,7 +81,11 @@ enum VideoSite: CaseIterable {
 
     var pageScript: String {
         switch self {
-        case .youtube: Self.youtubeJS
+        // 自研 JS 对抗已撤（2026-10-12）：与播放器状态机的对抗（倍速夹回/
+        // video_id 撒谎/class 抖动）来回摆动，实测两次反噬——正片被快进、广告
+        // 连播。YouTube 拦截改由网络层承担：ContentBlockerAds 的请求级阻断 +
+        // 预置订阅 uBlock quick-fixes 社区清单（持续维护）。CSS 隐藏保留。
+        case .youtube: ""
         case .bilibili: Self.bilibiliJS
         case .tencent: Self.tencentJS
         case .iqiyi: Self.iqiyiJS
@@ -735,16 +739,12 @@ extension VideoSite {
                     document.querySelector('#movie_player video');
             if (v) {
                 installRateGuard(v);
-                var vd = null;
-                var p = document.querySelector('#movie_player');
-                if (p && p.getVideoData) { try { vd = p.getVideoData(); } catch(e) {} }
-                // 正片保险丝（不变）：真实内容被留在 >4× → 立即降 1×。
-                if (v.playbackRate > 4 && vd && vd.video_id && !adShowing()) {
-                    try { v.playbackRate = 1; } catch(e) {}
-                    speededByUs = false;
-                } else if (speededByUs && adShowing() && !adKillActive && v.playbackRate < 16) {
-                    // 备武器仍有效（媒体源终结失败时才走这里——adKillActive 时
-                    // 媒体已摘，压速率无对象）。
+                // 广告段维持 16×（speededByUs 门控：只有我们亲手设的会话才维持）。
+                // 旧"保险丝"（video_id 存在且 >4× → 降 1×）已删：2026-10-12 实测
+                // 广告段 getVideoData().video_id 报告的是**正片 id**——保险丝在广告
+                // 段恒真，把 16× 立即降回 1×（"加速没有了"的根因）。正片保护交给
+                // stableAdShowing() 的迟滞退出 + fastTick 还原分支。
+                if (speededByUs && adShowing() && !adKillActive && v.playbackRate < 16) {
                     try { v.playbackRate = 16; } catch(e) {}
                 }
             }

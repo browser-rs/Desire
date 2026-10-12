@@ -71,7 +71,10 @@ enum DiskStore {
         let tasks = coordination.tasks(upTo: targetGeneration)
         let writer = writer
         let coordination = coordination
-        Task.detached {
+        // QoS 对齐（Xcode 倒挂警告）：flushSync 跑在主线程（UI QoS），
+        // 信号量等的后台任务若是 Default QoS = 高优等低优的优先级倒挂。
+        // 显式 userInitiated——termination 路径的落盘本就是用户发起的最高优。
+        Task.detached(priority: .userInitiated) {
             for task in tasks {
                 await task.value
             }

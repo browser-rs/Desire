@@ -17,6 +17,8 @@
 - **merged 合并不再丢适配包来源戳**：DesireProtocol.merged 返回值的 warnings 此前只取页面侧——适配包以 site 参数参与合并时，"adapter: <名>" 戳整条丢失（DevTools 徽标与 page_context 的 via community adapter 标注双双失效——本轮审查冒烟时实测发现）。修 = warnings 取并集。
 - **YouTube 广告对抗 v3：修"广告跳过了但正片被 16× 播完"**——v2 守卫的失效模式：广告结束瞬间 YouTube 恢复正片的顺序是先 ratechange（1×）→ 后摘 .ad-showing class，守卫在 ratechange/rAF 里同步查 adShowing() 仍是 true，把刚切回的正片压回 16× 高速播完。v3 三重防线：压 16× 只在"我们已亲手设过 16×"（speededByUs）的会话内生效；还原走双重确认（class 摘除后连续 2 tick 无广告才把倍速还给用户，单帧 class 抖动不再吞正片）；正片保险丝（有 video_id 的真实内容速率 >4× 立即降回 1×——宁可放跑一个广告也不能毁掉正片）。桥实测：正片 1× 正常播放、广告逻辑不变。
 - **YouTube 拦截"效果更差"修复**（外部加固批引入的两处退化）：① Skip 点击一次性去重——连播广告的第二支不再点（同选择器按钮被去重跳过，整段广告播满）；改按 1.5s 时间限速，连播每支都能点；② 媒体还原加了 hasRealVideo 门槛——媒体摘除态下 video_id 仍是播放器状态恒为 true，正片 src 永不写回（黑屏）。还原条件只看"src 空+有保存值"。保留加固批的合理改进：stableAd 迟滞判定、MutationObserver 子树范围扫描、rAF 永久循环改 300ms tick、媒体还原 hasRealVideo 防误还原正片的反向场景（还原后正片被覆盖回广告 src）由"src 空才写回"本身保证。
+- **DiskStore.flushSync 的 QoS 倒挂修复**（Xcode 运行时警告：UI 线程以 User-interactive QoS 等待 Default QoS 后台任务）：flushSync 的信号量等待发生在主线程（终止路径），而它等待的 detached 任务未设优先级（Default）——高优等低优。detached 任务显式提为 userInitiated（终止路径的落盘本就是用户发起的最高优）。
+
 
 
 

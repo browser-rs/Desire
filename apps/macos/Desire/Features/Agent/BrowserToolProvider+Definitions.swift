@@ -199,7 +199,7 @@ extension BrowserToolProvider {
                 ], required: ["name", "description", "instructions"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "saveDPPAdapter", description: "Create a DPP adapter pack for the CURRENT site so the agent can read it structurally and run declared actions on every future visit. Workflow: (1) probe the page with executeJS (querySelector candidates for title/content/lists), (2) call this tool with verified selectors, (3) confirm with the user before persist-like actions. The pack is saved to the adapters directory and applies site-wide (natively-declared pages always win). Same name overwrites.",
+                name: "saveDPPAdapter", description: "Create a DPP adapter pack for the CURRENT site. IMPORTANT: before calling, clarify with the user WHICH capabilities they want (reading/lists/actions) and the scope (whole site vs specific page types) — big sites do not need everything. Workflow: (1) probe the page with executeJS (querySelector candidates), (2) confirm the capability list and scope with the user via askUser, (3) call this tool with verified selectors only. Applies site-wide (natively-declared pages always win). Same name overwrites.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Short site name, e.g. juejin"),
                     "hosts": AgentJSONSchemaValue(type: "array", description: "Host list: exact hosts or .domain for all subdomains, e.g. [\"juejin.cn\", \".juejin.cn\"]"),

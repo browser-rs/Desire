@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **DPP 适配生成先澄清需求**（用户反馈：有些网站很大，不是全部都要适配）：create-dpp-adapter 内置技能与 saveDPPAdapter 工具描述重写——Agent 收到适配请求时**先探查页面的可适配能力清单（A 阅读/B 评论/C 点赞…）让用户勾选**，范围（全站 vs 特定页面类型）也由用户定（大站点建议按页面类型拆多包，独立启停）；确认后才生成，views 只含用户要的功能。
+
 ### Added
 
 - **DPP 设计评审 P2 生态三件**：① pageExtract **显式截断契约**——超 hardCap 时返回 JSON 内嵌 truncated:true / moreAvailable / totalBeforeCap（模型机读后可决定是否继续取，不再靠正文尾注猜）；② pageAction 成功回执带**事后快照**（主视图前 3 条随回执返回，Agent 一回合内自验证省一轮 pageExtract）；③ 适配包**存活度机制**——抽取/动作失败计数（成功清零），3 次连续失败亮"疑似失效"、8 次自动禁用（用户可重启用），桥 /dpp/adapters 列表透出 health/sourceURL/installedAt。

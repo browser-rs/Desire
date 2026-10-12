@@ -79,6 +79,18 @@ class VideoAdBlocker: ObservableObject {
 
     // MARK: - Script entry points
 
+    /// YouTube pre-roll 剪裁（uBO json-prune 移植）：documentStart hook
+    /// JSON.parse，剪掉 player 响应中的广告容器字段。pre-roll 广告数据内嵌在
+    /// youtubei/v1/player 响应 JSON 里（非独立请求，网络层拦不掉）——这是
+    /// uBlock 系插件去除 pre-roll 的同一机制。
+    func documentStartJSONPruneScript() -> WKUserScript {
+        WKUserScript(
+            source: UserScriptLoader.load("yt-json-prune"),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+    }
+
     /// CSS injection script (always added at document start when enabled).
     /// Wraps the CSS in an IIFE that creates a single `<style id="desire-video-ad-css">`
     /// element. Re-runs are harmless (idempotent).

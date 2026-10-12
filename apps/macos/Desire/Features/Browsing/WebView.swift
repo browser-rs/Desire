@@ -283,6 +283,7 @@ class BrowserState: ObservableObject {
         // 插件 declarativeNetRequest 规则集（每插件一份编译好的列表）。
         PluginDNRStore.shared.apply(to: config.userContentController)
         if let videoAdBlocker, videoAdBlocker.isEnabled {
+            config.userContentController.addUserScript(videoAdBlocker.documentStartJSONPruneScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartGuardScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartYouTubeAntiDetectScript())

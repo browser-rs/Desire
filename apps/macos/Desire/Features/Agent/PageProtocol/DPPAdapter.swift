@@ -10,7 +10,7 @@ import Foundation
 /// 不覆盖站点自己的声明（站点接入后适配包自然失效）。解析接入点在
 /// `WebView.Coordinator.parsePageProtocol`（页面无原生声明 → 查 host 索引）。
 /// Foundation-only：进 tests/run.sh（匹配/解码回退语义）。
-struct DPPAdapter: Codable, Equatable, Identifiable {
+nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     /// 格式版本，当前固定 "desire/adapter-1"。
     var format: String = "desire/adapter-1"
     /// 适配包名（唯一 id，也是文件名基）。

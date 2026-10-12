@@ -14,7 +14,7 @@ import Foundation
 /// 只丢该字段并记入 `warnings`，绝不让整份协议解码失败——此前 events/
 /// context 用严格 `[String: String]`，站点照规范写对象形态（{watch,…}）
 /// 或数组（domain: [...]）就整份静默丢弃（实测探针复现）。
-struct DesireProtocol: Codable, Equatable {
+nonisolated struct DesireProtocol: Codable, Equatable {
     var protocolVersion: String = "desire/1"
     /// 场景约定名（chat/catalog/forms/checkout/monitor/workbench）——运行
     /// 时会透传给 Agent（"见 profile 名即知标准语义"，规范 §5）；页面未声明
@@ -136,7 +136,7 @@ struct DesireProtocol: Codable, Equatable {
         return combined
     }
 
-    struct ProtocolView: Codable, Equatable {
+    nonisolated struct ProtocolView: Codable, Equatable {
         var item: String
         /// 字段映射（见 FieldSpec）：字符串简写或对象形态（可带类型）。
         var fields: [String: FieldSpec]
@@ -193,18 +193,18 @@ struct DesireProtocol: Codable, Equatable {
     /// 逗号分隔的多个候选按序回退（首个命中者胜，L0 JSON-LD 用）。
     /// 类型（type）：string（默认）| number | price（去货币/千分位）| url（相对转
     /// 绝对）| date（ISO8601）| bool —— 抽取时强转，agent 直接拿到类型化数据。
-    struct FieldSpec: Codable, Equatable {
+    nonisolated struct FieldSpec: Codable, Equatable {
         var expression: String
         var type: String?
     }
 
-    struct Pagination: Codable, Equatable {
+    nonisolated struct Pagination: Codable, Equatable {
         /// paged | infinite | none
         var type: String
         var next: String?
     }
 
-    struct ProtocolAction: Codable, Equatable {
+    nonisolated struct ProtocolAction: Codable, Equatable {
         /// 跨源来源框架 URL（0.7 切片一）：nil = 主框架/页面级声明。
         var sourceFrame: String? = nil
         var name: String
@@ -275,7 +275,7 @@ struct DesireProtocol: Codable, Equatable {
     }
 
     /// 站点级页面地图条目（well-known 的 pages 值）。
-    struct PageMapEntry: Codable, Equatable {
+    nonisolated struct PageMapEntry: Codable, Equatable {
         var type: String?
         var profile: String?
     }
@@ -294,7 +294,7 @@ struct DesireProtocol: Codable, Equatable {
         return best?.profile
     }
 
-    struct ProtocolParam: Codable, Equatable {
+    nonisolated struct ProtocolParam: Codable, Equatable {
         var type: String?
         var description: String?
         var required: Bool?
@@ -303,7 +303,7 @@ struct DesireProtocol: Codable, Equatable {
 
 // MARK: - 编码（手写：content case 无存储属性，合成会失败）
 
-extension DesireProtocol {
+nonisolated extension DesireProtocol {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(protocolVersion, forKey: .protocolVersion)
@@ -325,7 +325,7 @@ extension DesireProtocol {
 
 // MARK: - 容错解码
 
-extension DesireProtocol {
+nonisolated extension DesireProtocol {
 
     private enum CodingKeys: String, CodingKey {
         case protocolVersion, profile, pageType, contentMain, sections, ignore, views
@@ -336,7 +336,7 @@ extension DesireProtocol {
     private var content: ContentBlock? { nil }
 
     /// 宽松 JSON 值：任何 JSON 结构都能落下，字段级失败返回 .null 而非抛错。
-    enum DPPValue: Codable, Equatable {
+    nonisolated enum DPPValue: Codable, Equatable {
         case string(String)
         case number(Double)
         case bool(Bool)
@@ -406,7 +406,7 @@ extension DesireProtocol {
 
     /// 字符串数组：逐元素取字符串，非字符串元素跳过。
     /// 嵌套 content 块的宽容形态（`{"content": {"main","ignore","sections"}}`）。
-    private struct ContentBlock: Codable {
+    private nonisolated struct ContentBlock: Codable {
         let main: String?
         let ignore: [String]?
         let sections: [String: DPPValue]?

@@ -1328,8 +1328,13 @@ class AgentSessionStore: ObservableObject {
                     .map { AgentTextSanitizer.pageText($0.name, max: 40) }.joined(separator: "; "))
             }
             // 语义上下文（persona/domain/rules）——参考资料位，不是指令位
-            //（spec §4.6 此前声明了却从不进模型）。
-            if !dpp.context.isEmpty {
+            //（spec §4.6 此前声明了却从不进模型）。per-host 开关（设计评审
+            // #6）：用户可整体关闭某站的语义注入。
+            if !dpp.context.isEmpty,
+               let ctxHost = toolProvider.surface?.tabManager?.selectedTab?.browser.webView.url?.host,
+               DPPConfigStore.shared.isContextDisabled(for: ctxHost) {
+                dppLines.append("Site context: hidden (disabled by user for this site)")
+            } else if !dpp.context.isEmpty {
                 // 站点声明的 context **设计目的就是进入 prompt**（persona/rules），
                 // 也是最直接的注入面——必须用显式引用框包住并声明不可信，
                 // 弱模型才不会把页面写的"规则"当成用户指令。

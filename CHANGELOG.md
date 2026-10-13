@@ -4,6 +4,8 @@
 - **鼠标手势 + 超级拖拽**（默认关，设置页 › 通用可开）：右键拖动画轨迹执行动作（左=后退/右=前进/上下滑动=关标签与新建/左右=刷新，原地点击仍是右键菜单）；拖链接到页面空白 = 新后台标签打开（super-drag.js 上报链接，mouseUp 判定拖动距离，点击行为不受影响）。
 - **地址栏引擎关键字**（自定义引擎可设关键字）：`gh rust` → 该引擎搜 rust；关键字在设置页添加自定义引擎时填写（可选），支持 %s/{searchTerms} 模板占位。
 - **窗口级工作区**（Backlog 提前，0.7.13）：工具栏更多菜单新增「Workspaces」——当前窗口全部标签一键存为命名快照（含选中标签/档案归属），任意时刻一键恢复到当前窗口（选中标签急切恢复、其余挂起，与既有会话恢复同路径）；同名覆盖=更新，删除即清；WorkspaceStore 持久化 DiskStore。
+- **DPP 运维收尾**（设计评审 #6/#8/#9 落地）：① **规范与实现状态拆分**（#9）——实现进度/E2E 表移入 docs/DPP-IMPLEMENTATION-STATUS.md（维护者文档），DPP-PROTOCOL.md 保持 normative（章节重排 §8 已知限制/§9 自检，spec.html 同步），§10 段替换为仓库链接；② **per-host context 注入开关**（#6）——DPPConfigStore.contextDisabledHosts + /dpp/context-toggle 桥端点，关闭后 page_context 的站点语义上下文（persona/rules）不再进 system 层（模型只看 views/actions）；③ **适配包陈旧提示**（#8 展示面）——installedAt 随包落盘，设置页超 90 天未核对显示"站点改版可能失效"标注。
+
 
 
 

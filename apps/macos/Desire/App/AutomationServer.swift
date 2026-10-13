@@ -585,6 +585,7 @@ final class AutomationServer {
         ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
+        ep("POST", "/dpp/context-toggle", "Disable/enable site-authored context injection for a host (design review #6)", params: ["host:string", "disabled?:bool"], example: #"-d '{"host":"example.com","disabled":true}'"#)
         ep("GET", "/dpp/adapters", "Third-party DPP adapter packages (list + enabled + loadErrors)", example: "…/dpp/adapters")
         ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/install", "Install an adapter JSON from an http(s) URL (community distribution)", params: ["url:string"], example: #"-d '{"url":"https://…/juejin.json"}'"#)
@@ -1181,7 +1182,16 @@ final class AutomationServer {
                     "promptHints": config.promptHints,
                     "defaultEventMode": config.defaultEventMode,
                     "siteModes": PageEventHub.shared.siteModes,
+                    "contextDisabledHosts": Array(config.contextDisabledHosts).sorted(),
                 ])
+            case ("POST", "/dpp/context-toggle"):
+                // per-host 语义上下文注入开关（设计评审 #6）。
+                guard let host = Self.string(body, "host"), !host.isEmpty else {
+                    return try Self.json(["error": "missing host"])
+                }
+                let disabled = body["disabled"] as? Bool ?? true
+                DPPConfigStore.shared.setContextDisabled(disabled, for: host)
+                return try Self.json(["ok": true, "host": host, "contextDisabled": disabled])
             case ("POST", "/dpp/config"):
                 let config = DPPConfigStore.shared
                 if let enabled = body["enabled"] as? Bool { config.setEnabled(enabled) }

@@ -147,10 +147,17 @@ struct DPPSettingsSection: View {
         }
     }
 
+    /// 陈旧提示（设计评审 #8 存活度展示面）：installedAt 超 90 天未核对 → 标注。
+    private func stalenessSuffix(_ adapter: DPPAdapter) -> String {
+        guard let at = adapter.installedAt else { return "" }
+        let days = Calendar.current.dateComponents([.day], from: at, to: Date()).day ?? 0
+        return days >= 90 ? "（\(days) 天未核对，站点改版可能失效）" : ""
+    }
+
     private func adapterRow(_ adapter: DPPAdapter) -> some View {
         SettingsRow(
             adapter.name,
-            subtitle: "\(adapter.hosts.joined(separator: ", "))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
+            subtitle: "\(adapter.hosts.joined(separator: ", "))\(stalenessSuffix(adapter))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
             systemImage: "puzzlepiece.extension"
         ) {
             HStack(spacing: 8) {

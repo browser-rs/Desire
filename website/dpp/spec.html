@@ -49,7 +49,7 @@
   <div class="crumbs"><a href="./">← DPP 首页</a> · <a href="./sdk.html">SDK 参考</a> · <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md">规范源文件</a></div>
   <h1>DPP 规范全文（v1.1）</h1>
   <div class="srcnote">由 <code>docs/DPP-PROTOCOL.md</code> 生成（<code>tools/gen-dpp-spec-page.py</code>）；规范以仓库源文件为准。</div>
-  <nav class="toc"><a href="#1. 设计原则">1. 设计原则</a><a href="#2. 协议分层">2. 协议分层</a><a href="#3. 接入形态（梯度采用）">3. 接入形态（梯度采用）</a><a href="#4. 核心 schema">4. 核心 Schema</a><a href="#5. profile — 场景约定">5. Profile — 场景约定</a><a href="#6. 安全模型">6. 安全模型</a><a href="#7. desire 运行时实现">7. Desire 运行时实现</a><a href="#8. e2e 验证结果">8. E2E 验证结果</a><a href="#9. 已知限制与边界">9. 已知限制与边界</a><a href="#10. 实现状态与演进路线">10. 实现状态与演进路线</a><a href="#11. 自检工具（站点作者闭环）">11. 自检工具（站点作者闭环）</a></nav>
+  <nav class="toc"><a href="#1. 设计原则">1. 设计原则</a><a href="#2. 协议分层">2. 协议分层</a><a href="#3. 接入形态（梯度采用）">3. 接入形态（梯度采用）</a><a href="#4. 核心 schema">4. 核心 Schema</a><a href="#5. profile — 场景约定">5. Profile — 场景约定</a><a href="#6. 安全模型">6. 安全模型</a><a href="#7. desire 运行时实现">7. Desire 运行时实现</a><a href="#9. 已知限制与边界">9. 已知限制与边界</a><a href="#9. 自检工具（站点作者闭环）">9. 自检工具（站点作者闭环）</a></nav>
 </div></header>
 <main><div class="wrap">
 <h1 id="desire-page-protocol-dpp-v1-规范">Desire Page Protocol (DPP) v1 规范</h1>
@@ -484,28 +484,7 @@ Actions (pageAction): search
 </code></pre>
 <p>模型无需调工具就知道页面能提供什么结构化数据、有什么可执行操作。</p>
 <h2 id="8-e2e-验证结果">8. E2E 验证结果</h2>
-<blockquote><p>2026-10-02 审计修复后全量复验（离屏 WKWebView 探针 + 真实解析器/解码器/抽取器）。</p><p>修复前 L0/L1 两行是<strong>假绿</strong>：抽取返回了 JSON 但字段全空/条目是错元素。</p></blockquote>
-<table><thead><tr><th>场景</th><th>结果</th></tr></thead><tbody>
-<tr><td>L2 声明块页 → pageProtocol 查看视图/信号/动作</td><td>✅</td></tr>
-<tr><td>L2 声明块页 → pageExtract 返回<strong>正确字段值</strong> JSON</td><td>✅</td></tr>
-<tr><td>L2 声明块页 → pageAction fill+click 全链执行</td><td>✅</td></tr>
-<tr><td>L1 属性页 → data-dpp-* 扫描 → pageExtract（<strong>全部条目</strong>、字段值正确）</td><td>✅</td></tr>
-<tr><td>L1 容器自身即条目（view+item 同元素）→ 单条目抽取</td><td>✅</td></tr>
-<tr><td>L0 JSON-LD 页 → Product 字段经逗号回退选择器抽取</td><td>✅</td></tr>
-<tr><td>规范原文形态：events 对象 {watch,…} / context 数组</td><td>✅ 展平/连接 + warnings</td></tr>
-<tr><td>ignore-only L1 页面 / 多 class ignore 选择器</td><td>✅</td></tr>
-<tr><td>Auto-Clean：fixed 浮层广告自动拦截</td><td>✅</td></tr>
-<tr><td>内置规则已拦的元素不重复拦截</td><td>✅</td></tr>
-<tr><td>page_context [DPP] 摘要（含 context）注入 system 层</td><td>✅ 代码接线，真机回合待验</td></tr>
-<tr><td>事件驱动：0→正 跳变 → PageEventHub → Agent 回合</td><td>⬜ 基建已通，待真机验证</td></tr>
-<tr><td>审批闸门真机 E2E：danger 动作强制审批（挂起/未执行/deny/allow 全链 20 项）</td><td>✅</td></tr>
-<tr><td>signals 接线：navigate 等 ready、pageAction 等 busy 消失</td><td>✅ 真机 E2E</td></tr>
-<tr><td>shadow DOM 穿透：<code>&gt;&gt;&gt;</code> item/字段选择器抽取</td><td>✅ 探针实证</td></tr>
-<tr><td>事件驱动全链：跳变 → PageEventHub → auto 回合 → 模型收到</td><td>✅ 真机 E2E 8 项</td></tr>
-<tr><td>站点级 well-known 合并 + upload 步骤交付</td><td>✅ 真机 E2E 7 项</td></tr>
-<tr><td>线上 SDK（desire.mankong.icu）第三方站点全链</td><td>✅ 真机 E2E 5 项</td></tr>
-<tr><td>审批时空一致性 + upload 摘 arm + signals.error</td><td>✅ 第二轮审计后全量回归</td></tr>
-</tbody></table>
+<p>全量 E2E 结果表已拆分至维护者文档 <a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-IMPLEMENTATION-STATUS.md" target="_blank" rel="noopener">DPP-IMPLEMENTATION-STATUS.md</a>。</p>
 <h2 id="9-已知限制与边界">9. 已知限制与边界</h2>
 <table><thead><tr><th>限制</th><th>原因</th><th>计划</th></tr></thead><tbody>
 <tr><td>跨源 iframe 不可穿透</td><td>同源已自动搜索；跨源需宿主 frame API</td><td>后续：<code>frame:</code> 前缀</td></tr>
@@ -517,61 +496,4 @@ Actions (pageAction): search
 </tbody></table>
 <p>（listChanged / sampling / OAuth 属 MCP 客户端能力，不在 DPP 范围——见 MCP 章节。）</p>
 <h2 id="10-实现状态与演进路线">10. 实现状态与演进路线</h2>
-<h3 id="一期-已实装">一期（已实装 ✅）</h3>
-<ul>
-<li>✅ 协议 schema + 四形态归一化解析器（desire-protocol.js）</li>
-<li>✅ <code>pageProtocol</code> 工具——查看页面协议（views/signals/actions/ignore）</li>
-<li>✅ <code>pageExtract(view)</code> 工具——按声明视图抽取结构化数据（支持分页 all=true）</li>
-<li>✅ <code>pageAction(name, args)</code> 工具——执行声明式动作（fill/click/waitForText/select 步骤 DSL + 模板变量 + success 信号检测）</li>
-<li>✅ page_context DPP 摘要自动注入（视图清单 + 动作 + 正文选择器）</li>
-<li>✅ navigate 返回值增强（页面标题 + 首段文本 + DPP 视图提示）</li>
-<li>✅ fixture E2E（三形态解析 + pageProtocol + pageExtract + pageAction 全链）</li>
-</ul>
-<h3 id="二期-已实装-事件驱动-e2e-待真机验证">二期（已实装 ✅，事件驱动 E2E 待真机验证）</h3>
-<ul>
-<li>✅ 事件驱动基建（Timer 轮询 + PageEventHub + per-site off/draft/auto 三档模式）</li>
-<li>✅ 事件风暴防护（debounce + 频率上限 + 去重）</li>
-<li>✅ unblockElement 豁免语义收窄（仅 ai-auto 来源规则触发 host 豁免）</li>
-<li>✅ ad-candidates.js 选择器 id/class 优先修复（nth-child 死选择器）</li>
-<li>✅ AI Auto-Clean toast 反馈（NotificationCenter → ContentView 橙色胶囊）</li>
-<li>✅ 默认提示词 DPP 协议页意识（pageProtocol/pageExtract/pageAction 优先于 getPageText/click）</li>
-<li>✅ signals 行为接线（navigate 等 ready / pageAction 等 busy）+ infinite 分页 + SPA 重解析</li>
-<li>✅ 审批闸门真机 E2E（20 项全过；抓到并修掉 autoEdit 放行 danger 动作、callAsyncJavaScript 布尔检查缺 return、挂起页冻结 DOM 三个真缺陷）</li>
-<li>⬜ chat profile 事件驱动回合 E2E 真机验证（基建已通，fixture 需带 IM 交互）</li>
-<li>✅ <strong>审计修复轮（2026-10-02）</strong>：审批闸门接线（outbound/danger → dangerous 强制审批）、</li>
-<p>容错解码 + warnings、L1/L0 选择器修复（探针实证）、pageAction 失败可见 + required/precondition、 事件滑窗限频 + 0→正 跳变、导航竞态清理、context 注入、contentMain 生效、模式持久化对齐</p>
-<li>⬜ forms profile 字段语义标注（data-dpp-field 支持 type=email/tel/date 等类型提示）</li>
-<li>⬜ monitor profile 变化阈值事件（价格 &lt; X / 库存 = 0 时触发）</li>
-</ul>
-<h3 id="三期-剩余规划">三期（剩余规划）</h3>
-<ul>
-<li>well-known 登录态指引 + 测试账号声明（站点级 schema 扩展）</li>
-<li>MCP 联动（DPP 声明可引用 MCP 工具：<code>run: {"mcp": "server.tool"}</code>）</li>
-<li>跨源 iframe 穿透（<code>frame:</code> 前缀，宿主经 frame API 跨源查询）</li>
-<li>L1 属性扫描进 shadow DOM / iframe</li>
-<li>规范与 Schema 公开托管于产品页（文档/Schema/校验器已就绪，待部署）</li>
-</ul>
-<h3 id="已提前落地-原三期项">已提前落地（原三期项）</h3>
-<ul>
-<li>✅ shadow DOM 穿透（<code>&gt;&gt;&gt;</code> 语法，全链：views/字段/actions/信号/事件命中）</li>
-<li>✅ SDK 公开分发（<code>website/desire-sdk.js</code> → https://desire.mankong.icu/desire-sdk.js）</li>
-<li>✅ well-known 站点级声明（页面声明才拉取 + 页内同源 fetch + host 缓存 + 合并进单测）</li>
-<li>✅ <code>upload</code> 步骤（UploadIntent 原语）+ 同源 iframe 穿透（自动搜索 + <code>&gt;&gt;&gt;</code> 中段）</li>
-<li>✅ SPA 路由变化全级重解析（dpp-route-watch 包装 history + popstate/hashchange）</li>
-<li>✅ precondition 轮询等待（3s）；<code>ignore</code> 正文文本扣减；<code>pageProtocol</code> 列出事件；</li>
-<p><code>getNetworkLog</code> 原生化（读 DevToolsStore，页面世界网络依赖只剩 WaitForNetworkIdle）</p>
-<li>✅ <strong>协议设计层升级（v1.1）</strong>：§4.0 版本与演进规则、§4.7 站点级完整行为、</li>
-<p>§5 Profile 契约运行时化（含站点级页面地图 pages 回退）、§11 自检工具 （JSON Schema + 零依赖校验器）</p>
-</ul>
-<h2 id="11-自检工具-站点作者闭环">11. 自检工具（站点作者闭环）</h2>
-<table><thead><tr><th>工具</th><th>用法</th><th>覆盖</th></tr></thead><tbody>
-<tr><td>正式 Schema</td><td><code>docs/dpp-schema.json</code>（JSON Schema 2020-12）</td><td>一切声明形态（页面块 / well-known / SDK）共用一份 schema</td></tr>
-<tr><td>命令行校验</td><td>`python3 tools/dpp-validate.py [文件\</td><td>URL]`（默认校验产品页自己）</td><td>schema 规则 + <strong>运行时陷阱提前预警</strong>（未知 run 操作会当场失败、空选择器、outbound 未标 danger、events <code>on</code> 被忽略等）；零依赖</td></tr>
-<tr><td>SDK 内校验</td><td><code>desire.validate()</code>（L3）</td><td>开发期 console 提示（缺 signals.ready、缺 views、action 缺 run）</td></tr>
-<tr><td>运行时自查</td><td><code>pageProtocol</code> 工具 / <code>GET /protocol/inspect</code></td><td>warnings 数组（被降级/丢弃的字段逐条可见）</td></tr>
-</tbody></table>
-<blockquote><p>推荐流程：写完声明 → <code>dpp-validate.py</code>（或 SDK validate）→ 浏览器里</p><p><code>pageProtocol</code> 看运行时解析结果 → <code>pageExtract</code> 抽查数据 → <code>pageAction</code> 走一遍动作。</p><p><strong>产品页自身即按此流程接入</strong>（L2 声明块，校验零警告）。</p></blockquote>
-</div></main>
-<footer><div class="wrap">DPP 由 <a href="https://desire.mankong.icu/">Desire 浏览器</a>实现与维护 · 本页零外部依赖</div></footer>
-</body>
-</html>
+<p>实现进度与 E2E 跟踪已拆分至维护者文档：<a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-IMPLEMENTATION-STATUS.md" target="_blank" rel="noopener">DPP-IMPLEMENTATION-STATUS.md</a>（本页保持 normative 规范与站点作者需要的内容）。</p>

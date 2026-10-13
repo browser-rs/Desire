@@ -34,6 +34,7 @@ nonisolated enum DPPAdapterAuthoring {
                                  protocolBody: protocolBody,
                                  notes: notes.trimmingCharacters(in: .whitespacesAndNewlines))
         adapter.protocolBody.warnings.append("adapter: \(trimmedName)")
+        adapter.installedAt = Date()   // 创建/更新即视为已核对（陈旧提示的基准）
         let formatter = JSONEncoder()
         formatter.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try? formatter.encode(adapter)

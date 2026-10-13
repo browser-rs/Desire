@@ -153,8 +153,8 @@ struct ContentView: View {
                 showBookmarks: $showBookmarks,
                 showPlugins: $showPlugins,
                 showElementBlock: $showElementBlock,
-            showPasswordManager: $showPasswordManager,
-            showAdBlockStats: $showAdBlockStats,
+                showPasswordManager: $showPasswordManager,
+                showAdBlockStats: $showAdBlockStats,
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
                 isFindBarVisible: $isFindBarVisible,
@@ -165,6 +165,10 @@ struct ContentView: View {
                 showWorkspaces: Binding(
                     get: { appState.showWorkspacesPanel },
                     set: { appState.showWorkspacesPanel = $0 }
+                ),
+                showSearchEverywhere: Binding(
+                    get: { appState.showSearchEverywhere },
+                    set: { appState.showSearchEverywhere = $0 }
                 ),
                 showReadingList: $showReadingList,
                 showCommandPalette: $showCommandPalette,
@@ -472,6 +476,9 @@ struct ContentView: View {
             videoAdBlocker: videoAdBlocker,
             profileDataStore: tabManager.profileDataStore,
             contentBlockerStore: contentBlocker,
+            historyStoreRef: historyStore,
+            bookmarkStoreRef: bookmarkStore,
+            readingListStoreRef: readingListStore,
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,
             showSearchHistory: $showSearchHistory,
@@ -483,6 +490,10 @@ struct ContentView: View {
             showWorkspacesPanel: Binding(
                 get: { appState.showWorkspacesPanel },
                 set: { appState.showWorkspacesPanel = $0 }
+            ),
+            showSearchEverywhere: Binding(
+                get: { appState.showSearchEverywhere },
+                set: { appState.showSearchEverywhere = $0 }
             ),
             onNavigate: { url in
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }

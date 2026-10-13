@@ -577,6 +577,7 @@ final class AutomationServer {
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
+        ep("GET", "/search/everything", "Unified search across open tabs / history / bookmarks / reading list (Search Everywhere panel query)", params: ["q:string"], example: "…/search/everything?q=github")
         ep("GET", "/page/extract", "Run the agent's pageExtract tool against the selected tab (same implementation, read-only)", params: ["view:string", "all?:bool"], example: "…/page/extract?view=stories")
         ep("POST", "/page/dpp-action", "Run a declared DPP action via the agent toolchain — local-effect actions only (persist/outbound go through the agent approval loop)", params: ["name:string", "args?:object"], example: #"-d '{"name":"fill-article-title","args":{"title":"hi"}}'"#)
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
@@ -931,6 +932,42 @@ final class AutomationServer {
                 return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
+    case ("GET", "/search/everything"):
+            // 集中搜索的桥面（SearchEverywhere 同一查询）：四源结构化断言。
+            guard let q = Self.string(query, "q"), !q.isEmpty else {
+                return try Self.json(["error": "missing q"])
+            }
+            var items: [[String: Any]] = []
+            if let tm = TabSessionCoordinator.shared.activeTabManager {
+                for (idx, tab) in tm.tabs.enumerated() {
+                    items.append(["source": "tab", "index": idx,
+                                  "title": tab.displayTitle,
+                                  "url": tab.browser.webView.url?.absoluteString ?? tab.urlString])
+                }
+            }
+            if let hs = AppState.live?.historyStore {
+                for e in hs.entries where e.title.lowercased().contains(q.lowercased()) || e.url.lowercased().contains(q.lowercased()) {
+                    items.append(["source": "history", "title": e.title, "url": e.url])
+                }
+            }
+            if let bs = AppState.live?.bookmarkStore {
+                func walk(_ nodes: [Bookmark]) {
+                    for b in nodes {
+                        if let url = b.url, b.title.lowercased().contains(q.lowercased()) || url.lowercased().contains(q.lowercased()) {
+                            items.append(["source": "bookmark", "title": b.title, "url": url])
+                        }
+                        walk(b.children)
+                    }
+                }
+                walk(bs.bookmarks)
+            }
+            if let rl = AppState.live?.readingListStore {
+                for i in rl.items where i.title.lowercased().contains(q.lowercased()) || i.url.lowercased().contains(q.lowercased()) {
+                    items.append(["source": "readingList", "title": i.title, "url": i.url])
+                }
+            }
+            return try Self.json(["q": q, "results": items])
+
             case ("GET", "/protocol/inspect"):
                 // index? 指定标签（多窗口下 deliveryTarget 的窗口未必是
                 // active 窗口——E2E 实测错位）；缺省 = deliveryTarget 的 selected。

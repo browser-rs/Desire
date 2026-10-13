@@ -144,6 +144,7 @@ enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings, showDownloads, showWorkspaces
+    case searchEverywhere
     case showPlugins, showElementBlock, showPasswordManager, showAdBlockStats
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader

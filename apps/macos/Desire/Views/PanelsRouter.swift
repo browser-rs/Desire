@@ -21,6 +21,9 @@ struct PanelsRouter: ViewModifier {
     let videoAdBlocker: VideoAdBlocker
     let profileDataStore: WKWebsiteDataStore?
     let contentBlockerStore: ContentBlockerStore
+    let historyStoreRef: HistoryStore
+    let bookmarkStoreRef: BookmarkStore
+    let readingListStoreRef: ReadingListStore
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showSearchHistory: Bool
@@ -30,6 +33,7 @@ struct PanelsRouter: ViewModifier {
     @Binding var showAdBlockStats: Bool
     @Binding var showPasswordManager: Bool
     @Binding var showWorkspacesPanel: Bool
+    @Binding var showSearchEverywhere: Bool
 
     /// Navigates the selected tab (panel selection callbacks).
     let onNavigate: (String) -> Void
@@ -77,6 +81,18 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showPasswordManager) {
                 PasswordPanel(passwordStore: passwordStore)
+            }
+            .sheet(isPresented: $showSearchEverywhere) {
+                SearchEverywherePanel(
+                    tabManager: tabManager,
+                    historyStore: historyStoreRef,
+                    bookmarkStore: bookmarkStoreRef,
+                    readingListStore: readingListStoreRef,
+                    settings: settings,
+                    contentBlocker: contentBlockerStore,
+                    videoAdBlocker: videoAdBlocker,
+                    onClose: { showSearchEverywhere = false }
+                )
             }
             .sheet(isPresented: $showWorkspacesPanel) {
                 WorkspacePanel(

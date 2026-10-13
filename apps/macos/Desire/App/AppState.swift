@@ -37,6 +37,8 @@ class AppState: ObservableObject {
     @Published var showDownloadsPanel = false
     /// 工作区面板（0.7.13）：命名标签组保存/恢复。
     @Published var showWorkspacesPanel = false
+    /// 集中搜索面板（0.7.14）：⌘⇧F 四源同搜。
+    @Published var showSearchEverywhere = false
 
     /// Tracks whether the launch session has been restored. Set to true by
     /// the first window's `onAppear`; subsequent user-opened windows skip

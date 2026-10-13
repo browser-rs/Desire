@@ -2277,6 +2277,29 @@ do {
           videoBlocker.contains("setVideoAdRulesEnabled"))
 }
 
+
+func testSearchEverywhere() {
+    let items: [SearchEverywhere.Item] = [
+        .init(source: .tab, id: "t1", title: "GitHub - Desire", url: "https://github.com/browser-rs/Desire"),
+        .init(source: .history, id: "h1", title: "github profile", url: "https://github.com/mankong"),
+        .init(source: .bookmark, id: "b1", title: "GitHub Docs", url: "https://docs.github.com"),
+        .init(source: .readingList, id: "r1", title: "Rust async guide", url: "https://example.com/rust"),
+    ]
+    let r = SearchEverywhere.search("github", items: items)
+    check("search：跨源命中", r.bookmarks.count == 1 && r.history.count == 1 && r.tabs.count == 1)
+    check("search：空查询返回空", SearchEverywhere.search("", items: items).isEmpty)
+    check("search：无命中返回空", SearchEverywhere.search("nomatch", items: items).totalCount == 0)
+    // URL 命中（title 不含）
+    let r2 = SearchEverywhere.search("browser-rs", items: items)
+    check("search：url 命中", r2.tabs.count == 1)
+    // 每源上限
+    let many = (0..<30).map { SearchEverywhere.Item(source: .tab, id: "\($0)", title: "t\($0) github", url: "u\($0)") }
+    check("search：每源 20 条上限", SearchEverywhere.search("github", items: many).tabs.count == 20)
+    // 大小写不敏感
+    check("search：大小写不敏感", SearchEverywhere.search("GITHUB", items: items).totalCount >= 2)
+}
+testSearchEverywhere()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -50,6 +50,7 @@ struct ShortcutMapping: Codable, Identifiable, Equatable {
             ShortcutMapping(id: "reopenClosedTab", commandName: "Reopen Closed Tab", keyEquivalent: "t", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "nextTab", commandName: "Next Tab", keyEquivalent: "]", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "previousTab", commandName: "Previous Tab", keyEquivalent: "[", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
+            ShortcutMapping(id: "searchEverywhere", commandName: "Search Everywhere", keyEquivalent: "f", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "tabSearch", commandName: "Search Tabs", keyEquivalent: "\\", modifierFlags: cmd, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "openFile", commandName: "Open File", keyEquivalent: "o", modifierFlags: cmd, isCustomized: false, category: .tabs),
             ShortcutMapping(id: "closeWindow", commandName: "Close Window", keyEquivalent: "w", modifierFlags: cmd | shift, isCustomized: false, category: .tabs),

@@ -201,6 +201,9 @@ struct AppCommands: Commands {
         // MARK: - Tabs
 
         CommandMenu("Tabs") {
+            Button("Search Everywhere") { postCommand(.searchEverywhere) }
+                .keyboardShortcut(binding("searchEverywhere", "f", [.command, .shift]))
+            Divider()
             Button("Search Tabs") { postCommand(.tabSearch) }
                 .keyboardShortcut(binding("tabSearch", "\\", .command))
             Button("Sidebar") { postCommand(.toggleSidebar) }

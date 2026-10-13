@@ -219,8 +219,8 @@ class Settings: ObservableObject {
         URLResolution.defaultTarget(self).displayName
     }
 
-    func addCustomEngine(name: String, searchURL: String, suggestionURL: String) {
-        let engine = CustomSearchEngine(id: UUID(), name: name, searchURL: searchURL, suggestionURL: suggestionURL)
+    func addCustomEngine(name: String, searchURL: String, suggestionURL: String, keyword: String? = nil) {
+        let engine = CustomSearchEngine(id: UUID(), name: name, searchURL: searchURL, suggestionURL: suggestionURL, keyword: keyword)
         customEngines.append(engine)
     }
 

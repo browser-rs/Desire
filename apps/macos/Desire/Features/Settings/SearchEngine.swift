@@ -5,6 +5,9 @@ struct CustomSearchEngine: Codable, Identifiable, Equatable {
     var name: String
     var searchURL: String
     var suggestionURL: String
+    /// 地址栏关键字（可选）：`gh rust` → 用此引擎搜 rust。nil = 无关键字。
+    /// 搜索 URL 用 %s 或 {searchTerms} 占位（替换为去掉关键字后的查询词）。
+    var keyword: String?
 }
 
 enum SearchEngine: String, CaseIterable, Codable {

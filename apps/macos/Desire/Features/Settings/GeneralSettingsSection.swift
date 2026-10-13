@@ -999,6 +999,7 @@ private struct CustomEngineSection: View {
     @State private var newName = ""
     @State private var newURL = ""
     @State private var newSuggestionURL = ""
+    @State private var newKeyword = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1049,14 +1050,16 @@ private struct CustomEngineSection: View {
                 name: $newName,
                 searchURL: $newURL,
                 suggestionURL: $newSuggestionURL,
+                keyword: $newKeyword,
                 onCancel: { showAdd = false },
                 onAdd: {
                     settings.addCustomEngine(
                         name: newName,
                         searchURL: newURL,
-                        suggestionURL: newSuggestionURL
+                        suggestionURL: newSuggestionURL,
+                        keyword: newKeyword.isEmpty ? nil : newKeyword
                     )
-                    newName = ""; newURL = ""; newSuggestionURL = ""
+                    newName = ""; newURL = ""; newSuggestionURL = ""; newKeyword = ""
                     showAdd = false
                 }
             )
@@ -1105,6 +1108,7 @@ private struct AddCustomEngineSheet: View {
     @Binding var name: String
     @Binding var searchURL: String
     @Binding var suggestionURL: String
+    @Binding var keyword: String
     let onCancel: () -> Void
     let onAdd: () -> Void
 
@@ -1140,6 +1144,20 @@ private struct AddCustomEngineSheet: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 SettingsTextField(placeholder: "https://…/suggest?q=", text: $suggestionURL)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Address bar keyword (optional)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                SettingsTextField(placeholder: "wiki", text: $keyword)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Address bar keyword (optional)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                SettingsTextField(placeholder: "wiki", text: $keyword)
             }
 
             HStack {

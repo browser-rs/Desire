@@ -151,6 +151,16 @@ class Tab: ObservableObject {
             return override == .allow ? .allowAll : .never
         }()
         browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore)
+        // 超级拖拽（0.7.13）：webview 侧链接上报 → MouseGestureStore 判定。
+        if MouseGestureStore.shared.superDragEnabled {
+            browser.superDragLinkHandler = { urlString in
+                guard let urlString else {
+                    MouseGestureStore.shared.noteNonLinkDragStart()
+                    return
+                }
+                MouseGestureStore.shared.noteLinkDragStart(urlString: urlString, at: .zero)
+            }
+        }
         // DevTools 记录器（0.7.5）：console/network 接收端随 webview 创建
         // 挂上（归属 = 本 tab id），后台标签页也持续记录——此前接收端随
         // SwiftUI 视图挂/卸，转后台即断流。

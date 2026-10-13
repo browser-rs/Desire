@@ -65,6 +65,7 @@ enum UserScriptLoader {
         add("network-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)
+        add("super-drag", at: .atDocumentStart)
         add("password-detect", at: .atDocumentEnd)
         add("reader-content", at: .atDocumentEnd)
         add("hover-link", at: .atDocumentEnd)

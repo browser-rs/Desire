@@ -144,6 +144,9 @@ class BrowserState: ObservableObject {
     @Published var pageZoom: Double = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
+    /// 超级拖拽（0.7.13）：链接 mousedown 上报（宿主在 mouseUp 判定拖动）。
+    /// 由 TabManager 装配（MouseGestureStore 开启时才有实现）。
+    var superDragLinkHandler: ((String?) -> Void)?
     @Published var isMuted: Bool = false
     /// 渲染进程崩溃自愈中（0.6.4）：自动重载完成（didCommit）即清除。
     @Published var contentProcessCrashed = false
@@ -693,7 +696,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf",
+            "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
             "cookieGuardHandled",
             // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
             // 在 webview 创建时独占注册——这里 remove-before-add 会把记录
@@ -1254,6 +1257,12 @@ try {
             // （desireProtocolEvent）。按本文件"新消息前置早退"惯例恢复。
             if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+                return
+            }
+            if message.name == "superDragLink", let dict = message.body as? [String: Any] {
+                // 超级拖拽（0.7.13，默认关）：链接上按下时上报 URL，mouseUp 由
+                // MouseGestureStore 判定拖动距离后开后台标签。
+                parent.state.superDragLinkHandler?(dict["url"] as? String)
                 return
             } else if message.name == "otpDetect", let dict = message.body as? [String: String] {
                 parent.state.pendingOTPHint = dict["field"] ?? "verification code"

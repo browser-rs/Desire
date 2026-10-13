@@ -89,6 +89,15 @@ enum URLResolution {
         for engine in settings.customEngines where firstWord == engine.name.lowercased() {
             return (SearchTarget(displayName: engine.name, searchTemplate: engine.searchURL), remainder)
         }
+        // 自定义引擎关键字（0.7.13）：`gh rust` → 该引擎搜 rust（替换模板里的
+        // %s/{searchTerms}/查询词）。
+        for engine in settings.customEngines {
+            guard let kw = engine.keyword?.lowercased(), !kw.isEmpty, firstWord == kw else { continue }
+            let rendered = engine.searchURL
+                .replacingOccurrences(of: "%s", with: remainder)
+                .replacingOccurrences(of: "{searchTerms}", with: remainder)
+            return (SearchTarget(displayName: engine.name, searchTemplate: rendered), "")
+        }
         return nil
     }
 

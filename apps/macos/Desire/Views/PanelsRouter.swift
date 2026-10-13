@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// Presents the app's modal panels: history, bookmarks, search history,
 /// extensions, reading list, element blocker, and the plugins window
@@ -16,6 +17,10 @@ struct PanelsRouter: ViewModifier {
     let elementBlockStore: ElementBlockStore
     let passwordStore: PasswordStore
     let pluginStore: PluginStore
+    let tabManager: TabManager
+    let videoAdBlocker: VideoAdBlocker
+    let profileDataStore: WKWebsiteDataStore?
+    let contentBlockerStore: ContentBlockerStore
     @Binding var showHistory: Bool
     @Binding var showBookmarks: Bool
     @Binding var showSearchHistory: Bool
@@ -24,6 +29,7 @@ struct PanelsRouter: ViewModifier {
     @Binding var showElementBlock: Bool
     @Binding var showAdBlockStats: Bool
     @Binding var showPasswordManager: Bool
+    @Binding var showWorkspacesPanel: Bool
 
     /// Navigates the selected tab (panel selection callbacks).
     let onNavigate: (String) -> Void
@@ -71,6 +77,16 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showPasswordManager) {
                 PasswordPanel(passwordStore: passwordStore)
+            }
+            .sheet(isPresented: $showWorkspacesPanel) {
+                WorkspacePanel(
+                    tabManager: tabManager,
+                    settings: settings,
+                    contentBlocker: contentBlockerStore,
+                    videoAdBlocker: videoAdBlocker,
+                    profileDataStore: profileDataStore,
+                    onClose: { showWorkspacesPanel = false }
+                )
             }
     }
 }

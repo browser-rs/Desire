@@ -103,6 +103,7 @@ struct Toolbar: View {
     /// Downloads-popover visibility. Owned by `AppState` (not local state)
     /// so the automation bridge can open the panel for screenshots.
     @Binding var showDownloads: Bool
+    @Binding var showWorkspaces: Bool
     @State private var showPasswords = false
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
@@ -743,6 +744,7 @@ struct Toolbar: View {
             moreMenuItem("Search History", "magnifyingglass") { showSearchHistory = true }
             moreMenuItem("Passwords", "key.fill") { showPasswords = true }
             moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
+            moreMenuItem("Workspaces", "square.stack.3d.up") { showWorkspaces = true }
             moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
             moreMenuItem("Plugins", "applescript", shortcut: "⇧⌘P") { showPlugins = true }
             moreMenuItem("Element Blocker", "eye.slash") { showElementBlock = true }

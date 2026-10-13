@@ -162,6 +162,10 @@ struct ContentView: View {
                     get: { appState.showDownloadsPanel },
                     set: { appState.showDownloadsPanel = $0 }
                 ),
+                showWorkspaces: Binding(
+                    get: { appState.showWorkspacesPanel },
+                    set: { appState.showWorkspacesPanel = $0 }
+                ),
                 showReadingList: $showReadingList,
                 showCommandPalette: $showCommandPalette,
                 showAgentPanel: $showAgentPanel,
@@ -464,6 +468,10 @@ struct ContentView: View {
             elementBlockStore: elementBlockStore,
             passwordStore: passwordStore,
             pluginStore: pluginStore,
+            tabManager: tabManager,
+            videoAdBlocker: videoAdBlocker,
+            profileDataStore: tabManager.profileDataStore,
+            contentBlockerStore: contentBlocker,
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,
             showSearchHistory: $showSearchHistory,
@@ -472,6 +480,10 @@ struct ContentView: View {
             showElementBlock: $showElementBlock,
             showAdBlockStats: $showAdBlockStats,
             showPasswordManager: $showPasswordManager,
+            showWorkspacesPanel: Binding(
+                get: { appState.showWorkspacesPanel },
+                set: { appState.showWorkspacesPanel = $0 }
+            ),
             onNavigate: { url in
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }
             },

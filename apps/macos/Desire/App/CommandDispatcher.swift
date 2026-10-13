@@ -48,6 +48,7 @@ struct CommandDispatcher {
         var showSidebar: Binding<Bool>
         var isFindBarVisible: Binding<Bool>
         var showDownloads: Binding<Bool>
+        var showWorkspaces: Binding<Bool>
         var showReadingList: Binding<Bool>
         var showCommandPalette: Binding<Bool>
         var showAgentPanel: Binding<Bool>
@@ -217,6 +218,9 @@ struct CommandDispatcher {
 
         case .showDownloads:
             bindings.showDownloads.wrappedValue = true
+
+        case .showWorkspaces:
+            bindings.showWorkspaces.wrappedValue = true
 
         case .inspectElement:
             if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {

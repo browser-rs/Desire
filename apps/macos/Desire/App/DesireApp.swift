@@ -143,7 +143,7 @@ struct DesireApp: App {
 enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
-    case showHistory, showBookmarks, showSettings, showDownloads
+    case showHistory, showBookmarks, showSettings, showDownloads, showWorkspaces
     case showPlugins, showElementBlock, showPasswordManager, showAdBlockStats
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader

@@ -35,6 +35,8 @@ class AppState: ObservableObject {
     /// local state) so the automation bridge can open the panel to
     /// screenshot SwiftUI chrome that the webview-only /screenshot misses.
     @Published var showDownloadsPanel = false
+    /// 工作区面板（0.7.13）：命名标签组保存/恢复。
+    @Published var showWorkspacesPanel = false
 
     /// Tracks whether the launch session has been restored. Set to true by
     /// the first window's `onAppear`; subsequent user-opened windows skip

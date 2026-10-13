@@ -254,6 +254,7 @@ return (function() {
             var f = fieldEls[j];
             var fieldName = f.getAttribute('data-dpp-field');
             var attr = f.getAttribute('data-dpp-field-attr');
+            var fType = f.getAttribute('data-dpp-field-type');   // forms profile 语义标注（email/tel/date…）
             var path = [];
             var node = f;
             while (node && node !== item) {
@@ -263,7 +264,8 @@ return (function() {
                 node = p;
             }
             var rel = path.join('');
-            fields[fieldName] = attr ? (rel + '@' + attr) : (rel || '@text');
+            var expr = attr ? (rel + '@' + attr) : (rel || '@text');
+            fields[fieldName] = fType ? { selector: expr, type: fType } : expr;
         }
         return fields;
     }

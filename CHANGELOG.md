@@ -2,6 +2,9 @@
 ### Added
 
 - **集中搜索（Search Everywhere，⌘⇧F）**：统一搜索面板跨**打开标签/历史/书签/阅读列表**四源同搜——分组展示、即输即滤（120ms 去抖）、每源 20 条上限；回车直达（打开标签 → switchTab，其余 → 新标签打开）。Tabs 菜单新增入口（⌘⇧F，可在快捷键设置改）；桥端点 GET /search/everything?q= 同一查询（四源结构化断言）。查询纯逻辑（SearchEverywhere）进单测 harness（跨源命中/空查询/每源上限/大小写不敏感）。
+- **跨标签查找**（0.7.14 查找增强）：Find bar 新增「在其他标签中查找」按钮——扫描其他标签页的匹配计数（TreeWalker 文本统计，无副作用），popover 列出（标签名+计数，按计数排序），点击跳到该标签并执行查找。多窗口的标签也在扫描范围（TabSessionCoordinator liveManagers）。
+- **DPP forms profile 字段语义标注**（评审遗留）：data-dpp-field-type 属性透传为 FieldSpec.type（L1 属性标注路径）——站点可标注 email/tel/date 等语义类型，智能体填表时可区分处理。
+
 
 
 ## [v0.7.13] - 2026-10-14

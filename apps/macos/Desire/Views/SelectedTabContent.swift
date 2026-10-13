@@ -132,7 +132,16 @@ struct SelectedTabContent: View {
                             onFindNext: { content.performFindNext() },
                             onFindPrevious: { content.performFindPrevious() },
                             onHide: { content.hideFindBar() },
-                            onFindAll: { content.performFindAll() }
+                            onFindAll: { content.performFindAll() },
+                            onScanOtherTabs: {
+                                CrossTabFindStore.shared.scan(
+                                    query: content.findString,
+                                    excluding: tab.id)
+                            },
+                            otherTabMatches: CrossTabFindStore.shared.matches,
+                            onOpenOtherTab: { tabID, query in
+                                CrossTabFindStore.shared.openAndFind(tabID: tabID, query: query)
+                            }
                         )
                     }
 

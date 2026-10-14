@@ -13,6 +13,8 @@
 - **跨标签查找**（0.7.14 查找增强）：Find bar 新增「在其他标签中查找」按钮——扫描其他标签页的匹配计数（TreeWalker 文本统计，无副作用），popover 列出（标签名+计数，按计数排序），点击跳到该标签并执行查找。多窗口的标签也在扫描范围（TabSessionCoordinator liveManagers）。
 - **DPP forms profile 字段语义标注**（评审遗留）：data-dpp-field-type 属性透传为 FieldSpec.type（L1 属性标注路径）——站点可标注 email/tel/date 等语义类型，智能体填表时可区分处理。
 - **适配包存活度核对端点**（POST /dpp/adapters/verify，设计评审 #8 的核对面）：对每个启用的适配包找当前打开的匹配标签页，逐视图跑真实 querySelector 计数——报告 alive/rotten/no matching tab open 与各视图元素数（-1 = 选择器抛错）。站点改版导致的"包腐烂"从此一键发现，不再静默失效。
+- **集中搜索增强**：① **键盘导航**——↑↓ 在结果间移动选中（强调色高亮），回车打开选中行（无选中 = 第一行）；② **高亮匹配片段**——结果标题中命中段以强调色+粗体渲染（AttributedString，大小写不敏感）；③ **Agent 会话第五源**——对话标题/消息文本命中即列出（"Chat" 徽标），点击载入该会话并打开 Agent 面板；空查询默认态同步列出。原有鼠标点击/回车开首行行为不变。
+
 
 
 

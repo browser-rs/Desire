@@ -7,6 +7,8 @@ nonisolated enum SearchEverywhere {
 
     enum Source: String, CaseIterable, Sendable {
         case tab, history, bookmark, readingList
+        /// Agent 会话（0.7.14 第五源：标题/消息文本命中，回车直达会话）。
+        case agentConversation
     }
 
     struct Hit: Identifiable, Equatable, Sendable {
@@ -27,11 +29,15 @@ nonisolated enum SearchEverywhere {
         var history: [Hit] = []
         var bookmarks: [Hit] = []
         var readingList: [Hit] = []
+        var agentConversations: [Hit] = []
 
         var isEmpty: Bool {
-            tabs.isEmpty && history.isEmpty && bookmarks.isEmpty && readingList.isEmpty
+            tabs.isEmpty && history.isEmpty && bookmarks.isEmpty
+                && readingList.isEmpty && agentConversations.isEmpty
         }
-        var totalCount: Int { tabs.count + history.count + bookmarks.count + readingList.count }
+        var totalCount: Int {
+            tabs.count + history.count + bookmarks.count + readingList.count + agentConversations.count
+        }
     }
 
     // MARK: - Inputs（调用方把各源裁成轻量行——纯函数不依赖 store 类型）
@@ -68,6 +74,7 @@ nonisolated enum SearchEverywhere {
             case .history: result.history.append(hit)
             case .bookmark: result.bookmarks.append(hit)
             case .readingList: result.readingList.append(hit)
+            case .agentConversation: result.agentConversations.append(hit)
             }
             counts[source, default: 0] += 1
         }

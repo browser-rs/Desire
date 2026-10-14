@@ -14,11 +14,17 @@ struct SearchEverywherePanel: View {
     let settings: Settings
     let contentBlocker: ContentBlockerStore
     let videoAdBlocker: VideoAdBlocker
+    /// Agent 会话（第五源：对话标题/首条消息搜索；回车直达 loadConversation）。
+    var agentSession: AgentSessionStore? = nil
     let onClose: () -> Void
+    /// 点击 Agent 会话结果时的宿主回调（打开 Agent 面板——面板归属 ContentView 状态）。
+    var onOpenAgentPanel: (() -> Void)? = nil
 
     @State private var query = ""
     @State private var result = SearchEverywhere.Result()
     @State private var searchTask: Task<Void, Never>?
+    /// 键盘导航：扁平化的可选中行（分组展平，与渲染顺序一致）。
+    @State private var selectedIndex: Int? = nil
     @FocusState private var fieldFocused: Bool
 
     /// 当前选中标签 id（回车直达 switchTab 用）。
@@ -60,8 +66,22 @@ struct SearchEverywherePanel: View {
                     SearchEverywhere.Item(source: .readingList, id: $0.id.uuidString,
                                           title: $0.title, url: $0.url)
                 }
+                // Agent 会话（第五源）：标题 + 消息文本。
+                if let agentSession {
+                    for c in agentSession.conversationStore.conversations {
+                        let titleHit = c.title.lowercased().contains(q.lowercased())
+                        let msgHit = c.messages.contains { ($0.content ?? "").lowercased().contains(q.lowercased()) }
+                        if titleHit || msgHit {
+                            items.append(.init(source: .agentConversation, id: c.id.uuidString,
+                                               title: c.title, url: "desire://conversation/\(c.id.uuidString)"))
+                        }
+                    }
+                }
                 let r = SearchEverywhere.search(q, items: items)
-                await MainActor.run { result = r }
+                await MainActor.run {
+                    result = r
+                    selectedIndex = nil   // 新结果集重置键盘选择
+                }
             }
         }
     }
@@ -111,7 +131,21 @@ struct SearchEverywherePanel: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .focused($fieldFocused)
-                .onSubmit { openFirst() }
+                .onKeyPress(.downArrow, phases: .down) { _ in
+                    moveSelection(1)
+                    return .handled
+                }
+                .onKeyPress(.upArrow, phases: .down) { _ in
+                    moveSelection(-1)
+                    return .handled
+                }
+                .onSubmit {
+                    // 回车 = 打开键盘选中行（无选中 = 第一行）。
+                    let rows = flatRows
+                    guard !rows.isEmpty else { return }
+                    let idx = min(selectedIndex ?? 0, rows.count - 1)
+                    activate(rows[max(0, idx)])
+                }
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -131,6 +165,16 @@ struct SearchEverywherePanel: View {
                   title: tab.displayTitle,
                   url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
         }
+    }
+
+    /// 键盘导航用的**扁平行序列**（与渲染顺序一致：分组顺序展平）。
+    private var flatRows: [SearchEverywhere.Hit] {
+        if result.isEmpty, query.trimmingCharacters(in: .whitespaces).isEmpty {
+            return defaultTabItems.map {
+                .init(source: .tab, id: $0.id, title: $0.title, url: $0.url, matchedIn: "title")
+            }
+        }
+        return result.tabs + result.history + result.bookmarks + result.readingList
     }
 
     @ViewBuilder
@@ -169,6 +213,10 @@ struct SearchEverywherePanel: View {
                     if !result.history.isEmpty { group("History", result.history, systemImage: "clock") }
                     if !result.bookmarks.isEmpty { group("Bookmarks", result.bookmarks, systemImage: "book") }
                     if !result.readingList.isEmpty { group("Reading List", result.readingList, systemImage: "eyeglasses") }
+                    if !result.agentConversations.isEmpty {
+                        group("Agent Conversations", result.agentConversations,
+                              systemImage: "bubble.left.and.text.bubble.right")
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -193,14 +241,16 @@ struct SearchEverywherePanel: View {
     }
 
     private func hitRow(_ hit: SearchEverywhere.Hit) -> some View {
-        Button {
+        let rows = flatRows
+        let flatIndex = rows.firstIndex(where: { $0.source == hit.source && $0.id == hit.id })
+        let isSelected = flatIndex != nil && selectedIndex == flatIndex
+        return Button {
             activate(hit)
         } label: {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(hit.title.isEmpty ? hit.url : hit.title)
+                    Text(attributedTitle(hit.title.isEmpty ? hit.url : hit.title))
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(hit.url)
                         .font(.system(size: 10))
@@ -212,17 +262,36 @@ struct SearchEverywherePanel: View {
                     Text("Tab")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(appAccent)
+                } else if hit.source == .agentConversation {
+                    Text("Chat")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(appAccent)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                    .fill(isSelected ? appAccent.opacity(0.14)
+                          : Color(nsColor: .controlBackgroundColor).opacity(0.5))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// 高亮匹配片段（设计评审验收"高亮匹配片段"）：At |tributedString 局部
+    /// 强调（前景强调色+semibold），大小写不敏感首个命中。
+    private func attributedTitle(_ text: String) -> AttributedString {
+        var attr = AttributedString(text)
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty,
+              let range = attr.range(of: q, options: .caseInsensitive) else {
+            return attr
+        }
+        attr[range].foregroundColor = appAccent
+        attr[range].font = .system(size: 12.5, weight: .bold)
+        return attr
     }
 
     // MARK: - Actions
@@ -236,12 +305,25 @@ struct SearchEverywherePanel: View {
         }
     }
 
+    private func moveSelection(_ delta: Int) {
+        let rows = flatRows
+        guard !rows.isEmpty else { return }
+        let current = selectedIndex ?? -1
+        selectedIndex = min(max(current + delta, 0), rows.count - 1)
+    }
+
     private func activate(_ hit: SearchEverywhere.Hit) {
         switch hit.source {
         case .tab:
             if let id = UUID(uuidString: hit.id),
                let idx = tabManager.tabs.firstIndex(where: { $0.id == id }) {
                 tabManager.selectTab(at: idx)
+            }
+        case .agentConversation:
+            // Agent 会话：载入会话并打开 Agent 面板（宿主回调）。
+            if let id = UUID(uuidString: hit.id), let agentSession {
+                agentSession.loadConversation(id)
+                onOpenAgentPanel?()
             }
         case .history, .bookmark, .readingList:
             tabManager.addTab(url: hit.url, makeActive: true)

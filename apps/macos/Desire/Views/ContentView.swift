@@ -476,6 +476,11 @@ struct ContentView: View {
             videoAdBlocker: videoAdBlocker,
             profileDataStore: tabManager.profileDataStore,
             contentBlockerStore: contentBlocker,
+            agentSession: aiSession,
+            onOpenAgentPanel: {
+                showAgentPanel = true
+                appState.showSearchEverywhere = false
+            },
             historyStoreRef: historyStore,
             bookmarkStoreRef: bookmarkStore,
             readingListStoreRef: readingListStore,

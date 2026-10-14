@@ -21,6 +21,8 @@ struct PanelsRouter: ViewModifier {
     let videoAdBlocker: VideoAdBlocker
     let profileDataStore: WKWebsiteDataStore?
     let contentBlockerStore: ContentBlockerStore
+    let agentSession: AgentSessionStore
+    let onOpenAgentPanel: () -> Void
     let historyStoreRef: HistoryStore
     let bookmarkStoreRef: BookmarkStore
     let readingListStoreRef: ReadingListStore
@@ -91,7 +93,9 @@ struct PanelsRouter: ViewModifier {
                     settings: settings,
                     contentBlocker: contentBlockerStore,
                     videoAdBlocker: videoAdBlocker,
-                    onClose: { showSearchEverywhere = false }
+                    agentSession: agentSession,
+                    onClose: { showSearchEverywhere = false },
+                    onOpenAgentPanel: onOpenAgentPanel
                 )
             }
             .sheet(isPresented: $showWorkspacesPanel) {

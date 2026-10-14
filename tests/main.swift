@@ -2537,8 +2537,55 @@ func testPromotionInteractions() {
                                       interactions: [pendingOld, replied], now: t0)
     check("interaction：报告互动段", md.contains("## 互动") && md.contains("已回复 1"))
     check("interaction：报告待处理数", md.contains("待处理 1"))
+    check("interaction：报告回复率", md.contains("回复率 50%"))
 }
 testPromotionInteractions()
+
+// ---------- 发布预检 + 排期到期（PromotionPreflight / duePlannedDrafts） ----------
+
+func testPromotionPreflight() {
+    let bodyOK = String(repeating: "这段正文讲清楚了问题、用法和效果。", count: 5)
+        + " https://desire.mankong.icu/"
+    check("preflight：标题过长",
+          PromotionPreflight.check(.init(title: String(repeating: "长", count: 45), body: bodyOK))
+              .contains { $0.contains("偏长") })
+    check("preflight：占位符未清",
+          PromotionPreflight.check(.init(title: "正常标题", body: bodyOK + " TODO 补截图"))
+              .contains { $0.contains("占位符") })
+    check("preflight：过度承诺",
+          PromotionPreflight.check(.init(title: "史上最强的浏览器", body: bodyOK))
+              .contains { $0.contains("过度承诺") })
+    check("preflight：版本不一致",
+          PromotionPreflight.check(.init(title: "v0.7.14 有什么新东西", body: bodyOK, recentTitles: [], appVersion: "0.7.15"))
+              .contains { $0.contains("不一致") })
+    check("preflight：标题撞车",
+          PromotionPreflight.check(.init(title: "让网页对 AI 开口：DPP 是什么", body: bodyOK,
+                                         recentTitles: ["让网页对 AI 开口：DPP 是什么"]))
+              .contains { $0.contains("几乎相同") })
+    let noLinkBody = String(repeating: "没有链接的正文内容。", count: 8)
+    check("preflight：裸帖没链接",
+          PromotionPreflight.check(.init(title: "正常标题", body: noLinkBody))
+              .contains { $0.contains("没有任何链接") })
+    check("preflight：干净稿零警告",
+          PromotionPreflight.check(.init(title: "DPP 适配包实战", body: bodyOK,
+                                         recentTitles: ["另一个标题"], appVersion: "0.7.15")).isEmpty)
+    check("preflight：版本抽取去重", PromotionPreflight.mentionedVersions(in: "v0.7.14 与 V0.7.14？v1.2").count == 2)
+
+    // 排期到期队列（今天该发）。
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    let due = PromotionPost(platform: "掘金", title: "今天该发", body: "…", status: .draft,
+                            plannedFor: t0.addingTimeInterval(-3600), createdAt: t0)
+    let future = PromotionPost(platform: "掘金", title: "下周发", body: "…", status: .draft,
+                               plannedFor: t0.addingTimeInterval(5 * 86_400), createdAt: t0)
+    let publishedPlanned = PromotionPost(platform: "掘金", title: "已发不提醒", body: "…",
+                                         status: .published,
+                                         plannedFor: t0.addingTimeInterval(-86_400), createdAt: t0)
+    let dueList = PromotionSummary.duePlannedDrafts(posts: [due, future, publishedPlanned], now: t0)
+    check("preflight：到期队列只含到期草稿", dueList.count == 1 && dueList.first?.title == "今天该发")
+    let dueDigest = PromotionSummary.digest(goals: [], posts: [due, future], now: t0)
+    check("preflight：digest 已到排期段", dueDigest.contains("已到排期"))
+}
+testPromotionPreflight()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

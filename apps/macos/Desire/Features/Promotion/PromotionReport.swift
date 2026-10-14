@@ -128,7 +128,8 @@ nonisolated enum PromotionReport {
                 out.append("待发布草稿（\(drafts.count)）：")
                 for d in drafts.prefix(10) {
                     if let planned = d.plannedFor {
-                        out.append("- [\(d.platform)] \(d.title) · 排期 \(PromotionSummary.shortDate(planned))")
+                        let due = planned < now ? "（已到排期）" : ""
+                        out.append("- [\(d.platform)] \(d.title) · 排期 \(PromotionSummary.shortDate(planned))\(due)")
                     } else {
                         out.append("- [\(d.platform)] \(d.title) · 未排期")
                     }
@@ -144,7 +145,8 @@ nonisolated enum PromotionReport {
             let pending = interactions.filter { $0.status == .pending }
                 .sorted { $0.createdAt > $1.createdAt }
             out.append("## 互动")
-            var line = "- 本周新增 \(weekNew) 条 · 已回复 \(replied) · 待处理 \(pending.count)"
+            let rate = interactions.isEmpty ? 0 : Int((Double(replied) / Double(interactions.count)) * 100)
+            var line = "- 本周新增 \(weekNew) 条 · 已回复 \(replied)/\(interactions.count)（回复率 \(rate)%）· 待处理 \(pending.count)"
             if !pending.isEmpty { line += "（回不完的先用 promotionInteractionReply 标忽略）" }
             out.append(line)
             for item in pending.prefix(5) {

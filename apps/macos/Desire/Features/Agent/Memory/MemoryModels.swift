@@ -55,7 +55,7 @@ enum MemoryModels {
     /// 近似重复判定：字符 bigram 的 Jaccard 相似度 ≥ 0.8 视为重复。
     /// （注释曾写"近似重复"而实现只做精确匹配 —— 语义重复会堆积，
     /// 把 200 条上限挤满。没有端上 embedding，字符 bigram 是够用的下限。）
-    static func areNearDuplicates(_ a: String, _ b: String) -> Bool {
+    nonisolated static func areNearDuplicates(_ a: String, _ b: String) -> Bool {
         func bigrams(_ t: String) -> Set<String> {
             let chars = Array(t)
             guard chars.count > 1 else { return [t] }

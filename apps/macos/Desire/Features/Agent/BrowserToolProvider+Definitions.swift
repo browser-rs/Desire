@@ -907,6 +907,16 @@ extension BrowserToolProvider {
                 ], required: ["idOrHandle"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionPreflight",
+                description: "Run the pre-publish checklist on a draft (pass its id, or ad-hoc title/body): title length, lingering placeholders, over-promise wording, version mentions that disagree with the current app version, missing links, and near-duplicate titles among recent published posts. Call it right before asking the user to approve a draft, and fix what it flags. READ-ONLY.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Draft post id (preferred; pulls title/body/url from the workbench)"),
+                    "title": AgentJSONSchemaValue(type: "string", description: "Ad-hoc title (when no id)"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Ad-hoc body (when no id)"),
+                    "url": AgentJSONSchemaValue(type: "string", description: "Optional URL to count as the link"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionInteractions",
                 description: "Log interactions (comments / DMs / mentions / reviews) found while scanning a page into the interaction ledger — pass ALL relevant items in ONE call (items array, up to 20). Duplicates (same url, or same platform+post+author+text) are skipped. Then draft replies for the ones worth answering, save each with promotionInteractionReply, and show the user before posting anything.",
                 parameters: AgentJSONSchema(type: "object", properties: [

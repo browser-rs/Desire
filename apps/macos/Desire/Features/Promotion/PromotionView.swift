@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 
 /// 运营中心页（Agent 窗口侧栏「运营」目的地）：推广 / 自媒体 / 电商三专项
@@ -269,6 +270,10 @@ struct PromotionView: View {
                     Text("\(account.snapshots.count) " + String(localized: "snapshots"))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+                    let trend = accountTrendPoints(account)
+                    if trend.count >= 2 {
+                        PromotionSparkline(points: trend, tint: appAccent)
+                    }
                 } else {
                     Text("No metrics yet")
                         .font(.system(size: 10))
@@ -624,6 +629,10 @@ struct PromotionView: View {
                                 .foregroundStyle(growth > 0 ? appAccent : .orange)
                         }
                     }
+                    let trend = postTrendPoints(post)
+                    if trend.count >= 2 {
+                        PromotionSparkline(points: trend, tint: appAccent)
+                    }
                 }
                 if let l = m.likes { metric(String(localized: "Likes"), l) }
                 if let c = m.comments { metric(String(localized: "Comments"), c) }
@@ -744,6 +753,39 @@ struct PromotionView: View {
     private func copyBody(_ post: PromotionPost) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(post.body, forType: .string)
+    }
+
+    private func accountTrendPoints(_ account: PromotionAccount) -> [(Date, Double)] {
+        account.snapshots.compactMap { snapshot in
+            snapshot.followers.map { (snapshot.at, Double($0)) }
+        }
+    }
+
+    private func postTrendPoints(_ post: PromotionPost) -> [(Date, Double)] {
+        post.metricHistory.compactMap { snapshot in
+            snapshot.views.map { (snapshot.at, Double($0)) }
+        }
+    }
+}
+
+// MARK: - 迷你趋势（账号粉丝 / 帖子浏览的快照序列）
+
+private struct PromotionSparkline: View {
+    let points: [(Date, Double)]
+    var tint: Color
+
+    var body: some View {
+        Chart {
+            ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                LineMark(x: .value("t", point.0), y: .value("v", point.1))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(tint)
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartPlotStyle { plot in plot.background(Color.clear) }
+        .frame(width: 68, height: 20)
     }
 }
 

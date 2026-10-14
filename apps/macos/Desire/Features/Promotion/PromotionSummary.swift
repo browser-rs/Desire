@@ -49,6 +49,16 @@ nonisolated enum PromotionSummary {
         posts.filter { $0.status == .draft }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// 已到排期的草稿（plannedFor ≤ 今天末），按计划日先后——「今天该发」队列。
+    static func duePlannedDrafts(posts: [PromotionPost], now: Date = Date(),
+                                 calendar: Calendar = .current) -> [PromotionPost] {
+        guard let endOfToday = calendar.date(byAdding: .day, value: 1,
+                                             to: calendar.startOfDay(for: now)) else { return [] }
+        return posts
+            .filter { $0.status == .draft && ($0.plannedFor.map { $0 < endOfToday } ?? false) }
+            .sorted { ($0.plannedFor ?? now) < ($1.plannedFor ?? now) }
+    }
+
     /// 选题库（新的在前）——Agent 率先头脑风暴、用户挑选后立项为草稿。
     static func ideas(posts: [PromotionPost]) -> [PromotionPost] {
         posts.filter { $0.status == .idea }.sorted { $0.createdAt > $1.createdAt }
@@ -136,6 +146,14 @@ nonisolated enum PromotionSummary {
             lines.append("选题库（\(ideaPosts.count)）：")
             for i in ideaPosts.prefix(8) {
                 lines.append("- [\(i.platform)] \(i.title)")
+            }
+        }
+
+        let dueDrafts = duePlannedDrafts(posts: posts, now: now)
+        if !dueDrafts.isEmpty {
+            lines.append("⏰ 已到排期（\(dueDrafts.count)）——主动提醒用户今天该发：")
+            for d in dueDrafts.prefix(5) {
+                lines.append("- [\(d.platform)] \(d.title)（计划 \(shortDate(d.plannedFor ?? d.createdAt))）")
             }
         }
 

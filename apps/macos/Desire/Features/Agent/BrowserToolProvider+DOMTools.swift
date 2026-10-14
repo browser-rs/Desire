@@ -2190,6 +2190,35 @@ extension BrowserToolProvider {
             }
             return snapLine
 
+        case "promotionPreflight":
+            let preflightStore = PromotionStore.shared
+            var preflightTitle = (args["title"] as? String) ?? ""
+            var preflightBody = (args["body"] as? String) ?? ""
+            var preflightURL = args["url"] as? String
+            if let idRaw = args["id"] as? String, !idRaw.isEmpty {
+                guard let uuid = UUID(uuidString: idRaw), let post = preflightStore.post(id: uuid) else {
+                    return "No promotion post matches id \(idRaw) — get ids from promotionBrief"
+                }
+                preflightTitle = post.title
+                preflightBody = post.body
+                preflightURL = post.url
+            }
+            guard !preflightTitle.isEmpty || !preflightBody.isEmpty else {
+                return Self.fail("Provide id, or title/body")
+            }
+            let recentTitles = preflightStore.posts
+                .filter { $0.status == .published }
+                .prefix(20)
+                .map(\.title)
+            let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            let warnings = PromotionPreflight.check(PromotionPreflight.Input(
+                title: preflightTitle, body: preflightBody, url: preflightURL,
+                recentTitles: Array(recentTitles), appVersion: appVersion))
+            if warnings.isEmpty {
+                return "preflight: pass (no issues found)"
+            }
+            return "preflight: \(warnings.count) warning(s):\n" + warnings.map { "- \($0)" }.joined(separator: "\n")
+
         case "promotionInteractions":
             guard let itemsRaw = args["items"] as? [[String: Any]], !itemsRaw.isEmpty else {
                 return Self.fail("Missing items (array of interactions)")

@@ -525,7 +525,9 @@ final class SkillStore: ObservableObject {
         3. **起草**：按平台改写（参考历史经验里的平台偏好）。技术长文（掘金/博客园）：
            解决什么问题 → 怎么用 → 真实代码片段；社区短帖（V2EX/沸点）：一段话说清 + 链接；
            英文社区（Hacker News/Reddit）：English, technical angle first, no marketing tone。
-           草稿完整贴给用户看，askUser 确认或按反馈改。
+           草稿完整贴给用户看，askUser 确认或按反馈改。**发布前先调 promotionPreflight
+           预检**（可传 id）：标题长度/占位符/过度承诺词/版本号/重复选题/裸帖没链接，
+           按警告修完再请用户点头。
         4. **发布**（出站不可逆、逐次审批）：用浏览器已登录的会话——有 DPP 适配包
            走适配动作（如 juejin-compose 的发沸点/写文章），没有就 navigate 到发布页
            用 fill/click 填标题与正文；提交前把最终稿再给用户过目一眼。

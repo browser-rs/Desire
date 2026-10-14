@@ -20,7 +20,7 @@ enum PromotionAutomation {
             switch self {
             case .dailyCollect:
                 return """
-                运营数据采集（每日）：调用 promotionBrief 看账号、在发内容与互动台账。逐个回访账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集**今天**的数字——同一对象每天采一次，曲线才连续。顺带扫一遍新评论/咨询：用 promotionInteractions 批量登记进互动台账（自动去重）；值得回复的逐条拟稿并用 promotionInteractionReply 存 reply，全部贴给用户过目（**别自动回复**，更别编造）。没有运营数据就回复「暂无运营数据」结束。
+                运营数据采集（每日）：调用 promotionBrief 看账号、在发内容与互动台账。逐个回访账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集**今天**的数字——同一对象每天采一次，曲线才连续。顺带扫一遍新评论/咨询：用 promotionInteractions 批量登记进互动台账（自动去重）；值得回复的逐条拟稿并用 promotionInteractionReply 存 reply，全部贴给用户过目（**别自动回复**，更别编造）。另外看 promotionBrief 的「已到排期」段：有计划今天发的草稿就提醒用户推进（要不要现在过稿/发布）。没有运营数据就回复「暂无运营数据」结束。
                 """
             case .weeklyReview:
                 return """

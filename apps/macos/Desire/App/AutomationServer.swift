@@ -588,6 +588,7 @@ final class AutomationServer {
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/dpp/context-toggle", "Disable/enable site-authored context injection for a host (design review #6)", params: ["host:string", "disabled?:bool"], example: #"-d '{"host":"example.com","disabled":true}'"#)
         ep("GET", "/dpp/adapters", "Third-party DPP adapter packages (list + enabled + loadErrors)", example: "…/dpp/adapters")
+        ep("POST", "/dpp/adapters/verify", "Live-verify adapter packs against open matching tabs — reports per-view element counts (rot detection, design review #8)", example: "-d '{}'")
         ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/install", "Install an adapter JSON from an http(s) URL (community distribution)", params: ["url:string"], example: #"-d '{"url":"https://…/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
@@ -1303,6 +1304,39 @@ final class AutomationServer {
                 }
                 DPPAdapterStore.shared.remove(name)
                 return try Self.json(["ok": true, "name": name])
+            case ("POST", "/dpp/adapters/verify"):
+                // 存活度核对（设计评审 #8 补全）：对每个启用的适配包，找当前打开的
+                // 匹配标签页，跑一次真实抽取，报告各视图的元素命中数。
+                var reports: [[String: Any]] = []
+                for adapter in DPPAdapterStore.shared.adapters where DPPAdapterStore.shared.isEnabled(adapter) {
+                    // 找打开的匹配标签（任意窗口）。
+                    var target: Tab?
+                    for m in TabSessionCoordinator.shared.liveManagers() {
+                        if let t = m.tabs.first(where: { adapter.matches(url: $0.browser.webView.url ?? URL(fileURLWithPath: "/")) }) {
+                            target = t
+                            break
+                        }
+                    }
+                    guard let tab = target else {
+                        reports.append(["name": adapter.name, "status": "no matching tab open"])
+                        continue
+                    }
+                    var viewReports: [[String: Any]] = []
+                    for kv in adapter.protocolBody.views.sorted(by: { $0.key < $1.key }) {
+                        // 元素计数：evaluateJavaScript 同步返回（-1 = 选择器抛错/跨边界不可达）。
+                        let js = "(function(){ try { return document.querySelectorAll(\(JSString.literal(kv.value.item))).length; } catch(e) { return -1; } })()"
+                        let count = (try? await tab.browser.webView.evaluateJavaScript(js)) as? Int ?? -1
+                        viewReports.append(["view": kv.key, "item": kv.value.item, "elements": count])
+                    }
+                    let hitViews = viewReports.filter { ($0["elements"] as? Int ?? 0) > 0 }.count
+                    reports.append([
+                        "name": adapter.name,
+                        "status": hitViews > 0 ? "alive" : "rotten",
+                        "tab": tab.browser.webView.url?.absoluteString ?? "",
+                        "views": viewReports,
+                    ])
+                }
+                return try Self.json(["reports": reports])
             case ("GET", "/page/extract"):
                 // 与 agent 的 pageExtract **同一实现**（BrowserToolProvider.execute），
                 // 只读无审批面——适配包自测的主通道。

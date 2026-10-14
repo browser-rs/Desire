@@ -180,6 +180,13 @@ class Fake(BaseHTTPRequestHandler):
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
             return
         n = len(round_tools)
+        if "MUSCLE3" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "addReminder", {"title": "参数校验用例", "dueDate": "明天九点"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE3-DONE"}, "stop")
+            return
         if "MUSCLE2" in mode:
             if n == 0:
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
@@ -419,6 +426,26 @@ def main():
         page_result = next((t for t in tools2 if "FLAKY-FULL-OK" in t), "")
         ok("navigate 首载空文档自动重载", "已自动重载一次" in nav_result)
         ok("自愈后页面内容可见", "FLAKY-FULL-OK" in page_result)
+
+        # ── MUSCLE3：OS 协作工具参数校验（发生在授权请求之前，不弹窗）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE3 OS 工具校验"})
+        deadline3 = time.time() + 90
+        while time.time() < deadline3:
+            st3 = bridge("GET", "/agent/messages")
+            if not st3.get("busy") and any("MUSCLE3-DONE" in (m.get("content") or "")
+                                           for m in st3.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv3_id = bridge("GET", "/agent/trace").get("conversation")
+        conv3 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv3_id}.json").read_text())
+        tools3 = [m.get("content") or "" for m in conv3.get("messages", []) if m.get("role") == "tool"]
+        reminder_result = next((t for t in tools3 if "dueDate" in t), "")
+        ok("OS 工具拒收自然语言日期（参数前置校验）", "dueDate must be" in reminder_result)
+        integrations = bridge("GET", "/system/integrations")
+        ok("校验失败不触发授权（状态不变）", integrations.get("reminders") == "notDetermined")
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"

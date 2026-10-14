@@ -2568,6 +2568,18 @@ testFileEdit()
 
 // ---------- 首载健康判定（PageLoadHealth 纯逻辑） ----------
 
+func testSystemIntegrationDates() {
+    check("osdates：yyyy-MM-dd HH:mm", SystemIntegrationDates.parse("2026-10-16 09:00") != nil)
+    check("osdates：yyyy-MM-dd 当天零点", SystemIntegrationDates.parse("2026-10-16") != nil)
+    check("osdates：ISO8601", SystemIntegrationDates.parse("2026-10-16T09:00:00Z") != nil)
+    check("osdates：空白串拒绝", SystemIntegrationDates.parse("   ") == nil)
+    check("osdates：自然语言拒绝（模型负责换算）", SystemIntegrationDates.parse("明天九点") == nil)
+    let d = SystemIntegrationDates.parse("2026-10-16 09:00")!
+    check("osdates：描述往返", SystemIntegrationDates.describe(d) == "2026-10-16 09:00")
+}
+
+testSystemIntegrationDates()
+
 func testPageLoadHealth() {
     check("pageload：空壳 HTML 可疑",
           PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: 0, elementCount: 3)))

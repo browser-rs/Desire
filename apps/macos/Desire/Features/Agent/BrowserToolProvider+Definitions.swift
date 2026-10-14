@@ -749,6 +749,36 @@ extension BrowserToolProvider {
                 ], required: ["title"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addReminder",
+                description: "Create a reminder in the user's Reminders app (title + optional notes / due date / list name). dueDate accepts 'yyyy-MM-dd HH:mm', 'yyyy-MM-dd' or ISO8601 — convert relative phrasing ('明天九点') to an absolute time yourself first. First use shows a one-time macOS permission dialog; if it reports waiting, ask the user to click Allow and retry.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Reminder text"),
+                    "notes": AgentJSONSchemaValue(type: "string", description: "Optional notes"),
+                    "dueDate": AgentJSONSchemaValue(type: "string", description: "Optional absolute time, e.g. '2026-10-16 09:00'"),
+                    "listName": AgentJSONSchemaValue(type: "string", description: "Optional reminder list name (default: the system default list)"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listReminders",
+                description: "List the user's OPEN reminders (title, due time, list), soonest first — up to 40. Use before creating to avoid duplicates, or to answer '我有什么没做的'. First use shows the one-time reminders permission dialog.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "maxItems": AgentJSONSchemaValue(type: "number", description: "Max entries (default 20, cap 40)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addCalendarEvent",
+                description: "Create a calendar event (title + start; optional end / durationMinutes / location / notes / calendar name). start/end accept 'yyyy-MM-dd HH:mm' or ISO8601; without end the event lasts durationMinutes (default 60). First use shows the one-time calendar permission dialog.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Event title"),
+                    "start": AgentJSONSchemaValue(type: "string", description: "Start time, e.g. '2026-10-16 14:00'"),
+                    "end": AgentJSONSchemaValue(type: "string", description: "Optional end time"),
+                    "durationMinutes": AgentJSONSchemaValue(type: "number", description: "Length when no end given (default 60)"),
+                    "location": AgentJSONSchemaValue(type: "string", description: "Optional location"),
+                    "notes": AgentJSONSchemaValue(type: "string", description: "Optional notes"),
+                    "calendarName": AgentJSONSchemaValue(type: "string", description: "Optional calendar name (default: the system default calendar)"),
+                ], required: ["title", "start"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readPageStorage",
                 description: "Inventory the site's client storage: localStorage / sessionStorage / JS-visible cookies. Default lists KEY NAMES with value lengths only (values can carry tokens — pass key to read one specific value explicitly). httpOnly cookies are invisible to page scripts and noted as such. READ = debugging auth state, drafts, feature flags.",
                 parameters: AgentJSONSchema(type: "object", properties: [

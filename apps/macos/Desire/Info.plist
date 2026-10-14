@@ -77,6 +77,10 @@
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.5</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Desire needs calendar access to add events you ask the agent to create.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Desire needs calendar access to add events you ask the agent to create.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Used when a website requests camera access</string>
 	<key>NSHumanReadableCopyright</key>
@@ -85,6 +89,10 @@
 	<string>Desire needs location access for websites that request it.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Desire needs microphone access for voice commands.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Desire needs reminders access to add reminders you ask the agent to create.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Desire needs reminders access to add reminders you ask the agent to create.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Desire uses speech recognition to convert voice commands into browser actions.</string>
 </dict>

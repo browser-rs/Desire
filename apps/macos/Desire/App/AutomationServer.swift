@@ -436,6 +436,7 @@ final class AutomationServer {
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -1550,6 +1551,11 @@ final class AutomationServer {
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/reading-list"):
                 return try Self.json(Self.readingList())
+            case ("GET", "/system/integrations"):
+                return try Self.json([
+                    "reminders": EventKitBridge.access(.reminder).rawValue,
+                    "calendar": EventKitBridge.access(.event).rawValue,
+                ])
             case ("POST", "/reading-list/cache"):
                 return try await Self.json(Self.readingListCacheAsync(url: Self.string(body, "url") ?? ""))
             case ("POST", "/reading-list/add"):

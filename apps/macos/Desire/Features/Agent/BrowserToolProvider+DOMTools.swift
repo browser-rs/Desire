@@ -2048,6 +2048,47 @@ extension BrowserToolProvider {
             }
             return urgent ? "Urgent notification delivered" : "Notification delivered"
 
+        case "addReminder":
+            guard let reminderTitle = args["title"] as? String, !reminderTitle.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            var reminderDue: Date?
+            if let dueRaw = args["dueDate"] as? String, !dueRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(dueRaw) else {
+                    return Self.fail("dueDate must be 'yyyy-MM-dd HH:mm', 'yyyy-MM-dd' or ISO8601")
+                }
+                reminderDue = parsed
+            }
+            return await EventKitBridge.addReminder(
+                title: reminderTitle, notes: args["notes"] as? String,
+                due: reminderDue, listName: args["listName"] as? String)
+
+        case "listReminders":
+            let reminderLimit = (args["maxItems"] as? Int) ?? 20
+            return await EventKitBridge.listReminders(limit: reminderLimit)
+
+        case "addCalendarEvent":
+            guard let eventTitle = args["title"] as? String, !eventTitle.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            guard let startRaw = args["start"] as? String,
+                  let eventStart = SystemIntegrationDates.parse(startRaw) else {
+                return Self.fail("start must be 'yyyy-MM-dd HH:mm' or ISO8601")
+            }
+            var eventEnd: Date?
+            if let endRaw = args["end"] as? String, !endRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(endRaw) else {
+                    return Self.fail("end must be 'yyyy-MM-dd HH:mm' or ISO8601")
+                }
+                eventEnd = parsed
+            }
+            let duration = (args["durationMinutes"] as? Int) ?? 60
+            return await EventKitBridge.addEvent(
+                title: eventTitle, start: eventStart, end: eventEnd,
+                durationMinutes: duration,
+                location: args["location"] as? String, notes: args["notes"] as? String,
+                calendarName: args["calendarName"] as? String)
+
         case "readPageStorage":
             let storageKind = ((args["what"] as? String) ?? "localStorage")
             let storageKey = (args["key"] as? String) ?? ""

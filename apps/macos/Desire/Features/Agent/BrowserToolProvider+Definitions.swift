@@ -504,8 +504,20 @@ extension BrowserToolProvider {
 
             // --- Reading list ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "addToReadingList", description: "Add the current page to reading list",
+                name: "addToReadingList", description: "Add the current page to reading list (pair with cachePageForOffline for an offline copy)",
                 parameters: AgentJSONSchema(type: "object", properties: ["title": AgentJSONSchemaValue(type: "string", description: "Custom title (optional)")])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listReadingList",
+                description: "List reading-list entries with read state and whether an OFFLINE COPY exists (cachedPath included). Open a cached copy with navigate file://<cachedPath>; cache one with cachePageForOffline.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "cachePageForOffline",
+                description: "Save an offline copy of a reading-list item's page as a .webarchive (works with the item's open tab — keeping its login state — or by loading it in the background). The item must already be in the reading list. Returns the saved path and size.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Reading-list item URL (default: the current tab's URL)"),
+                ], required: [])
             )),
 
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

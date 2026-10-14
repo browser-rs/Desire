@@ -6,6 +6,19 @@ struct ReadingListPanel: View {
     @ObservedObject var store: ReadingListStore
     let onSelect: (String) -> Void
     let onClose: () -> Void
+    /// 正在抓离线副本的条目（面板内小指示）。
+    @State private var cachingIDs: Set<UUID> = []
+
+    /// 抓离线副本：复用已打开标签（含登录态）或后台加载；完成后落徽标。
+    private func cacheNow(_ item: ReadingListItem) {
+        guard !cachingIDs.contains(item.id) else { return }
+        cachingIDs.insert(item.id)
+        Task { @MainActor in
+            defer { cachingIDs.remove(item.id) }
+            guard let outcome = await ReadingListCache.capture(url: item.url, itemID: item.id) else { return }
+            store.setCache(item.id, fileURL: outcome.fileURL)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +48,17 @@ struct ReadingListPanel: View {
                                 .font(.system(size: 8))
                                 .foregroundStyle(item.isRead ? .secondary : appAccent)
 
+                            if cachingIDs.contains(item.id) {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .frame(width: 12)
+                            } else if store.cacheURL(for: item.id) != nil {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(appAccent.opacity(0.8))
+                                    .help(String(localized: "Cached offline copy"))
+                            }
+
                             Button {
                                 let url = item.url
                                 onSelect(url)
@@ -56,6 +80,19 @@ struct ReadingListPanel: View {
                             .buttonStyle(.plain)
                             .contextMenu {
                                 Button(item.isRead ? String(localized: "Mark as Unread") : String(localized: "Mark as Read")) { store.toggleRead(item.id) }
+                                if let cached = store.cacheURL(for: item.id) {
+                                    Button(String(localized: "Open Offline Copy")) {
+                                        onSelect("file://\(cached.path)")
+                                    }
+                                    Button(String(localized: "Remove Offline Cache")) {
+                                        store.clearCache(item.id)
+                                    }
+                                }
+                                Button(store.cacheURL(for: item.id) == nil
+                                       ? String(localized: "Cache for Offline")
+                                       : String(localized: "Re-cache for Offline")) {
+                                    cacheNow(item)
+                                }
                                 Button("Delete") { store.remove(item.id) }
                             }
                         }

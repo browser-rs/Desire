@@ -338,17 +338,54 @@ def main():
             except Exception:
                 arch_ok = False
         ok("WebArchive 落盘且含页面数据", arch_ok)
+
+        # ── 阅读列表离线缓存（关掉 fixture 标签后走离屏抓取，覆盖后台加载路径）──
+        # 关掉所有 /fixture 标签（重快照收敛——关一个会挪索引，单遍快照会漏）。
+        for _ in range(4):
+            stale = [t for t in bridge("GET", "/state").get("tabs", [])
+                     if "/fixture" in (t.get("url") or "")]
+            if not stale:
+                break
+            for t in stale:
+                bridge("POST", "/close-tab", {"index": t.get("index")})
+            time.sleep(0.5)
+        time.sleep(0.5)
+        fixture_url = f"http://127.0.0.1:{API_PORT}/fixture"
+        bridge("POST", "/reading-list/add", {"title": "muscle fixture", "url": fixture_url})
+        cached = bridge("POST", "/reading-list/cache", {"url": fixture_url})
+        ok("离线缓存抓取（离屏路径）", cached.get("ok") is True and cached.get("fromOpenTab") is False)
+        cache_path = Path(cached.get("path") or "")
+        ok("缓存文件落盘（>800B）", cache_path.exists() and cache_path.stat().st_size > 800)
+        cached_parse_ok = False
+        if cache_path.exists():
+            try:
+                import plistlib as _pl
+                cached_parse_ok = "muscle fixture" in str(_pl.loads(cache_path.read_bytes()))
+            except Exception:
+                cached_parse_ok = False
+        ok("缓存归档可解析出页面标题", cached_parse_ok)
+        listed = bridge("GET", "/reading-list")
+        row = next((i for i in listed.get("items", []) if i.get("url") == fixture_url), {})
+        ok("列表带缓存态", row.get("cached") is True)
+        bridge("POST", "/reading-list/remove", {"url": fixture_url})
+        ok("删除条目联动清缓存文件", not cache_path.exists())
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
-        # 关掉 fixture 标签（按 URL 找；用户自己的标签不动）。
+        # 关掉测试标签（fixture 页 + 本 fixture 服务器的残留 /dl 页）——
+        # 收敛式：每次重快照，因为关一个标签会挪掉后面所有索引。
         try:
-            st = bridge("GET", "/state")
-            for t in st.get("tabs", []):
-                if "muscle-e2e" in (t.get("url") or ""):
+            for _ in range(4):
+                stale = [t for t in bridge("GET", "/state").get("tabs", [])
+                         if "/fixture" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")]
+                if not stale:
+                    break
+                for t in stale:
                     bridge("POST", "/close-tab", {"index": t.get("index")})
+                time.sleep(0.5)
         except Exception as exc:
             print("关标签跳过:", exc)
         # 清理：测试会话按内容核对后删（别碰用户的）；档案恢复并核对；fixture 目录删除。

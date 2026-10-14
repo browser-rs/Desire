@@ -83,6 +83,8 @@ enum ToolRisk: Int, Comparable {
         "promotionBrief", "promotionReport", "promotionPreflight",
         // Waiting / timing (pure observation)
         "waitForText", "waitForSelector", "waitForDownload",
+        // Reading list inspection (add/cache stay side-effect)
+        "listReadingList",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
         // Scheduled task inspection (creation/cancel stays side-effect)

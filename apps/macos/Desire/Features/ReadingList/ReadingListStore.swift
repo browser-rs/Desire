@@ -5,6 +5,14 @@ import Foundation
 class ReadingListStore: ObservableObject {
     @Published var items: [ReadingListItem] = []
 
+    /// 离线缓存目录（.webarchive；机器本地，不随同步走）。
+    static var cacheDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("Desire/ReadingListCache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     /// DiskStore key. Also reused as the legacy UserDefaults key for the
     /// one-time migration.
     private let storageKey = "desire.readingList"
@@ -38,16 +46,51 @@ class ReadingListStore: ObservableObject {
     }
 
     func remove(_ id: UUID) {
+        deleteCacheFile(id)
         items.removeAll { $0.id == id }
         pendingDeletions[id] = Date()
         saveDeletions()
         save()
     }
 
+    // MARK: - 离线缓存
+
+    /// 缓存的 webarchive 落定（capture 成功后调用）。
+    func setCache(_ id: UUID, fileURL: URL) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        deleteCacheFile(id)   // 重缓存：先清旧的
+        items[index].cachedFile = fileURL.path
+        items[index].cachedAt = Date()
+        save()
+    }
+
+    /// 移除离线副本（文件 + 字段）。
+    func clearCache(_ id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        deleteCacheFile(id)
+        items[index].cachedFile = nil
+        items[index].cachedAt = nil
+        save()
+    }
+
+    /// 条目是否有可用的离线副本（文件真实存在才算）。
+    func cacheURL(for id: UUID) -> URL? {
+        guard let item = items.first(where: { $0.id == id }),
+              let path = item.cachedFile,
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    private func deleteCacheFile(_ id: UUID) {
+        guard let path = items.first(where: { $0.id == id })?.cachedFile else { return }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
     func clearAll() {
         // 批量 tombstone：清空必须逐条下推，否则其他设备会把条目同步回来。
         let now = Date()
         for item in items { pendingDeletions[item.id] = now }
+        for item in items { deleteCacheFile(item.id) }   // 离线副本一并清
         items.removeAll()
         saveDeletions()
         save()

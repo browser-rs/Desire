@@ -658,6 +658,35 @@ extension BrowserToolProvider {
             surface.readingListStore.add(title: title, url: url)
             return "Added to reading list: \(title)"
 
+        case "listReadingList":
+            let readingItems = surface.readingListStore.items
+            guard !readingItems.isEmpty else { return "Reading list is empty" }
+            return readingItems.map { item -> String in
+                var line = "\(item.isRead ? "✓" : "·") \(item.title)\n  \(item.url)"
+                if let cached = surface.readingListStore.cacheURL(for: item.id) {
+                    line += "\n  [offline copy] \(cached.path)"
+                }
+                return line
+            }.joined(separator: "\n")
+
+        case "cachePageForOffline":
+            let cacheURLArg = args["url"] as? String
+            let cacheTarget = (cacheURLArg?.isEmpty == false ? cacheURLArg! : webView.url?.absoluteString) ?? ""
+            guard !cacheTarget.isEmpty, !isNewTabPage(cacheTarget) else {
+                return Self.fail("No URL to cache (pass url, or open the page)")
+            }
+            let listStore = surface.readingListStore
+            guard let listItem = listStore.items.first(where: { $0.url == cacheTarget }) else {
+                return Self.fail("Not in the reading list: \(cacheTarget) — add it first (addToReadingList)")
+            }
+            guard let outcome = await ReadingListCache.capture(url: cacheTarget, itemID: listItem.id) else {
+                return Self.fail("Offline capture failed (page never finished loading?)")
+            }
+            listStore.setCache(listItem.id, fileURL: outcome.fileURL)
+            let kb = ByteCountFormatter.string(fromByteCount: Int64(outcome.bytes), countStyle: .file)
+            let via = outcome.fromOpenTab ? "（复用已打开标签，含登录态）" : "（后台加载）"
+            return "Cached offline: \(listItem.title) (\(kb))\(via) → \(outcome.fileURL.path)"
+
         // --- Downloads ---
         case "listDownloads":
             let items = surface.downloadStore.downloads

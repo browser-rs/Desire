@@ -435,6 +435,7 @@ final class AutomationServer {
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -1549,6 +1550,8 @@ final class AutomationServer {
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/reading-list"):
                 return try Self.json(Self.readingList())
+            case ("POST", "/reading-list/cache"):
+                return try await Self.json(Self.readingListCacheAsync(url: Self.string(body, "url") ?? ""))
             case ("POST", "/reading-list/add"):
                 return try Self.json(Self.addReadingItem(
                     title: Self.string(body, "title") ?? "",
@@ -4297,8 +4300,29 @@ final class AutomationServer {
     private static func readingList() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["items": app.readingListStore.items.map { i -> [String: Any] in
-            ["title": i.title, "url": i.url, "read": i.isRead]
+            var row: [String: Any] = ["title": i.title, "url": i.url, "read": i.isRead]
+            if let cached = app.readingListStore.cacheURL(for: i.id) {
+                row["cached"] = true
+                row["cachedPath"] = cached.path
+            } else {
+                row["cached"] = false
+            }
+            return row
         }]
+    }
+
+    /// 阅读列表离线缓存（.webarchive）：页面已打开复用其 webview，否则后台加载。
+    private static func readingListCacheAsync(url: String) async -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        guard let item = app.readingListStore.items.first(where: { $0.url == url }) else {
+            return ["error": "not in the reading list — POST /reading-list/add first"]
+        }
+        guard let outcome = await ReadingListCache.capture(url: url, itemID: item.id) else {
+            return ["error": "offline capture failed (page never finished loading?)"]
+        }
+        app.readingListStore.setCache(item.id, fileURL: outcome.fileURL)
+        return ["ok": true, "path": outcome.fileURL.path, "bytes": outcome.bytes,
+                "fromOpenTab": outcome.fromOpenTab, "title": item.title]
     }
 
     private static func addReadingItem(title: String, url: String) throws -> [String: Any] {

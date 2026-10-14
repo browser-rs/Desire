@@ -12,6 +12,9 @@ struct PromotionView: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = PromotionStore.shared
     var onBack: () -> Void
+    /// 点按「让智能体干活」的出口（Agent 窗口传入 store.sendMessage；
+    /// 独立预览/桥快照可为 nil —— 按钮自动隐藏）。
+    var onSendToAgent: ((String) -> Void)? = nil
 
     @State private var isCreatingGoal = false
     @State private var isCreatingAccount = false
@@ -364,6 +367,11 @@ struct PromotionView: View {
             Text(idea.platform)
                 .font(.system(size: 10))
                 .foregroundStyle(appAccent)
+            if onSendToAgent != nil {
+                HoverIcon(systemName: "square.and.pencil", action: {
+                    onSendToAgent?("用 promotion 技能把选题「\(idea.title)」（\(idea.platform)）起草成草稿（先给我看全文，别发布）——写成后 promotionSave 用 id 更新这个选题为 draft。")
+                }, help: String(localized: "Draft this idea with the agent"))
+            }
             HoverIcon(systemName: "doc.on.doc", action: { copyTitle(idea) },
                       help: String(localized: "Copy"))
             HoverIcon(systemName: "trash", action: { store.removePost(idea.id) },
@@ -414,6 +422,11 @@ struct PromotionView: View {
                 }
             }
             Spacer(minLength: 4)
+            if onSendToAgent != nil {
+                HoverIcon(systemName: "paperplane", action: {
+                    onSendToAgent?("把草稿「\(post.title)」（\(post.platform)）按 promotion 流程推进：先给我确认最终稿，我点头后发布；发布成功用 promotionSave 更新为 published 并带上 URL。")
+                }, help: String(localized: "Let the agent publish this draft"))
+            }
             HoverIcon(systemName: "doc.on.doc", action: { copyBody(post) },
                       help: String(localized: "Copy Body"))
             Button(String(localized: "Mark Published")) {
@@ -467,6 +480,12 @@ struct PromotionView: View {
                     }
                 }
                 Spacer(minLength: 4)
+                if onSendToAgent != nil {
+                    HoverIcon(systemName: "arrow.clockwise", action: {
+                        let target = post.url ?? "帖子页"
+                        onSendToAgent?("刷新帖子「\(post.title)」的数据：回访 \(target)（有适配包用视图，否则 getPageText）读浏览/点赞/评论，用 promotionMetrics 写回。")
+                    }, help: String(localized: "Ask the agent to refresh metrics"))
+                }
                 if !post.body.isEmpty {
                     HoverIcon(systemName: "doc.on.doc", action: { copyBody(post) },
                               help: String(localized: "Copy Body"))

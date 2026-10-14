@@ -86,6 +86,31 @@ nonisolated enum PromotionReport {
             out.append("")
         }
 
+        // ── 平台表现（全量已发，按平均浏览倒序）──
+        let stats = PromotionInsights.platformStats(posts: posts, now: now, periodDays: periodDays)
+        if !stats.isEmpty {
+            out.append("## 平台表现")
+            for stat in stats {
+                var line = "- \(stat.platform) · 已发 \(stat.publishedCount)"
+                if stat.weekPublishedCount > 0 { line += "（本周 \(stat.weekPublishedCount)）" }
+                if let avg = stat.averageViews {
+                    line += " · 平均浏览 \(avg)"
+                } else {
+                    line += " · 待采数据"
+                }
+                if let bestTitle = stat.bestTitle, let bestViews = stat.bestViews {
+                    line += " · 最佳「\(bestTitle)」（浏览 \(bestViews)）"
+                }
+                out.append(line)
+            }
+            out.append("")
+        }
+        if let timing = PromotionInsights.bestWeekday(posts: posts) {
+            out.append("## 发布时机")
+            out.append("- \(timing.weekdayLabel) 发布的平均浏览最高（\(timing.averageViews)，样本 \(timing.sampleSize) 篇）")
+            out.append("")
+        }
+
         // ── 选题与草稿 ──
         let ideas = posts.filter { $0.status == .idea }
             .sorted { $0.createdAt > $1.createdAt }

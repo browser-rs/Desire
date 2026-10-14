@@ -35,6 +35,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionLesson.swift
   apps/macos/Desire/Features/Promotion/PromotionSummary.swift
   apps/macos/Desire/Features/Promotion/PromotionReport.swift
+  apps/macos/Desire/Features/Promotion/PromotionInsights.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift
   apps/macos/Desire/Features/Agent/ModelPrice.swift

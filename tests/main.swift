@@ -2459,8 +2459,42 @@ func testPromotionReport() {
     let md2 = PromotionReport.markdown(goals: [], posts: [], accounts: [],
                                        lessons: [oldLesson], now: t0)
     check("report：旧经验不入本周", md2.contains("本周新增经验（0）"))
+    check("report：含平台表现", md.contains("## 平台表现") && md.contains("平均浏览"))
 }
 testPromotionReport()
+
+// ---------- 运营洞察（PromotionInsights 纯逻辑） ----------
+
+func testPromotionInsights() {
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    func makePublished(_ platform: String, _ title: String, views: Int?, at: Date) -> PromotionPost {
+        PromotionPost(platform: platform, title: title, body: "…", status: .published,
+                      publishedAt: at,
+                      metricHistory: views.map { [.init(at: at, views: $0, likes: nil, comments: nil)] } ?? [],
+                      createdAt: at)
+    }
+    let posts = [
+        makePublished("掘金", "A", views: 100, at: t0.addingTimeInterval(-86_400)),
+        makePublished("掘金", "B", views: 300, at: t0.addingTimeInterval(-2 * 86_400)),
+        makePublished("V2EX", "C", views: 40, at: t0),
+        makePublished("掘金", "无数据", views: nil, at: t0),
+    ]
+    let stats = PromotionInsights.platformStats(posts: posts, now: t0)
+    check("insights：平台分组数", stats.count == 2)
+    check("insights：按均值倒序（掘金在前）", stats.first?.platform == "掘金")
+    eq("insights：浏览均值", stats.first?.averageViews ?? -1, 200)
+    check("insights：最佳帖", stats.first?.bestTitle == "B" && stats.first?.bestViews == 300)
+    eq("insights：本周计数", stats.first?.weekPublishedCount ?? -1, 3)
+
+    // 发布时机：样本 < 3 不给结论；≥ 3 时取均值最高的周几。
+    let few = [makePublished("掘金", "A", views: 100, at: t0),
+               makePublished("掘金", "B", views: 200, at: t0)]
+    check("insights：样本<3 无时机结论", PromotionInsights.bestWeekday(posts: few) == nil)
+    let timing = PromotionInsights.bestWeekday(posts: posts)
+    check("insights：时机样本数与均值", timing?.sampleSize == 3 && timing?.averageViews == 300)
+    check("insights：时机带周几标签", (timing?.weekdayLabel.isEmpty == false))
+}
+testPromotionInsights()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

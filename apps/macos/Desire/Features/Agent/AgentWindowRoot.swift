@@ -96,7 +96,13 @@ struct AgentWindowRoot: View {
         case .doctor:
             AgentDoctorView(onBack: { switchDestination(.chat) })
         case .promotion:
-            PromotionView(onBack: { switchDestination(.chat) })
+            PromotionView(
+                onBack: { switchDestination(.chat) },
+                onSendToAgent: { [weak store] text in
+                    // 面板点按 → 切回聊天列并把指令发给 Agent（与技能页同款路径）。
+                    switchDestination(.chat)
+                    store?.sendMessage(text)
+                })
         }
     }
 

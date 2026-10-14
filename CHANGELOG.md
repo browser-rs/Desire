@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.15] - 2026-10-14
 ### Added
 
 - **Intel（x86_64）构建随版发布**：release 流程交叉编译 Intel 包，与 arm64 包同传 Release（SHASUMS256.txt 覆盖两种包）；Intel 构建走同一零警告闸门，verify 阶段核对二进制架构、装 Rosetta 的机器顺带启动冒烟；安装说明与产品页补 Intel 下载说明（交叉编译产物，未经真机验证）。

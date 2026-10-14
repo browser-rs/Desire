@@ -43,7 +43,7 @@
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
-      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗，贴边悬浮球一键唤起语音与总结）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；内置白板（Mermaid/ECharts 本地双引擎：智能体把流程图与图表直接画进聊天，白板面板逐块编辑、拖拽排序，.board/PNG 导出）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；EasyList 广告拦截；多档案隔离；应用内 DevTools；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK——npm 包 @browser-rs/dpp-sdk 与第三方站点适配包（掘金/V2EX 现成包，链接即装））；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。智能体主动性：心跳巡检（用户清单+机器信号，模型自决开口或沉默）、未完成事务收件箱、发现即处理；AI 动作复查（副作用对照用户规则，可疑转审批）；通知分级（紧急直推、例行过免打扰与每日预算、合并摘要）；生命周期钩子（beforeToolCall 可编程否决）；Agent 人设名册（按窗口绑定人设）；定时任务定向窗口；saveSkill 技能自沉淀；备用服务容灾。"
+      "featureList": "内置 AI 智能体（百余个浏览器工具、子代理、定时任务、审批策略、轨迹与成本核算；面板可停靠侧栏或独立浮窗，贴边悬浮球一键唤起语音与总结）；模型双协议接入（OpenAI 兼容 + Anthropic Messages、本机 Ollama、macOS 端上模型）；内置白板（Mermaid/ECharts 本地双引擎：智能体把流程图与图表直接画进聊天，白板面板逐块编辑、拖拽排序，.board/PNG 导出）；书签树/快速拨号/阅读列表/快捷键/设置/Agent 记忆/提示词/浏览历史八类端到端加密同步（浏览历史默认关闭）；视频广告拦截、按站点自动播放授权与 HLS 转 MP4 批量下载；密码管理器（保存/自动填充/生成器/CSV 导入导出）；插件系统（Chrome MV3 扩展装载：内容脚本与后台页消息互通、declarativeNetRequest 广告拦截、脚本动态注入、右键菜单、工具栏角标、i18n）；Desire Remote（iPhone 遥控 Mac 智能体）；四张社区过滤列表（EasyList / EasyList China / uBlock Quick-Fixes / AdGuard Annoyances）；多档案隔离；应用内 DevTools；浏览器效率（⌘⇧F 全局搜索跨标签/历史/书签/阅读列表/Agent 会话、鼠标手势与超级拖拽、窗口级工作区、地址栏关键字直达自定搜索引擎、跨标签查找）；MCP 服务器与客户端（stdio/HTTP 双传输，prompts 与 resources 消费）；Skill 技能包（Markdown 多文件，zip/目录/单文件导入）；DPP for AI agents（页面协议：四级接入、shadow DOM 穿透、站点级声明、事件驱动、开放 SDK——npm 包 @browser-rs/dpp-sdk 与第三方站点适配包（九套现成包：掘金/V2EX/博客园/Hacker News/Wikipedia/Stack Overflow/豆瓣电影，链接即装））；AI Auto-Clean（页面广告自动识别拦截、可豁免可回滚）；60+ 端点自动化桥。智能体主动性：心跳巡检（用户清单+机器信号，模型自决开口或沉默）、未完成事务收件箱、发现即处理；AI 动作复查（副作用对照用户规则，可疑转审批）；通知分级（紧急直推、例行过免打扰与每日预算、合并摘要）；生命周期钩子（beforeToolCall 可编程否决）；Agent 人设名册（按窗口绑定人设）；定时任务定向窗口；saveSkill 技能自沉淀；备用服务容灾。"
     },
     {
       "@type": "FAQPage",
@@ -141,7 +141,7 @@
                     "name": "站点不接入 DPP，智能体就没办法了吗？",
                     "acceptedAnswer": {
                                 "@type": "Answer",
-                                "text": "有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）和 V2EX 的现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。"
+                                "text": "有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）、V2EX（主题页与首页）、博客园、Hacker News、Wikipedia、Stack Overflow、豆瓣电影等九套现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。"
                     }
         },
         {
@@ -861,11 +861,11 @@
   <div class="ticker" aria-hidden="true">
     <div class="ticker-track">
       <ul>
-        <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
+        <li>内置智能体</li><li>端到端加密同步</li><li>全局搜索</li><li>鼠标手势</li><li>双协议模型接入</li><li>视频批量下载</li>
         <li>页面协议 DPP</li><li>密码管理器</li><li>插件系统</li><li>Skill 技能包</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
       <ul>
-        <li>内置智能体</li><li>端到端加密同步</li><li>双协议模型接入</li><li>视频批量下载</li>
+        <li>内置智能体</li><li>端到端加密同步</li><li>全局搜索</li><li>鼠标手势</li><li>双协议模型接入</li><li>视频批量下载</li>
         <li>页面协议 DPP</li><li>密码管理器</li><li>插件系统</li><li>Skill 技能包</li><li>iPhone 遥控</li><li>开发者工具</li>
       </ul>
     </div>
@@ -893,7 +893,7 @@
         <div class="feature-row reveal">
           <span class="feature-no">01</span>
           <h3 class="feature-name">AI 智能体，侧栏浮窗随心放</h3>
-          <p class="feature-desc">停靠在侧栏，或<b>拖出去成独立小窗</b>——边浏览边盯着它干活。
+          <p class="feature-desc">停靠在侧栏，或<b>拖出去成独立小窗</b>——边浏览边盯着它干活；独立窗口自带<b>控制台侧栏</b>，任务、技能、记忆、用量、轨迹与能力清单分栏可查，输入框敲 <code>/</code> 就是一组快捷指令。
             读页面、执行 JavaScript、跑 shell 命令、派子代理分头干活；多窗口各管各的标签，
             还能<b>让它跨窗口操作</b>。做完一件事，从轨迹到耗时逐条可查；浏览器意外退出，
             <b>被打断的回合能原地继续</b>。记忆分画像、事实与摘要，按相关度检索后注入对话；
@@ -911,7 +911,7 @@
         <div class="feature-row reveal">
           <span class="feature-no">03</span>
           <h3 class="feature-name">视频站，清净且能带走</h3>
-          <p class="feature-desc">视频广告按站点规则拦截，<b>规则热插拔</b>、无需更新应用；
+          <p class="feature-desc">视频广告按站点规则拦截，<b>规则热插拔</b>、无需更新应用；自动播放按站点授权，拦下时工具栏一点即放行；
             想收藏的 HLS 视频直下 MP4——本机装有 ffmpeg 便自动直连，音轨一个不丢；
             整个列表页可以拉成批量任务：<b>指定目录与并发</b>、智能分卷、断点续传、
             磁盘空间预留，失败自动重试；同名文件按你的设置重命名或覆盖。</p>
@@ -919,15 +919,14 @@
         <div class="feature-row reveal">
           <span class="feature-no">04</span>
           <h3 class="feature-name">广告与追踪，拦得明明白白</h3>
-          <p class="feature-desc">内置 EasyList / EasyList China 转换规则，兼容自定义规则语法；
+          <p class="feature-desc">内置四张社区过滤列表——EasyList、EasyList China、uBlock Quick-Fixes（视频站对抗规则持续跟进）与 AdGuard Annoyances（横幅弹窗），逐张开关、兼容自定义规则语法；
             <b>AI Auto-Clean</b> 还会在页面加载时自动识别广告元素并拦截——拦了什么有 toast 告知，
             你拆掉一条该站就豁免，规则随时可回滚。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">05</span>
           <h3 class="feature-name">多档案与效率</h3>
-          <p class="feature-desc">工作与生活分属不同档案，Cookie、历史、书签互不掺杂；
-            快速拨号、阅读列表、查找栏、会话恢复，外加一套<b>能改到每一个键的快捷键</b>。</p>
+          <p class="feature-desc">工作与生活分属不同档案，Cookie、历史、书签互不掺杂；<b>⌘⇧F 全局搜索</b>一个框搜遍打开标签、历史、书签、阅读列表与智能体会话，上下键选、回车直达；<b>鼠标手势与超级拖拽</b>（默认关，设置里开启）——右键左划回退、上划关标签，拖起链接松手即开；<b>窗口级工作区</b>把一组标签命名存档、随时整窗恢复；地址栏按关键字直达自定搜索引擎（<code>gh rust</code> 式）；查找栏也能<b>跨标签</b>统计命中；外加一套<b>能改到每一个键的快捷键</b>。</p>
         </div>
         <div class="feature-row reveal">
           <span class="feature-no">06</span>
@@ -1035,7 +1034,7 @@
           <div class="mini reveal">
             <h3>站点不接入？第三方适配包</h3>
             <p>为热门站点写一份声明式 JSON（与 expose 同格式），Desire 加载后自动合并——
-               掘金/V2EX 已有现成包，粘 raw 链接即装；动作照走审批链。</p>
+               掘金与 V2EX（各两包），加博客园、Hacker News、Wikipedia、Stack Overflow、豆瓣电影——<b>九套现成包</b>都过了真实页面核对，粘 raw 链接即装；动作照走审批链。</p>
           </div>
         </div>
       </div>
@@ -1043,7 +1042,7 @@
         在线演示：<a href="demo/" >desire.mankong.icu/demo</a>（用 Desire 打开，对智能体说「列出商品」或「搜索 显示器」）
         · 开放规范：<a href="https://github.com/browser-rs/Desire/blob/main/docs/DPP-PROTOCOL.md" target="_blank" rel="noopener">docs/DPP-PROTOCOL.md</a>
         · SDK：<a href="https://www.npmjs.com/package/@browser-rs/dpp-sdk" target="_blank" rel="noopener">npm i @browser-rs/dpp-sdk</a>（<a href="https://desire.mankong.icu/desire-sdk.js" target="_blank" rel="noopener">CDN</a>）
-        · 适配包：<a href="https://github.com/browser-rs/Desire/tree/main/docs/dpp-adapters" target="_blank" rel="noopener">掘金 / V2EX 现成包</a>
+        · 适配包：<a href="https://github.com/browser-rs/Desire/tree/main/docs/dpp-adapters" target="_blank" rel="noopener">九套现成包 · 目录</a>
       </p>
     </div>
   </section>
@@ -1224,7 +1223,7 @@
         </details>
         <details class="faq-item reveal">
           <summary>站点不接入 DPP，智能体就没办法了吗？</summary>
-          <p>有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）和 V2EX 的现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。</p>
+          <p>有——第三方适配包。任何人可以为热门站点写一份声明式 JSON（与 SDK expose 同一套协议格式），Desire 用户在设置里粘一个链接即装；浏览器把它与页面自动合并（站点自己的声明永远优先），声明动作照走审批链，纯 JSON 不引入任何可执行代码。掘金（文章页与创作页）、V2EX（主题页与首页）、博客园、Hacker News、Wikipedia、Stack Overflow、豆瓣电影等九套现成适配包在仓库 docs/dpp-adapters/ 目录，其 GitHub raw 链接就是安装源。</p>
         </details>
         <details class="faq-item reveal">
           <summary>智能体的记忆和个性化是怎样的？</summary>

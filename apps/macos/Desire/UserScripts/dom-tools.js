@@ -57,7 +57,7 @@ function __desireClickableAncestor(el) {
 function __desireFindByText(text) {
     var q = String(text).trim().toLowerCase();
     if (!q) return null;
-    var candidates = document.querySelectorAll(
+    var candidates = __desireDeepQSA(
         "button, a, [role], [onclick], label, summary, input, textarea, " +
         "svg, span, div, li, td, p, h1, h2, h3, h4, h5, h6");
     var best = null, bestScore = -Infinity;
@@ -90,17 +90,26 @@ function __desireFindByText(text) {
 async function __desireResolveEl(selector, ref, text) {
     var el = null;
     if (ref && /^e\d+$/.test(String(ref))) {
+        // 快路径先查主文档；快照已深穿透，shadow 里的 ref 走深查询兜底。
         el = document.querySelector('[data-desire-ref="' + ref + '"]');
+        if (!el) {
+            var refHits = __desireDeepQSA('[data-desire-ref="' + ref + '"]');
+            el = refHits.length ? refHits[0] : null;
+        }
     } else if (text) {
         el = __desireFindByText(text);
     } else if (selector) {
-        // Main document first, then same-origin iframes.
+        // 快路径：主文档 → 同源 iframe；仍没有就深穿透（shadow DOM）。
         el = document.querySelector(selector);
         if (!el) {
             var docs = __desireAllDocs();
             for (var di = 1; di < docs.length && !el; di++) {
                 try { el = docs[di].querySelector(selector); } catch (err) {}
             }
+        }
+        if (!el) {
+            var deepHits = __desireDeepQSA(selector);
+            el = deepHits.length ? deepHits[0] : null;
         }
     }
     if (!el) return null;
@@ -192,6 +201,12 @@ async function __desireSelect({selector, value, ref}) {
 async function __desireSetChecked({selector, ref, text, checked}) {
     var el = await __desireResolveEl(selector, ref, text || null);
     if (!el) return "Element not found";
+    // 按文案命中 <label> 时（"影子勾选"/"同意条款"这类常见形态）向内找真正的
+    // checkbox/radio——label 本身不是可勾选元素。
+    if (el.tagName === "LABEL") {
+        var inner = el.querySelector('input[type="checkbox"], input[type="radio"]');
+        if (inner) el = inner;
+    }
     function isBox() {
         return (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio")) ||
             el.getAttribute("role") === "checkbox" || el.getAttribute("role") === "switch";
@@ -326,14 +341,14 @@ async function __desireSnapshot({maxChars, maxElements, ignoreSels}) {
     // Drop refs from the previous snapshot first — elements move around in
     // SPAs, and a stale ref silently targeting the wrong node is worse than
     // no ref.
-    var stale = document.querySelectorAll("[data-desire-ref]");
+    var stale = __desireDeepQSA("[data-desire-ref]");
     for (var s = 0; s < stale.length; s++) {
         try { stale[s].removeAttribute("data-desire-ref"); } catch (err0) {}
     }
 
     var selector = "a[href], button, input, select, textarea, summary, " +
                    "[role=button], [onclick], [contenteditable=true]";
-    var all = document.querySelectorAll(selector);
+    var all = __desireDeepQSA(selector);
     var elements = [];
     for (var i = 0; i < all.length && elements.length < maxElements; i++) {
         var e = all[i];
@@ -349,6 +364,14 @@ async function __desireSnapshot({maxChars, maxElements, ignoreSels}) {
                     .trim().replace(/\s+/g, " ").substring(0, 80);
         var tag = e.tagName.toLowerCase();
         if (tag === "input") tag = "input[" + (e.type || "text") + "]";
+        // checkbox/radio 常包在 <label> 里、自身无文案——回退到 label 文本，
+        // 模型才知道这框是干什么的（closest 在同根内工作，shadow 也适用）。
+        if (!label && (e.type === "checkbox" || e.type === "radio")) {
+            var wrap = e.closest("label");
+            if (wrap) {
+                label = (wrap.innerText || "").trim().replace(/\s+/g, " ").substring(0, 80);
+            }
+        }
         var entry = { ref: refId, tag: tag, text: label };
         var inView = rect.top >= 0 && rect.left >= 0 &&
                      rect.bottom <= window.innerHeight && rect.right <= window.innerWidth;
@@ -697,6 +720,73 @@ function __desireAllDocs() {
     return docs;
 }
 
+// --- Deep piercing (open shadow DOM + same-origin iframes, recursive) ---
+// 现代站点（组件库/企业后台）把控件放进 open shadow root，通用工具若只查
+// document 就是"看不见"。这里 BFS 收集所有可访问根：document → 同源 iframe
+// 的 document（含嵌套）→ 任意层级的 open shadowRoot。
+function __desireCollectRoots() {
+    var roots = [document];
+    var i = 0;
+    while (i < roots.length) {
+        var root = roots[i++];
+        var all;
+        try { all = root.querySelectorAll("*"); } catch (err) { continue; }
+        for (var j = 0; j < all.length; j++) {
+            var el = all[j];
+            if (el.shadowRoot) roots.push(el.shadowRoot);
+            if (el.tagName === "IFRAME") {
+                try {
+                    var d = el.contentDocument;
+                    if (d && d.body) roots.push(d);
+                } catch (err2) {}   // cross-origin — by design
+            }
+        }
+    }
+    return roots;
+}
+
+// Deep querySelectorAll：跨所有根的并集（文档序优先，root 收集序次之）。
+function __desireDeepQSA(selector) {
+    var out = [];
+    var roots = __desireCollectRoots();
+    for (var i = 0; i < roots.length; i++) {
+        try {
+            var found = roots[i].querySelectorAll(selector);
+            for (var j = 0; j < found.length; j++) out.push(found[j]);
+        } catch (err) {}
+    }
+    return out;
+}
+
+// 单个根的可见文本拼装：iframe document 走 body.innerText；shadow root 逐叶
+// 收集 innerText（跳过 script/style/template，避免样式表文本污染匹配）。
+function __desireRootText(root) {
+    if (root.body) return root.body.innerText || "";
+    var out = [];
+    (function walk(node) {
+        var kids = node.children || [];
+        for (var i = 0; i < kids.length; i++) {
+            var el = kids[i];
+            var tag = el.tagName;
+            if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "TEMPLATE") continue;
+            if (el.children.length === 0) {
+                var t = (el.innerText !== undefined ? el.innerText : el.textContent) || "";
+                if (t) out.push(t);
+            } else {
+                walk(el);
+            }
+        }
+    })(root);
+    return out.join(" ");
+}
+
+function __desireDeepText() {
+    var roots = __desireCollectRoots();
+    var parts = [];
+    for (var i = 0; i < roots.length; i++) parts.push(__desireRootText(roots[i]));
+    return parts.join("\n");
+}
+
 // Bounding rect in PAGE coordinates: folds in same-origin frame offsets so
 // trusted mouse clicks land on the right spot even inside embeds.
 function __desirePageRect(el) {
@@ -717,8 +807,9 @@ async function __desireWaitForText({text, timeout}) {
     var start = Date.now();
     return await new Promise(function (resolve) {
         function check() {
-            // 大小写不敏感（0.3.2）：页面文案大小写不可控，Agent 按语义给词。
-            var body = (document.body ? document.body.innerText : "").toLowerCase();
+            // 大小写不敏感（0.3.2）；文案可能在 shadow DOM 里渲染（组件库站点），
+            // 用深文本（document + 同源 iframe + open shadow）。
+            var body = __desireDeepText().toLowerCase();
             var needle = (text || "").toLowerCase();
             if (needle && body.indexOf(needle) !== -1) return resolve("Found text");
             if (Date.now() - start > timeout) return resolve("Timeout waiting for text");
@@ -732,7 +823,7 @@ async function __desireWaitForText({text, timeout}) {
 // label) and — for <select> — the first options. Fields get data-desire-ref
 // ids so fill {ref} targets them directly. Use before fillForm-style work.
 async function __desireGetFormFields() {
-    var stale = document.querySelectorAll("[data-desire-ref]");
+    var stale = __desireDeepQSA("[data-desire-ref]");
     for (var s = 0; s < stale.length; s++) {
         try { stale[s].removeAttribute("data-desire-ref"); } catch (err0) {}
     }
@@ -1024,7 +1115,7 @@ async function __desireFillProfile(profile) {
         return null;
     }
     var filled = 0;
-    var fields = document.querySelectorAll("input:not([type=password]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]), textarea");
+    var fields = __desireDeepQSA("input:not([type=password]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]), textarea");
     for (var k = 0; k < fields.length; k++) {
         var el = fields[k];
         if (el.value) continue;

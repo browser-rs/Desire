@@ -43,6 +43,7 @@ DRAG_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>muscle fi
 <div id="dbl">双击目标</div>
 <label style="display:block;margin-top:16px;"><input type="checkbox" id="agree"> 同意条款</label>
 <div role="switch" id="sw" aria-checked="false" tabindex="0">开关</div>
+<div id="shost" style="margin-top:16px;"></div>
 <script>
 window.__log = [];
 var dragging = false;
@@ -55,6 +56,15 @@ document.getElementById('sw').addEventListener('click', function () {
   this.setAttribute('aria-checked', this.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
   window.__log.push('switch:' + this.getAttribute('aria-checked'));
 });
+// 开放 Shadow DOM 组件（组件库站点形态）：通用工具必须能穿透。
+var sr = document.getElementById('shost').attachShadow({ mode: 'open' });
+sr.innerHTML = '<style>.x{color:#c03a1a}</style>' +
+  '<button id="sbtn">影子按钮</button> ' +
+  '<label><input type="checkbox" id="scb"> 影子勾选</label> ' +
+  '<input id="sinput" placeholder="影子输入框"> ' +
+  '<div id="stxt">影子文案出现啦</div>';
+sr.getElementById('sbtn').addEventListener('click', function () { window.__log.push('shadow-click'); });
+sr.getElementById('scb').addEventListener('click', function () { window.__log.push('shadow-check:' + this.checked); });
 </script>
 </body></html>
 """
@@ -145,12 +155,16 @@ class Fake(BaseHTTPRequestHandler):
                 call(9, "readPdf", {"path": f"{self.fix}/probe.pdf"}),
                 call(10, "getPageSnapshot", {}),
                 call(11, "httpRequest", {"url": f"http://127.0.0.1:{API_PORT}/hello"}),
+                call(12, "click", {"text": "影子按钮"}),
+                call(13, "setChecked", {"text": "影子勾选", "checked": True}),
+                call(14, "fill", {"selector": "#sinput", "value": "shadow-fill-ok"}),
+                call(15, "waitForText", {"text": "影子文案出现啦"}),
             ]}, "tool_calls")
-        elif n == 13:
+        elif n == 17:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                 call(0, "exportPageAsPDF", {"path": f"{self.fix}/page.pdf"}),
                 call(1, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
-        elif n == 15:
+        elif n == 19:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                 call(0, "readPdf", {"path": f"{self.fix}/page.pdf"})]}, "tool_calls")
         else:
@@ -251,6 +265,11 @@ def main():
         ok("httpRequest 收到响应", "muscle-http" in joined)
         ok("exportPageAsPDF 落盘", "Saved PDF" in joined)
         ok("页面 PDF 带文本层（readPdf 读到 fixture 文案）", "右键目标" in joined)
+        ok("text 定位穿透 shadow（影子按钮）", "shadow-click" in joined)
+        ok("setChecked 穿透 shadow", "shadow-check:true" in joined)
+        ok("selector deep fill（shadow 输入框）", "Filled" in joined)
+        ok("waitForText 穿透 shadow", "Found text" in joined)
+        ok("快照包含 shadow 元素", "影子按钮" in joined and "影子输入框" in joined)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"

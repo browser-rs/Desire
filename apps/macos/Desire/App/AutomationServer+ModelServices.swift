@@ -43,16 +43,18 @@ extension AutomationServer {
     ) -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let store = app.aiPreference
-        guard !endpoint.isEmpty else { return ["error": "endpoint required"] }
 
         let profileID: UUID
         if let raw, let id = UUID(uuidString: raw) {
+            // 更新语义：字段可选，空值 = 保持原值（与 ep 文档的 `?` 一致——
+            // 曾因"endpoint 必填 + model 无条件覆盖"把只传 model 的调用 400、
+            // 或把缺省 model 静默清空；2026-10-14 E2E 踩出后修正）。
             guard let index = store.profiles.firstIndex(where: { $0.id == id }) else {
                 return ["error": "no such profile"]
             }
             if !name.isEmpty { store.profiles[index].name = name }
-            store.profiles[index].endpoint = endpoint
-            store.profiles[index].model = model
+            if !endpoint.isEmpty { store.profiles[index].endpoint = endpoint }
+            if !model.isEmpty { store.profiles[index].model = model }
             if !models.isEmpty { store.profiles[index].modelList = models }
             if !headers.isEmpty { store.profiles[index].headers = headers }
             if let apiFormat, let f = AIProviderProfile.APIFormat(rawValue: apiFormat) {
@@ -60,6 +62,7 @@ extension AutomationServer {
             }
             profileID = id
         } else {
+            guard !endpoint.isEmpty else { return ["error": "endpoint required (create)"] }
             let created = store.addProfile(name: name, endpoint: endpoint, model: model)
             if let index = store.profiles.firstIndex(where: { $0.id == created.id }) {
                 if !models.isEmpty { store.profiles[index].modelList = models }

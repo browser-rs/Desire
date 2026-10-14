@@ -1891,6 +1891,24 @@ extension BrowserToolProvider {
             return await callAsync(webView, function: "__desireSelect",
                                    args: ["selector": sel ?? "", "value": val, "ref": ref ?? ""])
 
+        case "setChecked":
+            // 幂等勾选（只在与目标不符时点击）+ 读回状态；无参数 checked 时纯读。
+            let cbSelector = args["selector"] as? String
+            let cbRef = args["ref"] as? String
+            let cbText = args["text"] as? String
+            guard cbSelector != nil || cbRef != nil || cbText != nil else {
+                return Self.fail("Provide one of: ref, text, or selector")
+            }
+            var cbArgs: [String: Any] = [
+                "selector": cbSelector ?? "",
+                "ref": cbRef ?? "",
+                "text": cbText ?? "",
+            ]
+            if let wanted = args["checked"] as? Bool {
+                cbArgs["checked"] = wanted
+            }
+            return await callAsync(webView, function: "__desireSetChecked", args: cbArgs)
+
         case "scroll":
             let x = args["x"] as? Double ?? 0
             let y = args["y"] as? Double ?? 0

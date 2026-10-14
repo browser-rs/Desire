@@ -189,6 +189,28 @@ async function __desireSelect({selector, value, ref}) {
     return "Selected: " + (match.text.trim() || match.value);
 }
 
+async function __desireSetChecked({selector, ref, text, checked}) {
+    var el = await __desireResolveEl(selector, ref, text || null);
+    if (!el) return "Element not found";
+    function isBox() {
+        return (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio")) ||
+            el.getAttribute("role") === "checkbox" || el.getAttribute("role") === "switch";
+    }
+    if (!isBox()) return "Not a checkbox/radio/switch: " + el.tagName + (el.type ? "[" + el.type + "]" : "");
+    function state() {
+        if (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio")) return !!el.checked;
+        return el.getAttribute("aria-checked") === "true";
+    }
+    if (typeof checked === "undefined" || checked === null || checked === "") {
+        return state() ? "Checked" : "Unchecked";
+    }
+    var want = checked === true || checked === "true";
+    if (state() === want) return "Already " + (want ? "checked" : "unchecked");
+    el.click();  // 原生点击路径——站点自己的处理器才会触发
+    var now = state();
+    return (now === want ? "Now " : "Failed to set — still ") + (now ? "checked" : "unchecked");
+}
+
 async function __desireHover({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) return "Element not found";
@@ -333,6 +355,11 @@ async function __desireSnapshot({maxChars, maxElements, ignoreSels}) {
         entry.view = inView ? 1 : 0;   // 0 = below/above the fold
         var pressed = e.getAttribute("aria-pressed");
         if (pressed !== null) entry.pressed = pressed;
+        // 勾选态对 checkbox/radio/switch 可见——模型据此决定 setChecked，
+        // 不再盲点未知状态的选择框。
+        if (e.type === "checkbox" || e.type === "radio") entry.checked = !!e.checked;
+        var ariaChecked = e.getAttribute("aria-checked");
+        if (ariaChecked !== null) entry.checked = ariaChecked === "true";
         elements.push(entry);
     }
 

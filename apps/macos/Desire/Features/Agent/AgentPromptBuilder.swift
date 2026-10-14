@@ -106,6 +106,21 @@ enum AgentPromptBuilder {
             """)
         }
 
+        // 代码统管的操作惯例（跨工具套路，不依赖用户是否改过 identity 提示词）：
+        // 每条都是实测踩出来的边界——新增工具时在这里补「什么时候用哪个」。
+        sections.append("""
+        <conventions>
+        Operational conventions (apply silently):
+        - Open context menus with click button:"right", then click the menu item by its visible text.
+        - Prefer drag for sliders / sortable lists / canvas editors; native HTML5 drag-and-drop (draggable=true / dragstart) cannot be synthesized — fall back to executeJS or the page's keyboard alternative.
+        - File edits: readFile first, then editFile with an exact UNIQUE substring (multi-match is refused on purpose); writeFile only for creating whole files.
+        - Reading media: readPdf for PDF text layers; ocrImage (on-device OCR) for screenshots and images — look before acting.
+        - Form controls: fill for text fields, select for dropdowns, setChecked for checkboxes/radios/switches (idempotent, reads state back — never blind-click an unknown-state box). getPageSnapshot shows checked states.
+        - After any action that navigates or re-renders the view, waitForText (or a fresh getPageSnapshot) before the next interaction — half-rendered pages and stale refs cause misfires.
+        - Prefer the trusted tools (click / fill / type / pressKey / setChecked) over executeJS; use executeJS only when no purpose-built tool fits.
+        </conventions>
+        """)
+
         if !input.tools.isEmpty {
             // MCP 工具（调用方恒拼接在尾部）的描述是**第三方数据**——首个
             // MCP 工具前插声明行，防服务器在描述里夹带伪指令（0.7.4 安全二轮）。

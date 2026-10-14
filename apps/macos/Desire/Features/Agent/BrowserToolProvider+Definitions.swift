@@ -711,6 +711,15 @@ extension BrowserToolProvider {
                 ], required: ["value"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setChecked", description: "Set a checkbox / radio / switch to a SPECIFIC state — idempotent (clicks only when the state differs), and it reads the state back. Use this instead of click whenever you need 'make sure X is checked' semantics; omit checked to just read the current state. getPageSnapshot shows each checkbox/radio's checked value.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "ref": AgentJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
+                    "selector": AgentJSONSchemaValue(type: "string", description: "CSS selector (fallback)"),
+                    "text": AgentJSONSchemaValue(type: "string", description: "Visible label/aria-label of the box"),
+                    "checked": AgentJSONSchemaValue(type: "boolean", description: "Desired state; omit to just read"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "scroll", description: "Scroll the page to coordinates",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "x": AgentJSONSchemaValue(type: "number", description: "Horizontal scroll position"),

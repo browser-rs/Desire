@@ -1,8 +1,14 @@
 ## [Unreleased]
+### Changed
+
+- **操作惯例补条（实测沉淀）**：重站首访的风控局域页可能"完成但 body 近乎为空"或卡在中途解析（掘金实测：complete/3 节点 或 loading 卡住，刷新一次即完整渲染）——惯例层新增"先重载一次再判定页面坏了"；掘金此项在新旧两个构建上表现一致，确认非回归。
+
 ### Fixed
 
 - **模型服务更新语义**（E2E 踩出）：`POST /ai/profiles` 更新分支改为与文档一致的"字段可选、空值保持原值"——此前 endpoint 必填（只传 model 的调用被 400）、且 model 会被缺省值**静默清空**。
 - **`<a download>` 与附件下载失效**（execution-e2e 逼出的真 bug，波及所有站点的下载按钮）：导航策略没接 `shouldPerformDownload`（点了只会导航不下载）、`navigationAction:didBecome download:` 未实现（属性型下载拿不到 delegate 给 destination，WebKit 数毫秒内失败删档）、`Content-Disposition: attachment` 但 MIME 可展示的响应会被直接当页面打开——三处一并修复，统一走 WKDownload → DownloadStore 正常链路。
+- **工具助手热补种（实机偶发自愈）**：极少数文档形态下隔离世界的 `__desire*` 注入会缺失，`getPageSnapshot` 等直接报 `Can't find variable`（实机观测一次，挂起恢复 / document.write 重置均不可复现，机制未钉死）——现在 `callAsync` 收口检测该 ReferenceError 后**就地重注入 dom-tools 并自动重试一次**，把罕见硬失败变成透明自愈（仍失败则按原错误返回并附标记，日志留痕）。
+
 
 
 ### Added

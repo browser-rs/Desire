@@ -1,6 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 import WebKit
+import os
 
 @MainActor
 class BrowserToolProvider {
@@ -89,6 +90,29 @@ class BrowserToolProvider {
             let detail = ns.userInfo["WKJavaScriptExceptionMessage"] as? String
                 ?? ns.userInfo[NSLocalizedFailureReasonErrorKey] as? String
                 ?? error.localizedDescription
+            // 隔离世界的注入在极少数文档形态下会缺失（实机观测：reddit 风控局域页
+            // 的一次会话里 __desireSnapshot 找不到；挂起恢复、document.write 重置
+            // 均无法复现，机制未钉死）。就地热补种 dom-tools 再试一次——把
+            // ReferenceError 变成透明自愈；仍失败则按原错误返回并附标记。
+            let effectiveWorld = world ?? WebView.agentToolWorld
+            if detail.contains("Can't find variable") && detail.contains("__desire"),
+               effectiveWorld == WebView.agentToolWorld {
+                Log.agent.info("dom-tools helpers missing on \(wv.url?.absoluteString ?? "?", privacy: .public) — re-injecting on demand")
+                let source = UserScriptLoader.load("dom-tools")
+                _ = try? await wv.callAsyncJavaScript(source + "\nreturn true;",
+                                                      arguments: [:], in: nil, contentWorld: effectiveWorld)
+                let retried: Any?
+                do {
+                    retried = try await wv.callAsyncJavaScript(body, arguments: args, in: nil,
+                                                               contentWorld: effectiveWorld)
+                } catch {
+                    return "Error: \(detail) [after dom-tools re-injection]"
+                }
+                if let s = retried as? String { return s }
+                if let n = retried as? NSNumber { return n.stringValue }
+                if retried != nil { return "\(retried!)" }
+                return ""
+            }
             return "Error: \(detail)"
         }
     }

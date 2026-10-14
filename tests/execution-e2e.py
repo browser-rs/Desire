@@ -413,6 +413,14 @@ def main():
                 Path(f).unlink(missing_ok=True)
         except Exception:
             pass
+        # 下载**条目**也要清（此前只删了 ~/Downloads 里的文件，下载面板里会
+        # 留存历次 muscle-dl 记录，实机测试时被抓包）。
+        try:
+            for item in bridge("GET", "/downloads").get("downloads", []):
+                if "muscle-dl" in (item.get("file") or ""):
+                    bridge("POST", "/downloads/remove", {"id": item["id"]})
+        except Exception:
+            pass
         try:
             if prior_clipboard:
                 subprocess.run(["pbcopy"], input=prior_clipboard.encode(), check=False)

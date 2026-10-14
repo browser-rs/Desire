@@ -118,6 +118,7 @@ enum AgentPromptBuilder {
         - Form controls: fill for text fields, select for dropdowns, setChecked for checkboxes/radios/switches (idempotent, reads state back — never blind-click an unknown-state box). getPageSnapshot shows checked states.
         - After any action that navigates or re-renders the view, waitForText (or a fresh getPageSnapshot) before the next interaction — half-rendered pages and stale refs cause misfires.
         - Prefer the trusted tools (click / fill / type / pressKey / setChecked) over executeJS; use executeJS only when no purpose-built tool fits.
+        - A first visit to a heavy anti-bot site can finish with a near-empty body or stall mid-parse (risk-control interstitials; e.g. 掘金): reload once before concluding the page is broken — the second load usually renders fully.
         </conventions>
         """)
 

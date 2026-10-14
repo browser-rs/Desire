@@ -38,7 +38,7 @@ extension BrowserToolProvider {
                 ], required: ["text"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "readClipboard", description: "Read text from the system clipboard. Use when the user references copied content (\"打开剪贴板里的链接\", \"总结我复制的东西\"). Requires approval.",
+                name: "readClipboard", description: "Read the system clipboard: text comes back directly; when it holds an IMAGE (screenshots, copied charts) it is saved to a PNG and the path is returned — pair with ocrImage or attach it. Use when the user says 「剪贴板里的…」. Requires approval.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -691,6 +691,13 @@ extension BrowserToolProvider {
                 description: "Save the current page (full scrollable content, real text layer — not an image) as a PDF: invoices, receipts, reports, docs. Returns the saved path; pair with readPdf to read it back or hand the file to the user. Reads the RENDERED page — lazy-loaded content not yet scrolled in may be missing.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "path": AgentJSONSchemaValue(type: "string", description: "Destination path (workspace / user folders). Omit → Downloads/<page title>.pdf"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "exportPageAsWebArchive",
+                description: "Save the page as a .webarchive (WebKit archive: DOM + subresources, text stays selectable, images kept) — higher fidelity than PDF for archiving evidence / receipts / docs before they change, and re-importable in any WebKit browser. Returns the saved path.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Destination path (workspace / user folders). Omit → Downloads/<page title>.webarchive"),
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

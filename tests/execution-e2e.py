@@ -195,13 +195,15 @@ class Fake(BaseHTTPRequestHandler):
                 # 不换页（后续还要读 window.__log）。
                 call(20, "click", {"selector": "#dl"}),
                 call(21, "readPageStorage", {"what": "cookies"}),
+                call(22, "readClipboard", {}),
             ]}, "tool_calls")
-        elif n == 23:
+        elif n == 24:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                 call(0, "waitForDownload", {"filenameContains": "muscle-dl", "timeoutSec": 60}),
                 call(1, "exportPageAsPDF", {"path": f"{self.fix}/page.pdf"}),
-                call(2, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
-        elif n == 26:
+                call(2, "exportPageAsWebArchive", {"path": f"{self.fix}/page.webarchive"}),
+                call(3, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
+        elif n == 28:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                 call(0, "readPdf", {"path": f"{self.fix}/page.pdf"})]}, "tool_calls")
         else:
@@ -249,6 +251,14 @@ def main():
     assert active_now == temp_id, f"激活未生效（{active_now}）——已中止，避免误发真实网关"
     print("临时档案已激活:", temp_id[:8])
 
+    import subprocess
+    prior_clipboard = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout
+    try:
+        subprocess.run(["osascript", "-e",
+                        f'set the clipboard to (read (POSIX file "{fix_dir}/probe.png") as «class PNGf»)'],
+                       check=True, capture_output=True)
+    except Exception as exc:
+        print("剪贴板设置失败（跳过该项断言）:", exc)
     try:
         # 独立前台标签装 fixture（/new-tab 用 activeTabManager；新标签即被选中）。
         bridge("POST", "/new-tab", {"url": f"http://127.0.0.1:{API_PORT}/fixture"})
@@ -315,6 +325,19 @@ def main():
         ok("waitForDownload 确认完成", "Download completed: muscle-dl" in joined)
         dl_file = Path.home() / "Downloads" / "muscle-dl.txt"
         ok("下载文件真实落盘", dl_file.exists() and "muscle-download-ok" in dl_file.read_text(errors="ignore"))
+        ok("readClipboard 存图", "Clipboard image saved" in joined)
+        import glob as _glob
+        clip_files = _glob.glob(str(Path.home() / "Downloads" / "clipboard-*.png"))
+        ok("剪贴板图真的落盘", len(clip_files) > 0)
+        arch_file = fix_dir / "page.webarchive"
+        arch_ok = False
+        if arch_file.exists() and arch_file.stat().st_size > 2_000:
+            try:
+                import plistlib
+                arch_ok = "muscle fixture" in str(plistlib.loads(arch_file.read_bytes()))
+            except Exception:
+                arch_ok = False
+        ok("WebArchive 落盘且含页面数据", arch_ok)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"
@@ -348,6 +371,19 @@ def main():
             (Path.home() / "Downloads" / "muscle-dl.txt").unlink(missing_ok=True)
         except Exception:
             pass
+        try:
+            for f in _glob.glob(str(Path.home() / "Downloads" / "clipboard-*.png")):
+                Path(f).unlink(missing_ok=True)
+        except Exception:
+            pass
+        try:
+            if prior_clipboard:
+                subprocess.run(["pbcopy"], input=prior_clipboard.encode(), check=False)
+            else:
+                subprocess.run(["osascript", "-e", 'set the clipboard to ""'], check=False, capture_output=True)
+        except Exception:
+            pass
+        print("（剪贴板已按原文恢复/清空——测试期间占用了它）")
         import shutil
         shutil.rmtree(fix_dir, ignore_errors=True)
         server.shutdown()

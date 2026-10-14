@@ -12,6 +12,8 @@
 - **取数与存档二件**：新增 `httpRequest` 工具——直连 HTTP(S) API（汇率/天气/搜索/Webhook/JSON 下载），返回状态码 + 类型 + 正文（封顶截断），网络请求按访问等级走常规审批；新增 `exportPageAsPDF`——整页存 PDF（含文本层，非截图），发票/回执/报表一键存档，缺省落到下载目录并按页面标题命名，配 `readPdf` 可直接读回。运营每日采集提示词补「报表只有 PDF/截图时用 readPdf / ocrImage 实读数字」；`tests/execution-e2e.py` 扩到 16 项断言（本地靶服务验 httpRequest、导出→读回验证 PDF 文本层）。
 - **通用工具深穿透（开放 Shadow DOM + 同源 iframe）**：整条链路一致打通——元素解析（ref/text/selector 三路）、click / fill / setChecked / select / hover / drag 的定位、getPageSnapshot、getFormFields、waitForText 全部**递归穿透**开放 Shadow DOM 与同源 iframe（组件库 / 企业后台站点不再"看不见控件"）；`setChecked` 按文案命中 `<label>` 时自动向内找 checkbox/radio；快照为无文案的复选框回退最近 label 文本。`tests/execution-e2e.py` 借 fixture 影子组件扩到 **21 项断言**（文案定位 / 勾选 / 填空 / 等文案 / 快照五路穿透全验）。
 - **干活补件五连**：`waitForSelector`（深穿透等元素出现，动态渲染表单先等再动手）；`waitForDownload`（"下载并确认"原语——轮询到终态，回文件名/大小/落盘路径）；`notify`（向用户推系统通知，走通知分级：紧急直推、例行过免打扰与每日预算、溢出合并摘要）；`readPageStorage`（站点存储盘点：默认只列键名+长度，看单个值需显式传 key，httpOnly 不可见已注明）；`copyImageToClipboard`（图片文件进剪贴板）。execution-e2e 扩到 27 项断言（fixture 改 HTTP 同源伺服，含真实下载闭环）。
+- **接收与归档两件**：`readClipboard` 支持**图片**剪贴板——用户复制了截图/图表说「剪贴板里的这张图」时，存成 PNG 并回路径（配 ocrImage 直接读，或交给发布流程）；新增 `exportPageAsWebArchive`——整页 `.webarchive`（DOM + 子资源，文本可选中、图片保留、可再导入 WebKit 系浏览器），保真归档发票/回执/证据页，比 PDF 更适合"存档后还要再看"。DPP 规范补口径注记：通用工具默认深穿透、声明式提取坚持 `>>>` 显式语义，两者刻意并存勿互相"对齐"。execution-e2e 扩到 **30 项断言**（剪贴板图片落盘、webarchive 落盘并可解析回页面标题）。
+
 
 
 

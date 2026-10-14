@@ -78,7 +78,7 @@ enum ToolRisk: Int, Comparable {
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Document reading & export (local OCR / PDF text layer / page→PDF writes a file only)
-        "readPdf", "ocrImage", "exportPageAsPDF",
+        "readPdf", "ocrImage", "exportPageAsPDF", "exportPageAsWebArchive",
         // 运营工作台简报/周报（只读；promotionSave/Metrics/Lesson 写本地状态走默认 sideEffect）
         "promotionBrief", "promotionReport", "promotionPreflight",
         // Waiting / timing (pure observation)

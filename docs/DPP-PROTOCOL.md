@@ -147,6 +147,12 @@ DPP 管**能力**发现与执行。
 （WebKit 的 querySelector 不穿透 shadow boundary，Desire 在宿主侧逐段解析）。
 字段相对 item 的 shadowRoot 用前导 `>>>`：`{ "price": ">>> .p" }`。
 
+> **口径注（2026-10）**：应用内的**通用交互工具**（click / fill / setChecked /
+> waitForText / 快照等）已默认**递归穿透**开放 shadow DOM 与同源 iframe——
+> 那是"碰到人眼可见的控件"的交互需求。DPP **声明式提取**仍保持"写什么查什么"
+> 的可预期语义：不带 `>>>` 只查当前根，跨 shadow 边界要显式写 `>>>`。
+> 两种口径并存是刻意的，勿互相"对齐"。
+
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `protocol` | string | ✅ | 版本标识，当前 `"desire/1"`（兼容读取 `protocolVersion`） |

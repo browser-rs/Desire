@@ -1869,11 +1869,34 @@ extension BrowserToolProvider {
             // Side-effect tier on purpose: the clipboard may hold sensitive
             // content, so ToolRisk.classify leaves this at .sideEffect and
             // the user is asked (with an Always-Allow option) first.
-            let text = NSPasteboard.general.string(forType: .string) ?? ""
-            if text.isEmpty { return "Clipboard is empty (or holds non-text content)" }
-            return text.count > 2000
-                ? String(text.prefix(2000)) + "…[truncated]"
-                : text
+            let clipboardBoard = NSPasteboard.general
+            let text = clipboardBoard.string(forType: .string) ?? ""
+            if !text.isEmpty {
+                return text.count > 2000
+                    ? String(text.prefix(2000)) + "…[truncated]"
+                    : text
+            }
+            // 图片剪贴板（"我复制的这张图"）：存成 PNG 给 ocrImage/白板/发布用。
+            if let clipboardImage = NSImage(pasteboard: clipboardBoard) {
+                let clipDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+                let clipStamp = DateFormatter()
+                clipStamp.dateFormat = "yyyyMMdd-HHmmss"
+                let clipTarget = clipDir.appendingPathComponent("clipboard-\(clipStamp.string(from: Date())).png")
+                guard let tiff = clipboardImage.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    return "Clipboard holds an image but it could not be encoded"
+                }
+                do {
+                    try png.write(to: clipTarget)
+                    let w = Int(clipboardImage.size.width), h = Int(clipboardImage.size.height)
+                    return "Clipboard image saved: \(clipTarget.path) (\(w)x\(h)) — read it with ocrImage, or hand it to the user"
+                } catch {
+                    return Self.fail("Could not save clipboard image: \(error.localizedDescription)")
+                }
+            }
+            return "Clipboard is empty (or holds unsupported content)"
 
         case "fill":
             guard let val = args["value"] as? String else { return Self.fail("Missing value") }
@@ -2200,6 +2223,39 @@ extension BrowserToolProvider {
                     at: pdfDest.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try pdfData.write(to: pdfDest)
                 return "Saved PDF (\(pdfData.count) bytes) → \(pdfDest.path)"
+            } catch {
+                return Self.fail("Write failed: \(error.localizedDescription)")
+            }
+
+        case "exportPageAsWebArchive":
+            // 整页 .webarchive（DOM+资源，保真度高于 PDF，可再导入 WebKit 系浏览器）。
+            let archiveData: Data = await withCheckedContinuation { continuation in
+                webView.createWebArchiveData { result in
+                    switch result {
+                    case .success(let data): continuation.resume(returning: data)
+                    case .failure: continuation.resume(returning: Data())
+                    }
+                }
+            }
+            guard !archiveData.isEmpty else { return Self.fail("Web archive capture failed") }
+            let archiveDest: URL
+            if let rawArchivePath = args["path"] as? String, !rawArchivePath.isEmpty {
+                switch AgentWorkspace.shared.resolve(rawArchivePath, write: true) {
+                case .denied(let reason): return reason
+                case .granted(let url): archiveDest = url
+                }
+            } else {
+                let title = (webView.title?.isEmpty == false ? webView.title! : "page")
+                let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+                archiveDest = dir.appendingPathComponent("\(FilePathing.sanitizeFileName(title)).webarchive")
+            }
+            do {
+                try FileManager.default.createDirectory(
+                    at: archiveDest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try archiveData.write(to: archiveDest)
+                let kb = ByteCountFormatter.string(fromByteCount: Int64(archiveData.count), countStyle: .file)
+                return "Saved web archive (\(kb)) → \(archiveDest.path)"
             } catch {
                 return Self.fail("Write failed: \(error.localizedDescription)")
             }

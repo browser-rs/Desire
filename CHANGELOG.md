@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **集中搜索面板空查询默认态**（0.7.14 验收口径补全）：面板打开即列出打开标签（与 "Open Tabs" 分组同款行）——不用先想关键词就有可点结果；输入关键词后切换到四源过滤结果。
+
 ### Fixed
 
 - **FindBar 修复**（0.7.14 跨标签查找批）：popover 行点击的闭包引用改为不可变捕获（此前 @State 闭包内引用外层可变状态，行为不可靠）；FindBar 的 onScanOtherTabs/otherTabMatches 等新参数全部带默认值——嵌入式精简形态不受影响。

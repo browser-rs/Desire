@@ -124,22 +124,44 @@ struct SearchEverywherePanel: View {
         .padding(.vertical, 10)
     }
 
+    /// 空查询默认结果 = 打开标签（验收口径 0.7.14：面板打开即有用，不用先想关键词）。
+    private var defaultTabItems: [SearchEverywhere.Item] {
+        tabManager.tabs.enumerated().map { idx, tab in
+            .init(source: .tab, id: tab.id.uuidString,
+                  title: tab.displayTitle,
+                  url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
+        }
+    }
+
     @ViewBuilder
     private var results: some View {
         if result.isEmpty {
-            VStack(spacing: 8) {
-                Spacer()
-                Image(systemName: query.isEmpty ? "magnifyingglass" : "questionmark.square")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.tertiary)
-                Text(query.isEmpty
-                     ? String(localized: "Type to search across tabs, history, bookmarks and reading list")
-                     : String(localized: "No matches"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Spacer()
+            if query.trimmingCharacters(in: .whitespaces).isEmpty, !defaultTabItems.isEmpty {
+                // 空查询默认态：直接列出打开标签（与"Open Tabs"分组同款行）。
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        group("Open Tabs", defaultTabItems.map {
+                            SearchEverywhere.Hit(source: .tab, id: $0.id,
+                                                 title: $0.title, url: $0.url,
+                                                 matchedIn: "title")
+                        }, systemImage: "tab")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "questionmark.square")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.tertiary)
+                    Text("No matches")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
